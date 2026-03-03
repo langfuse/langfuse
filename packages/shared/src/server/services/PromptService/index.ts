@@ -1,9 +1,9 @@
 import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis, Cluster } from "ioredis";
+import { randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
-import { safeMultiDel } from "../../redis/redis";
 import {
   PromptGraph,
   PromptParams,
@@ -142,7 +142,8 @@ export class PromptService {
     params: PromptParams,
   ): Promise<PromptResult | null> {
     try {
-      const key = this.getCacheKey(params);
+      const key = await this.getCacheKey(params);
+      if (!key) return null;
       const value = await this.redis?.getex(key, "EX", this.ttlSeconds);
 
       if (value) return JSON.parse(value) as PromptResult;
@@ -155,11 +156,10 @@ export class PromptService {
 
   private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
     try {
-      const keyIndexKey = this.getKeyIndexKey(params);
-      const key = this.getCacheKey(params);
+      const key = await this.getCacheKey(params);
+      if (!key) return;
       const value = JSON.stringify(params.prompt);
 
-      await this.redis?.sadd(keyIndexKey, key);
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
       this.logError("Error caching prompt", e);
@@ -221,7 +221,7 @@ export class PromptService {
   private getLockKey(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
-    // Important to *pre*fix LOCK as otherwise it would be deleted by deleteKeysByPrefix
+    // Keep lock key outside the prompt cache namespace.
     return `LOCK:prompt:${params.projectId}`;
   }
 
@@ -230,45 +230,51 @@ export class PromptService {
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
-    const keyIndexKey = this.getKeyIndexKey(params);
-    const keys = await this.redis?.smembers(keyIndexKey);
-
-    /*
-     * Previously, the cache key index was based on both projectId and promptName.
-     * Now with prompt composability, we only use projectId for the key index.
-     * When invalidating the cache, we delete all keys for a projectId.
-     * For backwards compatibility, we also clear any existing entries in the old
-     * key index format (projectId + promptName) to ensure consistent caching.
-     */
-    const legacyKeyIndexKey = `${keyIndexKey}:${params.promptName}`;
-    const legacyKeys = await this.redis?.smembers(legacyKeyIndexKey);
-
-    // Delete all keys for the prefix and the key index using safe multi-delete
-    const keysToDelete = [
-      ...(keys ?? []),
-      keyIndexKey,
-      ...(legacyKeys ?? []),
-      legacyKeyIndexKey,
-    ];
-    await safeMultiDel(this.redis, keysToDelete);
+    // Rotate the epoch token to move all prompt reads/writes to a fresh namespace.
+    // Old keys remain untouched and naturally expire via TTL.
+    await this.redis?.set(this.getEpochKey(params), this.newEpochToken());
   }
 
-  private getCacheKey(params: PromptParams): string {
-    const prefix = this.getCacheKeyPrefix(params);
+  private async getCacheKey(params: PromptParams): Promise<string | null> {
+    const epoch = await this.getOrCreateEpoch(params);
+    if (!epoch) return null;
+
+    const prefix = this.getCacheKeyPrefix(params, epoch);
 
     return `${prefix}:${params.version ?? params.label}`;
   }
 
   private getCacheKeyPrefix(
     params: Pick<PromptParams, "projectId" | "promptName">,
+    epoch: string,
   ): string {
-    return `prompt:${params.projectId}:${params.promptName}`;
+    return `prompt:${params.projectId}:${epoch}:${params.promptName}`;
   }
 
-  private getKeyIndexKey(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): string {
-    return `prompt_key_index:${params.projectId}`;
+  private getEpochKey(params: Pick<PromptParams, "projectId">): string {
+    // Important: epoch is project-scoped (not prompt-scoped) because resolved prompts
+    // can include transitive dependencies across multiple prompt names.
+    return `prompt_cache_epoch:${params.projectId}`;
+  }
+
+  private newEpochToken(): string {
+    // 80 bits of entropy in a compact URL-safe string (~14 chars).
+    return randomBytes(10).toString("base64url");
+  }
+
+  private async getOrCreateEpoch(
+    params: Pick<PromptParams, "projectId">,
+  ): Promise<string | null> {
+    const epochKey = this.getEpochKey(params);
+
+    const currentEpoch = await this.redis?.get(epochKey);
+    if (currentEpoch) return currentEpoch;
+
+    const newEpoch = this.newEpochToken();
+    await this.redis?.set(epochKey, newEpoch, "NX");
+
+    // Return the winner value in case multiple requests initialize concurrently.
+    return (await this.redis?.get(epochKey)) ?? newEpoch;
   }
 
   public async buildAndResolvePromptGraph(params: {

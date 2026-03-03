@@ -536,28 +536,37 @@ export const promptRouter = createTRPCRouter({
           );
         }
 
-        // Lock and invalidate cache for all prompts
         const promptService = new PromptService(ctx.prisma, redis);
         const promptNames = [...new Set(prompts.map((p) => p.name))];
+        const lockedPromptNames: string[] = [];
+        try {
+          for (const name of promptNames) {
+            await promptService.lockCache({ projectId, promptName: name });
+            lockedPromptNames.push(name);
+          }
 
-        for (const name of promptNames) {
-          await promptService.lockCache({ projectId, promptName: name });
-          await promptService.invalidateCache({ projectId, promptName: name });
-        }
-
-        // Delete all prompts with the given id
-        await ctx.prisma.prompt.deleteMany({
-          where: {
-            projectId,
-            id: {
-              in: prompts.map((p) => p.id),
+          // Delete all prompts with the given id
+          await ctx.prisma.prompt.deleteMany({
+            where: {
+              projectId,
+              id: {
+                in: prompts.map((p) => p.id),
+              },
             },
-          },
-        });
+          });
 
-        // Unlock cache
-        for (const name of promptNames) {
-          await promptService.unlockCache({ projectId, promptName: name });
+          // Rotate cache epoch for every touched prompt name after successful commit.
+          await Promise.all(
+            promptNames.map((name) =>
+              promptService.invalidateCache({ projectId, promptName: name }),
+            ),
+          );
+        } finally {
+          await Promise.all(
+            lockedPromptNames.map((name) =>
+              promptService.unlockCache({ projectId, promptName: name }),
+            ),
+          );
         }
 
         // Trigger webhooks for prompt deletion
@@ -714,16 +723,16 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
         await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
-
-        // Execute transaction
-        await ctx.prisma.$transaction(transaction);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        try {
+          // Execute transaction
+          await ctx.prisma.$transaction(transaction);
+          // Rotate cache epoch only after successful commit.
+          await promptService.invalidateCache({ projectId, promptName });
+        } finally {
+          await promptService.unlockCache({ projectId, promptName });
+        }
 
         // Trigger webhooks for prompt version deletion
         await promptChangeEventSourcing(
@@ -901,16 +910,16 @@ export const promptRouter = createTRPCRouter({
           );
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
         await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
-
-        // Execute transaction
-        await ctx.prisma.$transaction(toBeExecuted);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        try {
+          // Execute transaction
+          await ctx.prisma.$transaction(toBeExecuted);
+          // Rotate cache epoch only after successful commit.
+          await promptService.invalidateCache({ projectId, promptName });
+        } finally {
+          await promptService.unlockCache({ projectId, promptName });
+        }
 
         // Trigger webhooks for prompt label update
         const updatedPrompts = await ctx.prisma.prompt.findMany({
@@ -1048,25 +1057,26 @@ export const promptRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
         await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
-
-        await ctx.prisma.prompt.updateMany({
-          where: {
-            name: promptName,
-            projectId,
-          },
-          data: {
-            tags: {
-              set: input.tags,
+        try {
+          await ctx.prisma.prompt.updateMany({
+            where: {
+              name: promptName,
+              projectId,
             },
-          },
-        });
+            data: {
+              tags: {
+                set: input.tags,
+              },
+            },
+          });
 
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+          // Rotate cache epoch only after successful commit.
+          await promptService.invalidateCache({ projectId, promptName });
+        } finally {
+          await promptService.unlockCache({ projectId, promptName });
+        }
 
         // Trigger webhooks for prompt tag update
 

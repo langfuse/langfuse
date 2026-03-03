@@ -187,18 +187,24 @@ export const createPrompt = async ({
     create.push(...updatesTags);
   }
 
-  // Lock and invalidate cache for _all_ versions and labels of the prompt name
   await promptService.lockCache({ projectId, promptName: name });
-  await promptService.invalidateCache({ projectId, promptName: name });
 
-  // Create prompt and update previous prompt versions
-  const [createdPrompt] = (await prisma.$transaction(create)) as [
-    Prompt,
-    ...PromptDependency[],
-  ];
+  const createdPrompt = await (async () => {
+    try {
+      // Create prompt and update previous prompt versions
+      const [createdPrompt] = (await prisma.$transaction(create)) as [
+        Prompt,
+        ...PromptDependency[],
+      ];
 
-  // Unlock cache
-  await promptService.unlockCache({ projectId, promptName: name });
+      // Rotate cache epoch only after successful commit.
+      await promptService.invalidateCache({ projectId, promptName: name });
+
+      return createdPrompt;
+    } finally {
+      await promptService.unlockCache({ projectId, promptName: name });
+    }
+  })();
 
   const updatedPrompts = await prisma.prompt.findMany({
     where: {

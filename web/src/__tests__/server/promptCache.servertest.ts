@@ -38,6 +38,7 @@ describe("PromptService", () => {
     } as unknown as jest.Mocked<PrismaClient>;
 
     mockRedis = {
+      get: jest.fn().mockResolvedValue("epoch-1"),
       getex: jest.fn(),
       set: jest.fn(),
       setex: jest.fn(),
@@ -94,15 +95,10 @@ describe("PromptService", () => {
       );
 
       expect(mockRedis.set).toHaveBeenCalledWith(
-        "prompt:project1:testPrompt:1",
+        "prompt:project1:epoch-1:testPrompt:1",
         JSON.stringify(mockPrompt),
         "EX",
         300,
-      );
-
-      expect(mockRedis.sadd).toHaveBeenCalledWith(
-        "prompt_key_index:project1",
-        "prompt:project1:testPrompt:1",
       );
     });
 
@@ -150,19 +146,15 @@ describe("PromptService", () => {
   });
 
   describe("invalidateCache", () => {
-    it("should call deleteKeysByPrefix with correct prefix", async () => {
+    it("should rotate the epoch token for the project", async () => {
       await promptService.invalidateCache({
         projectId: "project1",
         promptName: "testPrompt",
       });
 
-      // Legacy index
-      expect(mockRedis.smembers).toHaveBeenCalledWith(
-        "prompt_key_index:project1:testPrompt",
-      );
-
-      expect(mockRedis.smembers).toHaveBeenCalledWith(
-        "prompt_key_index:project1",
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        "prompt_cache_epoch:project1",
+        expect.any(String),
       );
     });
   });
@@ -306,8 +298,8 @@ describe("PromptService", () => {
   });
 
   describe("invalidateCache with Redis errors", () => {
-    it("should throw an error if Redis.eval fails", async () => {
-      mockRedis.smembers.mockRejectedValue(new Error("Redis error"));
+    it("should throw an error if Redis.set fails", async () => {
+      mockRedis.set.mockRejectedValue(new Error("Redis error"));
 
       await expect(
         promptService.invalidateCache({
