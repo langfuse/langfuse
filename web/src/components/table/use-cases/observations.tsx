@@ -1225,7 +1225,7 @@ export default function ObservationsTable({
       columns,
       filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1291,7 +1291,7 @@ export default function ObservationsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,

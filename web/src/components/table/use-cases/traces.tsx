@@ -1250,7 +1250,7 @@ export default function TracesTable({
       columns,
       filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const rows = useMemo(() => {
@@ -1307,7 +1307,7 @@ export default function TracesTable({
           <DataTableToolbar
             columns={columns}
             filterWithAI
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,

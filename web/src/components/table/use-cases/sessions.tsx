@@ -757,7 +757,7 @@ export default function SessionsTable({
       columns,
       filterColumnDefinition: sessionFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
@@ -765,7 +765,7 @@ export default function SessionsTable({
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           actionButtons={[
             Object.keys(selectedRows).filter((sessionId) =>
               sessions.data?.sessions.map((s) => s.id).includes(sessionId),

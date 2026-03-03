@@ -821,7 +821,7 @@ export default function ScoresTable({
       columns,
       filterColumnDefinition: scoreFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
@@ -833,7 +833,7 @@ export default function ScoresTable({
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
