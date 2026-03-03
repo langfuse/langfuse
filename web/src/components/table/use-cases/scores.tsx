@@ -16,6 +16,7 @@ import {
   scoreFilterConfig,
   SCORE_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/scores-config";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -291,6 +292,10 @@ export default function ScoresTable({
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
       disableUrlPersistence,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: {
+        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+      },
     },
   );
 

@@ -15,6 +15,7 @@ import {
   sessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/sessions-config";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
@@ -242,6 +243,10 @@ export default function SessionsTable({
     newFilterOptions,
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: {
+        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+      },
     },
   );
 
