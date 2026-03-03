@@ -10,8 +10,7 @@ type ExperimentCoreData = {
   metadata: Record<string, string>;
   prompts: Array<[string, number | null]>;
   datasetId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  startTime: Date;
   itemCount: number;
   errorCount: number;
 };
