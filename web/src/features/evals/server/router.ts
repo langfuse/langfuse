@@ -247,6 +247,17 @@ const validateEvalTemplateActivation = async ({
     });
   }
 
+  if (modelConfig.config.apiKey.status === "ERROR") {
+    const keyErrorMessage =
+      modelConfig.config.apiKey.statusMessage ??
+      "The LLM connection used by this evaluator is in an error state. Save the connection after fixing it, then reactivate the evaluator.";
+
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `LLM connection for evaluator "${template.name}" is in an error state. ${keyErrorMessage}`,
+    });
+  }
+
   try {
     await testModelCall({
       provider: modelConfig.config.provider,

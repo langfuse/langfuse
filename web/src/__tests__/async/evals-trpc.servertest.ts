@@ -368,6 +368,67 @@ describe("evals trpc", () => {
   });
 
   describe("evals activation validation", () => {
+    it("updateEvalJob rejects reactivation when the referenced LLM connection is already in an error state", async () => {
+      const { project, caller } = await prepare();
+
+      const apiKey = await prisma.llmApiKeys.findFirstOrThrow({
+        where: {
+          projectId: project.id,
+        },
+      });
+
+      await prisma.llmApiKeys.update({
+        where: {
+          id: apiKey.id,
+        },
+        data: {
+          status: "ERROR",
+          statusMessage:
+            "LLM API returned 401 Unauthorized. Check your LLM connection.",
+        },
+      });
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "error-key-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: apiKey.provider,
+          model: "gpt-4o-mini",
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: jobConfig.id,
+          config: {
+            status: "ACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        'LLM connection for evaluator "error-key-template" is in an error state.',
+      );
+    });
+
     it("updateEvalJob rejects reactivation when no valid model is configured", async () => {
       const { project, caller } = await prepare();
 
