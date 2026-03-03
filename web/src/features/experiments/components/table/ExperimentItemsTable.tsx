@@ -6,7 +6,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
@@ -139,7 +138,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "id",
       id: "id",
-      header: "Experiment Item",
+      header: getExperimentItemsColumnName("id"),
       size: 150,
       defaultHidden: true,
       enableHiding: true,
@@ -148,14 +147,13 @@ export default function ExperimentItemsTable({
         const experimentDatasetId = row.original.datasetId;
         const version = row.original.datasetItemVersion;
         return experimentDatasetId ? (
-          <Link
-            href={`/project/${projectId}/datasets/${experimentDatasetId}/items/${encodeURIComponent(experimentItemId)}${version ? `?version=${version}` : ""}`}
-            className="text-primary hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <TableIdOrName value={experimentItemId} />
-          </Link>
-        ) : undefined;
+          <TableLink
+            path={`/project/${projectId}/datasets/${encodeURIComponent(experimentDatasetId)}/items/${encodeURIComponent(experimentItemId)}${version ? `?version=${encodeURIComponent(version.toISOString())}` : ""}`}
+            value={experimentItemId}
+          />
+        ) : (
+          <TableIdOrName value={experimentItemId} />
+        );
       },
     },
     {
@@ -171,21 +169,14 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "rootSpanId",
-      id: "rootSpanId",
-      header: "Observation",
-      defaultHidden: true,
+      accessorKey: "level",
+      id: "level",
+      header: getExperimentItemsColumnName("level"),
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
-        const rootSpanId = row.original.rootSpanId;
-        const traceId = row.original.traceId;
-        return traceId && rootSpanId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(rootSpanId)}`}
-            value={rootSpanId}
-          />
-        ) : undefined;
+        const value: string = row.getValue("level");
+        return <span>{value}</span>;
       },
     },
     {

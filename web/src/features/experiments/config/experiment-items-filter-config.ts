@@ -1,6 +1,6 @@
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-import type { ColumnDefinition } from "@langfuse/shared";
+import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
 
 /**
  * Column definitions for experiment items table.
@@ -8,7 +8,7 @@ import type { ColumnDefinition } from "@langfuse/shared";
  */
 export const experimentItemsTableCols: ColumnDefinition[] = [
   {
-    name: "ID",
+    name: "Experiment Item ID",
     id: "id",
     type: "string",
     internal: "experiment_item_id",
@@ -36,6 +36,18 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     id: "startTime",
     type: "datetime",
     internal: "start_time",
+  },
+  {
+    name: "Level",
+    id: "level",
+    type: "stringOptions",
+    internal: "level",
+    options: [
+      { value: "DEBUG" },
+      { value: "DEFAULT" },
+      { value: "WARNING" },
+      { value: "ERROR" },
+    ] as { value: ObservationLevelType }[],
   },
   {
     name: "Total Cost ($)",

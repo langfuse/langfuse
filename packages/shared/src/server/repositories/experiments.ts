@@ -626,7 +626,9 @@ export const getExperimentItemsFromEvents = async (props: {
     experimentName: row.experiment_name,
     datasetId: row.experiment_dataset_id,
     rootSpanId: row.experiment_item_root_span_id,
-    datasetItemVersion: row.experiment_item_version,
+    datasetItemVersion: row.experiment_item_version
+      ? parseClickhouseUTCDateTimeFormat(row.experiment_item_version)
+      : null,
     metadata: row.experiment_item_metadata || {},
   }));
 };
