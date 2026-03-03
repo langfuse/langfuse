@@ -38,6 +38,7 @@ export interface BufferedStreamUploaderParams {
   strategy: ChunkedUploadStrategy;
   partSizeBytes: number;
   maxPartAttempts: number;
+  maxConcurrentParts: number;
   key: string; // for logging
 }
 
@@ -48,6 +49,8 @@ export class BufferedStreamUploader {
   private currentBuffer: Buffer[] = [];
   private currentBufferSize = 0;
   private isCompleted = false;
+  private inFlightUploads: Set<Promise<void>> = new Set();
+  private uploadError: Error | null = null;
 
   constructor(params: BufferedStreamUploaderParams) {
     this.params = params;
@@ -58,6 +61,8 @@ export class BufferedStreamUploader {
       await this.params.strategy.initialize();
 
       for await (const chunk of stream) {
+        if (this.uploadError) break;
+
         const buf = Buffer.isBuffer(chunk)
           ? chunk
           : Buffer.from(chunk as string, "utf-8");
@@ -73,12 +78,21 @@ export class BufferedStreamUploader {
 
         if (this.currentBufferSize >= this.params.partSizeBytes) {
           await this.flushBuffer();
+          if (this.uploadError) break;
         }
       }
 
       // Flush remaining data
-      if (this.currentBufferSize > 0) {
+      if (this.currentBufferSize > 0 && !this.uploadError) {
         await this.flushBuffer();
+      }
+
+      // Wait for all in-flight uploads to complete
+      await Promise.all(this.inFlightUploads);
+
+      // Check for errors after all uploads settle
+      if (this.uploadError) {
+        throw this.uploadError;
       }
 
       // Handle empty stream: abort chunked upload, use single object upload instead
@@ -89,10 +103,14 @@ export class BufferedStreamUploader {
         return;
       }
 
-      await this.params.strategy.complete(this.completedParts);
+      const sortedParts = [...this.completedParts].sort(
+        (a, b) => a.partNumber - b.partNumber,
+      );
+      await this.params.strategy.complete(sortedParts);
       this.isCompleted = true;
     } finally {
       if (!this.isCompleted) {
+        await Promise.all(this.inFlightUploads);
         await this.params.strategy.abort();
       }
     }
@@ -104,33 +122,57 @@ export class BufferedStreamUploader {
     this.currentBufferSize = 0;
     this.partNumber++;
 
-    await this.uploadPart(partData, this.partNumber);
+    // Wait for a slot if all concurrent slots are full
+    while (
+      this.inFlightUploads.size >= this.params.maxConcurrentParts &&
+      !this.uploadError
+    ) {
+      await Promise.race(this.inFlightUploads);
+    }
+
+    if (this.uploadError) return;
+
+    this.scheduleUpload(partData, this.partNumber);
   }
 
-  private async uploadPart(data: Buffer, partNumber: number): Promise<void> {
-    const result = await backOff(
-      () => this.params.strategy.uploadPart(data, partNumber),
-      {
-        numOfAttempts: this.params.maxPartAttempts,
-        startingDelay: 1000,
-        timeMultiple: 2,
-        maxDelay: 10_000,
-        retry: (error: Error, attemptNumber: number) => {
-          if (!isTransientError(error)) {
-            return false;
-          }
-          logger.warn(
-            `Part ${partNumber} upload failed (attempt ${attemptNumber}/${this.params.maxPartAttempts}): ${error.message}. Retrying...`,
-          );
-          return true;
-        },
+  private scheduleUpload(data: Buffer, partNumber: number): void {
+    const promise = this.uploadPartWithRetry(data, partNumber)
+      .then((result) => {
+        this.completedParts.push(result);
+        logger.debug(
+          `Uploaded part ${partNumber} (${(data.byteLength / 1024 / 1024).toFixed(1)} MiB) for key ${this.params.key}`,
+        );
+      })
+      .catch((err) => {
+        if (!this.uploadError) {
+          this.uploadError = err;
+        }
+      })
+      .finally(() => {
+        this.inFlightUploads.delete(promise);
+      });
+
+    this.inFlightUploads.add(promise);
+  }
+
+  private async uploadPartWithRetry(
+    data: Buffer,
+    partNumber: number,
+  ): Promise<CompletedPart> {
+    return backOff(() => this.params.strategy.uploadPart(data, partNumber), {
+      numOfAttempts: this.params.maxPartAttempts,
+      startingDelay: 1000,
+      timeMultiple: 2,
+      maxDelay: 10_000,
+      retry: (error: Error, attemptNumber: number) => {
+        if (!isTransientError(error)) {
+          return false;
+        }
+        logger.warn(
+          `Part ${partNumber} upload failed (attempt ${attemptNumber}/${this.params.maxPartAttempts}): ${error.message}. Retrying...`,
+        );
+        return true;
       },
-    );
-
-    this.completedParts.push(result);
-
-    logger.debug(
-      `Uploaded part ${partNumber} (${(data.byteLength / 1024 / 1024).toFixed(1)} MiB) for key ${this.params.key}`,
-    );
+    });
   }
 }

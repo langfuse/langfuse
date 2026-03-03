@@ -51,6 +51,7 @@ function defaultParams(strategy: ChunkedUploadStrategy) {
     key: "test-key.csv",
     partSizeBytes: 1024, // 1 KiB for easy testing
     maxPartAttempts: 3,
+    maxConcurrentParts: 1, // sequential by default for test predictability
   };
 }
 
@@ -256,8 +257,8 @@ describe("BufferedStreamUploader", () => {
     });
   });
 
-  describe("sequential uploads", () => {
-    it("should upload parts one at a time (no concurrency)", async () => {
+  describe("upload concurrency", () => {
+    it("should upload parts one at a time when maxConcurrentParts is 1", async () => {
       const uploadOrder: number[] = [];
       let activeUploads = 0;
       let maxActiveUploads = 0;
@@ -267,7 +268,6 @@ describe("BufferedStreamUploader", () => {
           activeUploads++;
           maxActiveUploads = Math.max(maxActiveUploads, activeUploads);
           uploadOrder.push(partNumber);
-          // Simulate some upload time
           await new Promise((r) => setTimeout(r, 10));
           activeUploads--;
           return { partIdentifier: `etag-${partNumber}`, partNumber };
@@ -277,13 +277,105 @@ describe("BufferedStreamUploader", () => {
       const uploader = new BufferedStreamUploader({
         ...defaultParams(mock.strategy),
         partSizeBytes: 5,
+        maxConcurrentParts: 1,
       });
 
       await uploader.upload(streamFrom(["aaaaa", "bbbbb", "ccccc", "ddddd"]));
 
-      // Parts should be uploaded sequentially
       expect(uploadOrder).toEqual([1, 2, 3, 4]);
       expect(maxActiveUploads).toBe(1);
+    });
+
+    it("should upload parts concurrently up to maxConcurrentParts", async () => {
+      let activeUploads = 0;
+      let maxActiveUploads = 0;
+
+      const mock = createMockStrategy({
+        uploadPartImpl: async (data, partNumber) => {
+          activeUploads++;
+          maxActiveUploads = Math.max(maxActiveUploads, activeUploads);
+          await new Promise((r) => setTimeout(r, 50));
+          activeUploads--;
+          return { partIdentifier: `etag-${partNumber}`, partNumber };
+        },
+      });
+
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes: 5,
+        maxConcurrentParts: 3,
+      });
+
+      // 5 parts: first 3 fire concurrently, parts 4-5 wait for slots
+      await uploader.upload(
+        streamFrom(["aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee"]),
+      );
+
+      expect(maxActiveUploads).toBe(3);
+
+      // All parts should complete
+      const completeCall = mock.calls.find((c) => c.method === "complete");
+      expect(completeCall!.args[0]).toHaveLength(5);
+    });
+
+    it("should call complete with parts sorted by partNumber even when uploads finish out of order", async () => {
+      const mock = createMockStrategy({
+        uploadPartImpl: async (data, partNumber) => {
+          // Part 1 is slow, part 2 finishes first
+          const delay = partNumber === 1 ? 80 : 10;
+          await new Promise((r) => setTimeout(r, delay));
+          return { partIdentifier: `etag-${partNumber}`, partNumber };
+        },
+      });
+
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes: 5,
+        maxConcurrentParts: 3,
+      });
+
+      await uploader.upload(streamFrom(["aaaaa", "bbbbb", "ccccc"]));
+
+      const completeCall = mock.calls.find((c) => c.method === "complete");
+      const parts = completeCall!.args[0] as CompletedPart[];
+      expect(parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);
+    });
+
+    it("should stop scheduling new parts when a concurrent part fails", async () => {
+      let partsStarted = 0;
+
+      const mock = createMockStrategy({
+        uploadPartImpl: async (data, partNumber) => {
+          partsStarted++;
+          if (partNumber === 2) {
+            throw new Error("AccessDenied");
+          }
+          // Slow upload so part 2 fails while others are in flight
+          await new Promise((r) => setTimeout(r, 100));
+          return { partIdentifier: `etag-${partNumber}`, partNumber };
+        },
+      });
+
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes: 5,
+        maxConcurrentParts: 3,
+        maxPartAttempts: 1,
+      });
+
+      // 6 chunks → 6 parts; part 2 fails immediately, should prevent later parts
+      await expect(
+        uploader.upload(
+          streamFrom(["aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee", "fffff"]),
+        ),
+      ).rejects.toThrow("AccessDenied");
+
+      // Parts 1-3 start concurrently, but part 2 failure should prevent 4+
+      expect(partsStarted).toBeLessThanOrEqual(4);
+
+      const methods = mock.calls.map((c) => c.method);
+      expect(methods).toContain("abort");
+      expect(methods).not.toContain("complete");
     });
   });
 });
@@ -436,7 +528,7 @@ describe("S3ChunkedUploadStrategy", () => {
       expect(uploadCmd!.input.Body).toEqual(Buffer.from("hello"));
     });
 
-    it("should map complete to CompleteMultipartUploadCommand with sorted parts", async () => {
+    it("should map complete to CompleteMultipartUploadCommand", async () => {
       const mock = createMockS3Client();
       const strategy = new S3ChunkedUploadStrategy({
         client: mock.client,
@@ -447,7 +539,6 @@ describe("S3ChunkedUploadStrategy", () => {
 
       await strategy.initialize();
       await strategy.complete([
-        { partIdentifier: "etag-3", partNumber: 3 },
         { partIdentifier: "etag-1", partNumber: 1 },
         { partIdentifier: "etag-2", partNumber: 2 },
       ]);
@@ -455,10 +546,10 @@ describe("S3ChunkedUploadStrategy", () => {
       const completeCmd = mock.sentCommands.find(
         (c) => c.name === "CompleteMultipartUploadCommand",
       );
+      expect(completeCmd!.input.UploadId).toBe("test-upload-id");
       expect(completeCmd!.input.MultipartUpload.Parts).toEqual([
         { ETag: "etag-1", PartNumber: 1 },
         { ETag: "etag-2", PartNumber: 2 },
-        { ETag: "etag-3", PartNumber: 3 },
       ]);
     });
 

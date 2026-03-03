@@ -586,6 +586,7 @@ class S3StorageService implements StorageService {
       strategy,
       partSizeBytes,
       maxPartAttempts: env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
+      maxConcurrentParts: env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
       key: fileName,
     });
 

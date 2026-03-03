@@ -71,15 +71,13 @@ export class S3ChunkedUploadStrategy implements ChunkedUploadStrategy {
   }
 
   async complete(parts: CompletedPart[]): Promise<void> {
-    const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
-
     await this.params.client.send(
       new CompleteMultipartUploadCommand({
         Bucket: this.params.bucket,
         Key: this.params.key,
         UploadId: this.uploadId,
         MultipartUpload: {
-          Parts: sortedParts.map((p) => ({
+          Parts: parts.map((p) => ({
             ETag: p.partIdentifier,
             PartNumber: p.partNumber,
           })),
