@@ -137,19 +137,12 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
-type HarnessMode = "explicit" | "effective";
-
-function SavedViewHarness(props: { mode: HarnessMode }) {
+function SavedViewHarness() {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     implicitDefaultConfig: {
       hiddenEnvironments: [...HIDDEN_ENVIRONMENTS],
     },
   });
-
-  const currentFilterState =
-    props.mode === "explicit"
-      ? queryFilter.explicitFilterState
-      : queryFilter.filterState;
 
   const { isLoading } = useTableViewManager({
     tableName: "traces",
@@ -163,7 +156,9 @@ function SavedViewHarness(props: { mode: HarnessMode }) {
       columns: [],
       filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
     },
-    currentFilterState,
+    // Saved-view synchronization must compare against explicit state.
+    // Effective state includes implicit environment defaults and can deadlock.
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
@@ -223,23 +218,8 @@ describe("Saved view restore with implicit environment defaults", () => {
     });
   });
 
-  it("reproduces deadlock when comparing saved-view sync against effective filters", async () => {
-    render(<SavedViewHarness mode="effective" />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("explicit-state").textContent).toContain(
-        "checkout",
-      );
-    });
-
-    expect(screen.getByTestId("effective-state").textContent).toContain(
-      '"environment"',
-    );
-    expect(screen.getByTestId("loading-state").textContent).toBe("loading");
-  });
-
-  it("unlocks when comparing saved-view sync against explicit filters", async () => {
-    render(<SavedViewHarness mode="explicit" />);
+  it("restores old saved views and stays ready when implicit env defaults are active", async () => {
+    render(<SavedViewHarness />);
 
     await waitFor(() => {
       expect(screen.getByTestId("loading-state").textContent).toBe("ready");
