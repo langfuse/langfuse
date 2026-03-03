@@ -229,11 +229,7 @@ export async function executeQuery(
     },
   ];
 
-  // Add shadow test query if optimization is OFF and shadow testing is enabled
-  const shadowTestEnabled =
-    env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST === "true";
-
-  if (!enableSingleLevelOptimization && shadowTestEnabled) {
+  if (!enableSingleLevelOptimization) {
     const { query: optimizedQuery, parameters: optimizedParams } =
       await queryBuilder.build(query, projectId, true);
 

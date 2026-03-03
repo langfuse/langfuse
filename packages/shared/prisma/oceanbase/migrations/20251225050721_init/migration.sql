@@ -253,6 +253,7 @@ CREATE TABLE IF NOT EXISTS `blob_storage_integrations` (
     `file_type` ENUM('JSON', 'CSV', 'JSONL') NOT NULL DEFAULT 'CSV',
     `export_mode` ENUM('FULL_HISTORY', 'FROM_TODAY', 'FROM_CUSTOM_DATE') NOT NULL DEFAULT 'FULL_HISTORY',
     `export_start_date` DATETIME(3) NULL,
+    `export_source` ENUM('TRACES_OBSERVATIONS', 'TRACES_OBSERVATIONS_EVENTS', 'EVENTS') NOT NULL DEFAULT 'TRACES_OBSERVATIONS',
 
     PRIMARY KEY (`project_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -328,8 +329,9 @@ CREATE TABLE IF NOT EXISTS `dashboard_widgets` (
     `dimensions` JSON NOT NULL,
     `metrics` JSON NOT NULL,
     `filters` JSON NOT NULL,
-    `chart_type` ENUM('LINE_TIME_SERIES', 'BAR_TIME_SERIES', 'HORIZONTAL_BAR', 'VERTICAL_BAR', 'PIE', 'NUMBER', 'HISTOGRAM', 'PIVOT_TABLE') NOT NULL,
+    `chart_type` ENUM('LINE_TIME_SERIES', 'AREA_TIME_SERIES', 'BAR_TIME_SERIES', 'HORIZONTAL_BAR', 'VERTICAL_BAR', 'PIE', 'NUMBER', 'HISTOGRAM', 'PIVOT_TABLE') NOT NULL,
     `chart_config` JSON NOT NULL,
+    `min_version` INTEGER NOT NULL DEFAULT 1,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -780,6 +782,7 @@ CREATE TABLE IF NOT EXISTS `posthog_integrations` (
     `posthog_host_name` VARCHAR(191) NOT NULL,
     `last_sync_at` DATETIME(3) NULL,
     `enabled` BOOLEAN NOT NULL,
+    `export_source` ENUM('TRACES_OBSERVATIONS', 'TRACES_OBSERVATIONS_EVENTS', 'EVENTS') NOT NULL DEFAULT 'TRACES_OBSERVATIONS',
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (`project_id`)
@@ -792,6 +795,7 @@ CREATE TABLE IF NOT EXISTS `mixpanel_integrations` (
     `mixpanel_region` VARCHAR(191) NOT NULL,
     `last_sync_at` DATETIME(3) NULL,
     `enabled` BOOLEAN NOT NULL,
+    `export_source` ENUM('TRACES_OBSERVATIONS', 'TRACES_OBSERVATIONS_EVENTS', 'EVENTS') NOT NULL DEFAULT 'TRACES_OBSERVATIONS',
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (`project_id`)
@@ -837,6 +841,7 @@ CREATE TABLE IF NOT EXISTS `projects` (
     `org_id` VARCHAR(191) NOT NULL,
     `deleted_at` DATETIME(3) NULL,
     `retention_days` INTEGER NULL,
+    `has_traces` BOOLEAN NOT NULL DEFAULT false,
     `metadata` JSON NULL,
 
     INDEX `projects_org_id_idx`(`org_id`),
@@ -1018,6 +1023,20 @@ CREATE TABLE IF NOT EXISTS `table_view_presets` (
     `order_by` JSON NULL,
 
     UNIQUE INDEX `table_view_presets_project_id_table_name_name_key`(`project_id`, `table_name`, `name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE IF NOT EXISTS `default_views` (
+    `id` VARCHAR(191) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `project_id` VARCHAR(191) NOT NULL,
+    `user_id` VARCHAR(191) NULL,
+    `view_name` VARCHAR(191) NOT NULL,
+    `view_id` VARCHAR(191) NOT NULL,
+
+    INDEX `default_views_project_id_view_name_idx`(`project_id`, `view_name`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -1377,6 +1396,12 @@ ALTER TABLE `table_view_presets` ADD CONSTRAINT `table_view_presets_project_id_f
 
 -- AddForeignKey
 ALTER TABLE `table_view_presets` ADD CONSTRAINT `table_view_presets_updated_by_fkey` FOREIGN KEY (`updated_by`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `default_views` ADD CONSTRAINT `default_views_project_id_fkey` FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `default_views` ADD CONSTRAINT `default_views_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `trace_media` ADD CONSTRAINT `trace_media_project_id_fkey` FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

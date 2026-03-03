@@ -1,5 +1,6 @@
 export * from "./mapObservationsTable";
 export * from "./mapTracesTable";
+export * from "./mapEventsTable";
 export * from "../../tableDefinitions/mapDashboards";
 export * from "./mapScoresTable";
 export * from "./mapDatasetRunItemsTable";
@@ -11,6 +12,7 @@ if (isOceanBase()) {
     ...(module.exports as Record<string, unknown>),
     ...require("../tableMappingsOb/mapObservationsTable"),
     ...require("../tableMappingsOb/mapTracesTable"),
+    ...require("../tableMappingsOb/mapEventsTable"),
   };
   module.exports = newExports;
 }

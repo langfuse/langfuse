@@ -1380,6 +1380,340 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolObservation?.body.name).toBe("correct_tool_name");
     });
 
+    const livekitTraceId = "abcdef1234567890abcdef1234567890";
+
+    const createLivekitSpan = (params: {
+      name: string;
+      attributes?: Array<{ key: string; value: { stringValue: string } }>;
+      statusCode?: number;
+      scopeName?: string;
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "telemetry.sdk.language",
+            value: { stringValue: "python" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          ...(params.scopeName ? { scope: { name: params.scopeName } } : {}),
+          spans: [
+            {
+              traceId: Buffer.from(livekitTraceId, "hex"),
+              spanId: Buffer.from("1234567890abcdef", "hex"),
+              name: params.name,
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              endTimeUnixNano: {
+                low: 2000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: params.attributes ?? [],
+              events: [],
+              status: { code: params.statusCode ?? 1 },
+            },
+          ],
+        },
+      ],
+    });
+
+    const findObservationCreateEvent = (events: any[]) =>
+      events.find(
+        (e) => e.type !== "trace-create" && e.type.endsWith("-create"),
+      );
+
+    it.each([
+      {
+        spanName: "agent_turn",
+        expectedType: "agent-create",
+        attributes: [
+          {
+            key: "lk.input_text",
+            value: { stringValue: "What is the weather today?" },
+          },
+          {
+            key: "lk.response.text",
+            value: { stringValue: "The weather is sunny." },
+          },
+        ],
+      },
+      {
+        spanName: "function_tool",
+        expectedType: "tool-create",
+        attributes: [
+          {
+            key: "lk.function_tool.output",
+            value: { stringValue: '{"temperature": 75, "condition": "sunny"}' },
+          },
+        ],
+      },
+      {
+        spanName: "start_agent_activity",
+        expectedType: "agent-create",
+      },
+    ])(
+      "should map LiveKit $spanName span to $expectedType observation type",
+      async ({ spanName, expectedType, attributes }) => {
+        const events = await convertOtelSpanToIngestionEvent(
+          createLivekitSpan({
+            name: spanName,
+            attributes,
+            scopeName: "livekit-agents",
+          }),
+          new Set([livekitTraceId]),
+        );
+
+        const observation = events.find((e) => e.type === expectedType);
+        expect(observation).toBeDefined();
+        expect(observation?.type).toBe(expectedType);
+        expect(observation?.body.name).toBe(spanName);
+      },
+    );
+
+    it("should not map LiveKit span names without livekit-agents scope", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = events.find(
+        (e) => e.type !== "trace-create" && e.type.endsWith("-create"),
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.type).toBe("span-create");
+    });
+
+    it.each([
+      {
+        spanName: "tts_fallback_adapter",
+        statusCode: 1,
+        expectedLevel: "DEBUG",
+      },
+      {
+        spanName: "tts_fallback_adapter",
+        statusCode: 2,
+        expectedLevel: "ERROR",
+      },
+      { spanName: "user_speaking", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "eou_detection", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "llm_request_run", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "tts_node", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "tts_request_run", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "tts_stream_adapter", statusCode: 1, expectedLevel: "DEBUG" },
+      { spanName: "agent_speaking", statusCode: 1, expectedLevel: "DEBUG" },
+      {
+        spanName: "drain_agent_activity",
+        statusCode: 1,
+        expectedLevel: "DEBUG",
+      },
+      { spanName: "on_exit", statusCode: 1, expectedLevel: "DEBUG" },
+    ])(
+      "should set level to $expectedLevel for LiveKit span named $spanName",
+      async ({ spanName, statusCode, expectedLevel }) => {
+        const events = await convertOtelSpanToIngestionEvent(
+          createLivekitSpan({
+            name: spanName,
+            scopeName: "livekit-agents",
+            statusCode,
+          }),
+          new Set([livekitTraceId]),
+        );
+
+        const observation = findObservationCreateEvent(events);
+        expect(observation).toBeDefined();
+        expect(observation?.body.level).toBe(expectedLevel);
+      },
+    );
+
+    it("should map Pydantic AI agent root span with final_result as output and pydantic_ai.all_messages as input", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const allMessages = [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              content:
+                "Use the `roulette_wheel` function to see if the customer has won based on the number they provide.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Put my money on square eighteen" }],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "call_fXo9X5qrViUJgNdVh0bzyD31",
+              name: "roulette_wheel",
+              arguments: { square: 18 },
+            },
+          ],
+          finish_reason: "tool_call",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "call_fXo9X5qrViUJgNdVh0bzyD31",
+              name: "roulette_wheel",
+              result: "winner",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content:
+                "Congratulations! You've won by placing your bet on square eighteen. 🎉",
+            },
+          ],
+          finish_reason: "stop",
+        },
+      ];
+
+      const pydanticAiRootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.39.1" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "openclaw-gateway" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.60.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                // No parentSpanId — this is a root span
+                name: "roulette_agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "model_name",
+                    value: { stringValue: "gpt-4o" },
+                  },
+                  {
+                    key: "agent_name",
+                    value: { stringValue: "roulette_agent" },
+                  },
+                  {
+                    key: "gen_ai.agent.name",
+                    value: { stringValue: "roulette_agent" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "roulette_agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: {
+                      stringValue:
+                        "Congratulations! You've won by placing your bet on square eighteen. 🎉",
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { stringValue: "174" },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { stringValue: "31" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiRootSpan,
+        new Set(),
+      );
+
+      // Root span should produce a trace-create and a span-create
+      const traceEvent = events.find((e) => e.type === "trace-create");
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(traceEvent).toBeDefined();
+      expect(observationEvent).toBeDefined();
+
+      // Trace should have input (all_messages as JSON string) and output (final_result)
+      expect(traceEvent?.body.input).toBe(JSON.stringify(allMessages));
+      expect(traceEvent?.body.output).toBe(
+        "Congratulations! You've won by placing your bet on square eighteen. 🎉",
+      );
+
+      // Observation should also have input and output
+      expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
+      expect(observationEvent?.body.output).toBe(
+        "Congratulations! You've won by placing your bet on square eighteen. 🎉",
+      );
+
+      // Name should come from logfire.msg
+      expect(observationEvent?.body.name).toBe("roulette_agent run");
+
+      // Verify final_result and pydantic_ai.all_messages are NOT duplicated in metadata.attributes
+      const metadataAttributes =
+        observationEvent?.body.metadata?.attributes ?? {};
+      expect(metadataAttributes).not.toHaveProperty("final_result");
+      expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
@@ -2461,6 +2795,56 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map lk.user_transcript to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.user_transcript",
+          otelAttributeValue: {
+            stringValue: "Hey there. What's the weather?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "Hey there. What's the weather?",
+        },
+      ],
+      [
+        "should map lk.chat_ctx to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.chat_ctx",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              items: [
+                {
+                  id: "lk.agent_task.instructions",
+                  type: "message",
+                  role: "system",
+                  content: ["Your name is Kelly."],
+                  interrupted: false,
+                  extra: {},
+                  metrics: {},
+                  created_at: 1764240453.4831302,
+                },
+              ],
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            items: [
+              {
+                id: "lk.agent_task.instructions",
+                type: "message",
+                role: "system",
+                content: ["Your name is Kelly."],
+                interrupted: false,
+                extra: {},
+                metrics: {},
+                created_at: 1764240453.4831302,
+              },
+            ],
+          }),
+        },
+      ],
+      [
         "should map lk.response.text to output",
         {
           entity: "observation",
@@ -3398,6 +3782,267 @@ describe("OTel Resource Span Mapping", () => {
       expect(
         OtelIngestionProcessor.convertNanoTimestampToISO(zeroTimestamp),
       ).toBe("1970-01-01T00:00:00.000Z");
+    });
+
+    it("should return undefined for missing or invalid timestamps", () => {
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(undefined as any),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(null as any),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(""),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO("not-a-timestamp"),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(NaN),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO(
+          Number.POSITIVE_INFINITY,
+        ),
+      ).toBeUndefined();
+      expect(
+        OtelIngestionProcessor.convertNanoTimestampToISO({
+          high: 1,
+        } as any),
+      ).toBeUndefined();
+    });
+  });
+
+  describe("Missing span timestamps", () => {
+    it("should process spans with no start/end times without throwing", async () => {
+      const resourceSpan = {
+        resource: {
+          attributes: [{ key: "service.name", value: { stringValue: "test" } }],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: "2cce18f7e8cd065a0b4e634eef728391",
+                spanId: "57f0255417974100",
+                name: "span-without-time",
+                kind: 1,
+                attributes: [],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0].startTimeISO).toBeDefined();
+      expect(eventInputs[0].endTimeISO).toBeDefined();
+      expect(eventInputs[0].startTimeISO).toBe(eventInputs[0].endTimeISO);
+
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const trace = ingestionEvents.find((e) => e.type === "trace-create");
+      const observation = ingestionEvents.find((e) => e.type === "span-create");
+
+      expect(trace).toBeDefined();
+      expect(trace?.body.timestamp).toBeDefined();
+      expect(observation).toBeDefined();
+      expect(observation?.body.startTime).toBeDefined();
+      expect(observation?.body.endTime).toBeDefined();
+      expect(observation?.body.startTime).toBe(observation?.body.endTime);
+    });
+
+    it("should use the present timestamp as fallback when only one edge is missing", async () => {
+      const endOnlyTimestamp = {
+        low: 467248096,
+        high: 406528574,
+        unsigned: true,
+      };
+      const expectedISO =
+        OtelIngestionProcessor.convertNanoTimestampToISO(endOnlyTimestamp);
+
+      const resourceSpan = {
+        resource: {
+          attributes: [{ key: "service.name", value: { stringValue: "test" } }],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: "2cce18f7e8cd065a0b4e634eef728391",
+                spanId: "57f0255417974100",
+                name: "span-end-only-time",
+                kind: 1,
+                endTimeUnixNano: endOnlyTimestamp,
+                attributes: [],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0].startTimeISO).toBe(expectedISO);
+      expect(eventInputs[0].endTimeISO).toBe(expectedISO);
+
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = ingestionEvents.find((e) => e.type === "span-create");
+      expect(observation?.body.startTime).toBe(expectedISO);
+      expect(observation?.body.endTime).toBe(expectedISO);
+    });
+
+    it("should apply the same AI SDK name extraction in processToEvent and ingestion-event mapping", async () => {
+      const resourceSpan = {
+        resource: {
+          attributes: [{ key: "service.name", value: { stringValue: "test" } }],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "5.0.0",
+            },
+            spans: [
+              {
+                traceId: "2cce18f7e8cd065a0b4e634eef728391",
+                spanId: "57f0255417974100",
+                name: "ai.generateText",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 466848096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 467248096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "generateText" },
+                  },
+                  {
+                    key: "ai.telemetry.functionId",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "gpt-4.1-mini" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: { stringValue: '[{"role":"user","content":"hi"}]' },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "langfuse.prompt.name",
+                    value: { stringValue: "my-prompt" },
+                  },
+                  {
+                    key: "langfuse.prompt.version",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "langfuse.observation.level",
+                    value: { stringValue: "WARNING" },
+                  },
+                  {
+                    key: "langfuse.observation.status_message",
+                    value: { stringValue: "ok" },
+                  },
+                  {
+                    key: "langfuse.public",
+                    value: { boolValue: true },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.userId",
+                    value: { stringValue: "user-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.sessionId",
+                    value: { stringValue: "session-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.tags",
+                    value: { stringValue: '["a","b"]' },
+                  },
+                  {
+                    key: "langfuse.release",
+                    value: { stringValue: "v1" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0].name).toBe("chat:generateText");
+
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const trace = ingestionEvents.find((e) => e.type === "trace-create");
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+
+      expect(trace?.body.name).toBe("chat:generateText");
+      expect(observation?.body.name).toBe("chat:generateText");
+      expect(eventInputs[0].environment).toBe(observation?.body.environment);
+      expect(eventInputs[0].version).toBe(observation?.body.version);
+      expect(eventInputs[0].level).toBe(observation?.body.level);
+      expect(eventInputs[0].statusMessage).toBe(
+        observation?.body.statusMessage,
+      );
+      expect(eventInputs[0].promptName).toBe(observation?.body.promptName);
+      expect(eventInputs[0].promptVersion).toBe(
+        observation?.body.promptVersion,
+      );
+      expect(eventInputs[0].modelName).toBe(observation?.body.model);
+      expect(eventInputs[0].input).toBe(observation?.body.input);
+      expect(eventInputs[0].output).toBe(observation?.body.output);
+      expect(eventInputs[0].userId).toBe(trace?.body.userId);
+      expect(eventInputs[0].sessionId).toBe(trace?.body.sessionId);
+      expect(eventInputs[0].public).toBe(trace?.body.public);
+      expect(eventInputs[0].tags).toEqual(trace?.body.tags);
+      expect(eventInputs[0].release).toBe(trace?.body.release);
     });
   });
 

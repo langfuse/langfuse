@@ -116,6 +116,8 @@ export function isHostnameBlocked(hostname: string): boolean {
     // Cloud metadata endpoints
     "metadata.google.internal",
     "169.254.169.254",
+    "fd00:ec2::254",
+    "[fd00:ec2::254]",
 
     // Docker/container networking
     "host.docker.internal",

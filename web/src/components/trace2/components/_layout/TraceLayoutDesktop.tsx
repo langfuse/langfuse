@@ -1,15 +1,15 @@
 import { StringParam, useQueryParam } from "use-query-params";
 import {
-  PanelGroup,
-  PanelResizeHandle,
+  Group,
+  Separator,
   Panel,
-  type ImperativePanelHandle,
+  usePanelRef,
+  useDefaultLayout,
+  type PanelImperativeHandle,
 } from "react-resizable-panels";
 import {
-  useRef,
   useState,
   useEffect,
-  useLayoutEffect,
   createContext,
   useContext,
   type ReactNode,
@@ -20,17 +20,11 @@ const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 
-const NAVIGATION_PANEL_DEFAULT_SIZE_IN_PIXELS = 450;
-const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 360;
-const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 40;
-
 // Context for sharing panel state with compound components
 interface TraceLayoutDesktopContext {
-  navigationPanelMinSize: number;
-  navigationPanelCollapsedSize: number;
   isNavigationPanelCollapsed: boolean;
   setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
-  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  panelRef: React.RefObject<PanelImperativeHandle | null>;
   handleTogglePanel: () => void;
   shouldPulseToggle: boolean;
 }
@@ -57,84 +51,20 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
 
-  // react-resizable-panels requires percentage values
-  const [navigationPanelDefaultSize, setNavigationPanelDefaultSize] =
-    useState(10);
-  const [navigationPanelMinSize, setNavigationPanelMinSize] = useState(10);
-  const [navigationPanelCollapsedSize, setNavigationPanelCollapsedSize] =
-    useState(5);
   const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] =
     useState(false);
 
-  // Remember the last size before collapse to restore it when expanding
-  const [lastNavigationPanelSize, setLastNavigationPanelSize] = useState<
-    number | null
-  >(null);
-
   // Ref to programmatically control the panel
-  const panelRef = useRef<ImperativePanelHandle>(null);
+  const panelRef = usePanelRef();
 
-  useLayoutEffect(() => {
-    // Note: react-resizable-panels does not support pixel-based values
-    // this is a workaround to get the correct values
-    const panelGroup = document.querySelector(
-      `#${RESIZABLE_PANEL_GROUP_ID}`,
-    ) as HTMLElement;
-    const resizeHandles = document.querySelectorAll(
-      `#${RESIZABLE_PANEL_HANDLE_ID}`,
-    ) as NodeListOf<HTMLElement>;
-
-    if (!panelGroup || !resizeHandles) {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      // For horizontal panels, we need to use width, not height
-      let width = panelGroup.offsetWidth;
-
-      // Subtract the width of resize handles
-      resizeHandles.forEach((resizeHandle) => {
-        width -= resizeHandle.offsetWidth;
-      });
-
-      // Convert pixel values to percentages based on available width
-      const defaultSizePercentage =
-        (NAVIGATION_PANEL_DEFAULT_SIZE_IN_PIXELS / width) * 100;
-      const minSizePercentage =
-        (NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS / width) * 100;
-      const collapsedSizePercentage =
-        (NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS / width) * 100;
-
-      setNavigationPanelDefaultSize(defaultSizePercentage);
-      setNavigationPanelMinSize(minSizePercentage);
-      setNavigationPanelCollapsedSize(collapsedSizePercentage);
-    });
-    observer.observe(panelGroup);
-
-    resizeHandles.forEach((resizeHandle) => {
-      observer.observe(resizeHandle);
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
+  // v4 has built-in collapse()/expand() that remembers last size
   const handleTogglePanel = () => {
     if (!panelRef.current) return;
 
-    // Programmatically collapse or expand the panel
-    if (isNavigationPanelCollapsed) {
-      // Expanding: restore to last size or use defaultSize as fallback
-      const targetSize = lastNavigationPanelSize ?? navigationPanelDefaultSize;
-      panelRef.current.resize(targetSize);
-      setIsNavigationPanelCollapsed(false);
+    if (panelRef.current.isCollapsed()) {
+      panelRef.current.expand();
     } else {
-      // Collapsing: save current size before collapsing
-      const currentSize = panelRef.current.getSize();
-      setLastNavigationPanelSize(currentSize);
-      setIsNavigationPanelCollapsed(true);
-      panelRef.current.resize(navigationPanelCollapsedSize);
+      panelRef.current.collapse();
     }
   };
 
@@ -154,9 +84,13 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
     }
   }, [isTimelineView]);
 
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: RESIZABLE_PANEL_GROUP_ID,
+    panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
+    storage: sessionStorage,
+  });
+
   const contextValue: TraceLayoutDesktopContext = {
-    navigationPanelMinSize,
-    navigationPanelCollapsedSize,
     isNavigationPanelCollapsed,
     setIsNavigationPanelCollapsed,
     panelRef,
@@ -167,9 +101,14 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   return (
     <LayoutContext.Provider value={contextValue}>
       <div className="h-full w-full">
-        <PanelGroup direction="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
+        <Group
+          orientation="horizontal"
+          id={RESIZABLE_PANEL_GROUP_ID}
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
+        >
           {children}
-        </PanelGroup>
+        </Group>
       </div>
     </LayoutContext.Provider>
   );
@@ -181,22 +120,19 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
 }: {
   children: ReactNode;
 }) {
-  const {
-    navigationPanelMinSize,
-    navigationPanelCollapsedSize,
-    setIsNavigationPanelCollapsed,
-    panelRef,
-  } = useLayoutContext();
+  const { setIsNavigationPanelCollapsed, panelRef } = useLayoutContext();
 
   return (
     <Panel
       id={RESIZABLE_PANEL_NAVIGATION_ID}
-      ref={panelRef}
+      panelRef={panelRef}
       collapsible={true}
-      collapsedSize={navigationPanelCollapsedSize}
-      minSize={navigationPanelMinSize}
-      onCollapse={() => setIsNavigationPanelCollapsed(true)}
-      onExpand={() => setIsNavigationPanelCollapsed(false)}
+      collapsedSize="40px"
+      minSize="260px"
+      defaultSize="450px"
+      onResize={() => {
+        setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
+      }}
     >
       {children}
     </Panel>
@@ -208,9 +144,9 @@ TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
   const { handleTogglePanel } = useLayoutContext();
 
   return (
-    <PanelResizeHandle
+    <Separator
       id={RESIZABLE_PANEL_HANDLE_ID}
-      className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100"
+      className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
       onDoubleClick={handleTogglePanel}
     />
   );
@@ -223,7 +159,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
   children: ReactNode;
 }) {
   return (
-    <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
+    <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize="70%" minSize="50%">
       {children}
     </Panel>
   );

@@ -253,29 +253,30 @@ export const PlaygroundTools = () => {
                   : undefined
               }
             >
-              <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
+              <div className="cursor-pointer overflow-hidden rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <WrenchIcon className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex min-w-0 items-center gap-1">
+                    <WrenchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <h3
-                      className="max-w-[145px] truncate text-ellipsis text-sm font-medium"
+                      className="truncate text-sm font-medium"
                       title={tool.name}
                     >
                       {tool.name}
                     </h3>
                     {!isToolSaved(tool) ? (
-                      <span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
                         Unsaved
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         handleRemoveTool(tool.id);
                       }}
                     >

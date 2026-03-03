@@ -307,6 +307,7 @@ model BlobStorageIntegration {
   fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
   exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                      @map("export_start_date")
+  exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
   project         Project                        @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("blob_storage_integrations")
@@ -397,6 +398,7 @@ model DashboardWidget {
   filters       Json                     @default("[]") @map("filters")
   chartType     DashboardWidgetChartType @map("chart_type")
   chartConfig   Json                     @map("chart_config")
+  minVersion    Int                      @default(1) @map("min_version")
   createdByUser User?                    @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
   project       Project?                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   updatedByUser User?                    @relation("UpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
@@ -859,25 +861,27 @@ model PendingDeletion {
 }
 
 model PosthogIntegration {
-  projectId              String    @id @map("project_id")
-  encryptedPosthogApiKey String    @map("encrypted_posthog_api_key")
-  posthogHostName        String    @map("posthog_host_name")
-  lastSyncAt             DateTime? @map("last_sync_at")
+  projectId              String                            @id @map("project_id")
+  encryptedPosthogApiKey String                            @map("encrypted_posthog_api_key")
+  posthogHostName        String                            @map("posthog_host_name")
+  lastSyncAt             DateTime?                         @map("last_sync_at")
   enabled                Boolean
-  createdAt              DateTime  @default(now()) @map("created_at")
-  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  exportSource           AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
+  createdAt              DateTime                          @default(now()) @map("created_at")
+  project                Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("posthog_integrations")
 }
 
 model MixpanelIntegration {
-  projectId                     String    @id @map("project_id")
-  project                       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedMixpanelProjectToken String    @map("encrypted_mixpanel_project_token")
-  mixpanelRegion                String    @map("mixpanel_region")
-  lastSyncAt                    DateTime? @map("last_sync_at")
+  projectId                     String                            @id @map("project_id")
+  project                       Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedMixpanelProjectToken String                            @map("encrypted_mixpanel_project_token")
+  mixpanelRegion                String                            @map("mixpanel_region")
+  lastSyncAt                    DateTime?                          @map("last_sync_at")
   enabled                       Boolean
-  createdAt                     DateTime  @default(now()) @map("created_at")
+  exportSource                  AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
+  createdAt                     DateTime                          @default(now()) @map("created_at")
 
   @@map("mixpanel_integrations")
 }
@@ -943,6 +947,7 @@ model Project {
   orgId                     String                      @map("org_id")
   deletedAt                 DateTime?                   @map("deleted_at")
   retentionDays             Int?                        @map("retention_days")
+  hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
   actions                   Action[]
   annotationQueueAssignment AnnotationQueueAssignment[]
@@ -989,6 +994,7 @@ model Project {
   sessions                  TraceSession[]
   LegacyTrace               LegacyPrismaTrace[]
   triggers                  Trigger[]
+  DefaultView               DefaultView[]
 
   @@index([orgId])
   @@map("projects")
@@ -1174,6 +1180,21 @@ model TableViewPreset {
   @@map("table_view_presets")
 }
 
+model DefaultView {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id")
+  user      User?    @relation("DefaultViewUser", fields: [userId], references: [id], onDelete: Cascade)
+  viewName  String   @map("view_name")
+  viewId    String   @map("view_id")
+
+  @@index([projectId, viewName])
+  @@map("default_views")
+}
+
 model TraceMedia {
   id        String   @id @default(cuid())
   projectId String   @map("project_id")
@@ -1281,6 +1302,7 @@ model User {
   surveys                   Survey[]
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  defaultViews              DefaultView[]               @relation("DefaultViewUser")
 
   @@map("users")
 }
@@ -1413,6 +1435,7 @@ enum ApiKeyScope {
 
 enum DashboardWidgetChartType {
   LINE_TIME_SERIES
+  AREA_TIME_SERIES
   BAR_TIME_SERIES
   HORIZONTAL_BAR
   VERTICAL_BAR
@@ -1450,4 +1473,12 @@ enum BlobStorageExportMode {
   FROM_CUSTOM_DATE
 
   @@map("BlobStorageExportMode")
+}
+
+enum AnalyticsIntegrationExportSource {
+  TRACES_OBSERVATIONS
+  TRACES_OBSERVATIONS_EVENTS
+  EVENTS
+
+  @@map("AnalyticsIntegrationExportSource")
 }

@@ -14,6 +14,7 @@ import { v4 } from "uuid";
 export const promptChangeEventSourcing = async (
   promptData: PromptResult | null,
   action: TriggerEventAction,
+  user?: { id: string; name: string | null; email: string | null },
 ) => {
   if (!promptData) {
     return;
@@ -35,6 +36,7 @@ export const promptChangeEventSourcing = async (
         labels: promptData.labels as string[],
         tags: promptData.tags as string[],
       },
+      ...(user ? { user } : {}),
     },
   };
   try {

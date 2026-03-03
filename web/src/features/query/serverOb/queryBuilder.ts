@@ -74,8 +74,6 @@ export class QueryBuilder {
           "Aggregation 'histogram' is not supported on OceanBase. Use a different aggregation or backend.",
         );
       default:
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
         throw new InvalidRequestError(
           `Invalid aggregation: ${metric.aggregation}`,
         );

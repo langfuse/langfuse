@@ -118,6 +118,7 @@ export const promptVersionProcessor = async (
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
+              user: event.user,
             });
           }),
         );
@@ -146,12 +147,14 @@ async function enqueueAutomationAction({
   triggerId,
   actionId,
   projectId,
+  user,
 }: {
   promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;
   projectId: string;
+  user?: { id: string; name: string | null; email: string | null };
 }): Promise<void> {
   // Get automations for this action
   const automations = await getAutomations({
@@ -209,6 +212,7 @@ async function enqueueAutomationAction({
           tags: promptData.tags as string[],
           labels: promptData.labels as string[],
         },
+        ...(user ? { user } : {}),
       },
     },
     name: QueueJobs.WebhookJob,

@@ -36,14 +36,18 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
 
   return (
     <ResizablePanelGroup
-      direction="vertical"
-      onLayout={(sizes) => setVerticalSize(sizes[0])}
+      orientation="vertical"
       className="h-full"
+      onLayoutChanged={(layout) => {
+        const top = layout["annotation-top"];
+        if (top != null) setVerticalSize(top);
+      }}
     >
       <ResizablePanel
+        id="annotation-top"
         className="w-full overflow-y-auto p-2"
-        minSize={30}
-        defaultSize={verticalSize}
+        minSize="30%"
+        defaultSize={`${verticalSize}%`}
       >
         {activeCell ? (
           <>
@@ -91,7 +95,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
         )}
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel className="overflow-y-auto" minSize={20}>
+      <ResizablePanel className="overflow-y-auto" minSize="20%">
         <CommentsSection
           projectId={projectId}
           objectId={activeCell.observationId ?? activeCell.traceId}

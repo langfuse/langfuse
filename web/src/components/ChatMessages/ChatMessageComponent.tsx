@@ -305,7 +305,6 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
       value={value}
       onChange={onChange}
       mode="prompt"
-      minHeight="none"
       className="w-full rounded-md border-0"
       editable={true}
       lineNumbers={false}

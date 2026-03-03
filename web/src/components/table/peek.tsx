@@ -13,6 +13,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -58,9 +59,6 @@ export type DataTablePeekViewProps = {
    * The content to display in the peek view.
    */
   children: React.ReactNode;
-
-  /** The timestamp of the last time the table data was updated */
-  tableDataUpdatedAt: number;
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
@@ -159,17 +157,16 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </div>
         </SheetHeader>
         <Separator />
-        <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto" key={itemId}>
-            {peekView.children}
+        <PeekTableStateProvider>
+          <div className="flex max-h-full min-h-0 flex-1 flex-col">
+            <div className="flex-1 overflow-auto" key={itemId}>
+              {peekView.children}
+            </div>
           </div>
-        </div>
+        </PeekTableStateProvider>
       </SheetContent>
     </Sheet>
   );
 }
 
-export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
-  // TODO LFE-6627: drop tableDataUpdatedAt and allow memoization to work independently of table data updates
-  return prev.peekView.tableDataUpdatedAt === next.peekView.tableDataUpdatedAt;
-}) as typeof TablePeekViewComponent;
+export const TablePeekView = memo(TablePeekViewComponent);

@@ -24,6 +24,7 @@ import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptC
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
   prisma: PrismaClient;
+  user?: { id: string; name: string | null; email: string | null };
 };
 
 type DuplicatePromptParams = {
@@ -33,6 +34,7 @@ type DuplicatePromptParams = {
   isSingleVersion: boolean;
   createdBy: string;
   prisma: PrismaClient;
+  user?: { id: string; name: string | null; email: string | null };
 };
 
 const extractChatVariableAndPlaceholderNames = (
@@ -68,6 +70,7 @@ export const createPrompt = async ({
   prisma,
   tags,
   commitMessage,
+  user,
 }: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
@@ -211,11 +214,13 @@ export const createPrompt = async ({
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "updated",
+        user,
       ),
     ),
     promptChangeEventSourcing(
       await promptService.resolvePrompt(createdPrompt),
       "created",
+      user,
     ),
   ]);
 
@@ -229,6 +234,7 @@ export const duplicatePrompt = async ({
   isSingleVersion,
   createdBy,
   prisma,
+  user,
 }: DuplicatePromptParams) => {
   // validate that name is unique in project, uniqueness constraint too permissive as it includes version
   const promptNameExists = await prisma.prompt.findFirst({
@@ -343,6 +349,7 @@ export const duplicatePrompt = async ({
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "created",
+        user,
       ),
     ),
   );

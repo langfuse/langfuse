@@ -38,6 +38,7 @@ const dialogContentVariants = cva(
         default: "max-w-lg max-h-[85vh]",
         lg: "max-w-4xl max-h-[85vh]",
         xl: "max-w-7xl h-[90vh]",
+        xxl: "max-w-[95vw] h-[90vh]",
       },
     },
     defaultVariants: {
@@ -50,40 +51,59 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeOnInteractionOutside?: boolean;
+    stopPropagationOnEnterSpace?: boolean;
   } & VariantProps<typeof dialogContentVariants>
 >(
   (
-    { className, children, closeOnInteractionOutside = false, size, ...props },
+    {
+      className,
+      children,
+      closeOnInteractionOutside = false,
+      stopPropagationOnEnterSpace = true,
+      size,
+      ...props
+    },
     ref,
-  ) => (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(dialogContentVariants({ size, className }))}
-        aria-describedby={undefined}
-        onPointerDownOutside={(e) => {
-          if (!closeOnInteractionOutside) {
-            e.preventDefault();
-          }
-        }}
-        onInteractOutside={(e) => {
-          if (!closeOnInteractionOutside) {
-            e.preventDefault();
-          }
-        }}
-        {...props}
-      >
-        {children}
-        <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:z-20">
-          <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        </div>
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  ),
+  ) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      // Prevent Enter/Space key events from propagating to parent elements
+      // This prevents triggering actions like row clicks when submitting forms in dialogs
+      if (stopPropagationOnEnterSpace && (e.key === "Enter" || e.key === " ")) {
+        e.stopPropagation();
+      }
+    };
+
+    return (
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(dialogContentVariants({ size, className }))}
+          aria-describedby={undefined}
+          onKeyDown={handleKeyDown}
+          onPointerDownOutside={(e) => {
+            if (!closeOnInteractionOutside) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (!closeOnInteractionOutside) {
+              e.preventDefault();
+            }
+          }}
+          {...props}
+        >
+          {children}
+          <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:z-20">
+            <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    );
+  },
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
@@ -160,7 +180,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("mt-1 text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

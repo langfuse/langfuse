@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ExternalLinkIcon,
 } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import {
   Popover,
   PopoverContent,
@@ -44,6 +45,7 @@ type TemplateSelectorProps = {
   disabled?: boolean;
   activeTemplateIds?: string[];
   inactiveTemplateIds?: string[];
+  evaluatorTargetObjects?: Record<string, string>;
   onConfigureTemplate?: (templateId: string) => void;
   onSelectEvaluator?: (templateId: string) => void;
   onEvaluatorToggled?: () => void;
@@ -56,6 +58,7 @@ export const TemplateSelector = ({
   evalTemplates,
   activeTemplateIds,
   inactiveTemplateIds,
+  evaluatorTargetObjects,
   onConfigureTemplate,
   onSelectEvaluator,
   onEvaluatorToggled,
@@ -201,6 +204,9 @@ export const TemplateSelector = ({
                           latestTemplate.id,
                         );
                         const isInvalid = isTemplateInvalid(latestTemplate);
+                        const isLegacy =
+                          evaluatorTargetObjects?.[latestTemplate.id] ===
+                          "dataset";
 
                         return (
                           <InputCommandItem
@@ -216,6 +222,11 @@ export const TemplateSelector = ({
                               <div className="mr-2 h-4 w-4" />
                             )}
                             {name}
+                            {isLegacy && (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                legacy
+                              </Badge>
+                            )}
                             {isInvalid && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -282,6 +293,9 @@ export const TemplateSelector = ({
                       const isActive = isTemplateActive(latestTemplate.id);
                       const isInactive = isTemplateInactive(latestTemplate.id);
                       const isInvalid = isTemplateInvalid(latestTemplate);
+                      const isLegacy =
+                        evaluatorTargetObjects?.[latestTemplate.id] ===
+                        "dataset";
 
                       return (
                         <InputCommandItem
@@ -300,6 +314,11 @@ export const TemplateSelector = ({
                           <MaintainerTooltip
                             maintainer={getMaintainer(latestTemplate)}
                           />
+                          {isLegacy && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              legacy
+                            </Badge>
+                          )}
                           {isInvalid && (
                             <Tooltip>
                               <TooltipTrigger asChild>

@@ -10,8 +10,8 @@ alwaysApply: false
 - New api routes should follow these guidelines:
   - Use [withMiddlewares.ts](mdc:web/src/features/public-api/server/withMiddlewares.ts) as a wrapper
   - Define types of api request and response in /web/src/features/public-api/types, use strict() for all zod objects
-  - Add end-to-end test, similar to [datasets-api.servertest.ts](mdc:web/src/__tests__/async/datasets-api.servertest.ts)
+  - Add end-to-end test, similar to [datasets-api.servertest.ts](mdc:web/src/__tests__/server/datasets-api.servertest.ts)
   - Add fern configuration in /fern, learn more about structure here: https://buildwithfern.com/learn/api-definition/fern/overview
   - Prompt user to regenerate the OpenAPI spec via the fern CLI
   - Pagination starts at 1, query typing defined in publicApiPaginationZod, return meta in paginationMetaResponseZod
-- For tests, please look at [this directory](mdc:web/src/__tests__/async/) for examples
+- For tests, please look at [this directory](mdc:web/src/__tests__/server/) for examples

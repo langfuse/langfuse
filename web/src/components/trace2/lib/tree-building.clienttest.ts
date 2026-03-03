@@ -4,7 +4,12 @@
  * Run with: pnpm test-client --testPathPattern="tree-building"
  */
 
-import { buildTraceUiData } from "./tree-building";
+import {
+  buildTraceUiData,
+  removeHiddenNodes,
+  getObservationLevels,
+} from "./tree-building";
+import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 
@@ -209,7 +214,6 @@ describe("buildTraceUiData", () => {
       expect(result.roots).toHaveLength(1);
       expect(result.roots[0].children).toHaveLength(0);
       expect(result.searchItems).toHaveLength(1); // Just the trace
-      expect(result.hiddenObservationsCount).toBe(0);
     });
 
     it("sorts children by startTime", () => {
@@ -1658,5 +1662,241 @@ describe("buildTraceUiData", () => {
         expect(result.nodeMap.get("nested-2")?.depth).toBe(2);
       });
     });
+  });
+});
+
+describe("removeHiddenNodes", () => {
+  const makeNode = (
+    overrides: Partial<TreeNode> & { id: string },
+  ): TreeNode => ({
+    type: "SPAN",
+    name: overrides.id,
+    startTime: new Date("2024-01-01T00:00:00Z"),
+    endTime: new Date("2024-01-01T00:00:01Z"),
+    level: "DEFAULT",
+    children: [],
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: 0,
+    childrenDepth: 0,
+    ...overrides,
+  });
+
+  const flattenIds = (nodes: TreeNode[]): Array<[string, string[]]> => {
+    const out: Array<[string, string[]]> = [];
+    const stack = [...nodes].reverse();
+
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      out.push([node.id, node.children.map((c) => c.id)]);
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push(node.children[i]!);
+      }
+    }
+
+    return out;
+  };
+
+  it.each([
+    {
+      name: "keeps nodes unchanged when none are hidden",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+        }),
+      ],
+      expected: [
+        ["A", ["B", "C"]],
+        ["B", []],
+        ["C", []],
+      ],
+      predicate: () => false,
+    },
+    {
+      name: "promotes children of hidden intermediate nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [makeNode({ id: "C" })],
+            }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["C"]],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "promotes children of hidden root nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          level: "DEBUG",
+          children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+        }),
+      ],
+      expected: [
+        ["B", []],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "handles consecutive hidden ancestors",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [
+                makeNode({
+                  id: "C",
+                  level: "DEBUG",
+                  children: [makeNode({ id: "D" })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["D"]],
+        ["D", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "merges promoted children with existing siblings",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [makeNode({ id: "B1" }), makeNode({ id: "B2" })],
+            }),
+            makeNode({ id: "C" }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["B1", "B2", "C"]],
+        ["B1", []],
+        ["B2", []],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "removes hidden leaf nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({ id: "B", level: "DEBUG" }),
+            makeNode({ id: "C" }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["C"]],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+  ])("$name", ({ roots, expected, predicate }) => {
+    const result = removeHiddenNodes(roots, predicate);
+    expect(flattenIds(result)).toEqual(expected);
+  });
+
+  it("does not modify the original tree", () => {
+    const child = makeNode({ id: "C" });
+    const hidden = makeNode({
+      id: "B",
+      level: "DEBUG",
+      children: [child],
+    });
+    const root = makeNode({ id: "A", children: [hidden] });
+
+    removeHiddenNodes([root], (n) => n.level === "DEBUG");
+
+    // Original tree is untouched
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].id).toBe("B");
+    expect(root.children[0].children).toHaveLength(1);
+  });
+
+  it("preserves TRACE nodes even if predicate matches", () => {
+    const roots = [
+      makeNode({
+        id: "trace-1",
+        type: "TRACE",
+        level: "DEBUG",
+        children: [makeNode({ id: "obs-1" })],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.type !== "TRACE" && n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("trace-1");
+    expect(result[0].children).toHaveLength(1);
+  });
+
+  it("handles deeply nested trees without stack overflow", () => {
+    const depth = 15_000;
+    const root = makeNode({ id: "node-0" });
+    let current = root;
+
+    for (let i = 1; i < depth; i++) {
+      const child = makeNode({ id: `node-${i}` });
+      current.children = [child];
+      current = child;
+    }
+
+    const result = removeHiddenNodes([root], () => false);
+
+    expect(result).toHaveLength(1);
+    let count = 0;
+    let cursor: TreeNode | undefined = result[0];
+    while (cursor) {
+      count++;
+      cursor = cursor.children[0];
+    }
+
+    expect(count).toBe(depth);
+  });
+});
+
+describe("getObservationLevels", () => {
+  it.each([
+    {
+      minLevel: undefined,
+      expected: ["DEBUG", "DEFAULT", "WARNING", "ERROR"],
+    },
+    {
+      minLevel: "DEFAULT" as const,
+      expected: ["DEFAULT", "WARNING", "ERROR"],
+    },
+    {
+      minLevel: "ERROR" as const,
+      expected: ["ERROR"],
+    },
+  ])("returns levels at/above $minLevel", ({ minLevel, expected }) => {
+    const levels = getObservationLevels(minLevel);
+    expect(levels).toEqual(expected);
   });
 });

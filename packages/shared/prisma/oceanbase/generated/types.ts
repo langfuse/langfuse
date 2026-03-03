@@ -137,6 +137,7 @@ export const ApiKeyScope = {
 export type ApiKeyScope = (typeof ApiKeyScope)[keyof typeof ApiKeyScope];
 export const DashboardWidgetChartType = {
   LINE_TIME_SERIES: "LINE_TIME_SERIES",
+  AREA_TIME_SERIES: "AREA_TIME_SERIES",
   BAR_TIME_SERIES: "BAR_TIME_SERIES",
   HORIZONTAL_BAR: "HORIZONTAL_BAR",
   VERTICAL_BAR: "VERTICAL_BAR",
@@ -175,6 +176,13 @@ export const BlobStorageExportMode = {
 } as const;
 export type BlobStorageExportMode =
   (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
+export const AnalyticsIntegrationExportSource = {
+  TRACES_OBSERVATIONS: "TRACES_OBSERVATIONS",
+  TRACES_OBSERVATIONS_EVENTS: "TRACES_OBSERVATIONS_EVENTS",
+  EVENTS: "EVENTS",
+} as const;
+export type AnalyticsIntegrationExportSource =
+  (typeof AnalyticsIntegrationExportSource)[keyof typeof AnalyticsIntegrationExportSource];
 export type Account = {
   id: string;
   type: string;
@@ -361,6 +369,7 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type CloudSpendAlert = {
   id: string;
@@ -426,6 +435,7 @@ export type DashboardWidget = {
   filters: Generated<unknown>;
   chart_type: DashboardWidgetChartType;
   chart_config: unknown;
+  min_version: Generated<number>;
 };
 export type Dataset = {
   id: string;
@@ -486,6 +496,15 @@ export type DefaultLlmModel = {
   adapter: string;
   model: string;
   model_params: unknown | null;
+};
+export type DefaultView = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  user_id: string | null;
+  view_name: string;
+  view_id: string;
 };
 export type EvalTemplate = {
   id: string;
@@ -673,6 +692,7 @@ export type MixpanelIntegration = {
   mixpanel_region: string;
   last_sync_at: Timestamp | null;
   enabled: number;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
 };
 export type Model = {
@@ -746,6 +766,7 @@ export type PosthogIntegration = {
   posthog_host_name: string;
   last_sync_at: Timestamp | null;
   enabled: number;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
 };
 export type Price = {
@@ -776,6 +797,7 @@ export type Project = {
   org_id: string;
   deleted_at: Timestamp | null;
   retention_days: number | null;
+  has_traces: Generated<number>;
   metadata: unknown | null;
 };
 export type ProjectMembership = {
@@ -951,6 +973,7 @@ export type DB = {
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
+  default_views: DefaultView;
   eval_templates: EvalTemplate;
   job_configurations: JobConfiguration;
   job_executions: JobExecution;

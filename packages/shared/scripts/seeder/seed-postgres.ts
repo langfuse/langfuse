@@ -746,6 +746,7 @@ async function generateEvalJobExecutions(
             jobConfiguration.evalTemplateId!,
             i,
             project.id,
+            0,
           ),
         },
       });

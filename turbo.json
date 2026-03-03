@@ -14,11 +14,21 @@
     "db:migrate": {
       "cache": false
     },
-    "db:deploy": {},
-    "db:reset": {},
-    "db:push": {},
-    "db:seed": {},
-    "db:seed:examples": {},
+    "db:deploy": {
+      "cache": false
+    },
+    "db:reset": {
+      "cache": false
+    },
+    "db:push": {
+      "cache": false
+    },
+    "db:seed": {
+      "cache": false
+    },
+    "db:seed:examples": {
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true,

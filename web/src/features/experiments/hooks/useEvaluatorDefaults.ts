@@ -1,13 +1,17 @@
 import { Decimal } from "decimal.js";
-import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
-import { createDefaultVariableMappings } from "../utils/evaluatorMappingUtils";
+import {
+  type EvalTemplate,
+  EvalTargetObject,
+  JobConfigState,
+} from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
+import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
 
 export const CONFIG_BASE = {
-  targetObject: EvalTargetObject.DATASET,
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
+  status: JobConfigState.ACTIVE,
 };
 
 export function useEvaluatorDefaults() {
@@ -18,25 +22,29 @@ export function useEvaluatorDefaults() {
    * @param scoreName - Optional custom score name (defaults to template name)
    * @returns The configured evaluator with defaults
    */
+
   const createDefaultEvaluator = (
     template: EvalTemplate,
     datasetId: string,
     scoreName?: string,
   ): PartialConfig & { evalTemplate: EvalTemplate } => {
-    // Create variable mappings that alternate between dataset_item and trace
-    const alternatingMappings = createDefaultVariableMappings(template);
+    // Create variable mappings (dataset evaluator schema)
+    const variableMappings = createDefaultVariableMappings(template);
 
-    // Return the configured evaluator
+    // Return the configured evaluator for dataset target
     return {
       ...CONFIG_BASE,
+      targetObject: EvalTargetObject.EXPERIMENT,
       evalTemplate: template,
       scoreName: scoreName || template.name,
-      variableMapping: alternatingMappings,
+      variableMapping: variableMappings,
       filter: [
         {
           type: "stringOptions",
           value: [datasetId],
-          column: "Dataset",
+          // Use the column id (not display name) for EXPERIMENT target
+          // This maps to observation.experimentDatasetId in the filter service
+          column: "experimentDatasetId",
           operator: "any of",
         },
       ],

@@ -1,0 +1,44 @@
+name: Promote Main to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'promote' to confirm force-pushing main to production"
+        required: true
+        type: string
+
+concurrency:
+  group: promote-main-to-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: "protected branches"
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "promote" ]; then
+            echo "Input 'confirm' must be 'promote'."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Print commit refs
+        run: |
+          git fetch origin main production
+          echo "main: $(git rev-parse origin/main)"
+          if git show-ref --verify --quiet refs/remotes/origin/production; then
+            echo "production (before): $(git rev-parse origin/production)"
+          else
+            echo "production (before): <branch does not exist>"
+          fi
+
+      - name: Force push main to production
+        run: git push origin +main:production

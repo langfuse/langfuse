@@ -11,7 +11,7 @@ require("dotenv").config();
 import {
   evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
-  evalJobExecutorQueueProcessor,
+  evalJobExecutorQueueProcessorBuilder,
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
@@ -231,7 +231,7 @@ if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.EvaluationExecution,
-    evalJobExecutorQueueProcessor,
+    evalJobExecutorQueueProcessorBuilder(true, QueueName.EvaluationExecution),
     {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
@@ -252,6 +252,23 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       lockDuration: 60000,
       stalledInterval: 120000,
+      maxStalledCount: 3,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.EvaluationExecutionSecondaryQueue,
+    evalJobExecutorQueueProcessorBuilder(
+      false,
+      QueueName.EvaluationExecutionSecondaryQueue,
+    ),
+    {
+      concurrency:
+        env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
     },
   );
@@ -447,6 +464,13 @@ if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         max: 1,
         duration: 10_000,
       },
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
@@ -562,9 +586,11 @@ export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
-    // Only start the events table cleaner if the events table experiment is enabled
+    // Only start the events table cleaners if the events table experiment is enabled
     if (
-      table !== "events" ||
+      (table !== "events_full" &&
+        table !== "events_core" &&
+        table !== "events") ||
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
     ) {
       const cleaner = new BatchProjectCleaner(table);
@@ -579,9 +605,11 @@ export const batchDataRetentionCleaners: BatchDataRetentionCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DATA_RETENTION_TABLES) {
-    // Only start the events table cleaner if the events table experiment is enabled
+    // Only start the events table cleaners if the events table experiment is enabled
     if (
-      table !== "events" ||
+      (table !== "events_full" &&
+        table !== "events_core" &&
+        table !== "events") ||
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
     ) {
       const cleaner = new BatchDataRetentionCleaner(table);

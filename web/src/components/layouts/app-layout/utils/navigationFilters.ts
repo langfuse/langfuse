@@ -8,9 +8,13 @@ import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { User } from "next-auth";
+import type { Flag } from "@/src/features/feature-flags/types";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization = User["organizations"][number] | null | undefined;
+
+// Admin-only flags that don't respect experimental features
+const adminOnlyFlags: Flag[] = ["experimentsV4Enabled"];
 
 /**
  * Individual filter functions - each handles one concern
@@ -68,22 +72,40 @@ export const filters = {
    * - Experimental features enabled
    * - User is cloud admin
    * - User has specific feature flag
-   * - For v4Beta: also show when user email ends with @langfuse.com
+   * - For v4Beta: also show when user email ends with @langfuse.com, feature flag is set and we are in a cloud environment
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
+
+    if (route.featureFlag && adminOnlyFlags.includes(route.featureFlag)) {
+      if (!ctx.isLangfuseCloud) return null;
+
+      // Only check admin and user flag, skip experimental features
+      return ctx.cloudAdmin ||
+        ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
       ctx.cloudAdmin ||
       ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
-
-    // For v4Beta: also show when user email ends with @langfuse.com
-    const isV4BetaLangfuseEmail =
-      route.featureFlag === "v4BetaToggleVisible" &&
+    // TODO: remove when v4 beta is GA
+    // v4 beta toggle special cases
+    const isV4BetaRoute = route.featureFlag === "v4BetaToggleVisible";
+    const isLangfuseTeam =
+      ctx.isLangfuseCloud &&
       ctx.session?.user?.email?.endsWith("@langfuse.com") === true;
+    const hasCloudFlag =
+      ctx.isLangfuseCloud &&
+      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
+    // ungated: opted-in users must see toggle to turn it off regardless of env
+    const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
+    const isV4BetaVisible =
+      isV4BetaRoute && (isLangfuseTeam || hasOptedIn || hasCloudFlag);
 
-    return hasFlag || isV4BetaLangfuseEmail ? route : null;
+    return hasFlag || isV4BetaVisible ? route : null;
   },
 
   /**

@@ -40,10 +40,7 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -68,11 +65,13 @@ interface DataTableProps<TData, TValue> {
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
+  noResultsMessage?: React.ReactNode;
   rowHeight?: RowHeight;
   customRowHeights?: CustomHeights;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  /** Used for row click handling and MemoizedTableBody snapshot only. Render <TablePeekView> as a sibling outside DataTable. */
   peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
   tableName: string;
@@ -152,6 +151,7 @@ export function DataTable<TData extends object, TValue>({
   columnOrder,
   onColumnOrderChange,
   help,
+  noResultsMessage,
   orderBy,
   setOrderBy,
   rowHeight,
@@ -410,10 +410,10 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 tableSnapshot={{
-                  tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
                   columnOrder,
                   rowSelection,
@@ -427,6 +427,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
               />
@@ -434,7 +435,6 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
-      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
@@ -472,10 +472,10 @@ interface TableBodyComponentProps<TData> {
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
+  noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
-    tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
     rowSelection?: RowSelectionState;
@@ -524,6 +524,7 @@ function TableBodyComponent<TData>({
   columns,
   data,
   help,
+  noResultsMessage,
   onRowClick,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
@@ -598,10 +599,14 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
-              No results.{" "}
-              {help && (
-                <DocPopup description={help.description} href={help.href} />
+            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
+              {noResultsMessage ?? (
+                <>
+                  No results.{" "}
+                  {help && (
+                    <DocPopup description={help.description} href={help.href} />
+                  )}
+                </>
               )}
             </div>
           </TableCell>
@@ -631,14 +636,13 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (!prev.tableSnapshot || !next.tableSnapshot)
     return !prev.tableSnapshot && !next.tableSnapshot;
 
-  // Check reference equality first (faster)
-  if (
-    prev.tableSnapshot.tableDataUpdatedAt !==
-    next.tableSnapshot.tableDataUpdatedAt
-  ) {
-    return false;
-  }
-  if (prev.table.options.data !== next.table.options.data) return false;
+  // Compare actual data arrays from the AsyncTableData prop.
+  // prev.table.options.data won't work — TanStack Table returns a stable mutable instance.
+  const prevDataArr =
+    !prev.data.isLoading && !prev.data.isError ? prev.data.data : undefined;
+  const nextDataArr =
+    !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
+  if (prevDataArr !== nextDataArr) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
