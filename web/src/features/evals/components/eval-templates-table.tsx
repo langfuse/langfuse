@@ -161,11 +161,7 @@ export default function EvalsTemplateTable({
       id: "name",
       cell: (row) => {
         const name = row.getValue();
-        return (
-          <div className="flex flex-wrap items-center gap-2">
-            {name ? <TableIdOrName value={name} /> : undefined}
-          </div>
-        );
+        return name ? <TableIdOrName value={name} /> : undefined;
       },
     }),
     columnHelper.accessor("maintainer", {
@@ -315,7 +311,7 @@ export default function EvalsTemplateTable({
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
   ): EvalsTemplateRow => {
-    const row: EvalsTemplateRow = {
+    return {
       name: template.name,
       maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
@@ -325,7 +321,6 @@ export default function EvalsTemplateTable({
       provider: template.provider,
       model: template.model,
     };
-    return row;
   };
 
   return (

@@ -316,11 +316,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const template = row.original.template;
         if (!template) return "template not found";
         return (
-          <div className="flex flex-wrap items-center gap-2">
-            <TableIdOrName value={template.name} />
-            <div className="flex justify-center">
-              <MaintainerTooltip maintainer={row.original.maintainer} />
-            </div>
+          <div className="flex items-center gap-2">
             {row.original.status === "INACTIVE" &&
               row.original.statusMessage && (
                 <Tooltip>
@@ -341,6 +337,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   </TooltipContent>
                 </Tooltip>
               )}
+            <TableIdOrName value={template.name} />
+            <div className="flex justify-center">
+              <MaintainerTooltip maintainer={row.original.maintainer} />
+            </div>
           </div>
         );
       },

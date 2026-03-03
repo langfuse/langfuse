@@ -28,7 +28,6 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
-  clearAllEvalConfigsCaches,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -276,8 +275,6 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         return { success: true };
       });
-
-      await clearAllEvalConfigsCaches(input.projectId);
 
       return result;
     }),

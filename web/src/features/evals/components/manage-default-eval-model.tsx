@@ -33,7 +33,7 @@ export function ManageDefaultEvalModel({
   );
 
   return (
-    <span className="flex items-center">
+    <div className="flex items-center">
       {!showEditButton &&
         (defaultModel ? (
           <Check className="mr-2 h-4 w-4 text-dark-green" />
@@ -85,6 +85,6 @@ export function ManageDefaultEvalModel({
           </Link>
         </Button>
       )}
-    </span>
+    </div>
   );
 }

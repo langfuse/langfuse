@@ -90,7 +90,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           />
         )}
 
-      <CardDescription className="flex flex-wrap items-center gap-2 text-sm">
+      <CardDescription className="mr-2 flex items-center gap-2 text-sm">
         <span className="text-sm font-medium">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
           <TableLink

@@ -26,8 +26,6 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -117,9 +115,6 @@ export const EvalTemplateDetail = () => {
       ) : (
         <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
           <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <MaintainerTooltip maintainer={getMaintainer(template.data)} />
-            </div>
             <EvalTemplateForm
               useDialog={false}
               projectId={projectId}

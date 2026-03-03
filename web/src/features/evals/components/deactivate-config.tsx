@@ -64,24 +64,21 @@ export function DeactivateEvalConfig({
     setIsOpen(false);
   };
 
-  const isSwitchDisabled =
-    !hasAccess ||
-    (evalConfig?.timeScope?.length === 1 &&
-      evalConfig.timeScope[0] === "EXISTING");
-
-  const switchEl = (
-    <div className="flex items-center">
-      <Switch
-        disabled={isSwitchDisabled}
-        checked={isActive}
-        className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
-      />
-    </div>
-  );
-
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>{switchEl}</PopoverTrigger>
+      <PopoverTrigger asChild>
+        <div className="flex items-center">
+          <Switch
+            disabled={
+              !hasAccess ||
+              (evalConfig?.timeScope?.length === 1 &&
+                evalConfig.timeScope[0] === "EXISTING")
+            }
+            checked={isActive}
+            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+          />
+        </div>
+      </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">

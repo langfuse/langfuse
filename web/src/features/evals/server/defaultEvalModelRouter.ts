@@ -54,6 +54,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
+      // Invalidate all eval jobs that rely on the default model
       const result = await ctx.prisma.$transaction(async (tx) => {
         const evalTemplates = await tx.evalTemplate.findMany({
           where: {
@@ -75,7 +76,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
+        // Delete the default model within the transaction
         await tx.defaultLlmModel.delete({
+          // unique constraint on projectId
           where: {
             projectId: input.projectId,
           },
