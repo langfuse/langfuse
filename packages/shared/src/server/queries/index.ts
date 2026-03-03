@@ -5,6 +5,7 @@ export {
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
+  type Filter,
   FilterList,
   StringFilter,
   DateTimeFilter,

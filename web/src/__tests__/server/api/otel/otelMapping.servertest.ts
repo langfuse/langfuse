@@ -3914,6 +3914,136 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.startTime).toBe(expectedISO);
       expect(observation?.body.endTime).toBe(expectedISO);
     });
+
+    it("should apply the same AI SDK name extraction in processToEvent and ingestion-event mapping", async () => {
+      const resourceSpan = {
+        resource: {
+          attributes: [{ key: "service.name", value: { stringValue: "test" } }],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "5.0.0",
+            },
+            spans: [
+              {
+                traceId: "2cce18f7e8cd065a0b4e634eef728391",
+                spanId: "57f0255417974100",
+                name: "ai.generateText",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 466848096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 467248096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "generateText" },
+                  },
+                  {
+                    key: "ai.telemetry.functionId",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "gpt-4.1-mini" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: { stringValue: '[{"role":"user","content":"hi"}]' },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "langfuse.prompt.name",
+                    value: { stringValue: "my-prompt" },
+                  },
+                  {
+                    key: "langfuse.prompt.version",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "langfuse.observation.level",
+                    value: { stringValue: "WARNING" },
+                  },
+                  {
+                    key: "langfuse.observation.status_message",
+                    value: { stringValue: "ok" },
+                  },
+                  {
+                    key: "langfuse.public",
+                    value: { boolValue: true },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.userId",
+                    value: { stringValue: "user-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.sessionId",
+                    value: { stringValue: "session-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.tags",
+                    value: { stringValue: '["a","b"]' },
+                  },
+                  {
+                    key: "langfuse.release",
+                    value: { stringValue: "v1" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0].name).toBe("chat:generateText");
+
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const trace = ingestionEvents.find((e) => e.type === "trace-create");
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+
+      expect(trace?.body.name).toBe("chat:generateText");
+      expect(observation?.body.name).toBe("chat:generateText");
+      expect(eventInputs[0].environment).toBe(observation?.body.environment);
+      expect(eventInputs[0].version).toBe(observation?.body.version);
+      expect(eventInputs[0].level).toBe(observation?.body.level);
+      expect(eventInputs[0].statusMessage).toBe(
+        observation?.body.statusMessage,
+      );
+      expect(eventInputs[0].promptName).toBe(observation?.body.promptName);
+      expect(eventInputs[0].promptVersion).toBe(
+        observation?.body.promptVersion,
+      );
+      expect(eventInputs[0].modelName).toBe(observation?.body.model);
+      expect(eventInputs[0].input).toBe(observation?.body.input);
+      expect(eventInputs[0].output).toBe(observation?.body.output);
+      expect(eventInputs[0].userId).toBe(trace?.body.userId);
+      expect(eventInputs[0].sessionId).toBe(trace?.body.sessionId);
+      expect(eventInputs[0].public).toBe(trace?.body.public);
+      expect(eventInputs[0].tags).toEqual(trace?.body.tags);
+      expect(eventInputs[0].release).toBe(trace?.body.release);
+    });
   });
 
   describe("Trace seen logic", () => {

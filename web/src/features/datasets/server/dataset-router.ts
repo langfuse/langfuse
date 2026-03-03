@@ -1776,12 +1776,14 @@ export const datasetRouter = createTRPCRouter({
             datasetName: dataset.name,
             payload: input.payload ?? dataset.remoteExperimentPayload,
           }),
-          signal: AbortSignal.timeout(10000), // 10 second timeout
+          signal: AbortSignal.timeout(20000), // 20 second timeout
         });
 
         if (!response.ok) {
+          logger.info(`Remote server returned error (${response.status})`);
           return {
             success: false,
+            error: `Remote server returned error (${response.status})`,
           };
         }
 
@@ -1790,8 +1792,13 @@ export const datasetRouter = createTRPCRouter({
         };
       } catch (error) {
         if (error instanceof Error) {
+          logger.info(`Failed to trigger remote experiment: ${error.name}`);
           return {
             success: false,
+            error:
+              error.name === "AbortError"
+                ? "Request timed out"
+                : "Failed to connect to remote server",
           };
         }
         return {

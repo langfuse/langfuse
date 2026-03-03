@@ -176,6 +176,11 @@ export const eventsTracesView: ViewDeclarationType = {
       // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
         "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+      // Pruning columns for WHERE: OR'd together to help ClickHouse skip blocks,
+      // then dimension.sql is AND'd for exact row-level match.
+      filterSql: {
+        where: ["events_traces.trace_name", "events_traces.name"],
+      },
     },
     tags: {
       sql: "events_traces.tags",
@@ -238,7 +243,7 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "countIf(events_traces.parent_span_id = '')",
+      sql: "uniq(events_traces.trace_id)",
       alias: "count",
       type: "integer",
       description: "Total number of traces.",
@@ -260,17 +265,21 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "scores",
     },
     uniqueUserIds: {
-      sql: "uniq(events_traces.user_id)",
+      sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueUserIds",
-      type: "integer",
-      description: "Count of unique userIds.",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
       unit: "users",
     },
     uniqueSessionIds: {
-      sql: "uniq(events_traces.session_id)",
+      sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueSessionIds",
-      type: "integer",
-      description: "Count of unique sessionIds.",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
       unit: "sessions",
     },
     latency: {
@@ -825,7 +834,12 @@ const createScoreTableRelations = (
   version: "v1" | "v2",
 ): Record<
   string,
-  { name: string; joinConditionSql: string; timeDimension: string }
+  {
+    name: string;
+    joinConditionSql: string;
+    timeDimension: string;
+    useFinal?: boolean;
+  }
 > => {
   if (version === "v1") {
     return {
@@ -849,12 +863,14 @@ const createScoreTableRelations = (
         joinConditionSql:
           "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
         timeDimension: "start_time",
+        useFinal: false,
       },
       events_observations: {
         name: "events_core",
         joinConditionSql:
           "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
         timeDimension: "start_time",
+        useFinal: false,
       },
     };
   }
@@ -1144,6 +1160,24 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Trace identifier; apply uniq aggregation to count distinct traces.",
+    },
+    uniqueUserIds: {
+      sql: "@@AGG@@(nullIf(events_observations.user_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueUserIds",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "@@AGG@@(nullIf(events_observations.session_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueSessionIds",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
+      unit: "sessions",
     },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
