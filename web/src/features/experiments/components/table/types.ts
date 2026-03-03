@@ -12,8 +12,7 @@ export type ExperimentsTableRow = {
   datasetId: string;
 
   // Time fields
-  createdAt: Date;
-  updatedAt: Date;
+  startTime: Date;
 
   // Core properties
   itemCount: number;

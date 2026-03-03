@@ -48,10 +48,10 @@ export const experimentsTableCols: ColumnDefinition[] = [
     options: [],
   },
   {
-    name: "Created At",
-    id: "createdAt",
+    name: "Start Time",
+    id: "startTime",
     type: "datetime",
-    internal: "created_at",
+    internal: "start_time",
   },
   {
     name: "Item Count",
