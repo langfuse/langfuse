@@ -136,7 +136,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: twoDaysAgo.getTime() * 1000,
+        start_time: twoDaysAgo.getTime() * 1000,
       });
 
       const event2 = createEvent({
@@ -154,7 +154,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now.getTime() * 1000,
+        start_time: now.getTime() * 1000,
       });
 
       const event3 = createEvent({
@@ -172,7 +172,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: yesterday.getTime() * 1000,
+        start_time: yesterday.getTime() * 1000,
       });
 
       await createEventsCh([event1, event2, event3]);
@@ -194,7 +194,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       );
 
       expect(testExperiments.length).toBe(3);
-      // Should be ordered by created_at DESC: now -> yesterday -> twoDaysAgo
+      // Should be ordered by start_time DESC: now -> yesterday -> twoDaysAgo
       expect(testExperiments[0].id).toBe(experimentId2);
       expect(testExperiments[1].id).toBe(experimentId3);
       expect(testExperiments[2].id).toBe(experimentId1);
@@ -232,7 +232,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: twoDaysAgo.getTime() * 1000,
+        start_time: twoDaysAgo.getTime() * 1000,
       });
 
       // Event 2: yesterday, datasetId2 (should NOT match - different dataset)
@@ -251,7 +251,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: yesterday.getTime() * 1000,
+        start_time: yesterday.getTime() * 1000,
       });
 
       // Event 3: threeDaysAgo, datasetId1 (should NOT match - outside date range)
@@ -270,7 +270,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: threeDaysAgo.getTime() * 1000,
+        start_time: threeDaysAgo.getTime() * 1000,
       });
 
       await createEventsCh([event1, event2, event3]);
@@ -341,7 +341,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 3500) * 1000, // Earliest start: now - 3500ms (convert to microseconds)
         end_time: (now - 2500) * 1000, // End: now - 2500ms (convert to microseconds)
-        created_at: now * 1000,
       });
 
       const childSpan1Id = randomUUID();
@@ -363,7 +362,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
-        created_at: now * 1000,
       });
 
       const childSpan2Id = randomUUID();
@@ -385,7 +383,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3000) * 1000,
         end_time: (now - 1500) * 1000, // Latest end: now - 1500ms (convert to microseconds)
-        created_at: now * 1000,
       });
 
       // Trace 2: Single event with known latency (1000ms)
@@ -407,7 +404,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 2500) * 1000, // Start: now - 2500ms (convert to microseconds)
         end_time: (now - 1500) * 1000, // End: now - 1500ms (latency = 1000ms, convert to microseconds)
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1, event2, event3, event4]);
@@ -454,7 +450,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 3500) * 1000,
         end_time: (now - 2500) * 1000,
         cost_details: { total: 0 }, // Parent has no direct cost
-        created_at: now * 1000,
       });
 
       const event2 = createEvent({
@@ -476,7 +471,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
         cost_details: { total: 0.005 }, // Child 1 cost
-        created_at: now * 1000,
       });
 
       const event3 = createEvent({
@@ -498,7 +492,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 3000) * 1000,
         end_time: (now - 2600) * 1000,
         cost_details: { total: 0.008765 }, // Child 2 cost (total = 0.013765)
-        created_at: now * 1000,
       });
 
       // Trace 2: Single event with cost
@@ -521,7 +514,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 2500) * 1000,
         end_time: (now - 1500) * 1000,
         cost_details: { total: 0.1 }, // Single event cost
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1, event2, event3, event4]);
@@ -572,7 +564,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 2000) * 1000,
         end_time: (now - 1000) * 1000, // 1000ms latency
         cost_details: { total: 0.05 },
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1]);
@@ -628,7 +619,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event1b = createEvent({
@@ -646,7 +637,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Two items with scores averaging to 0.5
@@ -671,7 +662,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event2b = createEvent({
@@ -689,7 +680,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event2a, event2b]);
@@ -784,7 +775,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event2 = createEvent({
@@ -802,7 +793,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -854,7 +845,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event2 = createEvent({
@@ -872,7 +863,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -925,7 +916,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has different metadata
@@ -944,7 +935,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -1002,7 +993,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has metadata without substring
@@ -1021,7 +1012,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -1075,7 +1066,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has NO metadata
@@ -1094,7 +1085,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -1149,7 +1140,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event1b = createEvent({
@@ -1168,7 +1159,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event1c = createEvent({
@@ -1187,7 +1178,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has 1 ERROR event (error_count = 1)
@@ -1207,7 +1198,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Add a non-error event to experiment 2 (should not increase error_count)
@@ -1227,7 +1218,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event1c, event2a, event2b]);
@@ -1289,7 +1280,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event1b = createEvent({
@@ -1308,7 +1299,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 2: datasetId1, 0 errors (matches dataset, not error filter)
@@ -1328,7 +1319,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       // Experiment 3: datasetId2, 2 errors (matches error filter, not dataset)
@@ -1348,7 +1339,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       const event3b = createEvent({
@@ -1367,7 +1358,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event2, event3a, event3b]);
