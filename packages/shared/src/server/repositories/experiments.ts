@@ -11,7 +11,6 @@ import {
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
-  EventsAggregationQueryBuilder,
   orderByToEntries,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
@@ -518,7 +517,7 @@ export type ExperimentItemMetricsReturnType = {
   experiment_item_id: string;
   trace_id: string;
   total_cost: number | null;
-  latency_ms: number | null;
+  latency_milliseconds: number | null;
 };
 
 /**
@@ -612,6 +611,8 @@ export const getExperimentItemsFromEvents = async (props: {
     },
   });
 
+  console.log("rows", rows);
+
   return rows.map((row) => ({
     id: row.experiment_item_id,
     observationId: row.id, // span_id
@@ -671,6 +672,9 @@ export const getExperimentItemMetricsFromEvents = async (props: {
   return rows.map((row) => ({
     id: row.experiment_item_id,
     totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-    latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
+    latencyMs:
+      row.latency_milliseconds !== null
+        ? Number(row.latency_milliseconds)
+        : null,
   }));
 };

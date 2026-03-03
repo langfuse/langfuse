@@ -30,7 +30,10 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  IOTableCell,
+  MemoizedIOTableCell,
+} from "@/src/components/ui/IOTableCell";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -141,16 +144,16 @@ export default function ExperimentItemsTable({
       defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
-        const datasetItemId = row.original.id;
+        const experimentItemId = row.original.id;
         const experimentDatasetId = row.original.datasetId;
         const version = row.original.datasetItemVersion;
         return experimentDatasetId ? (
           <Link
-            href={`/project/${projectId}/datasets/${experimentDatasetId}/items/${encodeURIComponent(datasetItemId)}${version ? `?version=${version}` : ""}`}
+            href={`/project/${projectId}/datasets/${experimentDatasetId}/items/${encodeURIComponent(experimentItemId)}${version ? `?version=${version}` : ""}`}
             className="text-primary hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            <TableIdOrName value={datasetItemId} />
+            <TableIdOrName value={experimentItemId} />
           </Link>
         ) : undefined;
       },
@@ -261,6 +264,17 @@ export default function ExperimentItemsTable({
             className="bg-accent-light-blue"
           />
         ) : null;
+      },
+    },
+    {
+      accessorKey: "metadata",
+      id: "metadata",
+      header: "Metadata",
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
   ];

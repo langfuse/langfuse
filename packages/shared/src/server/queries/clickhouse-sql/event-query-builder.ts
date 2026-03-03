@@ -122,9 +122,9 @@ const EVENTS_FIELDS = {
   experimentItemRootSpanId:
     'e.experiment_item_root_span_id as "experiment_item_root_span_id"',
   experimentItemExpectedOutput:
-    'e.experiment_item_expected_output as "expected_output"',
+    'e.experiment_item_expected_output as "experiment_item_expected_output"',
   experimentItemMetadata:
-    "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as item_metadata",
+    "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
   experimentItemVersion:
     'e.experiment_item_version as "experiment_item_version"',
 
@@ -366,6 +366,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
   public: "max(public) AS public",
+  experiment_item_id:
+    "argMaxIf(experiment_item_id, event_ts, experiment_item_id <> '') AS experiment_item_id",
 
   // Observation-level aggregations for filtering support
   usage_details: "sumMap(usage_details) as usage_details",
