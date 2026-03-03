@@ -385,15 +385,26 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      // Map startTimeFilter to Timestamp column for trace queries
+      const traceTimestampFilters =
+        input.startTimeFilter && input.startTimeFilter.length > 0
+          ? input.startTimeFilter.map((f) => ({
+              column: "Timestamp" as const,
+              operator: f.operator,
+              value: f.value,
+              type: "datetime" as const,
+            }))
+          : [];
+
       const [numericScoreNames, categoricalScoreNames, experimentDatasetIds] =
         await Promise.all([
           getNumericScoresGroupedByName(
             input.projectId,
-            input.startTimeFilter ?? [],
+            traceTimestampFilters ?? [],
           ),
           getCategoricalScoresGroupedByName(
             input.projectId,
-            input.startTimeFilter ?? [],
+            traceTimestampFilters ?? [],
           ),
           getEventsGroupedByExperimentDatasetId(
             input.projectId,

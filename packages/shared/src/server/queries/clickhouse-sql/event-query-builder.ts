@@ -370,7 +370,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentDatasetId: "any(experiment_dataset_id) AS experiment_dataset_id",
 
   // Timestamps
-  createdAt: "min(created_at) AS created_at",
+  startTime: "min(start_time) AS start_time",
 
   // Aggregated metrics
   itemCount: "uniq(experiment_item_id) AS item_count",
@@ -1262,7 +1262,7 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
  * @example
  * const builder = new EventsExperimentsAggregationQueryBuilder({ projectId: "my-project-id" })
  *   .selectFieldSet("all")
- *   .orderByColumns([{ column: "created_at", direction: "DESC" }]);
+ *   .orderByColumns([{ column: "start_time", direction: "DESC" }]);
  *
  * const { query, params } = builder.buildWithParams();
  */

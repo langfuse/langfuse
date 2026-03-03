@@ -25,7 +25,7 @@ export type ExperimentEventsDataReturnType = {
   experiment_name: string;
   experiment_description: string | null;
   experiment_dataset_id: string;
-  created_at: string;
+  start_time: string;
   item_count: number;
   error_count: number;
   prompts: Array<[string, number | null]>; // List of unique (prompt_name, prompt_version) tuples
@@ -87,7 +87,7 @@ export const getExperimentsFromEvents = async (props: {
     errorCount: Number(row.error_count),
     prompts: row.prompts || [],
     metadata: row.experiment_metadata || {},
-    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
   }));
 };
 
@@ -408,7 +408,7 @@ const getExperimentsFromEventsGeneric = async <T>(
         "e.experiment_name",
         "e.experiment_description",
         "e.experiment_dataset_id",
-        "e.created_at",
+        "e.start_time",
         "e.item_count",
         "e.error_count",
         "e.prompts",

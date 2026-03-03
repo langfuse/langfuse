@@ -34,10 +34,10 @@ export const experimentPreAggCols: UiColumnMappings = [
     clickhouseSelect: "e.experiment_dataset_id",
   },
   {
-    uiTableName: "Created At",
-    uiTableId: "createdAt",
+    uiTableName: "Start Time",
+    uiTableId: "startTime",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.created_at",
+    clickhouseSelect: "e.start_time",
   },
 ];
 

@@ -70,7 +70,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
   const [inputFilterState] = useQueryFilterState([], "experiments", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
-    column: "createdAt",
+    column: "startTime",
     order: "DESC",
   });
 
@@ -84,7 +84,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
   const dateRangeFilter: FilterState = tableDateRange
     ? [
         {
-          column: "createdAt",
+          column: "startTime",
           type: "datetime",
           operator: ">=",
           value: tableDateRange.from,
@@ -92,7 +92,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         ...(tableDateRange.to
           ? [
               {
-                column: "createdAt",
+                column: "startTime",
                 type: "datetime",
                 operator: "<=",
                 value: tableDateRange.to,
@@ -248,14 +248,14 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       enableHiding: true,
     },
     {
-      accessorKey: "createdAt",
-      id: "createdAt",
-      header: getExperimentsColumnName("createdAt"),
+      accessorKey: "startTime",
+      id: "startTime",
+      header: getExperimentsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: Date = row.getValue("createdAt");
+        const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
       },
     },
