@@ -13,7 +13,7 @@ type ExperimentOverviewPanelProps = {
     datasetName?: string;
     prompts: Array<[string, number | null]>; // [prompt_name, prompt_version]
     metadata: Record<string, string>;
-    createdAt: Date;
+    startTime: Date;
   };
 };
 
@@ -106,10 +106,10 @@ export function ExperimentOverviewPanel({
           </div>
         )}
 
-        {/* Created At */}
+        {/* Start Time */}
         <div>
-          <div className="text-xs text-muted-foreground">Created</div>
-          <LocalIsoDate date={experiment.createdAt} />
+          <div className="text-xs text-muted-foreground">Start Time</div>
+          <LocalIsoDate date={experiment.startTime} />
         </div>
       </div>
     </div>

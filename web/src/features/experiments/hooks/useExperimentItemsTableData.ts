@@ -7,15 +7,20 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
  * Core data for an experiment item (from items query)
  */
 type ExperimentItemCoreData = {
-  id: string; // experiment_item_id
-  experimentId: string;
+  id: string; // experiment_item_id - used for joining
+  observationId: string;
   traceId: string;
-  datasetItemId: string;
+  input: string | null;
+  output: string | null;
+  expectedOutput: string | null;
+  level: string;
   startTime: Date;
-  input?: string;
-  output?: string;
-  expectedOutput?: string;
-  itemMetadata?: Record<string, unknown>;
+  experimentId: string;
+  experimentName: string;
+  datasetId: string;
+  rootSpanId: string;
+  datasetItemVersion: string | null;
+  metadata: Record<string, string>;
 };
 
 /**
@@ -25,7 +30,6 @@ type ExperimentItemMetricsData = {
   id: string; // experiment_item_id - used for joining
   totalCost: number | null;
   latencyMs: number | null;
-  scores: ScoreAggregate;
 };
 
 type UseExperimentItemsTableDataParams = {
@@ -101,9 +105,8 @@ export function useExperimentItemsTableData({
       projectId,
       experimentId,
       experimentItemIds: data.map((item) => item.id),
-      filter: filterState,
     };
-  }, [itemsQuery.data?.data, projectId, experimentId, filterState]);
+  }, [itemsQuery.data?.data, projectId, experimentId]);
 
   // Fetch metrics for visible items
   const metricsQuery = api.experiments.itemMetrics.useQuery(metricsPayload!, {

@@ -32,7 +32,6 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
-import { useExperimentItemsFilterOptions } from "../../hooks/useExperimentItemsFilterOptions";
 import {
   type ExperimentItemsTableRow,
   type ExperimentItemsTableProps,
@@ -74,29 +73,15 @@ export default function ExperimentItemsTable({
     "s",
   );
 
-  const [inputFilterState] = useQueryFilterState(
-    [],
-    "experiment-items",
-    projectId,
-  );
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
     order: "DESC",
   });
 
-  // Fetch filter options for scores scoped to this experiment
-  const { filterOptions, isFilterOptionsPending } =
-    useExperimentItemsFilterOptions({
-      projectId,
-      experimentId,
-    });
-
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
-    filterOptions,
+    {},
     projectId,
-    isFilterOptionsPending,
     hideControls,
   );
 
@@ -149,16 +134,16 @@ export default function ExperimentItemsTable({
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     {
-      accessorKey: "datasetItemId",
-      id: "datasetItemId",
-      header: "Dataset Item",
+      accessorKey: "id",
+      id: "id",
+      header: "Experiment Item",
       size: 150,
       defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
-        const datasetItemId: string = row.getValue("id");
-        const experimentDatasetId: string = row.getValue("experimentDatasetId");
-        const version = row.getValue("experimentItemVersion");
+        const datasetItemId = row.original.id;
+        const experimentDatasetId = row.original.datasetId;
+        const version = row.original.datasetItemVersion;
         return experimentDatasetId ? (
           <Link
             href={`/project/${projectId}/datasets/${experimentDatasetId}/items/${encodeURIComponent(datasetItemId)}${version ? `?version=${version}` : ""}`}
@@ -183,15 +168,15 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "experimentItemRootSpanId",
-      id: "experimentItemRootSpanId",
+      accessorKey: "rootSpanId",
+      id: "rootSpanId",
       header: "Observation",
       defaultHidden: true,
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
-        const rootSpanId: string = row.getValue("experimentItemRootSpanId");
-        const traceId: string = row.getValue("traceId");
+        const rootSpanId = row.original.rootSpanId;
+        const traceId = row.original.traceId;
         return traceId && rootSpanId ? (
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(rootSpanId)}`}

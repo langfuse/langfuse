@@ -41,32 +41,13 @@ export default function ExperimentDetail() {
     },
   );
 
-  // Fetch dataset name for breadcrumb
-  const { data: dataset } = api.datasets.byId.useQuery(
-    {
-      projectId,
-      datasetId: experiment?.datasetId ?? "",
-    },
-    {
-      enabled: Boolean(experiment?.datasetId),
-    },
-  );
-
   return (
     <Page
       headerProps={{
         title: experiment?.name ?? experimentId,
-        itemType: "DATASET_RUN",
+        itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
-          ...(experiment?.datasetId
-            ? [
-                {
-                  name: dataset?.name ?? experiment.datasetId,
-                  href: `/project/${projectId}/datasets/${experiment.datasetId}`,
-                },
-              ]
-            : []),
         ],
         help: {
           description:

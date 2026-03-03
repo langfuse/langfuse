@@ -32,10 +32,10 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "dataset_item_id",
   },
   {
-    name: "Created At",
-    id: "createdAt",
+    name: "Start Time",
+    id: "startTime",
     type: "datetime",
-    internal: "created_at",
+    internal: "start_time",
   },
   {
     name: "Total Cost ($)",
@@ -83,13 +83,6 @@ export const getExperimentItemsColumnName = (id: string): string => {
     throw new Error(`Column ${id} not found in experimentItemsTableCols`);
   }
   return column.name;
-};
-
-/**
- * Maps frontend column IDs to backend-expected column IDs for experiment items table
- */
-export const EXPERIMENT_ITEMS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently
 };
 
 /**

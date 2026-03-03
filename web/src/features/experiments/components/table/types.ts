@@ -37,25 +37,29 @@ export type ExperimentsTableProps = {
 export type ExperimentItemsTableRow = {
   // Identity fields
   id: string; // experiment_item_id
-  experimentId: string;
+  observationId: string;
   traceId: string;
-  datasetItemId: string;
+  level: string;
 
   // Time fields
   startTime: Date;
 
   // I/O data
-  input?: string;
-  output?: string;
-  expectedOutput?: string;
+  input?: string | null;
+  output?: string | null;
+  expectedOutput?: string | null;
 
   // Metrics - from separate query
   totalCost?: number | null;
   latencyMs?: number | null;
-  scores?: ScoreAggregate;
 
   // Metadata
-  itemMetadata?: Record<string, unknown>;
+  experimentId: string;
+  experimentName: string;
+  datasetId: string;
+  rootSpanId: string;
+  datasetItemVersion: string | null;
+  metadata: Record<string, string>;
 };
 
 /**

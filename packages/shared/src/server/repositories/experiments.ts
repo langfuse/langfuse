@@ -669,8 +669,7 @@ export const getExperimentItemMetricsFromEvents = async (props: {
   });
 
   return rows.map((row) => ({
-    experimentItemId: row.experiment_item_id,
-    traceId: row.trace_id,
+    id: row.experiment_item_id,
     totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
     latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
   }));
