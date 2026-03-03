@@ -11,7 +11,7 @@ type ExperimentItemCoreData = {
   experimentId: string;
   traceId: string;
   datasetItemId: string;
-  createdAt: Date;
+  startTime: Date;
   input?: string;
   output?: string;
   expectedOutput?: string;

@@ -43,7 +43,7 @@ export type ExperimentItemsTableRow = {
   datasetItemId: string;
 
   // Time fields
-  createdAt: Date;
+  startTime: Date;
 
   // I/O data
   input?: string;

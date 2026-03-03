@@ -84,7 +84,7 @@ export default function ExperimentItemsTable({
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
-    column: "createdAt",
+    column: "startTime",
     order: "DESC",
   });
 
@@ -135,8 +135,8 @@ export default function ExperimentItemsTable({
           id: item?.id,
           params: {
             traceId: item?.traceId || "",
-            ...(item?.createdAt
-              ? { timestamp: item?.createdAt.toISOString() }
+            ...(item?.startTime
+              ? { timestamp: item?.startTime.toISOString() }
               : {}),
           },
         })) ?? [],
@@ -190,14 +190,14 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "createdAt",
-      id: "createdAt",
-      header: getExperimentItemsColumnName("createdAt"),
+      accessorKey: "startTime",
+      id: "startTime",
+      header: getExperimentItemsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: Date = row.getValue("createdAt");
+        const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
       },
     },
@@ -320,7 +320,7 @@ export default function ExperimentItemsTable({
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => ({
       traceId: row.traceId || "",
-      timestamp: row.createdAt?.toISOString() || "",
+      timestamp: row.startTime?.toISOString() || "",
     }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,

@@ -313,7 +313,7 @@ const FIELD_SETS = {
     "input",
     "output",
     "experimentItemExpectedOutput",
-    "createdAt",
+    "startTime",
     "experimentItemMetadata",
   ],
 } as const;

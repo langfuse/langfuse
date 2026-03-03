@@ -499,7 +499,7 @@ export type ExperimentItemEventsDataReturnType = {
   input: string | null;
   output: string | null;
   expected_output: string | null;
-  created_at: string;
+  start_time: string;
   item_metadata: Record<string, string>;
 };
 
@@ -567,7 +567,7 @@ export const getExperimentItemsFromEvents = async (props: {
       experimentId: props.experimentId,
     })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .orderBy("ORDER BY e.created_at DESC");
+    .orderBy("ORDER BY e.start_time DESC");
 
   if (props.limit !== undefined && props.page !== undefined) {
     builder.limit(props.limit, props.limit * props.page);
@@ -593,7 +593,7 @@ export const getExperimentItemsFromEvents = async (props: {
     input: row.input,
     output: row.output,
     expectedOutput: row.expected_output,
-    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
     metadata: row.item_metadata || {},
   }));
 };
