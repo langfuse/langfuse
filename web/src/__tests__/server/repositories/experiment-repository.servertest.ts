@@ -121,9 +121,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
+      const rootSpan1Id = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan1Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -135,13 +136,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: twoDaysAgo.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan1Id,
+        start_time: twoDaysAgo.getTime() * 1000,
       });
 
+      const rootSpan2Id = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan2Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -153,13 +155,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan2Id,
+        start_time: now.getTime() * 1000,
       });
 
+      const rootSpan3Id = randomUUID();
       const event3 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan3Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -171,8 +174,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: yesterday.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan3Id,
+        start_time: yesterday.getTime() * 1000,
       });
 
       await createEventsCh([event1, event2, event3]);
@@ -194,7 +197,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       );
 
       expect(testExperiments.length).toBe(3);
-      // Should be ordered by created_at DESC: now -> yesterday -> twoDaysAgo
+      // Should be ordered by start_time DESC: now -> yesterday -> twoDaysAgo
       expect(testExperiments[0].id).toBe(experimentId2);
       expect(testExperiments[1].id).toBe(experimentId3);
       expect(testExperiments[2].id).toBe(experimentId1);
@@ -217,9 +220,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
       // Event 1: twoDaysAgo, datasetId1 (should match)
+      const rootSpan1Id = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan1Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -231,14 +235,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: twoDaysAgo.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan1Id,
+        start_time: twoDaysAgo.getTime() * 1000,
       });
 
       // Event 2: yesterday, datasetId2 (should NOT match - different dataset)
+      const rootSpan2Id = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan2Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -250,14 +255,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: yesterday.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan2Id,
+        start_time: yesterday.getTime() * 1000,
       });
 
       // Event 3: threeDaysAgo, datasetId1 (should NOT match - outside date range)
+      const rootSpan3Id = randomUUID();
       const event3 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan3Id,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -269,8 +275,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: threeDaysAgo.getTime() * 1000,
+        experiment_item_root_span_id: rootSpan3Id,
+        start_time: threeDaysAgo.getTime() * 1000,
       });
 
       await createEventsCh([event1, event2, event3]);
@@ -324,9 +330,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       // Trace 1: Multiple events with timing data to test latency calculation
       // Latency should be: earliest start_time to latest end_time
       const trace1Id = randomUUID();
+      const rootSpanId = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId,
         project_id: projectId,
         trace_id: trace1Id,
         type: "GENERATION",
@@ -338,10 +345,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
+        experiment_item_root_span_id: rootSpanId,
         start_time: (now - 3500) * 1000, // Earliest start: now - 3500ms (convert to microseconds)
         end_time: (now - 2500) * 1000, // End: now - 2500ms (convert to microseconds)
-        created_at: now * 1000,
       });
 
       const childSpan1Id = randomUUID();
@@ -363,7 +369,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
-        created_at: now * 1000,
       });
 
       const childSpan2Id = randomUUID();
@@ -385,14 +390,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3000) * 1000,
         end_time: (now - 1500) * 1000, // Latest end: now - 1500ms (convert to microseconds)
-        created_at: now * 1000,
       });
 
       // Trace 2: Single event with known latency (1000ms)
       const trace2Id = randomUUID();
+      const rootSpan2Id = randomUUID();
       const event4 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan2Id,
         project_id: projectId,
         trace_id: trace2Id,
         type: "GENERATION",
@@ -404,10 +409,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
+        experiment_item_root_span_id: rootSpan2Id,
         start_time: (now - 2500) * 1000, // Start: now - 2500ms (convert to microseconds)
         end_time: (now - 1500) * 1000, // End: now - 1500ms (latency = 1000ms, convert to microseconds)
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1, event2, event3, event4]);
@@ -436,9 +440,10 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       // Trace 1: Multiple events with costs (parent + 2 children)
       const trace1Id = randomUUID();
+      const rootSpanId = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId,
         project_id: projectId,
         trace_id: trace1Id,
         type: "GENERATION",
@@ -450,11 +455,10 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
+        experiment_item_root_span_id: rootSpanId,
         start_time: (now - 3500) * 1000,
         end_time: (now - 2500) * 1000,
         cost_details: { total: 0 }, // Parent has no direct cost
-        created_at: now * 1000,
       });
 
       const event2 = createEvent({
@@ -476,7 +480,6 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
         cost_details: { total: 0.005 }, // Child 1 cost
-        created_at: now * 1000,
       });
 
       const event3 = createEvent({
@@ -498,14 +501,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         start_time: (now - 3000) * 1000,
         end_time: (now - 2600) * 1000,
         cost_details: { total: 0.008765 }, // Child 2 cost (total = 0.013765)
-        created_at: now * 1000,
       });
 
       // Trace 2: Single event with cost
       const trace2Id = randomUUID();
+      const rootSpan2Id = randomUUID();
       const event4 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpan2Id,
         project_id: projectId,
         trace_id: trace2Id,
         type: "GENERATION",
@@ -517,11 +520,10 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
+        experiment_item_root_span_id: rootSpan2Id,
         start_time: (now - 2500) * 1000,
         end_time: (now - 1500) * 1000,
         cost_details: { total: 0.1 }, // Single event cost
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1, event2, event3, event4]);
@@ -554,9 +556,10 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       // Create trace with both latency and cost data
       const traceId = randomUUID();
+      const rootSpanId = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId,
         project_id: projectId,
         trace_id: traceId,
         type: "GENERATION",
@@ -568,11 +571,10 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
+        experiment_item_root_span_id: rootSpanId,
         start_time: (now - 2000) * 1000,
         end_time: (now - 1000) * 1000, // 1000ms latency
         cost_details: { total: 0.05 },
-        created_at: now * 1000,
       });
 
       await createEventsCh([event1]);
@@ -628,12 +630,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        start_time: now * 1000,
       });
 
+      const rootSpanId2 = randomUUID();
       const event1b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId2,
         project_id: projectId,
         trace_id: trace1bId,
         type: "GENERATION",
@@ -645,8 +648,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId2,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Two items with scores averaging to 0.5
@@ -656,9 +659,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const trace2aId = randomUUID();
       const trace2bId = randomUUID();
 
+      const rootSpanId3 = randomUUID();
       const event2a = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId3,
         project_id: projectId,
         trace_id: trace2aId,
         type: "GENERATION",
@@ -670,13 +674,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId3,
+        start_time: now * 1000,
       });
 
+      const rootSpanId4 = randomUUID();
       const event2b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId4,
         project_id: projectId,
         trace_id: trace2bId,
         type: "GENERATION",
@@ -688,8 +693,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId4,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event2a, event2b]);
@@ -769,9 +774,10 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       const now = new Date().getTime();
 
+      const rootSpanId5 = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId5,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -783,13 +789,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId5,
+        start_time: now * 1000,
       });
 
+      const rootSpanId6 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId6,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -801,8 +808,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId6,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -839,9 +846,10 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       const now = new Date().getTime();
 
+      const rootSpanId7 = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId7,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -853,13 +861,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId7,
+        start_time: now * 1000,
       });
 
+      const rootSpanId8 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId8,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -871,8 +880,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId8,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -910,9 +919,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const uniqueEnvValue = "production-" + randomUUID().substring(0, 8);
 
       // Experiment 1: Has matching metadata
+      const rootSpanId9 = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId9,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -924,14 +934,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId9,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has different metadata
+      const rootSpanId10 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId10,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -943,8 +954,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId10,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -987,9 +998,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const uniqueSubstring = randomUUID().substring(0, 8);
 
       // Experiment 1: Has metadata with substring
+      const rootSpanId11 = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId11,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1001,14 +1013,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId11,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has metadata without substring
+      const rootSpanId12 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId12,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1020,8 +1033,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId12,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -1060,9 +1073,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const uniqueEnvValue = "production-" + randomUUID().substring(0, 8);
 
       // Experiment 1: Has matching metadata
+      const rootSpanId13 = randomUUID();
       const event1 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId13,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1074,14 +1088,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId13,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has NO metadata
+      const rootSpanId14 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId14,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1093,8 +1108,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId14,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1, event2]);
@@ -1133,9 +1148,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const now = new Date().getTime();
 
       // Experiment 1: Has 3 ERROR events (error_count = 3)
+      const rootSpanId15 = randomUUID();
       const event1a = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId15,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1148,13 +1164,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId15,
+        start_time: now * 1000,
       });
 
+      const rootSpanId16 = randomUUID();
       const event1b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId16,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1167,13 +1184,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId16,
+        start_time: now * 1000,
       });
 
+      const rootSpanId17 = randomUUID();
       const event1c = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId17,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1186,14 +1204,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId17,
+        start_time: now * 1000,
       });
 
       // Experiment 2: Has 1 ERROR event (error_count = 1)
+      const rootSpanId18 = randomUUID();
       const event2a = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId18,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1206,14 +1225,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId18,
+        start_time: now * 1000,
       });
 
       // Add a non-error event to experiment 2 (should not increase error_count)
+      const rootSpanId19 = randomUUID();
       const event2b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId19,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1226,8 +1246,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId19,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event1c, event2a, event2b]);
@@ -1273,9 +1293,10 @@ describe("Clickhouse Experiment Repository Test", () => {
       const now = new Date().getTime();
 
       // Experiment 1: datasetId1, 2 errors (should match both filters)
+      const rootSpanId20 = randomUUID();
       const event1a = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId20,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1288,13 +1309,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId20,
+        start_time: now * 1000,
       });
 
+      const rootSpanId21 = randomUUID();
       const event1b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId21,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1307,14 +1329,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId21,
+        start_time: now * 1000,
       });
 
       // Experiment 2: datasetId1, 0 errors (matches dataset, not error filter)
+      const rootSpanId22 = randomUUID();
       const event2 = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId22,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1327,14 +1350,15 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId22,
+        start_time: now * 1000,
       });
 
       // Experiment 3: datasetId2, 2 errors (matches error filter, not dataset)
+      const rootSpanId23 = randomUUID();
       const event3a = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId23,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1347,13 +1371,14 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId23,
+        start_time: now * 1000,
       });
 
+      const rootSpanId24 = randomUUID();
       const event3b = createEvent({
         id: randomUUID(),
-        span_id: randomUUID(),
+        span_id: rootSpanId24,
         project_id: projectId,
         trace_id: randomUUID(),
         type: "GENERATION",
@@ -1366,8 +1391,8 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
         experiment_item_version: null,
-        experiment_item_root_span_id: randomUUID(),
-        created_at: now * 1000,
+        experiment_item_root_span_id: rootSpanId24,
+        start_time: now * 1000,
       });
 
       await createEventsCh([event1a, event1b, event2, event3a, event3b]);
