@@ -3,8 +3,12 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  LLMAdapter,
+} from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -371,9 +375,13 @@ describe("evals trpc", () => {
     it("updateEvalJob rejects reactivation when the referenced LLM connection is already in an error state", async () => {
       const { project, caller } = await prepare();
 
-      const apiKey = await prisma.llmApiKeys.findFirstOrThrow({
-        where: {
+      const apiKey = await prisma.llmApiKeys.create({
+        data: {
           projectId: project.id,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-test"),
+          displaySecretKey: "...test",
         },
       });
 
