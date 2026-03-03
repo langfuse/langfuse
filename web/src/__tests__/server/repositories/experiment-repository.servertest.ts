@@ -106,7 +106,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(experiment?.itemCount).toBe(2);
     });
 
-    it("should order by createdAt DESC", async () => {
+    it("should order by startTime DESC", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "experiment-1-" + randomUUID();
       const experimentId2 = randomUUID();
@@ -181,7 +181,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId,
         filter: [],
         orderBy: {
-          column: "createdAt",
+          column: "startTime",
           order: "DESC",
         },
         limit: 1000,
@@ -200,7 +200,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(testExperiments[2].id).toBe(experimentId1);
     });
 
-    it("should filter by createdAt date range and experimentDatasetId", async () => {
+    it("should filter by startTime date range and experimentDatasetId", async () => {
       const datasetId1 = randomUUID();
       const datasetId2 = randomUUID();
 
@@ -279,13 +279,13 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId,
         filter: [
           {
-            column: "createdAt",
+            column: "startTime",
             type: "datetime",
             operator: ">=",
             value: twoDaysAgo,
           },
           {
-            column: "createdAt",
+            column: "startTime",
             type: "datetime",
             operator: "<=",
             value: now,
