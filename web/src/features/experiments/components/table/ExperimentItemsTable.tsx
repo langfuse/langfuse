@@ -88,10 +88,6 @@ export default function ExperimentItemsTable({
     order: "DESC",
   });
 
-  // For experiment items, we don't use date range filtering by default
-  // since the experiment is already time-bounded
-  const filterState = inputFilterState;
-
   // Fetch filter options for scores scoped to this experiment
   const { filterOptions, isFilterOptionsPending } =
     useExperimentItemsFilterOptions({
