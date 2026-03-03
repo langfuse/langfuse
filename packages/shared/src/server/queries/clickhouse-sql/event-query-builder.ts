@@ -371,7 +371,6 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
 
   // Timestamps
   createdAt: "min(created_at) AS created_at",
-  updatedAt: "max(updated_at) AS updated_at",
 
   // Aggregated metrics
   itemCount: "uniq(experiment_item_id) AS item_count",
