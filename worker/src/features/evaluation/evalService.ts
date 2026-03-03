@@ -836,6 +836,10 @@ export async function executeLLMAsJudgeEvaluation({
             modelConfig.config.provider,
           );
           llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
+          llmSpan.setAttribute(
+            "eval.model.adapter",
+            modelConfig.config.adapter,
+          );
 
           try {
             return await deps.callLLM({

@@ -20,6 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
 
@@ -55,10 +56,12 @@ export const PeekViewEvaluatorConfigDetail = ({
               isLive
               className="max-h-8"
             />
-            <DeactivateEvalConfig
-              projectId={projectId}
-              evalConfig={evalConfig}
-            />
+            {isLegacyEvalTarget(evalConfig.targetObject) && (
+              <DeactivateEvalConfig
+                projectId={projectId}
+                evalConfig={evalConfig}
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -70,7 +73,8 @@ export const PeekViewEvaluatorConfigDetail = ({
           <Switch
             disabled={
               !hasAccess ||
-              (evalConfig?.timeScope?.length === 1 &&
+              (isLegacyEvalTarget(evalConfig.targetObject) &&
+                evalConfig?.timeScope?.length === 1 &&
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isEditMode}

@@ -395,10 +395,14 @@ export default function TracesTable({
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
 
-  const traceRowData = joinTableCoreAndMetrics<
-    TracesCoreOutput,
-    TraceMetricOutput
-  >(traces.data?.traces, traceMetrics.data);
+  const traceRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<TracesCoreOutput, TraceMetricOutput>(
+        traces.data?.traces,
+        traceMetrics.data,
+      ),
+    [traces.data?.traces, traceMetrics.data],
+  );
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -1292,7 +1296,7 @@ export default function TracesTable({
   }, [traces.isSuccess, traceRowData?.rows]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
@@ -1460,6 +1464,7 @@ const TracesDynamicCell = ({
         col === "input" && "bg-muted/50",
       )}
       singleLine={singleLine}
+      enableExpandOnHover={singleLine}
     />
   );
 };

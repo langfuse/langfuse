@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import {
   getQueue,
+  getAvgCostByEvaluatorIds,
   getCostByEvaluatorIds,
   getScoresByIds,
   logger,
@@ -144,6 +145,7 @@ const CreateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
   timeScope: TimeScopeSchema,
+  status: z.enum(EvaluatorStatus).optional().default(JobConfigState.ACTIVE),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -819,15 +821,24 @@ export const evalRouter = createTRPCRouter({
           variableMapping: input.mapping,
           sampling: input.sampling,
           delay: input.delay,
-          status: "ACTIVE",
+          status: input.status,
           timeScope: input.timeScope,
         },
       });
 
-      // Clear the "no job configs" caches since we just created a new job configuration
-      await clearAllEvalConfigsCaches(input.projectId);
+      // Clear the "no job configs" caches only if the new config is ACTIVE
+      if (input.status === JobConfigState.ACTIVE) {
+        await clearAllEvalConfigsCaches(input.projectId);
+      }
 
-      if (input.timeScope.includes("EXISTING")) {
+      // EVENT targets handle historical evaluation via the dedicated batch
+      // "Run Evaluation" action (runEvaluationRouter), so we only schedule
+      // historical backfills here for TRACE and DATASET targets.
+      if (
+        input.timeScope.includes("EXISTING") &&
+        (input.target === EvalTargetObject.TRACE ||
+          input.target === EvalTargetObject.DATASET)
+      ) {
         logger.info(
           `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
         );
@@ -859,6 +870,8 @@ export const evalRouter = createTRPCRouter({
           { delay: input.delay },
         );
       }
+
+      return { id: job.id };
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
@@ -1158,7 +1171,10 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      // Only enforce EXISTING-only deactivation rule for legacy targets (TRACE/DATASET)
       if (
+        (existingJob.targetObject === EvalTargetObject.TRACE ||
+          existingJob.targetObject === EvalTargetObject.DATASET) &&
         existingJob.timeScope.includes("EXISTING") &&
         !existingJob.timeScope.includes("NEW") &&
         config.status === "INACTIVE"
@@ -1213,7 +1229,14 @@ export const evalRouter = createTRPCRouter({
         await clearAllEvalConfigsCaches(projectId);
       }
 
-      if (config.timeScope?.includes("EXISTING")) {
+      // EVENT targets handle historical evaluation via the dedicated batch
+      // "Run Evaluation" action (runEvaluationRouter), so we only schedule
+      // historical backfills here for TRACE and DATASET targets.
+      if (
+        config.timeScope?.includes("EXISTING") &&
+        (existingJob?.targetObject === EvalTargetObject.TRACE ||
+          existingJob?.targetObject === EvalTargetObject.DATASET)
+      ) {
         logger.info(
           `Applying to historical traces for job ${evalConfigId} and project ${projectId}`,
         );
@@ -1503,6 +1526,34 @@ export const evalRouter = createTRPCRouter({
           return acc;
         },
         {} as Record<string, number>,
+      );
+    }),
+
+  avgCostByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getAvgCostByEvaluatorIds(
+        input.projectId,
+        input.evaluatorIds,
+      );
+
+      return costs.reduce(
+        (acc, { evaluatorId, avgCost, executionCount }) => {
+          acc[evaluatorId] = { avgCost, executionCount };
+          return acc;
+        },
+        {} as Record<string, { avgCost: number; executionCount: number }>,
       );
     }),
 });

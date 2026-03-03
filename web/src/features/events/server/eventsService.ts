@@ -1,5 +1,9 @@
 import { type z } from "zod/v4";
 import {
+  AGGREGATABLE_SCORE_TYPES,
+  filterAndValidateDbScoreList,
+} from "@langfuse/shared";
+import {
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
@@ -18,12 +22,17 @@ import {
   getEventsGroupedByExperimentId,
   getEventsGroupedByExperimentName,
   getEventsGroupedByHasParentObservation,
+  getEventsGroupedByToolName,
+  getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
+  getScoresForObservations,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -70,7 +79,44 @@ export async function getEventList(params: GetObservationsListParams) {
   const observations =
     await getObservationsWithModelDataFromEventsTable(queryOpts);
 
-  return { observations };
+  if (observations.length === 0) {
+    return { observations };
+  }
+
+  const scores = await getScoresForObservations({
+    projectId: params.projectId,
+    observationIds: observations.map((observation) => observation.id),
+    excludeMetadata: true,
+    includeHasMetadata: true,
+  });
+
+  const validatedScores = filterAndValidateDbScoreList({
+    scores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    includeHasMetadata: true,
+    onParseError: traceException,
+  });
+
+  const scoresByObservationId = new Map<
+    string,
+    Array<(typeof validatedScores)[number]>
+  >();
+  for (const score of validatedScores) {
+    if (!score.observationId) continue;
+    const existingScores = scoresByObservationId.get(score.observationId);
+    if (existingScores) {
+      existingScores.push(score);
+    } else {
+      scoresByObservationId.set(score.observationId, [score]);
+    }
+  }
+
+  const observationsWithScores = observations.map((observation) => ({
+    ...observation,
+    scores: aggregateScores(scoresByObservationId.get(observation.id) ?? []),
+  }));
+
+  return { observations: observationsWithScores };
 }
 
 /**
@@ -153,6 +199,8 @@ export async function getEventFilterOptions(
     experimentIds,
     experimentNames,
     hasParentObservationResults,
+    toolNames,
+    calledToolNames,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -172,6 +220,8 @@ export async function getEventFilterOptions(
     getEventsGroupedByExperimentId(projectId, eventsFilter),
     getEventsGroupedByExperimentName(projectId, eventsFilter),
     getEventsGroupedByHasParentObservation(projectId, eventsFilter),
+    getEventsGroupedByToolName(projectId, eventsFilter),
+    getEventsGroupedByCalledToolName(projectId, eventsFilter),
   ]);
 
   return {
@@ -265,6 +315,12 @@ export async function getEventFilterOptions(
       value: i.hasParentObservation ? "true" : "false",
       count: i.count,
     })),
+    toolNames: toolNames
+      .filter((i) => i.toolName !== null)
+      .map((i) => ({ value: i.toolName as string })),
+    calledToolNames: calledToolNames
+      .filter((i) => i.calledToolName !== null)
+      .map((i) => ({ value: i.calledToolName as string })),
   };
 }
 
