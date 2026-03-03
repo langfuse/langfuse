@@ -852,7 +852,11 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     expect(strip(explicitAll)).toEqual(explicitAll);
   });
 
-  it.each([
+  const canonicalizationCases: Array<{
+    name: string;
+    explicitFilters: FilterState;
+    expected: FilterState;
+  }> = [
     {
       name: "hidden-only selection",
       explicitFilters: [
@@ -896,7 +900,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         },
       ],
     },
-  ])(
+  ];
+
+  it.each(canonicalizationCases)(
     "canonicalizes $name into none-of complements",
     ({ explicitFilters, expected }) => {
       expect(strip(explicitFilters)).toEqual(expected);
