@@ -138,40 +138,56 @@ describe("useSidebarFilterState session persistence", () => {
     queryParamStore.clear();
   });
 
-  it("falls back to session filter state when URL filter is missing", async () => {
-    const sessionKey = buildSessionKey();
-    sessionStorage.setItem(sessionKey, encodeStoredState(encodedFilterA));
+  const getExplicitState = () =>
+    JSON.parse(screen.getByTestId("explicit-state").textContent ?? "[]");
 
-    render(<SessionPersistenceHarness />);
+  it.each([
+    {
+      name: "falls back to session filter state when URL filter is missing",
+      setup: () => {
+        sessionStorage.setItem(
+          buildSessionKey(),
+          encodeStoredState(encodedFilterA),
+        );
+      },
+      expectedState: FILTER_A,
+      expectedSessionQuery: encodedFilterA,
+      expectUrlFilter: false,
+    },
+    {
+      name: "prefers URL filter over session and mirrors URL filter into session",
+      setup: () => {
+        sessionStorage.setItem(
+          buildSessionKey(),
+          encodeStoredState(encodedFilterA),
+        );
+        queryParamStore.set("filter", encodedFilterB);
+      },
+      expectedState: FILTER_B,
+      expectedSessionQuery: encodedFilterB,
+      expectUrlFilter: true,
+    },
+  ])(
+    "$name",
+    async ({ setup, expectedState, expectedSessionQuery, expectUrlFilter }) => {
+      const sessionKey = buildSessionKey();
+      setup();
 
-    await waitFor(() => {
-      expect(
-        JSON.parse(screen.getByTestId("explicit-state").textContent ?? "[]"),
-      ).toEqual(FILTER_A);
-    });
+      render(<SessionPersistenceHarness />);
 
-    expect(queryParamStore.has("filter")).toBe(false);
-  });
+      await waitFor(() => {
+        expect(getExplicitState()).toEqual(expectedState);
+      });
 
-  it("prefers URL filter over session and mirrors URL filter into session", async () => {
-    const sessionKey = buildSessionKey();
-    sessionStorage.setItem(sessionKey, encodeStoredState(encodedFilterA));
-    queryParamStore.set("filter", encodedFilterB);
+      await waitFor(() => {
+        expect(sessionStorage.getItem(sessionKey)).toBe(
+          encodeStoredState(expectedSessionQuery),
+        );
+      });
 
-    render(<SessionPersistenceHarness />);
-
-    await waitFor(() => {
-      expect(
-        JSON.parse(screen.getByTestId("explicit-state").textContent ?? "[]"),
-      ).toEqual(FILTER_B);
-    });
-
-    await waitFor(() => {
-      expect(sessionStorage.getItem(sessionKey)).toBe(
-        encodeStoredState(encodedFilterB),
-      );
-    });
-  });
+      expect(queryParamStore.has("filter")).toBe(expectUrlFilter);
+    },
+  );
 
   it("writes URL and session on update and clears both on reset", async () => {
     const sessionKey = buildSessionKey();
@@ -204,25 +220,10 @@ describe("useSidebarFilterState session persistence", () => {
       encodeStoredState(encodedFilterA, "old"),
     );
 
-    function NewContextHarness() {
-      const queryFilter = useSidebarFilterState(
-        TEST_FILTER_CONFIG,
-        TEST_OPTIONS,
-        {
-          sessionFilterContextId: "new",
-        },
-      );
-      return (
-        <pre data-testid="new-context-state">
-          {JSON.stringify(queryFilter.explicitFilterState)}
-        </pre>
-      );
-    }
-
-    render(<NewContextHarness />);
+    render(<SessionPersistenceHarness contextId="new" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("new-context-state").textContent).toBe("[]");
+      expect(getExplicitState()).toEqual([]);
     });
 
     expect(sessionStorage.getItem(newSessionKey)).toBe(
