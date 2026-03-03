@@ -1776,7 +1776,7 @@ export const datasetRouter = createTRPCRouter({
             datasetName: dataset.name,
             payload: input.payload ?? dataset.remoteExperimentPayload,
           }),
-          signal: AbortSignal.timeout(10000), // 10 second timeout
+          signal: AbortSignal.timeout(30000), // 30 second timeout
         });
 
         if (!response.ok) {
