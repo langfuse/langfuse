@@ -243,6 +243,7 @@ export default function SessionsTable({
     newFilterOptions,
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: {
         hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],

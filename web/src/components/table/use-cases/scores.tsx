@@ -292,6 +292,7 @@ export default function ScoresTable({
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
       disableUrlPersistence,
+      sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: {
         hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],

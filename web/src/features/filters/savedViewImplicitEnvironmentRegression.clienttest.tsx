@@ -49,10 +49,10 @@ jest.mock("use-query-params", () => {
     ...actual,
     StringParam: {},
     withDefault: (_param: unknown, defaultValue: unknown) => defaultValue,
-    useQueryParam: (key: string, defaultValue: unknown) => {
+    useQueryParam: (key: string) => {
       const initialValue = queryParamStore.has(key)
         ? queryParamStore.get(key)
-        : defaultValue;
+        : null;
       const [value, setValue] = React.useState(initialValue);
 
       const setQueryValue = React.useCallback(
@@ -61,7 +61,14 @@ jest.mock("use-query-params", () => {
         ) => {
           const previous = queryParamStore.get(key);
           const resolved =
-            typeof next === "function" ? next(previous) : (next ?? "");
+            typeof next === "function" ? next(previous) : (next ?? null);
+
+          if (resolved === null || resolved === "") {
+            queryParamStore.delete(key);
+            setValue(null);
+            return;
+          }
+
           queryParamStore.set(key, resolved);
           setValue(resolved);
         },
@@ -69,6 +76,10 @@ jest.mock("use-query-params", () => {
       );
 
       React.useEffect(() => {
+        if (value === null || value === "") {
+          queryParamStore.delete(key);
+          return;
+        }
         queryParamStore.set(key, value);
       }, [key, value]);
 

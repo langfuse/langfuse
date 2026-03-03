@@ -331,6 +331,7 @@ export default function TracesTable({
       traceFilterOptionsResponse.isPending ||
       environmentFilterOptions.isPending,
     disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+    sessionFilterContextId: projectId,
     // Sidebar-only implicit environment defaults
     implicitDefaultConfig: {
       hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],

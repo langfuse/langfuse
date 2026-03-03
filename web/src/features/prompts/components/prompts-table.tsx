@@ -230,7 +230,10 @@ export function PromptTable() {
   const queryFilter = useSidebarFilterState(
     promptFilterConfig,
     newFilterOptions,
-    { loading: promptFilterOptions.isPending },
+    {
+      loading: promptFilterOptions.isPending,
+      sessionFilterContextId: projectId ?? null,
+    },
   );
 
   useEffect(() => {

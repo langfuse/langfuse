@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useMemo, useEffect, useRef } from "react";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
   singleFilter,
@@ -12,6 +12,12 @@ import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
 } from "../lib/filter-query-encoding";
+import {
+  buildSidebarFilterQueryStorageKey,
+  createPersistedSidebarFilterQueryState,
+  getPersistedSidebarFilterQueryForContext,
+  type PersistedSidebarFilterQueryState,
+} from "../lib/persistedSidebarFilterQuery";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import {
   buildEffectiveEnvironmentFilter,
@@ -328,6 +334,11 @@ type UseSidebarFilterStateOptions = {
    * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
    */
   defaultFilters?: FilterState;
+  /**
+   * Optional context identifier (for example projectId) to guard against
+   * carrying persisted filters across contexts.
+   */
+  sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
 };
 
@@ -393,6 +404,7 @@ export function useSidebarFilterState(
     loading,
     disableUrlPersistence,
     defaultFilters,
+    sessionFilterContextId,
     implicitDefaultConfig,
   } = hookOptions;
   const peekContext = usePeekTableState();
@@ -414,10 +426,61 @@ export function useSidebarFilterState(
     [setExpandedString],
   );
 
-  const [filtersQuery, setFiltersQuery] = useQueryParam(
-    "filter",
-    withDefault(StringParam, ""),
+  const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
+  const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
+    tableName: config.tableName,
+    contextId: normalizedSessionFilterContextId,
+  });
+
+  const [storedFilterQueryState, setStoredFilterQueryState] =
+    useSessionStorage<PersistedSidebarFilterQueryState>(
+      FILTER_QUERY_SESSION_STORAGE_KEY,
+      createPersistedSidebarFilterQueryState(
+        normalizedSessionFilterContextId,
+        "",
+      ),
+    );
+
+  useEffect(() => {
+    if (storedFilterQueryState.contextId === normalizedSessionFilterContextId) {
+      return;
+    }
+
+    // Context changed (e.g. project switch): clear persisted query to avoid bleed.
+    setStoredFilterQueryState(
+      createPersistedSidebarFilterQueryState(
+        normalizedSessionFilterContextId,
+        "",
+      ),
+    );
+  }, [
+    storedFilterQueryState.contextId,
+    normalizedSessionFilterContextId,
+    setStoredFilterQueryState,
+  ]);
+
+  const storedFiltersQuery = getPersistedSidebarFilterQueryForContext({
+    state: storedFilterQueryState,
+    contextId: normalizedSessionFilterContextId,
+  });
+  const setStoredFiltersQuery = useCallback(
+    (query: string) => {
+      setStoredFilterQueryState(
+        createPersistedSidebarFilterQueryState(
+          normalizedSessionFilterContextId,
+          query,
+        ),
+      );
+    },
+    [setStoredFilterQueryState, normalizedSessionFilterContextId],
   );
+  const [urlFiltersQuery, setUrlFiltersQuery] = useQueryParam(
+    "filter",
+    StringParam,
+  );
+  const filtersQuery = disableUrlPersistence
+    ? ""
+    : (urlFiltersQuery ?? storedFiltersQuery);
 
   const mutualExclusionContext = useMemo(
     () => buildMutualExclusionContext(config),
@@ -531,10 +594,12 @@ export function useSidebarFilterState(
       }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
-      setFiltersQuery(encoded || null);
+      setUrlFiltersQuery(encoded || null);
+      setStoredFiltersQuery(encoded);
     },
     [
-      setFiltersQuery,
+      setUrlFiltersQuery,
+      setStoredFiltersQuery,
       disableUrlPersistence,
       peekContext,
       mutualExclusionContext,
@@ -544,6 +609,24 @@ export function useSidebarFilterState(
   );
 
   // Apply default filters when no URL filters are present
+  useEffect(() => {
+    if (disableUrlPersistence) return;
+    if (peekContext) return;
+    if (typeof urlFiltersQuery !== "string") return;
+    if (!urlFiltersQuery) return;
+    if (urlFiltersQuery === storedFiltersQuery) return;
+
+    // Keep session fallback aligned to explicit URL links without clearing
+    // previously saved state when URL has no `filter` parameter.
+    setStoredFiltersQuery(urlFiltersQuery);
+  }, [
+    disableUrlPersistence,
+    peekContext,
+    urlFiltersQuery,
+    storedFiltersQuery,
+    setStoredFiltersQuery,
+  ]);
+
   useEffect(() => {
     // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;
