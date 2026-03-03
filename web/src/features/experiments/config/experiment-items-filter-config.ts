@@ -101,39 +101,11 @@ export const experimentItemsFilterConfig: FilterConfig = {
 
   columnDefinitions: experimentItemsTableCols,
 
-  defaultExpanded: ["scores_avg"],
-
   facets: [
     {
       type: "stringKeyValue" as const,
       column: "itemMetadata",
       label: getExperimentItemsColumnName("itemMetadata"),
-    },
-    {
-      type: "keyValue" as const,
-      column: "score_categories",
-      label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
-    },
-    {
-      type: "numeric" as const,
-      column: "latencyMs",
-      label: "Latency (ms)",
-      min: 0,
-      max: 60000,
-      unit: "ms",
-    },
-    {
-      type: "numeric" as const,
-      column: "totalCost",
-      label: "Total Cost ($)",
-      min: 0,
-      max: 100,
-      unit: "$",
     },
   ],
 };

@@ -23,15 +23,12 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
@@ -45,6 +42,7 @@ import {
   type DataTablePeekViewProps,
   TablePeekView,
 } from "@/src/components/table/peek";
+import TableLink from "@/src/components/table/table-link";
 
 /**
  * ExperimentItemsTable displays items within a single experiment.
@@ -52,14 +50,13 @@ import {
  *
  * Features:
  * - Peek view for traces
- * - Score columns
+ * - Score columns (TODO: add)
  * - I/O cells for input/output/expected output
- * - Sidebar filters for scores and metadata
+ * - Sidebar filters for scores (TODO: add) and metadata
  */
 export default function ExperimentItemsTable({
   projectId,
   experimentId,
-  datasetId,
   hideControls = false,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
@@ -141,20 +138,6 @@ export default function ExperimentItemsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.status, items.rows]);
 
-  // Score columns for experiment items
-  const { scoreColumns, isLoading: isColumnLoading } =
-    useScoreColumns<ExperimentItemsTableRow>({
-      scoreColumnKey: "scores",
-      projectId,
-      filter:
-        items.rows && items.rows.length > 0
-          ? scoreFilters.forExperimentItems({
-              experimentIds: [experimentId],
-            })
-          : [],
-      isFilterDataPending: items.status === "loading",
-    });
-
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
       projectId,
@@ -173,14 +156,16 @@ export default function ExperimentItemsTable({
       defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: string = row.getValue("datasetItemId");
-        return value ? (
+        const datasetItemId: string = row.getValue("id");
+        const experimentDatasetId: string = row.getValue("experimentDatasetId");
+        const version = row.getValue("experimentItemVersion");
+        return experimentDatasetId ? (
           <Link
-            href={`/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(value)}`}
+            href={`/project/${projectId}/datasets/${experimentDatasetId}/items/${encodeURIComponent(datasetItemId)}${version ? `?version=${version}` : ""}`}
             className="text-primary hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            <TableIdOrName value={value} />
+            <TableIdOrName value={datasetItemId} />
           </Link>
         ) : undefined;
       },
@@ -198,15 +183,21 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "traceId",
-      id: "traceId",
-      header: "Trace",
+      accessorKey: "experimentItemRootSpanId",
+      id: "experimentItemRootSpanId",
+      header: "Observation",
       defaultHidden: true,
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: string = row.getValue("traceId");
-        return value ? <TableIdOrName value={value} /> : undefined;
+        const rootSpanId: string = row.getValue("experimentItemRootSpanId");
+        const traceId: string = row.getValue("traceId");
+        return traceId && rootSpanId ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(rootSpanId)}`}
+            value={rootSpanId}
+          />
+        ) : undefined;
       },
     },
     {
@@ -233,17 +224,6 @@ export default function ExperimentItemsTable({
         if (value === undefined || value === null) return "-";
         return <span>{usdFormatter(value)}</span>;
       },
-    },
-    {
-      accessorKey: "scores",
-      header: "Scores",
-      id: "scores",
-      enableHiding: true,
-      defaultHidden: false,
-      cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
-      },
-      columns: scoreColumns,
     },
     {
       accessorKey: "input",

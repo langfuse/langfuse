@@ -9,19 +9,23 @@ import {
   EventsQueryBuilder,
   EventsAggQueryBuilder,
   FilterList,
-  StringFilter,
   StringOptionsFilter,
   orderByToClickhouseSql,
+  EventsAggregationQueryBuilder,
+  orderByToEntries,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import { eventsExperimentsAggregation } from "../queries/clickhouse-sql/query-fragments";
+import {
+  eventsExperimentsAggregation,
+  eventsTracesAggregation,
+} from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentCols,
   experimentPreAggCols,
 } from "../tableMappings/mapExperimentTable";
-import { experimentItemPreAggCols } from "../tableMappings/mapExperimentItemsTable";
 
 export type ExperimentEventsDataReturnType = {
   experiment_id: string;
@@ -492,15 +496,22 @@ const getExperimentsFromEventsGeneric = async <T>(
  * Return type for experiment item rows from ClickHouse.
  */
 export type ExperimentItemEventsDataReturnType = {
-  experiment_item_id: string;
   id: string; // span_id
   trace_id: string;
-  experiment_item_root_span_id: string;
   input: string | null;
   output: string | null;
-  expected_output: string | null;
   start_time: string;
-  item_metadata: Record<string, string>;
+  level: string;
+
+  experiment_id: string;
+  experiment_name: string;
+  experiment_dataset_id: string;
+
+  experiment_item_id: string;
+  experiment_item_root_span_id: string;
+  experiment_item_version: string | null;
+  experiment_item_expected_output: string | null;
+  experiment_item_metadata: Record<string, string>;
 };
 
 /**
@@ -511,8 +522,6 @@ export type ExperimentItemMetricsReturnType = {
   trace_id: string;
   total_cost: number | null;
   latency_ms: number | null;
-  scores_avg: Array<[string, number, string, string]>;
-  score_categories: string[];
 };
 
 /**
@@ -524,6 +533,13 @@ export const getExperimentItemsCountFromEvents = async (props: {
   experimentId: string;
   filter: FilterState;
 }) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      props.filter,
+      experimentItemsTableNativeUiColumnDefinitions,
+    ),
+  );
+
   const { query, params } = new EventsQueryBuilder({
     projectId: props.projectId,
   })
@@ -533,6 +549,7 @@ export const getExperimentItemsCountFromEvents = async (props: {
       experimentId: props.experimentId,
     })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .applyFilters(eventsFilter)
     .buildWithParams();
 
   const rows = await queryClickhouse<{ count: string }>({
@@ -558,19 +575,32 @@ export const getExperimentItemsFromEvents = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  page?: number;
+  offset?: number;
 }) => {
-  const builder = new EventsQueryBuilder({ projectId: props.projectId })
+  const { projectId, experimentId, filter, orderBy, limit, offset } = props;
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      experimentItemsTableNativeUiColumnDefinitions,
+    ),
+  );
+
+  const orderByEntries = orderByToEntries(
+    [orderBy ?? null],
+    experimentItemsTableNativeUiColumnDefinitions,
+  );
+
+  const builder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("experimentItems")
     .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_id = {experimentId: String}", {
-      experimentId: props.experimentId,
-    })
+    .whereRaw("e.experiment_id = {experimentId: String}", { experimentId })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .orderBy("ORDER BY e.start_time DESC");
+    .applyFilters(eventsFilter)
+    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries));
 
-  if (props.limit !== undefined && props.page !== undefined) {
-    builder.limit(props.limit, props.limit * props.page);
+  if (limit !== undefined && offset !== undefined) {
+    builder.limit(limit, limit * offset);
   }
 
   const { query, params } = builder.buildWithParams();
@@ -581,20 +611,25 @@ export const getExperimentItemsFromEvents = async (props: {
     tags: {
       feature: "experiments",
       type: "experiment-items-list",
-      projectId: props.projectId,
+      projectId,
     },
   });
 
   return rows.map((row) => ({
     id: row.experiment_item_id,
-    traceId: row.trace_id,
     observationId: row.id, // span_id
-    experimentItemRootSpanId: row.experiment_item_root_span_id,
+    traceId: row.trace_id,
     input: row.input,
     output: row.output,
-    expectedOutput: row.expected_output,
+    expectedOutput: row.experiment_item_expected_output,
+    level: row.level,
     startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-    metadata: row.item_metadata || {},
+    experimentId: row.experiment_id,
+    experimentName: row.experiment_name,
+    datasetId: row.experiment_dataset_id,
+    rootSpanId: row.experiment_item_root_span_id,
+    datasetItemVersion: row.experiment_item_version,
+    metadata: row.experiment_item_metadata || {},
   }));
 };
 
@@ -605,57 +640,29 @@ export const getExperimentItemMetricsFromEvents = async (props: {
   projectId: string;
   experimentId: string;
   experimentItemIds: string[];
-  filter?: FilterState;
 }) => {
   if (props.experimentItemIds.length === 0) {
     return [];
   }
 
-  const query = `
-    WITH item_metrics AS (
-      SELECT
-        e.experiment_item_id,
-        e.trace_id,
-        dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
-        sum(e.total_cost) as total_cost
-      FROM events_core e
-      WHERE e.project_id = {projectId: String}
-        AND e.experiment_id = {experimentId: String}
-        AND e.experiment_item_id IN ({experimentItemIds: Array(String)})
-        AND e.is_deleted = 0
-      GROUP BY e.experiment_item_id, e.trace_id
-    ),
-    item_scores AS (
-      SELECT
-        e.experiment_item_id,
-        e.trace_id,
-        groupArrayIf(tuple(s.name, s.value, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS score_categories
-      FROM events_core e
-      INNER JOIN scores s FINAL ON s.project_id = e.project_id AND s.trace_id = e.trace_id
-      WHERE e.project_id = {projectId: String}
-        AND e.experiment_id = {experimentId: String}
-        AND e.experiment_item_id IN ({experimentItemIds: Array(String)})
-        AND e.is_deleted = 0
-      GROUP BY e.experiment_item_id, e.trace_id
-    )
-    SELECT
-      im.experiment_item_id,
-      im.trace_id,
-      im.total_cost,
-      im.latency_ms,
-      is.scores_avg,
-      is.score_categories
-    FROM item_metrics im
-    LEFT JOIN item_scores is ON is.experiment_item_id = im.experiment_item_id AND is.trace_id = im.trace_id
-  `.trim();
+  const tracesBuilder = eventsTracesAggregation({
+    projectId: props.projectId,
+  })
+    .whereRaw("e.experiment_id = {experimentId: String}", {
+      experimentId: props.experimentId,
+    })
+    .whereRaw("e.experiment_item_id IN ({experimentItemIds: Array(String)})", {
+      experimentItemIds: props.experimentItemIds,
+    })
+    .whereRaw("e.is_deleted = 0");
+
+  const { query, params } = tracesBuilder.buildWithParams();
 
   const rows = await queryClickhouse<ExperimentItemMetricsReturnType>({
     query,
     params: {
+      ...params,
       projectId: props.projectId,
-      experimentId: props.experimentId,
-      experimentItemIds: props.experimentItemIds,
     },
     tags: {
       feature: "experiments",
@@ -669,7 +676,5 @@ export const getExperimentItemMetricsFromEvents = async (props: {
     traceId: row.trace_id,
     totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
     latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
-    scoresAvg: row.scores_avg || [],
-    scoreCategories: row.score_categories || [],
   }));
 };

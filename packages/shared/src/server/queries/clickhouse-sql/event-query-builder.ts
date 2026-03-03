@@ -115,6 +115,7 @@ const EVENTS_FIELDS = {
   // Experiment fields (denormalized on events table)
   experimentId: 'e.experiment_id as "experiment_id"',
   experimentName: 'e.experiment_name as "experiment_name"',
+  experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -124,6 +125,8 @@ const EVENTS_FIELDS = {
     'e.experiment_item_expected_output as "expected_output"',
   experimentItemMetadata:
     "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as item_metadata",
+  experimentItemVersion:
+    'e.experiment_item_version as "experiment_item_version"',
 
   // Calculated fields
   latency:
@@ -306,14 +309,23 @@ const FIELD_SETS = {
 
   // Experiment items field set
   experimentItems: [
-    "experimentItemId",
     "id", // span_id (observation_id)
     "traceId",
-    "experimentItemRootSpanId",
     "input",
     "output",
-    "experimentItemExpectedOutput",
     "startTime",
+    "level",
+
+    // Experiment metadata
+    "experimentId",
+    "experimentName",
+    "experimentDatasetId",
+
+    // Experiment item metadata
+    "experimentItemId",
+    "experimentItemRootSpanId",
+    "experimentItemVersion",
+    "experimentItemExpectedOutput",
     "experimentItemMetadata",
   ],
 } as const;
