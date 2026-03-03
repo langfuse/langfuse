@@ -55,6 +55,7 @@ export function useTableViewManager({
   const [isLoading, setIsLoading] = useState(true);
   const capture = usePostHogClientCapture();
   const pendingFiltersRef = useRef<FilterState | null>(null);
+  const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -236,9 +237,12 @@ export function useTableViewManager({
       if (setFiltersRef.current) {
         setFiltersRef.current(validFilters);
         // Track expected filters to observe when state actually updates (for useEffect below)
-        // If filters are already applied, don't set pending ref (will unlock immediately)
+        // If filters are already applied, don't set pending ref (will unlock immediately).
+        // Also track pre-apply state so we can unlock when filters propagate but get
+        // canonicalized into an equivalent shape by downstream hooks.
         if (!filtersAlreadyApplied) {
           pendingFiltersRef.current = validFilters;
+          pendingFiltersPreviousStateRef.current = currentFilterState ?? [];
         }
       }
 
@@ -305,12 +309,23 @@ export function useTableViewManager({
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
   useEffect(() => {
-    if (pendingFiltersRef.current && currentFilterState) {
-      if (isEqual(currentFilterState, pendingFiltersRef.current)) {
-        // Filter state has synchronized - safe to unlock table
-        pendingFiltersRef.current = null;
-        setIsLoading(false);
-      }
+    const pendingFilters = pendingFiltersRef.current;
+    if (!pendingFilters || currentFilterState === undefined) return;
+
+    const preApplyFilters = pendingFiltersPreviousStateRef.current ?? [];
+    const hasExpectedShape = isEqual(currentFilterState, pendingFilters);
+    const hasPropagatedWithCanonicalization = !isEqual(
+      currentFilterState,
+      preApplyFilters,
+    );
+
+    if (hasExpectedShape || hasPropagatedWithCanonicalization) {
+      // Filter state has synchronized - safe to unlock table.
+      // `hasPropagatedWithCanonicalization` handles equivalent rewrites
+      // (for example legacy env-delta -> canonical none-of shape).
+      pendingFiltersRef.current = null;
+      pendingFiltersPreviousStateRef.current = null;
+      setIsLoading(false);
     }
   }, [currentFilterState]);
 

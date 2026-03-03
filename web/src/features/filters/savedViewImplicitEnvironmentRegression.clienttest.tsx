@@ -183,11 +183,29 @@ const OLD_SAVED_VIEW_FILTERS: FilterState = [
   },
 ];
 
+const LEGACY_HIDDEN_DELTA_FILTERS: FilterState = [
+  {
+    column: "environment",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["langfuse-evaluation"],
+  },
+  {
+    column: "name",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["checkout"],
+  },
+];
+
 describe("Saved view restore with implicit environment defaults", () => {
+  let savedViewFilters: FilterState;
+
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
     queryParamStore.clear();
+    savedViewFilters = OLD_SAVED_VIEW_FILTERS;
 
     mockUseRouter.mockReturnValue({
       query: { viewId: "view-1" },
@@ -205,7 +223,7 @@ describe("Saved view restore with implicit environment defaults", () => {
         tableName: "traces",
         projectId: "project-1",
         orderBy: null,
-        filters: OLD_SAVED_VIEW_FILTERS,
+        filters: savedViewFilters,
         columnOrder: null,
         columnVisibility: null,
         searchQuery: "",
@@ -230,6 +248,38 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
     expect(screen.getByTestId("effective-state").textContent).toContain(
       '"environment"',
+    );
+  });
+
+  it("restores legacy hidden-env delta saved views without getting stuck", async () => {
+    savedViewFilters = LEGACY_HIDDEN_DELTA_FILTERS;
+    mockGetByIdUseQuery.mockReturnValueOnce({
+      data: {
+        id: "view-1",
+        name: "Legacy hidden-env delta",
+        tableName: "traces",
+        projectId: "project-1",
+        orderBy: null,
+        filters: savedViewFilters,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("effective-state").textContent).toContain(
+      '"none of"',
     );
   });
 });
