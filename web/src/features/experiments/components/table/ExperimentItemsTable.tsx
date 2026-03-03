@@ -258,13 +258,24 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: "Metadata",
+      accessorKey: "eventMetadata",
+      id: "eventMetadata",
+      header: getExperimentItemsColumnName("eventMetadata"),
       size: 300,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
+        const value: Record<string, string> = row.getValue("eventMetadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
+      accessorKey: "itemMetadata",
+      id: "itemMetadata",
+      header: getExperimentItemsColumnName("itemMetadata"),
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("itemMetadata");
         return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },

@@ -508,6 +508,7 @@ export type ExperimentItemEventsDataReturnType = {
   experiment_item_version: string | null;
   experiment_item_expected_output: string | null;
   experiment_item_metadata: Record<string, string>;
+  metadata: Record<string, string>;
 };
 
 /**
@@ -629,7 +630,8 @@ export const getExperimentItemsFromEvents = async (props: {
     datasetItemVersion: row.experiment_item_version
       ? parseClickhouseUTCDateTimeFormat(row.experiment_item_version)
       : null,
-    metadata: row.experiment_item_metadata || {},
+    itemMetadata: row.experiment_item_metadata || {},
+    eventMetadata: row.metadata || {},
   }));
 };
 

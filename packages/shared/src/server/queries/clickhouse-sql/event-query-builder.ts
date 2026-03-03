@@ -327,6 +327,9 @@ const FIELD_SETS = {
     "experimentItemVersion",
     "experimentItemExpectedOutput",
     "experimentItemMetadata",
+
+    // Event metadata
+    "metadata",
   ],
 } as const;
 

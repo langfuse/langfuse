@@ -2,10 +2,16 @@ import { UiColumnMappings } from "../../tableDefinitions";
 
 export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
-    uiTableName: "Metadata",
+    uiTableName: "Item Metadata",
     uiTableId: "itemMetadata",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."item_metadata"',
+    clickhouseSelect: 'e."experiment_item_metadata"',
+  },
+  {
+    uiTableName: "Metadata",
+    uiTableId: "eventMetadata",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."metadata"',
   },
   {
     uiTableName: "Start Time",

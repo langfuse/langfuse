@@ -84,6 +84,13 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "item_metadata",
     nullable: true,
   },
+  {
+    name: "Metadata",
+    id: "eventMetadata",
+    type: "stringObject",
+    internal: "metadata",
+    nullable: true,
+  },
 ];
 
 /**
@@ -111,6 +118,11 @@ export const experimentItemsFilterConfig: FilterConfig = {
       type: "stringKeyValue" as const,
       column: "itemMetadata",
       label: getExperimentItemsColumnName("itemMetadata"),
+    },
+    {
+      type: "stringKeyValue" as const,
+      column: "eventMetadata",
+      label: getExperimentItemsColumnName("eventMetadata"),
     },
   ],
 };

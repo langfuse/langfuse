@@ -20,7 +20,8 @@ type ExperimentItemCoreData = {
   datasetId: string;
   rootSpanId: string;
   datasetItemVersion: Date | null;
-  metadata: Record<string, string>;
+  itemMetadata: Record<string, string>;
+  eventMetadata: Record<string, string>;
 };
 
 /**
