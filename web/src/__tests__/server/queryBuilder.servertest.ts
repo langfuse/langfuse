@@ -4312,6 +4312,38 @@ describe("validateQuery", () => {
 
     expect(result).toEqual({ valid: true });
   });
+
+  it("should return invalid when high cardinality dimension is used with timeDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      chartConfig: { type: "table", row_limit: 10 },
+      timeDimension: { granularity: "day" }, // timeseries
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "traceId",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "timeDimension",
+    );
+  });
+
+  it("should return valid for low cardinality dimension with timeDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "name" }], // low cardinality
+      timeDimension: { granularity: "day" },
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
 });
 
 describe("getValidAggregationsForMeasureType", () => {

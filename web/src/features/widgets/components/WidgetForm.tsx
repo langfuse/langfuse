@@ -49,6 +49,11 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
+  validateQuery,
+  isV2BreakdownChart,
+  buildWidgetOrderBy,
+} from "@/src/features/query/validateQuery";
+import {
   BarChart,
   PieChart,
   LineChart,
@@ -873,6 +878,37 @@ export function WidgetForm({
             },
           ];
 
+    // For v2 non-timeseries breakdown charts, auto-sort desc by metric for top-N
+    const needsTopN = isV2BreakdownChart({
+      version: viewVersion,
+      hasDimension: selectedDimension !== "none",
+      isTimeSeries: isTimeSeriesChart(
+        selectedChartType as DashboardWidgetChartType,
+      ),
+      chartType: selectedChartType,
+    });
+
+    const orderBy = buildWidgetOrderBy({
+      chartType: selectedChartType,
+      sortState: previewSortState,
+      needsTopN,
+      firstMetric: {
+        aggregation: selectedAggregation,
+        measure: selectedMeasure,
+      },
+    });
+
+    // Only query-engine fields (type, bins, row_limit) — rendering fields
+    // (dimensions, defaultSort) go via handleSaveWidget / Chart component
+    let chartConfig: QueryType["chartConfig"];
+    if (selectedChartType === "HISTOGRAM") {
+      chartConfig = { type: selectedChartType, bins: histogramBins };
+    } else if (selectedChartType === "PIVOT_TABLE" || needsTopN) {
+      chartConfig = { type: selectedChartType, row_limit: rowLimit };
+    } else {
+      chartConfig = { type: selectedChartType };
+    }
+
     return {
       view: selectedView,
       dimensions: queryDimensions,
@@ -885,34 +921,8 @@ export function WidgetForm({
         : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
-      orderBy:
-        selectedChartType === "PIVOT_TABLE" && previewSortState
-          ? [
-              {
-                field: previewSortState.column,
-                direction: previewSortState.order.toLowerCase() as
-                  | "asc"
-                  | "desc",
-              },
-            ]
-          : null,
-      chartConfig:
-        selectedChartType === "HISTOGRAM"
-          ? { type: selectedChartType, bins: histogramBins }
-          : selectedChartType === "PIVOT_TABLE"
-            ? {
-                type: selectedChartType,
-                dimensions: pivotDimensions,
-                row_limit: rowLimit,
-                defaultSort:
-                  defaultSortColumn && defaultSortColumn !== "none"
-                    ? {
-                        column: defaultSortColumn,
-                        order: defaultSortOrder,
-                      }
-                    : undefined,
-              }
-            : { type: selectedChartType },
+      orderBy,
+      chartConfig,
     };
   }, [
     selectedView,
@@ -926,10 +936,14 @@ export function WidgetForm({
     histogramBins,
     pivotDimensions,
     rowLimit,
-    defaultSortColumn,
-    defaultSortOrder,
     previewSortState,
+    viewVersion,
   ]);
+
+  const queryValidation = useMemo(
+    () => validateQuery(query, viewVersion),
+    [query, viewVersion],
+  );
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
@@ -946,6 +960,7 @@ export function WidgetForm({
       meta: {
         silentHttpCodes: [422],
       },
+      enabled: queryValidation.valid,
     },
   );
 
@@ -1002,6 +1017,11 @@ export function WidgetForm({
   );
 
   const handleSaveWidget = () => {
+    if (!queryValidation.valid) {
+      showErrorToast("Invalid query", queryValidation.reason);
+      return;
+    }
+
     if (!widgetName.trim()) {
       showErrorToast("Error", "Widget name is required");
       return;
@@ -1857,7 +1877,17 @@ export function WidgetForm({
               {widgetDescription}
             </CardDescription>
           </CardHeader>
-          {queryResult.data ? (
+          {!queryValidation.valid ? (
+            <CardContent>
+              <div className="flex h-[300px] items-center justify-center">
+                <Alert variant="destructive" className="max-w-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Invalid query</AlertTitle>
+                  <AlertDescription>{queryValidation.reason}</AlertDescription>
+                </Alert>
+              </div>
+            </CardContent>
+          ) : queryResult.data ? (
             <div className="relative min-h-0 flex-1">
               <Chart
                 chartType={selectedChartType as DashboardWidgetChartType}
