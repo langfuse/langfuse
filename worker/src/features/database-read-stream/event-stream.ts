@@ -135,7 +135,10 @@ export const getEventsStream = async (props: {
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
     )
-    .withCTE("scores_agg", eventsScoresAggregation({ projectId }))
+    .withCTE(
+      "scores_agg",
+      eventsScoresAggregation({ projectId, categoricalEncoding: "tuple" }),
+    )
     .leftJoin(
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
@@ -218,17 +221,14 @@ export const getEventsStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
+    // Process categorical scores (tuples from ClickHouse)
     const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          stringValue: valueParts.join(":"),
-        };
-      },
+      (cat: any) => ({
+        name: cat[0],
+        value: null,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =

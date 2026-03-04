@@ -35,7 +35,10 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import {
+  executeQuery,
+  validateQuery,
+} from "@/src/features/query/server/queryExecutor";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -443,9 +446,14 @@ export const dashboardRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       try {
+        const validation = validateQuery(input.query, input.version);
+        if (!validation.valid) {
+          throw new InvalidRequestError(validation.reason);
+        }
+
         return executeQuery(
           input.projectId,
-          input.query as QueryType,
+          input.query,
           input.version,
           input.version === "v2",
         );
