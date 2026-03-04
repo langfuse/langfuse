@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import {
   type views,
   type metricAggregations,
+  type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type z } from "zod/v4";
@@ -14,13 +15,23 @@ import {
   TrashIcon,
   CopyIcon,
   GripVerticalIcon,
-  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@/src/features/query";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import {
+  validateQuery,
+  toQueryChartConfig,
+  isV2BreakdownChart,
+  buildWidgetOrderBy,
+} from "@/src/features/query/validateQuery";
 
 export interface WidgetPlacement {
   id: string;
@@ -40,6 +51,7 @@ export function DashboardWidget({
   filterState,
   onDeleteWidget,
   dashboardOwner,
+  schedulerId,
 }: {
   projectId: string;
   dashboardId: string;
@@ -48,9 +60,11 @@ export function DashboardWidget({
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
+  schedulerId?: string;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const { isBetaEnabled } = useV4Beta();
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -60,14 +74,13 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  // If widget requires v2 features (minVersion >= 2), must use v2.
+  // Otherwise follow the beta toggle.
+  const metricsVersion: ViewVersion =
+    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
-
-  const fromTimestamp = dateRange
-    ? dateRange.from
-    : new Date(new Date().getTime() - 1000);
-  const toTimestamp = dateRange ? dateRange.to : new Date();
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -91,42 +104,78 @@ export function DashboardWidget({
     setSortState(newSort);
   }, []);
 
-  const queryResult = api.dashboard.executeQuery.useQuery(
+  const widgetQuery: QueryType = useMemo(() => {
+    const fromTimestamp = dateRange
+      ? dateRange.from
+      : new Date(new Date().getTime() - 1000);
+    const toTimestamp = dateRange ? dateRange.to : new Date();
+
+    const isTimeSeries = isTimeSeriesChart(
+      widget.data?.chartType ?? "LINE_TIME_SERIES",
+    );
+    const hasDimension = (widget.data?.dimensions ?? []).length > 0;
+    const chartType = widget.data?.chartConfig.type ?? "LINE_TIME_SERIES";
+    const needsTopN = isV2BreakdownChart({
+      version: metricsVersion,
+      hasDimension,
+      isTimeSeries,
+      chartType,
+    });
+
+    const firstMetric = widget.data?.metrics[0];
+    const orderBy = buildWidgetOrderBy({
+      chartType,
+      sortState,
+      needsTopN,
+      firstMetric: firstMetric
+        ? { aggregation: firstMetric.agg, measure: firstMetric.measure }
+        : undefined,
+    });
+
+    // Only query-engine fields — rendering fields (defaultSort, show_value_labels)
+    // stay on widget.data.chartConfig for the Chart component
+    const chartConfig = widget.data?.chartConfig
+      ? toQueryChartConfig(widget.data.chartConfig, {
+          defaultRowLimit: needsTopN ? 100 : undefined,
+        })
+      : { type: chartType };
+
+    return {
+      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      metrics:
+        widget.data?.metrics.map((metric) => ({
+          measure: metric.measure,
+          aggregation: metric.agg as z.infer<typeof metricAggregations>,
+        })) ?? [],
+      filters: [
+        ...(widget.data?.filters ?? []),
+        ...mapLegacyUiTableFilterToView(
+          (widget.data?.view as z.infer<typeof views>) ?? "traces",
+          filterState,
+        ),
+      ],
+      timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
+      fromTimestamp: fromTimestamp.toISOString(),
+      toTimestamp: toTimestamp.toISOString(),
+      orderBy,
+      chartConfig,
+    };
+  }, [widget.data, filterState, dateRange, sortState, metricsVersion]);
+
+  const queryValidation = useMemo(
+    () =>
+      widget.data
+        ? validateQuery(widgetQuery, metricsVersion)
+        : ({ valid: true } as const),
+    [widgetQuery, metricsVersion, widget.data],
+  );
+
+  const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
-      query: {
-        view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
-        dimensions: widget.data?.dimensions ?? [],
-        metrics:
-          widget.data?.metrics.map((metric) => ({
-            measure: metric.measure,
-            aggregation: metric.agg as z.infer<typeof metricAggregations>,
-          })) ?? [],
-        filters: [
-          ...(widget.data?.filters ?? []),
-          ...mapLegacyUiTableFilterToView(
-            (widget.data?.view as z.infer<typeof views>) ?? "traces",
-            filterState,
-          ),
-        ],
-        timeDimension: isTimeSeriesChart(
-          widget.data?.chartType ?? "LINE_TIME_SERIES",
-        )
-          ? { granularity: "auto" }
-          : null,
-        fromTimestamp: fromTimestamp.toISOString(),
-        toTimestamp: toTimestamp.toISOString(),
-        orderBy:
-          widget.data?.chartConfig.type === "PIVOT_TABLE" && sortState
-            ? [
-                {
-                  field: sortState.column,
-                  direction: sortState.order.toLowerCase() as "asc" | "desc",
-                },
-              ]
-            : null,
-        chartConfig: widget.data?.chartConfig,
-      },
+      version: metricsVersion,
+      query: widgetQuery,
     },
     {
       trpc: {
@@ -134,9 +183,19 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
-      enabled: !widget.isPending && Boolean(widget.data),
+      queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
+      meta: {
+        silentHttpCodes: [422],
+      },
+      enabled:
+        !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
   );
+
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: queryResult.isPending,
+    isError: queryResult.isError,
+  });
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -287,22 +346,14 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button or loading indicator - always available */}
-          {queryResult.isPending ? (
-            <div
-              className="text-muted-foreground"
-              aria-label="Loading chart data"
-              title="Loading..."
-            >
-              <Loader2 size={16} className="animate-spin" />
-            </div>
-          ) : (
+          {/* Download button is available once chart data has loaded */}
+          {!queryResult.isPending ? (
             <DownloadButton
               data={transformedData}
               fileName={widget.data.name}
               className="hidden group-hover:block"
             />
-          )}
+          ) : null}
         </div>
       </div>
       <div
@@ -311,34 +362,56 @@ export function DashboardWidget({
       >
         {widget.data.description}
       </div>
-      <div className="min-h-0 flex-1">
-        <Chart
-          chartType={widget.data.chartType}
-          data={transformedData}
-          rowLimit={
-            widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-            widget.data.chartConfig.type === "BAR_TIME_SERIES"
-              ? 100
-              : (widget.data.chartConfig.row_limit ?? 100)
-          }
-          chartConfig={{
-            ...widget.data.chartConfig,
-            // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-            ...(widget.data.chartType === "PIVOT_TABLE" && {
-              dimensions: widget.data.dimensions.map((dim) => dim.field),
-              metrics: widget.data.metrics.map(
-                (metric) => `${metric.agg}_${metric.measure}`,
-              ),
-            }),
-          }}
-          sortState={
-            widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
-          }
-          onSortChange={
-            widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
-          }
-          isLoading={queryResult.isPending}
-        />
+      <div className="relative min-h-0 flex-1">
+        {!queryValidation.valid ? (
+          <ChartLoadingState
+            isLoading={true}
+            showSpinner={false}
+            showHintImmediately={true}
+            hintText={queryValidation.reason}
+            className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+            hintClassName="max-w-sm px-4"
+          />
+        ) : (
+          <>
+            <Chart
+              chartType={widget.data.chartType}
+              data={transformedData}
+              rowLimit={
+                widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+                widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
+                widget.data.chartConfig.type === "AREA_TIME_SERIES"
+                  ? 100
+                  : (widget.data.chartConfig.row_limit ?? 100)
+              }
+              chartConfig={{
+                ...widget.data.chartConfig,
+                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+                ...(widget.data.chartType === "PIVOT_TABLE" && {
+                  dimensions: widget.data.dimensions.map((dim) => dim.field),
+                  metrics: widget.data.metrics.map(
+                    (metric) => `${metric.agg}_${metric.measure}`,
+                  ),
+                }),
+              }}
+              sortState={
+                widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+              }
+              onSortChange={
+                widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+              }
+              isLoading={queryResult.isPending}
+            />
+            <ChartLoadingState
+              isLoading={chartLoadingState.isLoading}
+              showSpinner={chartLoadingState.showSpinner}
+              showHintImmediately={chartLoadingState.showHintImmediately}
+              hintText={chartLoadingState.hintText}
+              className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+              hintClassName="max-w-sm px-4"
+            />
+          </>
+        )}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import {
   MeasuringStrategy,
   DragOverlay,
 } from "@dnd-kit/core";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/ui/progress";
@@ -66,12 +66,34 @@ export function PreviewCsvImport({
     dataset?.expectedOutputSchema,
   );
 
+  // Toggle states for direct mapping mode (per field)
+  const [useDirectMappingForInput, setUseDirectMappingForInput] =
+    useState(false);
+  const [
+    useDirectMappingForExpectedOutput,
+    setUseDirectMappingForExpectedOutput,
+  ] = useState(false);
+
+  // Compute effective schema keys - pass undefined when in direct mapping mode
+  const effectiveInputSchemaKeys = useDirectMappingForInput
+    ? undefined
+    : (inputSchemaKeys ?? undefined);
+  const effectiveExpectedOutputSchemaKeys = useDirectMappingForExpectedOutput
+    ? undefined
+    : (expectedOutputSchemaKeys ?? undefined);
+
   // Mapping state
   const mapping = useCsvMapping({
     preview,
-    inputSchemaKeys: inputSchemaKeys ?? undefined,
-    expectedOutputSchemaKeys: expectedOutputSchemaKeys ?? undefined,
+    inputSchemaKeys: effectiveInputSchemaKeys,
+    expectedOutputSchemaKeys: effectiveExpectedOutputSchemaKeys,
   });
+
+  // Reset mappings when switching modes (avoids stale closure in callback)
+  useEffect(() => {
+    mapping.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useDirectMappingForInput, useDirectMappingForExpectedOutput]);
 
   // Drag and drop
   const dragAndDrop = useCsvDragAndDrop({
@@ -113,10 +135,9 @@ export function PreviewCsvImport({
 
   const handleImport = async () => {
     capture("dataset_item:upload_csv_form_submit");
-    await csvImport.execute(wrapSingleColumn);
+    const success = await csvImport.execute(wrapSingleColumn);
 
-    // Close dialog on success
-    if (csvImport.progress.status === "complete") {
+    if (success) {
       setOpen?.(false);
       setPreview(null);
     }
@@ -158,6 +179,16 @@ export function PreviewCsvImport({
                 onRemoveInputColumn={mapping.removeColumnFromInput}
                 onRemoveExpectedColumn={mapping.removeColumnFromExpectedOutput}
                 onRemoveMetadataColumn={mapping.removeColumnFromMetadata}
+                inputSchemaKeys={inputSchemaKeys}
+                expectedOutputSchemaKeys={expectedOutputSchemaKeys}
+                useDirectMappingForInput={useDirectMappingForInput}
+                useDirectMappingForExpectedOutput={
+                  useDirectMappingForExpectedOutput
+                }
+                onToggleDirectMappingForInput={setUseDirectMappingForInput}
+                onToggleDirectMappingForExpectedOutput={
+                  setUseDirectMappingForExpectedOutput
+                }
               />
             </div>
             {createPortal(
@@ -195,7 +226,10 @@ export function PreviewCsvImport({
         )}
       </DialogBody>
       <DialogFooter>
-        {!isSchemaMode && (
+        {/* Show checkbox in freeform mode OR when using direct mapping for any field */}
+        {(useDirectMappingForInput ||
+          useDirectMappingForExpectedOutput ||
+          !isSchemaMode) && (
           <div className="flex items-center gap-2">
             <Checkbox
               id="wrapSingleColumn"

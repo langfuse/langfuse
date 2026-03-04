@@ -32,10 +32,11 @@ export const posthogIntegrationRouter = createTRPCRouter({
           return null;
         }
 
-        const { encryptedPosthogApiKey, ...config } = dbConfig;
+        const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
         return {
           ...config,
+          exportSource,
           posthogApiKey: decrypt(encryptedPosthogApiKey),
         };
       } catch (e) {
@@ -101,11 +102,13 @@ export const posthogIntegrationRouter = createTRPCRouter({
           posthogHostName: config.posthogHostname,
           encryptedPosthogApiKey,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
         update: {
           encryptedPosthogApiKey,
           posthogHostName: config.posthogHostname,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
       });
     }),

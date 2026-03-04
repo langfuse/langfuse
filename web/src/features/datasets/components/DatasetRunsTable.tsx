@@ -7,7 +7,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import { usdFormatter } from "../../../utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Prisma, datasetRunsTableColsWithOptions } from "@langfuse/shared";
@@ -36,9 +36,9 @@ import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
+import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
@@ -326,7 +326,7 @@ export function DatasetRunsTable(props: {
     );
   }, [runsMetrics.data, scoreIdToName]);
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+  const { scoreAnalyticsOptions } = useMemo(
     () =>
       convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
     [scoreKeysAndProps.data?.scoreColumns],
@@ -601,15 +601,17 @@ export function DatasetRunsTable(props: {
     <>
       {hasCharts ? (
         <ResizablePanelGroup
-          direction="vertical"
+          orientation="vertical"
           className="h-full"
-          onLayout={(sizes) => {
-            setChartsPanelSize(sizes[0]);
+          onLayoutChanged={(layout) => {
+            const charts = layout["dataset-charts"];
+            if (charts != null) setChartsPanelSize(charts);
           }}
         >
           <ResizablePanel
-            defaultSize={chartsPanelSize}
-            minSize={20}
+            id="dataset-charts"
+            defaultSize={`${chartsPanelSize}%`}
+            minSize="20%"
             className="overflow-hidden"
           >
             <div className="h-full w-full overflow-x-auto overflow-y-auto p-3">
@@ -628,7 +630,10 @@ export function DatasetRunsTable(props: {
                         <span className="shrink-0 text-sm font-medium">
                           {title}
                         </span>
-                        <NoDataOrLoading isLoading={true} />
+                        <NoDataOrLoading
+                          isLoading={runsMetrics.isPending}
+                          className="min-h-[200px]"
+                        />
                       </div>
                     );
                   }
@@ -639,36 +644,68 @@ export function DatasetRunsTable(props: {
                   );
                   const { chartData, chartLabels } = adapter.toChartData();
 
-                  const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
+                  // TODO: remove when revamping the datasets api for it to directly return ms
+                  const valueFormatter =
+                    key === "latency"
+                      ? formatIntervalSeconds
+                      : key === "cost"
+                        ? usdFormatter
+                        : compactNumberFormatter;
+
+                  const dataPoints =
+                    chartLabels.length === 1
+                      ? chartData.map((d) => ({
+                          time_dimension: d.binLabel,
+                          dimension: chartLabels[0]!,
+                          metric: (d[chartLabels[0]!] as number) ?? 0,
+                        }))
+                      : compareViewChartDataToDataPoints(
+                          chartData,
+                          chartLabels,
+                        );
+                  const chartType =
+                    chartLabels.length === 1
+                      ? "LINE_TIME_SERIES"
+                      : "BAR_TIME_SERIES";
+
+                  if (dataPoints.length === 0) {
                     return (
-                      <div key={key} className="h-full min-w-80 max-w-full">
-                        <TimeseriesChart
-                          chartData={chartData}
-                          chartLabels={chartLabels}
-                          title={title}
-                          type="numeric"
-                          maxFractionDigits={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.maxFractionDigits
-                          }
+                      <div
+                        key={key}
+                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                      >
+                        <span className="shrink-0 text-sm font-medium">
+                          {title}
+                        </span>
+                        <NoDataOrLoading
+                          isLoading={runsMetrics.isPending}
+                          description="No chart data available for the selected runs."
+                          className="min-h-[200px]"
                         />
                       </div>
                     );
+                  }
 
                   return (
-                    <div key={key} className="h-full min-w-80 max-w-full">
-                      <TimeseriesChart
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={title}
-                        type={
-                          isNumericDataType(scoreData.dataType)
-                            ? "numeric"
-                            : "categorical"
-                        }
-                      />
+                    <div
+                      key={key}
+                      className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                    >
+                      <span className="shrink-0 text-sm font-medium">
+                        {title}
+                      </span>
+                      <div className="min-h-[200px] min-w-0 flex-1">
+                        <Chart
+                          chartType={chartType}
+                          data={dataPoints}
+                          rowLimit={Math.max(dataPoints.length, 1)}
+                          chartConfig={{ type: chartType }}
+                          valueFormatter={valueFormatter}
+                          legendPosition={
+                            chartLabels.length > 1 ? "above" : "none"
+                          }
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -677,7 +714,7 @@ export function DatasetRunsTable(props: {
           </ResizablePanel>
           <ResizableHandle withHandle className="bg-border" />
           <ResizablePanel
-            minSize={40}
+            minSize="40%"
             className="flex h-full flex-1 flex-col overflow-hidden"
           >
             <DataTableToolbar
@@ -696,6 +733,7 @@ export function DatasetRunsTable(props: {
                   runs.data?.runs.map((run) => run.id).includes(runId),
                 ).length > 0 ? (
                   <DatasetRunTableMultiSelectAction
+                    key="multi-select-action"
                     // Exclude items that are not in the current page
                     selectedRunIds={Object.keys(selectedRows).filter((runId) =>
                       runs.data?.runs.map((run) => run.id).includes(runId),

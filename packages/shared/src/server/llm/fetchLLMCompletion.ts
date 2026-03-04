@@ -1,8 +1,6 @@
-// We need to use Zod3 for structured outputs due to a bug in
-// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
-import { type ZodSchema } from "zod/v3";
+import { type ZodSchema, z } from "zod/v4";
 
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
@@ -42,14 +40,27 @@ import {
   TraceSinkParams,
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent } from "undici";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
+export type CompletionWithReasoning = { text: string; reasoning?: string };
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+// Maps adapters to the content block types that represent "thinking".
+// Used to extract reasoning separately and strip thinking parts from parsed output.
+const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
+  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
+  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
+};
+
+function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
+  return THINKING_BLOCK_TYPES[adapter];
+}
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
@@ -67,6 +78,13 @@ const transformSystemMessageToUserMessage = (
       : JSON.stringify(messages[0].content);
   return [new HumanMessage(safeContent)];
 };
+
+const googleProviderOptionsSchema = z
+  .object({
+    thinkingBudget: z.number().optional(),
+    thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
+  })
+  .optional();
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -101,7 +119,7 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<string>;
+): Promise<string | CompletionWithReasoning>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -115,12 +133,13 @@ export async function fetchLLMCompletion(
     streaming: false;
     tools: LLMToolDefinition[];
   },
-): Promise<ToolCallResponse>;
+): Promise<ToolCallResponse & { reasoning?: string }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<
   | string
+  | CompletionWithReasoning
   | IterableReadableStream<Uint8Array>
   | Record<string, unknown>
   | ToolCallResponse
@@ -224,7 +243,7 @@ export async function fetchLLMCompletion(
 
   // Common proxy configuration for all adapters
   const proxyUrl = env.HTTPS_PROXY;
-  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
   let chatModel:
@@ -241,16 +260,19 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
 
-    const chatOptions: Record<string, any> = {
+    const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
-      modelName: modelParams.model,
+      model: modelParams.model,
       maxTokens: modelParams.max_tokens,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
+        defaultHeaders: extraHeaders,
         timeout: timeoutMs,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
@@ -287,8 +309,8 @@ export async function fetchLLMCompletion(
     });
 
     chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
+      apiKey,
+      model: modelParams.model,
       temperature: modelParams.temperature,
       ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
         ? { maxCompletionTokens: modelParams.max_tokens }
@@ -299,8 +321,11 @@ export async function fetchLLMCompletion(
       maxRetries,
       configuration: {
         baseURL: processedBaseURL,
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
@@ -318,8 +343,11 @@ export async function fetchLLMCompletion(
       maxRetries,
       timeout: timeoutMs,
       configuration: {
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
     });
@@ -354,6 +382,10 @@ export async function fetchLLMCompletion(
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
 
+    const googleProviderOptions = googleProviderOptionsSchema.parse(
+      modelParams.providerOptions,
+    );
+
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
     const shouldUseDefaultCredentials =
@@ -374,7 +406,7 @@ export async function fetchLLMCompletion(
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     chatModel = new ChatVertexAI({
-      modelName: modelParams.model,
+      model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -385,11 +417,13 @@ export async function fetchLLMCompletion(
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
+    const googleProviderOptions = googleProviderOptionsSchema.parse(
+      modelParams.providerOptions,
+    );
+
     chatModel = new ChatGoogleGenerativeAI({
       model: modelParams.model,
       baseUrl: baseURL ?? undefined,
@@ -399,9 +433,11 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...(googleProviderOptions
+        ? {
+            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
+          }
+        : {}),
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
@@ -417,11 +453,23 @@ export async function fetchLLMCompletion(
     metadata: traceSinkParams?.metadata,
   };
 
+  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-        .withStructuredOutput(params.structuredOutputSchema)
+      // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
+      // parsing. Force function calling so the parser reads from tool_calls instead.
+      const structuredOutputConfig =
+        thinkingTypes != null
+          ? { method: "functionCalling" as const }
+          : undefined;
+
+      const structuredOutput = await chatModel
+        .withStructuredOutput(
+          params.structuredOutputSchema,
+          structuredOutputConfig,
+        )
         .invoke(finalMessages, runConfig);
 
       return structuredOutput;
@@ -437,6 +485,26 @@ export async function fetchLLMCompletion(
         .bindTools(langchainTools)
         .invoke(finalMessages, runConfig);
 
+      // For thinking adapters, strip reasoning blocks from content before parsing
+      // so ToolCallResponseSchema can validate. Extract reasoning separately.
+      if (thinkingTypes != null && Array.isArray(result.content)) {
+        const reasoning = extractReasoning(result.content, thinkingTypes);
+        // mutates Langchain AIMessage in place, not ideal but safe because only used for parsing below
+        result.content = result.content.filter(
+          (block) =>
+            typeof block === "string" || !thinkingTypes.has(block.type),
+        );
+
+        const parsed = ToolCallResponseSchema.safeParse(result);
+        if (!parsed.success)
+          throw Error("Failed to parse LLM tool call result");
+
+        return {
+          ...parsed.data,
+          ...(reasoning ? { reasoning } : {}),
+        };
+      }
+
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
@@ -447,6 +515,13 @@ export async function fetchLLMCompletion(
       return chatModel
         .pipe(new BytesOutputParser())
         .stream(finalMessages, runConfig);
+
+    // content with thinking blocks can't be handled by StringOutputParser
+    // Invoke model directly and extract text + reasoning separately.
+    if (thinkingTypes != null) {
+      const aiMessage = await chatModel.invoke(finalMessages, runConfig);
+      return extractCompletionWithReasoning(aiMessage, thinkingTypes);
+    }
 
     const completion = await chatModel
       .pipe(new StringOutputParser())
@@ -505,6 +580,54 @@ export async function fetchLLMCompletion(
   } finally {
     await processTracedEvents();
   }
+}
+
+// extracts reasoning text from an array of content blocks.
+// returns concatenated reasoning or undefined if no reasoning blocks are found
+function extractReasoning(
+  content: AIMessage["content"],
+  thinkingBlockTypes: Set<string>,
+): string | undefined {
+  if (typeof content === "string" || !Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block !== "string" && thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") parts.push(text);
+    }
+  }
+  return parts.length > 0 ? parts.join("") : undefined;
+}
+
+/**
+ * Splits AIMessage content into text and reasoning parts.
+ * Text parts are concatenated into `text`, thinking-type parts into `reasoning`.
+ */
+function extractCompletionWithReasoning(
+  message: AIMessage,
+  thinkingBlockTypes: Set<string>,
+): CompletionWithReasoning {
+  const { content } = message;
+
+  if (typeof content === "string") return { text: content };
+  if (!Array.isArray(content)) return { text: String(content) };
+
+  const reasoning = extractReasoning(content, thinkingBlockTypes);
+
+  const textParts: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      textParts.push(block);
+    } else if (!thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") textParts.push(text);
+    }
+  }
+
+  return {
+    text: textParts.join(""),
+    ...(reasoning ? { reasoning } : {}),
+  };
 }
 
 /**

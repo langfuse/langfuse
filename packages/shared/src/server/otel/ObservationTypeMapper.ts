@@ -10,11 +10,13 @@ interface ObservationTypeMapper {
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
+    spanName?: string,
   ): boolean;
   mapToObservationType(
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
+    spanName?: string,
   ): LangfuseObservationType | null;
 }
 
@@ -30,6 +32,7 @@ class SimpleAttributeMapper implements ObservationTypeMapper {
     attributes: Record<string, unknown>,
     _resourceAttributes?: Record<string, unknown>,
     _scopeData?: Record<string, unknown>,
+    _spanName?: string,
   ): boolean {
     return (
       this.attributeKey in attributes &&
@@ -41,6 +44,7 @@ class SimpleAttributeMapper implements ObservationTypeMapper {
     attributes: Record<string, unknown>,
     _resourceAttributes?: Record<string, unknown>,
     _scopeData?: Record<string, unknown>,
+    _spanName?: string,
   ): LangfuseObservationType | null {
     const value = attributes[this.attributeKey] as string;
     const mappedType = this.mappings[value];
@@ -67,11 +71,13 @@ class CustomAttributeMapper implements ObservationTypeMapper {
       attributes: Record<string, unknown>,
       resourceAttributes?: Record<string, unknown>,
       scopeData?: Record<string, unknown>,
+      spanName?: string,
     ) => boolean,
     private readonly mapFn: (
       attributes: Record<string, unknown>,
       resourceAttributes?: Record<string, unknown>,
       scopeData?: Record<string, unknown>,
+      spanName?: string,
     ) => LangfuseObservationType | null,
   ) {}
 
@@ -79,16 +85,23 @@ class CustomAttributeMapper implements ObservationTypeMapper {
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
+    spanName?: string,
   ): boolean {
-    return this.canMapFn(attributes, resourceAttributes, scopeData);
+    return this.canMapFn(attributes, resourceAttributes, scopeData, spanName);
   }
 
   mapToObservationType(
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
+    spanName?: string,
   ): LangfuseObservationType | null {
-    const result = this.mapFn(attributes, resourceAttributes, scopeData);
+    const result = this.mapFn(
+      attributes,
+      resourceAttributes,
+      scopeData,
+      spanName,
+    );
 
     if (
       result &&
@@ -381,9 +394,30 @@ export class ObservationTypeMapperRegistry {
       () => "TOOL",
     ),
 
+    // LiveKit spans: use span name to determine observation type
+    new CustomAttributeMapper(
+      "LiveKit_SpanName",
+      7,
+      (_attributes, _resourceAttributes, scopeData, spanName) => {
+        if (scopeData?.name !== "livekit-agents") return false;
+
+        return (
+          spanName === "agent_turn" ||
+          spanName === "start_agent_activity" ||
+          spanName === "function_tool"
+        );
+      },
+      (_attributes, _resourceAttributes, _scopeData, spanName) => {
+        if (spanName === "agent_turn" || spanName === "start_agent_activity")
+          return "AGENT";
+        if (spanName === "function_tool") return "TOOL";
+        return null;
+      },
+    ),
+
     new CustomAttributeMapper(
       "ModelBased",
-      7,
+      8,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
@@ -413,14 +447,16 @@ export class ObservationTypeMapperRegistry {
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
+    spanName?: string,
   ): LangfuseObservationType {
     const sortedMappers = this.getSortedMappers();
     for (const mapper of sortedMappers) {
-      if (mapper.canMap(attributes, resourceAttributes, scopeData)) {
+      if (mapper.canMap(attributes, resourceAttributes, scopeData, spanName)) {
         const result = mapper.mapToObservationType(
           attributes,
           resourceAttributes,
           scopeData,
+          spanName,
         );
         if (result) {
           return result;

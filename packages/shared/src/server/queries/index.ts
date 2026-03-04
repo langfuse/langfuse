@@ -5,6 +5,7 @@ export {
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
+  type Filter,
   FilterList,
   StringFilter,
   DateTimeFilter,
@@ -35,6 +36,19 @@ export {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
+  EventsQueryBuilder,
+  buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type SessionEventsMetricsRow,
+  type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export {
+  eventsScoresAggregation,
+  eventsSessionsAggregation,
+  eventsSessionScoresAggregation,
+  eventsTraceMetadata,
+  eventsTracesAggregation,
+  eventsTracesScoresAggregation,
+} from "./clickhouse-sql/query-fragments";

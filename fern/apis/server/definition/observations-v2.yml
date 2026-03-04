@@ -59,8 +59,9 @@ service:
           parseIoAsJson:
             type: optional<boolean>
             docs: |
-              Set to `true` to parse input/output fields as JSON, or `false` to return raw strings.
-              Defaults to `false` if not provided.
+              **Deprecated.** Setting this to `true` will return a 400 error.
+              Input/output fields are always returned as raw strings.
+              Remove this parameter or set it to `false`.
           name: optional<string>
           userId: optional<string>
           type:
@@ -192,7 +193,7 @@ types:
       Use the `cursor` in `meta` to retrieve the next page of results.
     properties:
       data:
-        type: list<map<string, unknown>>
+        type: list<commons.ObservationV2>
         docs: Array of observation objects. Fields included depend on the `fields` parameter in the request.
       meta: ObservationsV2Meta
 

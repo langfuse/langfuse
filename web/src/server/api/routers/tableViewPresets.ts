@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,6 +10,10 @@ import {
   CreateTableViewPresetsInput,
   UpdateTableViewPresetsInput,
   UpdateTableViewPresetsNameInput,
+  DefaultViewService,
+  GetDefaultViewInput,
+  SetDefaultViewInput,
+  ClearDefaultViewInput,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -103,10 +108,22 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
 
-      await TableViewService.deleteTableViewPresets(
-        input.tableViewPresetsId,
-        input.projectId,
-      );
+      // Use transaction to ensure atomicity
+      // Delete view first (validates it exists), then cleanup defaults
+      await ctx.prisma.$transaction(async (tx) => {
+        // Delete the view preset (will throw if not found)
+        await tx.tableViewPreset.delete({
+          where: {
+            id: input.tableViewPresetsId,
+            projectId: input.projectId,
+          },
+        });
+
+        // Cleanup any default view references
+        await tx.defaultView.deleteMany({
+          where: { viewId: input.tableViewPresetsId },
+        });
+      });
 
       return {
         success: true,
@@ -170,5 +187,87 @@ export const TableViewPresetsRouter = createTRPCRouter({
         input.tableName,
         input.projectId,
       );
+    }),
+
+  getDefault: protectedProjectProcedure
+    .input(GetDefaultViewInput)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "TableViewPresets:read",
+      });
+
+      return await DefaultViewService.getResolvedDefault({
+        ...input,
+        userId: ctx.session.user?.id,
+      });
+    }),
+
+  setAsDefault: protectedProjectProcedure
+    .input(SetDefaultViewInput)
+    .mutation(async ({ input, ctx }) => {
+      // User-level defaults only need read access, project-level needs CUD
+      const scope =
+        input.scope === "project"
+          ? "TableViewPresets:CUD"
+          : "TableViewPresets:read";
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope,
+      });
+
+      let viewName = input.viewName;
+
+      // For non-system presets, always validate viewId exists and get viewName
+      if (!input.viewId.startsWith("__langfuse_")) {
+        const view = await TableViewService.getTableViewPresetsById(
+          input.viewId,
+          input.projectId,
+        );
+        // Use provided viewName or infer from view's tableName
+        viewName = viewName ?? view.tableName;
+      } else if (!viewName) {
+        // System presets require explicit viewName
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "viewName is required for system presets",
+        });
+      }
+
+      await DefaultViewService.setAsDefault({
+        projectId: input.projectId,
+        viewId: input.viewId,
+        viewName,
+        scope: input.scope,
+        userId: input.scope === "user" ? ctx.session.user?.id : undefined,
+      });
+
+      return { success: true };
+    }),
+
+  clearDefault: protectedProjectProcedure
+    .input(ClearDefaultViewInput)
+    .mutation(async ({ input, ctx }) => {
+      // User-level defaults only need read access, project-level needs CUD
+      const scope =
+        input.scope === "project"
+          ? "TableViewPresets:CUD"
+          : "TableViewPresets:read";
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope,
+      });
+
+      await DefaultViewService.clearDefault({
+        ...input,
+        userId: input.scope === "user" ? ctx.session.user?.id : undefined,
+      });
+
+      return { success: true };
     }),
 });

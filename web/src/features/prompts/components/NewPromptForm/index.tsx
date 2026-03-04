@@ -217,6 +217,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       ) {
         setInitialMessages(draft.chatPrompt);
       }
+      if (folderPath && !initialPrompt) {
+        form.setValue("name", `${folderPath}/`);
+      }
     },
   });
 
@@ -399,7 +402,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 onBlur={field.onBlur}
                 editable
                 mode="json"
-                minHeight="none"
               />
               <FormMessage />
             </FormItem>
