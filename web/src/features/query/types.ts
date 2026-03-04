@@ -30,6 +30,7 @@ export const viewDeclaration = z.object({
         })
         .optional(),
       highCardinality: z.boolean().optional(),
+      uiHidden: z.boolean().optional(),
       explodeArray: z.boolean().optional(),
       pairExpand: z
         .object({
