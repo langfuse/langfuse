@@ -285,7 +285,10 @@ const buildExperimentScoresCTE = (params: {
 
   return {
     query,
-    params: cteParams,
+    params: {
+      ...cteParams,
+      projectId: params.projectId,
+    },
     schema: ["project_id", "experiment_id", "scores_avg", "score_categories"],
   };
 };
