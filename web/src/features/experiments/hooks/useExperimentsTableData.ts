@@ -19,7 +19,8 @@ type ExperimentMetricsData = {
   id: string;
   totalCost: number | null;
   latencyAvg: number | null;
-  itemScores: ScoreAggregate; // Item-level scores
+  traceItemScores: ScoreAggregate; // Scores on traces (observation_id IS NULL)
+  observationItemScores: ScoreAggregate; // Scores on observations (observation_id IS NOT NULL)
   experimentScores: ScoreAggregate; // Experiment-level scores
 };
 

@@ -79,17 +79,33 @@ export const experimentsTableCols: ColumnDefinition[] = [
     type: "number",
     internal: "error_count",
   },
+  // Observation-level scores (eos.* alias in backend)
   {
     name: "Scores (numeric)",
-    id: "scores_avg",
+    id: "obs_scores_avg",
     type: "numberObject",
-    internal: "scores_avg",
+    internal: "obs_scores_avg",
   },
   {
     name: "Scores (categorical)",
-    id: "score_categories",
+    id: "obs_score_categories",
     type: "categoryOptions",
-    internal: "score_categories",
+    internal: "obs_score_categories",
+    options: [],
+    nullable: true,
+  },
+  // Trace-level scores (ets.* alias in backend)
+  {
+    name: "Trace Scores (numeric)",
+    id: "trace_scores_avg",
+    type: "numberObject",
+    internal: "trace_scores_avg",
+  },
+  {
+    name: "Trace Scores (categorical)",
+    id: "trace_score_categories",
+    type: "categoryOptions",
+    internal: "trace_score_categories",
     options: [],
     nullable: true,
   },
@@ -141,15 +157,27 @@ export const experimentsFilterConfig: FilterConfig = {
       min: 0,
       max: 10000,
     },
+    // Observation-level scores
     {
       type: "keyValue" as const,
-      column: "score_categories",
-      label: "Categorical Scores",
+      column: "obs_score_categories",
+      label: getExperimentsColumnName("obs_score_categories"),
     },
     {
       type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
+      column: "obs_scores_avg",
+      label: getExperimentsColumnName("obs_scores_avg"),
+    },
+    // Trace-level scores
+    {
+      type: "keyValue" as const,
+      column: "trace_score_categories",
+      label: getExperimentsColumnName("trace_score_categories"),
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "trace_scores_avg",
+      label: getExperimentsColumnName("trace_scores_avg"),
     },
   ],
 };

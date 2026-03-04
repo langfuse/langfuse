@@ -4,11 +4,16 @@
 
 import {
   EventsAggregationQueryBuilder,
+  EventsAggQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   EventsExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import { createFilterFromFilterState } from "./factory";
+import { experimentTableUiColumnDefinitions } from "../../tableMappings/mapExperimentTable";
+import { FilterList } from "./clickhouse-filter";
+import { buildExperimentFilterState } from "./utils";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -318,4 +323,125 @@ export const eventsExperimentsAggregation = (
     .selectFieldSet("all")
     .withExperimentIds(params.experimentIds)
     .whereRaw("e.experiment_id != ''");
+};
+
+interface ExperimentScoresAggregationParams {
+  projectId: string;
+  level: "observation" | "trace";
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}
+
+/**
+ * Experiment-level scores aggregation CTE.
+ * Uses EventsAggQueryBuilder (no hardcoded events_core) with LEFT JOIN to scores.
+ * The WHERE filter on s.observation_id effectively filters to only matching rows.
+ *
+ * @param level - "observation" for observation-attached scores, "trace" for trace-attached scores
+ *
+ * Output columns (prefixed based on level):
+ * - obs_scores_avg / trace_scores_avg: Array of (name, avg_value, data_type, string_value) tuples
+ * - obs_score_categories / trace_score_categories: Array of "name:value" strings
+ */
+const buildExperimentScoresAggregationCTE = (
+  params: ExperimentScoresAggregationParams,
+): CTEWithSchema => {
+  const { projectId, level, experimentIds, startTimeFrom } = params;
+
+  const isTraceLevel = level === "trace";
+  const prefix = isTraceLevel ? "trace" : "obs";
+
+  // Build filter state for experiments
+  const filterState = buildExperimentFilterState({
+    experimentIds,
+    startTimeFrom,
+  });
+
+  // Convert to Filter objects
+  const filters = new FilterList(
+    createFilterFromFilterState(
+      filterState,
+      experimentTableUiColumnDefinitions,
+    ),
+  );
+
+  // Use EventsAggQueryBuilder with LEFT JOIN to scores
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn:
+      "e.project_id, e.experiment_id, s.name, s.data_type, s.string_value",
+    selectExpression: `
+      e.project_id AS project_id,
+      e.experiment_id AS experiment_id,
+      s.name AS name,
+      s.data_type AS data_type,
+      s.string_value AS string_value,
+      avg(s.value) as avg_value`,
+  })
+    .leftJoin(
+      "scores s FINAL",
+      "ON s.project_id = e.project_id AND s.trace_id = e.trace_id",
+    )
+    .applyFilters(filters)
+    .whereRaw(
+      isTraceLevel
+        ? "s.observation_id IS NULL"
+        : "s.observation_id IS NOT NULL",
+    );
+
+  // Wrap in outer query for final aggregation
+  const innerQuery = builder.buildWithParams();
+
+  const query = `
+    SELECT
+      project_id,
+      experiment_id,
+      groupArrayIf(tuple(name, avg_value, data_type, string_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg,
+      groupArrayIf(concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS ${prefix}_score_categories
+    FROM (${innerQuery.query}) tmp
+    GROUP BY project_id, experiment_id
+  `.trim();
+
+  return {
+    query,
+    params: innerQuery.params,
+    schema: [
+      "project_id",
+      "experiment_id",
+      `${prefix}_scores_avg`,
+      `${prefix}_score_categories`,
+    ],
+  };
+};
+
+/**
+ * Experiment-level observation scores aggregation.
+ * Aggregates scores where observation_id IS NOT NULL, grouped by experiment_id.
+ */
+export const eventsExperimentsObservationScoresAggregation = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}): CTEWithSchema => {
+  return buildExperimentScoresAggregationCTE({
+    ...params,
+    level: "observation",
+  });
+};
+
+/**
+ * Experiment-level trace scores aggregation.
+ * Aggregates scores where observation_id IS NULL, grouped by experiment_id.
+ */
+export const eventsExperimentsTraceScoresAggregation = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}): CTEWithSchema => {
+  return buildExperimentScoresAggregationCTE({
+    ...params,
+    level: "trace",
+  });
 };

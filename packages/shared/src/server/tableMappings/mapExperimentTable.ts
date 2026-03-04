@@ -80,17 +80,31 @@ export const experimentPostAggCols: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: "em.latency_avg",
   },
+  // Observation-level scores (eos.* alias)
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "scores_avg",
+    uiTableId: "obs_scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "es.scores_avg",
+    clickhouseSelect: "eos.obs_scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "score_categories",
+    uiTableId: "obs_score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "es.score_categories",
+    clickhouseSelect: "eos.obs_score_categories",
+  },
+  // Trace-level scores (ets.* alias)
+  {
+    uiTableName: "Trace Scores (numeric)",
+    uiTableId: "trace_scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ets.trace_scores_avg",
+  },
+  {
+    uiTableName: "Trace Scores (categorical)",
+    uiTableId: "trace_score_categories",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ets.trace_score_categories",
   },
   {
     uiTableName: "Metadata",

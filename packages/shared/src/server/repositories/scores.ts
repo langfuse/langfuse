@@ -17,7 +17,6 @@ import {
   orderByToClickhouseSql,
   EventsQueryBuilder,
 } from "../queries";
-import { buildExperimentFilterState } from "./experiments";
 import { experimentTableUiColumnDefinitions } from "../tableMappings/mapExperimentTable";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
@@ -54,6 +53,7 @@ import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
 } from "../queries/clickhouse-sql/query-fragments";
+import { buildExperimentFilterState } from "../queries/clickhouse-sql/utils";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
