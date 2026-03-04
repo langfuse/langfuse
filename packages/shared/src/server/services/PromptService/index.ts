@@ -198,8 +198,8 @@ export class PromptService {
   }
 
   private newEpochToken(): string {
-    // 24 bits of entropy in a compact URL-safe string (~4 chars).
-    return randomBytes(3).toString("base64url");
+    // 48 bits of entropy in a compact URL-safe string (8 chars).
+    return randomBytes(6).toString("base64url");
   }
 
   private async getOrCreateEpoch(
