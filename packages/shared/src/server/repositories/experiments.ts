@@ -16,8 +16,9 @@ import { eventsExperimentsAggregation } from "../queries/clickhouse-sql/query-fr
 import { queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 import {
-  experimentCols,
+  experimentTableUiColumnDefinitions,
   experimentPreAggCols,
+  experimentCols,
 } from "../tableMappings/mapExperimentTable";
 
 export type ExperimentEventsDataReturnType = {
@@ -38,6 +39,47 @@ export type ExperimentMetricsReturnType = {
   experiment_id: string;
   total_cost: number | null;
   latency_avg: number | null;
+};
+
+/**
+ * Helper function to build FilterState for experiment queries.
+ * Consistently applies experiment filtering logic across CTEs.
+ */
+const buildExperimentFilterState = (params: {
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}): FilterState => {
+  return [
+    // Always filter for events with experiment_id
+    {
+      column: "hasExperimentId" as const,
+      type: "boolean" as const,
+      operator: "=" as const,
+      value: true,
+    },
+    // Conditionally filter by specific experiment IDs
+    ...(params.experimentIds?.length
+      ? [
+          {
+            column: "experimentId" as const,
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: params.experimentIds,
+          } as const,
+        ]
+      : []),
+    // Conditionally filter by start time
+    ...(params.startTimeFrom
+      ? [
+          {
+            column: "startTime" as const,
+            type: "datetime" as const,
+            operator: ">=" as const,
+            value: new Date(params.startTimeFrom),
+          } as const,
+        ]
+      : []),
+  ];
 };
 
 export const getExperimentsCountFromEvents = async (props: {
@@ -148,6 +190,21 @@ const buildExperimentTraceMetricsCTE = (params: {
 }): CTEWithSchema => {
   const { projectId, experimentIds, startTimeFrom } = params;
 
+  // Build FilterState using helper function
+  const filterState = buildExperimentFilterState({
+    experimentIds,
+    startTimeFrom,
+  });
+
+  // Convert FilterState to Filter objects and apply
+  const filters = new FilterList(
+    createFilterFromFilterState(
+      filterState,
+      experimentTableUiColumnDefinitions,
+    ),
+  );
+  const appliedFilters = filters.apply();
+
   const builder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.project_id, e.experiment_id, e.trace_id",
@@ -157,18 +214,7 @@ const buildExperimentTraceMetricsCTE = (params: {
       e.trace_id,
       dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
       sum(e.total_cost) as total_cost`,
-  })
-    .whereRaw("e.experiment_id != ''")
-    .when(Boolean(experimentIds?.length), (b) =>
-      b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
-        experimentIds,
-      }),
-    )
-    .when(Boolean(startTimeFrom), (b) =>
-      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
-        startTimeFrom,
-      }),
-    );
+  }).where(appliedFilters);
 
   return {
     ...builder.buildWithParams(),
@@ -335,23 +381,15 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Apply pre-aggregation filters
   // Only include filters for columns defined in experimentPreAggCols (raw events table columns)
-  if (filter.length > 0) {
-    const preAggFilterState = filter.filter((f) =>
-      experimentPreAggCols.some((col) => col.uiTableId === f.column),
-    );
+  const preAggFilterState = filter.filter((f) =>
+    experimentPreAggCols.some((col) => col.uiTableId === f.column),
+  );
 
-    if (preAggFilterState.length > 0) {
-      const preAggFilters = new FilterList(
-        createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
-      );
-      const preAggFiltersRes = preAggFilters.apply();
-      if (preAggFiltersRes.query) {
-        experimentsBuilder.whereRaw(
-          preAggFiltersRes.query,
-          preAggFiltersRes.params,
-        );
-      }
-    }
+  if (preAggFilterState.length > 0) {
+    const preAggFilters = new FilterList(
+      createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
+    );
+    experimentsBuilder.where(preAggFilters.apply());
   }
 
   // Initialize CTEQueryBuilder
@@ -438,9 +476,7 @@ const getExperimentsFromEventsGeneric = async <T>(
   }
 
   // Apply post-aggregation filters
-  if (filtersRes.query) {
-    queryBuilder.whereRaw(filtersRes.query, filtersRes.params);
-  }
+  queryBuilder.where(filtersRes);
 
   // Apply ordering
   const orderBySql = orderByToClickhouseSql(orderBy ?? null, experimentCols);

@@ -109,3 +109,24 @@ export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
   ...experimentPostAggCols,
 ];
+
+export const experimentTableUiColumnDefinitions: UiColumnMappings = [
+  {
+    uiTableName: "Has Experiment ID",
+    uiTableId: "hasExperimentId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.experiment_id != ''",
+  },
+  {
+    uiTableName: "Experiment ID",
+    uiTableId: "experimentId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."experiment_id"',
+  },
+  {
+    uiTableName: "Start Time",
+    uiTableId: "startTime",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.start_time",
+  },
+];
