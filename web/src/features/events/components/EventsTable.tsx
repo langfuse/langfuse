@@ -13,7 +13,7 @@ import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -355,9 +355,7 @@ export default function ObservationsEventsTable({
       disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: {
-        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
-      },
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
   );
 
@@ -406,7 +404,7 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const combinedFilterState = queryFilter.filterState
+  const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);

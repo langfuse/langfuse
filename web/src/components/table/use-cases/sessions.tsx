@@ -15,7 +15,7 @@ import {
   sessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/sessions-config";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
@@ -245,9 +245,7 @@ export default function SessionsTable({
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: {
-        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
-      },
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
   );
 
@@ -260,7 +258,7 @@ export default function SessionsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );

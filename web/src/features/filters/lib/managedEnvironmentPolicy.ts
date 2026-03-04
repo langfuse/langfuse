@@ -1,5 +1,6 @@
 import type { FilterState } from "@langfuse/shared";
 import { computeSelectedValues } from "./filter-query-encoding";
+import { areStringSetsEqual } from "./stringSetUtils";
 
 type EnvironmentFilter = Extract<
   FilterState[number],
@@ -7,7 +8,7 @@ type EnvironmentFilter = Extract<
 >;
 
 export type ManagedEnvironmentPolicyInput = {
-  hiddenEnvironments?: string[];
+  hiddenEnvironments?: readonly string[];
   managedEnvironmentColumn?: string;
 };
 
@@ -23,13 +24,6 @@ export function buildManagedEnvironmentPolicyConfig(
     managedEnvironmentColumn: input?.managedEnvironmentColumn ?? "environment",
     hiddenEnvironments: Array.from(new Set(input?.hiddenEnvironments ?? [])),
   };
-}
-
-function areStringSetsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false;
-  const leftSet = new Set(left);
-  if (leftSet.size !== new Set(right).size) return false;
-  return right.every((value) => leftSet.has(value));
 }
 
 function isEquivalentToImplicitEnvironmentDefault(params: {

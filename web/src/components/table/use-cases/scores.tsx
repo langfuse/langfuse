@@ -16,7 +16,7 @@ import {
   scoreFilterConfig,
   SCORE_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/scores-config";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -294,9 +294,7 @@ export default function ScoresTable({
       disableUrlPersistence,
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: {
-        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
-      },
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
   );
 
@@ -310,7 +308,7 @@ export default function ScoresTable({
   );
 
   const filterState = createFilterState(
-    queryFilter.filterState.concat(dateRangeFilter),
+    queryFilter.effectiveFilterState.concat(dateRangeFilter),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),

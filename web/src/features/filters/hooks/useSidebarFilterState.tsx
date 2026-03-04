@@ -25,6 +25,7 @@ import {
   stripImplicitEnvironmentFilterFromExplicitState,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
+import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
@@ -90,13 +91,6 @@ function computeNumericRange(
       : defaultMax;
 
   return [minValue, maxValue];
-}
-
-function areStringSetsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false;
-  const leftSet = new Set(left);
-  if (leftSet.size !== new Set(right).size) return false;
-  return right.every((value) => leftSet.has(value));
 }
 
 export interface BaseUIFilter {
@@ -1676,6 +1670,7 @@ export function useSidebarFilterState(
 
   return {
     filterState,
+    effectiveFilterState: filterState,
     explicitFilterState,
     setFilterState,
     updateFilter,

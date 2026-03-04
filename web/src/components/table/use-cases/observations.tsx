@@ -15,7 +15,7 @@ import {
   observationFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/observations-config";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -440,9 +440,7 @@ export default function ObservationsTable({
       disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: {
-        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
-      },
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
   );
 
@@ -455,7 +453,7 @@ export default function ObservationsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,

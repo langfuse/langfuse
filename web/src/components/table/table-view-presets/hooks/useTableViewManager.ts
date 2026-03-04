@@ -66,6 +66,10 @@ export function useTableViewManager({
     StringParam,
   );
   const selectedViewId = selectedViewIdParam ?? null;
+  const selectedViewIdRef = useRef<string | null>(selectedViewId);
+  selectedViewIdRef.current = selectedViewId;
+  const isInitializedRef = useRef(isInitialized);
+  isInitializedRef.current = isInitialized;
 
   // Query for resolved default view (user > project > null)
   const { data: resolvedDefault, isLoading: isDefaultLoading } =
@@ -85,12 +89,13 @@ export function useTableViewManager({
 
       // Explicitly selecting "My view (default)" should stop bootstrap restore.
       // Otherwise an in-flight bootstrap can restore a previously selected view.
-      if (viewId === null && !isInitialized) {
+      if (viewId === null && !isInitializedRef.current) {
+        isInitializedRef.current = true;
         setIsInitialized(true);
         setIsLoading(false);
       }
     },
-    [setStoredViewId, setSelectedViewId, isInitialized],
+    [setStoredViewId, setSelectedViewId],
   );
 
   // Extract updater functions and store in refs to avoid stale closures
@@ -262,21 +267,29 @@ export function useTableViewManager({
         !isInitialized &&
         !isSystemPresetId(selectedViewId),
       onSuccess: (viewData) => {
-        if (isInitialized) return;
+        const requestedViewId = selectedViewId;
+        if (!requestedViewId) return;
+        if (isInitializedRef.current) return;
+        if (selectedViewIdRef.current !== requestedViewId) return;
 
         // Track permalink visit
         capture("saved_views:permalink_visit", {
           tableName,
-          viewId: selectedViewId,
+          viewId: requestedViewId,
           name: viewData.name,
         });
 
         applyViewState(viewData);
+        isInitializedRef.current = true;
         setIsInitialized(true);
       },
       onError: (error) => {
-        if (isInitialized) return;
+        const requestedViewId = selectedViewId;
+        if (!requestedViewId) return;
+        if (isInitializedRef.current) return;
+        if (selectedViewIdRef.current !== requestedViewId) return;
 
+        isInitializedRef.current = true;
         setIsInitialized(true);
         setIsLoading(false);
         handleSetViewId(null);
