@@ -26,6 +26,11 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import {
+  DashboardQuerySchedulerProvider,
+  getDashboardQuerySchedulerMaxConcurrent,
+  useDashboardQueryScheduler,
+} from "@/src/hooks/useDashboardQueryScheduler";
 
 interface WidgetPlacement {
   id: string;
@@ -381,123 +386,160 @@ export default function DashboardDetail() {
   };
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
+  const widgetSchedulerPrefix = `dashboard:${projectId}:${dashboardId}:widget:`;
+  const widgetPlacements = useMemo(
+    () => localDashboardDefinition?.widgets ?? [],
+    [localDashboardDefinition?.widgets],
+  );
+
+  const getWidgetSchedulerId = useCallback(
+    (widgetPlacementId: string) =>
+      `${widgetSchedulerPrefix}${widgetPlacementId}`,
+    [widgetSchedulerPrefix],
+  );
+
+  const schedulerResetKey = useMemo(() => {
+    return [
+      projectId,
+      dashboardId,
+      absoluteTimeRange?.from?.toISOString() ?? "",
+      absoluteTimeRange?.to?.toISOString() ?? "",
+      JSON.stringify(currentFilters),
+      widgetPlacements.map((widget) => widget.id).join(","),
+    ].join("|");
+  }, [
+    absoluteTimeRange?.from,
+    absoluteTimeRange?.to,
+    currentFilters,
+    dashboardId,
+    projectId,
+    widgetPlacements,
+  ]);
+
+  const scheduler = useDashboardQueryScheduler({
+    maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
+    resetKey: schedulerResetKey,
+  });
 
   return (
-    <Page
-      withPadding
-      scrollable
-      headerProps={{
-        title:
-          (dashboard.data?.name || "Dashboard") +
-          (dashboard.data?.owner === "LANGFUSE"
-            ? " (Langfuse Maintained)"
-            : ""),
-        breadcrumb: [
-          {
-            name: "Dashboards",
-            href: `/project/${projectId}/dashboards`,
+    <DashboardQuerySchedulerProvider scheduler={scheduler}>
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title:
+            (dashboard.data?.name || "Dashboard") +
+            (dashboard.data?.owner === "LANGFUSE"
+              ? " (Langfuse Maintained)"
+              : ""),
+          breadcrumb: [
+            {
+              name: "Dashboards",
+              href: `/project/${projectId}/dashboards`,
+            },
+          ],
+          help: {
+            description:
+              dashboard.data?.description || "No description available",
           },
-        ],
-        help: {
-          description:
-            dashboard.data?.description || "No description available",
-        },
-        actionButtonsRight: (
-          <>
-            {hasCUDAccess && hasUnsavedFilterChanges && (
-              <Button
-                onClick={handleSaveFilters}
-                disabled={updateDashboardFilters.isPending}
-                variant="outline"
-              >
-                {updateDashboardFilters.isPending
-                  ? "Saving..."
-                  : "Save Filters"}
-              </Button>
-            )}
-            {hasCUDAccess && (
-              <Button onClick={handleAddWidget}>
-                <PlusIcon size={16} className="mr-1 h-4 w-4" />
-                Add Widget
-              </Button>
-            )}
-            {hasCloneAccess && (
-              <Button
-                onClick={handleCloneDashboard}
-                disabled={mutateCloneDashboard.isPending}
-              >
-                <Copy size={16} className="mr-1 h-4 w-4" />
-                Clone
-              </Button>
-            )}
-          </>
-        ),
-      }}
-    >
-      <SelectWidgetDialog
-        open={isWidgetDialogOpen}
-        onOpenChange={setIsWidgetDialogOpen}
-        projectId={projectId}
-        onSelectWidget={handleSelectWidget}
-        dashboardId={dashboardId}
-      />
-      {dashboard.isPending || !localDashboardDefinition ? (
-        <NoDataOrLoading isLoading={true} />
-      ) : dashboard.isError ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="text-destructive">
-            Error: {dashboard.error.message}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-              <TimeRangePicker
-                timeRange={timeRange}
-                onTimeRangeChange={setTimeRange}
-                timeRangePresets={dashboardTimeRangePresets}
-                className="my-0 max-w-full overflow-x-auto"
-                disabled={
-                  lookbackLimit
-                    ? {
-                        before: new Date(
-                          new Date().getTime() -
-                            lookbackLimit * 24 * 60 * 60 * 1000,
-                        ),
-                      }
-                    : undefined
-                }
-              />
-              <PopoverFilterBuilder
-                columns={filterColumns}
-                filterState={currentFilters}
-                onChange={setCurrentFilters}
-              />
+          actionButtonsRight: (
+            <>
+              {hasCUDAccess && hasUnsavedFilterChanges && (
+                <Button
+                  onClick={handleSaveFilters}
+                  disabled={updateDashboardFilters.isPending}
+                  variant="outline"
+                >
+                  {updateDashboardFilters.isPending
+                    ? "Saving..."
+                    : "Save Filters"}
+                </Button>
+              )}
+              {hasCUDAccess && (
+                <Button onClick={handleAddWidget}>
+                  <PlusIcon size={16} className="mr-1 h-4 w-4" />
+                  Add Widget
+                </Button>
+              )}
+              {hasCloneAccess && (
+                <Button
+                  onClick={handleCloneDashboard}
+                  disabled={mutateCloneDashboard.isPending}
+                >
+                  <Copy size={16} className="mr-1 h-4 w-4" />
+                  Clone
+                </Button>
+              )}
+            </>
+          ),
+        }}
+      >
+        <SelectWidgetDialog
+          open={isWidgetDialogOpen}
+          onOpenChange={setIsWidgetDialogOpen}
+          projectId={projectId}
+          onSelectWidget={handleSelectWidget}
+          dashboardId={dashboardId}
+        />
+        {dashboard.isPending || !localDashboardDefinition ? (
+          <NoDataOrLoading isLoading={true} />
+        ) : dashboard.isError ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="text-destructive">
+              Error: {dashboard.error.message}
             </div>
           </div>
-          <DashboardGrid
-            widgets={localDashboardDefinition.widgets}
-            onChange={(updatedWidgets) => {
-              setLocalDashboardDefinition({
-                ...localDashboardDefinition,
-                widgets: updatedWidgets,
-              });
-              saveDashboardChanges({
-                ...localDashboardDefinition,
-                widgets: updatedWidgets,
-              });
-            }}
-            canEdit={hasCUDAccess}
-            dashboardId={dashboardId}
-            projectId={projectId}
-            dateRange={absoluteTimeRange}
-            filterState={currentFilters}
-            onDeleteWidget={handleDeleteWidget}
-            dashboardOwner={dashboard.data?.owner}
-          />
-        </div>
-      )}
-    </Page>
+        ) : (
+          <div>
+            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
+                <TimeRangePicker
+                  timeRange={timeRange}
+                  onTimeRangeChange={setTimeRange}
+                  timeRangePresets={dashboardTimeRangePresets}
+                  className="my-0 max-w-full overflow-x-auto"
+                  disabled={
+                    lookbackLimit
+                      ? {
+                          before: new Date(
+                            new Date().getTime() -
+                              lookbackLimit * 24 * 60 * 60 * 1000,
+                          ),
+                        }
+                      : undefined
+                  }
+                />
+                <PopoverFilterBuilder
+                  columns={filterColumns}
+                  filterState={currentFilters}
+                  onChange={setCurrentFilters}
+                />
+              </div>
+            </div>
+            <DashboardGrid
+              widgets={localDashboardDefinition.widgets}
+              onChange={(updatedWidgets) => {
+                setLocalDashboardDefinition({
+                  ...localDashboardDefinition,
+                  widgets: updatedWidgets,
+                });
+                saveDashboardChanges({
+                  ...localDashboardDefinition,
+                  widgets: updatedWidgets,
+                });
+              }}
+              canEdit={hasCUDAccess}
+              dashboardId={dashboardId}
+              projectId={projectId}
+              dateRange={absoluteTimeRange}
+              filterState={currentFilters}
+              onDeleteWidget={handleDeleteWidget}
+              dashboardOwner={dashboard.data?.owner}
+              getWidgetSchedulerId={getWidgetSchedulerId}
+            />
+          </div>
+        )}
+      </Page>
+    </DashboardQuerySchedulerProvider>
   );
 }

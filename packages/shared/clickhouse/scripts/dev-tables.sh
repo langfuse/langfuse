@@ -427,7 +427,9 @@ CREATE TABLE IF NOT EXISTS events_full
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
     merge_max_block_size_bytes = '64Mi',
     enable_block_number_column = 1,
-    enable_block_offset_column = 1
+    enable_block_offset_column = 1,
+    prewarm_mark_cache = 1,
+    prewarm_primary_key_cache = 1
   ;
 
 -- Create events_core table - lightweight version with truncated input/output/metadata for fast queries
@@ -536,7 +538,8 @@ CREATE TABLE IF NOT EXISTS events_core
     INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
+    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
+    INDEX idx_provided_model_name provided_model_name TYPE bloom_filter(0.01) GRANULARITY 2
 )
 ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toYYYYMM(start_time)
@@ -545,7 +548,10 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
 SAMPLE BY xxHash32(trace_id)
 SETTINGS
     enable_block_number_column = 1,
-    enable_block_offset_column = 1;
+    enable_block_offset_column = 1,
+    prewarm_mark_cache = 1,
+    prewarm_primary_key_cache = 1;
+    -- cache_populated_by_fetch = 1; -- Not available in OSS ClickHouse
 
 -- Materialized view to populate events_core from events_full table
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS

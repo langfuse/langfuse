@@ -12,6 +12,8 @@ import {
 import { type z } from "zod/v4";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { getDefaultView } from "@/src/features/widgets/utils";
 
 export default function NewWidget() {
   const router = useRouter();
@@ -19,6 +21,7 @@ export default function NewWidget() {
     projectId: string;
     dashboardId?: string;
   };
+  const { isBetaEnabled } = useV4Beta();
 
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
     onSuccess: (data) => {
@@ -94,7 +97,7 @@ export default function NewWidget() {
         initialValues={{
           name: "",
           description: "",
-          view: "traces",
+          view: getDefaultView(isBetaEnabled),
           dimension: "none",
           measure: "count",
           aggregation: "count",

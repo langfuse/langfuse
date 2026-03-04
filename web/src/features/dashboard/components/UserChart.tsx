@@ -1,4 +1,3 @@
-import { api } from "@/src/utils/api";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -16,6 +15,7 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 type BarChartDataPoint = {
   name: string;
@@ -30,6 +30,7 @@ export const UserChart = ({
   toTimestamp,
   isLoading = false,
   metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -38,8 +39,11 @@ export const UserChart = ({
   toTimestamp: Date;
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
+
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -59,10 +63,14 @@ export const UserChart = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
-  const user = api.dashboard.executeQuery.useQuery(
+  const user = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: userCostQuery,
@@ -74,6 +82,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:cost`,
       enabled: !isLoading,
     },
   );
@@ -81,16 +90,30 @@ export const UserChart = ({
   const isV2 = metricsVersion === "v2";
   const countField = isV2 ? "uniq_traceId" : "count_count";
 
+  const traceViewBase = traceViewQuery({ metricsVersion, globalFilterState });
+  const traceMetric = traceViewBase.metrics[0] ?? {
+    aggregation: "count",
+    measure: "count",
+  };
   const traceCountQuery: QueryType = {
-    ...traceViewQuery({ metricsVersion, globalFilterState }),
+    ...traceViewBase,
     dimensions: [{ field: "userId" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [
+      {
+        field: `${traceMetric.aggregation}_${traceMetric.measure}`,
+        direction: "desc",
+      },
+    ],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: traceCountQuery,
@@ -102,6 +125,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:traces`,
       enabled: !isLoading,
     },
   );
@@ -137,8 +161,6 @@ export const UserChart = ({
     (acc, curr) => acc + (Number(curr[countField]) || 0),
     0,
   );
-
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
