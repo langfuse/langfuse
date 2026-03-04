@@ -104,6 +104,28 @@ function validateMetricAggregations(params: {
   }
 }
 
+function validateUiHiddenDimensions(params: {
+  view: string;
+  dimensions: Array<{ field: string }>;
+  minVersion?: number;
+}): void {
+  const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
+  const viewDecl = getViewDeclaration(
+    params.view as z.infer<typeof views>,
+    version,
+  );
+
+  const hiddenDims = params.dimensions.filter(
+    (dim) => viewDecl.dimensions[dim.field]?.uiHidden,
+  );
+  if (hiddenDims.length > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Dimensions not available for widgets: ${hiddenDims.map((d) => d.field).join(", ")}`,
+    });
+  }
+}
+
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -117,6 +139,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
+        minVersion: input.minVersion,
+      });
+
+      validateUiHiddenDimensions({
+        view: input.view,
+        dimensions: input.dimensions,
         minVersion: input.minVersion,
       });
 
@@ -196,6 +224,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
+        minVersion: input.minVersion,
+      });
+
+      validateUiHiddenDimensions({
+        view: input.view,
+        dimensions: input.dimensions,
         minVersion: input.minVersion,
       });
 
