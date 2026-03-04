@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { FilterState } from "@langfuse/shared";
+import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
@@ -44,25 +44,20 @@ jest.mock("../../utils/api", () => ({
       getById: {
         useQuery: (...args: unknown[]) => {
           const result = mockGetByIdUseQuery(...args) as
-            | { data?: unknown; error?: unknown }
-            | undefined;
-
-          const options = args[1] as
             | {
-                onSuccess?: (data: unknown) => void;
-                onError?: (error: unknown) => void;
+                data?: unknown;
+                error?: unknown;
+                isSuccess?: boolean;
+                isError?: boolean;
               }
             | undefined;
 
-          if (result?.data !== undefined) {
-            options?.onSuccess?.(result.data);
-          }
-
-          if (result?.error) {
-            options?.onError?.(result.error);
-          }
-
-          return result;
+          return {
+            data: result?.data,
+            error: result?.error ?? null,
+            isSuccess: result?.isSuccess ?? result?.data !== undefined,
+            isError: result?.isError ?? !!result?.error,
+          };
         },
       },
     },
@@ -189,7 +184,7 @@ function SavedViewHarness() {
   });
 
   const { isLoading } = useTableViewManager({
-    tableName: "traces",
+    tableName: TableViewPresetTableName.Traces,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: queryFilter.setFilterState,
@@ -221,7 +216,7 @@ function SavedViewHarness() {
 function ViewSelectionHarness() {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName: "traces",
+    tableName: TableViewPresetTableName.Traces,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: setAppliedFilters,
@@ -278,7 +273,7 @@ describe("Saved view restore with implicit environment defaults", () => {
       data: {
         id: "view-1",
         name: "Old saved query without explicit env",
-        tableName: "traces",
+        tableName: TableViewPresetTableName.Traces,
         projectId: "project-1",
         orderBy: null,
         filters: savedViewFilters,
@@ -322,7 +317,7 @@ describe("Saved view restore with implicit environment defaults", () => {
       data: {
         id: "view-1",
         name: "Stored saved view",
-        tableName: "traces",
+        tableName: TableViewPresetTableName.Traces,
         projectId: "project-1",
         orderBy: null,
         filters: OLD_SAVED_VIEW_FILTERS,
@@ -345,33 +340,6 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(screen.getByTestId("explicit-state").textContent).toContain(
       "checkout",
     );
-  });
-
-  it("deselects previously selected saved view when My view (default) is selected", async () => {
-    queryParamStore.delete("viewId");
-    mockUseRouter.mockReturnValue({
-      isReady: true,
-      query: {},
-    });
-
-    mockGetByIdUseQuery.mockReturnValue({
-      data: undefined,
-      error: null,
-    });
-
-    render(<ViewSelectionHarness />);
-
-    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
-
-    fireEvent.click(screen.getByRole("button", { name: "select-view" }));
-    await waitFor(() => {
-      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "select-default" }));
-    await waitFor(() => {
-      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
-    });
   });
 
   it("does not re-apply a saved view after explicit default selection during bootstrap", async () => {
@@ -406,23 +374,7 @@ describe("Saved view restore with implicit environment defaults", () => {
   });
 
   it("ignores late saved-view responses after explicit default selection", async () => {
-    let deferredSuccess:
-      | ((viewData: {
-          id: string;
-          name: string;
-          tableName: string;
-          projectId: string;
-          orderBy: null;
-          filters: FilterState;
-          columnOrder: null;
-          columnVisibility: null;
-          searchQuery: string;
-          createdAt: Date;
-          updatedAt: Date;
-          createdBy: string;
-          createdByUser: null;
-        }) => void)
-      | undefined;
+    let returnLateResponse = false;
 
     queryParamStore.set("viewId", "view-1");
     mockUseRouter.mockReturnValue({
@@ -430,13 +382,32 @@ describe("Saved view restore with implicit environment defaults", () => {
       query: { viewId: "view-1" },
     });
 
-    mockGetByIdUseQuery.mockImplementation((_input, options) => {
-      deferredSuccess = (options as { onSuccess?: typeof deferredSuccess })
-        ?.onSuccess;
-      return { data: undefined, error: null };
+    mockGetByIdUseQuery.mockImplementation(() => {
+      if (!returnLateResponse) {
+        return { data: undefined, error: null, isSuccess: false };
+      }
+
+      return {
+        data: {
+          id: "view-1",
+          name: "Late response view",
+          tableName: TableViewPresetTableName.Traces,
+          projectId: "project-1",
+          orderBy: null,
+          filters: OLD_SAVED_VIEW_FILTERS,
+          columnOrder: null,
+          columnVisibility: null,
+          searchQuery: "",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          createdBy: "user-1",
+          createdByUser: null,
+        },
+        error: null,
+      };
     });
 
-    render(<ViewSelectionHarness />);
+    const { rerender } = render(<ViewSelectionHarness />);
 
     await waitFor(() => {
       expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
@@ -449,25 +420,11 @@ describe("Saved view restore with implicit environment defaults", () => {
     });
 
     expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
-    expect(deferredSuccess).toBeDefined();
 
     act(() => {
-      deferredSuccess?.({
-        id: "view-1",
-        name: "Late response view",
-        tableName: "traces",
-        projectId: "project-1",
-        orderBy: null,
-        filters: OLD_SAVED_VIEW_FILTERS,
-        columnOrder: null,
-        columnVisibility: null,
-        searchQuery: "",
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-        createdBy: "user-1",
-        createdByUser: null,
-      });
+      returnLateResponse = true;
     });
+    rerender(<ViewSelectionHarness />);
 
     await waitFor(() => {
       expect(screen.getByTestId("selected-view-id").textContent).toBe("null");

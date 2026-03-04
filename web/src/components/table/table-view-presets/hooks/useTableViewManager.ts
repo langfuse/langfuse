@@ -258,7 +258,12 @@ export function useTableViewManager({
   );
 
   // Fetch view data if viewId is provided (skip for system presets)
-  api.TableViewPresets.getById.useQuery(
+  const {
+    data: selectedViewData,
+    error: selectedViewError,
+    isSuccess: isSelectedViewSuccess,
+    isError: isSelectedViewError,
+  } = api.TableViewPresets.getById.useQuery(
     { viewId: selectedViewId as string, projectId },
     {
       enabled:
@@ -266,37 +271,49 @@ export function useTableViewManager({
         !!selectedViewId &&
         !isInitialized &&
         !isSystemPresetId(selectedViewId),
-      onSuccess: (viewData) => {
-        const requestedViewId = selectedViewId;
-        if (!requestedViewId) return;
-        if (isInitializedRef.current) return;
-        if (selectedViewIdRef.current !== requestedViewId) return;
-
-        // Track permalink visit
-        capture("saved_views:permalink_visit", {
-          tableName,
-          viewId: requestedViewId,
-          name: viewData.name,
-        });
-
-        applyViewState(viewData);
-        isInitializedRef.current = true;
-        setIsInitialized(true);
-      },
-      onError: (error) => {
-        const requestedViewId = selectedViewId;
-        if (!requestedViewId) return;
-        if (isInitializedRef.current) return;
-        if (selectedViewIdRef.current !== requestedViewId) return;
-
-        isInitializedRef.current = true;
-        setIsInitialized(true);
-        setIsLoading(false);
-        handleSetViewId(null);
-        showErrorToast("Error applying view", error.message, "WARNING");
-      },
     },
   );
+
+  useEffect(() => {
+    if (!isSelectedViewSuccess || !selectedViewData) return;
+    const requestedViewId = selectedViewId;
+    if (!requestedViewId) return;
+    if (isInitializedRef.current) return;
+    if (selectedViewIdRef.current !== requestedViewId) return;
+    if (selectedViewData.id !== requestedViewId) return;
+
+    // Track permalink visit
+    capture("saved_views:permalink_visit", {
+      tableName,
+      viewId: requestedViewId,
+      name: selectedViewData.name,
+    });
+
+    applyViewState(selectedViewData);
+    isInitializedRef.current = true;
+    setIsInitialized(true);
+  }, [
+    isSelectedViewSuccess,
+    selectedViewData,
+    selectedViewId,
+    capture,
+    tableName,
+    applyViewState,
+  ]);
+
+  useEffect(() => {
+    if (!isSelectedViewError || !selectedViewError) return;
+    const requestedViewId = selectedViewId;
+    if (!requestedViewId) return;
+    if (isInitializedRef.current) return;
+    if (selectedViewIdRef.current !== requestedViewId) return;
+
+    isInitializedRef.current = true;
+    setIsInitialized(true);
+    setIsLoading(false);
+    handleSetViewId(null);
+    showErrorToast("Error applying view", selectedViewError.message, "WARNING");
+  }, [isSelectedViewError, selectedViewError, selectedViewId, handleSetViewId]);
 
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion

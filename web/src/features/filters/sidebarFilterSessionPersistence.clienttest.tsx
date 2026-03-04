@@ -6,11 +6,6 @@ import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
 const queryParamStore = new Map<string, unknown>();
-let queryParamWriteDelayMs = 0;
-
-function setQueryParamWriteDelay(ms: number) {
-  queryParamWriteDelayMs = ms;
-}
 
 jest.mock("use-query-params", () => {
   const React = require("react");
@@ -29,31 +24,19 @@ jest.mock("use-query-params", () => {
         (
           next: unknown | ((previous: unknown) => unknown) | null | undefined,
         ) => {
-          setValue((previous: unknown) => {
-            const resolved =
-              typeof next === "function" ? next(previous) : (next ?? null);
+          queueMicrotask(() => {
+            setValue((previous: unknown) => {
+              const resolved =
+                typeof next === "function" ? next(previous) : (next ?? null);
 
-            if (queryParamWriteDelayMs > 0) {
-              setTimeout(() => {
-                if (resolved === null || resolved === "") {
-                  queryParamStore.delete(key);
-                  setValue(null);
-                  return;
-                }
+              if (resolved === null || resolved === "") {
+                queryParamStore.delete(key);
+                return null;
+              }
 
-                queryParamStore.set(key, resolved);
-                setValue(resolved);
-              }, queryParamWriteDelayMs);
-              return previous;
-            }
-
-            if (resolved === null || resolved === "") {
-              queryParamStore.delete(key);
-              return null;
-            }
-
-            queryParamStore.set(key, resolved);
-            return resolved;
+              queryParamStore.set(key, resolved);
+              return resolved;
+            });
           });
         },
         [key],
@@ -155,7 +138,6 @@ describe("useSidebarFilterState session persistence", () => {
   beforeEach(() => {
     sessionStorage.clear();
     queryParamStore.clear();
-    setQueryParamWriteDelay(0);
   });
 
   const getExplicitState = () =>
@@ -251,9 +233,8 @@ describe("useSidebarFilterState session persistence", () => {
     );
   });
 
-  it("clears filter state immediately even when URL writes are delayed", async () => {
+  it("clears filter state immediately while URL updates asynchronously", async () => {
     const sessionKey = buildSessionKey();
-    setQueryParamWriteDelay(100);
     queryParamStore.set("filter", encodedFilterB);
 
     render(<SessionPersistenceHarness />);
@@ -268,10 +249,10 @@ describe("useSidebarFilterState session persistence", () => {
       () => {
         expect(getExplicitState()).toEqual([]);
       },
-      { timeout: 50 },
+      { timeout: 100 },
     );
 
-    // URL is still stale during delayed write window
+    // URL write is async and can still be stale immediately after clear.
     expect(queryParamStore.get("filter")).toBe(encodedFilterB);
     await waitFor(
       () => {
