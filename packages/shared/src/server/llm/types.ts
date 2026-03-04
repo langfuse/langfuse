@@ -312,6 +312,7 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.3-chat-latest",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
