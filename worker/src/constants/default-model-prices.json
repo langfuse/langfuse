@@ -3644,5 +3644,35 @@
         }
       }
     ]
+  },
+  {
+    "id": "cmytgf4r9h9glb4dr55din0qm",
+    "modelName": "gemini-2.5-flash-live",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-live)$",
+    "createdAt": "2026-02-10T12:00:00.000Z",
+    "updatedAt": "2026-02-10T12:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "cmytgf4r9h9glb4dr55din0qm_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-7,
+          "input_modality_1": 5e-7,
+          "prompt_token_count": 5e-7,
+          "promptTokenCount": 5e-7,
+          "output": 2e-6,
+          "output_modality_1": 2e-6,
+          "candidates_token_count": 2e-6,
+          "candidatesTokenCount": 2e-6,
+          "input_audio_tokens": 3e-6,
+          "output_audio_tokens": 12e-6,
+          "input_image_tokens": 3e-6,
+          "input_video_tokens": 3e-6
+        }
+      }
+    ]
   }
 ]
