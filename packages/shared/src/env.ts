@@ -116,6 +116,19 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
