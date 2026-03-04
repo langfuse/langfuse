@@ -17,6 +17,8 @@ import {
   orderByToClickhouseSql,
   EventsQueryBuilder,
 } from "../queries";
+import { buildExperimentFilterState } from "./experiments";
+import { experimentTableUiColumnDefinitions } from "../tableMappings/mapExperimentTable";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -411,14 +413,19 @@ export const getScoresForExperimentItems = async (
 > => {
   if (experimentIds.length === 0) return [];
 
+  // Build experiment filters using the shared filter pattern
+  const filterState = buildExperimentFilterState({ experimentIds });
+  const filters = new FilterList(
+    createFilterFromFilterState(
+      filterState,
+      experimentTableUiColumnDefinitions,
+    ),
+  );
+
   // Build events subquery using the query builder
   const eventsSubquery = new EventsQueryBuilder({ projectId })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
-      experimentIds,
-    })
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw("e.is_deleted = 0")
+    .applyFilters(filters)
     .buildWithParams();
 
   const query = `

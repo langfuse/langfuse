@@ -45,7 +45,7 @@ export type ExperimentMetricsReturnType = {
  * Helper function to build FilterState for experiment queries.
  * Consistently applies experiment filtering logic across CTEs.
  */
-const buildExperimentFilterState = (params: {
+export const buildExperimentFilterState = (params: {
   experimentIds?: string[];
   startTimeFrom?: string | null;
 }): FilterState => {
