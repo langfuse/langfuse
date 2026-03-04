@@ -1074,7 +1074,7 @@ class OCIObjectStorageService implements StorageService {
         readable.on("data", (chunk: any) => {
           try {
             chunks.push(toBuffer(chunk));
-          } catch (err) {
+          } catch (_err) {
             // if conversion fails, push as Buffer of stringified chunk
             chunks.push(Buffer.from(String(chunk)));
           }
@@ -1092,7 +1092,6 @@ class OCIObjectStorageService implements StorageService {
       const chunks: Buffer[] = [];
       try {
         while (true) {
-          // eslint-disable-next-line no-await-in-loop
           const { done, value } = await reader.read();
           if (done) break;
           chunks.push(toBuffer(value));
@@ -1102,7 +1101,9 @@ class OCIObjectStorageService implements StorageService {
         // safe to close reader if available
         try {
           if (reader.releaseLock) reader.releaseLock();
-        } catch {}
+        } catch (_err) {
+          // intentionally ignore releaseLock errors
+        }
       }
     }
 
@@ -1140,7 +1141,7 @@ class OCIObjectStorageService implements StorageService {
     // 7) Fallback: try string conversion
     try {
       return String(readable);
-    } catch (err) {
+    } catch (_err) {
       // If all else fails, throw a helpful error
       throw new TypeError("Unsupported body type passed to streamToString");
     }
