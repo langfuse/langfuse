@@ -1174,7 +1174,6 @@ class OCIObjectStorageService implements StorageService {
       const chunks: Buffer[] = [];
       try {
         while (true) {
-          // eslint-disable-next-line no-await-in-loop
           const { done, value } = await reader.read();
           if (done) break;
           chunks.push(toBuffer(value));
@@ -1185,7 +1184,7 @@ class OCIObjectStorageService implements StorageService {
         try {
           if (reader.releaseLock) reader.releaseLock();
         } catch (_err) {
-          // Ignore releaseLock errors during stream cleanup.
+          // intentionally ignore releaseLock errors
         }
       }
     }
