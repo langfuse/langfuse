@@ -92,6 +92,13 @@ function computeNumericRange(
   return [minValue, maxValue];
 }
 
+function areStringSetsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  if (leftSet.size !== new Set(right).size) return false;
+  return right.every((value) => leftSet.has(value));
+}
+
 export interface BaseUIFilter {
   column: string;
   label: string;
@@ -1559,14 +1566,33 @@ export function useSidebarFilterState(
         const hasCheckboxSelections =
           selectedValues.length > 0 &&
           selectedValues.length !== availableValues.length;
+        const isManagedEnvironmentFacet =
+          facet.column === managedEnvironmentColumn &&
+          managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
+        const hasManagedEnvironmentSelectionOverride =
+          isManagedEnvironmentFacet &&
+          !areStringSetsEqual(
+            selectedValues,
+            availableValues.filter(
+              (value) =>
+                !managedEnvironmentPolicyConfig.hiddenEnvironments.includes(
+                  value,
+                ),
+            ),
+          );
 
-        // isActive check: filter is active if we have text filters OR checkbox selections
-        // Special case: "all of" with all values selected is still an active filter
+        // isActive check:
+        // - Managed environment facet: active only when selection differs from default
+        //   (implicit hidden-env default should not surface a "Clear" badge).
+        // - Other facets: active when text filters exist or checkbox selections differ from unfiltered.
+        //   Special case: "all of" with all values selected is still active.
         const isActive =
           hasTextFilters ||
-          (currentOperator === "all of" &&
-            selectedValues.length === availableValues.length) ||
-          hasCheckboxSelections;
+          (isManagedEnvironmentFacet
+            ? hasManagedEnvironmentSelectionOverride
+            : (currentOperator === "all of" &&
+                selectedValues.length === availableValues.length) ||
+              hasCheckboxSelections);
         const disableState = getFacetDisabledState(facet, isActive);
 
         return {
@@ -1644,6 +1670,8 @@ export function useSidebarFilterState(
     expandedState,
     setFilterState,
     mutualExclusionContext,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig.hiddenEnvironments,
   ]);
 
   return {

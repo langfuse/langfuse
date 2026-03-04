@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { FilterState } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
@@ -66,38 +66,54 @@ jest.mock("use-query-params", () => {
   const React = require("react");
   const actual = jest.requireActual("use-query-params");
 
+  const StringParam = { __type: "string" } as const;
+  const withDefault = (param: unknown, defaultValue: unknown) => ({
+    ...(typeof param === "object" && param !== null ? param : {}),
+    __default: defaultValue,
+  });
+
+  const readDefault = (config: unknown) =>
+    typeof config === "object" &&
+    config !== null &&
+    "__default" in config &&
+    (config as { __default?: unknown }).__default !== undefined
+      ? (config as { __default: unknown }).__default
+      : null;
+
   return {
     ...actual,
-    StringParam: {},
-    withDefault: (_param: unknown, defaultValue: unknown) => defaultValue,
-    useQueryParam: (key: string) => {
+    StringParam,
+    withDefault,
+    useQueryParam: (key: string, config?: unknown) => {
+      const defaultValue = readDefault(config);
       const initialValue = queryParamStore.has(key)
         ? queryParamStore.get(key)
-        : null;
+        : defaultValue;
       const [value, setValue] = React.useState(initialValue);
 
       const setQueryValue = React.useCallback(
         (
           next: unknown | ((previous: unknown) => unknown) | null | undefined,
         ) => {
-          const previous = queryParamStore.get(key);
-          const resolved =
-            typeof next === "function" ? next(previous) : (next ?? null);
+          const previous = queryParamStore.has(key)
+            ? queryParamStore.get(key)
+            : defaultValue;
+          const resolved = typeof next === "function" ? next(previous) : next;
 
-          if (resolved === null || resolved === "") {
+          if (resolved === null || resolved === undefined || resolved === "") {
             queryParamStore.delete(key);
-            setValue(null);
+            setValue(defaultValue);
             return;
           }
 
           queryParamStore.set(key, resolved);
           setValue(resolved);
         },
-        [key],
+        [key, defaultValue],
       );
 
       React.useEffect(() => {
-        if (value === null || value === "") {
+        if (value === null || value === undefined || value === "") {
           queryParamStore.delete(key);
           return;
         }
@@ -195,6 +211,31 @@ function SavedViewHarness() {
   );
 }
 
+function ViewSelectionHarness() {
+  const { selectedViewId, handleSetViewId } = useTableViewManager({
+    tableName: "traces",
+    projectId: "project-1",
+    stateUpdaters: {
+      setFilters: () => {},
+      setColumnOrder: () => {},
+      setColumnVisibility: () => {},
+    },
+    validationContext: {
+      columns: [],
+      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+    },
+    currentFilterState: [],
+  });
+
+  return (
+    <div>
+      <div data-testid="selected-view-id">{selectedViewId ?? "null"}</div>
+      <button onClick={() => handleSetViewId("view-1")}>select-view</button>
+      <button onClick={() => handleSetViewId(null)}>select-default</button>
+    </div>
+  );
+}
+
 const OLD_SAVED_VIEW_FILTERS: FilterState = [
   {
     column: "name",
@@ -228,7 +269,9 @@ describe("Saved view restore with implicit environment defaults", () => {
     queryParamStore.clear();
     savedViewFilters = OLD_SAVED_VIEW_FILTERS;
 
+    queryParamStore.set("viewId", "view-1");
     mockUseRouter.mockReturnValue({
+      isReady: true,
       query: { viewId: "view-1" },
     });
 
@@ -302,5 +345,101 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(screen.getByTestId("effective-state").textContent).toContain(
       '"none of"',
     );
+  });
+
+  it("applies stored saved view when URL has no viewId", async () => {
+    queryParamStore.delete("viewId");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: {},
+    });
+
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Stored saved view",
+        tableName: "traces",
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "checkout",
+    );
+  });
+
+  it("deselects previously selected saved view when My view (default) is selected", async () => {
+    queryParamStore.delete("viewId");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: {},
+    });
+
+    mockGetByIdUseQuery.mockReturnValue({
+      data: undefined,
+      error: null,
+    });
+
+    render(<ViewSelectionHarness />);
+
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+
+    fireEvent.click(screen.getByRole("button", { name: "select-view" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "select-default" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+  });
+
+  it("does not re-apply a saved view after explicit default selection during bootstrap", async () => {
+    queryParamStore.set("viewId", "view-1");
+
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1" },
+    });
+
+    // Simulate unresolved getById request so bootstrap remains in-progress.
+    mockGetByIdUseQuery.mockReturnValue({
+      data: undefined,
+      error: null,
+    });
+
+    render(<ViewSelectionHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "select-default" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    await waitFor(() => {
+      expect(queryParamStore.has("viewId")).toBe(false);
+    });
   });
 });
