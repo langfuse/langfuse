@@ -2781,6 +2781,7 @@
         "conditions": [],
         "prices": {
           "input": 3e-7,
+          "input_text": 3e-7,
           "input_modality_1": 3e-7,
           "prompt_token_count": 3e-7,
           "promptTokenCount": 3e-7,
@@ -2813,6 +2814,7 @@
         "conditions": [],
         "prices": {
           "input": 1e-7,
+          "input_text": 1e-7,
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
@@ -3333,6 +3335,7 @@
         "conditions": [],
         "prices": {
           "input": 1.25e-6,
+          "input_text": 1.25e-6,
           "input_modality_1": 1.25e-6,
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
@@ -3362,6 +3365,7 @@
         ],
         "prices": {
           "input": 2.5e-6,
+          "input_text": 2.5e-6,
           "input_modality_1": 2.5e-6,
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
