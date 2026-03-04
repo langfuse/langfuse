@@ -233,7 +233,7 @@ describe("useSidebarFilterState session persistence", () => {
     );
   });
 
-  it("clears filter state immediately while URL updates asynchronously", async () => {
+  it("clears filter state immediately and eventually clears URL/session", async () => {
     const sessionKey = buildSessionKey();
     queryParamStore.set("filter", encodedFilterB);
 
@@ -245,15 +245,9 @@ describe("useSidebarFilterState session persistence", () => {
 
     fireEvent.click(screen.getByTestId("clear-filters"));
 
-    await waitFor(
-      () => {
-        expect(getExplicitState()).toEqual([]);
-      },
-      { timeout: 100 },
-    );
+    // Regression contract: UI state clears in the same interaction.
+    expect(getExplicitState()).toEqual([]);
 
-    // URL write is async and can still be stale immediately after clear.
-    expect(queryParamStore.get("filter")).toBe(encodedFilterB);
     await waitFor(
       () => {
         expect(queryParamStore.has("filter")).toBe(false);
