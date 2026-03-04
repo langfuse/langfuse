@@ -448,6 +448,15 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
+   * Apply filters from a FilterList.
+   * Subclasses can override to add optimizations (e.g., partition pruning).
+   */
+  applyFilters(filterList: FilterList): this {
+    this.where(filterList.apply());
+    return this;
+  }
+
+  /**
    * Add ORDER BY clause
    */
   orderBy(clause: string): this {
@@ -660,6 +669,26 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
+   * Apply filters with automatic query optimizations.
+   * Adds xxHash32 optimization for trace_id equality filters.
+   */
+  override applyFilters(filterList: FilterList): this {
+    const traceIdFilter = filterList.find(
+      (f) =>
+        f.clickhouseTable.startsWith("events") &&
+        f.field === 'e."trace_id"' &&
+        f.operator === "=",
+    );
+    if (traceIdFilter instanceof StringFilter) {
+      this.whereRaw("xxHash32(trace_id) = xxHash32({traceIdXxHash: String})", {
+        traceIdXxHash: traceIdFilter.value,
+      });
+    }
+    super.applyFilters(filterList);
+    return this;
+  }
+
+  /**
    * Build the SELECT clause - implemented by subclasses
    */
   protected abstract buildSelectClause(): string;
@@ -817,28 +846,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       .forEach((s) => {
         this.selectFields.add(s);
       });
-    return this;
-  }
-
-  /**
-   * Apply filters from a FilterList with automatic query optimizations.
-   * When a trace_id equality filter is detected, adds xxHash32 optimization
-   * for efficient ClickHouse partition pruning.
-   */
-  applyFilters(filterList: FilterList): this {
-    const traceIdFilter = filterList.find(
-      (f) =>
-        // events_full / events_core proof
-        f.clickhouseTable.startsWith("events") &&
-        f.field === 'e."trace_id"' &&
-        f.operator === "=",
-    );
-    if (traceIdFilter instanceof StringFilter) {
-      this.whereRaw("xxHash32(trace_id) = xxHash32({traceIdXxHash: String})", {
-        traceIdXxHash: traceIdFilter.value,
-      });
-    }
-    this.where(filterList.apply());
     return this;
   }
 

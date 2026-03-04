@@ -348,7 +348,6 @@ const getExperimentsFromEventsGeneric = async <T>(
   const experimentFilters = new FilterList(
     createFilterFromFilterState(filter, experimentCols),
   );
-  const filtersRes = experimentFilters.apply();
 
   // Extract specific filters for conditional CTE building
   const startTimeFilter = experimentFilters.find(
@@ -389,7 +388,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     const preAggFilters = new FilterList(
       createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
     );
-    experimentsBuilder.where(preAggFilters.apply());
+    experimentsBuilder.applyFilters(preAggFilters);
   }
 
   // Initialize CTEQueryBuilder
@@ -476,7 +475,7 @@ const getExperimentsFromEventsGeneric = async <T>(
   }
 
   // Apply post-aggregation filters
-  queryBuilder.where(filtersRes);
+  queryBuilder.applyFilters(experimentFilters);
 
   // Apply ordering
   const orderBySql = orderByToClickhouseSql(orderBy ?? null, experimentCols);
