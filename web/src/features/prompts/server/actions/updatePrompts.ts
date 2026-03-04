@@ -23,8 +23,6 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
   try {
     const touchedPromptIds: string[] = [];
 
-    await promptService.lockCache({ projectId, promptName: promptName });
-
     const result = await prisma.$transaction(async (tx) => {
       const prompt = (
         await tx.$queryRaw<
@@ -141,7 +139,6 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     });
 
     await promptService.invalidateCache({ projectId, promptName: promptName });
-    await promptService.unlockCache({ projectId, promptName: promptName });
 
     // For updates, we need the before state, but we don't have it easily accessible here
     // This updatePrompt function only handles label updates, so the main content doesn't change
@@ -170,8 +167,6 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     return result;
   } catch (e) {
-    await promptService.unlockCache({ projectId, promptName: promptName });
-
     throw e;
   }
 };

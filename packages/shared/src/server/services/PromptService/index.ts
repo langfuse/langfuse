@@ -22,6 +22,10 @@ export class PromptService {
   private cacheEnabled: boolean;
   private ttlSeconds: number;
 
+  // Epoch keys live much longer than cache entries. 7 days gives inactive
+  // projects plenty of time while still cleaning up eventually.
+  private epochTtlSeconds = 7 * 24 * 60 * 60;
+
   constructor(
     private prisma: PrismaClient,
     private redis: Redis | Cluster | null,
@@ -42,7 +46,7 @@ export class PromptService {
   }
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
-    if (await this.shouldUseCache(params)) {
+    if (this.cacheEnabled) {
       const cachedPrompt = await this.getCachedPrompt(params);
 
       this.incrementMetric(
@@ -60,7 +64,7 @@ export class PromptService {
 
     const dbPrompt = await this.getDbPrompt(params);
 
-    if ((await this.shouldUseCache(params)) && dbPrompt) {
+    if (this.cacheEnabled && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
 
       this.logDebug("Successfully cached prompt for params", params);
@@ -126,25 +130,14 @@ export class PromptService {
     };
   }
 
-  private async shouldUseCache(params: PromptParams): Promise<boolean> {
-    if (!this.cacheEnabled) return false;
-
-    const isLocked = await this.isCacheLocked(params);
-
-    if (isLocked) {
-      this.logInfo("Cache is locked for params", params);
-    }
-
-    return !isLocked;
-  }
-
   private async getCachedPrompt(
     params: PromptParams,
   ): Promise<PromptResult | null> {
     try {
       const key = await this.getCacheKey(params);
       if (!key) return null;
-      const value = await this.redis?.getex(key, "EX", this.ttlSeconds);
+
+      const value = await this.redis?.get(key);
 
       if (value) return JSON.parse(value) as PromptResult;
     } catch (e) {
@@ -158,71 +151,13 @@ export class PromptService {
     try {
       const key = await this.getCacheKey(params);
       if (!key) return;
+
       const value = JSON.stringify(params.prompt);
 
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
       this.logError("Error caching prompt", e);
     }
-  }
-
-  /**
-   * Lock the cache so reads will go to the database and not to Redis
-   *
-   * This is useful in order to return consistent data during the
-   * invalidation of the cache where we are looping through the relevant cache keys
-   */
-  public async lockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<void> {
-    if (!this.cacheEnabled) return;
-
-    const lockKey = this.getLockKey(params);
-
-    try {
-      await this.redis?.setex(lockKey, 30, "locked");
-    } catch (e) {
-      this.logError("Error locking cache key prefix", lockKey, e);
-
-      throw e;
-    }
-  }
-
-  public async unlockCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<void> {
-    if (!this.cacheEnabled) return;
-
-    const lockKey = this.getLockKey(params);
-
-    try {
-      await this.redis?.del(lockKey);
-    } catch (e) {
-      this.logError("Error unlocking cache key prefix", lockKey, e);
-
-      // Don't re-throw error as lock TTL is short and it's not critical
-    }
-  }
-
-  private async isCacheLocked(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): Promise<boolean> {
-    const lockKey = this.getLockKey(params);
-
-    try {
-      return Boolean(await this.redis?.exists(lockKey));
-    } catch (e) {
-      this.logError("Error checking if cache is locked", lockKey, e);
-
-      return false;
-    }
-  }
-
-  private getLockKey(
-    params: Pick<PromptParams, "projectId" | "promptName">,
-  ): string {
-    // Keep lock key outside the prompt cache namespace.
-    return `LOCK:prompt:${params.projectId}`;
   }
 
   public async invalidateCache(
@@ -232,7 +167,12 @@ export class PromptService {
 
     // Rotate the epoch token to move all prompt reads/writes to a fresh namespace.
     // Old keys remain untouched and naturally expire via TTL.
-    await this.redis?.set(this.getEpochKey(params), this.newEpochToken());
+    await this.redis?.set(
+      this.getEpochKey(params),
+      this.newEpochToken(),
+      "EX",
+      this.epochTtlSeconds,
+    );
   }
 
   private async getCacheKey(params: PromptParams): Promise<string | null> {
@@ -271,7 +211,7 @@ export class PromptService {
     if (currentEpoch) return currentEpoch;
 
     const newEpoch = this.newEpochToken();
-    await this.redis?.set(epochKey, newEpoch, "NX");
+    await this.redis?.set(epochKey, newEpoch, "EX", this.epochTtlSeconds, "NX");
 
     // Return the winner value in case multiple requests initialize concurrently.
     return (await this.redis?.get(epochKey)) ?? newEpoch;
@@ -426,10 +366,6 @@ export class PromptService {
 
   private logError(message: string, ...args: any[]) {
     logger.error(`[PromptService] ${message}`, ...args);
-  }
-
-  private logInfo(message: string, ...args: any[]) {
-    logger.info(`[PromptService] ${message}`, ...args);
   }
 
   private logDebug(message: string, ...args: any[]) {
