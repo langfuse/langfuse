@@ -74,6 +74,7 @@ import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -325,15 +326,17 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(
-    traceFilterConfig,
-    filterOptions,
-    projectId,
-    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
-  );
+  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions, {
+    loading:
+      traceFilterOptionsResponse.isPending ||
+      environmentFilterOptions.isPending,
+    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+    sessionFilterContextId: projectId,
+    // Sidebar-only implicit environment defaults
+    implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+  });
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );
@@ -1246,7 +1249,7 @@ export default function TracesTable({
       columns,
       filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const rows = useMemo(() => {
@@ -1303,7 +1306,7 @@ export default function TracesTable({
           <DataTableToolbar
             columns={columns}
             filterWithAI
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,
