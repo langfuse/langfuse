@@ -161,7 +161,7 @@ export class PromptService {
   }
 
   public async invalidateCache(
-    params: Pick<PromptParams, "projectId" | "promptName">,
+    params: Pick<PromptParams, "projectId">,
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 

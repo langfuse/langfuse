@@ -549,12 +549,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        // Rotate cache epoch for every touched prompt name after successful commit.
-        await Promise.all(
-          promptNames.map((name) =>
-            promptService.invalidateCache({ projectId, promptName: name }),
-          ),
-        );
+        promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
@@ -715,7 +710,7 @@ export const promptRouter = createTRPCRouter({
         // Execute transaction
         await ctx.prisma.$transaction(transaction);
         // Rotate cache epoch only after successful commit.
-        await promptService.invalidateCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt version deletion
         await promptChangeEventSourcing(
@@ -898,7 +893,7 @@ export const promptRouter = createTRPCRouter({
         // Execute transaction
         await ctx.prisma.$transaction(toBeExecuted);
         // Rotate cache epoch only after successful commit.
-        await promptService.invalidateCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt label update
         const updatedPrompts = await ctx.prisma.prompt.findMany({
@@ -1051,7 +1046,7 @@ export const promptRouter = createTRPCRouter({
         });
 
         // Rotate cache epoch only after successful commit.
-        await promptService.invalidateCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt tag update
 

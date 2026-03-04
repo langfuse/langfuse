@@ -194,7 +194,7 @@ export const createPrompt = async ({
   ];
 
   // Rotate cache epoch only after successful commit.
-  await promptService.invalidateCache({ projectId, promptName: name });
+  await promptService.invalidateCache({ projectId });
 
   const updatedPrompts = await prisma.prompt.findMany({
     where: {

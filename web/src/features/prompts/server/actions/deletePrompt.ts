@@ -123,5 +123,5 @@ export const deletePrompt = async (params: DeletePromptParams) => {
   });
 
   // Rotate cache epoch only after successful commit.
-  await promptService.invalidateCache({ projectId, promptName });
+  await promptService.invalidateCache({ projectId });
 };

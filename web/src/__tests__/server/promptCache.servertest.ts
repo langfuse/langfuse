@@ -102,7 +102,6 @@ describe("PromptService", () => {
     it("should rotate the epoch token for the project with TTL", async () => {
       await promptService.invalidateCache({
         projectId: "project1",
-        promptName: "testPrompt",
       });
 
       expect(mockRedis.set).toHaveBeenCalledWith(
@@ -214,7 +213,6 @@ describe("PromptService", () => {
       await expect(
         promptService.invalidateCache({
           projectId: "project1",
-          promptName: "testPrompt",
         }),
       ).rejects.toThrow("Redis error");
     });

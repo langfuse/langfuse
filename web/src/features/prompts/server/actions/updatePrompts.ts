@@ -138,7 +138,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
       return result[result.length - 1];
     });
 
-    await promptService.invalidateCache({ projectId, promptName: promptName });
+    await promptService.invalidateCache({ projectId });
 
     // For updates, we need the before state, but we don't have it easily accessible here
     // This updatePrompt function only handles label updates, so the main content doesn't change
