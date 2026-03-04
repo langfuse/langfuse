@@ -42,6 +42,29 @@ export interface BufferedStreamUploaderParams {
   key: string; // for logging
 }
 
+// Encapsulates "first write wins" for error capture. Prevents callers from
+// accidentally overwriting a prior error — a subtle bug that would be easy to
+// introduce when multiple parts fail concurrently, even though Node's
+// single-threaded model makes the raw check-then-set technically safe today,
+// it is entirely possible to just forget to check if an error is already captured.
+class FirstError {
+  private error: Error | null = null;
+
+  capture(err: Error): void {
+    if (!this.error) {
+      this.error = err;
+    }
+  }
+
+  get(): Error | null {
+    return this.error;
+  }
+
+  hasError(): boolean {
+    return this.error !== null;
+  }
+}
+
 export class BufferedStreamUploader {
   private readonly params: BufferedStreamUploaderParams;
   private completedParts: CompletedPart[] = [];
@@ -50,7 +73,7 @@ export class BufferedStreamUploader {
   private currentBufferSize = 0;
   private isCompleted = false;
   private inFlightUploads: Set<Promise<void>> = new Set();
-  private uploadError: Error | null = null;
+  private readonly firstError = new FirstError();
 
   constructor(params: BufferedStreamUploaderParams) {
     this.params = params;
@@ -61,7 +84,7 @@ export class BufferedStreamUploader {
       await this.params.strategy.initialize();
 
       for await (const chunk of stream) {
-        if (this.uploadError) break;
+        if (this.firstError.hasError()) break;
 
         const buf = Buffer.isBuffer(chunk)
           ? chunk
@@ -78,12 +101,12 @@ export class BufferedStreamUploader {
 
         if (this.currentBufferSize >= this.params.partSizeBytes) {
           await this.flushBuffer();
-          if (this.uploadError) break;
+          if (this.firstError.hasError()) break;
         }
       }
 
       // Flush remaining data
-      if (this.currentBufferSize > 0 && !this.uploadError) {
+      if (this.currentBufferSize > 0 && !this.firstError.hasError()) {
         await this.flushBuffer();
       }
 
@@ -91,8 +114,8 @@ export class BufferedStreamUploader {
       await Promise.all(this.inFlightUploads);
 
       // Check for errors after all uploads settle
-      if (this.uploadError) {
-        throw this.uploadError;
+      if (this.firstError.hasError()) {
+        throw this.firstError.get();
       }
 
       // Handle empty stream: abort chunked upload, use single object upload instead
@@ -125,12 +148,12 @@ export class BufferedStreamUploader {
     // Wait for a slot if all concurrent slots are full
     while (
       this.inFlightUploads.size >= this.params.maxConcurrentParts &&
-      !this.uploadError
+      !this.firstError.hasError()
     ) {
       await Promise.race(this.inFlightUploads);
     }
 
-    if (this.uploadError) return;
+    if (this.firstError.hasError()) return;
 
     this.scheduleUpload(partData, this.partNumber);
   }
@@ -144,9 +167,7 @@ export class BufferedStreamUploader {
         );
       })
       .catch((err) => {
-        if (!this.uploadError) {
-          this.uploadError = err;
-        }
+        this.firstError.capture(err);
       })
       .finally(() => {
         this.inFlightUploads.delete(promise);
