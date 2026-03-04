@@ -42,26 +42,26 @@ export interface BufferedStreamUploaderParams {
   key: string; // for logging
 }
 
-// Encapsulates "first write wins" for error capture. Prevents callers from
-// accidentally overwriting a prior error — a subtle bug that would be easy to
-// introduce when multiple parts fail concurrently, even though Node's
-// single-threaded model makes the raw check-then-set technically safe today,
-// it is entirely possible to just forget to check if an error is already captured.
-class FirstError {
-  private error: Error | null = null;
+// Collects errors from concurrent part uploads. Append-only by design so
+// concurrent .catch() handlers can never overwrite each other — each call
+// to capture() simply pushes to the list.
+class ErrorSink {
+  private errors: Error[] = [];
 
   capture(err: Error): void {
-    if (!this.error) {
-      this.error = err;
-    }
+    this.errors.push(err);
   }
 
-  get(): Error | null {
-    return this.error;
+  first(): Error | undefined {
+    return this.errors[0];
+  }
+
+  getAll(): Error[] {
+    return [...this.errors];
   }
 
   hasError(): boolean {
-    return this.error !== null;
+    return this.errors.length > 0;
   }
 }
 
@@ -72,8 +72,8 @@ export class BufferedStreamUploader {
   private currentBuffer: Buffer[] = [];
   private currentBufferSize = 0;
   private isCompleted = false;
-  private inFlightUploads: Set<Promise<void>> = new Set();
-  private readonly firstError = new FirstError();
+  private inFlightUploads: Map<symbol, Promise<void>> = new Map();
+  private readonly errors = new ErrorSink();
 
   constructor(params: BufferedStreamUploaderParams) {
     this.params = params;
@@ -84,7 +84,7 @@ export class BufferedStreamUploader {
       await this.params.strategy.initialize();
 
       for await (const chunk of stream) {
-        if (this.firstError.hasError()) break;
+        if (this.errors.hasError()) break;
 
         const buf = Buffer.isBuffer(chunk)
           ? chunk
@@ -101,21 +101,27 @@ export class BufferedStreamUploader {
 
         if (this.currentBufferSize >= this.params.partSizeBytes) {
           await this.flushBuffer();
-          if (this.firstError.hasError()) break;
+          if (this.errors.hasError()) break;
         }
       }
 
       // Flush remaining data
-      if (this.currentBufferSize > 0 && !this.firstError.hasError()) {
+      if (this.currentBufferSize > 0 && !this.errors.hasError()) {
         await this.flushBuffer();
       }
 
       // Wait for all in-flight uploads to complete
-      await Promise.all(this.inFlightUploads);
+      await Promise.all(this.inFlightUploads.values());
 
       // Check for errors after all uploads settle
-      if (this.firstError.hasError()) {
-        throw this.firstError.get();
+      if (this.errors.hasError()) {
+        const all = this.errors.getAll();
+        if (all.length > 1) {
+          logger.error(
+            `${all.length} part uploads failed for key ${this.params.key}: ${all.map((e) => e.message).join("; ")}`,
+          );
+        }
+        throw all[0];
       }
 
       // Handle empty stream: abort chunked upload, use single object upload instead
@@ -133,7 +139,7 @@ export class BufferedStreamUploader {
       this.isCompleted = true;
     } finally {
       if (!this.isCompleted) {
-        await Promise.all(this.inFlightUploads);
+        await Promise.all(this.inFlightUploads.values());
         await this.params.strategy.abort();
       }
     }
@@ -148,17 +154,18 @@ export class BufferedStreamUploader {
     // Wait for a slot if all concurrent slots are full
     while (
       this.inFlightUploads.size >= this.params.maxConcurrentParts &&
-      !this.firstError.hasError()
+      !this.errors.hasError()
     ) {
-      await Promise.race(this.inFlightUploads);
+      await Promise.race(this.inFlightUploads.values());
     }
 
-    if (this.firstError.hasError()) return;
+    if (this.errors.hasError()) return;
 
     this.scheduleUpload(partData, this.partNumber);
   }
 
   private scheduleUpload(data: Buffer, partNumber: number): void {
+    const id = Symbol(`part-${partNumber}`);
     const promise = this.uploadPartWithRetry(data, partNumber)
       .then((result) => {
         this.completedParts.push(result);
@@ -167,13 +174,13 @@ export class BufferedStreamUploader {
         );
       })
       .catch((err) => {
-        this.firstError.capture(err);
+        this.errors.capture(err);
       })
       .finally(() => {
-        this.inFlightUploads.delete(promise);
+        this.inFlightUploads.delete(id);
       });
 
-    this.inFlightUploads.add(promise);
+    this.inFlightUploads.set(id, promise);
   }
 
   private async uploadPartWithRetry(

@@ -116,7 +116,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
-  LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS: z.coerce
     .number()
     .min(1)
