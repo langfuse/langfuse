@@ -852,64 +852,27 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     expect(strip(explicitAll)).toEqual(explicitAll);
   });
 
-  const canonicalizationCases: Array<{
-    name: string;
-    explicitFilters: FilterState;
-    expected: FilterState;
-  }> = [
-    {
-      name: "hidden-only selection",
-      explicitFilters: [
+  it("keeps hidden-only explicit selection as explicit override", () => {
+    expect(
+      strip([
         {
           column: "environment",
           type: "stringOptions",
           operator: "any of",
           value: ["langfuse-evaluation"],
         },
-      ],
-      expected: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "none of",
-          value: [
-            "production",
-            "staging",
-            "langfuse-prompt-experiment",
-            "sdk-experiment",
-          ],
-        },
-      ],
-    },
-    {
-      name: "non-hidden plus one hidden selection",
-      explicitFilters: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production", "staging", "langfuse-evaluation"],
-        },
-      ],
-      expected: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "none of",
-          value: ["langfuse-prompt-experiment", "sdk-experiment"],
-        },
-      ],
-    },
-  ];
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
 
-  it.each(canonicalizationCases)(
-    "canonicalizes $name into none-of complements",
-    ({ explicitFilters, expected }) => {
-      expect(strip(explicitFilters)).toEqual(expected);
-    },
-  );
-
-  it("expands legacy hidden-env delta into effective filter and supports all-hidden enabled", () => {
+  it("returns explicit environment filters as effective state", () => {
     expect(
       buildEffectiveEnvironmentFilter({
         explicitFilters: [
@@ -926,23 +889,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       {
         column: "environment",
         type: "stringOptions",
-        operator: "none of",
-        value: ["langfuse-prompt-experiment", "sdk-experiment"],
+        operator: "any of",
+        value: ["langfuse-evaluation"],
       },
     ]);
-
-    expect(
-      buildEffectiveEnvironmentFilter({
-        explicitFilters: [
-          {
-            column: "environment",
-            type: "stringOptions",
-            operator: "any of",
-            value: [...hiddenEnvironments],
-          },
-        ],
-        config: managedEnvironmentConfig,
-      }),
-    ).toEqual([]);
   });
 });

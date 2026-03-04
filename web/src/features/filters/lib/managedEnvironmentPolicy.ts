@@ -55,21 +55,6 @@ function isEquivalentToImplicitEnvironmentDefault(params: {
   return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
 }
 
-export function isHiddenEnvironmentDeltaFilter(
-  envFilter: EnvironmentFilter,
-  hiddenEnvironments: string[],
-): boolean {
-  // Legacy URL behavior (kept for backwards compatibility):
-  // when hidden envs were enabled explicitly, URL stored:
-  //   environment any-of [enabledHiddenOnly]
-  // Example (hidden set: [langfuse-prompt-experiment, langfuse-evaluation, sdk-experiment]):
-  //   operator=any of, value=["langfuse-evaluation"]
-  // This meant: "show normal envs + langfuse-evaluation".
-  if (envFilter.operator !== "any of") return false;
-  const hiddenSet = new Set(hiddenEnvironments);
-  return envFilter.value.every((value) => hiddenSet.has(value));
-}
-
 export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   explicitFilters: FilterState;
   availableEnvironmentValues: string[];
@@ -104,90 +89,7 @@ export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   ) {
     return otherFilters;
   }
-
-  const hiddenSet = new Set(hiddenEnvironments);
-  const isAnyOfHiddenOnlySelection =
-    envFilter.operator === "any of" &&
-    envFilter.value.length > 0 &&
-    envFilter.value.every((value) => hiddenSet.has(value));
-
-  if (isAnyOfHiddenOnlySelection && availableEnvironmentValues.length > 0) {
-    // User explicitly selected only hidden env(s) (e.g. using "Only" action).
-    // Canonicalize to none-of complement so effective behavior remains
-    // "show only these hidden env(s)" and does not trigger legacy delta expansion.
-    const deselected = availableEnvironmentValues.filter(
-      (value) => !envFilter.value.includes(value),
-    );
-
-    if (deselected.length === 0) {
-      return explicitFilters;
-    }
-
-    return [
-      ...otherFilters,
-      {
-        column: managedEnvironmentColumn,
-        type: "stringOptions" as const,
-        operator: "none of" as const,
-        value: deselected,
-      },
-    ];
-  }
-
-  if (isHiddenEnvironmentDeltaFilter(envFilter, hiddenEnvironments)) {
-    // Preserve old shared links as-is in explicit state.
-    // Example old URL filter:
-    //   environment any-of ["langfuse-evaluation"]
-    // Effective behavior is handled later in buildEffectiveEnvironmentFilter.
-    return explicitFilters;
-  }
-
-  if (availableEnvironmentValues.length === 0) {
-    return explicitFilters;
-  }
-
-  const selectedFromFilter = computeSelectedValues(
-    availableEnvironmentValues,
-    envFilter,
-  );
-  const nonHiddenValues = availableEnvironmentValues.filter(
-    (value) => !hiddenSet.has(value),
-  );
-  const allNonHiddenSelected = nonHiddenValues.every((value) =>
-    selectedFromFilter.includes(value),
-  );
-
-  if (!allNonHiddenSelected) {
-    return explicitFilters;
-  }
-
-  const enabledHidden = hiddenEnvironments.filter((value) =>
-    selectedFromFilter.includes(value),
-  );
-
-  const disabledHidden = hiddenEnvironments.filter(
-    (value) => !enabledHidden.includes(value),
-  );
-
-  if (disabledHidden.length === hiddenEnvironments.length) {
-    return otherFilters;
-  }
-
-  if (disabledHidden.length === 0) {
-    // Keep explicit all-selected state because this is a user override to
-    // include hidden environments. It is not equivalent to default/unfiltered.
-    return explicitFilters;
-  }
-
-  return [
-    ...otherFilters,
-    {
-      column: managedEnvironmentColumn,
-      type: "stringOptions" as const,
-      operator: "none of" as const,
-      value: disabledHidden,
-    },
-  ];
+  return explicitFilters;
 }
 
 export function buildImplicitEnvironmentFilter(params: {
@@ -220,7 +122,7 @@ export function buildEffectiveEnvironmentFilter(params: {
   config: ManagedEnvironmentPolicyConfig;
 }): FilterState {
   const { explicitFilters, config } = params;
-  const { managedEnvironmentColumn, hiddenEnvironments } = config;
+  const { managedEnvironmentColumn } = config;
 
   const managedColumnFilters = explicitFilters.filter(
     (filter) => filter.column === managedEnvironmentColumn,
@@ -241,32 +143,5 @@ export function buildEffectiveEnvironmentFilter(params: {
   }
 
   const envFilter = managedColumnFilters[0] as EnvironmentFilter;
-
-  if (!isHiddenEnvironmentDeltaFilter(envFilter, hiddenEnvironments)) {
-    return [envFilter];
-  }
-
-  // Legacy expansion path:
-  // Convert old delta shape "any-of enabledHiddenOnly" into current effective shape
-  // "none-of disabledHidden".
-  // Example:
-  //   hidden=[langfuse-prompt-experiment, langfuse-evaluation, sdk-experiment]
-  //   explicit any-of ["langfuse-evaluation"]
-  //   => effective none-of ["langfuse-prompt-experiment", "sdk-experiment"]
-  const disabledHiddenEnvironments = hiddenEnvironments.filter(
-    (value) => !envFilter.value.includes(value),
-  );
-
-  if (disabledHiddenEnvironments.length === 0) {
-    return [];
-  }
-
-  return [
-    {
-      column: managedEnvironmentColumn,
-      type: "stringOptions" as const,
-      operator: "none of" as const,
-      value: disabledHiddenEnvironments,
-    },
-  ];
+  return [envFilter];
 }

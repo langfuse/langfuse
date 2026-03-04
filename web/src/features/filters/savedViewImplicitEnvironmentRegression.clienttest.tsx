@@ -1,5 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { FilterState } from "@langfuse/shared";
+import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
@@ -212,11 +219,12 @@ function SavedViewHarness() {
 }
 
 function ViewSelectionHarness() {
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const { selectedViewId, handleSetViewId } = useTableViewManager({
     tableName: "traces",
     projectId: "project-1",
     stateUpdaters: {
-      setFilters: () => {},
+      setFilters: setAppliedFilters,
       setColumnOrder: () => {},
       setColumnVisibility: () => {},
     },
@@ -224,12 +232,13 @@ function ViewSelectionHarness() {
       columns: [],
       filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
     },
-    currentFilterState: [],
+    currentFilterState: appliedFilters,
   });
 
   return (
     <div>
       <div data-testid="selected-view-id">{selectedViewId ?? "null"}</div>
+      <div data-testid="applied-filter-count">{appliedFilters.length}</div>
       <button onClick={() => handleSetViewId("view-1")}>select-view</button>
       <button onClick={() => handleSetViewId(null)}>select-default</button>
     </div>
@@ -237,21 +246,6 @@ function ViewSelectionHarness() {
 }
 
 const OLD_SAVED_VIEW_FILTERS: FilterState = [
-  {
-    column: "name",
-    type: "stringOptions",
-    operator: "any of",
-    value: ["checkout"],
-  },
-];
-
-const LEGACY_HIDDEN_DELTA_FILTERS: FilterState = [
-  {
-    column: "environment",
-    type: "stringOptions",
-    operator: "any of",
-    value: ["langfuse-evaluation"],
-  },
   {
     column: "name",
     type: "stringOptions",
@@ -312,38 +306,6 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
     expect(screen.getByTestId("effective-state").textContent).toContain(
       '"environment"',
-    );
-  });
-
-  it("restores legacy hidden-env delta saved views without getting stuck", async () => {
-    savedViewFilters = LEGACY_HIDDEN_DELTA_FILTERS;
-    mockGetByIdUseQuery.mockReturnValueOnce({
-      data: {
-        id: "view-1",
-        name: "Legacy hidden-env delta",
-        tableName: "traces",
-        projectId: "project-1",
-        orderBy: null,
-        filters: savedViewFilters,
-        columnOrder: null,
-        columnVisibility: null,
-        searchQuery: "",
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-        createdBy: "user-1",
-        createdByUser: null,
-      },
-      error: null,
-    });
-
-    render(<SavedViewHarness />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
-    });
-
-    expect(screen.getByTestId("effective-state").textContent).toContain(
-      '"none of"',
     );
   });
 
@@ -440,6 +402,76 @@ describe("Saved view restore with implicit environment defaults", () => {
 
     await waitFor(() => {
       expect(queryParamStore.has("viewId")).toBe(false);
+    });
+  });
+
+  it("ignores late saved-view responses after explicit default selection", async () => {
+    let deferredSuccess:
+      | ((viewData: {
+          id: string;
+          name: string;
+          tableName: string;
+          projectId: string;
+          orderBy: null;
+          filters: FilterState;
+          columnOrder: null;
+          columnVisibility: null;
+          searchQuery: string;
+          createdAt: Date;
+          updatedAt: Date;
+          createdBy: string;
+          createdByUser: null;
+        }) => void)
+      | undefined;
+
+    queryParamStore.set("viewId", "view-1");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1" },
+    });
+
+    mockGetByIdUseQuery.mockImplementation((_input, options) => {
+      deferredSuccess = (options as { onSuccess?: typeof deferredSuccess })
+        ?.onSuccess;
+      return { data: undefined, error: null };
+    });
+
+    render(<ViewSelectionHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "select-default" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
+    expect(deferredSuccess).toBeDefined();
+
+    act(() => {
+      deferredSuccess?.({
+        id: "view-1",
+        name: "Late response view",
+        tableName: "traces",
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+      expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
     });
   });
 });
