@@ -149,7 +149,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
   });
 
   logger.info(
-    `Triggering webhook for ${updatedPrompts.length} prompts for project ${projectId}, touchedPromptIds: ${JSON.stringify(touchedPromptIds)}`,
+    `Triggering webhook for ${updatedPrompts.length} prompts of project ${projectId}, touchedPromptIds: ${JSON.stringify(touchedPromptIds)}`,
   );
 
   await Promise.all(
