@@ -183,16 +183,6 @@ export function useTableViewManager({
     setSelectedViewId,
   ]);
 
-  // Fetch view data if viewId is provided (skip for system presets)
-  const { data: viewData, error: viewError } =
-    api.TableViewPresets.getById.useQuery(
-      { viewId: viewId as string, projectId },
-      {
-        enabled:
-          !!viewId && !isInitialized && !isSystemPresetId(viewId as string),
-      },
-    );
-
   // Method to apply state from a view
   const applyViewState = useCallback(
     (viewData: TableViewPresetDomain) => {
@@ -273,38 +263,35 @@ export function useTableViewManager({
     ],
   );
 
-  // Handle successful view data fetch
-  useEffect(() => {
-    if (viewData && !isInitialized) {
-      // Track permalink visit
-      capture("saved_views:permalink_visit", {
-        tableName,
-        viewId: viewId as string,
-        name: viewData.name,
-      });
+  // Fetch view data if viewId is provided (skip for system presets)
+  api.TableViewPresets.getById.useQuery(
+    { viewId: viewId as string, projectId },
+    {
+      enabled:
+        !!viewId && !isInitialized && !isSystemPresetId(viewId as string),
+      onSuccess: (viewData) => {
+        if (isInitialized) return;
 
-      applyViewState(viewData);
-      setIsInitialized(true);
-    }
-  }, [
-    viewData,
-    isInitialized,
-    capture,
-    tableName,
-    viewId,
-    applyViewState,
-    setIsLoading,
-  ]);
+        // Track permalink visit
+        capture("saved_views:permalink_visit", {
+          tableName,
+          viewId: viewId as string,
+          name: viewData.name,
+        });
 
-  // Handle view data fetch error
-  useEffect(() => {
-    if (viewError && !isInitialized) {
-      setIsInitialized(true);
-      setIsLoading(false);
-      handleSetViewId(null);
-      showErrorToast("Error applying view", viewError.message, "WARNING");
-    }
-  }, [viewError, isInitialized, setIsLoading, handleSetViewId]);
+        applyViewState(viewData);
+        setIsInitialized(true);
+      },
+      onError: (error) => {
+        if (isInitialized) return;
+
+        setIsInitialized(true);
+        setIsLoading(false);
+        handleSetViewId(null);
+        showErrorToast("Error applying view", error.message, "WARNING");
+      },
+    },
+  );
 
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion

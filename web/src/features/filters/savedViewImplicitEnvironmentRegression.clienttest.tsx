@@ -35,7 +35,28 @@ jest.mock("../../utils/api", () => ({
         useQuery: (...args: unknown[]) => mockGetDefaultUseQuery(...args),
       },
       getById: {
-        useQuery: (...args: unknown[]) => mockGetByIdUseQuery(...args),
+        useQuery: (...args: unknown[]) => {
+          const result = mockGetByIdUseQuery(...args) as
+            | { data?: unknown; error?: unknown }
+            | undefined;
+
+          const options = args[1] as
+            | {
+                onSuccess?: (data: unknown) => void;
+                onError?: (error: unknown) => void;
+              }
+            | undefined;
+
+          if (result?.data !== undefined) {
+            options?.onSuccess?.(result.data);
+          }
+
+          if (result?.error) {
+            options?.onError?.(result.error);
+          }
+
+          return result;
+        },
       },
     },
   },

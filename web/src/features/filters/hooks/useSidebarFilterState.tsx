@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect, useRef } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
@@ -25,6 +25,7 @@ import {
   stripImplicitEnvironmentFilterFromExplicitState,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
+import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -329,12 +330,6 @@ type UseSidebarFilterStateOptions = {
    */
   disableUrlPersistence?: boolean;
   /**
-   * Default filters to apply on initial page load (when no URL filters are present).
-   * These apply every time the component mounts, but respect user's manual filter changes.
-   * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
-   */
-  defaultFilters?: FilterState;
-  /**
    * Optional context identifier (for example projectId) to guard against
    * carrying persisted filters across contexts.
    */
@@ -403,7 +398,6 @@ export function useSidebarFilterState(
   const {
     loading,
     disableUrlPersistence,
-    defaultFilters,
     sessionFilterContextId,
     implicitDefaultConfig,
   } = hookOptions;
@@ -433,31 +427,13 @@ export function useSidebarFilterState(
   });
 
   const [storedFilterQueryState, setStoredFilterQueryState] =
-    useSessionStorage<PersistedSidebarFilterQueryState>(
+    useKeyedSessionStorageState<PersistedSidebarFilterQueryState>(
       FILTER_QUERY_SESSION_STORAGE_KEY,
       createPersistedSidebarFilterQueryState(
         normalizedSessionFilterContextId,
         "",
       ),
     );
-
-  useEffect(() => {
-    if (storedFilterQueryState.contextId === normalizedSessionFilterContextId) {
-      return;
-    }
-
-    // Context changed (e.g. project switch): clear persisted query to avoid bleed.
-    setStoredFilterQueryState(
-      createPersistedSidebarFilterQueryState(
-        normalizedSessionFilterContextId,
-        "",
-      ),
-    );
-  }, [
-    storedFilterQueryState.contextId,
-    normalizedSessionFilterContextId,
-    setStoredFilterQueryState,
-  ]);
 
   const storedFiltersQuery = getPersistedSidebarFilterQueryForContext({
     state: storedFilterQueryState,
@@ -558,10 +534,6 @@ export function useSidebarFilterState(
     ],
   );
 
-  // Track if user has manually interacted with filters
-  // This prevents default filters from overriding user's explicit "clear all" action
-  const userHasInteractedRef = useRef(false);
-
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
       // Keep mutual exclusion reconciliation canonicalized in one place.
@@ -587,12 +559,6 @@ export function useSidebarFilterState(
       // Don't modify URL if persistence is disabled
       if (disableUrlPersistence) return;
 
-      // Mark that user has manually interacted with filters
-      // Exception: Don't mark as interacted if this is the initial default filter application
-      if (userHasInteractedRef.current || explicitFilters.length > 0) {
-        userHasInteractedRef.current = true;
-      }
-
       const encoded = encodeFiltersGeneric(explicitFilters);
       setUrlFiltersQuery(encoded || null);
       setStoredFiltersQuery(encoded);
@@ -608,7 +574,7 @@ export function useSidebarFilterState(
     ],
   );
 
-  // Apply default filters when no URL filters are present
+  // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
     if (disableUrlPersistence) return;
     if (peekContext) return;
@@ -625,27 +591,6 @@ export function useSidebarFilterState(
     urlFiltersQuery,
     storedFiltersQuery,
     setStoredFiltersQuery,
-  ]);
-
-  useEffect(() => {
-    // Skip auto-applying defaults for embedded tables
-    if (disableUrlPersistence) return;
-
-    // If there are already filters in URL, don't apply defaults
-    if (explicitFilterState.length > 0) return;
-
-    // If user has manually interacted with filters (e.g., cleared them), respect their choice
-    // This prevents defaults from reapplying when user clears filters in the same session
-    if (userHasInteractedRef.current) return;
-
-    if (defaultFilters && defaultFilters.length > 0) {
-      setFilterState(defaultFilters);
-    }
-  }, [
-    explicitFilterState.length,
-    disableUrlPersistence,
-    setFilterState,
-    defaultFilters,
   ]);
 
   const clearAll = () => {
