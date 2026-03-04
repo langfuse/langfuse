@@ -6,6 +6,11 @@ import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
 const queryParamStore = new Map<string, unknown>();
+let queryParamWriteDelayMs = 0;
+
+function setQueryParamWriteDelay(ms: number) {
+  queryParamWriteDelayMs = ms;
+}
 
 jest.mock("use-query-params", () => {
   const React = require("react");
@@ -27,6 +32,20 @@ jest.mock("use-query-params", () => {
           setValue((previous: unknown) => {
             const resolved =
               typeof next === "function" ? next(previous) : (next ?? null);
+
+            if (queryParamWriteDelayMs > 0) {
+              setTimeout(() => {
+                if (resolved === null || resolved === "") {
+                  queryParamStore.delete(key);
+                  setValue(null);
+                  return;
+                }
+
+                queryParamStore.set(key, resolved);
+                setValue(resolved);
+              }, queryParamWriteDelayMs);
+              return previous;
+            }
 
             if (resolved === null || resolved === "") {
               queryParamStore.delete(key);
@@ -136,6 +155,7 @@ describe("useSidebarFilterState session persistence", () => {
   beforeEach(() => {
     sessionStorage.clear();
     queryParamStore.clear();
+    setQueryParamWriteDelay(0);
   });
 
   const getExplicitState = () =>
@@ -229,5 +249,39 @@ describe("useSidebarFilterState session persistence", () => {
     expect(sessionStorage.getItem(newSessionKey)).toBe(
       encodeStoredState("", "new"),
     );
+  });
+
+  it("clears filter state immediately even when URL writes are delayed", async () => {
+    const sessionKey = buildSessionKey();
+    setQueryParamWriteDelay(100);
+    queryParamStore.set("filter", encodedFilterB);
+
+    render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(FILTER_B);
+    });
+
+    fireEvent.click(screen.getByTestId("clear-filters"));
+
+    await waitFor(
+      () => {
+        expect(getExplicitState()).toEqual([]);
+      },
+      { timeout: 50 },
+    );
+
+    // URL is still stale during delayed write window
+    expect(queryParamStore.get("filter")).toBe(encodedFilterB);
+    await waitFor(
+      () => {
+        expect(queryParamStore.has("filter")).toBe(false);
+      },
+      { timeout: 300 },
+    );
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+    });
   });
 });

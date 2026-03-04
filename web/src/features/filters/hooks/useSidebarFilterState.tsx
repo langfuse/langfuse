@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
@@ -455,9 +455,14 @@ export function useSidebarFilterState(
     "filter",
     StringParam,
   );
+  // Optimistic query state: prevents stale URL reads from overriding immediate
+  // local changes while use-query-params updates the URL asynchronously.
+  const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
+    null,
+  );
   const filtersQuery = disableUrlPersistence
     ? ""
-    : (urlFiltersQuery ?? storedFiltersQuery);
+    : (pendingFiltersQuery ?? urlFiltersQuery ?? storedFiltersQuery);
 
   const mutualExclusionContext = useMemo(
     () => buildMutualExclusionContext(config),
@@ -561,6 +566,7 @@ export function useSidebarFilterState(
       if (disableUrlPersistence) return;
 
       const encoded = encodeFiltersGeneric(explicitFilters);
+      setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
       setStoredFiltersQuery(encoded);
     },
@@ -575,10 +581,28 @@ export function useSidebarFilterState(
     ],
   );
 
+  // Drop optimistic override once URL catches up to the requested value.
+  useEffect(() => {
+    if (disableUrlPersistence) return;
+    if (peekContext) return;
+    if (pendingFiltersQuery === null) return;
+
+    const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
+    if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
+      setPendingFiltersQuery(null);
+    }
+  }, [
+    disableUrlPersistence,
+    peekContext,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+  ]);
+
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
     if (disableUrlPersistence) return;
     if (peekContext) return;
+    if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
     if (!urlFiltersQuery) return;
     if (urlFiltersQuery === storedFiltersQuery) return;
@@ -589,6 +613,7 @@ export function useSidebarFilterState(
   }, [
     disableUrlPersistence,
     peekContext,
+    pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
     setStoredFiltersQuery,
