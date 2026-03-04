@@ -8,6 +8,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants";
 import { nanoid } from "nanoid";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   MessageTypeSchema,
@@ -17,6 +18,12 @@ import {
 } from "../formConstants";
 
 import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events/supportRequestMetadataEvent";
+import {
+  createPylonIssue,
+  buildPylonIssueBodyHtml,
+  buildPylonTags,
+  mapSeverityToPylonPriority,
+} from "../pylon/pylonClient";
 
 import {
   initPlain,
@@ -46,8 +53,10 @@ const CreateSupportThreadInput = z.object({
   projectId: z.string().optional(),
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
-  /** IDs of attachments already uploaded via prepareAttachmentUploads */
+  /** IDs of attachments already uploaded via prepareAttachmentUploads (Plain) */
   attachmentIds: z.array(z.string()).optional(),
+  /** URLs of attachments already uploaded to Pylon */
+  pylonAttachmentUrls: z.array(z.string().url()).optional(),
 });
 
 const PrepareAttachmentUploadsInput = z.object({
@@ -311,6 +320,46 @@ export const plainRouter = createTRPCRouter({
         attachmentIds: input.attachmentIds ?? [],
         impersonate: false,
       });
+
+      // (6) Dual-write: create issue in Pylon (best-effort, non-blocking)
+      if (env.PYLON_API_KEY) {
+        try {
+          const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
+          const pylonBodyHtml = buildPylonIssueBodyHtml({
+            message: input.message,
+            url: input.url,
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            version: VERSION,
+            plan: currentSupportRequestContext.plan,
+            cloudRegion: currentSupportRequestContext.region,
+            browserMetadata: input.browserMetadata,
+            severity: input.severity,
+            messageType: input.messageType,
+            topic: input.topic,
+            integrationType: input.integrationType,
+          });
+          const pylonTags = buildPylonTags({
+            messageType: input.messageType,
+            topLevel,
+            subtype,
+            integrationType: input.integrationType,
+          });
+
+          await createPylonIssue({
+            apiKey: env.PYLON_API_KEY,
+            title: pylonTitle,
+            bodyHtml: pylonBodyHtml,
+            requesterEmail: email,
+            requesterName: fullName,
+            tags: pylonTags,
+            priority: mapSeverityToPylonPriority(input.severity),
+            attachmentUrls: input.pylonAttachmentUrls,
+          });
+        } catch (e) {
+          logger.error("Pylon issue creation failed (best-effort)", e);
+        }
+      }
 
       return {
         threadId,
