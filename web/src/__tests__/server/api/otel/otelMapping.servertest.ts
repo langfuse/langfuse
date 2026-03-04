@@ -5779,12 +5779,229 @@ describe("OTel Resource Span Mapping", () => {
       expect(
         observationEvent?.body.usageDetails.input_cache_read,
       ).toBeUndefined(); // no double accounting
-      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+
+      // Duration-specific cache creation tokens deducted from total
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cache_creation_5m).toBe(
         2089,
       );
+      expect(observationEvent?.body.usageDetails.input_cache_creation_1h).toBe(
+        0,
+      );
+
       expect(
         observationEvent?.body.usageDetails.input_cache_write,
       ).toBeUndefined(); // no double accounting
+    });
+
+    it("should extract both 5m and 1h cache creation tokens from Anthropic provider metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+      const spanId = "1234567890abcde0";
+
+      const vercelAIAnthropicSpanMixed = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "anthropic-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 5000,
+                            cache_creation_input_tokens: 3000,
+                            cache_read_input_tokens: 1500,
+                            cache_creation: {
+                              ephemeral_5m_input_tokens: 2000,
+                              ephemeral_1h_input_tokens: 1000,
+                            },
+                            output_tokens: 200,
+                            service_tier: "standard",
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpanMixed,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // input = 5000 - 1500 (cached) - 0 (cache_creation remainder) - 2000 (5m) - 1000 (1h) = 500
+      expect(observationEvent?.body.usageDetails.input).toBe(500);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+
+      // Cache read tokens
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        1500,
+      );
+
+      // Duration-specific: 5m + 1h = 3000 = total, so remainder = 0
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cache_creation_5m).toBe(
+        2000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation_1h).toBe(
+        1000,
+      );
+    });
+
+    it("should handle Anthropic provider metadata without cache_creation sub-object (backward compatibility)", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+      const spanId = "1234567890abcde1";
+
+      const vercelAIAnthropicSpanLegacy = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "3.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "anthropic-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 10000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 300, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 10000,
+                            cache_creation_input_tokens: 4000,
+                            cache_read_input_tokens: 2000,
+                            output_tokens: 300,
+                            service_tier: "standard",
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpanLegacy,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // input = 10000 - 2000 (cached) - 4000 (cache_creation, no duration breakdown) = 4000
+      expect(observationEvent?.body.usageDetails.input).toBe(4000);
+      expect(observationEvent?.body.usageDetails.output).toBe(300);
+
+      // Cache tokens preserved as-is when no duration sub-object
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        2000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        4000,
+      );
+
+      // Duration-specific keys should not be set
+      expect(
+        observationEvent?.body.usageDetails.input_cache_creation_5m,
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails.input_cache_creation_1h,
+      ).toBeUndefined();
     });
     it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
