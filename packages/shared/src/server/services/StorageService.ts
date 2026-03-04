@@ -571,6 +571,10 @@ class S3StorageService implements StorageService {
     data,
     partSizeBytes,
   }: UploadFileBuffered): Promise<void> {
+    if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
+      return this.uploadFile({ fileName, fileType, data });
+    }
+
     const strategy = new S3ChunkedUploadStrategy({
       client: this.client,
       bucket: this.bucketName,
