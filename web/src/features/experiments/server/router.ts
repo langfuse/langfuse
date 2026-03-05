@@ -345,7 +345,6 @@ export const experimentsRouter = createTRPCRouter({
         getExperimentMetricsFromEvents({
           projectId: input.projectId,
           experimentIds: input.experimentIds,
-          filter: input.filter ?? [],
         }),
         getScoresForExperimentItems(input.projectId, input.experimentIds),
         getScoresForExperiments({
