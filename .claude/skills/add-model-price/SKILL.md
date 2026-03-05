@@ -23,12 +23,20 @@ Automatically activates when:
 
 ## Quick Start Checklist
 
+### Adding a New Model
+
 - [ ] **Gather model info**: Fetch official pricing from provider documentation URL
 - [ ] **Generate UUID**: Run `uuidgen` for the model entry ID (use lowercase)
 - [ ] **Create matchPattern**: Regex covering all provider formats
 - [ ] **Define pricingTiers**: At minimum, one default tier with standard prices
 - [ ] **Add pricing entry**: Insert into `/worker/src/constants/default-model-prices.json`
 - [ ] **Add to LLM types**: Add model to `/packages/shared/src/server/llm/types.ts` (for playground/LLM-as-judge)
+- [ ] **Validate JSON**: Run `jq . default-model-prices.json` to verify syntax
+
+### Updating an Existing Model
+
+- [ ] **Modify the entry**: Update prices, add new usage type keys, etc.
+- [ ] **Update `updatedAt`**: Set to today's date in ISO-8601 format (e.g., `"2026-03-04T00:00:00.000Z"`)
 - [ ] **Validate JSON**: Run `jq . default-model-prices.json` to verify syntax
 
 ---
@@ -77,8 +85,8 @@ This JSON file contains an array of model pricing definitions used for cost calc
 | `id` | string | Unique UUID (use `uuidgen` command, lowercase) |
 | `modelName` | string | Primary model identifier |
 | `matchPattern` | string | Regex for matching model names |
-| `createdAt` | string | ISO-8601 timestamp |
-| `updatedAt` | string | ISO-8601 timestamp |
+| `createdAt` | string | ISO-8601 timestamp (set once on creation) |
+| `updatedAt` | string | ISO-8601 timestamp (**must be updated to today's date whenever the entry is modified**) |
 | `pricingTiers` | array | At least one pricing tier |
 
 ### Optional Fields
@@ -463,6 +471,15 @@ The system validates pricing tiers with these rules:
 
 // Correct - escaped dots
 "matchPattern": "anthropic\\.claude"
+```
+
+**Forgetting to update `updatedAt` when modifying an existing entry:**
+```json
+// Wrong - stale timestamp after modifying prices
+"updatedAt": "2025-12-12T15:00:06.513Z"
+
+// Correct - set to today's date
+"updatedAt": "2026-03-04T00:00:00.000Z"
 ```
 
 ---

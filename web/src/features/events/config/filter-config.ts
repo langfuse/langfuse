@@ -66,19 +66,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "positionInTrace" as const,
       column: "positionInTrace",
       label: getEventsColumnName("positionInTrace"),
-      tooltip:
-        "Filter observations for their relative position within a trace either from the bottom or top. Positions are calculated based on timings.",
-      mutuallyExclusiveWith: ["score_categories", "scores_avg"],
-    },
-    {
-      type: "numeric" as const,
-      column: "levelInTrace",
-      label: getEventsColumnName("levelInTrace"),
-      tooltip:
-        "Filter for observations at a specific depth level in a trace. The topmost observation has level 0.",
-      min: 0,
-      max: 50,
-      step: 1,
+      mutuallyExclusiveWith: [
+        "score_categories",
+        "scores_avg",
+        "trace_score_categories",
+        "trace_scores_avg",
+      ],
     },
     {
       type: "categorical" as const,
@@ -239,6 +232,16 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "keyValue" as const,
+      column: "trace_score_categories",
+      label: "Trace Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "trace_scores_avg",
+      label: "Trace Numeric Scores",
     },
     {
       type: "numeric" as const,

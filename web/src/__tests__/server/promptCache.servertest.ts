@@ -38,14 +38,9 @@ describe("PromptService", () => {
     } as unknown as jest.Mocked<PrismaClient>;
 
     mockRedis = {
-      getex: jest.fn(),
+      get: jest.fn().mockResolvedValue("epoch-1"),
       set: jest.fn(),
-      setex: jest.fn(),
       del: jest.fn(),
-      exists: jest.fn(),
-      eval: jest.fn(),
-      sadd: jest.fn(),
-      smembers: jest.fn(),
     } as unknown as jest.Mocked<Redis>;
 
     mockMetricIncrementer = jest.fn();
@@ -60,8 +55,8 @@ describe("PromptService", () => {
 
   describe("getPrompt", () => {
     it("should return cached prompt if available", async () => {
-      mockRedis.exists.mockResolvedValue(0);
-      mockRedis.getex.mockResolvedValue(JSON.stringify(mockPrompt));
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch
+      mockRedis.get.mockResolvedValueOnce(JSON.stringify(mockPrompt)); // cache read
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -75,9 +70,10 @@ describe("PromptService", () => {
     });
 
     it("should fetch from database if not in cache", async () => {
-      mockRedis.exists.mockResolvedValue(0);
-      mockRedis.getex.mockResolvedValue(null);
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache read
+      mockRedis.get.mockResolvedValueOnce(null); // cache miss
       mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache write
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -94,75 +90,25 @@ describe("PromptService", () => {
       );
 
       expect(mockRedis.set).toHaveBeenCalledWith(
-        "prompt:project1:testPrompt:1",
+        "prompt:project1:epoch-1:testPrompt:1",
         JSON.stringify(mockPrompt),
         "EX",
-        300,
+        expect.any(Number),
       );
-
-      expect(mockRedis.sadd).toHaveBeenCalledWith(
-        "prompt_key_index:project1",
-        "prompt:project1:testPrompt:1",
-      );
-    });
-
-    it("should not use cache if locked", async () => {
-      mockRedis.exists.mockResolvedValue(1);
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
-
-      const result = await promptService.getPrompt({
-        projectId: "project1",
-        promptName: "testPrompt",
-        version: 1,
-        label: undefined,
-      });
-
-      expect(result).toEqual(mockPrompt);
-      expect(mockRedis.getex).not.toHaveBeenCalled();
-      expect(mockPrisma.prompt.findFirst).toHaveBeenCalled();
-    });
-  });
-
-  describe("lockCache", () => {
-    it("should set a lock in Redis", async () => {
-      await promptService.lockCache({
-        projectId: "project1",
-        promptName: "testPrompt",
-      });
-
-      expect(mockRedis.setex).toHaveBeenCalledWith(
-        "LOCK:prompt:project1",
-        30,
-        "locked",
-      );
-    });
-  });
-
-  describe("unlockCache", () => {
-    it("should remove the lock from Redis", async () => {
-      await promptService.unlockCache({
-        projectId: "project1",
-        promptName: "testPrompt",
-      });
-
-      expect(mockRedis.del).toHaveBeenCalledWith("LOCK:prompt:project1");
     });
   });
 
   describe("invalidateCache", () => {
-    it("should call deleteKeysByPrefix with correct prefix", async () => {
+    it("should rotate the epoch token for the project with TTL", async () => {
       await promptService.invalidateCache({
         projectId: "project1",
-        promptName: "testPrompt",
       });
 
-      // Legacy index
-      expect(mockRedis.smembers).toHaveBeenCalledWith(
-        "prompt_key_index:project1:testPrompt",
-      );
-
-      expect(mockRedis.smembers).toHaveBeenCalledWith(
-        "prompt_key_index:project1",
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        "prompt_cache_epoch:project1",
+        expect.any(String),
+        "EX",
+        7 * 24 * 60 * 60,
       );
     });
   });
@@ -188,7 +134,6 @@ describe("PromptService", () => {
       });
 
       expect(result).toEqual(mockPrompt);
-      expect(mockRedis.getex).not.toHaveBeenCalled();
       expect(mockPrisma.prompt.findFirst).toHaveBeenCalled();
       expect(mockMetricIncrementer).not.toHaveBeenCalled();
     });
@@ -220,28 +165,8 @@ describe("PromptService", () => {
   });
 
   describe("getPrompt with Redis errors", () => {
-    it("should fallback to database if Redis.exists throws an error", async () => {
-      mockRedis.exists.mockRejectedValue(new Error("Redis error"));
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
-
-      const result = await promptService.getPrompt({
-        projectId: "project1",
-        promptName: "testPrompt",
-        version: 1,
-        label: undefined,
-      });
-
-      expect(result).toEqual(mockPrompt);
-      expect(mockPrisma.prompt.findFirst).toHaveBeenCalled();
-      expect(mockMetricIncrementer).toHaveBeenCalledWith(
-        "prompt_cache_miss",
-        1,
-      );
-    });
-
-    it("should fallback to database if Redis.getex throws an error", async () => {
-      mockRedis.exists.mockResolvedValue(0);
-      mockRedis.getex.mockRejectedValue(new Error("Redis error"));
+    it("should fallback to database if Redis.get throws an error", async () => {
+      mockRedis.get.mockRejectedValue(new Error("Redis error"));
       mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
 
       const result = await promptService.getPrompt({
@@ -260,8 +185,8 @@ describe("PromptService", () => {
     });
 
     it("should not cache if Redis.set throws an error after database fetch", async () => {
-      mockRedis.exists.mockResolvedValue(0);
-      mockRedis.getex.mockResolvedValue(null);
+      mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch
+      mockRedis.get.mockResolvedValueOnce(null); // cache miss
       mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
       mockRedis.set.mockRejectedValue(new Error("Redis error"));
 
@@ -281,38 +206,13 @@ describe("PromptService", () => {
     });
   });
 
-  describe("lockCache with Redis errors", () => {
-    it("should throw an error if Redis.setex fails", async () => {
-      mockRedis.setex.mockRejectedValue(new Error("Redis error"));
-
-      await expect(
-        promptService.lockCache({
-          projectId: "project1",
-          promptName: "testPrompt",
-        }),
-      ).rejects.toThrow("Redis error");
-    });
-  });
-
-  describe("unlockCache with Redis errors", () => {
-    it("should log error but not throw if Redis.del fails", async () => {
-      mockRedis.del.mockRejectedValue(new Error("Redis error"));
-
-      await promptService.unlockCache({
-        projectId: "project1",
-        promptName: "testPrompt",
-      });
-    });
-  });
-
   describe("invalidateCache with Redis errors", () => {
-    it("should throw an error if Redis.eval fails", async () => {
-      mockRedis.smembers.mockRejectedValue(new Error("Redis error"));
+    it("should throw an error if Redis.set fails", async () => {
+      mockRedis.set.mockRejectedValue(new Error("Redis error"));
 
       await expect(
         promptService.invalidateCache({
           projectId: "project1",
-          promptName: "testPrompt",
         }),
       ).rejects.toThrow("Redis error");
     });

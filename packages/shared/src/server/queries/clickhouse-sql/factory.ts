@@ -35,9 +35,9 @@ export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
 ) => {
-  const applicableFilters = filter
-    .filter((frontEndFilter) => frontEndFilter.type !== "positionInTrace")
-    .filter((frontEndFilter) => frontEndFilter.column !== "levelInTrace");
+  const applicableFilters = filter.filter(
+    (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
+  );
 
   return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
