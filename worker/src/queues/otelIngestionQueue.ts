@@ -68,7 +68,8 @@ export function checkHeaderBasedDirectWrite(params: {
   try {
     // compareVersions returns null when current >= minimum (no update needed).
     // Strip pre-release/build metadata so that e.g. 4.0.0-rc.1 qualifies as 4.0.0.
-    const baseVersion = sdkVersion.split(/[-+]/)[0];
+    // Also normalize Python PEP440 shorthand (e.g. 4.0.0b1, 4.0.0rc1) to the core version.
+    const baseVersion = extractBaseSdkVersion(sdkVersion);
 
     if (sdkName === "python") {
       return compareVersions(baseVersion, "v4.0.0") === null;
@@ -84,6 +85,23 @@ export function checkHeaderBasedDirectWrite(params: {
   }
 
   return false;
+}
+
+function extractBaseSdkVersion(sdkVersion: string): string {
+  const version = sdkVersion.trim();
+
+  // Standard semver / semver pre-release / build metadata
+  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
+    return version.split(/[-+]/)[0];
+  }
+
+  // Python PEP 440 pre-release shorthand: 4.0.0a1, 4.0.0b1, 4.0.0rc1
+  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
+  if (pep440Match?.[1]) {
+    return pep440Match[1];
+  }
+
+  return version;
 }
 
 /**
