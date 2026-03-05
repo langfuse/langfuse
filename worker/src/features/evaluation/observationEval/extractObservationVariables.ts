@@ -57,10 +57,18 @@ export function extractObservationVariables(
   for (const fieldId of fieldsWithSelectors) {
     const internal = columns.find((col) => col.id === fieldId)?.internal;
     if (internal && observation[internal] !== undefined) {
-      parsedFields.set(
-        fieldId,
-        deepParseJson(observation[internal], { maxDepth: 2, maxSize: 100_000 }),
-      );
+      try {
+        parsedFields.set(
+          fieldId,
+          deepParseJson(observation[internal], {
+            maxDepth: 2,
+            maxSize: 100_000,
+          }),
+        );
+      } catch {
+        // If parsing fails, use raw value
+        parsedFields.set(fieldId, observation[internal]);
+      }
     }
   }
 
