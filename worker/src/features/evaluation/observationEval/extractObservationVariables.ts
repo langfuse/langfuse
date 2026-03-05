@@ -126,6 +126,9 @@ function applyJsonSelector(params: ApplyJsonSelectorParams): unknown {
   }
 
   if (typeof value !== "object") {
+    logger.debug(
+      `Can't apply JSONPath to primitive value for selector "${selector}". Falling back to original value.`,
+    );
     return value; // Can't apply JSONPath to primitives
   }
 
