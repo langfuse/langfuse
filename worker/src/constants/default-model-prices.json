@@ -3245,7 +3245,7 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
@@ -3275,7 +3275,7 @@
   {
     "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
     "modelName": "claude-sonnet-4-6",
-    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-6-v1(:0)?|claude-sonnet-4-6)$",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
@@ -3331,7 +3331,7 @@
   {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
