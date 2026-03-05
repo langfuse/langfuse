@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   pre-job:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
       llm_connections_changed: ${{ steps.filter.outputs.llm_connections }}
@@ -45,7 +45,7 @@ jobs:
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -77,7 +77,7 @@ jobs:
         run: pnpm run lint
 
   prettier-check:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -121,7 +121,7 @@ jobs:
 
   test-docker-build:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -157,7 +157,7 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
   tests-web:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -273,7 +273,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -351,7 +351,7 @@ jobs:
 
   test-worker-llm-connections:
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: startsWith(github.ref, 'refs/tags/') || (needs.pre-job.outputs.should_skip != 'true' && (needs.pre-job.outputs.llm_connections_changed == 'true' || github.event_name == 'workflow_dispatch'))
@@ -424,7 +424,7 @@ jobs:
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -503,7 +503,7 @@ jobs:
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
@@ -570,7 +570,7 @@ jobs:
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [
         lint,
         prettier-check,
@@ -618,7 +618,7 @@ jobs:
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
     if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       packages: write
       contents: read
@@ -649,10 +649,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
       - name: Extract metadata (tags, labels) for Docker
         id: meta-web
         uses: docker/metadata-action@v4
@@ -671,7 +669,7 @@ jobs:
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push Docker image (web)
-        uses: docker/build-push-action@v4
+        uses: useblacksmith/build-push-action@v2
         with:
           context: .
           file: ./web/Dockerfile
@@ -699,7 +697,7 @@ jobs:
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push Docker image (worker)
-        uses: docker/build-push-action@v4
+        uses: useblacksmith/build-push-action@v2
         with:
           context: .
           file: ./worker/Dockerfile
