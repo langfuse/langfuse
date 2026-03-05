@@ -157,8 +157,8 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
 
-    // Mark traces as deleted
-    await prisma.pendingDeletion.updateMany({
+    // Remove processed pending deletion rows
+    await prisma.pendingDeletion.deleteMany({
       where: {
         projectId,
         object: "trace",
@@ -166,9 +166,6 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
           in: traceIdsToDelete,
         },
         isDeleted: false,
-      },
-      data: {
-        isDeleted: true,
       },
     });
 
