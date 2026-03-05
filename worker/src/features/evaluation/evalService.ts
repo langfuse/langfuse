@@ -72,6 +72,7 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { JobConfigSuspendCode } from "@langfuse/shared";
 import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
@@ -332,7 +333,7 @@ export const createEvalJobs = async ({
   // Optimization: Batch query for existing job executions
   // Instead of querying once per config (N queries), fetch all at once and filter in-memory
   const configIds = configs
-    .filter((c) => c.status !== JobConfigState.INACTIVE)
+    .filter((c) => c.status === JobConfigState.ACTIVE)
     .map((c) => c.id);
 
   const allExistingJobs =
@@ -370,8 +371,10 @@ export const createEvalJobs = async ({
   };
 
   for (const config of configs) {
-    if (config.status === JobConfigState.INACTIVE) {
-      logger.debug(`Skipping inactive config ${config.id}`);
+    if (config.status !== JobConfigState.ACTIVE) {
+      logger.debug(`Skipping non-active config ${config.id}`, {
+        status: config.status,
+      });
       continue;
     }
 
@@ -800,11 +803,14 @@ export async function executeLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
+        const suspendCode = modelConfig.error.includes("API key for provider")
+          ? JobConfigSuspendCode.LLM_KEY_MISSING
+          : JobConfigSuspendCode.MODEL_CONFIG_MISSING;
+
         await pauseEvalConfigOnUnrecoverableError({
           jobExecutionId,
           projectId,
-          statusCode: null,
-          errorMessage: configError,
+          suspendCode,
         });
         throw new UnrecoverableError(configError);
       }
@@ -867,8 +873,7 @@ export async function executeLLMAsJudgeEvaluation({
                 await pauseEvalConfigOnUnrecoverableError({
                   jobExecutionId,
                   projectId,
-                  statusCode: e.responseStatusCode,
-                  errorMessage: e.message,
+                  suspendCode: e.getSuspendCode() ?? JobConfigSuspendCode.ERROR,
                 });
               }
             }

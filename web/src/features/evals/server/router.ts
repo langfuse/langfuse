@@ -17,6 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  JobConfigSuspendCode,
   orderBy,
   jsonSchema,
   EvalTargetObject,
@@ -66,6 +67,8 @@ const ConfigWithTemplateSchema = z.object({
   delay: z.number(),
   status: z.enum(JobConfigState),
   statusMessage: z.string().nullable(),
+  suspendCode: z.enum(JobConfigSuspendCode).nullable(),
+  suspendedAt: z.date().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -386,6 +389,8 @@ export const evalRouter = createTRPCRouter({
             jc.id,
             jc.status,
             jc.status_message as "statusMessage",
+            jc.suspend_code as "suspendCode",
+            jc.suspended_at as "suspendedAt",
             jc.created_at as "createdAt",
             jc.updated_at as "updatedAt",
             jc.score_name as "scoreName",
@@ -1068,13 +1073,16 @@ export const evalRouter = createTRPCRouter({
           scope: "evalJob:CUD",
         });
 
-        const oldStatus = newStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+        const oldStatuses =
+          newStatus === "ACTIVE"
+            ? [JobConfigState.INACTIVE, JobConfigState.SUSPENDED]
+            : [JobConfigState.ACTIVE];
 
         const evaluators = await ctx.prisma.jobConfiguration.findMany({
           where: {
             projectId: projectId,
             evalTemplateId: evalTemplateId,
-            status: oldStatus,
+            status: { in: oldStatuses },
             targetObject: EvalTargetObject.DATASET,
           },
         });
@@ -1106,6 +1114,8 @@ export const evalRouter = createTRPCRouter({
           data: {
             status: newStatus,
             statusMessage: null,
+            suspendCode: null,
+            suspendedAt: null,
           },
         });
 
@@ -1196,7 +1206,7 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
 
-      if (config.status === "ACTIVE" && existingJob.status === "INACTIVE") {
+      if (config.status === "ACTIVE" && existingJob.status !== "ACTIVE") {
         if (!existingJob.evalTemplateId) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -1213,7 +1223,9 @@ export const evalRouter = createTRPCRouter({
 
       const updatedConfig = {
         ...config,
-        ...(config.status !== undefined ? { statusMessage: null } : {}),
+        ...(config.status !== undefined
+          ? { statusMessage: null, suspendCode: null, suspendedAt: null }
+          : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({

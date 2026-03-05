@@ -1,112 +1,31 @@
 import {
+  EVAL_SUSPEND_EMAIL_DEBOUNCE_MS,
   JobConfigState,
+  JobConfigSuspendCode,
   JobExecutionStatus,
   LlmApiKeyStatus,
-  Role,
+  getEvalSuspendResolutionPath,
+  getJobConfigSuspendMeta,
 } from "@langfuse/shared";
 import {
   clearAllEvalConfigsCaches,
+  getProjectOwnerEmails,
   sendEvalPausedEmail,
   logger,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 
-async function getProjectOwnerEmails(projectId: string): Promise<string[]> {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { orgId: true },
-  });
-  if (!project) return [];
-
-  const projectOwners = await prisma.projectMembership.findMany({
-    where: {
-      projectId,
-      role: Role.OWNER,
-    },
-    include: {
-      user: { select: { email: true } },
-    },
-  });
-  const emails = projectOwners
-    .map((m) => m.user.email)
-    .filter((email): email is string => !!email);
-  if (emails.length > 0) return emails;
-
-  const orgOwners = await prisma.organizationMembership.findMany({
-    where: {
-      orgId: project.orgId,
-      role: Role.OWNER,
-    },
-    include: {
-      user: { select: { email: true } },
-    },
-  });
-  return orgOwners
-    .map((m) => m.user.email)
-    .filter((email): email is string => !!email);
-}
-
 export type PauseEvalConfigParams = {
   jobExecutionId: string;
   projectId: string;
-  statusCode: number | null;
-  errorMessage: string;
+  suspendCode: JobConfigSuspendCode;
 };
-
-function getPauseReason(statusCode: number | null, errorMessage: string) {
-  if (statusCode === 401) {
-    return {
-      code: "LLM_401",
-      keyMessage:
-        "LLM API returned 401 Unauthorized. Check your LLM connection.",
-      configMessage:
-        "Evaluator paused: LLM API returned 401 Unauthorized. Update the LLM connection used by this evaluator and then reactivate it.",
-    } as const;
-  }
-
-  if (statusCode === 404) {
-    return {
-      code: "LLM_404",
-      keyMessage: null,
-      configMessage:
-        "Evaluator paused: model not found (404). Update the evaluator template or the default evaluation model, then reactivate it.",
-    } as const;
-  }
-
-  if (
-    errorMessage.includes('API key for provider "') &&
-    errorMessage.includes('" not found in project')
-  ) {
-    return {
-      code: "LLM_KEY_MISSING",
-      keyMessage: null,
-      configMessage:
-        "Evaluator paused: no LLM connection found for the provider used by this evaluator. Add or restore the LLM connection, then reactivate it.",
-    } as const;
-  }
-
-  if (errorMessage.includes("No default model or custom model configured")) {
-    return {
-      code: "MODEL_CONFIG_MISSING",
-      keyMessage: null,
-      configMessage:
-        "Evaluator paused: no valid evaluation model is configured. Set a model on the evaluator template or configure a default evaluation model, then reactivate it.",
-    } as const;
-  }
-
-  return {
-    code: "ERROR",
-    keyMessage: null,
-    configMessage: errorMessage,
-  } as const;
-}
 
 export async function pauseEvalConfigOnUnrecoverableError({
   jobExecutionId,
   projectId,
-  statusCode,
-  errorMessage,
+  suspendCode,
 }: PauseEvalConfigParams): Promise<void> {
   const jobExecution = await prisma.jobExecution.findFirst({
     where: {
@@ -123,84 +42,48 @@ export async function pauseEvalConfigOnUnrecoverableError({
     return;
   }
 
-  const config = await prisma.jobConfiguration.findFirst({
-    where: {
-      id: jobExecution.jobConfigurationId,
-      projectId,
-    },
-    include: {
-      evalTemplate: true,
-    },
-  });
+  const meta = getJobConfigSuspendMeta(suspendCode);
+  const now = new Date();
 
-  if (!config) {
-    return;
-  }
-
-  const template =
-    config.evalTemplate ??
-    (jobExecution.jobTemplateId
-      ? await prisma.evalTemplate.findUnique({
-          where: { id: jobExecution.jobTemplateId },
-        })
-      : null);
-
-  if (!template) {
-    return;
-  }
-
-  const pauseReason = getPauseReason(statusCode, errorMessage);
-
-  const shouldNotify = await prisma.$transaction(async (tx) => {
-    if (statusCode === 401 && pauseReason.keyMessage) {
-      const defaultModel = await tx.defaultLlmModel.findUnique({
-        where: { projectId },
-        select: { provider: true },
-      });
-
-      const provider = template.provider ?? defaultModel?.provider ?? null;
-
-      if (provider) {
-        const key = await tx.llmApiKeys.findFirst({
-          where: {
-            projectId,
-            provider,
+  const suspensionResult = await prisma.$transaction(async (tx) => {
+    const currentConfig = await tx.jobConfiguration.findFirst({
+      where: {
+        id: jobExecution.jobConfigurationId,
+        projectId,
+      },
+      select: {
+        suspendedAt: true,
+        evalTemplate: {
+          select: {
+            provider: true,
           },
-          select: { id: true },
-        });
-
-        if (key) {
-          await tx.llmApiKeys.update({
-            where: { id: key.id },
-            data: {
-              status: LlmApiKeyStatus.ERROR,
-              statusMessage: pauseReason.keyMessage,
-            },
-          });
-        }
-      }
-    }
-
-    if (config.status === JobConfigState.INACTIVE) {
-      return false;
-    }
-
-    const now = new Date();
-
-    await tx.jobConfiguration.update({
-      where: { id: config.id },
-      data: {
-        status: JobConfigState.INACTIVE,
-        statusMessage: pauseReason.configMessage,
+        },
       },
     });
 
+    // Atomic: only ACTIVE configs can transition to SUSPENDED (prevents race conditions and INACTIVE overwrite)
+    const { count } = await tx.jobConfiguration.updateMany({
+      where: {
+        id: jobExecution.jobConfigurationId!,
+        projectId,
+        status: JobConfigState.ACTIVE,
+      },
+      data: {
+        status: JobConfigState.SUSPENDED,
+        statusMessage: meta.configMessage,
+        suspendCode,
+        suspendedAt: now,
+      },
+    });
+
+    if (count === 0) {
+      return { didSuspend: false, shouldNotify: false };
+    }
+
     await tx.jobExecution.updateMany({
       where: {
-        id: {
-          not: jobExecutionId,
-        },
-        jobConfigurationId: config.id,
+        id: { not: jobExecutionId },
+        jobConfigurationId: jobExecution.jobConfigurationId!,
         projectId,
         status: JobExecutionStatus.PENDING,
       },
@@ -210,39 +93,108 @@ export async function pauseEvalConfigOnUnrecoverableError({
       },
     });
 
-    return true;
+    // Mark the API key as errored only on 401 and only on first suspension
+    if (suspendCode === JobConfigSuspendCode.LLM_401 && meta.keyMessage) {
+      const defaultModel = await tx.defaultLlmModel.findUnique({
+        where: { projectId },
+        select: { provider: true },
+      });
+      const provider =
+        currentConfig?.evalTemplate?.provider ?? defaultModel?.provider ?? null;
+
+      if (provider) {
+        const key = await tx.llmApiKeys.findFirst({
+          where: { projectId, provider },
+          select: { id: true },
+        });
+
+        if (key) {
+          await tx.llmApiKeys.update({
+            where: { id: key.id },
+            data: {
+              status: LlmApiKeyStatus.ERROR,
+              statusMessage: meta.keyMessage,
+            },
+          });
+        }
+      }
+    }
+
+    const shouldNotify =
+      !currentConfig?.suspendedAt ||
+      now.getTime() - currentConfig.suspendedAt.getTime() >
+        EVAL_SUSPEND_EMAIL_DEBOUNCE_MS;
+
+    return { didSuspend: true, shouldNotify };
   });
 
-  if (!shouldNotify) {
+  if (!suspensionResult.didSuspend) {
     return;
   }
 
   await clearAllEvalConfigsCaches(projectId);
 
+  if (!suspensionResult.shouldNotify) {
+    logger.debug(
+      `[EVAL SUSPEND] Skipping notification for config ${jobExecution.jobConfigurationId} due to debounce window.`,
+    );
+    return;
+  }
+
+  // Look up template info for the notification email (best-effort)
+  const config = await prisma.jobConfiguration.findFirst({
+    where: {
+      id: jobExecution.jobConfigurationId,
+      projectId,
+    },
+    include: { evalTemplate: true },
+  });
+
+  const template =
+    config?.evalTemplate ??
+    (jobExecution.jobTemplateId
+      ? await prisma.evalTemplate.findUnique({
+          where: { id: jobExecution.jobTemplateId },
+        })
+      : null);
+
+  if (!template) {
+    logger.warn(
+      `[EVAL SUSPEND] Template not found for config ${jobExecution.jobConfigurationId}. Suspended but no notification sent.`,
+    );
+    return;
+  }
+
   // Fire-and-forget: email notification should not block the eval worker
-  void sendPauseNotification({
+  void sendSuspendNotification({
     projectId,
-    configId: config.id,
+    configId: jobExecution.jobConfigurationId,
     templateId: template.id,
     templateName: template.name,
-    pauseReason,
+    suspendCode,
+    configMessage: meta.configMessage,
+    shortMessage: meta.shortMessage,
   }).catch((e) =>
-    logger.error("[EVAL PAUSE] Failed to send pause notification", e),
+    logger.error("[EVAL SUSPEND] Failed to send suspend notification", e),
   );
 }
 
-async function sendPauseNotification({
+async function sendSuspendNotification({
   projectId,
   configId,
   templateId,
   templateName,
-  pauseReason,
+  suspendCode,
+  configMessage,
+  shortMessage,
 }: {
   projectId: string;
   configId: string;
   templateId: string;
   templateName: string;
-  pauseReason: ReturnType<typeof getPauseReason>;
+  suspendCode: JobConfigSuspendCode;
+  configMessage: string;
+  shortMessage: string;
 }): Promise<void> {
   if (
     !env.NEXTAUTH_URL ||
@@ -250,7 +202,7 @@ async function sendPauseNotification({
     !env.SMTP_CONNECTION_URL
   ) {
     logger.warn(
-      `[EVAL PAUSE] Missing env for email. Config ${configId} paused but no notification sent.`,
+      `[EVAL SUSPEND] Missing env for email. Config ${configId} suspended but no notification sent.`,
     );
     return;
   }
@@ -259,12 +211,16 @@ async function sendPauseNotification({
 
   if (ownerEmails.length === 0) {
     logger.warn(
-      `[EVAL PAUSE] No project owner emails found for project ${projectId}. Config ${configId} paused.`,
+      `[EVAL SUSPEND] No project owner emails found for project ${projectId}. Config ${configId} suspended.`,
     );
     return;
   }
 
-  const resolutionUrl = `${env.NEXTAUTH_URL}/project/${projectId}/evals/templates/${templateId}`;
+  const resolutionUrl = `${env.NEXTAUTH_URL}${getEvalSuspendResolutionPath({
+    projectId,
+    suspendCode,
+    templateId,
+  })}`;
   await Promise.allSettled(
     ownerEmails.map((email) =>
       sendEvalPausedEmail({
@@ -275,8 +231,9 @@ async function sendPauseNotification({
           CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
         },
         templateName,
-        pauseReason: pauseReason.configMessage,
-        pauseReasonCode: pauseReason.code,
+        pauseReason: configMessage,
+        pauseReasonShort: shortMessage,
+        pauseReasonCode: suspendCode,
         resolutionUrl,
         receiverEmail: email,
       }),

@@ -4,7 +4,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { ZodModelConfig } from "@langfuse/shared";
+import {
+  JobConfigState,
+  JobConfigSuspendCode,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import {
   DefaultEvalModelService,
   clearAllEvalConfigsCaches,
@@ -70,9 +74,11 @@ export const defaultEvalModelRouter = createTRPCRouter({
             projectId: input.projectId,
           },
           data: {
-            status: "INACTIVE",
+            status: JobConfigState.SUSPENDED,
             statusMessage:
-              "Evaluator paused: the shared default evaluation model was removed. Set a new default model or update the evaluator template, then reactivate it.",
+              "Evaluator suspended: the shared default evaluation model was removed. Set a new default model or update the evaluator template, then reactivate it.",
+            suspendCode: JobConfigSuspendCode.DEFAULT_MODEL_REMOVED,
+            suspendedAt: new Date(),
           },
         });
 

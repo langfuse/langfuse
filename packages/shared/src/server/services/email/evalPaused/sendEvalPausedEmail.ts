@@ -17,6 +17,7 @@ export interface EvalPausedEmailProps {
   >;
   templateName: string;
   pauseReason: string;
+  pauseReasonShort: string;
   pauseReasonCode: string;
   resolutionUrl: string;
   receiverEmail: string;
@@ -26,6 +27,7 @@ export const sendEvalPausedEmail = async ({
   env,
   templateName,
   pauseReason,
+  pauseReasonShort,
   pauseReasonCode,
   resolutionUrl,
   receiverEmail,
@@ -46,6 +48,7 @@ export const sendEvalPausedEmail = async ({
       EvalPausedEmailTemplate({
         templateName,
         pauseReason,
+        pauseReasonShort,
         pauseReasonCode,
         resolutionUrl,
         receiverEmail,

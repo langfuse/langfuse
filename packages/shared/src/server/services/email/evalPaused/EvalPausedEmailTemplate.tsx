@@ -17,6 +17,7 @@ import {
 interface EvalPausedEmailTemplateProps {
   templateName: string;
   pauseReason: string;
+  pauseReasonShort: string;
   pauseReasonCode: string;
   resolutionUrl: string;
   receiverEmail: string;
@@ -25,6 +26,7 @@ interface EvalPausedEmailTemplateProps {
 export const EvalPausedEmailTemplate = ({
   templateName,
   pauseReason,
+  pauseReasonShort,
   pauseReasonCode,
   resolutionUrl,
   receiverEmail,
@@ -54,13 +56,7 @@ export const EvalPausedEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 The LLM evaluator &quot;{templateName}&quot; was automatically
-                paused due to an unrecoverable error:{" "}
-                {pauseReasonCode === "LLM_401"
-                  ? "LLM authentication failed (401)"
-                  : pauseReasonCode === "LLM_404"
-                    ? "Model not found (404)"
-                    : "an error occurred"}
-                .
+                paused due to an unrecoverable error: {pauseReasonShort}.
               </Text>
             </Section>
 
@@ -96,7 +92,7 @@ export const EvalPausedEmailTemplate = ({
                     <br />
                     • Save the corrected LLM connection after updating the
                     credentials
-                    <br />• Reactivate evaluators that were set to INACTIVE
+                    <br />• Reactivate suspended evaluators
                   </>
                 ) : pauseReasonCode === "LLM_404" ? (
                   <>
@@ -105,14 +101,14 @@ export const EvalPausedEmailTemplate = ({
                     • Edit the evaluator template and select a valid model
                     <br />
                     • Or update the default evaluation model in Project Settings
-                    <br />• Reactivate evaluators that were set to INACTIVE
+                    <br />• Reactivate suspended evaluators
                   </>
                 ) : (
                   <>
                     • Review the error details above
                     <br />
                     • Edit the evaluator template and fix the configuration
-                    <br />• Reactivate evaluators that were set to INACTIVE
+                    <br />• Reactivate suspended evaluators
                   </>
                 )}
               </Text>

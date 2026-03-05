@@ -6,6 +6,7 @@ const statusCategories = {
   pending: ["pending", "waiting", "queued"],
   delayed: ["delayed"],
   inactive: ["disabled", "inactive"],
+  suspended: ["suspended"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
   partial: ["partial"],
@@ -46,6 +47,10 @@ export const StatusBadge = ({
     badgeColor = "bg-light-blue text-dark-blue";
     dotColor = "animate-ping bg-dark-blue";
     dotPingColor = "bg-dark-blue";
+  } else if (statusCategories.suspended.includes(normalizedType)) {
+    badgeColor = "bg-light-red text-dark-red";
+    dotColor = "bg-dark-red";
+    dotPingColor = "bg-dark-red";
   } else if (statusCategories.error.includes(normalizedType)) {
     badgeColor = "bg-light-red text-dark-red";
     showDot = false;

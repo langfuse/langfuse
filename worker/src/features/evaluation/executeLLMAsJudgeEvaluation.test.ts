@@ -10,7 +10,7 @@ import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, JobConfigSuspendCode } from "@langfuse/shared";
 import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
@@ -294,9 +294,25 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
         jobExecutionId,
         projectId,
-        statusCode: null,
-        errorMessage:
-          "Invalid model configuration for job test-job-execution-456: No API key configured",
+        suspendCode: JobConfigSuspendCode.MODEL_CONFIG_MISSING,
+      });
+    });
+
+    it("should use LLM_KEY_MISSING suspend code when API key not found", async () => {
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: vi.fn().mockResolvedValue({
+          valid: false,
+          error: 'API key for provider "openai" not found in project proj-1',
+        }),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+      ).rejects.toThrow(UnrecoverableError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        suspendCode: JobConfigSuspendCode.LLM_KEY_MISSING,
       });
     });
 
@@ -334,8 +350,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
         jobExecutionId,
         projectId,
-        statusCode: 401,
-        errorMessage: "Invalid API key",
+        suspendCode: JobConfigSuspendCode.LLM_401,
       });
     });
 

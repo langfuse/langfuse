@@ -7,6 +7,7 @@ export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningE
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
 export * from "./services/email/evalPaused/sendEvalPausedEmail";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
+export * from "./services/getProjectOwnerEmails";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";

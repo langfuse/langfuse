@@ -45,7 +45,7 @@ import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
-import { LLMCompletionError } from "./errors";
+import { LLMCompletionError, inferLLMCompletionSuspendCode } from "./errors";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
@@ -576,6 +576,10 @@ export async function fetchLLMCompletion(
       message,
       responseStatusCode,
       isRetryable,
+      suspendCode: inferLLMCompletionSuspendCode({
+        responseStatusCode,
+        message,
+      }),
     });
   } finally {
     await processTracedEvents();

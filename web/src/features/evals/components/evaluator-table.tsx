@@ -15,7 +15,12 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  JobConfigSuspendCode,
+  getEvalSuspendResolutionPath,
+  singleFilter,
+} from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
@@ -82,6 +87,7 @@ export type EvaluatorDataRow = {
     version: number;
   };
   statusMessage?: string | null;
+  suspendCode?: JobConfigSuspendCode | null;
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
@@ -156,7 +162,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE"],
+    status: ["ACTIVE", "INACTIVE", "SUSPENDED"],
     target: ["trace", "dataset"],
   };
 
@@ -310,26 +316,35 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
-            {row.original.status === "INACTIVE" &&
-              row.original.statusMessage && (
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Badge variant="warning" className="w-fit text-xs">
-                      Paused
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{row.original.statusMessage}</p>
-                    <Link
-                      href={`/project/${projectId}/evals/templates/${template.id}`}
-                      className="text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Fix in evaluator template
-                    </Link>
-                  </TooltipContent>
-                </Tooltip>
-              )}
+            {row.original.status === "SUSPENDED" && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="warning" className="w-fit text-xs">
+                    Paused
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  <div className="space-y-1 text-sm">
+                    {row.original.statusMessage}
+                  </div>
+                  <Link
+                    href={getEvalSuspendResolutionPath({
+                      projectId,
+                      suspendCode:
+                        row.original.suspendCode ?? JobConfigSuspendCode.ERROR,
+                      templateId: template?.id,
+                    })}
+                    className="mt-2 inline-flex items-center gap-1 font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLinkIcon className="h-3 w-3" />
+                    Resolve issue
+                  </Link>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <TableIdOrName value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
@@ -508,6 +523,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           }
         : undefined,
       statusMessage: jobConfig.statusMessage,
+      suspendCode: jobConfig.suspendCode,
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
