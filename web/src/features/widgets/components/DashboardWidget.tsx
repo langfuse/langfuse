@@ -26,6 +26,7 @@ import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
 import {
   validateQuery,
   toQueryChartConfig,
@@ -195,6 +196,7 @@ export function DashboardWidget({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error,
   });
 
   const transformedData = useMemo(() => {
@@ -410,6 +412,12 @@ export function DashboardWidget({
               className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
               hintClassName="max-w-sm px-4"
             />
+            {queryResult.progress && queryResult.isPending ? (
+              <QueryProgressBar
+                progress={queryResult.progress}
+                className="absolute inset-x-0 bottom-4 z-30"
+              />
+            ) : null}
           </>
         )}
       </div>
