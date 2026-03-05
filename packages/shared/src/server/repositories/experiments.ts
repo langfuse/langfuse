@@ -7,9 +7,13 @@ import {
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
+  CTEQueryBuilder,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import { eventsExperimentsAggregation } from "../queries/clickhouse-sql/query-fragments";
+import {
+  eventsExperimentsAggregation,
+  eventsTracesAggregation,
+} from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 import {
@@ -27,8 +31,6 @@ export type ExperimentEventsDataReturnType = {
   error_count: number;
   prompts: Array<[string, number | null]>; // List of unique (prompt_name, prompt_version) tuples
   experiment_metadata: Record<string, string>; // Experiment metadata as key-value map
-  total_cost: number | null; // Total cost summed across traces
-  latency_avg: number | null; // Average latency in milliseconds across traces
 };
 
 export type ExperimentMetricsReturnType = {
@@ -91,17 +93,58 @@ export const getExperimentsFromEvents = async (props: {
 export const getExperimentMetricsFromEvents = async (props: {
   projectId: string;
   experimentIds: string[];
-  filter?: FilterState;
 }) => {
-  // if (props.experimentIds.length === 0) {
-  return [];
-  // }
+  if (props.experimentIds.length === 0) {
+    return [];
+  }
 
-  // return rows.map((row) => ({
-  //   id: row.experiment_id,
-  //   totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-  //   latencyAvg: row.latency_avg !== null ? Number(row.latency_avg) : null,
-  // }));
+  const tracesBuilder = eventsTracesAggregation({
+    projectId: props.projectId,
+  }).whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+    experimentIds: props.experimentIds,
+  });
+
+  // Build the final query
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTEFromBuilder("traces_agg", tracesBuilder)
+    .from("traces_agg", "ta")
+    .select(
+      "ta.experiment_id AS experiment_id",
+      "SUM(ta.total_cost) AS total_cost",
+      "AVG(ta.latency_milliseconds) AS latency_avg",
+    )
+    .groupBy("ta.project_id, ta.experiment_id");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await measureAndReturn({
+    operationName: "getExperimentsFromEventsGeneric",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "experiments",
+        type: "experiments-table",
+        projectId: props.projectId,
+        operation_name: `getExperimentMetricsFromEvents`,
+      },
+    },
+    fn: async (input) => {
+      return queryClickhouse<ExperimentMetricsReturnType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+  });
+
+  console.log({ res });
+
+  return res.map((row) => ({
+    id: row.experiment_id,
+    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
+    latencyAvg: row.latency_avg !== null ? Number(row.latency_avg) : null,
+  }));
 };
 
 export type FetchExperimentsFromEventsProps = {

@@ -341,6 +341,9 @@ const EVENTS_AGGREGATION_FIELDS = {
 
   tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",
+
+  // experiment fields
+  experiment_id: "any(e.experiment_id) as experiment_id",
 } as const;
 
 /**
@@ -1283,6 +1286,7 @@ export class CTEQueryBuilder<
   private selectExpressions: string[] = [];
   private fromClause: string = "";
   private fromAlias: string = "";
+  private groupByClause: string = "";
 
   /**
    * Register a CTE with its schema
@@ -1386,6 +1390,17 @@ export class CTEQueryBuilder<
   }
 
   /**
+   * Add GROUP BY clause
+   *
+   * @example
+   * builder.groupBy("t.project_id, t.experiment_id")
+   */
+  groupBy(clause: string): this {
+    this.groupByClause = clause;
+    return this;
+  }
+
+  /**
    * Build the query
    */
   protected buildQuery(): string {
@@ -1419,6 +1434,11 @@ export class CTEQueryBuilder<
     // WHERE
     if (this.whereClauses.length > 0) {
       parts.push(`WHERE ${this.whereClauses.join("\n  AND ")}`);
+    }
+
+    // GROUP BY
+    if (this.groupByClause) {
+      parts.push(`GROUP BY ${this.groupByClause}`);
     }
 
     // ORDER BY
