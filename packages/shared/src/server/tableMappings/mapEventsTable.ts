@@ -300,6 +300,18 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.score_categories",
   },
   {
+    uiTableName: "Trace Scores (numeric)",
+    uiTableId: "trace_scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ts.scores_avg",
+  },
+  {
+    uiTableName: "Trace Scores (categorical)",
+    uiTableId: "trace_score_categories",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ts.score_categories",
+  },
+  {
     uiTableName: "Comment Count",
     uiTableId: "commentCount",
     clickhouseTableName: "comments",

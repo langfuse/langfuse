@@ -72,6 +72,14 @@ interface BaseScoresParams {
 
 interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
+  /**
+   * Encoding format for categorical scores in the aggregation output.
+   * - "concat" (default): `concat(name, ':', string_value)` — compact but breaks
+   *   when score names contain colons. Suitable for display/filtering only.
+   * - "tuple": `tuple(name, string_value)` — safe for programmatic parsing
+   *   (e.g. batch exports where values must be accurately extracted).
+   */
+  categoricalEncoding?: "concat" | "tuple";
 }
 
 /**
@@ -112,7 +120,7 @@ export const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        groupArrayIf(${params.categoricalEncoding === "tuple" ? "tuple(name, string_value)" : "concat(name, ':', string_value)"}, data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
       FROM (
         SELECT
           ${primaryKey},
@@ -144,6 +152,7 @@ export const buildScoresAggregationCTE = (
 interface EventsScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
+  categoricalEncoding?: "concat" | "tuple";
 }
 
 /**
@@ -165,6 +174,10 @@ interface EventsTracesScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   hasScoreAggregationFilters?: boolean;
+  // Note: categoricalEncoding is intentionally omitted. This function is only used
+  // in UI table queries where score_categories are used for filtering, not programmatic
+  // parsing. If this is ever used in an export path, add categoricalEncoding here and
+  // pass it through to buildScoresAggregationCTE (see EventsScoresAggregationParams).
 }
 
 /**
