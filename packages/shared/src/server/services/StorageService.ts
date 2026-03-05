@@ -25,6 +25,26 @@ import * as objectstorage from "oci-objectstorage";
 import * as common from "oci-common";
 import { UploadManager as OciUploadManager } from "oci-objectstorage";
 import { URL } from "node:url";
+import { BufferedStreamUploader } from "./BufferedStreamUploader";
+import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+
+export interface S3SseConfig {
+  serverSideEncryption?: string;
+  sseKmsKeyId?: string;
+}
+
+export function buildS3SseParams(
+  sseConfig?: S3SseConfig,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (sseConfig?.serverSideEncryption) {
+    params.ServerSideEncryption = sseConfig.serverSideEncryption;
+    if (sseConfig.serverSideEncryption === "aws:kms" && sseConfig.sseKmsKeyId) {
+      params.SSEKMSKeyId = sseConfig.sseKmsKeyId;
+    }
+  }
+  return params;
+}
 
 type UploadFile = {
   fileName: string;
@@ -32,6 +52,13 @@ type UploadFile = {
   data: Readable | string;
   partSize?: number; // Optional: Part size in bytes for multipart uploads (S3 only)
   queueSize?: number; // Optional: Number of concurrent part uploads (S3 only)
+};
+
+type UploadFileBuffered = {
+  fileName: string;
+  fileType: string;
+  data: Readable;
+  partSizeBytes: number;
 };
 
 type UploadWithSignedUrl = UploadFile & {
@@ -55,12 +82,14 @@ function handleStorageError(err: unknown, operation: string): never {
       "Storage service temporarily unavailable due to network issues",
     );
   }
-  // For other errors, throw a generic error
-  throw Error(`Failed to ${operation}`);
+  // For other errors, throw with the original cause preserved
+  throw new Error(`Failed to ${operation}`, { cause: err });
 }
 
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
+
+  uploadFileBuffered(params: UploadFileBuffered): Promise<void>;
 
   uploadWithSignedUrl(
     params: UploadWithSignedUrl,
@@ -244,6 +273,15 @@ class AzureBlobStorageService implements StorageService {
       );
       handleStorageError(err, "upload file to Azure Blob Storage");
     }
+  }
+
+  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+    await this.uploadFile({
+      fileName: params.fileName,
+      fileType: params.fileType,
+      data: params.data,
+      partSize: params.partSizeBytes,
+    });
   }
 
   public async uploadWithSignedUrl(
@@ -502,13 +540,13 @@ class S3StorageService implements StorageService {
   }
 
   private addSSEToParams<T>(params: Record<string, unknown>): T {
-    if (this.awsSse) {
-      params.ServerSideEncryption = this.awsSse;
-      if (this.awsSse === "aws:kms" && this.awsSseKmsKeyId) {
-        params.SSEKMSKeyId = this.awsSseKmsKeyId;
-      }
-    }
-    return params as T;
+    return {
+      ...params,
+      ...buildS3SseParams({
+        serverSideEncryption: this.awsSse,
+        sseKmsKeyId: this.awsSseKmsKeyId,
+      }),
+    } as T;
   }
 
   public async uploadFile({
@@ -538,6 +576,43 @@ class S3StorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to upload file to ${fileName}`, err);
       handleStorageError(err, "upload file to S3");
+    }
+  }
+
+  public async uploadFileBuffered({
+    fileName,
+    fileType,
+    data,
+    partSizeBytes,
+  }: UploadFileBuffered): Promise<void> {
+    if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
+      return this.uploadFile({ fileName, fileType, data });
+    }
+
+    const strategy = new S3ChunkedUploadStrategy({
+      client: this.client,
+      bucket: this.bucketName,
+      key: fileName,
+      contentType: fileType,
+      sseConfig: {
+        serverSideEncryption: this.awsSse,
+        sseKmsKeyId: this.awsSseKmsKeyId,
+      },
+    });
+
+    const uploader = new BufferedStreamUploader({
+      strategy,
+      partSizeBytes,
+      maxPartAttempts: env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
+      maxConcurrentParts: env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
+      key: fileName,
+    });
+
+    try {
+      await uploader.upload(data);
+    } catch (err) {
+      logger.error(`Failed to upload file (buffered) to ${fileName}`, err);
+      handleStorageError(err, "upload file to S3 (buffered)");
     }
   }
 
@@ -782,6 +857,14 @@ class GoogleCloudStorageService implements StorageService {
       );
       handleStorageError(err, "upload file to Google Cloud Storage");
     }
+  }
+
+  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+    await this.uploadFile({
+      fileName: params.fileName,
+      fileType: params.fileType,
+      data: params.data,
+    });
   }
 
   public async uploadWithSignedUrl({
