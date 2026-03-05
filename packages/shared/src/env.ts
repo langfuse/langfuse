@@ -53,7 +53,7 @@ const EnvSchema = z.object({
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(300), // 5 minutes
+  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_READ_ONLY_URL: z.string().url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.string().url().optional(),
@@ -116,6 +116,19 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS: z.coerce
+    .number()
+    .min(1)
+    .max(10)
+    .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),

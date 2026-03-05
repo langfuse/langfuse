@@ -988,6 +988,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Unique identifier for the observation.",
       highCardinality: true,
+      uiHidden: true,
     },
     traceId: {
       sql: "events_observations.trace_id",
@@ -995,6 +996,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Identifier linking the observation to its parent trace.",
       highCardinality: true,
+      uiHidden: true,
     },
     environment: {
       sql: "nullIf(events_observations.environment, '')",
@@ -1009,6 +1011,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Identifier of the parent observation. Empty for the root span.",
       highCardinality: true,
+      uiHidden: true,
     },
     type: {
       sql: "events_observations.type",
