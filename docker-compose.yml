@@ -8,8 +8,8 @@ services:
     image: docker.io/langfuse/langfuse-worker:3
     restart: always
     depends_on: &langfuse-depends-on
-      postgres:
-        condition: service_healthy
+      # postgres:
+      #   condition: service_healthy
       minio:
         condition: service_healthy
       redis:
@@ -20,7 +20,8 @@ services:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
+      LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED: ${LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED:-false}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://yugabyte:yugabyte@host.docker.internal:5433/langfuse}
       SALT: ${SALT:-mysalt} # CHANGEME
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
@@ -98,7 +99,7 @@ services:
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
       - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+      - 127.0.0.1:9095:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
@@ -144,28 +145,28 @@ services:
       timeout: 10s
       retries: 10
 
-  postgres:
-    image: docker.io/postgres:${POSTGRES_VERSION:-17}
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres} # CHANGEME
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      TZ: UTC
-      PGTZ: UTC
-    ports:
-      - 127.0.0.1:5432:5432
-    volumes:
-      - langfuse_postgres_data:/var/lib/postgresql/data
+  # postgres:
+  #   image: docker.io/postgres:${POSTGRES_VERSION:-17}
+  #   restart: always
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 3s
+  #     timeout: 3s
+  #     retries: 10
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres} # CHANGEME
+  #     POSTGRES_DB: ${POSTGRES_DB:-postgres}
+  #     TZ: UTC
+  #     PGTZ: UTC
+  #   ports:
+  #     - 127.0.0.1:5432:5432
+  #   volumes:
+  #     - langfuse_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  langfuse_postgres_data:
-    driver: local
+  # langfuse_postgres_data:
+  #   driver: local
   langfuse_clickhouse_data:
     driver: local
   langfuse_clickhouse_logs:
