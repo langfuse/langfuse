@@ -11,6 +11,7 @@ type CreatePylonIssueParams = {
   tags?: string[];
   priority?: "urgent" | "high" | "medium" | "low";
   attachmentUrls?: string[];
+  customFields?: { slug: string; value: string }[];
 };
 
 type PylonIssueResponse = {
@@ -43,7 +44,8 @@ export async function createPylonIssue(
     body_html: bodyHtml,
     requester_email: requesterEmail,
     destination_metadata: {
-      destination: "internal",
+      destination: "email",
+      email: "support@langfuse.com",
     },
   };
 
@@ -51,6 +53,7 @@ export async function createPylonIssue(
   if (tags?.length) body.tags = tags;
   if (priority) body.priority = priority;
   if (attachmentUrls?.length) body.attachment_urls = attachmentUrls;
+  if (params.customFields?.length) body.custom_fields = params.customFields;
 
   const res = await fetch(`${PYLON_API_BASE}/issues`, {
     method: "POST",

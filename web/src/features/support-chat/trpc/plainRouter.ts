@@ -327,34 +327,32 @@ export const plainRouter = createTRPCRouter({
           const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
           const pylonBodyHtml = buildPylonIssueBodyHtml({
             message: input.message,
-            url: input.url,
             organizationId: currentSupportRequestContext.organizationId,
             projectId: currentSupportRequestContext.projectId,
             version: VERSION,
             plan: currentSupportRequestContext.plan,
             cloudRegion: currentSupportRequestContext.region,
             browserMetadata: input.browserMetadata,
-            severity: input.severity,
-            messageType: input.messageType,
             topic: input.topic,
-            integrationType: input.integrationType,
-          });
-          const pylonTags = buildPylonTags({
-            messageType: input.messageType,
-            topLevel,
-            subtype,
-            integrationType: input.integrationType,
-          });
 
+          });
           await createPylonIssue({
             apiKey: env.PYLON_API_KEY,
             title: pylonTitle,
             bodyHtml: pylonBodyHtml,
             requesterEmail: email,
             requesterName: fullName,
-            tags: pylonTags,
+            tags: ["Langfuse"],
             priority: mapSeverityToPylonPriority(input.severity),
             attachmentUrls: input.pylonAttachmentUrls,
+            customFields: [
+              ...(input.url ? [{ slug: "url", value: input.url }] : []),
+              { slug: "question_type", value: input.messageType },
+              { slug: "topic", value: input.topic },
+              ...(input.integrationType
+                ? [{ slug: "integration_type", value: input.integrationType }]
+                : []),
+            ],
           });
         } catch (e) {
           logger.error("Pylon issue creation failed (best-effort)", e);
