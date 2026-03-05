@@ -7,7 +7,10 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get a observation
+      availability:
+        status: deprecated
+        message: "Observations V1 is deprecated and queries the legacy observations table. Use /api/public/v2/observations."
+      docs: Get an observation (Observations V1, deprecated)
       method: GET
       path: /observations/{observationId}
       path-parameters:
@@ -16,14 +19,17 @@ service:
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
       response: commons.ObservationsView
     getMany:
+      availability:
+        status: deprecated
+        message: "Observations V1 is deprecated and queries the legacy observations table. Use /api/public/v2/observations."
       docs: |
-        Get a list of observations.
+        Get a list of observations (Observations V1, deprecated).
 
         Consider using the [v2 observations endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations) for cursor-based pagination and field selection.
       method: GET
       path: /observations
       request:
-        name: GetObservationsRequest
+        name: GetObservationsV1Request
         query-parameters:
           page:
             type: optional<integer>
@@ -148,15 +154,15 @@ service:
                 }
               ]
               ```
-      response: ObservationsViews
+      response: ObservationsV1Views
 
 types:
-  Observations:
+  ObservationsV1:
     properties:
       data: list<commons.Observation>
       meta: pagination.MetaResponse
 
-  ObservationsViews:
+  ObservationsV1Views:
     properties:
       data: list<commons.ObservationsView>
       meta: pagination.MetaResponse
