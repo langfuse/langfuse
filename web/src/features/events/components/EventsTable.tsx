@@ -13,6 +13,7 @@ import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -349,9 +350,13 @@ export default function ObservationsEventsTable({
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
-    hideControls, // Disable URL persistence for embedded preview tables
+    {
+      loading: isFilterOptionsPending,
+      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -399,7 +404,7 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const combinedFilterState = queryFilter.filterState
+  const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
@@ -1127,7 +1132,7 @@ export default function ObservationsEventsTable({
       columns,
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1235,7 +1240,7 @@ export default function ObservationsEventsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,

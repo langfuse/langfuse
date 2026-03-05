@@ -1,6 +1,6 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect, useRef } from "react";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { useCallback, useMemo, useEffect, useState } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
   singleFilter,
@@ -12,9 +12,22 @@ import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
 } from "../lib/filter-query-encoding";
+import {
+  buildSidebarFilterQueryStorageKey,
+  createPersistedSidebarFilterQueryState,
+  getPersistedSidebarFilterQueryForContext,
+  type PersistedSidebarFilterQueryState,
+} from "../lib/persistedSidebarFilterQuery";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
+import {
+  buildEffectiveEnvironmentFilter,
+  buildManagedEnvironmentPolicyConfig,
+  stripImplicitEnvironmentFilterFromExplicitState,
+  type ManagedEnvironmentPolicyInput,
+} from "../lib/managedEnvironmentPolicy";
+import { areStringSetsEqual } from "../lib/stringSetUtils";
+import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -309,6 +322,22 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
+type UseSidebarFilterStateOptions = {
+  loading?: boolean;
+  /**
+   * If true, prevents filter state from being persisted to/read from URL query params.
+   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
+   * the parent page's URL with filters that don't apply to the parent context.
+   */
+  disableUrlPersistence?: boolean;
+  /**
+   * Optional context identifier (for example projectId) to guard against
+   * carrying persisted filters across contexts.
+   */
+  sessionFilterContextId?: string | null;
+  implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+};
+
 /**
  * Pure function that determines the operator and values for checkbox-based
  * filter interactions. Extracted for testability.
@@ -365,21 +394,14 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  projectId?: string,
-  loading?: boolean,
-  /**
-   * If true, prevents filter state from being persisted to/read from URL query params.
-   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
-   * the parent page's URL with filters that don't apply to the parent context.
-   */
-  disableUrlPersistence?: boolean,
-  /**
-   * Default filters to apply on initial page load (when no URL filters are present).
-   * These apply every time the component mounts, but respect user's manual filter changes.
-   * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
-   */
-  defaultFilters?: FilterState,
+  hookOptions: UseSidebarFilterStateOptions = {},
 ) {
+  const {
+    loading,
+    disableUrlPersistence,
+    sessionFilterContextId,
+    implicitDefaultConfig,
+  } = hookOptions;
   const peekContext = usePeekTableState();
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
@@ -399,10 +421,48 @@ export function useSidebarFilterState(
     [setExpandedString],
   );
 
-  const [filtersQuery, setFiltersQuery] = useQueryParam(
-    "filter",
-    withDefault(StringParam, ""),
+  const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
+  const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
+    tableName: config.tableName,
+    contextId: normalizedSessionFilterContextId,
+  });
+
+  const [storedFilterQueryState, setStoredFilterQueryState] =
+    useKeyedSessionStorageState<PersistedSidebarFilterQueryState>(
+      FILTER_QUERY_SESSION_STORAGE_KEY,
+      createPersistedSidebarFilterQueryState(
+        normalizedSessionFilterContextId,
+        "",
+      ),
+    );
+
+  const storedFiltersQuery = getPersistedSidebarFilterQueryForContext({
+    state: storedFilterQueryState,
+    contextId: normalizedSessionFilterContextId,
+  });
+  const setStoredFiltersQuery = useCallback(
+    (query: string) => {
+      setStoredFilterQueryState(
+        createPersistedSidebarFilterQueryState(
+          normalizedSessionFilterContextId,
+          query,
+        ),
+      );
+    },
+    [setStoredFilterQueryState, normalizedSessionFilterContextId],
   );
+  const [urlFiltersQuery, setUrlFiltersQuery] = useQueryParam(
+    "filter",
+    StringParam,
+  );
+  // Optimistic query state: prevents stale URL reads from overriding immediate
+  // local changes while use-query-params updates the URL asynchronously.
+  const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
+    null,
+  );
+  const filtersQuery = disableUrlPersistence
+    ? ""
+    : (pendingFiltersQuery ?? urlFiltersQuery ?? storedFiltersQuery);
 
   const mutualExclusionContext = useMemo(
     () => buildMutualExclusionContext(config),
@@ -430,15 +490,55 @@ export function useSidebarFilterState(
     ? peekContext.tableState.filters
     : urlFilterState;
 
-  const filterState: FilterState = useMemo(
+  const managedEnvironmentPolicyConfig = useMemo(
+    () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
+    [implicitDefaultConfig],
+  );
+
+  const managedEnvironmentColumn =
+    managedEnvironmentPolicyConfig.managedEnvironmentColumn;
+
+  const availableEnvironmentValues = useMemo(() => {
+    const rawOptions = options[managedEnvironmentColumn];
+    if (!Array.isArray(rawOptions)) return [];
+    return rawOptions.map((option) =>
+      typeof option === "string" ? option : option.value,
+    );
+  }, [options, managedEnvironmentColumn]);
+
+  const explicitFilterState: FilterState = useMemo(
     () =>
       reconcileMutuallyExclusiveFilters(rawFilterState, mutualExclusionContext),
     [rawFilterState, mutualExclusionContext],
   );
 
-  // Track if user has manually interacted with filters
-  // This prevents default filters from overriding user's explicit "clear all" action
-  const userHasInteractedRef = useRef(false);
+  const effectiveEnvironmentFilterState: FilterState = useMemo(
+    () =>
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: explicitFilterState,
+        config: managedEnvironmentPolicyConfig,
+      }),
+    [explicitFilterState, managedEnvironmentPolicyConfig],
+  );
+
+  const filterState: FilterState = useMemo(
+    () =>
+      reconcileMutuallyExclusiveFilters(
+        [
+          ...explicitFilterState.filter(
+            (filter) => filter.column !== managedEnvironmentColumn,
+          ),
+          ...effectiveEnvironmentFilterState,
+        ],
+        mutualExclusionContext,
+      ),
+    [
+      explicitFilterState,
+      effectiveEnvironmentFilterState,
+      mutualExclusionContext,
+      managedEnvironmentColumn,
+    ],
+  );
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
@@ -448,11 +548,16 @@ export function useSidebarFilterState(
         newFilters,
         mutualExclusionContext,
       );
+      const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
+        explicitFilters: reconciledFilters,
+        availableEnvironmentValues,
+        config: managedEnvironmentPolicyConfig,
+      });
 
       if (peekContext) {
         peekContext.setTableState({
           ...peekContext.tableState,
-          filters: reconciledFilters,
+          filters: explicitFilters,
         });
         return;
       }
@@ -460,102 +565,58 @@ export function useSidebarFilterState(
       // Don't modify URL if persistence is disabled
       if (disableUrlPersistence) return;
 
-      // Mark that user has manually interacted with filters
-      // Exception: Don't mark as interacted if this is the initial default filter application
-      if (userHasInteractedRef.current || reconciledFilters.length > 0) {
-        userHasInteractedRef.current = true;
-      }
-
-      const encoded = encodeFiltersGeneric(reconciledFilters);
-      setFiltersQuery(encoded || null);
+      const encoded = encodeFiltersGeneric(explicitFilters);
+      setPendingFiltersQuery(encoded);
+      setUrlFiltersQuery(encoded || null);
+      setStoredFiltersQuery(encoded);
     },
     [
-      setFiltersQuery,
+      setUrlFiltersQuery,
+      setStoredFiltersQuery,
       disableUrlPersistence,
       peekContext,
       mutualExclusionContext,
+      managedEnvironmentPolicyConfig,
+      availableEnvironmentValues,
     ],
   );
 
-  // track if defaults have been applied before, versioned to support future changes
-  // per project tracking because people want a default experience in a new project
-  const storageKey = projectId
-    ? `${config.tableName}-${projectId}-env-defaults-v1`
-    : `${config.tableName}-env-defaults-v1`;
-  const [defaultsApplied, setDefaultsApplied] = useLocalStorage<boolean>(
-    storageKey,
-    false,
-  );
-
-  // Apply default filters when no URL filters are present
+  // Drop optimistic override once URL catches up to the requested value.
   useEffect(() => {
-    // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;
+    if (peekContext) return;
+    if (pendingFiltersQuery === null) return;
 
-    // If there are already filters in URL, don't apply defaults
-    if (filterState.length > 0) return;
-
-    // If user has manually interacted with filters (e.g., cleared them), respect their choice
-    // This prevents defaults from reapplying when user clears filters in the same session
-    if (userHasInteractedRef.current) return;
-
-    let filtersToApply: FilterState = [];
-
-    // Priority 1: Apply custom default filters if provided
-    if (defaultFilters && defaultFilters.length > 0) {
-      filtersToApply = defaultFilters;
-    }
-    // Priority 2: Fallback to legacy environment filter (one-time with localStorage)
-    else if (!defaultsApplied) {
-      const environmentFacet = config.facets.find(
-        (f) => f.column === "environment" && f.type === "categorical",
-      );
-
-      if (environmentFacet) {
-        const environmentOptions = options["environment"];
-        if (
-          Array.isArray(environmentOptions) &&
-          environmentOptions.length > 0
-        ) {
-          const environments = environmentOptions.map((opt) =>
-            typeof opt === "string" ? opt : opt.value,
-          );
-
-          const langfuseEnvironments = environments.filter((env) =>
-            env.startsWith("langfuse-"),
-          );
-
-          if (langfuseEnvironments.length > 0) {
-            filtersToApply = [
-              {
-                column: "environment",
-                type: "stringOptions",
-                operator: "none of",
-                value: langfuseEnvironments,
-              },
-            ];
-          }
-        }
-      }
-    }
-
-    // Apply filters if any were determined
-    if (filtersToApply.length > 0) {
-      setFilterState(filtersToApply);
-      // Only mark as applied for legacy environment filter (not for custom defaultFilters)
-      if (!defaultFilters || defaultFilters.length === 0) {
-        setDefaultsApplied(true);
-      }
+    const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
+    if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
+      setPendingFiltersQuery(null);
     }
   }, [
-    filterState.length,
-    defaultsApplied,
-    config.facets,
-    options,
     disableUrlPersistence,
-    setFilterState,
-    setDefaultsApplied,
-    defaultFilters,
+    peekContext,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+  ]);
+
+  // Mirror explicit URL filter state into session fallback storage.
+  useEffect(() => {
+    if (disableUrlPersistence) return;
+    if (peekContext) return;
+    if (pendingFiltersQuery !== null) return;
+    if (typeof urlFiltersQuery !== "string") return;
+    if (!urlFiltersQuery) return;
+    if (urlFiltersQuery === storedFiltersQuery) return;
+
+    // Keep session fallback aligned to explicit URL links without clearing
+    // previously saved state when URL has no `filter` parameter.
+    setStoredFiltersQuery(urlFiltersQuery);
+  }, [
+    disableUrlPersistence,
+    peekContext,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
+    setStoredFiltersQuery,
   ]);
 
   const clearAll = () => {
@@ -646,6 +707,22 @@ export function useSidebarFilterState(
           (values.length === availableValues.length &&
             availableValues.every((v) => values.includes(v)))
         ) {
+          const isManagedEnvironmentColumn =
+            column === managedEnvironmentColumn &&
+            managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
+
+          // Keep explicit override when user intentionally enables all environments.
+          if (isManagedEnvironmentColumn && values.length > 0) {
+            return [
+              ...other,
+              {
+                column,
+                type: "stringOptions" as const,
+                operator: "any of" as const,
+                value: values,
+              },
+            ];
+          }
           return other;
         }
         // Checkbox interaction - smart operator selection
@@ -690,7 +767,7 @@ export function useSidebarFilterState(
         },
       ];
     },
-    [config, options],
+    [config, options, managedEnvironmentColumn, managedEnvironmentPolicyConfig],
   );
 
   const updateFilter: UpdateFilter = useCallback(
@@ -1508,14 +1585,33 @@ export function useSidebarFilterState(
         const hasCheckboxSelections =
           selectedValues.length > 0 &&
           selectedValues.length !== availableValues.length;
+        const isManagedEnvironmentFacet =
+          facet.column === managedEnvironmentColumn &&
+          managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
+        const hasManagedEnvironmentSelectionOverride =
+          isManagedEnvironmentFacet &&
+          !areStringSetsEqual(
+            selectedValues,
+            availableValues.filter(
+              (value) =>
+                !managedEnvironmentPolicyConfig.hiddenEnvironments.includes(
+                  value,
+                ),
+            ),
+          );
 
-        // isActive check: filter is active if we have text filters OR checkbox selections
-        // Special case: "all of" with all values selected is still an active filter
+        // isActive check:
+        // - Managed environment facet: active only when selection differs from default
+        //   (implicit hidden-env default should not surface a "Clear" badge).
+        // - Other facets: active when text filters exist or checkbox selections differ from unfiltered.
+        //   Special case: "all of" with all values selected is still active.
         const isActive =
           hasTextFilters ||
-          (currentOperator === "all of" &&
-            selectedValues.length === availableValues.length) ||
-          hasCheckboxSelections;
+          (isManagedEnvironmentFacet
+            ? hasManagedEnvironmentSelectionOverride
+            : (currentOperator === "all of" &&
+                selectedValues.length === availableValues.length) ||
+              hasCheckboxSelections);
         const disableState = getFacetDisabledState(facet, isActive);
 
         return {
@@ -1593,16 +1689,20 @@ export function useSidebarFilterState(
     expandedState,
     setFilterState,
     mutualExclusionContext,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig.hiddenEnvironments,
   ]);
 
   return {
     filterState,
+    effectiveFilterState: filterState,
+    explicitFilterState,
     setFilterState,
     updateFilter,
     updateFilterOnly,
     updateOperator,
     clearAll,
-    isFiltered: filterState.length > 0,
+    isFiltered: explicitFilterState.length > 0,
     filters,
     expanded: expandedState,
     onExpandedChange,
