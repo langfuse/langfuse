@@ -23,7 +23,9 @@ const customLoader = ({
   width: number;
   quality?: number;
 }) => {
-  return src + (width && quality ? `?w=${width}&q=${quality || 75}` : "");
+  if (!width || !quality) return src;
+  const separator = src.includes("?") ? "&" : "?";
+  return `${src}${separator}w=${width}&q=${quality || 75}`;
 };
 
 const ImageErrorDisplay = ({
