@@ -39,6 +39,13 @@ export const experimentPreAggCols: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: "e.start_time",
   },
+  {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_metadata",
+    queryPrefix: "e", // StringObjectFilter uses {prefix}.metadata_names/metadata_values for array access
+  },
 ];
 
 /**
@@ -60,64 +67,51 @@ export const experimentPostAggCols: UiColumnMappings = [
     uiTableName: "Item Count",
     uiTableId: "itemCount",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.item_count",
-  },
-  {
-    uiTableName: "Total Cost ($)",
-    uiTableId: "totalCost",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "em.total_cost",
+    clickhouseSelect: "item_count",
   },
   {
     uiTableName: "Error Count",
     uiTableId: "errorCount",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.error_count",
+    clickhouseSelect: "error_count",
   },
-  {
-    uiTableName: "Latency (ms)",
-    uiTableId: "latencyAvg",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "em.latency_avg",
-  },
-  // Observation-level scores (eos.* alias)
+  // Observation-level scores
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "obs_scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "eos.obs_scores_avg",
+    clickhouseSelect: "obs_scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
     uiTableId: "obs_score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "eos.obs_score_categories",
+    clickhouseSelect: "obs_score_categories",
   },
-  // Trace-level scores (ets.* alias)
+  // Trace-level scores
   {
     uiTableName: "Trace Scores (numeric)",
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "ets.trace_scores_avg",
+    clickhouseSelect: "trace_scores_avg",
   },
   {
     uiTableName: "Trace Scores (categorical)",
     uiTableId: "trace_score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "ets.trace_score_categories",
+    clickhouseSelect: "trace_score_categories",
   },
   {
-    uiTableName: "Metadata",
-    uiTableId: "metadata",
+    uiTableName: "Start Time",
+    uiTableId: "startTime",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.experiment_metadata",
-    queryPrefix: "e", // StringObjectFilter uses {prefix}.metadata_names/metadata_values for array access
+    clickhouseSelect: "start_time",
   },
 ];
 
 /**
  * Combined column mappings for experiments (all columns).
- * Use this for ordering and general column lookups.
+ * Used for general column lookups.
  */
 export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,

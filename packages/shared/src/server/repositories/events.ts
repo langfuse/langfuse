@@ -226,7 +226,7 @@ async function enrichObservationsWithTraceFields(
  * Internal helper: extract and convert time filter from FilterList
  * Common pattern: find time filter and convert to ClickHouse DateTime format
  */
-function extractTimeFilter(
+export function extractTimeFilter(
   filter: FilterList,
   tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",

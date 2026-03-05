@@ -1,29 +1,20 @@
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
-  CTEQueryBuilder,
-  CTEWithSchema,
-  DateTimeFilter,
-  EventsAggQueryBuilder,
+  experimentObsScoresCTE,
+  experimentTraceScoresCTE,
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import {
-  eventsExperimentsAggregation,
-  eventsExperimentsObservationScoresAggregation,
-  eventsExperimentsTraceScoresAggregation,
-} from "../queries/clickhouse-sql/query-fragments";
-import { buildExperimentFilterState } from "../queries/clickhouse-sql/utils";
-import { queryClickhouse } from "../repositories";
+import { eventsExperimentsAggregation } from "../queries/clickhouse-sql/query-fragments";
+import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 import {
-  experimentTableUiColumnDefinitions,
   experimentPreAggCols,
-  experimentCols,
+  experimentPostAggCols,
 } from "../tableMappings/mapExperimentTable";
 
 export type ExperimentEventsDataReturnType = {
@@ -102,35 +93,19 @@ export const getExperimentMetricsFromEvents = async (props: {
   experimentIds: string[];
   filter?: FilterState;
 }) => {
-  if (props.experimentIds.length === 0) {
-    return [];
-  }
+  // if (props.experimentIds.length === 0) {
+  return [];
+  // }
 
-  const rows =
-    await getExperimentsFromEventsGeneric<ExperimentMetricsReturnType>({
-      select: "metrics",
-      projectId: props.projectId,
-      filter: [
-        ...(props.filter ?? []),
-        {
-          column: "id",
-          type: "stringOptions",
-          operator: "any of",
-          value: props.experimentIds,
-        },
-      ],
-      tags: { kind: "metrics" },
-    });
-
-  return rows.map((row) => ({
-    id: row.experiment_id,
-    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-    latencyAvg: row.latency_avg !== null ? Number(row.latency_avg) : null,
-  }));
+  // return rows.map((row) => ({
+  //   id: row.experiment_id,
+  //   totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
+  //   latencyAvg: row.latency_avg !== null ? Number(row.latency_avg) : null,
+  // }));
 };
 
 export type FetchExperimentsFromEventsProps = {
-  select: "count" | "rows" | "metrics";
+  select: "count" | "rows";
   projectId: string;
   filter: FilterState;
   orderBy?: OrderByState;
@@ -139,249 +114,88 @@ export type FetchExperimentsFromEventsProps = {
   tags?: Record<string, string>;
 };
 
-/**
- * Helper function to build trace-level metrics CTE for experiments.
- * Groups events by (project_id, experiment_id, trace_id) and computes:
- * - latency_ms: Time difference between min start_time and max end_time
- * - total_cost: Sum of costs across all events in the trace
- *
- * This is Stage 1 of the two-stage aggregation required for experiment metrics.
- */
-const buildExperimentTraceMetricsCTE = (params: {
-  projectId: string;
-  experimentIds?: string[];
-  startTimeFrom?: string | null;
-}): CTEWithSchema => {
-  const { projectId, experimentIds, startTimeFrom } = params;
-
-  // Build FilterState using helper function
-  const filterState = buildExperimentFilterState({
-    experimentIds,
-    startTimeFrom,
-  });
-
-  // Convert FilterState to Filter objects and apply
-  const filters = new FilterList(
-    createFilterFromFilterState(
-      filterState,
-      experimentTableUiColumnDefinitions,
-    ),
-  );
-  const appliedFilters = filters.apply();
-
-  const builder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.project_id, e.experiment_id, e.trace_id",
-    selectExpression: `
-      e.project_id,
-      e.experiment_id,
-      e.trace_id,
-      dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
-      sum(e.total_cost) as total_cost`,
-  }).where(appliedFilters);
-
-  return {
-    ...builder.buildWithParams(),
-    schema: [
-      "project_id",
-      "experiment_id",
-      "trace_id",
-      "latency_ms",
-      "total_cost",
-    ],
-  };
-};
-
-/**
- * Helper function to build experiment-level metrics CTE.
- * Aggregates trace-level metrics (from trace_metrics CTE) to experiment level:
- * - total_cost: SUM of trace costs (experiment total)
- * - latency_avg: AVG of trace latencies (average latency)
- *
- * This is Stage 2 of the two-stage aggregation required for experiment metrics.
- */
-const buildExperimentMetricsCTE = (): CTEWithSchema => {
-  const query = `
-    SELECT
-      project_id,
-      experiment_id,
-      sum(total_cost) as total_cost,
-      avg(latency_ms) as latency_avg
-    FROM trace_metrics
-    GROUP BY project_id, experiment_id
-  `.trim();
-
-  return {
-    query,
-    params: {},
-    schema: ["project_id", "experiment_id", "total_cost", "latency_avg"],
-  };
-};
-
 const getExperimentsFromEventsGeneric = async <T>(
   props: FetchExperimentsFromEventsProps,
 ) => {
   const { select, projectId, filter, orderBy, limit, page } = props;
 
-  // Build filters and extract conditional logic
-  const experimentFilters = new FilterList(
-    createFilterFromFilterState(filter, experimentCols),
-  );
-
-  // Extract specific filters for conditional CTE building
-  const startTimeFilter = experimentFilters.find(
-    (f) =>
-      f.field === "createdAt" && (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
-
-  const experimentIdFilter = experimentFilters.find(
-    (f) => f instanceof StringOptionsFilter && f.field === "id",
-  ) as StringOptionsFilter | undefined;
-
-  // Determine if metrics CTEs are needed
-  // Note: f.field contains the clickhouseSelect value (e.g., "em.total_cost", "es.scores_avg")
-  const hasMetricsFilter = experimentFilters.some((f) =>
-    ["em.total_cost", "em.latency_avg"].includes(f.field),
-  );
-
-  // Detect observation-level scores filter (eos.*)
-  const hasObsScoresFilter = experimentFilters.some((f) =>
-    ["eos.obs_scores_avg", "eos.obs_score_categories"].includes(f.field),
-  );
-
-  // Detect trace-level scores filter (ets.*)
-  const hasTraceScoresFilter = experimentFilters.some((f) =>
-    ["ets.trace_scores_avg", "ets.trace_score_categories"].includes(f.field),
-  );
-
-  const selectMetrics = select === "metrics" || hasMetricsFilter;
-
-  // Build main experiment_data CTE
-  const experimentsBuilder = eventsExperimentsAggregation({
-    projectId,
-    experimentIds: experimentIdFilter?.values,
-  }).selectFieldSet("all");
-
-  // Apply pre-aggregation filters
-  // Only include filters for columns defined in experimentPreAggCols (raw events table columns)
+  // Split filters into pre-aggregation and post-aggregation
   const preAggFilterState = filter.filter((f) =>
     experimentPreAggCols.some((col) => col.uiTableId === f.column),
   );
+  const postAggFilterState = filter.filter((f) =>
+    experimentPostAggCols.some((col) => col.uiTableId === f.column),
+  );
 
-  if (preAggFilterState.length > 0) {
-    const preAggFilters = new FilterList(
-      createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
-    );
-    experimentsBuilder.applyFilters(preAggFilters);
-  }
+  const preAggFilters = new FilterList(
+    createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
+  );
+  const postAggFilters = new FilterList(
+    createFilterFromFilterState(postAggFilterState, experimentPostAggCols),
+  );
 
-  // Initialize CTEQueryBuilder
-  let queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("experiment_data", experimentsBuilder)
-    .from("experiment_data", "e");
+  // Extract experiment IDs for optimization
+  const experimentIdFilter = preAggFilters.find(
+    (f) => f instanceof StringOptionsFilter && f.field === "e.experiment_id",
+  ) as StringOptionsFilter | undefined;
 
-  // Conditionally add trace_metrics + experiment_metrics CTEs for cost/latency
-  if (selectMetrics) {
-    const traceMetricsCte = buildExperimentTraceMetricsCTE({
-      projectId,
-      experimentIds: experimentIdFilter?.values,
-      startTimeFrom: startTimeFilter
-        ? convertDateToClickhouseDateTime(startTimeFilter.value)
-        : null,
-    });
+  // Extract time filter for score CTEs
+  const startTimeFrom = extractTimeFilter(preAggFilters);
 
-    const experimentMetricsCte = buildExperimentMetricsCTE();
+  // Detect score filter presence to conditionally include score CTEs
+  const hasTraceScoreFilter = postAggFilters.some((f) =>
+    ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+  );
+  const hasObsScoreFilter = postAggFilters.some((f) =>
+    ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+  );
 
-    queryBuilder = queryBuilder
-      .withCTE("trace_metrics", traceMetricsCte)
-      .withCTE("experiment_metrics", experimentMetricsCte)
-      .leftJoin(
-        "experiment_metrics",
-        "em",
-        "ON em.experiment_id = e.experiment_id AND em.project_id = e.project_id",
-      );
-  }
-
-  // Conditionally add observation scores CTE
-  if (hasObsScoresFilter) {
-    const obsScoresCte = eventsExperimentsObservationScoresAggregation({
-      projectId,
-      experimentIds: experimentIdFilter?.values,
-      startTimeFrom: startTimeFilter
-        ? convertDateToClickhouseDateTime(startTimeFilter.value)
-        : null,
-    });
-
-    queryBuilder = queryBuilder
-      .withCTE("experiment_obs_scores", obsScoresCte)
-      .leftJoin(
-        "experiment_obs_scores",
-        "eos",
-        "ON eos.experiment_id = e.experiment_id AND eos.project_id = e.project_id",
-      );
-  }
-
-  // Conditionally add trace scores CTE
-  if (hasTraceScoresFilter) {
-    const traceScoresCte = eventsExperimentsTraceScoresAggregation({
-      projectId,
-      experimentIds: experimentIdFilter?.values,
-      startTimeFrom: startTimeFilter
-        ? convertDateToClickhouseDateTime(startTimeFilter.value)
-        : null,
-    });
-
-    queryBuilder = queryBuilder
-      .withCTE("experiment_trace_scores", traceScoresCte)
-      .leftJoin(
-        "experiment_trace_scores",
-        "ets",
-        "ON ets.experiment_id = e.experiment_id AND ets.project_id = e.project_id",
-      );
-  }
-
-  // Add SELECT based on operation type
-  switch (select) {
-    case "count":
-      queryBuilder.select("count(e.experiment_id) as count");
-      break;
-    case "rows":
-      queryBuilder.selectColumns(
-        "e.experiment_id",
-        "e.experiment_name",
-        "e.experiment_description",
-        "e.experiment_dataset_id",
-        "e.start_time",
-        "e.item_count",
-        "e.error_count",
-        "e.prompts",
-        "e.experiment_metadata",
-        "e.metadata_names",
-        "e.metadata_values",
-        "e.project_id",
-      );
-      break;
-    case "metrics":
-      // Use explicit aliases to avoid column name conflicts with joined CTEs
-      queryBuilder.select(
-        "e.experiment_id as experiment_id",
-        "e.project_id as project_id",
-      );
-      if (selectMetrics) {
-        queryBuilder.select("em.total_cost", "em.latency_avg");
-      }
-      break;
-    default: {
-      const exhaustiveCheckDefault: never = select;
-      throw new Error(`Unknown select type: ${exhaustiveCheckDefault}`);
-    }
-  }
-
-  // Apply post-aggregation filters
-  queryBuilder.applyFilters(experimentFilters);
+  // Build query using explicit CTE composition
+  const queryBuilder = eventsExperimentsAggregation({
+    projectId,
+    fieldSet: select === "count" ? "count" : "base",
+    startTimeFrom,
+    experimentIds: experimentIdFilter?.values,
+  })
+    .when(hasTraceScoreFilter, (b) =>
+      b
+        .withCTE(
+          "trace_scores",
+          experimentTraceScoresCTE({ projectId, startTimeFrom }),
+        )
+        .leftJoin(
+          "trace_scores AS ts",
+          "ON ts.project_id = e.project_id AND ts.trace_id = e.trace_id",
+        )
+        .selectRaw(
+          "groupArrayIf(tuple(ts.name, ts.avg_value, ts.data_type, ts.string_value), ts.data_type IN ('NUMERIC', 'BOOLEAN')) AS trace_scores_avg",
+          "groupArrayIf(concat(ts.name, ':', ts.string_value), ts.data_type = 'CATEGORICAL' AND notEmpty(ts.string_value)) AS trace_score_categories",
+        ),
+    )
+    // Conditionally include observation-level scores
+    .when(hasObsScoreFilter, (b) =>
+      b
+        .withCTE(
+          "obs_scores",
+          experimentObsScoresCTE({ projectId, startTimeFrom }),
+        )
+        .leftJoin(
+          "obs_scores AS os",
+          "ON os.project_id = e.project_id AND os.trace_id = e.trace_id AND os.observation_id = e.span_id",
+        )
+        .selectRaw(
+          "groupArrayIf(tuple(os.name, os.avg_value, os.data_type, os.string_value), os.data_type IN ('NUMERIC', 'BOOLEAN')) AS obs_scores_avg",
+          "groupArrayIf(concat(os.name, ':', os.string_value), os.data_type = 'CATEGORICAL' AND notEmpty(os.string_value)) AS obs_score_categories",
+        ),
+    )
+    .applyFilters(preAggFilters)
+    .having(postAggFilters.apply());
 
   // Apply ordering
-  const orderBySql = orderByToClickhouseSql(orderBy ?? null, experimentCols);
+  const orderBySql = orderByToClickhouseSql(
+    orderBy ?? null,
+    experimentPostAggCols,
+  );
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);
   }
@@ -397,10 +211,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     operationName: "getExperimentsFromEventsGeneric",
     projectId,
     input: {
-      params: {
-        ...params,
-        projectId,
-      },
+      params,
       tags: {
         ...(props.tags ?? {}),
         feature: "experiments",

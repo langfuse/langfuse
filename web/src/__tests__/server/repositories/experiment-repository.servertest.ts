@@ -587,7 +587,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(metric.totalCost).toBeCloseTo(0.05, 6);
     });
 
-    it("should filter by scores_avg with a threshold", async () => {
+    it("should filter by trace_scores_avg with a threshold", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "score-filter-test-1-" + randomUUID();
       const experimentId2 = randomUUID();
@@ -689,6 +689,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score1a = createTraceScore({
         project_id: projectId,
         trace_id: trace1aId,
+        observation_id: null,
         name: scoreName,
         value: 0.7,
         source: "API",
@@ -697,6 +698,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score1b = createTraceScore({
         project_id: projectId,
         trace_id: trace1bId,
+        observation_id: null,
         name: scoreName,
         value: 0.9,
         source: "API",
@@ -707,6 +709,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score2a = createTraceScore({
         project_id: projectId,
         trace_id: trace2aId,
+        observation_id: null,
         name: scoreName,
         value: 0.4,
         source: "API",
@@ -715,6 +718,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score2b = createTraceScore({
         project_id: projectId,
         trace_id: trace2bId,
+        observation_id: null,
         name: scoreName,
         value: 0.6,
         source: "API",
@@ -729,7 +733,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId,
         filter: [
           {
-            column: "scores_avg",
+            column: "trace_scores_avg",
             type: "numberObject",
             key: scoreName,
             operator: ">",

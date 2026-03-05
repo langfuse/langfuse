@@ -353,51 +353,6 @@ const AGGREGATION_FIELD_SETS = {
 } as const;
 
 /**
- * Aggregation fields for experiment-level queries
- * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id
- */
-const EXPERIMENTS_AGGREGATION_FIELDS = {
-  // Grouping keys (must be in GROUP BY)
-  experimentId: "experiment_id",
-  projectId: "project_id",
-
-  // Basic experiment metadata (same across all items)
-  experimentName: "any(experiment_name) AS experiment_name",
-  experimentDescription:
-    "any(experiment_description) AS experiment_description",
-
-  // Extended experiment metadata (might differ per item)
-  experimentDatasetId: "any(experiment_dataset_id) AS experiment_dataset_id",
-
-  // Timestamps
-  startTime: "min(start_time) AS start_time",
-
-  // Aggregated metrics
-  itemCount: "uniq(experiment_item_id) AS item_count",
-  errorCount: "countIf(level = 'ERROR') AS error_count",
-
-  // Prompts - tuple of (name, version) to preserve pairing
-  prompts:
-    "groupUniqArrayIf(tuple(prompt_name, prompt_version), prompt_name != '') AS prompts",
-
-  // Experiment metadata - output as arrays for filtering, convert to map for display
-  experimentMetadata:
-    "any(mapFromArrays(experiment_metadata_names, experiment_metadata_values)) AS experiment_metadata",
-  // Arrays for filtering (StringObjectFilter uses metadata_names/metadata_values)
-  metadataNames: "any(experiment_metadata_names) AS metadata_names",
-  metadataValues: "any(experiment_metadata_values) AS metadata_values",
-} as const;
-
-/**
- * Field sets for experiment aggregation queries
- */
-const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
-  all: Object.keys(EXPERIMENTS_AGGREGATION_FIELDS) as Array<
-    keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
-  >,
-} as const;
-
-/**
  * Special symbol to explicitly opt-out of automatic project_id filtering
  *
  * @example
@@ -413,6 +368,7 @@ export type NoProjectIdType = typeof NoProjectId;
  */
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
+  protected havingClauses: string[] = [];
   protected orderByClause: string = "";
   protected limitByClause: string = "";
   protected limitClause: string = "";
@@ -453,6 +409,32 @@ abstract class AbstractQueryBuilder {
    */
   applyFilters(filterList: FilterList): this {
     this.where(filterList.apply());
+    return this;
+  }
+
+  /**
+   * Add raw HAVING condition with optional parameters.
+   * Use for post-aggregation filtering in GROUP BY queries.
+   */
+  havingRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.havingClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
+    }
+    return this;
+  }
+
+  /**
+   * Add HAVING conditions from FilterList.
+   * Strips leading AND/OR and wraps in parentheses.
+   */
+  having(condition: { query: string; params?: Record<string, any> }): this {
+    if (condition.query.trim()) {
+      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
+      this.havingRaw(`(${trimmedQuery})`, condition.params);
+    }
     return this;
   }
 
@@ -548,6 +530,14 @@ abstract class AbstractQueryBuilder {
     }
 
     return parts.join("\n");
+  }
+
+  /**
+   * Helper to build HAVING section
+   */
+  protected buildHavingSection(): string {
+    if (this.havingClauses.length === 0) return "";
+    return `HAVING ${this.havingClauses.join("\n  AND ")}`;
   }
 
   /**
@@ -748,6 +738,12 @@ abstract class BaseEventsQueryBuilder<
     const groupBy = this.buildGroupByClause();
     if (groupBy) {
       parts.push(groupBy);
+    }
+
+    // HAVING (only for aggregation queries with post-agg filters)
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
     }
 
     // ORDER BY
@@ -1261,85 +1257,6 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
 }
 
 /**
- * EventsExperimentsAggregationQueryBuilder - A fluent query builder for experiment aggregation queries
- *
- * This builder aggregates events by experiment_id to create one row per experiment.
- * It automatically filters for experiment_id IS NOT NULL and groups by experiment_id, project_id.
- *
- * @example
- * const builder = new EventsExperimentsAggregationQueryBuilder({ projectId: "my-project-id" })
- *   .selectFieldSet("all")
- *   .orderByColumns([{ column: "start_time", direction: "DESC" }]);
- *
- * const { query, params } = builder.buildWithParams();
- */
-export class EventsExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
-  typeof EXPERIMENTS_AGGREGATION_FIELDS
-> {
-  constructor(options: { projectId: string }) {
-    super(EXPERIMENTS_AGGREGATION_FIELDS, options);
-  }
-
-  /**
-   * Add SELECT fields from predefined aggregation field sets
-   */
-  selectFieldSet(
-    ...setNames: Array<keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS>
-  ): this {
-    setNames
-      .flatMap((s) => EXPERIMENTS_AGGREGATION_FIELD_SETS[s])
-      .forEach((field) => this.selectFields.add(field));
-    return this;
-  }
-
-  /**
-   * Filter by experiment IDs
-   */
-  withExperimentIds(experimentIds?: string[]): this {
-    return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
-      b.whereRaw("experiment_id IN ({experimentIds: Array(String)})", {
-        experimentIds,
-      }),
-    );
-  }
-
-  /**
-   * Build the SELECT clause for aggregation queries
-   */
-  protected buildSelectClause(): string {
-    const fieldExpressions = [...this.selectFields]
-      .map((key) => {
-        return this.fields[key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS];
-      })
-      .filter(Boolean);
-    return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
-  }
-
-  /**
-   * Build the GROUP BY clause for experiment aggregations
-   */
-  protected buildGroupByClause(): string {
-    return "GROUP BY experiment_id, project_id";
-  }
-
-  /**
-   * Build with schema for use in CTEQueryBuilder.
-   * Returns query, params, and list of column names this CTE exposes.
-   */
-  buildWithSchema(): CTEWithSchema {
-    // Extract column names from selected fields
-    const schema = [...this.selectFields].map((fieldKey) => {
-      return fieldKey;
-    });
-
-    return {
-      ...this.buildWithParams(),
-      schema,
-    };
-  }
-}
-
-/**
  * Query builder that composes CTEs with type-safe CTE name tracking.
  *
  * Generic type parameters:
@@ -1597,6 +1514,147 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     }
 
     return parts.join("\n");
+  }
+}
+
+// ============================================================
+// EXPERIMENTS AGGREGATION BUILDER
+// ============================================================
+
+/**
+ * Aggregation fields for experiment-level queries.
+ * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id, project_id.
+ */
+const EXPERIMENTS_AGGREGATION_FIELDS = {
+  // Base aggregated fields
+  experimentId: "e.experiment_id AS experiment_id",
+  experimentName: "any(e.experiment_name) AS experiment_name",
+  experimentDescription:
+    "any(e.experiment_description) AS experiment_description",
+  experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
+  startTime: "min(e.start_time) AS start_time",
+  itemCount: "uniq(e.experiment_item_id) AS item_count",
+  errorCount: "countIf(e.level = 'ERROR') AS error_count",
+  prompts:
+    "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
+  experimentMetadata:
+    "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+
+  // Count
+  count: "count() AS count",
+} as const;
+
+/**
+ * Field sets for experiment aggregation queries.
+ */
+const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+  count: ["count"] as const,
+  base: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+    "itemCount",
+    "errorCount",
+    "prompts",
+    "experimentMetadata",
+  ] as const,
+} as const;
+
+export type ExperimentsAggregationFieldSetName =
+  keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS;
+
+/**
+ * ExperimentsAggregationQueryBuilder - A fluent query builder for experiment-level aggregation queries.
+ *
+ * Aggregates events by experiment_id with explicit CTE/JOIN/SELECT composition.
+ * Handles pre-aggregation filters (WHERE) and post-aggregation filters (HAVING) correctly.
+ *
+ */
+export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
+  typeof EXPERIMENTS_AGGREGATION_FIELDS
+> {
+  private selectedFieldSets: Set<ExperimentsAggregationFieldSetName> =
+    new Set();
+  private rawSelectExpressions: string[] = [];
+
+  constructor(opts: { projectId: string }) {
+    super(EXPERIMENTS_AGGREGATION_FIELDS, { projectId: opts.projectId });
+  }
+
+  /**
+   * Add experiment IDs filter
+   */
+  withExperimentIds(experimentIds?: string[]): this {
+    return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
+      b.whereRaw("experiment_id IN ({experimentIds: Array(String)})", {
+        experimentIds,
+      }),
+    );
+  }
+
+  /**
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   */
+  withStartTimeFrom(startTimeFrom?: string | null): this {
+    return this.when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw(
+        `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Select a field set for the query output.
+   * Use "count" for count queries, "base" for full row data.
+   */
+  selectFieldSet(...sets: ExperimentsAggregationFieldSetName[]): this {
+    sets.forEach((s) => this.selectedFieldSets.add(s));
+    return this;
+  }
+
+  /**
+   * Add raw SELECT expressions (for score aggregations, custom columns, etc.)
+   * These are appended after field set columns.
+   */
+  selectRaw(...expressions: string[]): this {
+    this.rawSelectExpressions.push(...expressions);
+    return this;
+  }
+
+  /**
+   * Build the SELECT clause for experiment aggregation queries.
+   */
+  protected buildSelectClause(): string {
+    const fields: string[] = [];
+
+    // Add fields from selected field sets
+    for (const setName of this.selectedFieldSets) {
+      const fieldKeys = EXPERIMENTS_AGGREGATION_FIELD_SETS[setName];
+      for (const key of fieldKeys) {
+        const fieldExpr =
+          EXPERIMENTS_AGGREGATION_FIELDS[
+            key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
+          ];
+        if (fieldExpr) {
+          fields.push(fieldExpr);
+        }
+      }
+    }
+
+    // Add raw select expressions (e.g., score aggregations from CTE JOINs)
+    fields.push(...this.rawSelectExpressions);
+
+    return `SELECT\n  ${fields.join(",\n  ")}`;
+  }
+
+  /**
+   * Build the GROUP BY clause for experiment aggregations.
+   */
+  protected buildGroupByClause(): string {
+    return "GROUP BY e.project_id, e.experiment_id";
   }
 }
 
