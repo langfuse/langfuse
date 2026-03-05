@@ -2,8 +2,8 @@ import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
-  experimentObsScoresCTE,
-  experimentTraceScoresCTE,
+  eventScoresCTE,
+  eventTraceScoresCTE,
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
@@ -204,7 +204,7 @@ const getExperimentsFromEventsGeneric = async <T>(
       b
         .withCTE(
           "trace_scores",
-          experimentTraceScoresCTE({ projectId, startTimeFrom }),
+          eventTraceScoresCTE({ projectId, startTimeFrom }),
         )
         .leftJoin(
           "trace_scores AS ts",
@@ -218,10 +218,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     // Conditionally include observation-level scores
     .when(hasObsScoreFilter, (b) =>
       b
-        .withCTE(
-          "obs_scores",
-          experimentObsScoresCTE({ projectId, startTimeFrom }),
-        )
+        .withCTE("obs_scores", eventScoresCTE({ projectId, startTimeFrom }))
         .leftJoin(
           "obs_scores AS os",
           "ON os.project_id = e.project_id AND os.trace_id = e.trace_id AND os.observation_id = e.span_id",
