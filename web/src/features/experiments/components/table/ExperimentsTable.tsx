@@ -113,8 +113,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
   const queryFilter = useSidebarFilterState(
     experimentsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
+    {
+      loading: isFilterOptionsPending,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
