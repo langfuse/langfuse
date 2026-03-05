@@ -223,9 +223,8 @@ jobs:
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
-          docker compose ps
+          ./.github/scripts/wait-for-ci-services.sh docker-compose.dev${{ matrix.deploy-mode }}.yml
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Migrate DB
@@ -263,13 +262,16 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
+      - name: Check server health
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health; do sleep 2; done'
       - name: run tests
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --selectProjects server --shard=${{ matrix.shard }}/3
       - name: run test-client
         if: matrix.deploy-mode == '' && matrix.shard == 1
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --selectProjects client
 
   tests-worker:
     timeout-minutes: 20
@@ -316,12 +318,11 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
-          docker compose ps
+          ./.github/scripts/wait-for-ci-services.sh docker-compose.dev${{ matrix.deploy-mode }}.yml
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps
       - name: Ensure no unhealthy status
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
+          if docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
@@ -389,14 +390,13 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
-          docker compose ps
+          ./.github/scripts/wait-for-ci-services.sh docker-compose.dev.yml
+          docker compose -f docker-compose.dev.yml ps
         env:
           POSTGRES_VERSION: 15
       - name: Ensure no unhealthy status
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
+          if docker compose -f docker-compose.dev.yml ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
@@ -477,12 +477,11 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
-          docker compose ps
+          ./.github/scripts/wait-for-ci-services.sh docker-compose.dev.yml
+          docker compose -f docker-compose.dev.yml ps
       - name: Ensure Docker dependencies are healthy
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
+          if docker compose -f docker-compose.dev.yml ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy" 
             exit 1
           else
@@ -537,12 +536,11 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
-          docker compose ps
+          ./.github/scripts/wait-for-ci-services.sh docker-compose.dev.yml
+          docker compose -f docker-compose.dev.yml ps
       - name: Ensure Docker dependencies are healthy
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
+          if docker compose -f docker-compose.dev.yml ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
