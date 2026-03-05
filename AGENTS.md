@@ -73,6 +73,7 @@ Minimum verification matrix:
 - Keep each test independent and parallel-safe.
 - `web/src/__tests__/server`: avoid `pruneDatabase` calls.
 - Client tests contain `....clienttest.ts`
+- When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits.
