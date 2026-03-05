@@ -21,6 +21,7 @@ import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events
 import {
   createPylonIssue,
   buildPylonIssueBodyHtml,
+  buildPylonMetadataString,
   mapSeverityToPylonPriority,
 } from "../pylon/pylonClient";
 
@@ -326,13 +327,14 @@ export const plainRouter = createTRPCRouter({
           const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
           const pylonBodyHtml = buildPylonIssueBodyHtml({
             message: input.message,
+            requesterEmail: email,
+          });
+          const pylonMetadata = buildPylonMetadataString({
             organizationId: currentSupportRequestContext.organizationId,
             projectId: currentSupportRequestContext.projectId,
-            version: VERSION,
-            plan: currentSupportRequestContext.plan,
             cloudRegion: currentSupportRequestContext.region,
+            version: VERSION,
             browserMetadata: input.browserMetadata,
-            topic: input.topic,
           });
           await createPylonIssue({
             apiKey: env.PYLON_API_KEY,
@@ -350,6 +352,7 @@ export const plainRouter = createTRPCRouter({
               ...(input.integrationType
                 ? [{ slug: "integration_type", value: input.integrationType }]
                 : []),
+              { slug: "metadata", value: pylonMetadata },
             ],
           });
         } catch (e) {

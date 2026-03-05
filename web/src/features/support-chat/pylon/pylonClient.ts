@@ -43,9 +43,14 @@ export async function createPylonIssue(
     title,
     body_html: bodyHtml,
     requester_email: requesterEmail,
+    // If a destination other than "internal" is specified, a message with the
+    // issue's body_html will be delivered to the requester. Use "internal" to
+    // keep the issue internal without contacting the requester.
+    // Currently set to "internal" because Plain still handles the user-facing
+    // email. Once Plain is removed, switch back to destination: "email" with
+    // email: "support@langfuse.com" so Pylon sends the acknowledgement.
     destination_metadata: {
-      destination: "email",
-      email: "support@langfuse.com",
+      destination: "internal",
     },
   };
 
@@ -146,60 +151,59 @@ export function mapSeverityToPylonPriority(
 
 export function buildPylonIssueBodyHtml(params: {
   message: string;
+  requesterEmail: string;
+}): string {
+  const escapedEmail = escapeHtml(params.requesterEmail);
+  const escapedMessage = escapeHtml(params.message);
+
+  const lines: string[] = [
+    `<p>Hi there,</p>`,
+    `<p>thanks for reaching out! We've received your request and will follow up as soon as possible.</p>`,
+    `<p>To help us move faster, feel free to reply to this email with:</p>`,
+    `<ul>`,
+    `<li>any error messages or screenshots</li>`,
+    `<li>links to where you're seeing the issue (trace, page, dataset)</li>`,
+    `<li>steps to reproduce (if relevant)</li>`,
+    `</ul>`,
+    `<p>Thanks,</p>`,
+    `<p>Team Langfuse</p>`,
+    `<hr>`,
+    `<p><b>${escapedEmail} wrote:</b></p>`,
+    `<blockquote>${escapedMessage.replace(/\n/g, "<br>")}</blockquote>`,
+  ];
+
+  return lines.join("\n");
+}
+
+export function buildPylonMetadataString(params: {
+  messageType?: string;
+  severity?: string;
+  topic?: string;
+  integrationType?: string;
   url?: string;
   organizationId?: string;
   projectId?: string;
-  version?: string;
   plan?: string;
   cloudRegion?: string;
+  version?: string;
   browserMetadata?: Record<string, unknown>;
-  severity?: string;
-  messageType?: string;
-  topic?: string;
-  integrationType?: string;
 }): string {
-  const escapedMessage = escapeHtml(params.message);
-  const lines: string[] = [`<p>${escapedMessage.replace(/\n/g, "<br>")}</p>`];
-
-  lines.push("<hr>");
-  lines.push("<h4>Support Request Metadata</h4>");
-
-  const metaRows: string[] = [];
-  if (params.messageType)
-    metaRows.push(`<b>Type:</b> ${escapeHtml(params.messageType)}`);
-  if (params.severity)
-    metaRows.push(`<b>Severity:</b> ${escapeHtml(params.severity)}`);
-  if (params.topic) metaRows.push(`<b>Topic:</b> ${escapeHtml(params.topic)}`);
+  const rows: string[] = [];
+  if (params.messageType) rows.push(`Type: ${params.messageType}`);
+  if (params.severity) rows.push(`Severity: ${params.severity}`);
+  if (params.topic) rows.push(`Topic: ${params.topic}`);
   if (params.integrationType)
-    metaRows.push(`<b>Integration:</b> ${escapeHtml(params.integrationType)}`);
-  if (params.url) {
-    const safeUrl = sanitizeUrl(params.url);
-    if (safeUrl) {
-      metaRows.push(`<b>URL:</b> <a href="${safeUrl}">${safeUrl}</a>`);
-    }
-  }
+    rows.push(`Integration: ${params.integrationType}`);
+  if (params.url) rows.push(`URL: ${params.url}`);
   if (params.organizationId)
-    metaRows.push(
-      `<b>Organization ID:</b> ${escapeHtml(params.organizationId)}`,
-    );
-  if (params.projectId)
-    metaRows.push(`<b>Project ID:</b> ${escapeHtml(params.projectId)}`);
-  if (params.plan) metaRows.push(`<b>Plan:</b> ${escapeHtml(params.plan)}`);
-  if (params.cloudRegion)
-    metaRows.push(`<b>Cloud Region:</b> ${escapeHtml(params.cloudRegion)}`);
-  if (params.version)
-    metaRows.push(`<b>Version:</b> ${escapeHtml(params.version)}`);
-  if (params.browserMetadata) {
-    metaRows.push(
-      `<b>Browser:</b> <code>${escapeHtml(JSON.stringify(params.browserMetadata))}</code>`,
-    );
-  }
-
-  if (metaRows.length > 0) {
-    lines.push(`<p>${metaRows.join("<br>")}</p>`);
-  }
-
-  return lines.join("\n");
+    rows.push(`Organization ID: ${params.organizationId}`);
+  if (params.projectId) rows.push(`Project ID: ${params.projectId}`);
+  if (params.plan) rows.push(`Plan: ${params.plan}`);
+  if (params.cloudRegion) rows.push(`Cloud Region: ${params.cloudRegion}`);
+  if (params.version) rows.push(`Version: ${params.version}`);
+  if (params.browserMetadata)
+    rows.push(`Browser: ${JSON.stringify(params.browserMetadata)}`);
+  return rows.join("\n");
 }
 
 function escapeHtml(str: string): string {
@@ -209,16 +213,4 @@ function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-}
-
-function sanitizeUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return "";
-    }
-    return escapeHtml(url);
-  } catch {
-    return "";
-  }
 }
