@@ -101,22 +101,38 @@ export const traceDeleteProcessor: Processor = async (
       processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
 
-    // Remove only the pending traces (not the ones from the event, as they might be legacy)
+    // Finalize only the pending traces (not the ones from the event, as they might be legacy)
     if (toBeDeletedTraces.length > 0) {
-      await prisma.pendingDeletion.deleteMany({
-        where: {
-          projectId,
-          object: "trace",
-          objectId: {
-            in: traceIdsToDelete,
+      if (env.LANGFUSE_PENDING_DELETIONS_COMPLETION_MODE === "hard") {
+        await prisma.pendingDeletion.deleteMany({
+          where: {
+            projectId,
+            object: "trace",
+            objectId: {
+              in: traceIdsToDelete,
+            },
+            isDeleted: false,
           },
-          isDeleted: false,
-        },
-      });
+        });
+      } else {
+        await prisma.pendingDeletion.updateMany({
+          where: {
+            projectId,
+            object: "trace",
+            objectId: {
+              in: traceIdsToDelete,
+            },
+            isDeleted: false,
+          },
+          data: {
+            isDeleted: true,
+          },
+        });
+      }
     }
 
     logger.debug(
-      `Successfully batch deleted ${allTraceIds.length} traces and removed them from pending_deletions table`,
+      `Successfully batch deleted ${allTraceIds.length} traces and finalized pending_deletions rows`,
     );
   } catch (error) {
     logger.error(

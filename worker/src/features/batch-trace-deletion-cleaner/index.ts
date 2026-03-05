@@ -157,17 +157,33 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
 
-    // Remove processed pending deletion rows
-    await prisma.pendingDeletion.deleteMany({
-      where: {
-        projectId,
-        object: "trace",
-        objectId: {
-          in: traceIdsToDelete,
+    // Finalize processed pending_deletions rows (soft mark or hard delete)
+    if (env.LANGFUSE_PENDING_DELETIONS_COMPLETION_MODE === "hard") {
+      await prisma.pendingDeletion.deleteMany({
+        where: {
+          projectId,
+          object: "trace",
+          objectId: {
+            in: traceIdsToDelete,
+          },
+          isDeleted: false,
         },
-        isDeleted: false,
-      },
-    });
+      });
+    } else {
+      await prisma.pendingDeletion.updateMany({
+        where: {
+          projectId,
+          object: "trace",
+          objectId: {
+            in: traceIdsToDelete,
+          },
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
+    }
 
     recordIncrement(
       `${METRIC_PREFIX}.traces_deleted`,
