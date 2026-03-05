@@ -550,7 +550,14 @@ export function SupportFormSection({
                   className="mt-1 border-none p-0 text-left"
                   maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                   maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                  onDrop={(accepted) => setFiles(accepted)}
+                  onDrop={(accepted) =>
+                    setFiles((prev) => {
+                      const existing = prev ?? [];
+                      const merged = [...existing, ...accepted];
+                      const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                      return merged.slice(0, maxFiles);
+                    })
+                  }
                   onError={(error) => {
                     const userMessage = formatFileError(error);
                     showErrorToast("File Upload Error", userMessage, "WARNING");

@@ -21,7 +21,6 @@ import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events
 import {
   createPylonIssue,
   buildPylonIssueBodyHtml,
-  buildPylonTags,
   mapSeverityToPylonPriority,
 } from "../pylon/pylonClient";
 
@@ -321,7 +320,7 @@ export const plainRouter = createTRPCRouter({
         impersonate: false,
       });
 
-      // (6) Dual-write: create issue in Pylon (best-effort, non-blocking)
+      // (6) Dual-write: create issue in Pylon (best-effort, blocking)
       if (env.PYLON_API_KEY) {
         try {
           const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;

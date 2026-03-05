@@ -172,10 +172,12 @@ export function buildPylonIssueBodyHtml(params: {
   if (params.topic) metaRows.push(`<b>Topic:</b> ${escapeHtml(params.topic)}`);
   if (params.integrationType)
     metaRows.push(`<b>Integration:</b> ${escapeHtml(params.integrationType)}`);
-  if (params.url)
-    metaRows.push(
-      `<b>URL:</b> <a href="${escapeHtml(params.url)}">${escapeHtml(params.url)}</a>`,
-    );
+  if (params.url) {
+    const safeUrl = sanitizeUrl(params.url);
+    if (safeUrl) {
+      metaRows.push(`<b>URL:</b> <a href="${safeUrl}">${safeUrl}</a>`);
+    }
+  }
   if (params.organizationId)
     metaRows.push(
       `<b>Organization ID:</b> ${escapeHtml(params.organizationId)}`,
@@ -209,13 +211,14 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-export function buildPylonTags(params: {
-  messageType: string;
-  topLevel: string;
-  subtype: string;
-  integrationType?: string;
-}): string[] {
-  const tags = [params.messageType, params.topLevel, params.subtype];
-  if (params.integrationType) tags.push(params.integrationType);
-  return tags.filter(Boolean);
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return "";
+    }
+    return escapeHtml(url);
+  } catch {
+    return "";
+  }
 }

@@ -59,7 +59,7 @@ export default async function handler(
   }
 
   try {
-    const attachmentUrls: string[] = [];
+    const validatedFiles: { buffer: Buffer; fileName: string }[] = [];
 
     for (const file of body.files) {
       if (!file.fileName || !file.fileBase64) {
@@ -76,16 +76,27 @@ export default async function handler(
         });
       }
 
-      const result = await uploadPylonAttachment({
-        apiKey: pylonApiKey,
-        file: buffer,
-        fileName: file.fileName,
-      });
-
-      if (result.data?.url) {
-        attachmentUrls.push(result.data.url);
-      }
+      validatedFiles.push({ buffer, fileName: file.fileName });
     }
+
+    const results = await Promise.all(
+      validatedFiles.map((file) =>
+        uploadPylonAttachment({
+          apiKey: pylonApiKey,
+          file: file.buffer,
+          fileName: file.fileName,
+        }),
+      ),
+    );
+
+    const attachmentUrls = results.map((result, idx) => {
+      if (!result.data?.url) {
+        throw new Error(
+          `Pylon returned no URL for file "${validatedFiles[idx]?.fileName}"`,
+        );
+      }
+      return result.data.url;
+    });
 
     return res.status(200).json({ attachment_urls: attachmentUrls });
   } catch (err) {
