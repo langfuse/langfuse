@@ -334,7 +334,6 @@ export const plainRouter = createTRPCRouter({
             cloudRegion: currentSupportRequestContext.region,
             browserMetadata: input.browserMetadata,
             topic: input.topic,
-
           });
           await createPylonIssue({
             apiKey: env.PYLON_API_KEY,
