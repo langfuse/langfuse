@@ -38,6 +38,7 @@ export function useEvalConfigFilterOptions({
   const observationsFilterOptionsResponse =
     api.generations.filterOptions.useQuery({
       projectId,
+      observationType: "ALL",
     });
 
   const traceFilterOptions = useMemo(() => {

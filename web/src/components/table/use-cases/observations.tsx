@@ -8,13 +8,14 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   observationFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/observations-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -68,7 +69,10 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
@@ -200,9 +204,9 @@ export default function ObservationsTable({
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
@@ -431,9 +435,13 @@ export default function ObservationsTable({
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -445,7 +453,7 @@ export default function ObservationsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
@@ -1216,7 +1224,7 @@ export default function ObservationsTable({
       columns,
       filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1226,10 +1234,9 @@ export default function ObservationsTable({
       customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
       children: <PeekViewObservationDetail projectId={projectId} />,
-      tableDataUpdatedAt: generations.dataUpdatedAt,
       ...peekNavigationProps,
     };
-  }, [projectId, generations.dataUpdatedAt, peekNavigationProps, hideControls]);
+  }, [projectId, peekNavigationProps, hideControls]);
 
   const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
@@ -1277,13 +1284,13 @@ export default function ObservationsTable({
   }, [generations]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={observationFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
@@ -1437,6 +1444,7 @@ export default function ObservationsTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
 
       {/* Add to Dataset Dialog */}

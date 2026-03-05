@@ -1,6 +1,6 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -15,8 +15,25 @@ export type PreviewData =
       type: typeof EvalTargetObject.EVENT;
       traceId: string;
       observationId: string;
-      data: RouterOutputs["observations"]["byId"];
+      data:
+        | RouterOutputs["observations"]["byId"]
+        | RouterOutputs["events"]["batchIO"][number]
+        | undefined;
     };
+
+// Temporary workaround to make filter backwards compatible with generations table
+const transformFilterForGenerations = (filter: FilterState | null) => {
+  if (!filter) return [];
+  return filter.map((f) => {
+    if (f.column === "tags") {
+      return {
+        ...f,
+        column: "traceTags",
+      };
+    }
+    return f;
+  });
+};
 
 export function usePreviewData(
   projectId: string,
@@ -62,7 +79,7 @@ export function usePreviewData(
   const latestObservation = api.generations.all.useQuery(
     {
       projectId,
-      filter: form.watch("filter") ?? [],
+      filter: transformFilterForGenerations(form.watch("filter")) ?? [],
       searchQuery: "",
       searchType: [],
       limit: 1,
@@ -106,6 +123,11 @@ export function usePreviewData(
       ? latestObservationBeta.data?.observations[0]?.id
       : latestObservation.data?.generations[0]?.id;
 
+  const latestObservationStartTime =
+    latestObservationBeta.data?.observations[0]?.startTime;
+  const latestObservationEndTime =
+    latestObservationBeta.data?.observations[0]?.endTime;
+
   // For event evals: fetch only the single observation
   const observationDetails = api.observations.byId.useQuery(
     {
@@ -119,19 +141,49 @@ export function usePreviewData(
         enabled &&
         !!latestObservationTraceId &&
         !!latestObservationObservationId &&
-        isEventEval,
+        isEventEval &&
+        !isBetaEnabled,
+    },
+  );
+
+  const observationDetailsBeta = api.events.batchIO.useQuery(
+    {
+      projectId,
+      observations: [
+        {
+          id: latestObservationObservationId as string,
+          traceId: latestObservationTraceId as string,
+        },
+      ],
+      minStartTime: latestObservationStartTime as Date,
+      maxStartTime: latestObservationEndTime as Date,
+      truncated: false,
+    },
+    {
+      enabled:
+        enabled &&
+        !!latestObservationTraceId &&
+        !!latestObservationObservationId &&
+        !!latestObservationStartTime &&
+        !!latestObservationEndTime &&
+        isEventEval &&
+        isBetaEnabled,
     },
   );
 
   const previewData: PreviewData | null = isEventEval
-    ? observationDetails.data &&
+    ? (isBetaEnabled
+        ? observationDetailsBeta.data?.[0]
+        : observationDetails.data) &&
       latestObservationTraceId &&
       latestObservationObservationId
       ? {
           type: EvalTargetObject.EVENT,
           traceId: latestObservationTraceId,
           observationId: latestObservationObservationId,
-          data: observationDetails.data,
+          data: isBetaEnabled
+            ? observationDetailsBeta.data?.[0]
+            : observationDetails.data,
         }
       : null
     : traceDetails.data && actualTraceId
@@ -145,7 +197,9 @@ export function usePreviewData(
   const isLoading =
     latestTrace.isLoading ||
     traceDetails.isLoading ||
-    observationDetails.isLoading;
+    (isBetaEnabled
+      ? observationDetailsBeta.isLoading
+      : observationDetails.isLoading);
 
   return {
     previewData,

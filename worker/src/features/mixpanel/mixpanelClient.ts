@@ -75,6 +75,34 @@ export class MixpanelClient {
 
       if (!response.ok) {
         const errorText = await response.text();
+
+        // On 400, Mixpanel may report partial success (some records imported,
+        // some rejected). Only throw when zero records were imported.
+        if (response.status === 400) {
+          try {
+            const body = JSON.parse(errorText) as {
+              code?: number;
+              num_records_imported?: number;
+              failed_records?: Array<{
+                index: number;
+                insert_id: string;
+                field: string;
+                message: string;
+              }>;
+            };
+
+            if (body.num_records_imported && body.num_records_imported > 0) {
+              logger.warn(
+                `Mixpanel partial success: ${body.num_records_imported}/${events.length} records imported, ${body.failed_records?.length ?? 0} failed`,
+                { failed_records: body.failed_records },
+              );
+              return;
+            }
+          } catch {
+            // JSON parse failed — fall through to throw
+          }
+        }
+
         logger.error(
           `Failed to send events to Mixpanel: ${response.status} ${response.statusText}`,
           { body: errorText },

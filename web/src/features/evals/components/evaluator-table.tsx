@@ -18,13 +18,8 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import {
@@ -42,6 +37,7 @@ import {
 } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekView } from "@/src/components/table/peek";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -73,7 +69,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -127,7 +122,9 @@ function LegacyBadgeCell({ status }: { status: string }) {
                   >
                     this guide
                   </Link>{" "}
-                  to upgrade to the new version.
+                  to upgrade to the new version. <br /> <br /> If you do not
+                  upgrade, your evaluator will continue to run, but you will not
+                  benefit from improvements.
                 </p>
               </div>
             </TooltipContent>
@@ -139,12 +136,11 @@ function LegacyBadgeCell({ status }: { status: string }) {
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
-  const isBetaEnabled = useObservationEvals();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -166,17 +162,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
     newFilterOptions,
-    projectId,
-    false,
-    false,
-    [
-      {
-        column: "status",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["ACTIVE"],
-      },
-    ],
+    {
+      loading: false,
+      sessionFilterContextId: projectId,
+    },
   );
 
   const evaluators = api.evals.allConfigs.useQuery({
@@ -340,25 +329,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
-    ...(isBetaEnabled
-      ? [
-          columnHelper.accessor("isLegacy", {
-            id: "isLegacy",
-            header: "Eval Version",
-            size: 180,
-            enableHiding: true,
-            cell: (row) => {
-              const targetObject = row.row.original.target;
-              const status = row.row.original.status;
-              const isDeprecated = isLegacyEvalTarget(targetObject);
+    columnHelper.accessor("isLegacy", {
+      id: "isLegacy",
+      header: "Eval Version",
+      size: 180,
+      enableHiding: true,
+      cell: (row) => {
+        const targetObject = row.row.original.target;
+        const status = row.row.original.status;
+        const isDeprecated = isLegacyEvalTarget(targetObject);
 
-              if (!isDeprecated) return null;
+        if (!isDeprecated) return null;
 
-              return <LegacyBadgeCell status={status} />;
-            },
-          }),
-        ]
-      : []),
+        return <LegacyBadgeCell status={status} />;
+      },
+    }),
     columnHelper.accessor("target", {
       id: "target",
       header: "Runs on",
@@ -468,6 +453,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const peekNavigationProps = usePeekNavigation();
 
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+        ],
+      },
+      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, peekNavigationProps],
+  );
+
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
@@ -508,19 +508,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {isBetaEnabled && hasLegacyEvals && (
+        {hasLegacyEvals && (
           <div className="p-2 pb-0">
             <Callout
               id="eval-remapping-table"
-              variant="info"
+              variant="warning"
               key="dismissed-eval-remapping-callouts"
             >
-              <span>New LLM-as-a-Judge functionality has landed. </span>
+              <span>New functionality has landed. </span>
               <span className="font-semibold">
                 Some of your evaluators (marked &quot;Legacy&quot;) require
                 changes{" "}
               </span>
-              <span>for new features and improvements. </span>
+              <span>to benefit from new features and improvements. </span>
               <Link
                 href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                 target="_blank"
@@ -530,6 +530,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 Learn what is changing and how to upgrade
               </Link>
               <span>.</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="ml-1 inline h-4 w-4 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Your evaluator will continue to work without upgrading, but
+                  you will not benefit from performance improvements.
+                </TooltipContent>
+              </Tooltip>
             </Callout>
           </div>
         )}
@@ -558,23 +567,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <DataTable
               tableName={"evalConfigs"}
               columns={columns}
-              peekView={{
-                itemType: "RUNNING_EVALUATOR",
-                detailNavigationKey: "evals",
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-                  ],
-                },
-                tableDataUpdatedAt: Math.max(
-                  evaluators.dataUpdatedAt,
-                  costs.dataUpdatedAt,
-                ),
-                children: (
-                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
-                ),
-                ...peekNavigationProps,
-              }}
+              peekView={peekConfig}
               data={
                 evaluators.isLoading
                   ? { isLoading: true, isError: false }
@@ -604,6 +597,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
+        <TablePeekView peekView={peekConfig} />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}

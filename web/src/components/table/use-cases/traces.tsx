@@ -15,7 +15,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
   compactNumberFormatter,
@@ -74,8 +74,10 @@ import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -324,15 +326,17 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(
-    traceFilterConfig,
-    filterOptions,
-    projectId,
-    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
-  );
+  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions, {
+    loading:
+      traceFilterOptionsResponse.isPending ||
+      environmentFilterOptions.isPending,
+    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+    sessionFilterContextId: projectId,
+    // Sidebar-only implicit environment defaults
+    implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+  });
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );
@@ -340,9 +344,9 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
@@ -394,10 +398,14 @@ export default function TracesTable({
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
 
-  const traceRowData = joinTableCoreAndMetrics<
-    TracesCoreOutput,
-    TraceMetricOutput
-  >(traces.data?.traces, traceMetrics.data);
+  const traceRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<TracesCoreOutput, TraceMetricOutput>(
+        traces.data?.traces,
+        traceMetrics.data,
+      ),
+    [traces.data?.traces, traceMetrics.data],
+  );
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -1214,19 +1222,9 @@ export default function TracesTable({
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
       children: <PeekViewTraceDetail projectId={projectId} />,
-      tableDataUpdatedAt: Math.max(
-        traces.dataUpdatedAt,
-        traceMetrics.dataUpdatedAt,
-      ),
       ...peekNavigationProps,
     };
-  }, [
-    projectId,
-    hideControls,
-    peekNavigationProps,
-    traces.dataUpdatedAt,
-    traceMetrics.dataUpdatedAt,
-  ]);
+  }, [projectId, hideControls, peekNavigationProps]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -1251,7 +1249,7 @@ export default function TracesTable({
       columns,
       filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const rows = useMemo(() => {
@@ -1301,14 +1299,14 @@ export default function TracesTable({
   }, [traces.isSuccess, traceRowData?.rows]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
             filterWithAI
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,
@@ -1425,6 +1423,7 @@ export default function TracesTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
     </DataTableControlsProvider>
   );
@@ -1468,6 +1467,7 @@ const TracesDynamicCell = ({
         col === "input" && "bg-muted/50",
       )}
       singleLine={singleLine}
+      enableExpandOnHover={singleLine}
     />
   );
 };

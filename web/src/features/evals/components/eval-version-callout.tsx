@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,
@@ -33,10 +33,10 @@ const getCalloutContent = (
 
     return {
       visible: true,
-      title: "Please check your SDK version",
+      title: "Please verify your SDK version",
       description: (
         <>
-          This evaluator targets live observations, which require JS SDK v4+ or
+          This evaluator targets observations, which require JS SDK v4+ or
           Python SDK v3+. You can still configure this evaluator now—it will
           start running once you upgrade.{" "}
           <a
@@ -58,7 +58,7 @@ const getCalloutContent = (
     if (!evalCapabilities.isNewCompatible) {
       return {
         visible: true,
-        title: "Please check your SDK version",
+        title: "Please verify you are using the Experiment Runner SDK",
         description: (
           <>
             The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
@@ -70,7 +70,7 @@ const getCalloutContent = (
               rel="noopener noreferrer"
               className="font-medium text-dark-blue hover:opacity-80"
             >
-              Learn more
+              Learn more about the Experiment Runner SDK.
             </a>
             .
           </>
@@ -85,12 +85,13 @@ const getCalloutContent = (
   if (isDatasetTarget(targetObject)) {
     return {
       visible: true,
-      title: "Legacy dataset run methods",
+      title: "Legacy low-level SDK methods",
       description: (
         <>
           This evaluator targets traces from legacy low-level SDK methods for
-          dataset runs. Consider upgrading to the Experiment Runner SDK for
-          improved performance and features.{" "}
+          dataset runs that manually linked dataset items to traces. Consider
+          upgrading to the Experiment Runner SDK for improved performance and
+          features.{" "}
           <a
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"
@@ -109,12 +110,11 @@ const getCalloutContent = (
   if (isTraceTarget(targetObject)) {
     return {
       visible: true,
-      title: "Consider upgrading to live observations evaluators",
+      title: "Consider upgrading to observation evaluators",
       description: (
         <>
-          Live observations evaluators provide more granular control and an
-          easier workflow. We strongly recommend upgrading to live observations
-          evaluators.{" "}
+          Observation evaluators provide more granular control and an easier
+          workflow. We strongly recommend upgrading to observation evaluators.{" "}
           <a
             href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
             target="_blank"
@@ -143,8 +143,11 @@ export function EvalVersionCallout({
   }
 
   return (
-    <Alert variant="default" className="mt-2 border-light-blue bg-light-blue">
-      <Info className="h-4 w-4 text-dark-blue dark:text-dark-blue" />
+    <Alert
+      variant="default"
+      className="mt-2 max-w-4xl border-dark-yellow bg-light-yellow"
+    >
+      <AlertTriangle className="h-4 w-4 text-dark-yellow" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">

@@ -32,6 +32,7 @@ describe("Mixpanel transformers", () => {
         langfuse_total_units: 150,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 1.5,
         langfuse_time_to_first_token: 0.3,
@@ -72,6 +73,7 @@ describe("Mixpanel transformers", () => {
         timestamp: new Date("2024-01-15T10:00:00Z"),
         langfuse_observation_name: "anonymous-event",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -94,6 +96,7 @@ describe("Mixpanel transformers", () => {
         timestamp: new Date("2024-01-15T10:00:00Z"),
         langfuse_observation_name: "consistent-event",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -113,6 +116,7 @@ describe("Mixpanel transformers", () => {
         langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-456",
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -131,6 +135,7 @@ describe("Mixpanel transformers", () => {
         langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-456",
         langfuse_event_version: "1.0.0",
         posthog_session_id: "posthog-session-789",
@@ -140,6 +145,159 @@ describe("Mixpanel transformers", () => {
       const result = transformEventForMixpanel(event, projectId);
 
       expect(result.properties.session_id).toBe("mixpanel-session-456");
+    });
+
+    it("should include langfuse_project_name in properties", () => {
+      const event: AnalyticsObservationEvent = {
+        langfuse_id: "event-with-project-name",
+        timestamp: new Date("2024-01-15T10:00:00Z"),
+        langfuse_observation_name: "test-event",
+        langfuse_project_id: projectId,
+        langfuse_project_name: "My Custom Project Name",
+        langfuse_user_id: "user-123",
+        langfuse_event_version: "1.0.0",
+        posthog_session_id: null,
+        mixpanel_session_id: null,
+      };
+
+      const result = transformEventForMixpanel(event, projectId);
+
+      expect(result.properties.langfuse_project_name).toBe(
+        "My Custom Project Name",
+      );
+    });
+  });
+
+  describe("bad distinct_id handling", () => {
+    const badIds = [
+      "undefined",
+      "null",
+      "Null",
+      "NULL",
+      "0",
+      "-1",
+      "00000000-0000-0000-0000-000000000000",
+      "unknown",
+      "anonymous",
+      " undefined ",
+      "lmy47d",
+    ];
+
+    it.each(badIds)(
+      "transformTraceForMixpanel falls back to insert_id when user_id is '%s'",
+      (badId) => {
+        const trace: AnalyticsTraceEvent = {
+          langfuse_id: "trace-bad-id",
+          timestamp: new Date("2024-01-15T10:00:00Z"),
+          langfuse_trace_name: "test",
+          langfuse_project_id: projectId,
+          langfuse_project_name: "Test",
+          langfuse_user_id: badId,
+          langfuse_event_version: "1.0.0",
+          posthog_session_id: null,
+          mixpanel_session_id: null,
+        };
+
+        const result = transformTraceForMixpanel(trace, projectId);
+        expect(result.properties.distinct_id).toBe(
+          result.properties.$insert_id,
+        );
+        expect(result.properties.$user_id).toBeUndefined();
+      },
+    );
+
+    it.each(badIds)(
+      "transformGenerationForMixpanel falls back to insert_id when user_id is '%s'",
+      (badId) => {
+        const generation: AnalyticsGenerationEvent = {
+          langfuse_id: "gen-bad-id",
+          timestamp: new Date("2024-01-15T10:00:00Z"),
+          langfuse_generation_name: "test",
+          langfuse_trace_name: "test",
+          langfuse_trace_id: "trace-456",
+          langfuse_project_id: projectId,
+          langfuse_project_name: "Test",
+          langfuse_user_id: badId,
+          langfuse_event_version: "1.0.0",
+          posthog_session_id: null,
+          mixpanel_session_id: null,
+        };
+
+        const result = transformGenerationForMixpanel(generation, projectId);
+        expect(result.properties.distinct_id).toBe(
+          result.properties.$insert_id,
+        );
+        expect(result.properties.$user_id).toBeUndefined();
+      },
+    );
+
+    it.each(badIds)(
+      "transformScoreForMixpanel falls back to insert_id when user_id is '%s'",
+      (badId) => {
+        const score: AnalyticsScoreEvent = {
+          langfuse_id: "score-bad-id",
+          timestamp: new Date("2024-01-15T10:00:00Z"),
+          langfuse_score_name: "test",
+          langfuse_score_value: 1,
+          langfuse_score_data_type: "NUMERIC",
+          langfuse_trace_name: "test",
+          langfuse_trace_id: "trace-456",
+          langfuse_project_id: projectId,
+          langfuse_project_name: "Test",
+          langfuse_user_id: badId,
+          langfuse_event_version: "1.0.0",
+          langfuse_score_entity_type: "trace",
+          posthog_session_id: null,
+          mixpanel_session_id: null,
+        };
+
+        const result = transformScoreForMixpanel(score, projectId);
+        expect(result.properties.distinct_id).toBe(
+          result.properties.$insert_id,
+        );
+        expect(result.properties.$user_id).toBeUndefined();
+      },
+    );
+
+    it.each(badIds)(
+      "transformEventForMixpanel falls back to insert_id when user_id is '%s'",
+      (badId) => {
+        const event: AnalyticsObservationEvent = {
+          langfuse_id: "event-bad-id",
+          timestamp: new Date("2024-01-15T10:00:00Z"),
+          langfuse_observation_name: "test",
+          langfuse_project_id: projectId,
+          langfuse_project_name: "Test",
+          langfuse_user_id: badId,
+          langfuse_event_version: "1.0.0",
+          posthog_session_id: null,
+          mixpanel_session_id: null,
+        };
+
+        const result = transformEventForMixpanel(event, projectId);
+        expect(result.properties.distinct_id).toBe(
+          result.properties.$insert_id,
+        );
+        expect(result.properties.$user_id).toBeUndefined();
+      },
+    );
+
+    it("should still use a valid user_id as distinct_id", () => {
+      const event: AnalyticsObservationEvent = {
+        langfuse_id: "event-valid",
+        timestamp: new Date("2024-01-15T10:00:00Z"),
+        langfuse_observation_name: "test",
+        langfuse_project_id: projectId,
+        langfuse_project_name: "Test",
+        langfuse_user_id: "real-user-123",
+        langfuse_event_version: "1.0.0",
+        posthog_session_id: null,
+        mixpanel_session_id: null,
+      };
+
+      const result = transformEventForMixpanel(event, projectId);
+      expect(result.properties.distinct_id).toBe("real-user-123");
+      expect(result.properties.$user_id).toBe("real-user-123");
     });
   });
 
@@ -155,6 +313,7 @@ describe("Mixpanel transformers", () => {
         langfuse_count_observations: 5,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 2.5,
         langfuse_release: "v1.0.0",
@@ -192,6 +351,7 @@ describe("Mixpanel transformers", () => {
         langfuse_total_units: 300,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 1.2,
         langfuse_time_to_first_token: 0.2,
@@ -232,6 +392,7 @@ describe("Mixpanel transformers", () => {
         langfuse_user_url: "https://langfuse.com/project/test/users/user-789",
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_release: "v1.0.0",
         langfuse_tags: ["human-eval"],

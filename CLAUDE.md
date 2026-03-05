@@ -81,12 +81,9 @@ pnpm build:check                      # Full Next.js build to alternate dir (can
 
 ### Testing in Web Package
 The web package uses JEST for unit tests.
-Depending on the file location (sync, async)
 `web` related tests must go into the `web/src/__tests__/` folder.
 ```sh
-pnpm test-sync --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
-# For tests in the async folder:
-pnpm test -- --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+pnpm test --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For client tests:
 pnpm test-client --testPathPatterns="buildStepData" --testNamePattern="buildStepData"
 ```
@@ -159,7 +156,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 - For backend/API changes, tests must pass before pushes
 - Add tests for new API endpoints and features
 - When writing tests, focus on decoupling each `it` or `test` block to ensure that they can run independently and concurrently. Tests must never depend on the action or outcome of previous or subsequent tests.
-- When writing tests, especially in the __tests__/async directory, ensure that you avoid `pruneDatabase` calls.
+- When writing tests, especially in the __tests__/server directory, ensure that you avoid `pruneDatabase` calls.
 
 ### Code Conventions
 - **Pages Router** (not App Router)

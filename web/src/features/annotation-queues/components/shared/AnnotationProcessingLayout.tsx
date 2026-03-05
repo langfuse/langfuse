@@ -32,23 +32,25 @@ export const AnnotationProcessingLayout: React.FC<
       {/* Desktop: Horizontal resizable panels */}
       <div className="hidden max-h-full min-h-0 overflow-hidden md:block">
         <ResizablePanelGroup
-          direction="horizontal"
+          orientation="horizontal"
           className="h-full overflow-hidden"
-          onLayout={(sizes) => {
-            setPanelSize(sizes[0]);
+          onLayoutChanged={(layout) => {
+            const left = layout["annotation-left"];
+            if (left != null) setPanelSize(left);
           }}
         >
           <ResizablePanel
+            id="annotation-left"
             className="col-span-1 h-full !overflow-y-auto rounded-md border"
-            minSize={30}
-            defaultSize={panelSize}
+            minSize="30%"
+            defaultSize={`${panelSize}%`}
           >
             {leftPanel}
           </ResizablePanel>
           <ResizableHandle withHandle className="ml-4 bg-transparent" />
           <ResizablePanel
             className="col-span-1 flex h-full flex-col overflow-hidden"
-            minSize={30}
+            minSize="30%"
           >
             {rightPanel}
           </ResizablePanel>

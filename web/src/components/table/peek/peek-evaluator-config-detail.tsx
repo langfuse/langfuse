@@ -20,7 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -28,7 +28,6 @@ export const PeekViewEvaluatorConfigDetail = ({
   projectId: string;
 }) => {
   const router = useRouter();
-  const isBetaEnabled = useObservationEvals();
   const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
   const utils = api.useUtils();
@@ -55,10 +54,12 @@ export const PeekViewEvaluatorConfigDetail = ({
               isLive
               className="max-h-8"
             />
-            <DeactivateEvalConfig
-              projectId={projectId}
-              evalConfig={evalConfig}
-            />
+            {isLegacyEvalTarget(evalConfig.targetObject) && (
+              <DeactivateEvalConfig
+                projectId={projectId}
+                evalConfig={evalConfig}
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -70,7 +71,8 @@ export const PeekViewEvaluatorConfigDetail = ({
           <Switch
             disabled={
               !hasAccess ||
-              (evalConfig?.timeScope?.length === 1 &&
+              (isLegacyEvalTarget(evalConfig.targetObject) &&
+                evalConfig?.timeScope?.length === 1 &&
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isEditMode}
@@ -79,8 +81,7 @@ export const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {isBetaEnabled &&
-        evalConfig &&
+      {evalConfig &&
         evalConfig.targetObject &&
         evalConfig.evalTemplate &&
         evalConfig.finalStatus === "ACTIVE" && (

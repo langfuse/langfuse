@@ -11,6 +11,8 @@ export const BATCH_DELETION_TABLES = [
   "traces",
   "observations",
   "scores",
+  "events_full",
+  "events_core",
   "events",
   "dataset_run_items_rmt",
 ] as const;
@@ -30,7 +32,7 @@ interface ProjectCount {
 /**
  * BatchProjectCleaner handles bulk deletion of ClickHouse data for soft-deleted projects.
  *
- * Each instance processes one table (traces, observations, scores, events).
+ * Each instance processes one table (traces, observations, scores, events_full, events_core).
  * Multiple workers coordinate via Redis distributed locking to ensure only one
  * worker deletes from a given table at a time.
  *
@@ -225,6 +227,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         table: this.tableName,
         operation: "count",
       },
+      allowLegacyEventsRead: this.tableName === "events",
     });
 
     const counts = new Map<string, number>();

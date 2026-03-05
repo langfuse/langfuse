@@ -107,6 +107,9 @@ export const checkTraceExistsAndGetTimestamp = async ({
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
         countIf(level = 'DEBUG') as debug_count,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        sumMap(usage_details) as usage_details,
+        sumMap(cost_details) as cost_details,
         trace_id,
         project_id
       FROM observations o FINAL
@@ -1375,6 +1378,7 @@ export const getTracesForBlobStorageExport = function (
 
 export const getTracesForAnalyticsIntegrations = async function* (
   projectId: string,
+  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
@@ -1453,6 +1457,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
+      langfuse_project_name: projectName,
       langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_release: record.release,
