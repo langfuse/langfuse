@@ -737,7 +737,7 @@ export const eventRecordReadSchema = eventRecordBaseSchema.extend({
 export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
 
 export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
-  metadata_raw_values: z.array(z.string().nullish()).default([]),
+  metadata_values: z.array(z.string().nullish()).default([]),
   start_time: z.number(),
   end_time: z.number().nullish(),
   completion_start_time: z.number().nullish(),
