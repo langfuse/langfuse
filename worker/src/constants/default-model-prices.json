@@ -2797,7 +2797,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2807,6 +2807,7 @@
         "conditions": [],
         "prices": {
           "input": 3e-7,
+          "input_text": 3e-7,
           "input_modality_1": 3e-7,
           "prompt_token_count": 3e-7,
           "promptTokenCount": 3e-7,
@@ -2829,7 +2830,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2839,6 +2840,7 @@
         "conditions": [],
         "prices": {
           "input": 1e-7,
+          "input_text": 1e-7,
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
@@ -3361,7 +3363,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3371,6 +3373,7 @@
         "conditions": [],
         "prices": {
           "input": 1.25e-6,
+          "input_text": 1.25e-6,
           "input_modality_1": 1.25e-6,
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
@@ -3400,6 +3403,7 @@
         ],
         "prices": {
           "input": 2.5e-6,
+          "input_text": 2.5e-6,
           "input_modality_1": 2.5e-6,
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
