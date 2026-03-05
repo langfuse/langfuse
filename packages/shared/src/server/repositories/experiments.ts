@@ -138,8 +138,6 @@ export const getExperimentMetricsFromEvents = async (props: {
     },
   });
 
-  console.log({ res });
-
   return res.map((row) => ({
     id: row.experiment_id,
     totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
