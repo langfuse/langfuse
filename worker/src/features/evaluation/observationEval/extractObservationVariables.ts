@@ -125,6 +125,10 @@ function applyJsonSelector(params: ApplyJsonSelectorParams): unknown {
     return value;
   }
 
+  if (typeof value !== "object") {
+    return value; // Can't apply JSONPath to primitives
+  }
+
   try {
     return JSONPath({
       path: selector,
