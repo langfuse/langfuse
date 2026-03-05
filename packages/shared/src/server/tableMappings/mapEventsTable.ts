@@ -251,6 +251,30 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_name"',
   },
+  {
+    uiTableName: "Available Tools",
+    uiTableId: "toolDefinitions",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "length(mapKeys(e.tool_definitions))",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "length(e.tool_calls)",
+  },
+  {
+    uiTableName: "Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "mapKeys(e.tool_definitions)",
+  },
+  {
+    uiTableName: "Called Tool Names",
+    uiTableId: "calledToolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.tool_call_names",
+  },
 ];
 
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [
@@ -274,6 +298,18 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
+  },
+  {
+    uiTableName: "Trace Scores (numeric)",
+    uiTableId: "trace_scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ts.scores_avg",
+  },
+  {
+    uiTableName: "Trace Scores (categorical)",
+    uiTableId: "trace_score_categories",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ts.score_categories",
   },
   {
     uiTableName: "Comment Count",

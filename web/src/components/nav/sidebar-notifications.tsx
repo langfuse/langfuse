@@ -37,7 +37,7 @@ const notifications: SidebarNotification[] = [
       // eslint-disable-next-line @next/next/no-img-element
       <img
         alt="Langfuse GitHub stars"
-        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
+        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&style=social"
       />
     ),
   },

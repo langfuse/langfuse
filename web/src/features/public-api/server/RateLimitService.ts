@@ -48,6 +48,8 @@ export class RateLimitService {
     if (RateLimitService.redis && RateLimitService.redis.status !== "end") {
       RateLimitService.redis.disconnect();
     }
+    RateLimitService.redis = null;
+    RateLimitService.instance = null;
   }
 
   async rateLimitRequest(

@@ -117,6 +117,11 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "value",
     },
     {
+      // Legacy column name from dashboardColumnDefinitions (uiTableName: "value")
+      uiTableName: "value",
+      viewName: "value",
+    },
+    {
       uiTableName: "Scores Data Type",
       viewName: "dataType",
     },

@@ -5,7 +5,10 @@ import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { CloudSpendAlertQueue } from "./cloudSpendAlertQueue";
 import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
-import { EvalExecutionQueue } from "./evalExecutionQueue";
+import {
+  EvalExecutionQueue,
+  SecondaryEvalExecutionQueue,
+} from "./evalExecutionQueue";
 import { LLMAsJudgeExecutionQueue } from "./llmAsJudgeExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { SecondaryIngestionQueue } from "./ingestionQueue";
@@ -56,6 +59,8 @@ export function getQueue(
       return DatasetDeleteQueue.getInstance();
     case QueueName.EvaluationExecution:
       return EvalExecutionQueue.getInstance();
+    case QueueName.EvaluationExecutionSecondaryQueue:
+      return SecondaryEvalExecutionQueue.getInstance();
     case QueueName.LLMAsJudgeExecution:
       return LLMAsJudgeExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:

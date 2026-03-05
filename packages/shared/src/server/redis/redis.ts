@@ -119,7 +119,7 @@ const createRedisClusterInstance = (
     dnsLookup: (address, callback) => {
       callback(null, address);
     },
-    slotsRefreshTimeout: 5000,
+    slotsRefreshTimeout: env.REDIS_CLUSTER_SLOTS_REFRESH_TIMEOUT,
     redisOptions: {
       username: env.REDIS_USERNAME || undefined,
       password: env.REDIS_AUTH || undefined,
