@@ -5,31 +5,9 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
-<<<<<<< Updated upstream:fern/apis/server/definition/observations-v1.yml
-    get:
-      availability:
-        status: deprecated
-        message: "Observations V1 is deprecated and queries the legacy observations table. Use /api/public/v2/observations."
-      docs: Get an observation (Observations V1, deprecated)
-      method: GET
-      path: /observations/{observationId}
-      path-parameters:
-        observationId:
-          type: string
-          docs: The unique langfuse identifier of an observation, can be an event, span or generation
-      response: commons.ObservationsView
-=======
->>>>>>> Stashed changes:fern/apis/server/definition/observations.yml
     getMany:
-      availability:
-        status: deprecated
-        message: "Observations V1 is deprecated and queries the legacy observations table. Use /api/public/v2/observations."
       docs: |
-<<<<<<< Updated upstream:fern/apis/server/definition/observations-v1.yml
-        Get a list of observations (Observations V1, deprecated).
-=======
         Get a list of observations with cursor-based pagination and flexible field selection.
->>>>>>> Stashed changes:fern/apis/server/definition/observations.yml
 
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
@@ -56,11 +34,7 @@ service:
       method: GET
       path: /v2/observations
       request:
-<<<<<<< Updated upstream:fern/apis/server/definition/observations-v1.yml
-        name: GetObservationsV1Request
-=======
         name: GetObservationsV2Request
->>>>>>> Stashed changes:fern/apis/server/definition/observations.yml
         query-parameters:
           fields:
             type: optional<string>
@@ -208,17 +182,6 @@ service:
                 }
               ]
               ```
-<<<<<<< Updated upstream:fern/apis/server/definition/observations-v1.yml
-      response: ObservationsV1Views
-
-types:
-  ObservationsV1:
-    properties:
-      data: list<commons.Observation>
-      meta: pagination.MetaResponse
-
-  ObservationsV1Views:
-=======
       response: ObservationsV2Response
 
 types:
@@ -228,7 +191,6 @@ types:
 
       The `data` array contains observation objects with only the requested field groups included.
       Use the `cursor` in `meta` to retrieve the next page of results.
->>>>>>> Stashed changes:fern/apis/server/definition/observations.yml
     properties:
       data:
         type: list<commons.ObservationV2>
