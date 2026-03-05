@@ -82,12 +82,13 @@ export function SpanContent({
 
   // Filter scores for this node
   // - TRACE nodes: show trace-level scores (observationId === null)
-  // - Root observations in v4 mode (no TRACE node): show trace-level + observation-level scores
+  // - Top-level observations in rendered v4 tree (no TRACE node): show trace-level + observation-level scores
   // - All other observations: show only observation-level scores
+  const isTopLevelTreeNode = roots.some((root) => root.id === node.id);
   const nodeScores =
     node.type === "TRACE"
       ? mergedScores.filter((s) => s.observationId === null)
-      : node.parentObservationId === null && !hasTraceNode
+      : isTopLevelTreeNode && !hasTraceNode
         ? mergedScores.filter(
             (s) => s.observationId === node.id || s.observationId === null,
           )
