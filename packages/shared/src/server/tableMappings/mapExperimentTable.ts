@@ -44,7 +44,7 @@ export const experimentPreAggCols: UiColumnMappings = [
     uiTableId: "metadata",
     clickhouseTableName: "events_proto",
     clickhouseSelect: "experiment_metadata",
-    queryPrefix: "e", // StringObjectFilter uses {prefix}.metadata_names/metadata_values for array access
+    queryPrefix: "e", // StringObjectFilter uses {prefix}.{field}_names/{field}_values for array access
   },
 ];
 
