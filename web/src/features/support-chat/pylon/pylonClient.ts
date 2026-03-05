@@ -105,8 +105,12 @@ export async function uploadPylonAttachment(
 ): Promise<PylonAttachmentResponse> {
   const { apiKey, file, fileName } = params;
 
+  const arrayBuffer = file.buffer.slice(
+    file.byteOffset,
+    file.byteOffset + file.byteLength,
+  ) as ArrayBuffer;
   const formData = new FormData();
-  formData.append("file", new Blob([file]), fileName);
+  formData.append("file", new Blob([arrayBuffer]), fileName);
 
   const res = await fetch(`${PYLON_API_BASE}/attachments`, {
     method: "POST",
