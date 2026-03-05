@@ -312,6 +312,8 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.4",
+  "gpt-5.4-pro",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
@@ -355,6 +357,8 @@ export const openAIModels = [
 type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
 export const openAIModelToReasoning: OpenAIReasoningMap = {
   // reasoning models
+  "gpt-5.4": true,
+  "gpt-5.4-pro": true,
   "gpt-5.2-2025-12-11": true,
   "gpt-5.1": true,
   "gpt-5.1-2025-11-13": true,
