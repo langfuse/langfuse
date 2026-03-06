@@ -28,12 +28,17 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
+# URL encode ClickHouse credentials to handle special characters
+# Use Node.js which is available in Langfuse environments
+ENCODED_CLICKHOUSE_USER=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_USER))")
+ENCODED_CLICKHOUSE_PASSWORD=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_PASSWORD))")
+
 # Construct the database URL
 if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
   else
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
   fi
 
   # If SKIP_CONFIRM is set, automatically answer the confirmation prompt. Otherwise run interactively.
@@ -44,9 +49,9 @@ if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   fi
 else
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   else
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
 
   # If SKIP_CONFIRM is set, automatically answer the confirmation prompt. Otherwise run interactively.
