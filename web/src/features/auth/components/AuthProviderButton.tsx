@@ -1,3 +1,4 @@
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import React from "react";
@@ -17,25 +18,36 @@ export function AuthProviderButton({
   loading = false,
   showLastUsedBadge = false,
 }: AuthProviderButtonProps) {
+  const shouldShowLastUsedBadge = showLastUsedBadge && !loading;
+
   return (
-    <div>
+    <div className="relative">
       <Button
         onClick={onClick}
         variant="secondary"
         loading={loading}
-        className="w-full"
+        className={cn(
+          "w-full",
+          shouldShowLastUsedBadge && "ring-1 ring-ring/30",
+        )}
+        title={shouldShowLastUsedBadge ? "Last used" : undefined}
       >
         {icon}
         {label}
+        {shouldShowLastUsedBadge ? (
+          <span className="sr-only">, last used sign-in method</span>
+        ) : null}
       </Button>
-      <div
-        className={cn(
-          "mt-0.5 text-center text-xs text-muted-foreground",
-          showLastUsedBadge ? "visible" : "invisible",
-        )}
-      >
-        Last used
-      </div>
+      {shouldShowLastUsedBadge ? (
+        <Badge
+          variant="secondary"
+          size="sm"
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-1 -top-2 border border-border text-[9px] font-medium leading-none ring-2 ring-card"
+        >
+          Last used
+        </Badge>
+      ) : null}
     </div>
   );
 }
