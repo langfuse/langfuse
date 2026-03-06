@@ -204,6 +204,74 @@ describe("traces trpc", () => {
 
       expect(traces.traces.length).toBe(0);
     });
+
+    it("should search traces by input only", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+        input: { query: "unique_trace_input_keyword" },
+        output: { result: "different output" },
+        name: "input-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: "unique_trace_input_keyword",
+        searchType: ["input"], // Search only in input
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+      expect(traces.traces.some((t) => t.id === trace.id)).toBe(true);
+    });
+
+    it("should search traces by output only", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+        input: { query: "simple input" },
+        output: { result: "unique_trace_output_keyword for testing" },
+        name: "output-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: "unique_trace_output_keyword",
+        searchType: ["output"], // Search only in output
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+      expect(traces.traces.some((t) => t.id === trace.id)).toBe(true);
+    });
   });
 
   describe("traces.countAll", () => {

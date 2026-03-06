@@ -22,6 +22,12 @@ export const clickhouseSearchCondition = (
     searchType && searchType.includes("content")
       ? `${prefix}input ILIKE {searchString: String} OR ${prefix}output ILIKE {searchString: String}`
       : null,
+    searchType && searchType.includes("input")
+      ? `${prefix}input ILIKE {searchString: String}`
+      : null,
+    searchType && searchType.includes("output")
+      ? `${prefix}output ILIKE {searchString: String}`
+      : null,
   ].filter(Boolean);
 
   return {
