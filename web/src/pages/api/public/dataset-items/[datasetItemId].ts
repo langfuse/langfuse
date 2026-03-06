@@ -27,9 +27,10 @@ export default withMiddlewares({
       const datasetItem = await getDatasetItemById({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
+        status: "ACTIVE",
       });
       if (!datasetItem) {
-        throw new LangfuseNotFoundError("Dataset item not found");
+        throw new LangfuseNotFoundError("Dataset item not found or archived");
       }
 
       const dataset = await prisma.dataset.findUnique({
@@ -46,7 +47,7 @@ export default withMiddlewares({
 
       // Note that we cascade items on delete, so returning a 404 here is expected
       if (!dataset) {
-        throw new LangfuseNotFoundError("Dataset item not found");
+        throw new LangfuseNotFoundError("Dataset not found");
       }
 
       return transformDbDatasetItemDomainToAPIDatasetItem({
