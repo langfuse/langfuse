@@ -176,6 +176,7 @@ export const handleBatchExportJob = async (
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
           filter: processedFilter,
+          fileFormat: jobDetails.format as BatchExportFileFormat,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
