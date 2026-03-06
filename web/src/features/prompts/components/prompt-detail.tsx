@@ -59,8 +59,10 @@ import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPrompt
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
-import { PromptReferenceProvider } from "@/src/features/prompts/components/PromptReferenceContext";
+import {
+  PromptReferenceProvider,
+  renderRichPromptContent,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
 

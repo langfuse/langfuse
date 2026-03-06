@@ -9,7 +9,10 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
-import { usePromptReferenceProjectId } from "@/src/features/prompts/components/PromptReferenceContext";
+import {
+  replacePromptReferencesWithMarkdownLinks,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import {
   ChevronDown,
   ChevronRight,
@@ -43,7 +46,6 @@ import {
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
-import { replacePromptReferencesWithMarkdownLinks } from "@/src/utils/prompt-reference-utils";
 import {
   convertRowIdToKeyPath,
   getRowChildren,

@@ -19,8 +19,10 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
-import { usePromptReferenceProjectId } from "@/src/features/prompts/components/PromptReferenceContext";
+import {
+  renderRichPromptContent,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;

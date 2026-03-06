@@ -1,19 +1,115 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   MUSTACHE_REGEX,
   isValidVariableName,
   PromptDependencyRegex,
+  type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { FileCode } from "lucide-react";
-import { usePromptReferenceProjectId } from "@/src/features/prompts/components/PromptReferenceContext";
-import {
-  getPromptReferenceUrl,
-  parsePromptDependencyInnerContent,
-  type PromptReferenceWithPosition,
-} from "@/src/utils/prompt-reference-utils";
+
+const PromptReferenceContext = React.createContext<string | undefined>(
+  undefined,
+);
+
+export const PromptReferenceProvider = ({
+  projectId,
+  children,
+}: {
+  projectId?: string;
+  children: ReactNode;
+}) => (
+  <PromptReferenceContext.Provider value={projectId}>
+    {children}
+  </PromptReferenceContext.Provider>
+);
+
+export const usePromptReferenceProjectId = () =>
+  React.useContext(PromptReferenceContext);
+
+export type PromptReferenceWithPosition = ParsedPromptDependencyTag & {
+  position: number;
+};
+
+export const parsePromptDependencyInnerContent = (
+  innerContent: string,
+  position: number,
+): PromptReferenceWithPosition | null => {
+  const tagParts = innerContent.split("|");
+  const params: Record<string, string> = {};
+
+  tagParts.forEach((part) => {
+    const separatorIndex = part.indexOf("=");
+    if (separatorIndex === -1) return;
+
+    const key = part.slice(0, separatorIndex);
+    const value = part.slice(separatorIndex + 1);
+
+    if (key && value) {
+      params[key] = value;
+    }
+  });
+
+  if (!params.name) return null;
+
+  if (params.version) {
+    const version = Number(params.version);
+    if (!Number.isFinite(version)) return null;
+
+    return {
+      name: params.name,
+      type: "version",
+      version,
+      position,
+    };
+  }
+
+  return {
+    name: params.name,
+    type: "label",
+    label: params.label || "",
+    position,
+  };
+};
+
+export const getPromptReferenceUrl = (
+  projectId: string,
+  tag: ParsedPromptDependencyTag,
+) => {
+  const baseUrl = `/project/${projectId}/prompts/`;
+  if (tag.type === "version") {
+    return `${baseUrl}${encodeURIComponent(tag.name)}?version=${tag.version}`;
+  }
+
+  return `${baseUrl}${encodeURIComponent(tag.name)}?label=${encodeURIComponent(tag.label)}`;
+};
+
+const escapeMarkdownLinkText = (text: string) =>
+  text.replace(/[[\]\\]/g, "\\$&");
+
+export const replacePromptReferencesWithMarkdownLinks = (
+  projectId: string,
+  content: string,
+): string => {
+  if (!content) return content;
+
+  return content.replace(
+    PromptDependencyRegex,
+    (fullMatch: string, innerContent: string, offset: number) => {
+      if (typeof innerContent !== "string") return fullMatch;
+
+      const tag = parsePromptDependencyInnerContent(innerContent, offset);
+      if (!tag) return fullMatch;
+
+      const suffix =
+        tag.type === "version" ? ` v${tag.version}` : ` ${tag.label}`.trimEnd();
+      const linkText = escapeMarkdownLinkText(`${tag.name}${suffix}`);
+      return `[${linkText}](${getPromptReferenceUrl(projectId, tag)})`;
+    },
+  );
+};
 
 const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
   <span

@@ -7,12 +7,14 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { usePromptReferenceProjectId } from "@/src/features/prompts/components/PromptReferenceContext";
+import {
+  replacePromptReferencesWithMarkdownLinks,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
-import { replacePromptReferencesWithMarkdownLinks } from "@/src/utils/prompt-reference-utils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
