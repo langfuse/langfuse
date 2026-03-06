@@ -14,6 +14,10 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  useSSEDashboardQuery,
+  type QueryProgress,
+} from "@/src/hooks/useSSEDashboardQuery";
 
 type SchedulerItemStatus = "queued" | "running" | "done";
 
@@ -265,6 +269,7 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
   priority?: number;
   queryId: string;
   runKey?: string;
+  useSSE?: boolean;
 };
 
 const getDefaultRunKey = (input: DashboardExecuteQueryInput) =>
@@ -278,9 +283,19 @@ export const useScheduledDashboardExecuteQuery = (
     priority = 1000,
     queryId,
     runKey,
+    useSSE = false,
     ...queryOptions
   }: ScheduledDashboardExecuteQueryOptions,
-) => {
+): {
+  data: Record<string, unknown>[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isSuccess: boolean;
+  fetchStatus: string;
+  isPending: boolean;
+  progress: QueryProgress | null;
+  error: string | null;
+} => {
   const context = useDashboardQuerySchedulerContext();
   const scheduler = context?.scheduler;
   const register = scheduler?.register;
@@ -305,19 +320,28 @@ export const useScheduledDashboardExecuteQuery = (
 
   const canFetch = scheduler ? scheduler.canFetch(queryId) : true;
 
-  const queryResult = api.dashboard.executeQuery.useQuery<
+  // tRPC path (default)
+  const trpcResult = api.dashboard.executeQuery.useQuery<
     Record<string, unknown>[]
   >(input, {
     ...queryOptions,
-    enabled: enabled && canFetch,
+    enabled: enabled && canFetch && !useSSE,
     meta,
   });
+
+  // SSE path (opt-in)
+  const sseResult = useSSEDashboardQuery(input, {
+    enabled: enabled && canFetch && useSSE,
+    queryId,
+  });
+
+  const activeResult = useSSE ? sseResult : trpcResult;
 
   useEffect(() => {
     if (!markDone) return;
     if (!enabled || !canFetch) return;
-    if (queryResult.fetchStatus !== "idle") return;
-    if (queryResult.isPending) return;
+    if (activeResult.fetchStatus !== "idle") return;
+    if (activeResult.isPending) return;
 
     markDone(queryId);
   }, [
@@ -325,9 +349,18 @@ export const useScheduledDashboardExecuteQuery = (
     enabled,
     markDone,
     queryId,
-    queryResult.fetchStatus,
-    queryResult.isPending,
+    activeResult.fetchStatus,
+    activeResult.isPending,
   ]);
 
-  return queryResult;
+  return {
+    data: activeResult.data,
+    isLoading: activeResult.isLoading,
+    isError: activeResult.isError,
+    isSuccess: activeResult.isSuccess,
+    fetchStatus: activeResult.fetchStatus,
+    isPending: activeResult.isPending,
+    progress: useSSE ? sseResult.progress : null,
+    error: useSSE ? sseResult.error : null,
+  };
 };
