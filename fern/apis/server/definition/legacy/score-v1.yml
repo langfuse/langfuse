@@ -15,7 +15,7 @@ service:
 
         **Deprecated:** Use `/api/public/v2/scores`.
 
-        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.score` namespace always points to the latest supported scores API.
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.scores` namespace always points to the latest supported scores API.
       method: POST
       path: /scores
       request: CreateScoreV1Request
@@ -29,7 +29,7 @@ service:
 
         **Deprecated:** Use `/api/public/v2/scores`.
 
-        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.score` namespace always points to the latest supported scores API.
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.scores` namespace always points to the latest supported scores API.
       method: DELETE
       path: /scores/{scoreId}
       path-parameters:
