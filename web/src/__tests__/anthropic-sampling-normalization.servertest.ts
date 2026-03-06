@@ -28,7 +28,13 @@ describe("normalizeAnthropicSamplingParams", () => {
   });
 
   it("should drop invalid top_p values", () => {
-    const invalidTopPValues = [-1, 0, 1.1, Number.NaN, Number.POSITIVE_INFINITY];
+    const invalidTopPValues = [
+      -1,
+      0,
+      1.1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ];
 
     for (const topP of invalidTopPValues) {
       const result = normalizeAnthropicSamplingParams({
