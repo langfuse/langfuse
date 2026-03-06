@@ -28,6 +28,7 @@ import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import { filterEventsForBlockedUsers } from "../ingestion/userBlocking";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -525,7 +526,14 @@ export class OtelIngestionProcessor {
           });
 
           // Filter out redundant shallow trace events
-          const finalEvents = this.filterRedundantShallowTraces(allEvents);
+          const eventsAfterShallowFilter =
+            this.filterRedundantShallowTraces(allEvents);
+
+          // Apply user blocking filter
+          const finalEvents = await filterEventsForBlockedUsers(
+            eventsAfterShallowFilter,
+            this.projectId,
+          );
 
           span.setAttribute("events_generated", finalEvents.length);
 
