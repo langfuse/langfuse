@@ -12,6 +12,7 @@ import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRout
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
+  traceScores?: ScoreAggregate;
 };
 
 type UseEventsTableDataParams = {

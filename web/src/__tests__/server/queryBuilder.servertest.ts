@@ -4312,6 +4312,38 @@ describe("validateQuery", () => {
 
     expect(result).toEqual({ valid: true });
   });
+
+  it("should return invalid when high cardinality dimension is used with timeDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      chartConfig: { type: "table", row_limit: 10 },
+      timeDimension: { granularity: "day" }, // timeseries
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "traceId",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "timeDimension",
+    );
+  });
+
+  it("should return valid for low cardinality dimension with timeDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "name" }], // low cardinality
+      timeDimension: { granularity: "day" },
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
 });
 
 describe("getValidAggregationsForMeasureType", () => {
@@ -4727,6 +4759,68 @@ describe("query builder measure-aggregation validation", () => {
 
       // v1 traces join should still use FINAL (useFinal defaults to true)
       expect(compiledQuery).toContain("JOIN traces FINAL");
+    });
+  });
+
+  describe("rootEventCondition threshold gating", () => {
+    const tracesV2Query: QueryType = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-01-04T00:00:00.000Z", // 3-day window (72 hours)
+      orderBy: null,
+    };
+
+    it("should include rootEventCondition subquery when window is within threshold", async () => {
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      try {
+        // 168 hours (7 days) threshold, 72-hour window → should include subquery
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 168;
+        const builder = new QueryBuilder(undefined, "v2");
+        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
+        expect(sql).toContain("IN (SELECT trace_id");
+      } finally {
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
+      }
+    });
+
+    it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      try {
+        // 24-hour threshold, 72-hour window → should skip subquery
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 24;
+        const builder = new QueryBuilder(undefined, "v2");
+        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
+        expect(sql).not.toContain("IN (SELECT trace_id");
+      } finally {
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
+      }
+    });
+
+    it("should always include rootEventCondition subquery when threshold is 0", async () => {
+      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+      try {
+        // 0 = always apply, even for a very wide window
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 0;
+        const builder = new QueryBuilder(undefined, "v2");
+        const { query: sql } = await builder.build(
+          {
+            ...tracesV2Query,
+            fromTimestamp: "2024-01-01T00:00:00.000Z",
+            toTimestamp: "2025-01-01T00:00:00.000Z", // 1-year window
+          },
+          randomUUID(),
+        );
+        expect(sql).toContain("IN (SELECT trace_id");
+      } finally {
+        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+          originalValue;
+      }
     });
   });
 });

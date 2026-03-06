@@ -28,8 +28,8 @@ export function TierPriceEditor({
         <span>Usage type</span>
         <span>Price</span>
       </div>
-      {Object.entries(prices).map(([key, value]) => (
-        <div key={key} className="grid grid-cols-2 gap-1">
+      {Object.entries(prices).map(([key, value], index) => (
+        <div key={index} className="grid grid-cols-2 gap-1">
           <Input
             placeholder="Key (e.g. input, output)"
             value={key}
