@@ -62,7 +62,7 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
-} from "@/src/features/prompts/components/prompt-content-utils";
+} from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
 

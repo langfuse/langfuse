@@ -22,7 +22,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
   usePromptReferenceProjectId,
-} from "@/src/features/prompts/components/prompt-content-utils";
+} from "@/src/components/ui/PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;

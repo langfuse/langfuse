@@ -10,7 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   replacePromptReferencesWithMarkdownLinks,
   usePromptReferenceProjectId,
-} from "@/src/features/prompts/components/prompt-content-utils";
+} from "@/src/components/ui/PromptReferences";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";

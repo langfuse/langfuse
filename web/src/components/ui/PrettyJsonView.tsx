@@ -12,7 +12,7 @@ import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
   replacePromptReferencesWithMarkdownLinks,
   usePromptReferenceProjectId,
-} from "@/src/features/prompts/components/prompt-content-utils";
+} from "@/src/components/ui/PromptReferences";
 import {
   ChevronDown,
   ChevronRight,

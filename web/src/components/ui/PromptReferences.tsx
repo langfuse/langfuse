@@ -1,18 +1,16 @@
-import React, { type ReactNode } from "react";
-import { cn } from "@/src/utils/tailwind";
+import React, { createContext, useContext, type ReactNode } from "react";
 import {
   MUSTACHE_REGEX,
-  isValidVariableName,
   PromptDependencyRegex,
+  isValidVariableName,
   type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import { FileCode } from "lucide-react";
 
-const PromptReferenceContext = React.createContext<string | undefined>(
-  undefined,
-);
+const PromptReferenceContext = createContext<string | undefined>(undefined);
 
 export const PromptReferenceProvider = ({
   projectId,
@@ -27,7 +25,7 @@ export const PromptReferenceProvider = ({
 );
 
 export const usePromptReferenceProjectId = () =>
-  React.useContext(PromptReferenceContext);
+  useContext(PromptReferenceContext);
 
 export type PromptReferenceWithPosition = ParsedPromptDependencyTag & {
   position: number;
@@ -37,10 +35,9 @@ export const parsePromptDependencyInnerContent = (
   innerContent: string,
   position: number,
 ): PromptReferenceWithPosition | null => {
-  const tagParts = innerContent.split("|");
   const params: Record<string, string> = {};
 
-  tagParts.forEach((part) => {
+  innerContent.split("|").forEach((part) => {
     const separatorIndex = part.indexOf("=");
     if (separatorIndex === -1) return;
 
@@ -111,26 +108,11 @@ export const replacePromptReferencesWithMarkdownLinks = (
   );
 };
 
-const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
-  <span
-    dir="ltr"
-    style={{ unicodeBidi: "isolate" }}
-    className={cn(
-      isValid ? "text-primary-accent" : "text-destructive",
-      "whitespace-nowrap",
-    )}
-  >
-    {`{{${name}}}`}
-  </span>
-);
-
-type PromptReference = PromptReferenceWithPosition;
-
-const PromptReference = ({
+export const PromptReferenceButton = ({
   promptRef,
   fallbackText,
 }: {
-  promptRef: PromptReference;
+  promptRef: PromptReferenceWithPosition;
   fallbackText: string;
 }) => {
   const projectId = usePromptReferenceProjectId();
@@ -177,7 +159,19 @@ const PromptReference = ({
   );
 };
 
-// Higher-level function that renders prompt content with all the rich formatting
+const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
+  <span
+    dir="ltr"
+    style={{ unicodeBidi: "isolate" }}
+    className={cn(
+      isValid ? "text-primary-accent" : "text-destructive",
+      "whitespace-nowrap",
+    )}
+  >
+    {`{{${name}}}`}
+  </span>
+);
+
 export const renderRichPromptContent = (content: string): React.ReactNode[] => {
   if (!content) return [];
 
@@ -194,9 +188,6 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
 
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-
-  // Create combined regex that captures both patterns in a single pass
-  // Group 1: prompt dependency inner content, Group 2: variable name
   const combinedRegex = new RegExp(
     `${PromptDependencyRegex.source}|${MUSTACHE_REGEX.source}`,
     "g",
@@ -207,7 +198,6 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
     const index = match.index ?? 0;
     const fullMatch = match[0];
 
-    // Add any text before this match
     if (index > lastIndex) {
       const textBefore = content.substring(lastIndex, index);
       if (textBefore) {
@@ -215,27 +205,22 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
       }
     }
 
-    // Determine type based on which capture group matched and process directly
     if (match[1] !== undefined) {
-      // First capture group = prompt dependency
-      const innerContent = match[1];
-      const tag = parsePromptDependencyInnerContent(innerContent, index);
-      if (tag) {
-        parts.push(
+      const tag = parsePromptDependencyInnerContent(match[1], index);
+      parts.push(
+        tag ? (
           <React.Fragment key={`prompt-${index}`}>
-            <PromptReference promptRef={tag} fallbackText={fullMatch} />
-          </React.Fragment>,
-        );
-      } else {
-        parts.push(createTextNode(fullMatch, `raw-${index}`));
-      }
+            <PromptReferenceButton promptRef={tag} fallbackText={fullMatch} />
+          </React.Fragment>
+        ) : (
+          createTextNode(fullMatch, `raw-${index}`)
+        ),
+      );
     } else if (match[2] !== undefined) {
-      // Second capture group = variable
       const variable = match[2];
-      const isValid = isValidVariableName(variable);
       parts.push(
         <React.Fragment key={`var-${index}-${variable}`}>
-          <PromptVar name={variable} isValid={isValid} />
+          <PromptVar name={variable} isValid={isValidVariableName(variable)} />
         </React.Fragment>,
       );
     }
@@ -243,7 +228,6 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
     lastIndex = index + fullMatch.length;
   }
 
-  // Add any remaining text
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
     if (remainingText) {
