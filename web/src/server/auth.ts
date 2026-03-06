@@ -690,6 +690,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              password: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
@@ -800,6 +801,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags),
+                    hasPassword: Boolean(dbUser.password),
                   }
                 : null,
           };
