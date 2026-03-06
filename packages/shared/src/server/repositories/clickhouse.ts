@@ -15,7 +15,11 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
-import { ClickHouseSettings, type DataFormat } from "@clickhouse/client";
+import {
+  ClickHouseSettings,
+  type RowOrProgress,
+  type DataFormat,
+} from "@clickhouse/client";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 
 /**
@@ -443,6 +447,49 @@ export async function queryClickhouse<T>(
   );
 }
 
+export async function* queryClickhouseWithProgress<T>(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<RowOrProgress<T>> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+
+  const tracer = getTracer("clickhouse-query-progress");
+  const span = tracer.startSpan("clickhouse-query-progress", {
+    kind: SpanKind.CLIENT,
+  });
+
+  try {
+    setSpanQueryAttributes(span, opts.query);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({
+          ...opts,
+          clickhouseSettings: {
+            asterisk_include_alias_columns: 1,
+            asterisk_include_materialized_columns: 1,
+            ...opts.clickhouseSettings,
+          },
+          format: "JSONEachRowWithProgress",
+          span,
+        }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
+
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.json() as RowOrProgress<T>;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ClickHouseResourceError) throw error;
+    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+  } finally {
+    span.end();
+  }
+}
+
 export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
@@ -501,6 +548,13 @@ export async function commandClickhouse(opts: {
     },
   );
 }
+
+export {
+  isProgressRow,
+  isRow,
+  isException,
+  type RowOrProgress,
+} from "@clickhouse/client";
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
   return new Date(`${dateStr.replace(" ", "T")}Z`);
