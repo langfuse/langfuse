@@ -3,7 +3,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { generateSsoCallbackUrlId, logger } from "@langfuse/shared/src/server";
 import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 
 export async function createNewSsoConfigHandler(
@@ -74,15 +74,24 @@ export async function createNewSsoConfigHandler(
         }
       : undefined;
 
+    // Generate hashed callbackUrlId for configs with authConfig (custom credentials)
+    const callbackUrlId = authConfig
+      ? generateSsoCallbackUrlId({ domain, authProvider })
+      : null;
+
     await prisma.ssoConfig.create({
       data: {
         domain,
         authProvider,
         authConfig: encryptedClientSecret,
+        callbackUrlId,
       },
     });
+
     res.status(201).json({
       message: "SSO configuration created successfully",
+      // Return callbackUrlId so customers know which callback URL to configure in their IdP
+      ...(callbackUrlId && { callbackUrlId }),
     });
   } catch (e) {
     logger.error("Failed to create SSO configuration", e);
