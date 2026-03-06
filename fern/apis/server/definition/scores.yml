@@ -6,7 +6,7 @@ service:
   auth: true
   base-path: /api/public/v2
   endpoints:
-    get:
+    get-many:
       docs: Get a list of scores (supports both trace and session scores)
       method: GET
       path: /scores
