@@ -343,7 +343,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   release: "argMaxIf(release, event_ts, release <> '') AS release",
 
   // experiment fields
-  experiment_id: "any(e.experiment_id) as experiment_id",
+  experiment_id: "any(experiment_id) as experiment_id",
 } as const;
 
 /**
