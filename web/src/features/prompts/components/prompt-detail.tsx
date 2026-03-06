@@ -60,6 +60,7 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
+import { PromptReferenceProvider } from "@/src/features/prompts/components/PromptReferenceContext";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
@@ -533,37 +534,35 @@ export const PromptDetail = ({
                     </Tabs>
                   </div>
                 )}
-                {prompt.type === PromptType.Chat && chatMessages ? (
-                  <div className="w-full">
-                    <OpenAiMessageView
-                      messages={chatMessages}
-                      shouldRenderMarkdown={true}
-                      currentView="pretty"
-                      messageToToolCallNumbers={new Map()}
-                      collapseLongHistory={false}
-                      projectIdForPromptButtons={projectId}
-                    />
-                  </div>
-                ) : typeof prompt.prompt === "string" ? (
-                  resolutionMode === "resolved" &&
-                  promptGraph.data?.resolvedPrompt ? (
-                    <CodeView
-                      content={String(promptGraph.data.resolvedPrompt)}
-                      title="Text Prompt (resolved)"
-                    />
+                <PromptReferenceProvider projectId={projectId}>
+                  {prompt.type === PromptType.Chat && chatMessages ? (
+                    <div className="w-full">
+                      <OpenAiMessageView
+                        messages={chatMessages}
+                        shouldRenderMarkdown={true}
+                        currentView="pretty"
+                        messageToToolCallNumbers={new Map()}
+                        collapseLongHistory={false}
+                      />
+                    </div>
+                  ) : typeof prompt.prompt === "string" ? (
+                    resolutionMode === "resolved" &&
+                    promptGraph.data?.resolvedPrompt ? (
+                      <CodeView
+                        content={String(promptGraph.data.resolvedPrompt)}
+                        title="Text Prompt (resolved)"
+                      />
+                    ) : (
+                      <CodeView
+                        content={renderRichPromptContent(prompt.prompt)}
+                        originalContent={prompt.prompt}
+                        title="Text Prompt"
+                      />
+                    )
                   ) : (
-                    <CodeView
-                      content={renderRichPromptContent(
-                        projectId as string,
-                        prompt.prompt,
-                      )}
-                      originalContent={prompt.prompt}
-                      title="Text Prompt"
-                    />
-                  )
-                ) : (
-                  <JSONView json={prompt.prompt} title="Prompt" />
-                )}
+                    <JSONView json={prompt.prompt} title="Prompt" />
+                  )}
+                </PromptReferenceProvider>
                 <PromptVariableListPreview variables={extractedVariables} />
               </div>
             </TabsBarContent>

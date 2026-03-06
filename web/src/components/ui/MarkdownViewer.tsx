@@ -38,7 +38,6 @@ import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
-import { replacePromptReferencesWithMarkdownLinks } from "@/src/features/prompts/components/prompt-content-utils";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -323,7 +322,6 @@ export function MarkdownView({
   className,
   controlButtons,
   afterHeader,
-  projectIdForPromptButtons,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -335,7 +333,6 @@ export function MarkdownView({
   controlButtons?: React.ReactNode;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
-  projectIdForPromptButtons?: string;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -397,16 +394,7 @@ export function MarkdownView({
           <>
             <MarkdownRenderer
               markdown={
-                projectIdForPromptButtons
-                  ? replacePromptReferencesWithMarkdownLinks(
-                      projectIdForPromptButtons,
-                      shouldBeCollapsible && isCollapsed
-                        ? truncatedContent
-                        : markdown,
-                    )
-                  : shouldBeCollapsible && isCollapsed
-                    ? truncatedContent
-                    : markdown
+                shouldBeCollapsible && isCollapsed ? truncatedContent : markdown
               }
               theme={theme}
               customCodeHeaderClassName={customCodeHeaderClassName}
@@ -430,14 +418,7 @@ export function MarkdownView({
             isOpenAITextContentPart(content) ? (
               <MarkdownRenderer
                 key={index}
-                markdown={
-                  projectIdForPromptButtons
-                    ? replacePromptReferencesWithMarkdownLinks(
-                        projectIdForPromptButtons,
-                        content.text,
-                      )
-                    : content.text
-                }
+                markdown={content.text}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
@@ -471,16 +452,7 @@ export function MarkdownView({
         {audio ? (
           <>
             <MarkdownRenderer
-              markdown={
-                projectIdForPromptButtons && audio.transcript
-                  ? replacePromptReferencesWithMarkdownLinks(
-                      projectIdForPromptButtons,
-                      "[Audio] \n" + audio.transcript,
-                    )
-                  : audio.transcript
-                    ? "[Audio] \n" + audio.transcript
-                    : ""
-              }
+              markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
               customCodeHeaderClassName={customCodeHeaderClassName}
             />
