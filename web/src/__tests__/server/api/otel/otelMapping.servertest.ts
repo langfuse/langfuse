@@ -1714,6 +1714,136 @@ describe("OTel Resource Span Mapping", () => {
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
     });
 
+    it("should extract pydantic-ai v0.7.x+ cache tokens from gen_ai.usage.details.* attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const pydanticAiCacheSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "model-request",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { stringValue: "174" },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { stringValue: "31" },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_read_tokens",
+                    value: { stringValue: "100" },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_write_tokens",
+                    value: { stringValue: "200" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiCacheSpan,
+        new Set([traceId]),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(174);
+      expect(observationEvent?.body.usageDetails.output).toBe(31);
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(100);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        200,
+      );
+    });
+
+    it("should prefer primary pydantic-ai cache token keys over gen_ai.usage.details.* fallbacks", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const pydanticAiCacheSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "model-request",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { stringValue: "174" },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { stringValue: "31" },
+                  },
+                  // Primary keys take precedence
+                  {
+                    key: "gen_ai.usage.cache_read_tokens",
+                    value: { stringValue: "50" },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write_tokens",
+                    value: { stringValue: "60" },
+                  },
+                  // Fallback keys should be ignored when primary keys are present
+                  {
+                    key: "gen_ai.usage.details.cache_read_tokens",
+                    value: { stringValue: "999" },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_write_tokens",
+                    value: { stringValue: "999" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiCacheSpan,
+        new Set([traceId]),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(50);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(60);
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
