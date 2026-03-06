@@ -125,6 +125,8 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
+    env:
+      DOCKER_COMPOSE_FILE: docker-compose.build.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,25 +138,125 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Build and run both images from compose
+      - name: Print Docker environment
         run: |
-          docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
-          docker buildx bake -f /tmp/bake.json
-          docker compose --progress plain -f docker-compose.build.yml up -d
-      - name: Ensure no unhealthy status
+          date -u +"%Y-%m-%dT%H:%M:%SZ"
+          docker version
+          docker info
+          docker buildx version
+          docker buildx ls
+          docker system df
+      - name: Show compose services and images
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
+          docker compose -f "$DOCKER_COMPOSE_FILE" config --services
+          docker compose -f "$DOCKER_COMPOSE_FILE" config --images
+      - name: Render compose bake plan
+        run: |
+          set -eo pipefail
+          docker compose --progress plain --verbose -f "$DOCKER_COMPOSE_FILE" build --print | tee /tmp/bake.json
+      - name: Build images from bake plan
+        run: |
+          time docker buildx bake -f /tmp/bake.json
+      - name: Show built images
+        run: |
+          docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' | sed -n '1,40p'
+      - name: Start compose services and wait for healthchecks
+        run: |
+          time timeout 180 docker compose --progress plain -f "$DOCKER_COMPOSE_FILE" up -d --wait
+      - name: Show compose state after startup
+        if: always()
+        run: |
+          docker compose -f "$DOCKER_COMPOSE_FILE" ps -a
       - name: Check worker health
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+          probe_url() {
+            local name="$1"
+            local url="$2"
+            local timeout_seconds="$3"
+            local deadline=$((SECONDS + timeout_seconds))
+            local attempt=1
+
+            while true; do
+              echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${name} health attempt ${attempt}: ${url}"
+              if curl -svf "$url"; then
+                return 0
+              fi
+
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "${name} healthcheck timed out after ${timeout_seconds}s"
+                return 1
+              fi
+
+              attempt=$((attempt + 1))
+              sleep 2
+            done
+          }
+
+          probe_url worker http://localhost:3030/api/health 60
       - name: Check server health
         run: |
-          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+          probe_url() {
+            local name="$1"
+            local url="$2"
+            local timeout_seconds="$3"
+            local deadline=$((SECONDS + timeout_seconds))
+            local attempt=1
+
+            while true; do
+              echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${name} health attempt ${attempt}: ${url}"
+              if curl -svf "$url"; then
+                return 0
+              fi
+
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "${name} healthcheck timed out after ${timeout_seconds}s"
+                return 1
+              fi
+
+              attempt=$((attempt + 1))
+              sleep 2
+            done
+          }
+
+          probe_url server http://localhost:3000/api/public/health 60
+      - name: Capture docker diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/docker-diagnostics
+
+          {
+            echo "== docker compose ps -a =="
+            docker compose -f "$DOCKER_COMPOSE_FILE" ps -a
+            echo
+            echo "== docker compose images =="
+            docker compose -f "$DOCKER_COMPOSE_FILE" images
+          } | tee /tmp/docker-diagnostics/compose-state.txt || true
+
+          docker compose -f "$DOCKER_COMPOSE_FILE" logs --timestamps --no-color --tail=500 \
+            | tee /tmp/docker-diagnostics/compose-logs.txt || true
+
+          timeout 15 docker events --since 20m --until "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            | tee /tmp/docker-diagnostics/docker-events.txt || true
+
+          ss -ltnp | tee /tmp/docker-diagnostics/host-listeners.txt || true
+
+          for service in langfuse-web langfuse-worker postgres redis minio clickhouse; do
+            container_id="$(docker compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service" || true)"
+            if [ -z "$container_id" ]; then
+              echo "No container found for ${service}" | tee -a /tmp/docker-diagnostics/missing-containers.txt
+              continue
+            fi
+
+            docker inspect "$container_id" > "/tmp/docker-diagnostics/${service}-inspect.json" || true
+            docker logs --timestamps "$container_id" > "/tmp/docker-diagnostics/${service}-docker-logs.txt" 2>&1 || true
+          done
+      - name: Upload docker diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/docker-diagnostics
+          if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
     runs-on: ubuntu-latest
