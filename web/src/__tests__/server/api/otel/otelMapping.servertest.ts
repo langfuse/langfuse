@@ -1870,9 +1870,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(metadataAttributes).not.toHaveProperty(
         "gen_ai.system_instructions",
       );
-      expect(metadataAttributes).not.toHaveProperty(
-        "pydantic_ai.all_messages",
-      );
+      expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
       expect(metadataAttributes).not.toHaveProperty("final_result");
     });
 
@@ -1973,9 +1971,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent).toBeDefined();
 
       // Should NOT prepend system_instructions since all_messages already has a system message
-      expect(observationEvent?.body.input).toBe(
-        JSON.stringify(allMessages),
-      );
+      expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
     });
 
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
