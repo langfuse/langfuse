@@ -48,9 +48,6 @@ export function useExperimentsTableData({
     () => ({
       projectId,
       filter: filterState,
-      page: 0,
-      limit: 1,
-      orderBy: null,
     }),
     [projectId, filterState],
   );

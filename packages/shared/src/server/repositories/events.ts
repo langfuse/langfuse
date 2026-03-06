@@ -230,6 +230,7 @@ export function extractTimeFilter(
   filter: FilterList,
   tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",
+  prefix?: "e" | "t",
 ): string | null {
   const timeFilter = filter.find(
     (f) =>
@@ -237,7 +238,7 @@ export function extractTimeFilter(
       (tableName === "events_proto"
         ? f.clickhouseTable.startsWith("events_")
         : f.clickhouseTable === tableName) &&
-      f.field === fieldName &&
+      f.field === (prefix ? `${prefix}.${fieldName}` : fieldName) &&
       (f.operator === ">=" || f.operator === ">"),
   );
 

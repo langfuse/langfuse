@@ -300,7 +300,12 @@ export const experimentsRouter = createTRPCRouter({
     }),
 
   countAll: protectedProjectProcedure
-    .input(ExperimentFilterOptions)
+    .input(
+      z.object({
+        projectId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -311,9 +316,6 @@ export const experimentsRouter = createTRPCRouter({
       const count = await getExperimentsCountFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
-        page: input.page,
-        limit: input.limit,
       });
 
       return {

@@ -1592,16 +1592,13 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
     "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
-
-  // Count
-  count: "count() AS count",
 } as const;
 
 /**
  * Field sets for experiment aggregation queries.
  */
 const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
-  count: ["count"] as const,
+  count: ["experimentId"] as const,
   base: [
     "experimentId",
     "experimentName",
@@ -1641,7 +1638,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
    */
   withExperimentIds(experimentIds?: string[]): this {
     return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
-      b.whereRaw("experiment_id IN ({experimentIds: Array(String)})", {
+      b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
         experimentIds,
       }),
     );
@@ -1653,7 +1650,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>
       b.whereRaw(
-        `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        `e.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
         { startTimeFrom },
       ),
     );

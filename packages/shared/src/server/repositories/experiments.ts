@@ -246,7 +246,12 @@ const getExperimentsFromEventsGeneric = async <T>(
   ) as StringOptionsFilter | undefined;
 
   // Extract time filter for score CTEs
-  const startTimeFrom = extractTimeFilter(preAggFilters);
+  const startTimeFrom = extractTimeFilter(
+    preAggFilters,
+    "events_proto",
+    "start_time",
+    "e",
+  );
 
   // Detect score filter presence to conditionally include score CTEs
   const hasTraceScoreFilter = scoreAggFilters.some((f) =>
@@ -282,7 +287,9 @@ const getExperimentsFromEventsGeneric = async <T>(
               ...eventKeys,
               schema: ["project_id", "experiment_id", "trace_id"],
             },
-            filters: scoreAggFilters,
+            filters: scoreAggFilters.filter((f) =>
+              ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+            ),
             level: "observation",
           }),
         )
@@ -302,8 +309,10 @@ const getExperimentsFromEventsGeneric = async <T>(
               ...eventKeys,
               schema: ["project_id", "experiment_id", "trace_id"],
             },
-            filters: scoreAggFilters,
-            level: "observation",
+            filters: scoreAggFilters.filter((f) =>
+              ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+            ),
+            level: "trace",
           }),
         )
         .innerJoin(
@@ -326,13 +335,20 @@ const getExperimentsFromEventsGeneric = async <T>(
     queryBuilder.limit(limit, limit * page);
   }
 
-  const { query, params } = queryBuilder.buildWithParams();
+  const built = queryBuilder.buildWithParams();
+
+  const finalQuery =
+    select === "count"
+      ? `SELECT count() AS count FROM (${built.query}) matched_experiments`
+      : built.query;
+
+  const finalParams = built.params;
 
   return measureAndReturn({
     operationName: "getExperimentsFromEventsGeneric",
     projectId,
     input: {
-      params,
+      params: finalParams,
       tags: {
         ...(props.tags ?? {}),
         feature: "experiments",
@@ -343,7 +359,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     },
     fn: async (input) => {
       return queryClickhouse<T>({
-        query,
+        query: finalQuery,
         params: input.params,
         tags: input.tags,
       });
