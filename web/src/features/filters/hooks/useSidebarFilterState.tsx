@@ -45,6 +45,11 @@ export function decodeAndNormalizeFilters(
 ): FilterState {
   try {
     const filters = decodeFiltersGeneric(filtersQuery);
+    const knownColumns = new Map<string, string>();
+    for (const columnDefinition of columnDefinitions) {
+      knownColumns.set(columnDefinition.id, columnDefinition.id);
+      knownColumns.set(columnDefinition.name, columnDefinition.id);
+    }
 
     // Normalize display names to column IDs immediately after decoding
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
@@ -56,7 +61,20 @@ export function decodeAndNormalizeFilters(
     for (const filter of normalized) {
       const validationResult = singleFilter.safeParse(filter);
       if (validationResult.success) {
-        result.push(validationResult.data);
+        const canonicalColumnId = knownColumns.get(
+          validationResult.data.column,
+        );
+        if (!canonicalColumnId) {
+          console.warn(
+            `Unknown filter column skipped: ${validationResult.data.column}`,
+          );
+          continue;
+        }
+
+        result.push({
+          ...validationResult.data,
+          column: canonicalColumnId,
+        });
       } else {
         console.warn(`Invalid filter skipped:`, filter, validationResult.error);
       }
