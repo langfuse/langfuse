@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   observationForEvalSchema,
+  convertEventRecordToObservationForEval,
   type ObservationForEval,
   observationEvalFilterColumns,
   observationEvalVariableColumns,
   eventsEvalFilterColumns,
+  availableObservationEvalVariableColumns,
+  type ObservationEvalVariableColumn,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { extractObservationVariables } from "../extractObservationVariables";
 
 describe("observationForEvalSchema", () => {
   describe("schema field validation", () => {
@@ -211,6 +216,104 @@ describe("observationForEvalSchema", () => {
 
       // Metadata
       expect(columnIds).toContain("metadata");
+    });
+  });
+
+  describe("convertEventRecordToObservationForEval metadata parsing", () => {
+    const baseEventRecord = {
+      span_id: "obs-123",
+      trace_id: "trace-456",
+      project_id: "project-789",
+      parent_span_id: null,
+      type: "GENERATION",
+      name: "test",
+      level: "DEFAULT",
+      status_message: null,
+      version: null,
+      trace_name: null,
+      user_id: null,
+      session_id: null,
+      tags: [],
+      release: null,
+      provided_model_name: null,
+      model_parameters: null,
+      prompt_id: null,
+      prompt_name: null,
+      prompt_version: null,
+      tool_definitions: {},
+      tool_calls: [],
+      tool_call_names: [],
+      usage_details: {},
+      cost_details: {},
+      provided_usage_details: {},
+      provided_cost_details: {},
+      experiment_id: null,
+      experiment_name: null,
+      experiment_description: null,
+      experiment_dataset_id: null,
+      experiment_item_id: null,
+      experiment_item_expected_output: null,
+      input: null,
+      output: null,
+    };
+
+    it("should parse JSON string metadata values so JSONPath can navigate into them", () => {
+      const record = {
+        ...baseEventRecord,
+        metadata: {
+          nested_object: '{"key": "value"}',
+          simple_value: "plain-string",
+        },
+      };
+
+      const observation = convertEventRecordToObservationForEval(record as any);
+
+      expect(observation.metadata).toEqual({
+        nested_object: { key: "value" },
+        simple_value: "plain-string",
+      });
+
+      const result = extractObservationVariables(
+        {
+          observation,
+          variableMapping: [
+            {
+              templateVariable: "nestedKey",
+              selectedColumnId: "metadata",
+              jsonSelector: "$.nested_object.key",
+            },
+          ],
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
+
+      expect(result[0].value).toBe(JSON.stringify(["value"]));
+    });
+
+    it("should preserve simple string metadata values", () => {
+      const record = {
+        ...baseEventRecord,
+        metadata: {
+          simple_value: "plain-string",
+        },
+      };
+
+      const observation = convertEventRecordToObservationForEval(record as any);
+
+      expect(observation.metadata).toEqual({
+        simple_value: "plain-string",
+      });
+    });
+
+    it("should handle null metadata", () => {
+      const record = {
+        ...baseEventRecord,
+        metadata: null,
+      };
+
+      const observation = convertEventRecordToObservationForEval(record as any);
+
+      expect(observation.metadata).toBeNull();
     });
   });
 
