@@ -10,7 +10,12 @@ service:
       availability:
         status: deprecated
         message: "Observations V1 is deprecated and queries the legacy observations table. Use /api/public/v2/observations."
-      docs: Get an observation (Observations V1, deprecated)
+      docs: |
+        Get an observation (Observations V1, deprecated).
+
+        **Deprecated:** This endpoint queries the legacy observations table. Use `/api/public/v2/observations` for better performance.
+
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.observationsV1`. The default `client.observations` namespace always points to the latest supported observations API.
       method: GET
       path: /observations/{observationId}
       path-parameters:
@@ -25,7 +30,9 @@ service:
       docs: |
         Get a list of observations (Observations V1, deprecated).
 
-        Use /api/public/v2/observations for cursor-based pagination and field selection.
+        **Deprecated:** This endpoint queries the legacy observations table. Use `/api/public/v2/observations` for cursor-based pagination, field selection, and better performance.
+
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.observationsV1`. The default `client.observations` namespace always points to the latest supported observations API.
       method: GET
       path: /observations
       request:

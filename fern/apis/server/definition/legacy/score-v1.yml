@@ -10,7 +10,12 @@ service:
       availability:
         status: deprecated
         message: "Score V1 is deprecated. Use /api/public/v2/scores."
-      docs: Create a score (Score V1, deprecated; supports both trace and session scores)
+      docs: |
+        Create a score (Score V1, deprecated; supports both trace and session scores).
+
+        **Deprecated:** Use `/api/public/v2/scores`.
+
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.score` namespace always points to the latest supported scores API.
       method: POST
       path: /scores
       request: CreateScoreV1Request
@@ -19,7 +24,12 @@ service:
       availability:
         status: deprecated
         message: "Score V1 is deprecated. Use /api/public/v2/scores."
-      docs: Delete a score (Score V1, deprecated; supports both trace and session scores)
+      docs: |
+        Delete a score (Score V1, deprecated; supports both trace and session scores).
+
+        **Deprecated:** Use `/api/public/v2/scores`.
+
+        **SDK namespace mapping:** In SDKs, this endpoint is available under `client.legacy.scoreV1`. The default `client.score` namespace always points to the latest supported scores API.
       method: DELETE
       path: /scores/{scoreId}
       path-parameters:

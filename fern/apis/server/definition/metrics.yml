@@ -10,6 +10,8 @@ service:
       docs: |
         Get metrics from the Langfuse project using a query object. V2 endpoint with optimized performance.
 
+        **SDK namespace mapping:** In SDKs, `client.metrics` always points to the latest supported metrics API. Legacy V1 remains available under `client.legacy.metricsV1`.
+
         ## V2 Differences
         - Supports `observations`, `scores-numeric`, and `scores-categorical` views only (traces view not supported)
         - Direct access to tags and release fields on observations

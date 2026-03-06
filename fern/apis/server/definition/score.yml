@@ -7,7 +7,10 @@ service:
   base-path: /api/public/v2
   endpoints:
     get:
-      docs: Get a list of scores (supports both trace and session scores)
+      docs: |
+        Get a list of scores (supports both trace and session scores).
+
+        **SDK namespace mapping:** In SDKs, `client.score` always points to the latest supported scores API. Legacy V1 create/delete endpoints remain available under `client.legacy.scoreV1`.
       method: GET
       path: /scores
       request:
@@ -85,7 +88,10 @@ service:
               Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
       response: GetScoresResponse
     get-by-id:
-      docs: Get a score (supports both trace and session scores)
+      docs: |
+        Get a score (supports both trace and session scores).
+
+        **SDK namespace mapping:** In SDKs, `client.score` always points to the latest supported scores API. Legacy V1 create/delete endpoints remain available under `client.legacy.scoreV1`.
       method: GET
       path: /scores/{scoreId}
       path-parameters:
