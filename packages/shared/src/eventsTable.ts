@@ -120,7 +120,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal:
