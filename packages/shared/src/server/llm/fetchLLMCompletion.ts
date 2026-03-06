@@ -10,6 +10,7 @@ import {
   HumanMessage,
   SystemMessage,
   ToolMessage,
+  type MessageContentComplex,
 } from "@langchain/core/messages";
 import {
   BytesOutputParser,
@@ -46,6 +47,7 @@ import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import { isValidImageUrl } from "./multimodalValidation";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
@@ -102,6 +104,7 @@ type LLMCompletionParams = {
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
   shouldUseLangfuseAPIKey?: boolean;
+  imageUrl?: string;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -154,6 +157,7 @@ export async function fetchLLMCompletion(
     maxRetries,
     traceSinkParams,
     shouldUseLangfuseAPIKey = false,
+    imageUrl,
   } = params;
 
   const { baseURL, config } = llmConnection;
@@ -162,6 +166,7 @@ export async function fetchLLMCompletion(
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
+  const isImageUrlValid = imageUrl ? await isValidImageUrl(imageUrl) : false;
 
   if (traceSinkParams) {
     // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
@@ -203,6 +208,7 @@ export async function fetchLLMCompletion(
     // Ensure provider schema compliance
     finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
+    let imageAdded = false;
     finalMessages = messages.map((message, idx) => {
       // For arbitrary content types, convert to string safely
       const safeContent =
@@ -210,8 +216,20 @@ export async function fetchLLMCompletion(
           ? message.content
           : safeStringify(message.content);
 
-      if (message.role === ChatMessageRole.User)
-        return new HumanMessage(safeContent);
+      if (message.role === ChatMessageRole.User) {
+        const userContent: MessageContentComplex[] = [
+          { type: "text", text: safeContent },
+        ];
+
+        if (imageUrl && !imageAdded && isImageUrlValid) {
+          userContent.push({
+            type: "image_url",
+            image_url: { url: imageUrl },
+          });
+          imageAdded = true;
+        }
+        return new HumanMessage({ content: userContent });
+      }
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
