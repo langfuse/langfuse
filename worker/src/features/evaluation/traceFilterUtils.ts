@@ -14,6 +14,8 @@ const evalTraceFilterColumns = [
   "release",
   "version",
   "tags",
+  "input",
+  "output",
 ] as const;
 
 function getColumnDefinition(column: string) {
@@ -61,6 +63,10 @@ export function mapTraceFilterColumn(
       return trace.sessionId;
     case "metadata":
       return trace.metadata;
+    case "input":
+      return trace.input;
+    case "output":
+      return trace.output;
     default:
       throw new Error(`Unhandled column in trace filter mapping: ${column}`);
   }
