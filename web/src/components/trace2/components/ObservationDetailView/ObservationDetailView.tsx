@@ -59,10 +59,6 @@ import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import {
-  aggregateTraceMetrics,
-  getDescendantIds,
-} from "@/src/components/trace2/lib/trace-aggregation";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -93,23 +89,6 @@ export function ObservationDetailView({
   // Uses the tree's roots array which handles orphans correctly
   const treeNode = nodeMap.get(observation.id);
   const isRoot = roots.some((root) => root.id === observation.id);
-
-  // For root observations, compute subtree metrics for badge tooltips.
-  // We compute this lazily here rather than in tree-building.ts because:
-  // - TreeNode.totalCost just has the aggregated cost, we use it
-  // - costDetails/usageDetails (for tooltips) aren't in TreeNode, adding them causes high memory for all nodes, esp on big traces
-  // - computation only runs when viewing a root observation and is memo'd
-  const subtreeMetrics = useMemo(() => {
-    if (!isRoot || !treeNode) return null;
-    const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
-
-    const descendants = observations.filter((obs) =>
-      descendantIdSet.has(obs.id),
-    );
-    const allObservations = [observation, ...descendants];
-    return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
 
   // Map global tab to observation-specific tabs (preview, log, scores)
   // "log" tab only available in v4 mode when there are observations
@@ -273,8 +252,8 @@ export function ObservationDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
-        subtreeMetrics={subtreeMetrics}
-        treeNodeTotalCost={treeNode?.totalCost}
+        isRoot={isRoot}
+        treeNode={treeNode}
       />
 
       {/* Tabs section */}
