@@ -51,7 +51,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init tzdata
 
 WORKDIR /app
 
