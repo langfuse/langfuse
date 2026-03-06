@@ -1,4 +1,5 @@
 import {
+  BatchExportFileFormat,
   FilterCondition,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
@@ -29,7 +30,8 @@ import {
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import type { Model, Price } from "@prisma/client";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const DEFAULT_BATCH_SIZE = 1000;
+const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
 
 type ModelWithPrice = Model & { Price: Price[] };
 
@@ -81,6 +83,7 @@ export const getObservationStream = async (props: {
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  fileFormat?: BatchExportFileFormat;
 }): Promise<Readable> => {
   const {
     projectId,
@@ -90,6 +93,9 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  const isCsv = props.fileFormat === BatchExportFileFormat.CSV;
+  const batchSize = isCsv ? DEFAULT_BATCH_SIZE : REDUCED_BATCH_SIZE;
 
   // Check if we should skip deduplication for OTEL projects
   const skipDedup = await shouldSkipObservationsFinal(projectId);
@@ -351,7 +357,7 @@ export const getObservationStream = async (props: {
         {
           ...convertObservation(bufferedRow, {
             truncated: false,
-            shouldJsonParse: true,
+            shouldJsonParse: props.fileFormat !== BatchExportFileFormat.CSV,
           }),
           traceName: bufferedRow.traceName,
           traceTags: bufferedRow.traceTags,
@@ -383,7 +389,7 @@ export const getObservationStream = async (props: {
         observationIds.push(row.id);
 
         // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
+        if (rowBuffer.length >= batchSize) {
           // Fetch comments for this batch
           const commentsByObservation = await fetchCommentsForExport(
             projectId,
