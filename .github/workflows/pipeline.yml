@@ -141,10 +141,10 @@ jobs:
       - name: Build images
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          time docker buildx bake -f /tmp/bake.json
+          docker buildx bake -f /tmp/bake.json
       - name: Start compose services and wait for healthchecks
         run: |
-          time timeout 180 docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
       - name: Check worker health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
@@ -158,16 +158,8 @@ jobs:
         run: |
           mkdir -p /tmp/docker-diagnostics
 
-          {
-            echo "== docker compose ps -a =="
-            docker compose -f "$DOCKER_COMPOSE_FILE" ps -a
-            echo
-            echo "== docker compose images =="
-            docker compose -f "$DOCKER_COMPOSE_FILE" images
-          } | tee /tmp/docker-diagnostics/compose-state.txt || true
-
-          docker compose -f "$DOCKER_COMPOSE_FILE" logs --timestamps --no-color --tail=500 \
-            | tee /tmp/docker-diagnostics/compose-logs.txt || true
+          docker compose -f "$DOCKER_COMPOSE_FILE" ps -a \
+            | tee /tmp/docker-diagnostics/compose-state.txt || true
 
           timeout 15 docker events --since 20m --until "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             | tee /tmp/docker-diagnostics/docker-events.txt || true
