@@ -12,12 +12,7 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import {
-  FilterList,
-  orderByToClickhouseSql,
-  EventsQueryBuilder,
-} from "../queries";
-import { experimentTableUiColumnDefinitions } from "../tableMappings/mapExperimentTable";
+import { FilterList, orderByToClickhouseSql } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -52,47 +47,8 @@ import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScore
 import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
+  eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
-
-/**
- * Helper to build experiment filter state.
- */
-const buildExperimentFilterState = (params: {
-  experimentIds?: string[];
-  startTimeFrom?: string | null;
-}): FilterState => {
-  return [
-    // Always filter for events with experiment_id
-    {
-      column: "hasExperimentId" as const,
-      type: "boolean" as const,
-      operator: "=" as const,
-      value: true,
-    },
-    // Conditionally filter by specific experiment IDs
-    ...(params.experimentIds?.length
-      ? [
-          {
-            column: "experimentId" as const,
-            type: "stringOptions" as const,
-            operator: "any of" as const,
-            value: params.experimentIds,
-          } as const,
-        ]
-      : []),
-    // Conditionally filter by start time
-    ...(params.startTimeFrom
-      ? [
-          {
-            column: "startTime" as const,
-            type: "datetime" as const,
-            operator: ">=" as const,
-            value: new Date(params.startTimeFrom),
-          } as const,
-        ]
-      : []),
-  ];
-};
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -452,19 +408,12 @@ export const getScoresForExperimentItems = async (
 > => {
   if (experimentIds.length === 0) return [];
 
-  // Build experiment filters using the shared filter pattern
-  const filterState = buildExperimentFilterState({ experimentIds });
-  const filters = new FilterList(
-    createFilterFromFilterState(
-      filterState,
-      experimentTableUiColumnDefinitions,
-    ),
-  );
-
   // Build events subquery using the query builder
-  const eventsSubquery = new EventsQueryBuilder({ projectId })
+  const eventsSubquery = eventsExperiments({
+    projectId,
+    experimentIds,
+  })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .applyFilters(filters)
     .buildWithParams();
 
   const query = `

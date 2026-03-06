@@ -63,18 +63,6 @@ export const experimentPreAggCols: UiColumnMappings = [
  * These aliases must match the CTEQueryBuilder setup in experiments.ts.
  */
 export const experimentPostAggCols: UiColumnMappings = [
-  {
-    uiTableName: "Item Count",
-    uiTableId: "itemCount",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "item_count",
-  },
-  {
-    uiTableName: "Error Count",
-    uiTableId: "errorCount",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "error_count",
-  },
   // Observation-level scores
   {
     uiTableName: "Scores (numeric)",
@@ -101,6 +89,9 @@ export const experimentPostAggCols: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "trace_score_categories",
   },
+];
+
+export const experimentOrderByCols: UiColumnMappings = [
   {
     uiTableName: "Start Time",
     uiTableId: "startTime",
@@ -116,25 +107,4 @@ export const experimentPostAggCols: UiColumnMappings = [
 export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
   ...experimentPostAggCols,
-];
-
-export const experimentTableUiColumnDefinitions: UiColumnMappings = [
-  {
-    uiTableName: "Has Experiment ID",
-    uiTableId: "hasExperimentId",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.experiment_id != ''",
-  },
-  {
-    uiTableName: "Experiment ID",
-    uiTableId: "experimentId",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."experiment_id"',
-  },
-  {
-    uiTableName: "Start Time",
-    uiTableId: "startTime",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.start_time",
-  },
 ];

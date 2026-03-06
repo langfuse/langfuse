@@ -1586,11 +1586,11 @@ export type ExperimentsAggregationFieldSetName =
   keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS;
 
 /**
- * ExperimentsAggregationQueryBuilder - A fluent query builder for experiment-level aggregation queries.
+ * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
  *
- * Aggregates events by experiment_id with explicit CTE/JOIN/SELECT composition.
- * Handles pre-aggregation filters (WHERE) and post-aggregation filters (HAVING) correctly.
- *
+ * For metrics requiring trace-level aggregation first (cost, latency), use CTEQueryBuilder
+ * to wrap a trace CTE and re-aggregate at experiment level with selectRaw() + groupBy().
+ * selectRaw() is intentionally used for explicit two-level aggregation semantics.
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EXPERIMENTS_AGGREGATION_FIELDS

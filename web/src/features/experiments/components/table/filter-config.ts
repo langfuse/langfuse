@@ -150,13 +150,6 @@ export const experimentsFilterConfig: FilterConfig = {
       column: "metadata",
       label: getExperimentsColumnName("metadata"),
     },
-    {
-      type: "numeric" as const,
-      column: "errorCount",
-      label: getExperimentsColumnName("errorCount"),
-      min: 0,
-      max: 10000,
-    },
     // Observation-level scores
     {
       type: "keyValue" as const,

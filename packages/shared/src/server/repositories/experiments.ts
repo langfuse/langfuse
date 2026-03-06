@@ -19,6 +19,7 @@ import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 import {
   experimentPreAggCols,
   experimentPostAggCols,
+  experimentOrderByCols,
 } from "../tableMappings/mapExperimentTable";
 
 export type ExperimentEventsDataReturnType = {
@@ -232,7 +233,7 @@ const getExperimentsFromEventsGeneric = async <T>(
   // Apply ordering
   const orderBySql = orderByToClickhouseSql(
     orderBy ?? null,
-    experimentPostAggCols,
+    experimentOrderByCols,
   );
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);

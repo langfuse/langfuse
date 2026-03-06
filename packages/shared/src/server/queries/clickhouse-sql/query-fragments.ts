@@ -246,6 +246,20 @@ export const eventsSessionsAggregation = (params: {
     .whereRaw("session_id != ''");
 };
 
+export const eventsExperiments = (params: {
+  projectId: string;
+  experimentIds?: string[];
+}): EventsQueryBuilder =>
+  new EventsQueryBuilder({ projectId: params.projectId })
+    .when(
+      Boolean(params.experimentIds && params.experimentIds.length > 0),
+      (b) =>
+        b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+          experimentIds: params.experimentIds,
+        }),
+    )
+    .whereRaw("e.experiment_id != ''");
+
 export const eventsExperimentsAggregation = (params: {
   projectId: string;
   fieldSet?: ExperimentsAggregationFieldSetName;
@@ -325,10 +339,8 @@ export const eventsSessionScoresAggregation = (params: {
 export const eventsExperimentTraceIds = (
   projectId: string,
 ): EventsQueryBuilder =>
-  new EventsQueryBuilder({ projectId })
+  eventsExperiments({ projectId })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
 
 export const buildScoresCTE = (
