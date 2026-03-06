@@ -1,6 +1,6 @@
 import capitalize from "lodash/capitalize";
 import router from "next/router";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useImperativeHandle } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -51,12 +51,20 @@ import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
 
+export type NewPromptFormHandle = {
+  setTextPrompt: (content: string) => void;
+  setChatPrompt: (messages: unknown[]) => void;
+};
+
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
   onFormSuccess?: () => void;
 };
 
-export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
+export const NewPromptForm = React.forwardRef<
+  NewPromptFormHandle,
+  NewPromptFormProps
+>(function NewPromptForm(props, ref) {
   const { onFormSuccess, initialPrompt } = props;
   const projectId = useProjectIdFromURL();
   const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
@@ -99,6 +107,18 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     mode: "onTouched",
     defaultValues,
   });
+
+  useImperativeHandle(ref, () => ({
+    setTextPrompt: (content: string) => {
+      form.setValue("type", PromptType.Text);
+      form.setValue("textPrompt", content);
+    },
+    setChatPrompt: (messages: unknown[]) => {
+      form.setValue("type", PromptType.Chat);
+      form.setValue("chatPrompt", messages);
+      setInitialMessages(messages);
+    },
+  }));
 
   const currentName = form.watch("name");
   const currentType = form.watch("type");
@@ -497,4 +517,4 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       )}
     </Form>
   );
-};
+});
