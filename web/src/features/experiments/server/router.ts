@@ -10,6 +10,9 @@ import {
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
   getExperimentMetricsFromEvents,
+  getExperimentItemsFromEvents,
+  getExperimentItemsCountFromEvents,
+  getExperimentItemMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
   getScoresForExperiments,
@@ -299,6 +302,42 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter: [
+          {
+            type: "string",
+            column: "id",
+            operator: "=",
+            value: input.experimentId,
+          },
+        ],
+        orderBy: undefined,
+        page: 0,
+        limit: 1,
+      });
+
+      if (experiments.length === 0) {
+        return null;
+      }
+
+      return experiments[0];
+    }),
+
   countAll: protectedProjectProcedure
     .input(
       z.object({
@@ -444,5 +483,90 @@ export const experimentsRouter = createTRPCRouter({
         trace_score_categories: categoricalScoreNames,
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
+    }),
+
+  items: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+        orderBy: orderBy,
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const items = await getExperimentItemsFromEvents({
+        projectId: input.projectId,
+        experimentId: input.experimentId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        offset: input.page,
+        limit: input.limit,
+      });
+
+      return {
+        data: items,
+      };
+    }),
+
+  itemsCount: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const count = await getExperimentItemsCountFromEvents({
+        projectId: input.projectId,
+        experimentId: input.experimentId,
+        filter: input.filter ?? [],
+      });
+
+      return {
+        count: count,
+      };
+    }),
+
+  itemMetrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+        experimentItemIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      if (input.experimentItemIds.length === 0) {
+        return [];
+      }
+
+      const metrics = await getExperimentItemMetricsFromEvents({
+        projectId: input.projectId,
+        experimentId: input.experimentId,
+        experimentItemIds: input.experimentItemIds,
+      });
+
+      return metrics;
     }),
 });
