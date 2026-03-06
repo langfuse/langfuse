@@ -52,6 +52,25 @@ types:
       - daily
       - weekly
 
+  BlobStorageFilterTagsOperator:
+    enum:
+      - value: any of
+        name: anyOf
+      - value: all of
+        name: allOf
+      - value: none of
+        name: noneOf
+
+  BlobStorageTagFilterCondition:
+    docs: A single tag filter condition
+    properties:
+      operator:
+        type: BlobStorageFilterTagsOperator
+        docs: Filter operator - "any of" (OR), "all of" (AND), or "none of" (exclude)
+      tags:
+        type: list<string>
+        docs: List of tags to filter by
+
   CreateBlobStorageIntegrationRequest:
     properties:
       projectId:
@@ -88,6 +107,21 @@ types:
       exportStartDate:
         type: optional<datetime>
         docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+      exportTraces:
+        type: optional<boolean>
+        docs: Export traces (overrides exportSource preset when provided)
+      exportObservations:
+        type: optional<boolean>
+        docs: Export observations (overrides exportSource preset when provided)
+      exportScores:
+        type: optional<boolean>
+        docs: Export scores (overrides exportSource preset when provided)
+      exportEvents:
+        type: optional<boolean>
+        docs: Export events/enriched observations (overrides exportSource preset when provided)
+      tagFilters:
+        type: optional<list<BlobStorageTagFilterCondition>>
+        docs: Array of tag filter conditions. All conditions are combined with AND logic.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -109,6 +143,11 @@ types:
       lastSyncAt: optional<datetime>
       createdAt: datetime
       updatedAt: datetime
+      exportTraces: optional<boolean>
+      exportObservations: optional<boolean>
+      exportScores: optional<boolean>
+      exportEvents: optional<boolean>
+      tagFilters: optional<list<BlobStorageTagFilterCondition>>
 
   BlobStorageIntegrationsResponse:
     properties:

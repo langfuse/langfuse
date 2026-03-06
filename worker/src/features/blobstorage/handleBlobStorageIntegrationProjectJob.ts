@@ -17,6 +17,13 @@ import {
   queryClickhouse,
   QueueJobs,
 } from "@langfuse/shared/src/server";
+
+// Type definitions for tag filtering - must match the types used by export functions
+type BlobStorageTagFilterCondition = {
+  tags: string[];
+  operator: "any of" | "all of" | "none of";
+};
+type BlobStorageTagFilters = BlobStorageTagFilterCondition[];
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -158,6 +165,7 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
+  tagFilters?: BlobStorageTagFilters;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -196,6 +204,7 @@ const processBlobStorageExport = async (config: {
           config.projectId,
           config.minTimestamp,
           config.maxTimestamp,
+          config.tagFilters,
         );
         break;
       case "observations":
@@ -203,9 +212,11 @@ const processBlobStorageExport = async (config: {
           config.projectId,
           config.minTimestamp,
           config.maxTimestamp,
+          config.tagFilters,
         );
         break;
       case "scores":
+        // Scores are NOT filtered by tags (intentionally)
         dataStream = getScoresForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
@@ -217,6 +228,7 @@ const processBlobStorageExport = async (config: {
           config.projectId,
           config.minTimestamp,
           config.maxTimestamp,
+          config.tagFilters,
         );
         break;
       default:
@@ -337,6 +349,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Parse tag filters from JSON field
+    // tagFilters is stored as JSON: [{ operator: "any of" | "all of" | "none of", tags: string[] }]
+    const rawTagFilters = blobStorageIntegration.tagFilters as unknown;
+    const tagFilters: BlobStorageTagFilters | undefined =
+      Array.isArray(rawTagFilters) && rawTagFilters.length > 0
+        ? (rawTagFilters as BlobStorageTagFilters)
+        : undefined;
+
     // Process the export based on the integration configuration
     const executionConfig = {
       projectId,
@@ -353,6 +373,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
+      tagFilters,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
@@ -368,21 +389,38 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
       await processBlobStorageExport({ ...executionConfig, table: "traces" });
     } else {
-      // Process tables based on exportSource setting
+      // Resolve export flags - use explicit boolean if provided, otherwise derive from exportSource
+      const { exportSource } = blobStorageIntegration;
+      const shouldExportTraces =
+        blobStorageIntegration.exportTraces ??
+        (exportSource === "TRACES_OBSERVATIONS" ||
+          exportSource === "TRACES_OBSERVATIONS_EVENTS");
+      const shouldExportObservations =
+        blobStorageIntegration.exportObservations ??
+        (exportSource === "TRACES_OBSERVATIONS" ||
+          exportSource === "TRACES_OBSERVATIONS_EVENTS");
+      const shouldExportScores = blobStorageIntegration.exportScores ?? true;
+      const shouldExportEvents =
+        blobStorageIntegration.exportEvents ??
+        (exportSource === "EVENTS" ||
+          exportSource === "TRACES_OBSERVATIONS_EVENTS");
+
       const processPromises: Promise<void>[] = [];
 
-      // Always include scores
-      processPromises.push(
-        processBlobStorageExport({ ...executionConfig, table: "scores" }),
-      );
+      if (shouldExportScores) {
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "scores" }),
+        );
+      }
 
-      // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
-      if (
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
+      if (shouldExportTraces) {
         processPromises.push(
           processBlobStorageExport({ ...executionConfig, table: "traces" }),
+        );
+      }
+
+      if (shouldExportObservations) {
+        processPromises.push(
           processBlobStorageExport({
             ...executionConfig,
             table: "observations",
@@ -390,12 +428,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
         );
       }
 
-      // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
-      // events are stored in the observations_v2 directory in blob storage
-      if (
-        blobStorageIntegration.exportSource === "EVENTS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
+      // Events are stored in the observations_v2 directory in blob storage
+      if (shouldExportEvents) {
         processPromises.push(
           processBlobStorageExport({
             ...executionConfig,

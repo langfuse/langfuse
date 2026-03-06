@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,7 +52,14 @@ import {
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { Info, ExternalLink } from "lucide-react";
+import { Info, ExternalLink, X, ChevronDown, Plus } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/src/components/ui/popover";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
@@ -203,9 +211,29 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportTraces: state?.exportTraces ?? true,
+      exportObservations: state?.exportObservations ?? true,
+      exportScores: state?.exportScores ?? true,
+      exportEvents: state?.exportEvents ?? null,
+      tagFilters:
+        (state?.tagFilters as {
+          operator: "any of" | "all of" | "none of";
+          tags: string[];
+        }[]) ?? [],
     },
     disabled: isLoading,
   });
+
+  // Fetch available tags for the project
+  const availableTagsQuery =
+    api.blobStorageIntegration.getAvailableTags.useQuery(
+      { projectId },
+      {
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      },
+    );
 
   useEffect(() => {
     setIntegrationType(state?.type || BlobStorageIntegrationType.S3);
@@ -231,6 +259,15 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportTraces: state?.exportTraces ?? true,
+      exportObservations: state?.exportObservations ?? true,
+      exportScores: state?.exportScores ?? true,
+      exportEvents: state?.exportEvents ?? null,
+      tagFilters:
+        (state?.tagFilters as {
+          operator: "any of" | "all of" | "none of";
+          tags: string[];
+        }[]) ?? [],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -650,6 +687,280 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
+        {/* Granular Export Selection */}
+        <FormItem>
+          <FormLabel>Export Data Types</FormLabel>
+          <div className="grid grid-cols-2 gap-4 rounded-md border p-4">
+            <FormField
+              control={blobStorageForm.control}
+              name="exportTraces"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Traces</FormLabel>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={blobStorageForm.control}
+              name="exportObservations"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Observations</FormLabel>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={blobStorageForm.control}
+              name="exportScores"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Scores</FormLabel>
+                </FormItem>
+              )}
+            />
+            {isBetaEnabled && (
+              <FormField
+                control={blobStorageForm.control}
+                name="exportEvents"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? false}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? true : false)
+                        }
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Events (Enriched Observations)
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+          <FormDescription>
+            Choose which data types to include in your exports.
+          </FormDescription>
+          {(blobStorageForm.formState.errors as Record<string, unknown>)
+            ._exportValidation ? (
+            <p className="text-sm font-medium text-destructive">
+              {String(
+                (
+                  (blobStorageForm.formState.errors as Record<string, unknown>)
+                    ._exportValidation as { message?: string }
+                )?.message ?? "",
+              )}
+            </p>
+          ) : null}
+        </FormItem>
+
+        {/* Tag Filtering */}
+        <FormField
+          control={blobStorageForm.control}
+          name="tagFilters"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Filter by Tags (Optional)</FormLabel>
+              <div className="space-y-2">
+                {/* List of filter conditions */}
+                {(field.value ?? []).map((filter, filterIndex) => (
+                  <div
+                    key={filterIndex}
+                    className="flex items-start gap-2 rounded-md border p-3"
+                  >
+                    <span className="mt-2 text-sm text-muted-foreground">
+                      {filterIndex === 0 ? "Where" : "And"}
+                    </span>
+                    <div className="flex flex-1 flex-col gap-2">
+                      {/* Operator selector */}
+                      <Select
+                        value={filter.operator}
+                        onValueChange={(value) => {
+                          const newFilters = [...(field.value ?? [])];
+                          newFilters[filterIndex] = {
+                            ...filter,
+                            operator: value as "any of" | "all of" | "none of",
+                          };
+                          field.onChange(newFilters);
+                        }}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any of">Any of (OR)</SelectItem>
+                          <SelectItem value="all of">All of (AND)</SelectItem>
+                          <SelectItem value="none of">
+                            None of (exclude)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {/* Selected tags as badges */}
+                      {filter.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {filter.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className="flex items-center gap-1"
+                            >
+                              {tag}
+                              <button
+                                type="button"
+                                className="ml-1 rounded-full hover:bg-muted-foreground/20"
+                                onClick={() => {
+                                  const newFilters = [...(field.value ?? [])];
+                                  newFilters[filterIndex] = {
+                                    ...filter,
+                                    tags: filter.tags.filter((t) => t !== tag),
+                                  };
+                                  field.onChange(newFilters);
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {/* Tag selector popover */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-fit justify-between"
+                          >
+                            <span className="text-muted-foreground">
+                              {filter.tags.length > 0
+                                ? "Add more tags..."
+                                : "Select tags..."}
+                            </span>
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          {availableTagsQuery.isLoading ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              Loading tags...
+                            </div>
+                          ) : !availableTagsQuery.data ||
+                            availableTagsQuery.data.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              No tags found in this project
+                            </div>
+                          ) : (
+                            <ScrollArea className="max-h-60">
+                              <div className="p-2">
+                                {availableTagsQuery.data.map((tag) => (
+                                  <div
+                                    key={tag}
+                                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent"
+                                    onClick={() => {
+                                      const newFilters = [
+                                        ...(field.value ?? []),
+                                      ];
+                                      const currentTags = filter.tags;
+                                      if (currentTags.includes(tag)) {
+                                        newFilters[filterIndex] = {
+                                          ...filter,
+                                          tags: currentTags.filter(
+                                            (t) => t !== tag,
+                                          ),
+                                        };
+                                      } else {
+                                        newFilters[filterIndex] = {
+                                          ...filter,
+                                          tags: [...currentTags, tag],
+                                        };
+                                      }
+                                      field.onChange(newFilters);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={filter.tags.includes(tag)}
+                                      onCheckedChange={() => {
+                                        // Handled by parent onClick
+                                      }}
+                                    />
+                                    <span className="text-sm">{tag}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </ScrollArea>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    {/* Remove filter button */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="mt-1"
+                      onClick={() => {
+                        const newFilters = (field.value ?? []).filter(
+                          (_, i) => i !== filterIndex,
+                        );
+                        field.onChange(newFilters);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {/* Add filter button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    field.onChange([
+                      ...(field.value ?? []),
+                      { operator: "any of" as const, tags: [] },
+                    ]);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add filter
+                </Button>
+              </div>
+              <FormDescription>
+                Add multiple tag filter conditions. All conditions are combined
+                with AND logic. Tag filtering applies to traces, observations,
+                and events (not scores).
+              </FormDescription>
+            </FormItem>
+          )}
+        />
+
         {blobStorageForm.watch("exportMode") ===
           BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
@@ -715,8 +1026,11 @@ const BlobStorageIntegrationSettingsForm = ({
           loading={mutValidate.isPending}
           disabled={isLoading || !state}
           title="Test your saved configuration by uploading a small test file to your storage"
-          onClick={() => {
-            mutValidate.mutate({ projectId });
+          onClick={async () => {
+            const isValid = await blobStorageForm.trigger();
+            if (isValid) {
+              mutValidate.mutate({ projectId });
+            }
           }}
         >
           Validate
