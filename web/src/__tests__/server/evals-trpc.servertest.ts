@@ -3,8 +3,12 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  LLMAdapter,
+} from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -311,6 +315,213 @@ describe("evals trpc", () => {
       expect(updatedJob?.id).toEqual(evalJobConfig.id);
       expect(updatedJob?.status).toEqual("INACTIVE");
       expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
+    });
+  });
+
+  describe("evals config statusMessage", () => {
+    it("configById and allConfigs return the config statusMessage", async () => {
+      const { project, caller } = await prepare();
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "paused-config-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          statusMessage: "Evaluator paused for testing",
+          evalTemplateId: template.id,
+        },
+      });
+
+      const allConfigs = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        limit: 10,
+        page: 0,
+      });
+      const config = allConfigs.configs.find((c) => c.id === jobConfig.id);
+      expect(config).toBeDefined();
+      expect(config?.statusMessage).toBe("Evaluator paused for testing");
+
+      const configById = await caller.evals.configById({
+        projectId: project.id,
+        id: jobConfig.id,
+      });
+      expect(configById).not.toBeNull();
+      expect(configById?.statusMessage).toBe("Evaluator paused for testing");
+    });
+  });
+
+  describe("evals activation validation", () => {
+    it("updateEvalJob rejects reactivation when the referenced LLM connection is already in an error state", async () => {
+      const { project, caller } = await prepare();
+
+      const apiKey = await prisma.llmApiKeys.create({
+        data: {
+          projectId: project.id,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-test"),
+          displaySecretKey: "...test",
+        },
+      });
+
+      await prisma.llmApiKeys.update({
+        where: {
+          id: apiKey.id,
+        },
+        data: {
+          status: "ERROR",
+          statusMessage:
+            "LLM API returned 401 Unauthorized. Check your LLM connection.",
+        },
+      });
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "error-key-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: apiKey.provider,
+          model: "gpt-4o-mini",
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: jobConfig.id,
+          config: {
+            status: "ACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        'LLM connection for evaluator "error-key-template" is in an error state.',
+      );
+    });
+
+    it("updateEvalJob rejects reactivation when no valid model is configured", async () => {
+      const { project, caller } = await prepare();
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "inactive-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: jobConfig.id,
+          config: {
+            status: "ACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        'No valid LLM model found for evaluator "inactive-template"',
+      );
+    });
+
+    it("updateAllDatasetEvalJobStatusByTemplateId rejects reactivation when no valid model is configured", async () => {
+      const { project, caller } = await prepare();
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "inactive-dataset-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.DATASET,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+          projectId: project.id,
+          evalTemplateId: template.id,
+          datasetId: "dataset-1",
+          newStatus: "ACTIVE",
+        }),
+      ).rejects.toThrow(
+        'No valid LLM model found for evaluator "inactive-dataset-template"',
+      );
     });
   });
 

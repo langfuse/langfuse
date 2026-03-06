@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { UserCircle2Icon } from "lucide-react";
+import { ExternalLinkIcon, UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/ui/switch";
@@ -21,6 +21,12 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import Link from "next/link";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  JobConfigSuspendCode,
+  getEvalSuspendResolutionPath,
+} from "@langfuse/shared";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -112,6 +118,34 @@ export const PeekViewEvaluatorConfigDetail = ({
             </TooltipTrigger>
             <TooltipContent>
               {evalConfig.evalTemplate.partner ?? "Langfuse"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {evalConfig.status === "SUSPENDED" && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="warning" className="w-fit text-xs">
+                Paused
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[320px]">
+              <div className="space-y-1 text-sm">
+                {evalConfig.statusMessage}
+              </div>
+              <Link
+                href={getEvalSuspendResolutionPath({
+                  projectId,
+                  suspendCode:
+                    evalConfig.suspendCode ?? JobConfigSuspendCode.ERROR,
+                  templateId: evalConfig.evalTemplate?.id,
+                })}
+                className="mt-2 inline-flex items-center gap-1 font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLinkIcon className="h-3 w-3" />
+                Resolve issue
+              </Link>
             </TooltipContent>
           </Tooltip>
         )}

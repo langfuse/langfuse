@@ -89,3 +89,14 @@ export const clearNoEvalConfigsCache = async (
     logger.error(`Failed to clear no ${cacheType} eval configs cache`, error);
   }
 };
+
+/**
+ * Clear both trace-based and event-based "no eval configs" caches for a project.
+ */
+export const clearAllEvalConfigsCaches = (
+  projectId: string,
+): Promise<[void, void]> =>
+  Promise.all([
+    clearNoEvalConfigsCache(projectId, "traceBased"),
+    clearNoEvalConfigsCache(projectId, "eventBased"),
+  ]);

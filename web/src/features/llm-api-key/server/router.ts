@@ -20,6 +20,8 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  JobConfigState,
+  JobConfigSuspendCode,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -251,7 +253,11 @@ export const llmApiKeyRouter = createTRPCRouter({
               projectId: input.projectId,
             },
             data: {
-              status: "INACTIVE",
+              status: JobConfigState.SUSPENDED,
+              statusMessage:
+                "Evaluator suspended: the LLM connection used by the default evaluation model was removed. Add a new LLM connection or update the evaluator template, then reactivate it.",
+              suspendCode: JobConfigSuspendCode.LLM_KEY_MISSING,
+              suspendedAt: new Date(),
             },
           });
         }
@@ -310,6 +316,8 @@ export const llmApiKeyRouter = createTRPCRouter({
               withDefaultModels: true,
               extraHeaderKeys: true,
               config: true,
+              status: true,
+              statusMessage: true,
             },
             where: {
               projectId: input.projectId,
@@ -525,6 +533,8 @@ export const llmApiKeyRouter = createTRPCRouter({
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
             config: input.config,
+            status: "OK",
+            statusMessage: null,
           },
         });
 

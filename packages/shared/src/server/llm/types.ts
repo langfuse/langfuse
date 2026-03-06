@@ -501,6 +501,8 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
+    status: z.enum(["OK", "ERROR"]),
+    statusMessage: z.string().nullable(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict

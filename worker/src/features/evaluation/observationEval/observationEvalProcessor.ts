@@ -73,6 +73,14 @@ export async function processObservationEval({
     return;
   }
 
+  if (job.status === "CANCELLED" || job.status === "ERROR") {
+    logger.debug(
+      `Job execution ${event.jobExecutionId} was cancelled or has an error.`,
+    );
+
+    return;
+  }
+
   // Fetch job configuration
   const evalJobConfig = await prisma.jobConfiguration.findFirst({
     where: {

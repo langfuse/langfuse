@@ -1,10 +1,17 @@
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
+import { LLMCompletionError } from "@langfuse/shared/src/server";
+
+vi.mock("./pauseEvalConfigOnUnrecoverableError", () => ({
+  pauseEvalConfigOnUnrecoverableError: vi.fn(),
+}));
+
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, JobConfigSuspendCode } from "@langfuse/shared";
+import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
  * Unit tests for executeLLMAsJudgeEvaluation with mocked dependencies.
@@ -87,6 +94,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       environment: "production",
     },
   ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   // ============================================================================
   // Mock Helpers
@@ -280,6 +291,29 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow(UnrecoverableError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        suspendCode: JobConfigSuspendCode.MODEL_CONFIG_MISSING,
+      });
+    });
+
+    it("should use LLM_KEY_MISSING suspend code when API key not found", async () => {
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: vi.fn().mockResolvedValue({
+          valid: false,
+          error: 'API key for provider "openai" not found in project proj-1',
+        }),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+      ).rejects.toThrow(UnrecoverableError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        suspendCode: JobConfigSuspendCode.LLM_KEY_MISSING,
+      });
     });
 
     it("should throw UnrecoverableError if output schema invalid", async () => {
@@ -300,6 +334,26 @@ describe("executeLLMAsJudgeEvaluation", () => {
   });
 
   describe("LLM response errors", () => {
+    it("should pause the config for unrecoverable LLM errors before rethrowing", async () => {
+      const llmError = new LLMCompletionError({
+        message: "Invalid API key",
+        responseStatusCode: 401,
+      });
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi.fn().mockRejectedValue(llmError),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+      ).rejects.toThrow(llmError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        suspendCode: JobConfigSuspendCode.LLM_401,
+      });
+    });
+
     it("should throw UnrecoverableError for invalid LLM response", async () => {
       const deps = createMockEvalExecutionDeps({
         fetchModelConfig: mockValidFetchModelConfig(),

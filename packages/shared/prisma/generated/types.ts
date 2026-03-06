@@ -10,6 +10,12 @@ export const ApiKeyScope = {
   PROJECT: "PROJECT",
 } as const;
 export type ApiKeyScope = (typeof ApiKeyScope)[keyof typeof ApiKeyScope];
+export const LlmApiKeyStatus = {
+  OK: "OK",
+  ERROR: "ERROR",
+} as const;
+export type LlmApiKeyStatus =
+  (typeof LlmApiKeyStatus)[keyof typeof LlmApiKeyStatus];
 export const Role = {
   OWNER: "OWNER",
   ADMIN: "ADMIN",
@@ -103,9 +109,22 @@ export type JobType = (typeof JobType)[keyof typeof JobType];
 export const JobConfigState = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
+  SUSPENDED: "SUSPENDED",
 } as const;
 export type JobConfigState =
   (typeof JobConfigState)[keyof typeof JobConfigState];
+export const JobConfigSuspendCode = {
+  LLM_401: "LLM_401",
+  LLM_404: "LLM_404",
+  LLM_ACCOUNT_USE_CASE_NOT_SUBMITTED: "LLM_ACCOUNT_USE_CASE_NOT_SUBMITTED",
+  LLM_INVALID_RESPONSE: "LLM_INVALID_RESPONSE",
+  LLM_KEY_MISSING: "LLM_KEY_MISSING",
+  MODEL_CONFIG_MISSING: "MODEL_CONFIG_MISSING",
+  DEFAULT_MODEL_REMOVED: "DEFAULT_MODEL_REMOVED",
+  ERROR: "ERROR",
+} as const;
+export type JobConfigSuspendCode =
+  (typeof JobConfigSuspendCode)[keyof typeof JobConfigSuspendCode];
 export const JobExecutionStatus = {
   COMPLETED: "COMPLETED",
   ERROR: "ERROR",
@@ -528,6 +547,9 @@ export type JobConfiguration = {
   project_id: string;
   job_type: JobType;
   status: Generated<JobConfigState>;
+  status_message: string | null;
+  suspend_code: JobConfigSuspendCode | null;
+  suspended_at: Timestamp | null;
   eval_template_id: string | null;
   score_name: string;
   filter: unknown;
@@ -641,6 +663,8 @@ export type LlmApiKeys = {
   extra_headers: string | null;
   extra_header_keys: Generated<string[]>;
   config: unknown | null;
+  status: Generated<LlmApiKeyStatus>;
+  status_message: string | null;
   project_id: string;
 };
 export type LlmSchema = {

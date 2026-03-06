@@ -5,11 +5,19 @@ import EvalLogTable from "@/src/features/evals/components/eval-log";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
+import { Callout } from "@/src/components/ui/callout";
+import Link from "next/link";
+import { ExternalLinkIcon } from "lucide-react";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/features/evals/utils/job-execution-utils";
+import { EvaluatorStatus } from "@/src/features/evals/types";
+import {
+  JobConfigSuspendCode,
+  getEvalSuspendResolutionPath,
+} from "@langfuse/shared";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -112,6 +120,29 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
+          {existingEvaluator.status === EvaluatorStatus.SUSPENDED && (
+            <div className="mx-3 mt-3">
+              <Callout id="evaluator-detail-config-error" variant="warning">
+                <p className="font-medium">Evaluator paused</p>
+                <p className="mb-2 mt-1">{existingEvaluator.statusMessage}</p>
+                <Link
+                  href={getEvalSuspendResolutionPath({
+                    projectId,
+                    suspendCode:
+                      existingEvaluator.suspendCode ??
+                      JobConfigSuspendCode.ERROR,
+                    templateId: existingEvaluator.evalTemplate?.id,
+                  })}
+                  className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLinkIcon className="h-3 w-3" />
+                  Resolve issue
+                </Link>
+              </Callout>
+            </div>
+          )}
           <EvalLogTable
             projectId={projectId}
             jobConfigurationId={existingEvaluator.id}

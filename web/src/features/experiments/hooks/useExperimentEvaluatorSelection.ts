@@ -1,4 +1,5 @@
 import { api } from "@/src/utils/api";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useState, useCallback, useEffect } from "react";
 
 type TemplateSelectionHookProps = {
@@ -57,6 +58,14 @@ export function useExperimentEvaluatorSelection({
 
         // Notify parent to refetch evaluators
         onEvaluatorToggled?.();
+      },
+      onError: (error, variables) => {
+        showErrorToast(
+          "Could not update evaluator",
+          error.message,
+          "ERROR",
+          `/project/${projectId}/evals/templates/${variables.evalTemplateId}`,
+        );
       },
     });
 

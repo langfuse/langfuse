@@ -1,4 +1,5 @@
 import { EvaluatorStatus } from "@/src/features/evals/types";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -28,6 +29,16 @@ export function DeactivateEvalConfig({
     onSuccess: () => {
       void utils.evals.invalidate();
     },
+    onError: (error) => {
+      showErrorToast(
+        "Could not update evaluator",
+        error.message,
+        "ERROR",
+        evalConfig?.evalTemplate?.id
+          ? `/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`
+          : undefined,
+      );
+    },
   });
 
   const onClick = () => {
@@ -38,7 +49,7 @@ export function DeactivateEvalConfig({
 
     const prevStatus = evalConfig?.status;
 
-    mutEvaluator.mutateAsync({
+    mutEvaluator.mutate({
       projectId,
       evalConfigId: evalConfig?.id ?? "",
       config: {

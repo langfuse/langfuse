@@ -72,6 +72,8 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { JobConfigSuspendCode } from "@langfuse/shared";
+import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -331,7 +333,7 @@ export const createEvalJobs = async ({
   // Optimization: Batch query for existing job executions
   // Instead of querying once per config (N queries), fetch all at once and filter in-memory
   const configIds = configs
-    .filter((c) => c.status !== JobConfigState.INACTIVE)
+    .filter((c) => c.status === JobConfigState.ACTIVE)
     .map((c) => c.id);
 
   const allExistingJobs =
@@ -369,8 +371,10 @@ export const createEvalJobs = async ({
   };
 
   for (const config of configs) {
-    if (config.status === JobConfigState.INACTIVE) {
-      logger.debug(`Skipping inactive config ${config.id}`);
+    if (config.status !== JobConfigState.ACTIVE) {
+      logger.debug(`Skipping non-active config ${config.id}`, {
+        status: config.status,
+      });
       continue;
     }
 
@@ -795,12 +799,20 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       if (!modelConfig.valid) {
+        const configError = `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`;
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
-          `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
-        );
+        const suspendCode = modelConfig.error.includes("API key for provider")
+          ? JobConfigSuspendCode.LLM_KEY_MISSING
+          : JobConfigSuspendCode.MODEL_CONFIG_MISSING;
+
+        await pauseEvalConfigOnUnrecoverableError({
+          jobExecutionId,
+          projectId,
+          suspendCode,
+        });
+        throw new UnrecoverableError(configError);
       }
 
       span.setAttribute("eval.model.provider", modelConfig.config.provider);
@@ -857,6 +869,13 @@ export async function executeLLMAsJudgeEvaluation({
                 "http.response.status_code",
                 e.responseStatusCode,
               );
+              if (e.isUnrecoverable()) {
+                await pauseEvalConfigOnUnrecoverableError({
+                  jobExecutionId,
+                  projectId,
+                  suspendCode: e.getSuspendCode() ?? JobConfigSuspendCode.ERROR,
+                });
+              }
             }
             throw e;
           }
@@ -962,8 +981,14 @@ export const evaluate = async ({
     return;
   }
 
-  if (job.status === "CANCELLED" || !job.jobInputTraceId) {
-    logger.debug(`Job ${job.id} was cancelled or has no trace input.`);
+  if (
+    job.status === "CANCELLED" ||
+    job.status === "ERROR" ||
+    !job.jobInputTraceId
+  ) {
+    logger.debug(
+      `Job ${job.id} was cancelled, has an error, or has no trace input.`,
+    );
     await prisma.jobExecution.delete({
       where: {
         id: job.id,

@@ -24,6 +24,12 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
@@ -104,7 +110,29 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   className="cursor-default hover:bg-primary-foreground"
                   onClick={() => setEditingKeyId(apiKey.id)}
                 >
-                  <TableCell className="font-mono">{apiKey.provider}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{apiKey.provider}</span>
+                      {apiKey.status === "ERROR" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Badge variant="warning" className="text-xs">
+                                Error
+                              </Badge>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            className="max-w-xs whitespace-normal"
+                          >
+                            {apiKey.statusMessage ??
+                              "This LLM connection is in an error state."}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono">{apiKey.adapter}</TableCell>
                   <TableCell className="max-w-md overflow-auto font-mono">
                     {apiKey.baseURL ?? "default"}

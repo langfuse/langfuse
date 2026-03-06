@@ -37,6 +37,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { env } from "@/src/env.mjs";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -559,6 +560,14 @@ export function CreateLLMApiKeyForm({
         }}
       >
         <DialogBody>
+          {mode === "update" &&
+            existingKey?.status === "ERROR" &&
+            existingKey.statusMessage && (
+              <Alert variant="destructive">
+                <AlertTitle>Connection needs attention</AlertTitle>
+                <AlertDescription>{existingKey.statusMessage}</AlertDescription>
+              </Alert>
+            )}
           {/* LLM adapter */}
           <FormField
             control={form.control}

@@ -4,8 +4,15 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { ZodModelConfig } from "@langfuse/shared";
-import { DefaultEvalModelService } from "@langfuse/shared/src/server";
+import {
+  JobConfigState,
+  JobConfigSuspendCode,
+  ZodModelConfig,
+} from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  clearAllEvalConfigsCaches,
+} from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -39,7 +46,11 @@ export const defaultEvalModelRouter = createTRPCRouter({
       return DefaultEvalModelService.upsertDefaultModel(input);
     }),
   deleteDefaultModel: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -48,7 +59,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
       });
 
       // Invalidate all eval jobs that rely on the default model
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         const evalTemplates = await tx.evalTemplate.findMany({
           where: {
             OR: [{ projectId: input.projectId }, { projectId: null }],
@@ -63,7 +74,11 @@ export const defaultEvalModelRouter = createTRPCRouter({
             projectId: input.projectId,
           },
           data: {
-            status: "INACTIVE",
+            status: JobConfigState.SUSPENDED,
+            statusMessage:
+              "Evaluator suspended: the shared default evaluation model was removed. Set a new default model or update the evaluator template, then reactivate it.",
+            suspendCode: JobConfigSuspendCode.DEFAULT_MODEL_REMOVED,
+            suspendedAt: new Date(),
           },
         });
 
@@ -77,5 +92,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
         return { success: true };
       });
+
+      await clearAllEvalConfigsCaches(input.projectId);
+
+      return result;
     }),
 });

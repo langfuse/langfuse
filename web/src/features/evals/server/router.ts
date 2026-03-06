@@ -17,6 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  JobConfigSuspendCode,
   orderBy,
   jsonSchema,
   EvalTargetObject,
@@ -33,7 +34,7 @@ import {
   orderByToPrismaSql,
   DefaultEvalModelService,
   testModelCall,
-  clearNoEvalConfigsCache,
+  clearAllEvalConfigsCaches,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -65,6 +66,9 @@ const ConfigWithTemplateSchema = z.object({
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
   status: z.enum(JobConfigState),
+  statusMessage: z.string().nullable(),
+  suspendCode: z.enum(JobConfigSuspendCode).nullable(),
+  suspendedAt: z.date().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -211,6 +215,70 @@ export const calculateEvaluatorFinalStatus = (
   return status;
 };
 
+const validateEvalTemplateActivation = async ({
+  prisma,
+  projectId,
+  evalTemplateId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  evalTemplateId: string;
+}) => {
+  const template = await prisma.evalTemplate.findFirst({
+    where: {
+      id: evalTemplateId,
+      OR: [{ projectId }, { projectId: null }],
+    },
+  });
+
+  if (!template) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Evaluator template not found",
+    });
+  }
+
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    projectId,
+    template.provider ?? undefined,
+    template.model ?? undefined,
+    template.modelParams,
+  );
+
+  if (!modelConfig.valid) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
+    });
+  }
+
+  if (modelConfig.config.apiKey.status === "ERROR") {
+    const keyErrorMessage =
+      modelConfig.config.apiKey.statusMessage ??
+      "The LLM connection used by this evaluator is in an error state. Save the connection after fixing it, then reactivate the evaluator.";
+
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `LLM connection for evaluator "${template.name}" is in an error state. ${keyErrorMessage}`,
+    });
+  }
+
+  try {
+    await testModelCall({
+      provider: modelConfig.config.provider,
+      model: modelConfig.config.model,
+      apiKey: modelConfig.config.apiKey,
+      modelConfig: modelConfig.config.modelParams,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+    });
+  }
+};
+
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -320,6 +388,9 @@ export const evalRouter = createTRPCRouter({
             Prisma.sql`
             jc.id,
             jc.status,
+            jc.status_message as "statusMessage",
+            jc.suspend_code as "suspendCode",
+            jc.suspended_at as "suspendedAt",
             jc.created_at as "createdAt",
             jc.updated_at as "updatedAt",
             jc.score_name as "scoreName",
@@ -425,6 +496,7 @@ export const evalRouter = createTRPCRouter({
 
       return {
         ...config,
+        evalTemplate: config.evalTemplate,
         jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
@@ -456,7 +528,7 @@ export const evalRouter = createTRPCRouter({
       });
 
       return {
-        templates: templates,
+        templates,
       };
     }),
 
@@ -578,6 +650,8 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
+      if (!template) return null;
+
       return template;
     }),
   allTemplates: protectedProjectProcedure
@@ -612,8 +686,9 @@ export const evalRouter = createTRPCRouter({
           ...(input.id ? { id: input.id } : undefined),
         },
       });
+
       return {
-        templates: templates,
+        templates,
         totalCount: count,
       };
     }),
@@ -758,8 +833,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches only if the new config is ACTIVE
       if (input.status === JobConfigState.ACTIVE) {
-        await clearNoEvalConfigsCache(input.projectId, "traceBased");
-        await clearNoEvalConfigsCache(input.projectId, "eventBased");
+        await clearAllEvalConfigsCaches(input.projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -999,13 +1073,16 @@ export const evalRouter = createTRPCRouter({
           scope: "evalJob:CUD",
         });
 
-        const oldStatus = newStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+        const oldStatuses =
+          newStatus === "ACTIVE"
+            ? [JobConfigState.INACTIVE, JobConfigState.SUSPENDED]
+            : [JobConfigState.ACTIVE];
 
         const evaluators = await ctx.prisma.jobConfiguration.findMany({
           where: {
             projectId: projectId,
             evalTemplateId: evalTemplateId,
-            status: oldStatus,
+            status: { in: oldStatuses },
             targetObject: EvalTargetObject.DATASET,
           },
         });
@@ -1022,12 +1099,29 @@ export const evalRouter = createTRPCRouter({
               );
           }) || [];
 
+        if (newStatus === "ACTIVE" && filteredEvaluators.length > 0) {
+          await validateEvalTemplateActivation({
+            prisma: ctx.prisma,
+            projectId,
+            evalTemplateId,
+          });
+        }
+
         await ctx.prisma.jobConfiguration.updateMany({
           where: {
             id: { in: filteredEvaluators.map((e) => e.id) },
           },
-          data: { status: newStatus },
+          data: {
+            status: newStatus,
+            statusMessage: null,
+            suspendCode: null,
+            suspendedAt: null,
+          },
         });
+
+        if (newStatus === "ACTIVE" && filteredEvaluators.length > 0) {
+          await clearAllEvalConfigsCaches(projectId);
+        }
 
         return {
           success: true,
@@ -1112,18 +1206,39 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
 
+      if (config.status === "ACTIVE" && existingJob.status !== "ACTIVE") {
+        if (!existingJob.evalTemplateId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Evaluator template not found",
+          });
+        }
+
+        await validateEvalTemplateActivation({
+          prisma: ctx.prisma,
+          projectId,
+          evalTemplateId: existingJob.evalTemplateId,
+        });
+      }
+
+      const updatedConfig = {
+        ...config,
+        ...(config.status !== undefined
+          ? { statusMessage: null, suspendCode: null, suspendedAt: null }
+          : {}),
+      };
+
       const updatedJob = await ctx.prisma.jobConfiguration.update({
         where: {
           id: evalConfigId,
           projectId: projectId,
         },
-        data: config,
+        data: updatedConfig,
       });
 
       // Clear the "no job configs" caches if we're activating a job configuration
       if (config.status === "ACTIVE") {
-        await clearNoEvalConfigsCache(projectId, "traceBased");
-        await clearNoEvalConfigsCache(projectId, "eventBased");
+        await clearAllEvalConfigsCaches(projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -1211,8 +1326,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches to ensure they are re-evaluated
       // This is conservative but ensures correctness after deletion
-      await clearNoEvalConfigsCache(projectId, "traceBased");
-      await clearNoEvalConfigsCache(projectId, "eventBased");
+      await clearAllEvalConfigsCaches(projectId);
     }),
 
   // TODO: moved to LFE-4573
