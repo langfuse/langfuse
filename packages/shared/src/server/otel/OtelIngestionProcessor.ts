@@ -2102,11 +2102,14 @@ export class OtelIngestionProcessor {
     }
 
     if (instrumentationScopeName === "pydantic-ai") {
-      const inputTokens = attributes["gen_ai.usage.input_tokens"];
-      const outputTokens = attributes["gen_ai.usage.output_tokens"];
+      // Pydantic AI reports both high-level (gen_ai.usage.input_tokens / output_tokens)
+      // and detailed (gen_ai.usage.details.*) token counts. Only use the detailed
+      // counts to avoid double-counting.
+      const inputTokens = attributes["gen_ai.usage.details.input_tokens"];
+      const outputTokens = attributes["gen_ai.usage.details.output_tokens"];
       const cacheReadTokens =
-        attributes["gen_ai.usage.cache_read_tokens"] ??
-        attributes["gen_ai.usage.details.cache_read_input_tokens"];
+        attributes["gen_ai.usage.details.cache_read_input_tokens"] ??
+        attributes["gen_ai.usage.details.cache_read_tokens"];
       const cacheWriteTokens =
         attributes["gen_ai.usage.cache_write_tokens"] ??
         attributes["gen_ai.usage.details.cache_creation_input_tokens"];
