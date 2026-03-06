@@ -53,6 +53,4 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
-  eventTraceScoresCTE,
-  eventScoresCTE,
 } from "./clickhouse-sql/query-fragments";

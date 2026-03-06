@@ -577,6 +577,14 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
+   * Add an INNER JOIN
+   */
+  innerJoin(table: string, onClause: string): this {
+    this.joins.push(`INNER JOIN ${table} ${onClause}`);
+    return this;
+  }
+
+  /**
    * Helper to build WITH clause section
    */
   protected buildCTESection(): string {
@@ -1356,6 +1364,25 @@ export class CTEQueryBuilder<
   }
 
   /**
+   * Inner join another CTE.
+   * Only accepts CTE names that have been registered via withCTE().
+   */
+  innerJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    if (!this.cteSchemas.has(cteName)) {
+      throw new Error(
+        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
+      );
+    }
+    this.joins.push(`INNER JOIN ${cteName} ${alias} ${onClause}`);
+    // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
    * Add type-safe column references from registered CTEs.
    * Only accepts column references in the format "alias.columnName" where:
    * - alias is a registered table alias (from from() or leftJoin())
@@ -1439,6 +1466,12 @@ export class CTEQueryBuilder<
     // GROUP BY
     if (this.groupByClause) {
       parts.push(`GROUP BY ${this.groupByClause}`);
+    }
+
+    // HAVING
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
     }
 
     // ORDER BY

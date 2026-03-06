@@ -343,9 +343,7 @@ export const eventsExperimentTraceIds = (
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
 
-export const buildScoresCTE = (
-  params: BaseScoresParams,
-): { query: string; params: Record<string, any> } => {
+export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {
     projectId: params.projectId,
   };
@@ -382,43 +380,17 @@ export const buildScoresCTE = (
       string_value
   `.trim();
 
-  return { query, params: queryParams };
-};
-
-/**
- * Trace-level scores CTE for experiment queries.
- * Returns pre-aggregated scores (grouped by trace_id, name, data_type, string_value)
- * that can be joined to experiment events and then re-aggregated at experiment level.
- *
- * @param projectId - Project ID to filter scores
- * @param startTimeFrom - Optional start time filter for scores
- *
- */
-export const eventTraceScoresCTE = (params: {
-  projectId: string;
-  startTimeFrom?: string | null;
-}): { query: string; params: Record<string, any> } => {
-  return buildScoresCTE({
-    ...params,
-    level: "trace",
-  });
-};
-
-/**
- * Observation-level scores CTE for experiment queries.
- * Returns pre-aggregated scores (grouped by trace_id, observation_id, name, data_type, string_value)
- * that can be joined to experiment events and then re-aggregated at experiment level.
- *
- * @param projectId - Project ID to filter scores
- * @param startTimeFrom - Optional start time filter for scores
- *
- */
-export const eventScoresCTE = (params: {
-  projectId: string;
-  startTimeFrom?: string | null;
-}): { query: string; params: Record<string, any> } => {
-  return buildScoresCTE({
-    ...params,
-    level: "observation",
-  });
+  return {
+    query,
+    params: queryParams,
+    schema: [
+      "project_id",
+      "trace_id",
+      "observation_id",
+      "name",
+      "data_type",
+      "string_value",
+      "avg_value",
+    ],
+  };
 };

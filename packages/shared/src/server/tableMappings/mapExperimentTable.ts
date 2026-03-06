@@ -49,20 +49,9 @@ export const experimentPreAggCols: UiColumnMappings = [
 ];
 
 /**
- * Post-aggregation column mappings for experiments.
- *
- * These columns are either:
- * - Computed during aggregation (itemCount, errorCount, metadata)
- * - From joined CTEs (totalCost, latencyAvg from metrics; scores from scores CTE)
- *
- * Table aliases used:
- * - e.* for experiment_data CTE (core experiment info)
- * - em.* for experiment_metrics CTE (cost, latency)
- * - es.* for experiment_scores CTE (scores_avg, score_categories)
- *
- * These aliases must match the CTEQueryBuilder setup in experiments.ts.
+ * Score aggregation column mappings for experiments.
  */
-export const experimentPostAggCols: UiColumnMappings = [
+export const experimentScoreAggCols: UiColumnMappings = [
   // Observation-level scores
   {
     uiTableName: "Scores (numeric)",
@@ -106,5 +95,5 @@ export const experimentOrderByCols: UiColumnMappings = [
  */
 export const experimentCols: UiColumnMappings = [
   ...experimentPreAggCols,
-  ...experimentPostAggCols,
+  ...experimentScoreAggCols,
 ];
