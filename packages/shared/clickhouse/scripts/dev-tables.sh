@@ -400,7 +400,8 @@ CREATE TABLE IF NOT EXISTS events_full
       -- Indexes
       INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_type type TYPE set(50) GRANULARITY 1,
+      INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
       INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
 
@@ -426,7 +427,9 @@ CREATE TABLE IF NOT EXISTS events_full
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
     merge_max_block_size_bytes = '64Mi',
     enable_block_number_column = 1,
-    enable_block_offset_column = 1
+    enable_block_offset_column = 1,
+    prewarm_mark_cache = 1,
+    prewarm_primary_key_cache = 1
   ;
 
 -- Create events_core table - lightweight version with truncated input/output/metadata for fast queries
@@ -532,9 +535,11 @@ CREATE TABLE IF NOT EXISTS events_core
     -- Indexes
     INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_type type TYPE set(50) GRANULARITY 1,
+    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
+    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
+    INDEX idx_provided_model_name provided_model_name TYPE bloom_filter(0.01) GRANULARITY 2
 )
 ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toYYYYMM(start_time)
@@ -543,7 +548,10 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
 SAMPLE BY xxHash32(trace_id)
 SETTINGS
     enable_block_number_column = 1,
-    enable_block_offset_column = 1;
+    enable_block_offset_column = 1,
+    prewarm_mark_cache = 1,
+    prewarm_primary_key_cache = 1;
+    -- cache_populated_by_fetch = 1; -- Not available in OSS ClickHouse
 
 -- Materialized view to populate events_core from events_full table
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS
@@ -683,6 +691,43 @@ SELECT
     event_ts,
     is_deleted
 FROM events;
+
+CREATE VIEW analytics_events_core AS
+SELECT
+  project_id,
+  toStartOfHour(start_time) AS hour,
+  sumMap(map(type, toUInt64(1))) AS count_types,
+  uniq(trace_id) AS count_traces,
+  uniq(span_id) AS count_spans,
+  uniqIf(trace_name, trace_name != '') AS count_trace_names,
+  max(user_id != '') AS has_users,
+  uniqIf(user_id, user_id != '') AS count_users,
+  max(session_id != '') AS has_sessions,
+  uniqIf(session_id, session_id != '') AS count_sessions,
+  max(if(environment != 'default', 1, 0)) AS has_environments,
+  uniq(environment) as count_environments,
+  max(length(tags) > 0) AS has_tags,
+  uniqArray(tags) AS count_unique_tags,
+  max(level != 'DEFAULT') AS has_level,
+  max(provided_model_name != '') AS has_provided_model_name,
+  uniqIf(provided_model_name, provided_model_name != '') AS count_models,
+  max(length(provided_usage_details) > 0) AS has_provided_usage_details,
+  max(length(provided_cost_details) > 0) AS has_provided_cost_details,
+  max(prompt_name != '') AS has_prompt_name,
+  max(length(tool_definitions) > 0) AS has_tool_definitions,
+  max(length(tool_calls) > 0) AS has_tool_calls,
+  uniqArray(metadata_names) AS count_unique_metadata_names,
+  max(experiment_name != '') AS has_experiment_names,
+  uniqIf(experiment_name, experiment_name != '') AS count_unique_experiment_names,
+  sum(event_bytes) AS sum_event_bytes,
+  sumMap(map(if(source = '', '-', source), toUInt64(1))) AS count_sources,
+  uniqIf(service_name, service_name != '') as count_service_names,
+  sumMap(map(if(scope_name = '', '-', concat(scope_name, '-', scope_version)), toUInt64(1))) AS count_scopes,
+  sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
+  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks
+FROM events_core
+WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
+GROUP BY project_id, hour;
 
 EOF
 

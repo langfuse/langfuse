@@ -24,6 +24,7 @@ import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptC
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
   prisma: PrismaClient;
+  user?: { id: string; name: string | null; email: string | null };
 };
 
 type DuplicatePromptParams = {
@@ -33,6 +34,7 @@ type DuplicatePromptParams = {
   isSingleVersion: boolean;
   createdBy: string;
   prisma: PrismaClient;
+  user?: { id: string; name: string | null; email: string | null };
 };
 
 const extractChatVariableAndPlaceholderNames = (
@@ -68,6 +70,7 @@ export const createPrompt = async ({
   prisma,
   tags,
   commitMessage,
+  user,
 }: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
@@ -184,18 +187,14 @@ export const createPrompt = async ({
     create.push(...updatesTags);
   }
 
-  // Lock and invalidate cache for _all_ versions and labels of the prompt name
-  await promptService.lockCache({ projectId, promptName: name });
-  await promptService.invalidateCache({ projectId, promptName: name });
-
   // Create prompt and update previous prompt versions
   const [createdPrompt] = (await prisma.$transaction(create)) as [
     Prompt,
     ...PromptDependency[],
   ];
 
-  // Unlock cache
-  await promptService.unlockCache({ projectId, promptName: name });
+  // Rotate cache epoch only after successful commit.
+  await promptService.invalidateCache({ projectId });
 
   const updatedPrompts = await prisma.prompt.findMany({
     where: {
@@ -209,11 +208,13 @@ export const createPrompt = async ({
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "updated",
+        user,
       ),
     ),
     promptChangeEventSourcing(
       await promptService.resolvePrompt(createdPrompt),
       "created",
+      user,
     ),
   ]);
 
@@ -227,6 +228,7 @@ export const duplicatePrompt = async ({
   isSingleVersion,
   createdBy,
   prisma,
+  user,
 }: DuplicatePromptParams) => {
   // validate that name is unique in project, uniqueness constraint too permissive as it includes version
   const promptNameExists = await prisma.prompt.findFirst({
@@ -337,6 +339,7 @@ export const duplicatePrompt = async ({
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "created",
+        user,
       ),
     ),
   );

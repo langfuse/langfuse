@@ -42,8 +42,8 @@ export async function scheduleObservationEvals(
     return;
   }
 
-  // Filter configs that match this observation (filter + sampling)
-  // This is done before S3 upload to avoid unnecessary uploads
+  // Filter configs that match this observation (filter + sampling).
+  // This is done before S3 upload to avoid unnecessary uploads.
   const matchingConfigs = configs.filter((config) => {
     // Check filter
     const isTargeted = evaluateFilter(observation, config);

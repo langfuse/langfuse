@@ -302,6 +302,11 @@ export const promptRouter = createTRPCRouter({
         ...input,
         prisma: ctx.prisma,
         createdBy: ctx.session.user.id,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -344,6 +349,11 @@ export const promptRouter = createTRPCRouter({
         isSingleVersion: input.isSingleVersion,
         createdBy: ctx.session.user.id,
         prisma: ctx.prisma,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -526,14 +536,8 @@ export const promptRouter = createTRPCRouter({
           );
         }
 
-        // Lock and invalidate cache for all prompts
         const promptService = new PromptService(ctx.prisma, redis);
         const promptNames = [...new Set(prompts.map((p) => p.name))];
-
-        for (const name of promptNames) {
-          await promptService.lockCache({ projectId, promptName: name });
-          await promptService.invalidateCache({ projectId, promptName: name });
-        }
 
         // Delete all prompts with the given id
         await ctx.prisma.prompt.deleteMany({
@@ -545,10 +549,7 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        // Unlock cache
-        for (const name of promptNames) {
-          await promptService.unlockCache({ projectId, promptName: name });
-        }
+        promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
@@ -556,6 +557,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "deleted",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -699,21 +705,22 @@ export const promptRouter = createTRPCRouter({
           }
         }
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         // Execute transaction
         await ctx.prisma.$transaction(transaction);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt version deletion
         await promptChangeEventSourcing(
           await promptService.resolvePrompt(promptVersion),
           "deleted",
+          {
+            id: ctx.session.user.id,
+            name: ctx.session.user.name ?? null,
+            email: ctx.session.user.email ?? null,
+          },
         );
       } catch (e) {
         logger.error(e);
@@ -881,16 +888,12 @@ export const promptRouter = createTRPCRouter({
           );
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         // Execute transaction
         await ctx.prisma.$transaction(toBeExecuted);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt label update
         const updatedPrompts = await ctx.prisma.prompt.findMany({
@@ -906,6 +909,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -1023,10 +1031,7 @@ export const promptRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
 
         await ctx.prisma.prompt.updateMany({
           where: {
@@ -1040,8 +1045,8 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        // Rotate cache epoch only after successful commit.
+        await promptService.invalidateCache({ projectId });
 
         // Trigger webhooks for prompt tag update
 
@@ -1054,6 +1059,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );

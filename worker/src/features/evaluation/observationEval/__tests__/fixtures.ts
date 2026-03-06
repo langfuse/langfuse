@@ -97,7 +97,6 @@ export function createTestEvalConfig(
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },
     ],
-    delay: 0,
     ...overrides,
   };
 }
