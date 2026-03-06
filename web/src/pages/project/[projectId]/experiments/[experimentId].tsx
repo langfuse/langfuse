@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -19,6 +20,7 @@ import {
   OverviewPanelToggle,
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useExperimentComparisonState } from "@/src/features/experiments/hooks/useExperimentComparisonState";
 
 export default function ExperimentDetail() {
   const router = useRouter();
@@ -29,6 +31,39 @@ export default function ExperimentDetail() {
     "overview-panel-experiment-detail",
     true,
   );
+
+  // URL state for experiment comparison
+  const { comparisonIds, setComparisonIds } = useExperimentComparisonState();
+  const [comparisonSearchQuery, setComparisonSearchQuery] = useState("");
+
+  // TODO: Replace with actual query - api.experiments.byDatasetId.useQuery(...)
+  // Mock data for testing the comparison selector UI
+  const mockExperiments = [
+    {
+      id: "demo-dataset-run-1-demo-countries-dataset-950dc53a",
+      name: "demo-dataset-run-1-demo-countries-dataset",
+    },
+    {
+      id: "demo-dataset-run-0-demo-countries-dataset-950dc53a",
+      name: "demo-dataset-run-0-demo-countries-dataset",
+    },
+    { id: "exp-003", name: "Claude-3 Sonnet Test" },
+    { id: "exp-004", name: "Claude-3 Opus Test" },
+    { id: "exp-005", name: "Gemini Pro Evaluation" },
+    { id: "exp-006", name: "Llama-2 70B Benchmark" },
+    { id: "exp-007", name: "Mistral Large Test" },
+    { id: "exp-008", name: "Temperature 0.7 Run" },
+    { id: "exp-009", name: "Temperature 1.0 Run" },
+    { id: "exp-010", name: "Few-shot Prompting Test" },
+  ];
+
+  // Filter mock experiments by search query (simulating API search)
+  const availableExperiments = mockExperiments.filter(
+    (exp) =>
+      !comparisonSearchQuery ||
+      exp.name.toLowerCase().includes(comparisonSearchQuery.toLowerCase()),
+  );
+  const isLoadingExperiments = false;
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -112,6 +147,12 @@ export default function ExperimentDetail() {
             <ExperimentOverviewPanel
               projectId={projectId}
               experiment={experiment}
+              comparisonIds={comparisonIds}
+              onComparisonIdsChange={setComparisonIds}
+              comparisonSearchQuery={comparisonSearchQuery}
+              onComparisonSearchQueryChange={setComparisonSearchQuery}
+              availableExperiments={availableExperiments}
+              isLoadingExperiments={isLoadingExperiments}
             />
           }
           defaultMainSize={75}
