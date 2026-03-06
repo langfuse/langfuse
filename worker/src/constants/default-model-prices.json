@@ -1310,7 +1310,7 @@
     "modelName": "claude-3-sonnet-20240229",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1326,6 +1326,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -1536,7 +1538,7 @@
     "modelName": "claude-3-5-sonnet-20240620",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "createdAt": "2024-06-25T11:47:24.475Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1552,6 +1554,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -1743,7 +1747,7 @@
     "modelName": "claude-3.5-sonnet-20241022",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1759,6 +1763,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -1770,7 +1776,7 @@
     "modelName": "claude-3.5-sonnet-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-latest)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1786,6 +1792,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -1797,7 +1805,7 @@
     "modelName": "claude-3-5-haiku-20241022",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1813,6 +1821,8 @@
           "output_tokens": 0.000004,
           "cache_creation_input_tokens": 0.000001,
           "input_cache_creation": 0.000001,
+          "input_cache_creation_5m": 0.000001,
+          "input_cache_creation_1h": 0.0000016,
           "cache_read_input_tokens": 8e-8,
           "input_cache_read": 8e-8
         }
@@ -1824,7 +1834,7 @@
     "modelName": "claude-3.5-haiku-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-latest)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1840,6 +1850,8 @@
           "output_tokens": 0.000004,
           "cache_creation_input_tokens": 0.000001,
           "input_cache_creation": 0.000001,
+          "input_cache_creation_5m": 0.000001,
+          "input_cache_creation_1h": 0.0000016,
           "cache_read_input_tokens": 8e-8,
           "input_cache_read": 8e-8
         }
@@ -2141,7 +2153,7 @@
     "modelName": "claude-3.7-sonnet-20250219",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2157,6 +2169,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -2168,7 +2182,7 @@
     "modelName": "claude-3.7-sonnet-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-3-7-sonnet-latest)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2184,6 +2198,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -2549,9 +2565,9 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2567,6 +2583,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -2591,6 +2609,8 @@
           "output_tokens": 0.0000225,
           "cache_creation_input_tokens": 0.0000075,
           "input_cache_creation": 0.0000075,
+          "input_cache_creation_5m": 0.0000075,
+          "input_cache_creation_1h": 0.000012,
           "cache_read_input_tokens": 6e-7,
           "input_cache_read": 6e-7
         }
@@ -2600,9 +2620,9 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "modelName": "claude-sonnet-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4(-20250514)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4(-20250514)?-v1(:0)?|claude-sonnet-4-V1(@20250514)?|claude-sonnet-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2618,6 +2638,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -2629,7 +2651,7 @@
     "modelName": "claude-sonnet-4-latest",
     "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-latest)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2645,6 +2667,8 @@
           "output_tokens": 0.000015,
           "cache_creation_input_tokens": 0.00000375,
           "input_cache_creation": 0.00000375,
+          "input_cache_creation_5m": 0.00000375,
+          "input_cache_creation_1h": 0.000006,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -2654,9 +2678,9 @@
   {
     "id": "cmazmlm2p00020djpa9s64jw5",
     "modelName": "claude-opus-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4(-20250514)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4(-20250514)?-v1(:0)?|claude-opus-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2672,6 +2696,8 @@
           "output_tokens": 0.000075,
           "cache_creation_input_tokens": 0.00001875,
           "input_cache_creation": 0.00001875,
+          "input_cache_creation_5m": 0.00001875,
+          "input_cache_creation_1h": 0.00003,
           "cache_read_input_tokens": 0.0000015,
           "input_cache_read": 0.0000015
         }
@@ -2771,7 +2797,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2781,6 +2807,7 @@
         "conditions": [],
         "prices": {
           "input": 3e-7,
+          "input_text": 3e-7,
           "input_modality_1": 3e-7,
           "prompt_token_count": 3e-7,
           "promptTokenCount": 3e-7,
@@ -2803,7 +2830,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2813,6 +2840,7 @@
         "conditions": [],
         "prices": {
           "input": 1e-7,
+          "input_text": 1e-7,
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
@@ -2833,9 +2861,9 @@
   {
     "id": "cmdysde5w0000rkmzbc1g5au3",
     "modelName": "claude-opus-4-1-20250805",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1-20250805|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1-20250805-v1:0|claude-opus-4-1@20250805)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1(-20250805)?-v1(:0)?|claude-opus-4-1(@20250805)?)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2851,6 +2879,8 @@
           "output_tokens": 0.000075,
           "cache_creation_input_tokens": 0.00001875,
           "input_cache_creation": 0.00001875,
+          "input_cache_creation_5m": 0.00001875,
+          "input_cache_creation_1h": 0.00003,
           "cache_read_input_tokens": 0.0000015,
           "input_cache_read": 0.0000015
         }
@@ -3128,7 +3158,7 @@
     "modelName": "claude-haiku-4-5-20251001",
     "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3144,6 +3174,8 @@
           "output_tokens": 0.000005,
           "cache_creation_input_tokens": 0.00000125,
           "input_cache_creation": 0.00000125,
+          "input_cache_creation_5m": 0.00000125,
+          "input_cache_creation_1h": 0.000002,
           "cache_read_input_tokens": 1e-7,
           "input_cache_read": 1e-7
         }
@@ -3213,9 +3245,9 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5-20251101|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5-20251101-v1:0|claude-opus-4-5@20251101)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3232,6 +3264,8 @@
           "output_tokens": 25e-6,
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
+          "input_cache_creation_5m": 6.25e-6,
+          "input_cache_creation_1h": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
         }
@@ -3241,9 +3275,9 @@
   {
     "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
     "modelName": "claude-sonnet-4-6",
-    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-6-v1(:0)?|claude-sonnet-4-6)$",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
-    "updatedAt": "2026-02-18T00:00:00.000Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3260,6 +3294,8 @@
           "output_tokens": 15e-6,
           "cache_creation_input_tokens": 3.75e-6,
           "input_cache_creation": 3.75e-6,
+          "input_cache_creation_5m": 3.75e-6,
+          "input_cache_creation_1h": 6e-6,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
@@ -3284,6 +3320,8 @@
           "output_tokens": 22.5e-6,
           "cache_creation_input_tokens": 7.5e-6,
           "input_cache_creation": 7.5e-6,
+          "input_cache_creation_5m": 7.5e-6,
+          "input_cache_creation_1h": 12e-6,
           "cache_read_input_tokens": 6e-7,
           "input_cache_read": 6e-7
         }
@@ -3293,9 +3331,9 @@
   {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
-    "updatedAt": "2026-02-09T00:00:00.000Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3312,6 +3350,8 @@
           "output_tokens": 25e-6,
           "cache_creation_input_tokens": 6.25e-6,
           "input_cache_creation": 6.25e-6,
+          "input_cache_creation_5m": 6.25e-6,
+          "input_cache_creation_1h": 10e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
         }
@@ -3323,7 +3363,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3333,6 +3373,7 @@
         "conditions": [],
         "prices": {
           "input": 1.25e-6,
+          "input_text": 1.25e-6,
           "input_modality_1": 1.25e-6,
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
@@ -3362,6 +3403,7 @@
         ],
         "prices": {
           "input": 2.5e-6,
+          "input_text": 2.5e-6,
           "input_modality_1": 2.5e-6,
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
@@ -3409,6 +3451,66 @@
       },
       {
         "id": "4da930c8-7146-4e27-b66c-b62f2c2ec357",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_modality_1": 4e-6,
+          "prompt_token_count": 4e-6,
+          "promptTokenCount": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "cached_content_token_count": 0.4e-6,
+          "output": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning": 18e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "55106bba-a5dd-441b-bc0d-5652582b349d",
+    "modelName": "gemini-3.1-pro-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3.1-pro-preview(-customtools)?)$",
+    "createdAt": "2026-02-19T00:00:00.000Z",
+    "updatedAt": "2026-02-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "cached_content_token_count": 0.2e-6,
+          "output": 12e-6,
+          "output_modality_1": 12e-6,
+          "candidates_token_count": 12e-6,
+          "candidatesTokenCount": 12e-6,
+          "thoughtsTokenCount": 12e-6,
+          "thoughts_token_count": 12e-6,
+          "output_reasoning": 12e-6
+        }
+      },
+      {
+        "id": "ada11e9f-fe0d-465a-92af-ce334d0eedeb",
         "name": "Large Context",
         "isDefault": false,
         "priority": 1,
@@ -3581,6 +3683,38 @@
           "thoughtsTokenCount": 3e-6,
           "thoughts_token_count": 3e-6,
           "output_reasoning": 3e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "0707bef8-10c8-46e2-a871-0436f05f0b92",
+    "modelName": "gemini-3.1-flash-lite-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3.1-flash-lite-preview)$",
+    "createdAt": "2026-03-03T00:00:00.000Z",
+    "updatedAt": "2026-03-03T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "0707bef8-10c8-46e2-a871-0436f05f0b92_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.25e-6,
+          "input_modality_1": 0.25e-6,
+          "prompt_token_count": 0.25e-6,
+          "promptTokenCount": 0.25e-6,
+          "input_cached_tokens": 0.025e-6,
+          "cached_content_token_count": 0.025e-6,
+          "output": 1.5e-6,
+          "output_modality_1": 1.5e-6,
+          "candidates_token_count": 1.5e-6,
+          "candidatesTokenCount": 1.5e-6,
+          "thoughtsTokenCount": 1.5e-6,
+          "thoughts_token_count": 1.5e-6,
+          "output_reasoning": 1.5e-6,
+          "input_audio_tokens": 0.5e-6
         }
       }
     ]

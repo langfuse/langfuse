@@ -21,6 +21,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import {
   dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
+  scoresTableUiColumnDefinitionsFromEvents,
 } from "../tableMappings";
 import {
   convertScoreAggregation,
@@ -42,6 +43,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
+import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1050,6 +1052,289 @@ const getScoresUiGeneric = async <T>(props: {
     },
   });
 };
+
+/**
+ * Trace column mapping for building WHERE filters inside the flat events CTE.
+ * References actual events_core columns (trace_name, user_id, tags) with the
+ * "e" prefix used by EventsQueryBuilder.
+ */
+const scoresTraceFilterEventsMapping = [
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "trace_name",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "user_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "trace_tags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tags",
+    queryPrefix: "e",
+  },
+];
+
+/**
+ * v4 variant: scores query using a flat events CTE instead of the physical
+ * traces table. Trace-level filters and sort use a "traces" CTE built by
+ * EventsQueryBuilder, joined as alias "e".
+ * Does NOT select trace metadata (that comes via metricsFromEvents).
+ */
+const getScoresUiGenericFromEvents = async <T>(props: {
+  select: "count" | "rows";
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+  tags?: Record<string, string>;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+  excludeMetadata?: boolean;
+  includeHasMetadataFlag?: boolean;
+}): Promise<T[]> => {
+  const {
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    offset,
+    clickhouseConfigs,
+    excludeMetadata = false,
+    includeHasMetadataFlag = false,
+  } = props;
+
+  // tracesPrefix value is unused here — only scoresFilter is destructured,
+  // and trace-level filtering is handled via the CTE below.
+  const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
+  scoresFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      scoresTableUiColumnDefinitionsFromEvents,
+    ),
+  );
+
+  const scoreOnlyFilters = scoresFilter.filter(
+    (f) => f.clickhouseTable !== "traces",
+  );
+  const scoreOnlyFilterRes = scoreOnlyFilters.apply();
+
+  // Trace-level filter entries from the frontend filter state
+  const traceFilterState = filter.filter((filterEntry) =>
+    scoresTraceFilterEventsMapping.some(
+      (col) =>
+        col.uiTableName === filterEntry.column ||
+        col.uiTableId === filterEntry.column,
+    ),
+  );
+
+  const orderByColumn = orderBy
+    ? scoresTableUiColumnDefinitionsFromEvents.find(
+        (c) =>
+          (c.uiTableName === orderBy.column ||
+            c.uiTableId === orderBy.column) &&
+          c.clickhouseTableName === "traces",
+      )
+    : null;
+
+  const needsTracesCTE = traceFilterState.length > 0 || !!orderByColumn;
+
+  // Build traces CTE using flat EventsQueryBuilder when needed
+  let tracesCTEClause = "";
+  const tracesCTEParams: Record<string, unknown> = {};
+
+  if (needsTracesCTE) {
+    const tracesEventsBuilder = eventsTraceMetadata(projectId);
+
+    if (traceFilterState.length > 0) {
+      const cteTraceFilters = new FilterList(
+        createFilterFromFilterState(
+          traceFilterState,
+          scoresTraceFilterEventsMapping,
+        ),
+      );
+      const cteTraceFilterRes = cteTraceFilters.apply();
+      if (cteTraceFilterRes.query) {
+        tracesEventsBuilder.where(cteTraceFilterRes);
+      }
+    }
+
+    const { query: cteQuery, params: cteParams } =
+      tracesEventsBuilder.buildWithParams();
+    tracesCTEClause = `WITH traces AS (${cteQuery})`;
+    Object.assign(tracesCTEParams, cteParams);
+  }
+
+  // Inner join when trace filters are active (exclude scores without matching traces)
+  // Left join when only sorting (keep all scores)
+  const eventsJoin = needsTracesCTE
+    ? traceFilterState.length > 0
+      ? `ANY JOIN traces e ON s.trace_id = e.id`
+      : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
+    : "";
+
+  const select =
+    props.select === "count"
+      ? "count(*) as count"
+      : `
+        s.id,
+        s.project_id,
+        s.environment,
+        s.name,
+        s.value,
+        s.string_value,
+        s.timestamp,
+        s.source,
+        s.data_type,
+        s.comment,
+        ${excludeMetadata ? "" : "s.metadata,"}
+        s.trace_id,
+        s.session_id,
+        s.observation_id,
+        s.author_user_id,
+        s.created_at,
+        s.updated_at,
+        s.config_id,
+        s.queue_id,
+        s.execution_trace_id,
+        s.is_deleted,
+        s.event_ts
+        ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
+      `;
+
+  const query = `
+      ${tracesCTEClause}
+      SELECT
+          ${select}
+      FROM scores s final
+      ${eventsJoin}
+      WHERE s.project_id = {projectId: String}
+      AND s.data_type IN ({dataTypes: Array(String)})
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
+
+  return measureAndReturn({
+    operationName: "getScoresUiGenericFromEvents",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+        ...tracesCTEParams,
+        limit,
+        offset,
+      },
+      tags: {
+        ...(props.tags ?? {}),
+        feature: "tracing",
+        type: "score",
+        projectId,
+        select: props.select,
+        operation_name: "getScoresUiGenericFromEvents",
+      },
+    },
+    fn: async (input) => {
+      return queryClickhouse<T>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
+    },
+  });
+};
+
+export const getScoresUiCountFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
+  const rows = await getScoresUiGenericFromEvents<{ count: string }>({
+    select: "count",
+    excludeMetadata: true,
+    tags: { kind: "count" },
+    ...props,
+  });
+
+  return Number(rows[0].count);
+};
+
+export type ScoreUiTableRowFromEvents = Omit<ScoreDomain, "metadata"> & {
+  hasMetadata: boolean;
+};
+
+export async function getScoresUiTableFromEvents(props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+}) {
+  const { clickhouseConfigs, ...rest } = props;
+
+  const rows = await getScoresUiGenericFromEvents<{
+    id: string;
+    project_id: string;
+    environment: string;
+    name: string;
+    value: number;
+    string_value: string | null;
+    timestamp: string;
+    source: string;
+    data_type: string;
+    comment: string | null;
+    trace_id: string | null;
+    session_id: string | null;
+    dataset_run_id: string | null;
+    observation_id: string | null;
+    author_user_id: string | null;
+    config_id: string | null;
+    queue_id: string | null;
+    execution_trace_id: string | null;
+    is_deleted: number;
+    event_ts: string;
+    created_at: string;
+    updated_at: string;
+    has_metadata: 0 | 1;
+  }>({
+    select: "rows",
+    tags: { kind: "analytic" },
+    excludeMetadata: true,
+    includeHasMetadataFlag: true,
+    clickhouseConfigs,
+    ...rest,
+  });
+
+  return rows.map((row) => {
+    const score = convertClickhouseScoreToDomain(
+      {
+        ...row,
+        metadata: {},
+        long_string_value: "",
+      },
+      false,
+    );
+    return {
+      ...score,
+      hasMetadata: !!row.has_metadata,
+    };
+  });
+}
 
 export const getScoreNames = async (
   projectId: string,

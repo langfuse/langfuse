@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  clickhouseClient,
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
@@ -82,25 +81,6 @@ export const ensureTestDatabaseExists = async () => {
   // ClickHouse uses default database (no setup needed)
 };
 
-export const pruneDatabase = async () => {
-  if (!env.DATABASE_URL.includes("localhost:5432")) {
-    throw new Error("You cannot prune database unless running on localhost.");
-  }
-
-  await prisma.scoreConfig.deleteMany();
-  await prisma.traceSession.deleteMany();
-  await prisma.datasetItem.deleteMany();
-  await prisma.dataset.deleteMany();
-  await prisma.datasetRuns.deleteMany();
-  await prisma.prompt.deleteMany();
-  await prisma.promptDependency.deleteMany();
-  await prisma.model.deleteMany();
-  await prisma.llmApiKeys.deleteMany();
-  await prisma.comment.deleteMany();
-  await prisma.media.deleteMany();
-
-  await truncateClickhouseTables();
-};
 export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
@@ -150,35 +130,6 @@ export const disconnectQueues = async () => {
       }
     }),
   );
-};
-
-export const truncateClickhouseTables = async () => {
-  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
-    throw new Error("You cannot prune clickhouse unless running on localhost.");
-  }
-
-  // Additional safety check for test database
-  if (env.CLICKHOUSE_DB === "test") {
-    console.log(
-      "Running tests against test ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  } else if (env.CLICKHOUSE_DB !== "default") {
-    console.log(
-      "Running tests against ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  }
-
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS observations",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS scores",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS traces",
-  });
 };
 
 export type IngestionAPIResponse = {

@@ -804,7 +804,7 @@ function FilterBuilderForm({
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="root">root</SelectItem>
+                            <SelectItem value="root">1st</SelectItem>
                             <SelectItem value="last">last</SelectItem>
                             <SelectItem value="nthFromStart">
                               nth from start

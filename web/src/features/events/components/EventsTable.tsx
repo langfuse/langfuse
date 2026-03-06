@@ -13,6 +13,7 @@ import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -63,7 +64,10 @@ import {
   TablePeekView,
 } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  addPrefixToScoreKeys,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -83,6 +87,7 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
+import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 
 export type EventsTableRow = {
   // Identity fields
@@ -138,6 +143,10 @@ export type EventsTableRow = {
   latency?: number;
   timeToFirstToken?: number;
 
+  // Tool fields
+  toolDefinitions?: number;
+  toolCalls?: number;
+
   input?: string;
   output?: string;
   metadata?: unknown;
@@ -148,6 +157,7 @@ export type EventsTableRow = {
 
   // Scores
   scores: ScoreAggregate;
+  traceScores: ScoreAggregate;
 };
 
 export type EventsTableProps = {
@@ -180,6 +190,7 @@ export default function ObservationsEventsTable({
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
+  const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
@@ -343,9 +354,13 @@ export default function ObservationsEventsTable({
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
-    hideControls, // Disable URL persistence for embedded preview tables
+    {
+      loading: isFilterOptionsPending,
+      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -393,7 +408,7 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const combinedFilterState = queryFilter.filterState
+  const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
@@ -450,6 +465,14 @@ export default function ObservationsEventsTable({
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
     });
+  const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
+    useScoreColumns<EventsTableRow>({
+      scoreColumnKey: "traceScores",
+      projectId,
+      filter: scoreFilters.forTraces(),
+      fromTimestamp: dateRange?.from,
+      prefix: "Trace",
+    });
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
     projectId,
@@ -467,6 +490,16 @@ export default function ObservationsEventsTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
+      },
+    },
+    {
+      id: ActionId.ObservationAddToDataset,
+      type: BatchActionType.Create,
+      label: "Add to Dataset",
+      description: "Add selected observations to a dataset",
+      customDialog: true,
+      accessCheck: {
+        scope: "datasets:CUD",
       },
     },
     {
@@ -755,6 +788,36 @@ export default function ObservationsEventsTable({
       ],
     },
     {
+      accessorKey: "toolDefinitions",
+      id: "toolDefinitions",
+      header: getEventsColumnName("toolDefinitions"),
+      size: 120,
+      enableHiding: true,
+      enableSorting,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("toolDefinitions");
+        return value !== undefined ? (
+          <span>{numberFormatter(value, 0)}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "toolCalls",
+      id: "toolCalls",
+      header: getEventsColumnName("toolCalls"),
+      size: 100,
+      enableHiding: true,
+      enableSorting,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("toolCalls");
+        return value !== undefined ? (
+          <span>{numberFormatter(value, 0)}</span>
+        ) : undefined;
+      },
+    },
+    {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
       header: getEventsColumnName("timeToFirstToken"),
@@ -977,6 +1040,17 @@ export default function ObservationsEventsTable({
       columns: scoreColumns,
     },
     {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isTraceColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: traceScoreColumns,
+    },
+    {
       accessorKey: "endTime",
       id: "endTime",
       header: getEventsColumnName("endTime"),
@@ -1081,7 +1155,7 @@ export default function ObservationsEventsTable({
       columns,
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1108,7 +1182,11 @@ export default function ObservationsEventsTable({
               startTime: observation.startTime,
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
-              scores: {}, // TODO: scores not included in FullObservation type
+              scores: observation.scores ?? {},
+              traceScores: addPrefixToScoreKeys(
+                observation.traceScores ?? {},
+                "Trace",
+              ),
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {
@@ -1152,6 +1230,12 @@ export default function ObservationsEventsTable({
               userId: observation.userId ?? undefined,
               sessionId: observation.sessionId ?? undefined,
               completionStartTime: observation.completionStartTime ?? undefined,
+              toolDefinitions: observation.toolDefinitions
+                ? Object.keys(observation.toolDefinitions).length
+                : undefined,
+              toolCalls: observation.toolCalls
+                ? observation.toolCalls.length
+                : undefined,
             };
           })
         : [];
@@ -1159,14 +1243,31 @@ export default function ObservationsEventsTable({
     return result;
   }, [observations]);
 
+  const selectedObservationIds = useMemo(() => {
+    const rowIds = new Set(observations.rows?.map((o) => o.id));
+    return Object.keys(selectedRows).filter((id) => rowIds.has(id));
+  }, [observations.rows, selectedRows]);
+
+  const exampleObservation = useMemo(() => {
+    const firstId = selectedObservationIds[0];
+    const firstObs = observations.rows?.find((o) => o.id === firstId);
+    return {
+      id: firstObs?.id ?? "",
+      traceId: firstObs?.traceId ?? "",
+      startTime: firstObs?.startTime ?? undefined,
+    };
+  }, [selectedObservationIds, observations.rows]);
+
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={observationEventsFilterConfig.tableName}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
@@ -1220,9 +1321,7 @@ export default function ObservationsEventsTable({
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
               />,
-              Object.keys(selectedRows).filter((observationId) =>
-                observations.rows?.map((o) => o.id).includes(observationId),
-              ).length > 0 ? (
+              selectedObservationIds.length > 0 ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
@@ -1232,6 +1331,9 @@ export default function ObservationsEventsTable({
                     if (actionType === ActionId.ObservationBatchEvaluation) {
                       setShowRunEvaluationDialog(true);
                     }
+                    if (actionType === ActionId.ObservationAddToDataset) {
+                      setShowAddToDatasetDialog(true);
+                    }
                   }}
                 />
               ) : null,
@@ -1239,10 +1341,7 @@ export default function ObservationsEventsTable({
             multiSelect={{
               selectAll,
               setSelectAll,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((observationId) =>
-                  observations.rows?.map((o) => o.id).includes(observationId),
-                ) ?? [],
+              selectedRowIds: selectedObservationIds,
               setRowSelection: setSelectedRows,
               totalCount,
               pageSize: paginationState.limit,
@@ -1362,10 +1461,7 @@ export default function ObservationsEventsTable({
       {showRunEvaluationDialog && (
         <RunEvaluationDialog
           projectId={projectId}
-          selectedObservationIds={(() => {
-            const rowIds = new Set(observations.rows?.map((o) => o.id));
-            return Object.keys(selectedRows).filter((id) => rowIds.has(id));
-          })()}
+          selectedObservationIds={selectedObservationIds}
           query={{
             filter: filterState,
             orderBy: orderByState,
@@ -1379,6 +1475,28 @@ export default function ObservationsEventsTable({
             setSelectedRows({});
             setSelectAll(false);
           }}
+          exampleObservation={exampleObservation}
+        />
+      )}
+
+      {showAddToDatasetDialog && (
+        <AddObservationsToDatasetDialog
+          projectId={projectId}
+          selectedObservationIds={selectedObservationIds}
+          query={{
+            filter: filterState,
+            orderBy: orderByState,
+            searchQuery: searchQuery ?? undefined,
+            searchType,
+          }}
+          selectAll={selectAll}
+          totalCount={totalCount ?? 0}
+          onClose={() => {
+            setShowAddToDatasetDialog(false);
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+          exampleObservation={exampleObservation}
         />
       )}
     </DataTableControlsProvider>

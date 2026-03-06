@@ -4,6 +4,7 @@ import {
   type FilterState,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
+import { type ViewVersion } from "@/src/features/query";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -16,10 +17,13 @@ export function NumericScoreHistogram(props: {
   source: ScoreSourceType;
   dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   globalFilterState: FilterState;
+  metricsVersion?: ViewVersion;
 }) {
+  const version = props.metricsVersion ?? "v1";
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {
       projectId: props.projectId,
+      version,
       from: "traces_scores",
       select: [{ column: "value" }],
       filter: [
@@ -43,7 +47,9 @@ export function NumericScoreHistogram(props: {
           operator: "=",
         },
       ],
-      limit: 10000,
+      // v1 fetches raw values client-side (capped at 10k rows).
+      // v2 aggregates server-side via histogram() — limit is unused.
+      ...(version === "v1" ? { limit: 10000 } : {}),
     },
     {
       trpc: {

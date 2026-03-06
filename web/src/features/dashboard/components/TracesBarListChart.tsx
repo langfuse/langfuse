@@ -1,4 +1,3 @@
-import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
@@ -6,12 +5,11 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const TracesBarListChart = ({
   className,
@@ -20,6 +18,8 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -27,25 +27,30 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const isV2 = metricsVersion === "v2";
+  const traceNameField = isV2 ? "traceName" : "name";
+  const countField = isV2 ? "uniq_traceId" : "count_count";
+
   // Total traces query using executeQuery
   const totalTracesQuery: QueryType = {
-    view: "traces",
+    ...traceViewQuery({ metricsVersion, globalFilterState }),
     dimensions: [],
-    metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: null,
   };
 
-  const totalTraces = api.dashboard.executeQuery.useQuery(
+  const totalTraces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: totalTracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -53,26 +58,31 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces"}:total`,
       enabled: !isLoading,
     },
   );
 
   // Traces grouped by name query using executeQuery
   const tracesQuery: QueryType = {
-    view: "traces",
-    dimensions: [{ field: "name" }],
-    metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    ...traceViewQuery({
+      metricsVersion,
+      globalFilterState,
+      groupedByName: true,
+    }),
+    dimensions: [{ field: traceNameField }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: countField, direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: tracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -80,6 +90,7 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces"}:grouped`,
       enabled: !isLoading,
     },
   );
@@ -88,8 +99,10 @@ export const TracesBarListChart = ({
   const transformedTraces =
     traces.data?.map((item: any) => {
       return {
-        name: item.name ? (item.name as string) : "Unknown",
-        value: Number(item.count_count),
+        name: item[traceNameField]
+          ? (item[traceNameField] as string)
+          : "Unknown",
+        value: Number(item[countField]),
       };
     }) ?? [];
 
@@ -113,8 +126,8 @@ export const TracesBarListChart = ({
       <>
         <TotalMetric
           metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.count_count
-              ? Number(totalTraces.data[0].count_count)
+            totalTraces.data?.[0]?.[countField]
+              ? Number(totalTraces.data[0][countField])
               : 0,
           )}
           description={"Total traces tracked"}

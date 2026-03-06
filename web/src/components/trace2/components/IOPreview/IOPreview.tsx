@@ -228,6 +228,9 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          input={input}
+          output={output}
+          metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           parsedMetadata={parsedMetadata}

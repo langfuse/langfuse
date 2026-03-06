@@ -15,6 +15,7 @@ import {
   sessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/sessions-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
@@ -240,8 +241,12 @@ export default function SessionsTable({
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -253,7 +258,7 @@ export default function SessionsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );
@@ -340,6 +345,7 @@ export default function SessionsTable({
     {
       projectId,
       sessionIds: sessionsV4.data?.sessions.map((s) => s.id) ?? [],
+      queryFromTimestamp: dateRange?.from ?? null,
     },
     {
       enabled: sessionsV4.data !== undefined && isBetaEnabled,
@@ -750,15 +756,15 @@ export default function SessionsTable({
       columns,
       filterColumnDefinition: sessionFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           actionButtons={[
             Object.keys(selectedRows).filter((sessionId) =>
               sessions.data?.sessions.map((s) => s.id).includes(sessionId),

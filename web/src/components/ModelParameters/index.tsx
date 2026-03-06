@@ -185,10 +185,10 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 enabled={modelParams.maxReasoningTokens.enabled}
                 setModelParamEnabled={setModelParamEnabled}
                 value={modelParams.maxReasoningTokens.value}
-                min={0}
+                min={-1}
                 max={24576}
                 step={1}
-                tooltip="Maximum tokens for model thinking/reasoning. Set to 0 to disable. Only supported on Gemini 2.5+ models."
+                tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
                 updateModelParam={updateModelParamValue}
               />
             )}

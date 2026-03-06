@@ -18,7 +18,16 @@ import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
-import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
+import {
+  decodeAndNormalizeFilters,
+  resolveCheckboxOperator,
+} from "./hooks/useSidebarFilterState";
+import {
+  buildManagedEnvironmentPolicyConfig,
+  buildImplicitEnvironmentFilter,
+  buildEffectiveEnvironmentFilter,
+  stripImplicitEnvironmentFilterFromExplicitState,
+} from "./lib/managedEnvironmentPolicy";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -246,6 +255,24 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
 
     // Empty filters
     expect(simulateUrlFlow([])).toEqual([]);
+  });
+
+  it("should round-trip arrayOptions with empty value as [] not ['']", () => {
+    // When user clicks ALL toggle with no checkboxes, value is []
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: [],
+      },
+    ];
+
+    const result = simulateUrlFlow(filters);
+
+    // Must decode back to [] — not [""] which causes hasAll(tags, ['']) → 0 results
+    expect(result).toEqual(filters);
+    expect(result[0]?.value).toEqual([]);
   });
 });
 
@@ -563,5 +590,308 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+});
+
+describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
+  const availableValues = ["tag-1", "tag-2", "tag-3", "tag-4", "tag-5"];
+
+  describe("arrayOptions (e.g., tags)", () => {
+    it('should use "any of" with selected values when no existing filter', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: undefined,
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should switch from "none of" to "any of" for arrayOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4", "tag-5"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should preserve "all of" operator for arrayOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "all of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should use "any of" when existing filter is "any of"', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2", "tag-3"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2", "tag-3"],
+      });
+    });
+  });
+
+  describe("stringOptions (e.g., environment) — regression tests", () => {
+    it('should use "none of" with deselected values when no existing filter', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: undefined,
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      // "none of" inversion is safe for single-valued columns
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-3", "tag-4", "tag-5"],
+      });
+    });
+
+    it('should keep "none of" with updated deselected values for stringOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4", "tag-5"],
+        },
+        values: ["tag-1", "tag-2", "tag-3"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-4", "tag-5"],
+      });
+    });
+
+    it('should use "any of" when existing filter is "any of" for stringOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+  });
+});
+
+describe("Implicit Environment Defaults (sidebar only)", () => {
+  const hiddenEnvironments = [
+    "langfuse-prompt-experiment",
+    "langfuse-evaluation",
+    "sdk-experiment",
+  ];
+  const availableValues = [
+    "production",
+    "staging",
+    ...hiddenEnvironments,
+  ] as const;
+  const managedEnvironmentConfig = buildManagedEnvironmentPolicyConfig({
+    managedEnvironmentColumn: "environment",
+    hiddenEnvironments,
+  });
+  const strip = (explicitFilters: FilterState) =>
+    stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters,
+      availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
+    });
+
+  it("applies implicit env exclusion only when no explicit env filter exists", () => {
+    expect(
+      buildImplicitEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["trace-a"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: hiddenEnvironments,
+      },
+    ]);
+
+    expect(
+      buildImplicitEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([]);
+  });
+
+  it("strips default-equivalent env filters before URL/session persistence", () => {
+    const explicitWithExactDefault: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: hiddenEnvironments,
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(strip(explicitWithExactDefault)).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("keeps explicit overrides that enable hidden environments", () => {
+    const explicitWithHiddenEnabled: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "langfuse-evaluation"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(strip(explicitWithHiddenEnabled)).toEqual(explicitWithHiddenEnabled);
+
+    const explicitAll: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: [...availableValues],
+      },
+    ];
+
+    expect(strip(explicitAll)).toEqual(explicitAll);
+  });
+
+  it("keeps hidden-only explicit selection as explicit override", () => {
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("returns explicit environment filters as effective state", () => {
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["langfuse-evaluation"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
   });
 });

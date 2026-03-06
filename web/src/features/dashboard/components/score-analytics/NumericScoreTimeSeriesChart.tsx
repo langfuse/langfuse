@@ -1,5 +1,3 @@
-import { api } from "@/src/utils/api";
-
 import {
   type ScoreSourceType,
   type FilterState,
@@ -19,11 +17,13 @@ import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -34,6 +34,8 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -72,10 +74,11 @@ export function NumericScoreTimeSeriesChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {
@@ -83,6 +86,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
     },
   );
 
