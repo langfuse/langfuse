@@ -1,12 +1,12 @@
 import { StringParam, useQueryParam } from "use-query-params";
 import {
-  Group,
-  Separator,
-  Panel,
+  ResizablePanelGroup,
+  ResizableHandle,
+  ResizablePanel,
   usePanelRef,
   useDefaultLayout,
-  type PanelImperativeHandle,
-} from "react-resizable-panels";
+  type ImperativePanelHandle,
+} from "@/src/components/ui/resizable";
 import {
   useState,
   useEffect,
@@ -24,7 +24,7 @@ const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 interface TraceLayoutDesktopContext {
   isNavigationPanelCollapsed: boolean;
   setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
-  panelRef: React.RefObject<PanelImperativeHandle | null>;
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
   handleTogglePanel: () => void;
   shouldPulseToggle: boolean;
 }
@@ -101,14 +101,14 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   return (
     <LayoutContext.Provider value={contextValue}>
       <div className="h-full w-full">
-        <Group
+        <ResizablePanelGroup
           orientation="horizontal"
           id={RESIZABLE_PANEL_GROUP_ID}
           defaultLayout={defaultLayout}
           onLayoutChanged={onLayoutChanged}
         >
           {children}
-        </Group>
+        </ResizablePanelGroup>
       </div>
     </LayoutContext.Provider>
   );
@@ -123,7 +123,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
   const { setIsNavigationPanelCollapsed, panelRef } = useLayoutContext();
 
   return (
-    <Panel
+    <ResizablePanel
       id={RESIZABLE_PANEL_NAVIGATION_ID}
       panelRef={panelRef}
       collapsible={true}
@@ -135,7 +135,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       }}
     >
       {children}
-    </Panel>
+    </ResizablePanel>
   );
 };
 
@@ -144,7 +144,7 @@ TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
   const { handleTogglePanel } = useLayoutContext();
 
   return (
-    <Separator
+    <ResizableHandle
       id={RESIZABLE_PANEL_HANDLE_ID}
       className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
       onDoubleClick={handleTogglePanel}
@@ -159,8 +159,12 @@ TraceLayoutDesktop.DetailPanel = function Detail({
   children: ReactNode;
 }) {
   return (
-    <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize="70%" minSize="50%">
+    <ResizablePanel
+      id={RESIZABLE_PANEL_PREVIEW_ID}
+      defaultSize="70%"
+      minSize="50%"
+    >
       {children}
-    </Panel>
+    </ResizablePanel>
   );
 };
