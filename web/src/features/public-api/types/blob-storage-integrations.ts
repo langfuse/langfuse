@@ -45,6 +45,11 @@ export const CreateBlobStorageIntegrationRequest = z
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
+    // Granular export controls (optional - overrides exportSource when provided)
+    exportTraces: z.boolean().nullable().optional(),
+    exportObservations: z.boolean().nullable().optional(),
+    exportScores: z.boolean().nullable().optional(),
+    exportEvents: z.boolean().nullable().optional(),
   })
   .strict()
   .refine(
@@ -78,6 +83,11 @@ export const BlobStorageIntegrationResponse = z
     lastSyncAt: z.coerce.date().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+    // Granular export controls
+    exportTraces: z.boolean().nullable(),
+    exportObservations: z.boolean().nullable(),
+    exportScores: z.boolean().nullable(),
+    exportEvents: z.boolean().nullable(),
   })
   .strict();
 

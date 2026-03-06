@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -203,6 +204,10 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportTraces: state?.exportTraces ?? true,
+      exportObservations: state?.exportObservations ?? true,
+      exportScores: state?.exportScores ?? true,
+      exportEvents: state?.exportEvents ?? null,
     },
     disabled: isLoading,
   });
@@ -231,6 +236,10 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportTraces: state?.exportTraces ?? true,
+      exportObservations: state?.exportObservations ?? true,
+      exportScores: state?.exportScores ?? true,
+      exportEvents: state?.exportEvents ?? null,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -650,6 +659,99 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
+        {/* Granular Export Selection */}
+        <FormItem>
+          <FormLabel>Export Data Types</FormLabel>
+          <div className="grid grid-cols-2 gap-4 rounded-md border p-4">
+            <FormField
+              control={blobStorageForm.control}
+              name="exportTraces"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Traces</FormLabel>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={blobStorageForm.control}
+              name="exportObservations"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Observations</FormLabel>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={blobStorageForm.control}
+              name="exportScores"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) =>
+                        field.onChange(checked ? true : false)
+                      }
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal">Scores</FormLabel>
+                </FormItem>
+              )}
+            />
+            {isBetaEnabled && (
+              <FormField
+                control={blobStorageForm.control}
+                name="exportEvents"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? false}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? true : false)
+                        }
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Events (Enriched Observations)
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+          <FormDescription>
+            Choose which data types to include in your exports.
+          </FormDescription>
+          {(blobStorageForm.formState.errors as Record<string, unknown>)
+            ._exportValidation && (
+            <p className="text-sm font-medium text-destructive">
+              {
+                (
+                  (blobStorageForm.formState.errors as Record<string, unknown>)
+                    ._exportValidation as { message?: string }
+                )?.message
+              }
+            </p>
+          )}
+        </FormItem>
+
         {blobStorageForm.watch("exportMode") ===
           BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
@@ -715,8 +817,11 @@ const BlobStorageIntegrationSettingsForm = ({
           loading={mutValidate.isPending}
           disabled={isLoading || !state}
           title="Test your saved configuration by uploading a small test file to your storage"
-          onClick={() => {
-            mutValidate.mutate({ projectId });
+          onClick={async () => {
+            const isValid = await blobStorageForm.trigger();
+            if (isValid) {
+              mutValidate.mutate({ projectId });
+            }
           }}
         >
           Validate

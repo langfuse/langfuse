@@ -527,6 +527,98 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  describe("Granular export flags", () => {
+    maybeIt(
+      "should only export data types with exportX flag set to true",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+        const now = new Date();
+        const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+        // Create integration with only traces and scores enabled
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            nextSyncAt: twoHoursAgo,
+            lastSyncAt: twoHoursAgo,
+            // Granular flags: only traces and scores
+            exportTraces: true,
+            exportObservations: false,
+            exportScores: true,
+            exportEvents: false,
+          },
+        });
+
+        // Create test data
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const scoreId = randomUUID();
+
+        await Promise.all([
+          createTracesCh([
+            createTrace({
+              id: traceId,
+              project_id: projectId,
+              timestamp: now.getTime() - 90 * 60 * 1000,
+              name: "Test Trace",
+            }),
+          ]),
+          createObservationsCh([
+            createObservation({
+              id: observationId,
+              trace_id: traceId,
+              project_id: projectId,
+              start_time: now.getTime() - 90 * 60 * 1000,
+              name: "Test Observation",
+            }),
+          ]),
+          createScoresCh([
+            createTraceScore({
+              id: scoreId,
+              trace_id: traceId,
+              project_id: projectId,
+              timestamp: now.getTime() - 90 * 60 * 1000,
+              name: "Test Score",
+              value: 0.95,
+            }),
+          ]),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        // Should have 2 files (traces and scores only)
+        expect(projectFiles).toHaveLength(2);
+
+        const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+        const observationFile = projectFiles.find((f) =>
+          f.file.includes("/observations/"),
+        );
+        const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+
+        expect(traceFile).toBeDefined();
+        expect(observationFile).toBeUndefined(); // Should NOT exist
+        expect(scoreFile).toBeDefined();
+      },
+    );
+  });
+
   describe("BlobStorageExportMode minTimestamp behavior", () => {
     maybeIt(
       "should export old data for FULL_HISTORY mode when data exists",
