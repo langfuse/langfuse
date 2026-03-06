@@ -78,6 +78,7 @@ import {
 export type EvaluatorDataRow = {
   id: string;
   status: string;
+  configStatus: string;
   createdAt: string;
   updatedAt: string;
   maintainer: string;
@@ -316,7 +317,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
-            {row.original.status === "SUSPENDED" && (
+            {row.original.configStatus === "SUSPENDED" && (
               <Tooltip>
                 <TooltipTrigger>
                   <Badge variant="warning" className="w-fit text-xs">
@@ -513,6 +514,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     return {
       id: jobConfig.id,
       status: jobConfig.finalStatus,
+      configStatus: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       updatedAt: jobConfig.updatedAt.toLocaleString(),
       template: jobConfig.evalTemplate

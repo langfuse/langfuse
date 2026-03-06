@@ -150,7 +150,9 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
         id: { not: jobExecutionId },
         jobConfigurationId,
         projectId,
-        status: "PENDING",
+        status: {
+          in: ["PENDING", "DELAYED"],
+        },
       },
       data: {
         status: "CANCELLED",

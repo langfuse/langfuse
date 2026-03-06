@@ -85,7 +85,9 @@ export async function pauseEvalConfigOnUnrecoverableError({
         id: { not: jobExecutionId },
         jobConfigurationId: jobExecution.jobConfigurationId!,
         projectId,
-        status: JobExecutionStatus.PENDING,
+        status: {
+          in: [JobExecutionStatus.PENDING, JobExecutionStatus.DELAYED],
+        },
       },
       data: {
         status: JobExecutionStatus.CANCELLED,
