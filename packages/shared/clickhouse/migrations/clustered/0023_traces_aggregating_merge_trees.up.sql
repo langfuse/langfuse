@@ -1,6 +1,6 @@
 -- Create a Null table that serves as a trigger for all materialized views.
 -- We use a Null engine here to avoid storing intermediate results and save on storage.
-CREATE TABLE traces_null ON CLUSTER default
+CREATE TABLE traces_null ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`      String,
@@ -39,7 +39,7 @@ CREATE TABLE traces_null ON CLUSTER default
 ) Engine = Null();
 
 -- Create the all AMT
-CREATE TABLE traces_all_amt ON CLUSTER default
+CREATE TABLE traces_all_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (    
     -- Identifiers
     `project_id`         String,
@@ -87,7 +87,7 @@ CREATE TABLE traces_all_amt ON CLUSTER default
       ORDER BY (project_id, id);
 
 -- Create materialized view for all_amt
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_all_amt_mv ON CLUSTER default TO traces_all_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_all_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_all_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,
@@ -126,7 +126,7 @@ FROM traces_null tn
 GROUP BY project_id, id;
 
 -- Create the 7-day TTL AMT
-CREATE TABLE traces_7d_amt ON CLUSTER default
+CREATE TABLE traces_7d_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`         String,
@@ -174,7 +174,7 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     TTL toDate(start_time) + INTERVAL 7 DAY;
 
 -- Create materialized view for 7d_amt
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_7d_amt_mv ON CLUSTER default TO traces_7d_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_7d_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_7d_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,
@@ -213,7 +213,7 @@ FROM traces_null tn
 GROUP BY project_id, id;
 
 -- Create the 30-day TTL AMT
-CREATE TABLE traces_30d_amt ON CLUSTER default
+CREATE TABLE traces_30d_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`         String,
@@ -261,7 +261,7 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     TTL toDate(start_time) + INTERVAL 30 DAY;
 
 -- Create materialized view for 30d_amt
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_30d_amt_mv ON CLUSTER default TO traces_30d_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_30d_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_30d_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,
