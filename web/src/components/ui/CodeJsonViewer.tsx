@@ -19,7 +19,10 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
+import {
+  renderRichPromptContent,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
@@ -36,7 +39,6 @@ export function JSONView(props: {
   media?: MediaReturnType[];
   scrollable?: boolean;
   borderless?: boolean;
-  projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -46,6 +48,7 @@ export function JSONView(props: {
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
+  const promptReferenceProjectId = usePromptReferenceProjectId();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
 
   const collapseStringsAfterLength =
@@ -101,16 +104,13 @@ export function JSONView(props: {
       >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
-        ) : props.projectIdForPromptButtons ? (
+        ) : promptReferenceProjectId && typeof parsedJson === "string" ? (
           <code
             className="whitespace-pre-wrap break-words"
             dir="auto"
             style={{ unicodeBidi: "plaintext" }}
           >
-            {renderRichPromptContent(
-              props.projectIdForPromptButtons,
-              String(parsedJson),
-            )}
+            {renderRichPromptContent(parsedJson)}
           </code>
         ) : (
           <div

@@ -1,12 +1,16 @@
 import {
   OpenAIContentSchema,
+  isOpenAITextContentPart,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
-import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import {
+  replacePromptReferencesWithMarkdownLinks,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
@@ -101,29 +105,70 @@ export function MarkdownJsonView({
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
 }) {
-  const stringOrValidatedMarkdown = useMemo(
-    () => StringOrMarkdownSchema.safeParse(content),
-    [content],
-  );
   const validatedOpenAIContent = useMemo(
     () => OpenAIContentSchema.safeParse(content),
     [content],
   );
+  const promptReferenceProjectId = usePromptReferenceProjectId();
 
   const canEnableMarkdown = isSupportedMarkdownFormat(
     content,
     validatedOpenAIContent,
   );
 
+  const markdownWithPromptLinks = useMemo<
+    z.infer<typeof OpenAIContentSchema>
+  >(() => {
+    const markdownValue = validatedOpenAIContent.success
+      ? validatedOpenAIContent.data
+      : null;
+    if (!promptReferenceProjectId) return markdownValue;
+
+    if (typeof markdownValue === "string") {
+      return replacePromptReferencesWithMarkdownLinks(
+        promptReferenceProjectId,
+        markdownValue,
+      );
+    }
+
+    if (Array.isArray(markdownValue)) {
+      return markdownValue.map((part) =>
+        isOpenAITextContentPart(part)
+          ? {
+              ...part,
+              text: replacePromptReferencesWithMarkdownLinks(
+                promptReferenceProjectId,
+                part.text,
+              ),
+            }
+          : part,
+      );
+    }
+
+    return markdownValue;
+  }, [promptReferenceProjectId, validatedOpenAIContent]);
+
+  const audioWithPromptLinks = useMemo(() => {
+    if (!promptReferenceProjectId || !audio?.transcript) return audio;
+
+    return {
+      ...audio,
+      transcript: replacePromptReferencesWithMarkdownLinks(
+        promptReferenceProjectId,
+        audio.transcript,
+      ),
+    };
+  }, [audio, promptReferenceProjectId]);
+
   return (
     <>
       {canEnableMarkdown ? (
         <MarkdownView
-          markdown={stringOrValidatedMarkdown.data ?? content}
+          markdown={markdownWithPromptLinks}
           title={title}
           titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}
-          audio={audio}
+          audio={audioWithPromptLinks}
           media={media}
           controlButtons={controlButtons}
           afterHeader={afterHeader}

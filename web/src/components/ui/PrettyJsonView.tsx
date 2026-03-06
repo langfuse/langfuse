@@ -10,6 +10,10 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
+  replacePromptReferencesWithMarkdownLinks,
+  usePromptReferenceProjectId,
+} from "@/src/features/prompts/components/prompt-content-utils";
+import {
   ChevronDown,
   ChevronRight,
   UnfoldVertical,
@@ -751,7 +755,6 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
@@ -790,6 +793,7 @@ export function PrettyJsonView(props: {
     return result;
   }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
+  const promptReferenceProjectId = usePromptReferenceProjectId();
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
@@ -1218,7 +1222,16 @@ export function PrettyJsonView(props: {
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          <MarkdownView markdown={markdownContent || ""} />
+          <MarkdownView
+            markdown={
+              promptReferenceProjectId
+                ? replacePromptReferencesWithMarkdownLinks(
+                    promptReferenceProjectId,
+                    markdownContent || "",
+                  )
+                : markdownContent || ""
+            }
+          />
         </div>
       ) : (
         <>
@@ -1274,7 +1287,6 @@ export function PrettyJsonView(props: {
               collapseStringsAfterLength={props.collapseStringsAfterLength}
               media={props.media}
               scrollable={props.scrollable}
-              projectIdForPromptButtons={props.projectIdForPromptButtons}
               externalJsonCollapsed={jsonIsCollapsed}
               onToggleCollapse={handleJsonToggleCollapse}
             />

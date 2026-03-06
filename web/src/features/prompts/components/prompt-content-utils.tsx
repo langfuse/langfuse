@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   MUSTACHE_REGEX,
@@ -9,6 +9,107 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { FileCode } from "lucide-react";
+
+const PromptReferenceContext = React.createContext<string | undefined>(
+  undefined,
+);
+
+export const PromptReferenceProvider = ({
+  projectId,
+  children,
+}: {
+  projectId?: string;
+  children: ReactNode;
+}) => (
+  <PromptReferenceContext.Provider value={projectId}>
+    {children}
+  </PromptReferenceContext.Provider>
+);
+
+export const usePromptReferenceProjectId = () =>
+  React.useContext(PromptReferenceContext);
+
+export type PromptReferenceWithPosition = ParsedPromptDependencyTag & {
+  position: number;
+};
+
+export const parsePromptDependencyInnerContent = (
+  innerContent: string,
+  position: number,
+): PromptReferenceWithPosition | null => {
+  const tagParts = innerContent.split("|");
+  const params: Record<string, string> = {};
+
+  tagParts.forEach((part) => {
+    const separatorIndex = part.indexOf("=");
+    if (separatorIndex === -1) return;
+
+    const key = part.slice(0, separatorIndex);
+    const value = part.slice(separatorIndex + 1);
+
+    if (key && value) {
+      params[key] = value;
+    }
+  });
+
+  if (!params.name) return null;
+
+  if (params.version) {
+    const version = Number(params.version);
+    if (!Number.isFinite(version)) return null;
+
+    return {
+      name: params.name,
+      type: "version",
+      version,
+      position,
+    };
+  }
+
+  return {
+    name: params.name,
+    type: "label",
+    label: params.label || "",
+    position,
+  };
+};
+
+export const getPromptReferenceUrl = (
+  projectId: string,
+  tag: ParsedPromptDependencyTag,
+) => {
+  const baseUrl = `/project/${projectId}/prompts/`;
+  if (tag.type === "version") {
+    return `${baseUrl}${encodeURIComponent(tag.name)}?version=${tag.version}`;
+  }
+
+  return `${baseUrl}${encodeURIComponent(tag.name)}?label=${encodeURIComponent(tag.label)}`;
+};
+
+const escapeMarkdownLinkText = (text: string) =>
+  text.replace(/[[\]\\]/g, "\\$&");
+
+export const replacePromptReferencesWithMarkdownLinks = (
+  projectId: string,
+  content: string,
+): string => {
+  if (!content) return content;
+
+  return content.replace(
+    PromptDependencyRegex,
+    (fullMatch: string, innerContent: string, offset: number) => {
+      if (typeof innerContent !== "string") return fullMatch;
+
+      const tag = parsePromptDependencyInnerContent(innerContent, offset);
+      if (!tag) return fullMatch;
+
+      const suffix =
+        tag.type === "version" ? ` v${tag.version}` : ` ${tag.label}`.trimEnd();
+      const linkText = escapeMarkdownLinkText(`${tag.name}${suffix}`);
+      return `[${linkText}](${getPromptReferenceUrl(projectId, tag)})`;
+    },
+  );
+};
 
 const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
   <span
@@ -23,25 +124,28 @@ const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
   </span>
 );
 
-type PromptReference = ParsedPromptDependencyTag & {
-  position: number;
-};
+type PromptReference = PromptReferenceWithPosition;
 
 const PromptReference = ({
   promptRef,
-  projectId,
+  fallbackText,
 }: {
   promptRef: PromptReference;
-  projectId: string;
+  fallbackText: string;
 }) => {
-  const getPromptUrl = (projectId: string, tag: PromptReference) => {
-    const baseUrl = `/project/${projectId}/prompts/`;
-    if (tag.type === "version") {
-      return `${baseUrl}${encodeURIComponent(tag.name)}?version=${tag.version}`;
-    } else {
-      return `${baseUrl}${encodeURIComponent(tag.name)}?label=${encodeURIComponent(tag.label)}`;
-    }
-  };
+  const projectId = usePromptReferenceProjectId();
+
+  if (!projectId) {
+    return (
+      <span
+        dir="auto"
+        style={{ unicodeBidi: "plaintext" }}
+        className="whitespace-pre-wrap break-words"
+      >
+        {fallbackText}
+      </span>
+    );
+  }
 
   return (
     <Button
@@ -49,7 +153,9 @@ const PromptReference = ({
       size="sm"
       className="inline-flex items-center gap-1.5 rounded-sm border-dashed bg-muted/50 px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors hover:bg-muted"
       dir="ltr"
-      onClick={() => window.open(getPromptUrl(projectId, promptRef), "_blank")}
+      onClick={() =>
+        window.open(getPromptReferenceUrl(projectId, promptRef), "_blank")
+      }
       title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
     >
       <FileCode className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
@@ -72,10 +178,7 @@ const PromptReference = ({
 };
 
 // Higher-level function that renders prompt content with all the rich formatting
-export const renderRichPromptContent = (
-  projectId: string,
-  content: string,
-): React.ReactNode[] => {
+export const renderRichPromptContent = (content: string): React.ReactNode[] => {
   if (!content) return [];
 
   const createTextNode = (text: string, key: string) => (
@@ -116,34 +219,11 @@ export const renderRichPromptContent = (
     if (match[1] !== undefined) {
       // First capture group = prompt dependency
       const innerContent = match[1];
-      const tagParts = innerContent.split("|");
-      const params: Record<string, string> = {};
-
-      tagParts.forEach((part) => {
-        const [key, value] = part.split("=");
-        if (key && value) {
-          params[key] = value;
-        }
-      });
-
-      if (params.name) {
-        const tag: PromptReference = params.version
-          ? {
-              name: params.name,
-              type: "version",
-              version: Number(params.version),
-              position: index,
-            }
-          : {
-              name: params.name,
-              type: "label",
-              label: params.label || "",
-              position: index,
-            };
-
+      const tag = parsePromptDependencyInnerContent(innerContent, index);
+      if (tag) {
         parts.push(
           <React.Fragment key={`prompt-${index}`}>
-            <PromptReference promptRef={tag} projectId={projectId} />
+            <PromptReference promptRef={tag} fallbackText={fullMatch} />
           </React.Fragment>,
         );
       } else {
