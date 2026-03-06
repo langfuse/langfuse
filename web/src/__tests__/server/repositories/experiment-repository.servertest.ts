@@ -598,7 +598,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(metric.totalCost).toBeCloseTo(0.05, 6);
     });
 
-    it("should filter by scores_avg with a threshold", async () => {
+    it("should filter by trace_scores_avg with a threshold", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "score-filter-test-1-" + randomUUID();
       const experimentId2 = randomUUID();
@@ -703,6 +703,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score1a = createTraceScore({
         project_id: projectId,
         trace_id: trace1aId,
+        observation_id: null,
         name: scoreName,
         value: 0.7,
         source: "API",
@@ -711,6 +712,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score1b = createTraceScore({
         project_id: projectId,
         trace_id: trace1bId,
+        observation_id: null,
         name: scoreName,
         value: 0.9,
         source: "API",
@@ -721,6 +723,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score2a = createTraceScore({
         project_id: projectId,
         trace_id: trace2aId,
+        observation_id: null,
         name: scoreName,
         value: 0.4,
         source: "API",
@@ -729,6 +732,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       const score2b = createTraceScore({
         project_id: projectId,
         trace_id: trace2bId,
+        observation_id: null,
         name: scoreName,
         value: 0.6,
         source: "API",
@@ -743,7 +747,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId,
         filter: [
           {
-            column: "scores_avg",
+            column: "trace_scores_avg",
             type: "numberObject",
             key: scoreName,
             operator: ">",
@@ -1136,299 +1140,6 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(matchingExperiment?.name).toBe(experimentName1);
       // Experiment without metadata should not match
       expect(excludedExperiment).toBeUndefined();
-    });
-
-    it("should filter experiments by error count", async () => {
-      const experimentId1 = randomUUID();
-      const experimentName1 = "high-error-count-" + randomUUID();
-      const experimentId2 = randomUUID();
-      const experimentName2 = "low-error-count-" + randomUUID();
-      const datasetId = randomUUID();
-
-      const now = new Date().getTime();
-
-      // Experiment 1: Has 3 ERROR events (error_count = 3)
-      const rootSpanId15 = randomUUID();
-      const event1a = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId15,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId1,
-        experiment_name: experimentName1,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId15,
-        start_time: now * 1000,
-      });
-
-      const rootSpanId16 = randomUUID();
-      const event1b = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId16,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId1,
-        experiment_name: experimentName1,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId16,
-        start_time: now * 1000,
-      });
-
-      const rootSpanId17 = randomUUID();
-      const event1c = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId17,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId1,
-        experiment_name: experimentName1,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId17,
-        start_time: now * 1000,
-      });
-
-      // Experiment 2: Has 1 ERROR event (error_count = 1)
-      const rootSpanId18 = randomUUID();
-      const event2a = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId18,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId2,
-        experiment_name: experimentName2,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId18,
-        start_time: now * 1000,
-      });
-
-      // Add a non-error event to experiment 2 (should not increase error_count)
-      const rootSpanId19 = randomUUID();
-      const event2b = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId19,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "DEFAULT",
-        experiment_id: experimentId2,
-        experiment_name: experimentName2,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId19,
-        start_time: now * 1000,
-      });
-
-      await createEventsCh([event1a, event1b, event1c, event2a, event2b]);
-
-      // Filter for experiments with error_count >= 2
-      // Should only return experiment 1 (error_count = 3)
-      const result = await getExperimentsFromEvents({
-        projectId,
-        filter: [
-          {
-            column: "errorCount",
-            type: "number",
-            operator: ">=",
-            value: 2,
-          },
-        ],
-        limit: 1000,
-        page: 0,
-      });
-
-      const matchingExperiment = result.find((e) => e.id === experimentId1);
-      const excludedExperiment = result.find((e) => e.id === experimentId2);
-
-      expect(matchingExperiment).toBeDefined();
-      expect(matchingExperiment?.name).toBe(experimentName1);
-      expect(matchingExperiment?.errorCount).toBe(3);
-
-      // Experiment 2 has error_count = 1, which is < 2, so should be excluded
-      expect(excludedExperiment).toBeUndefined();
-    });
-
-    it("should combine pre-aggregation (dataset) and post-aggregation (errorCount) filters", async () => {
-      const datasetId1 = randomUUID();
-      const datasetId2 = randomUUID();
-
-      const experimentId1 = randomUUID();
-      const experimentName1 = "combined-filter-1-" + randomUUID();
-      const experimentId2 = randomUUID();
-      const experimentName2 = "combined-filter-2-" + randomUUID();
-      const experimentId3 = randomUUID();
-      const experimentName3 = "combined-filter-3-" + randomUUID();
-
-      const now = new Date().getTime();
-
-      // Experiment 1: datasetId1, 2 errors (should match both filters)
-      const rootSpanId20 = randomUUID();
-      const event1a = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId20,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId1,
-        experiment_name: experimentName1,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId1,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId20,
-        start_time: now * 1000,
-      });
-
-      const rootSpanId21 = randomUUID();
-      const event1b = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId21,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId1,
-        experiment_name: experimentName1,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId1,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId21,
-        start_time: now * 1000,
-      });
-
-      // Experiment 2: datasetId1, 0 errors (matches dataset, not error filter)
-      const rootSpanId22 = randomUUID();
-      const event2 = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId22,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "DEFAULT",
-        experiment_id: experimentId2,
-        experiment_name: experimentName2,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId1,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId22,
-        start_time: now * 1000,
-      });
-
-      // Experiment 3: datasetId2, 2 errors (matches error filter, not dataset)
-      const rootSpanId23 = randomUUID();
-      const event3a = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId23,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId3,
-        experiment_name: experimentName3,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId2,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId23,
-        start_time: now * 1000,
-      });
-
-      const rootSpanId24 = randomUUID();
-      const event3b = createEvent({
-        id: randomUUID(),
-        span_id: rootSpanId24,
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "test-generation",
-        level: "ERROR",
-        experiment_id: experimentId3,
-        experiment_name: experimentName3,
-        experiment_metadata_names: [],
-        experiment_metadata_values: [],
-        experiment_dataset_id: datasetId2,
-        experiment_item_id: randomUUID(),
-        experiment_item_version: null,
-        experiment_item_root_span_id: rootSpanId24,
-        start_time: now * 1000,
-      });
-
-      await createEventsCh([event1a, event1b, event2, event3a, event3b]);
-
-      // Filter: datasetId1 (pre-aggregation) AND errorCount >= 2 (post-aggregation)
-      const result = await getExperimentsFromEvents({
-        projectId,
-        filter: [
-          {
-            column: "experimentDatasetId",
-            type: "string",
-            operator: "=",
-            value: datasetId1,
-          },
-          {
-            column: "errorCount",
-            type: "number",
-            operator: ">=",
-            value: 2,
-          },
-        ],
-        limit: 1000,
-        page: 0,
-      });
-
-      // Only experiment 1 should match (correct dataset + enough errors)
-      const matchingExperiment = result.find((e) => e.id === experimentId1);
-      const excludedByErrorCount = result.find((e) => e.id === experimentId2);
-      const excludedByDataset = result.find((e) => e.id === experimentId3);
-
-      expect(matchingExperiment).toBeDefined();
-      expect(matchingExperiment?.name).toBe(experimentName1);
-      expect(matchingExperiment?.errorCount).toBe(2);
-
-      expect(excludedByErrorCount).toBeUndefined(); // Wrong error count
-      expect(excludedByDataset).toBeUndefined(); // Wrong dataset
     });
   });
 });

@@ -21,8 +21,10 @@ export type ExperimentsTableRow = {
   // Metrics - from separate query
   totalCost?: number | null;
   latencyAvg?: number | null;
-  itemScores?: ScoreAggregate; // Item-level scores
-  experimentScores?: ScoreAggregate; // Experiment-level scores
+  // Item-level scores split by observation vs trace
+  traceItemScores?: ScoreAggregate; // Scores on traces (observation_id IS NULL)
+  observationItemScores?: ScoreAggregate; // Scores on observations (observation_id IS NOT NULL)
+  experimentScores?: ScoreAggregate; // Experiment-level scores (direct dataset_run match)
 };
 
 export type ExperimentsTableProps = {

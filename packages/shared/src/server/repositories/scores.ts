@@ -12,11 +12,7 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import {
-  FilterList,
-  orderByToClickhouseSql,
-  EventsQueryBuilder,
-} from "../queries";
+import { FilterList, orderByToClickhouseSql } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -51,6 +47,7 @@ import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScore
 import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
+  eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
@@ -412,13 +409,11 @@ export const getScoresForExperimentItems = async (
   if (experimentIds.length === 0) return [];
 
   // Build events subquery using the query builder
-  const eventsSubquery = new EventsQueryBuilder({ projectId })
+  const eventsSubquery = eventsExperiments({
+    projectId,
+    experimentIds,
+  })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
-      experimentIds,
-    })
-    .whereRaw("e.experiment_id != ''")
-    .whereRaw("e.is_deleted = 0")
     .buildWithParams();
 
   const query = `

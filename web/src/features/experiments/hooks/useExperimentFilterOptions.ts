@@ -2,6 +2,18 @@ import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 
+// Process categorical scores into key-value format
+const processScoreCategories = (
+  categories: Array<{ label: string; values: string[] }> | undefined,
+) =>
+  categories?.reduce(
+    (acc, score) => {
+      acc[score.label] = score.values;
+      return acc;
+    },
+    {} as Record<string, string[]>,
+  ) ?? undefined;
+
 export function useExperimentFilterOptions({
   projectId,
   oldFilterState,
@@ -30,15 +42,6 @@ export function useExperimentFilterOptions({
   });
 
   const experimentFilterOptions = useMemo(() => {
-    const scoreCategories =
-      filterOptions.data?.score_categories?.reduce(
-        (acc, score) => {
-          acc[score.label] = score.values;
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      ) ?? undefined;
-
     const experimentDatasetFilterOptions = datasets.data
       ?.filter((d) => filterOptions.data?.experimentDatasetIds?.includes(d.id))
       .map((d) => ({
@@ -48,8 +51,16 @@ export function useExperimentFilterOptions({
 
     return {
       experimentDatasetId: experimentDatasetFilterOptions,
-      scores_avg: filterOptions.data?.scores_avg ?? undefined,
-      score_categories: scoreCategories,
+      // Observation-level score options
+      obs_scores_avg: filterOptions.data?.obs_scores_avg ?? undefined,
+      obs_score_categories: processScoreCategories(
+        filterOptions.data?.obs_score_categories,
+      ),
+      // Trace-level score options
+      trace_scores_avg: filterOptions.data?.trace_scores_avg ?? undefined,
+      trace_score_categories: processScoreCategories(
+        filterOptions.data?.trace_score_categories,
+      ),
     };
   }, [datasets.data, filterOptions.data]);
 

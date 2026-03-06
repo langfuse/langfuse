@@ -226,10 +226,11 @@ async function enrichObservationsWithTraceFields(
  * Internal helper: extract and convert time filter from FilterList
  * Common pattern: find time filter and convert to ClickHouse DateTime format
  */
-function extractTimeFilter(
+export function extractTimeFilter(
   filter: FilterList,
   tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",
+  prefix?: "e" | "t",
 ): string | null {
   const timeFilter = filter.find(
     (f) =>
@@ -237,7 +238,7 @@ function extractTimeFilter(
       (tableName === "events_proto"
         ? f.clickhouseTable.startsWith("events_")
         : f.clickhouseTable === tableName) &&
-      f.field === fieldName &&
+      f.field === (prefix ? `${prefix}.${fieldName}` : fieldName) &&
       (f.operator === ">=" || f.operator === ">"),
   );
 
@@ -432,9 +433,25 @@ async function getObservationsFromEventsTableInternal<T>(
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasScoresFilter = baseFilter.some((f) =>
-    f.column.toLowerCase().includes("score"),
-  );
+  const hasObservationScoresFilter = baseFilter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "scores" ||
+      column === "scores_avg" ||
+      column === "score_categories" ||
+      column === "scores (numeric)" ||
+      column === "scores (categorical)"
+    );
+  });
+  const hasTraceScoresFilter = baseFilter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "trace_scores_avg" ||
+      column === "trace_score_categories" ||
+      column === "trace scores (numeric)" ||
+      column === "trace scores (categorical)"
+    );
+  });
   const search = clickhouseSearchCondition(
     opts.searchQuery,
     opts.searchType,
@@ -512,10 +529,20 @@ async function getObservationsFromEventsTableInternal<T>(
   }
 
   queryBuilder
-    .when(hasScoresFilter, (b) =>
+    .when(hasObservationScoresFilter, (b) =>
       b.withCTE(
         "scores_agg",
         eventsScoresAggregation({ projectId, startTimeFrom }),
+      ),
+    )
+    .when(hasTraceScoresFilter, (b) =>
+      b.withCTE(
+        "trace_scores_agg",
+        eventsTracesScoresAggregation({
+          projectId,
+          startTimeFrom,
+          hasScoreAggregationFilters: true,
+        }),
       ),
     )
     .when(Boolean(needsTraceJoin), (b) =>
@@ -530,8 +557,14 @@ async function getObservationsFromEventsTableInternal<T>(
         "ON t.id = e.trace_id AND t.project_id = e.project_id",
       ),
     )
-    .when(hasScoresFilter, (b) =>
+    .when(hasObservationScoresFilter, (b) =>
       b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    )
+    .when(hasTraceScoresFilter, (b) =>
+      b.leftJoin(
+        "trace_scores_agg AS ts",
+        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
     )
     .applyFilters(observationsFilter)
     .where(search)

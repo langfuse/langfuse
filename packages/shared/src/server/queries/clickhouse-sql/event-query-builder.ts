@@ -384,6 +384,9 @@ const EVENTS_AGGREGATION_FIELDS = {
 
   tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",
+
+  // experiment fields
+  experiment_id: "any(e.experiment_id) as experiment_id",
 } as const;
 
 /**
@@ -392,51 +395,6 @@ const EVENTS_AGGREGATION_FIELDS = {
 const AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_AGGREGATION_FIELDS
-  >,
-} as const;
-
-/**
- * Aggregation fields for experiment-level queries
- * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id
- */
-const EXPERIMENTS_AGGREGATION_FIELDS = {
-  // Grouping keys (must be in GROUP BY)
-  experimentId: "experiment_id",
-  projectId: "project_id",
-
-  // Basic experiment metadata (same across all items)
-  experimentName: "any(experiment_name) AS experiment_name",
-  experimentDescription:
-    "any(experiment_description) AS experiment_description",
-
-  // Extended experiment metadata (might differ per item)
-  experimentDatasetId: "any(experiment_dataset_id) AS experiment_dataset_id",
-
-  // Timestamps
-  startTime: "min(start_time) AS start_time",
-
-  // Aggregated metrics
-  itemCount: "uniq(experiment_item_id) AS item_count",
-  errorCount: "countIf(level = 'ERROR') AS error_count",
-
-  // Prompts - tuple of (name, version) to preserve pairing
-  prompts:
-    "groupUniqArrayIf(tuple(prompt_name, prompt_version), prompt_name != '') AS prompts",
-
-  // Experiment metadata - output as arrays for filtering, convert to map for display
-  experimentMetadata:
-    "any(mapFromArrays(experiment_metadata_names, experiment_metadata_values)) AS experiment_metadata",
-  // Arrays for filtering (StringObjectFilter uses metadata_names/metadata_values)
-  metadataNames: "any(experiment_metadata_names) AS metadata_names",
-  metadataValues: "any(experiment_metadata_values) AS metadata_values",
-} as const;
-
-/**
- * Field sets for experiment aggregation queries
- */
-const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
-  all: Object.keys(EXPERIMENTS_AGGREGATION_FIELDS) as Array<
-    keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
   >,
 } as const;
 
@@ -456,6 +414,7 @@ export type NoProjectIdType = typeof NoProjectId;
  */
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
+  protected havingClauses: string[] = [];
   protected orderByClause: string = "";
   protected limitByClause: string = "";
   protected limitClause: string = "";
@@ -486,6 +445,41 @@ abstract class AbstractQueryBuilder {
     if (condition.query.trim()) {
       const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
       this.whereRaw(`(${trimmedQuery})`, condition.params);
+    }
+    return this;
+  }
+
+  /**
+   * Apply filters from a FilterList.
+   * Subclasses can override to add optimizations (e.g., partition pruning).
+   */
+  applyFilters(filterList: FilterList): this {
+    this.where(filterList.apply());
+    return this;
+  }
+
+  /**
+   * Add raw HAVING condition with optional parameters.
+   * Use for post-aggregation filtering in GROUP BY queries.
+   */
+  havingRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.havingClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
+    }
+    return this;
+  }
+
+  /**
+   * Add HAVING conditions from FilterList.
+   * Strips leading AND/OR and wraps in parentheses.
+   */
+  having(condition: { query: string; params?: Record<string, any> }): this {
+    if (condition.query.trim()) {
+      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
+      this.havingRaw(`(${trimmedQuery})`, condition.params);
     }
     return this;
   }
@@ -585,6 +579,14 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
+   * Helper to build HAVING section
+   */
+  protected buildHavingSection(): string {
+    if (this.havingClauses.length === 0) return "";
+    return `HAVING ${this.havingClauses.join("\n  AND ")}`;
+  }
+
+  /**
    * Build the final query string - implemented by subclasses
    */
   protected abstract buildQuery(): string;
@@ -614,6 +616,14 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    */
   leftJoin(table: string, onClause: string): this {
     this.joins.push(`LEFT JOIN ${table} ${onClause}`);
+    return this;
+  }
+
+  /**
+   * Add an INNER JOIN
+   */
+  innerJoin(table: string, onClause: string): this {
+    this.joins.push(`INNER JOIN ${table} ${onClause}`);
     return this;
   }
 
@@ -703,6 +713,26 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
+   * Apply filters with automatic query optimizations.
+   * Adds xxHash32 optimization for trace_id equality filters.
+   */
+  override applyFilters(filterList: FilterList): this {
+    const traceIdFilter = filterList.find(
+      (f) =>
+        f.clickhouseTable.startsWith("events") &&
+        f.field === 'e."trace_id"' &&
+        f.operator === "=",
+    );
+    if (traceIdFilter instanceof StringFilter) {
+      this.whereRaw("xxHash32(trace_id) = xxHash32({traceIdXxHash: String})", {
+        traceIdXxHash: traceIdFilter.value,
+      });
+    }
+    super.applyFilters(filterList);
+    return this;
+  }
+
+  /**
    * Build the SELECT clause - implemented by subclasses
    */
   protected abstract buildSelectClause(): string;
@@ -762,6 +792,12 @@ abstract class BaseEventsQueryBuilder<
     const groupBy = this.buildGroupByClause();
     if (groupBy) {
       parts.push(groupBy);
+    }
+
+    // HAVING (only for aggregation queries with post-agg filters)
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
     }
 
     // ORDER BY
@@ -860,28 +896,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       .forEach((s) => {
         this.selectFields.add(s);
       });
-    return this;
-  }
-
-  /**
-   * Apply filters from a FilterList with automatic query optimizations.
-   * When a trace_id equality filter is detected, adds xxHash32 optimization
-   * for efficient ClickHouse partition pruning.
-   */
-  applyFilters(filterList: FilterList): this {
-    const traceIdFilter = filterList.find(
-      (f) =>
-        // events_full / events_core proof
-        f.clickhouseTable.startsWith("events") &&
-        f.field === 'e."trace_id"' &&
-        f.operator === "=",
-    );
-    if (traceIdFilter instanceof StringFilter) {
-      this.whereRaw("xxHash32(trace_id) = xxHash32({traceIdXxHash: String})", {
-        traceIdXxHash: traceIdFilter.value,
-      });
-    }
-    this.where(filterList.apply());
     return this;
   }
 
@@ -1297,85 +1311,6 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
 }
 
 /**
- * EventsExperimentsAggregationQueryBuilder - A fluent query builder for experiment aggregation queries
- *
- * This builder aggregates events by experiment_id to create one row per experiment.
- * It automatically filters for experiment_id IS NOT NULL and groups by experiment_id, project_id.
- *
- * @example
- * const builder = new EventsExperimentsAggregationQueryBuilder({ projectId: "my-project-id" })
- *   .selectFieldSet("all")
- *   .orderByColumns([{ column: "start_time", direction: "DESC" }]);
- *
- * const { query, params } = builder.buildWithParams();
- */
-export class EventsExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
-  typeof EXPERIMENTS_AGGREGATION_FIELDS
-> {
-  constructor(options: { projectId: string }) {
-    super(EXPERIMENTS_AGGREGATION_FIELDS, options);
-  }
-
-  /**
-   * Add SELECT fields from predefined aggregation field sets
-   */
-  selectFieldSet(
-    ...setNames: Array<keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS>
-  ): this {
-    setNames
-      .flatMap((s) => EXPERIMENTS_AGGREGATION_FIELD_SETS[s])
-      .forEach((field) => this.selectFields.add(field));
-    return this;
-  }
-
-  /**
-   * Filter by experiment IDs
-   */
-  withExperimentIds(experimentIds?: string[]): this {
-    return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
-      b.whereRaw("experiment_id IN ({experimentIds: Array(String)})", {
-        experimentIds,
-      }),
-    );
-  }
-
-  /**
-   * Build the SELECT clause for aggregation queries
-   */
-  protected buildSelectClause(): string {
-    const fieldExpressions = [...this.selectFields]
-      .map((key) => {
-        return this.fields[key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS];
-      })
-      .filter(Boolean);
-    return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
-  }
-
-  /**
-   * Build the GROUP BY clause for experiment aggregations
-   */
-  protected buildGroupByClause(): string {
-    return "GROUP BY experiment_id, project_id";
-  }
-
-  /**
-   * Build with schema for use in CTEQueryBuilder.
-   * Returns query, params, and list of column names this CTE exposes.
-   */
-  buildWithSchema(): CTEWithSchema {
-    // Extract column names from selected fields
-    const schema = [...this.selectFields].map((fieldKey) => {
-      return fieldKey;
-    });
-
-    return {
-      ...this.buildWithParams(),
-      schema,
-    };
-  }
-}
-
-/**
  * Query builder that composes CTEs with type-safe CTE name tracking.
  *
  * Generic type parameters:
@@ -1402,6 +1337,7 @@ export class CTEQueryBuilder<
   private selectExpressions: string[] = [];
   private fromClause: string = "";
   private fromAlias: string = "";
+  private groupByClause: string = "";
 
   /**
    * Register a CTE with its schema
@@ -1471,6 +1407,25 @@ export class CTEQueryBuilder<
   }
 
   /**
+   * Inner join another CTE.
+   * Only accepts CTE names that have been registered via withCTE().
+   */
+  innerJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    if (!this.cteSchemas.has(cteName)) {
+      throw new Error(
+        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
+      );
+    }
+    this.joins.push(`INNER JOIN ${cteName} ${alias} ${onClause}`);
+    // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
    * Add type-safe column references from registered CTEs.
    * Only accepts column references in the format "alias.columnName" where:
    * - alias is a registered table alias (from from() or leftJoin())
@@ -1501,6 +1456,17 @@ export class CTEQueryBuilder<
    */
   select(...expressions: string[]): this {
     this.selectExpressions.push(...expressions);
+    return this;
+  }
+
+  /**
+   * Add GROUP BY clause
+   *
+   * @example
+   * builder.groupBy("t.project_id, t.experiment_id")
+   */
+  groupBy(clause: string): this {
+    this.groupByClause = clause;
     return this;
   }
 
@@ -1538,6 +1504,17 @@ export class CTEQueryBuilder<
     // WHERE
     if (this.whereClauses.length > 0) {
       parts.push(`WHERE ${this.whereClauses.join("\n  AND ")}`);
+    }
+
+    // GROUP BY
+    if (this.groupByClause) {
+      parts.push(`GROUP BY ${this.groupByClause}`);
+    }
+
+    // HAVING
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
     }
 
     // ORDER BY
@@ -1633,6 +1610,144 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     }
 
     return parts.join("\n");
+  }
+}
+
+// ============================================================
+// EXPERIMENTS AGGREGATION BUILDER
+// ============================================================
+
+/**
+ * Aggregation fields for experiment-level queries.
+ * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id, project_id.
+ */
+const EXPERIMENTS_AGGREGATION_FIELDS = {
+  // Base aggregated fields
+  experimentId: "e.experiment_id AS experiment_id",
+  experimentName: "any(e.experiment_name) AS experiment_name",
+  experimentDescription:
+    "any(e.experiment_description) AS experiment_description",
+  experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
+  startTime: "min(e.start_time) AS start_time",
+  itemCount: "uniq(e.experiment_item_id) AS item_count",
+  errorCount: "countIf(e.level = 'ERROR') AS error_count",
+  prompts:
+    "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
+  experimentMetadata:
+    "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+} as const;
+
+/**
+ * Field sets for experiment aggregation queries.
+ */
+const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+  count: ["experimentId"] as const,
+  base: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+    "itemCount",
+    "errorCount",
+    "prompts",
+    "experimentMetadata",
+  ] as const,
+} as const;
+
+export type ExperimentsAggregationFieldSetName =
+  keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS;
+
+/**
+ * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
+ *
+ * For metrics requiring trace-level aggregation first (cost, latency), use CTEQueryBuilder
+ * to wrap a trace CTE and re-aggregate at experiment level with selectRaw() + groupBy().
+ * selectRaw() is intentionally used for explicit two-level aggregation semantics.
+ */
+export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
+  typeof EXPERIMENTS_AGGREGATION_FIELDS
+> {
+  private selectedFieldSets: Set<ExperimentsAggregationFieldSetName> =
+    new Set();
+  private rawSelectExpressions: string[] = [];
+
+  constructor(opts: { projectId: string }) {
+    super(EXPERIMENTS_AGGREGATION_FIELDS, { projectId: opts.projectId });
+  }
+
+  /**
+   * Add experiment IDs filter
+   */
+  withExperimentIds(experimentIds?: string[]): this {
+    return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
+      b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+        experimentIds,
+      }),
+    );
+  }
+
+  /**
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   */
+  withStartTimeFrom(startTimeFrom?: string | null): this {
+    return this.when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw(
+        `e.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Select a field set for the query output.
+   * Use "count" for count queries, "base" for full row data.
+   */
+  selectFieldSet(...sets: ExperimentsAggregationFieldSetName[]): this {
+    sets.forEach((s) => this.selectedFieldSets.add(s));
+    return this;
+  }
+
+  /**
+   * Add raw SELECT expressions (for score aggregations, custom columns, etc.)
+   * These are appended after field set columns.
+   */
+  selectRaw(...expressions: string[]): this {
+    this.rawSelectExpressions.push(...expressions);
+    return this;
+  }
+
+  /**
+   * Build the SELECT clause for experiment aggregation queries.
+   */
+  protected buildSelectClause(): string {
+    const fields: string[] = [];
+
+    // Add fields from selected field sets
+    for (const setName of this.selectedFieldSets) {
+      const fieldKeys = EXPERIMENTS_AGGREGATION_FIELD_SETS[setName];
+      for (const key of fieldKeys) {
+        const fieldExpr =
+          EXPERIMENTS_AGGREGATION_FIELDS[
+            key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
+          ];
+        if (fieldExpr) {
+          fields.push(fieldExpr);
+        }
+      }
+    }
+
+    // Add raw select expressions (e.g., score aggregations from CTE JOINs)
+    fields.push(...this.rawSelectExpressions);
+
+    return `SELECT\n  ${fields.join(",\n  ")}`;
+  }
+
+  /**
+   * Build the GROUP BY clause for experiment aggregations.
+   */
+  protected buildGroupByClause(): string {
+    return "GROUP BY e.project_id, e.experiment_id";
   }
 }
 

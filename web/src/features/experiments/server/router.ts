@@ -339,7 +339,12 @@ export const experimentsRouter = createTRPCRouter({
     }),
 
   countAll: protectedProjectProcedure
-    .input(ExperimentFilterOptions)
+    .input(
+      z.object({
+        projectId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -350,9 +355,6 @@ export const experimentsRouter = createTRPCRouter({
       const count = await getExperimentsCountFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
-        page: input.page,
-        limit: input.limit,
       });
 
       return {
@@ -384,7 +386,6 @@ export const experimentsRouter = createTRPCRouter({
         getExperimentMetricsFromEvents({
           projectId: input.projectId,
           experimentIds: input.experimentIds,
-          filter: input.filter ?? [],
         }),
         getScoresForExperimentItems(input.projectId, input.experimentIds),
         getScoresForExperiments({
@@ -395,19 +396,30 @@ export const experimentsRouter = createTRPCRouter({
         }),
       ]);
 
-      return metrics.map((metric) => ({
-        id: metric.id,
-        totalCost: metric.totalCost,
-        latencyAvg: metric.latencyAvg,
-        // Item-level scores
-        itemScores: aggregateScores(
-          itemScores.filter((s) => s.experimentId === metric.id),
-        ),
-        // Experiment-level scores (direct dataset_run_id match)
-        experimentScores: aggregateScores(
-          experimentScores.filter((s) => s.datasetRunId === metric.id),
-        ),
-      }));
+      return metrics.map((metric) => {
+        // Filter item scores for this experiment
+        const experimentItemScores = itemScores.filter(
+          (s) => s.experimentId === metric.id,
+        );
+
+        return {
+          id: metric.id,
+          totalCost: metric.totalCost,
+          latencyAvg: metric.latencyAvg,
+          // Trace-level item scores (observation_id is null/empty)
+          traceItemScores: aggregateScores(
+            experimentItemScores.filter((s) => !s.observationId),
+          ),
+          // Observation-level item scores (observation_id is present)
+          observationItemScores: aggregateScores(
+            experimentItemScores.filter((s) => Boolean(s.observationId)),
+          ),
+          // Experiment-level scores (direct dataset_run_id match)
+          experimentScores: aggregateScores(
+            experimentScores.filter((s) => s.datasetRunId === metric.id),
+          ),
+        };
+      });
     }),
 
   filterOptions: protectedProjectProcedure
@@ -458,9 +470,17 @@ export const experimentsRouter = createTRPCRouter({
         }
       }
 
+      // Return score options for both observation-level and trace-level filters
+      // The same score names are available at both levels
+      const numericScoreOptions = numericScoreNames.map((score) => score.name);
+
       return {
-        scores_avg: numericScoreNames.map((score) => score.name),
-        score_categories: categoricalScoreNames,
+        // Observation-level score options (eos.*)
+        obs_scores_avg: numericScoreOptions,
+        obs_score_categories: categoricalScoreNames,
+        // Trace-level score options (ets.*)
+        trace_scores_avg: numericScoreOptions,
+        trace_score_categories: categoricalScoreNames,
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),

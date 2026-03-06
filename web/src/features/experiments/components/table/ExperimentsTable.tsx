@@ -113,8 +113,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
   const queryFilter = useSidebarFilterState(
     experimentsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
+    {
+      loading: isFilterOptionsPending,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -151,20 +152,41 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [experiments.status, experiments.rows]);
 
-  // Trace-based scores (experiment item level)
-  const { scoreColumns, isLoading: isColumnLoading } =
-    useScoreColumns<ExperimentsTableRow>({
-      displayFormat: "aggregate",
-      scoreColumnKey: "itemScores",
-      projectId,
-      filter:
-        experiments.rows && experiments.rows.length > 0
-          ? scoreFilters.forExperimentItems({
-              experimentIds: experiments.rows.map((e) => e.id),
-            })
-          : [],
-      isFilterDataPending: experiments.status === "loading",
-    });
+  // Trace-level item scores (scores on traces, observation_id IS NULL)
+  const {
+    scoreColumns: traceItemScoreColumns,
+    isLoading: isTraceItemScoreLoading,
+  } = useScoreColumns<ExperimentsTableRow>({
+    displayFormat: "aggregate",
+    scoreColumnKey: "traceItemScores",
+    projectId,
+    filter:
+      experiments.rows && experiments.rows.length > 0
+        ? scoreFilters.forExperimentItems({
+            experimentIds: experiments.rows.map((e) => e.id),
+          })
+        : [],
+    prefix: "Trace",
+    isFilterDataPending: experiments.status === "loading",
+    defaultHidden: true,
+  });
+
+  // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
+  const {
+    scoreColumns: observationItemScoreColumns,
+    isLoading: isObservationItemScoreLoading,
+  } = useScoreColumns<ExperimentsTableRow>({
+    displayFormat: "aggregate",
+    scoreColumnKey: "observationItemScores",
+    projectId,
+    filter:
+      experiments.rows && experiments.rows.length > 0
+        ? scoreFilters.forExperimentItems({
+            experimentIds: experiments.rows.map((e) => e.id),
+          })
+        : [],
+    isFilterDataPending: experiments.status === "loading",
+  });
 
   // Experiment-level scores (direct dataset_run_id match)
   const {
@@ -179,7 +201,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
             datasetRunIds: experiments.rows.map((e) => e.id),
           })
         : [],
-    prefix: "Experiment-level",
+    prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
   });
 
@@ -326,15 +348,30 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       },
     },
     {
-      accessorKey: "itemScores",
-      header: "Experiment Item Scores",
-      id: "itemScores",
+      accessorKey: "traceItemScores",
+      header: "Trace Item Scores",
+      id: "traceItemScores",
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return isTraceItemScoreLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
-      columns: scoreColumns,
+      columns: traceItemScoreColumns,
+    },
+    {
+      accessorKey: "observationItemScores",
+      header: "Observation Item Scores",
+      id: "observationItemScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isObservationItemScoreLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: observationItemScoreColumns,
     },
     {
       accessorKey: "experimentScores",
