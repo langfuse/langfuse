@@ -3,12 +3,7 @@ import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Button } from "@/src/components/ui/button";
-import {
-  Columns3,
-  MoreVertical,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
+import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -19,16 +14,21 @@ import {
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
 import { ExperimentOverviewPanel } from "@/src/features/experiments/components/ExperimentOverviewPanel";
-import { ResizableDesktopLayout } from "@/src/components/layouts/ResizableDesktopLayout";
-import { useMediaQuery } from "react-responsive";
-import { useState } from "react";
+import {
+  OverviewPanelLayout,
+  OverviewPanelToggle,
+} from "@/src/components/layouts/overview-panel";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export default function ExperimentDetail() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const experimentId = router.query.experimentId as string;
-  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
-  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
+
+  const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
+    "overview-panel-experiment-detail",
+    true,
+  );
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -56,18 +56,10 @@ export default function ExperimentDetail() {
         },
         actionButtonsRight: experiment?.datasetId ? (
           <>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setIsDetailsPanelOpen(!isDetailsPanelOpen)}
-              title={isDetailsPanelOpen ? "Hide details" : "Show details"}
-            >
-              {isDetailsPanelOpen ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
-            </Button>
+            <OverviewPanelToggle
+              open={isOverviewOpen}
+              onOpenChange={setIsOverviewOpen}
+            />
             <Link
               href={{
                 pathname: `/project/${projectId}/datasets/${experiment.datasetId}/compare`,
@@ -106,50 +98,27 @@ export default function ExperimentDetail() {
       }}
     >
       {experiment?.datasetId ? (
-        isDesktop ? (
-          <ResizableDesktopLayout
-            mainContent={
-              <ExperimentItemsTable
-                projectId={projectId}
-                experimentId={experimentId}
-                datasetId={experiment.datasetId}
-              />
-            }
-            sidebarContent={
-              <div className="flex h-full flex-col overflow-y-auto p-4">
-                <ExperimentOverviewPanel
-                  projectId={projectId}
-                  experiment={experiment}
-                />
-              </div>
-            }
-            open={isDetailsPanelOpen}
-            defaultMainSize={75}
-            defaultSidebarSize={25}
-            minMainSize={50}
-            maxSidebarSize={40}
-            sidebarPosition="right"
-            persistId={`experiment-detail-${experimentId}`}
-          />
-        ) : (
-          <div className="flex h-full flex-col overflow-hidden">
-            {isDetailsPanelOpen && (
-              <div className="overflow-y-auto border-b p-4">
-                <ExperimentOverviewPanel
-                  projectId={projectId}
-                  experiment={experiment}
-                />
-              </div>
-            )}
-            <div className="flex-1 overflow-hidden">
-              <ExperimentItemsTable
-                projectId={projectId}
-                experimentId={experimentId}
-                datasetId={experiment.datasetId}
-              />
-            </div>
-          </div>
-        )
+        <OverviewPanelLayout
+          open={isOverviewOpen}
+          persistId={`experiment-detail-${experimentId}`}
+          mainContent={
+            <ExperimentItemsTable
+              projectId={projectId}
+              experimentId={experimentId}
+              datasetId={experiment.datasetId}
+            />
+          }
+          overviewContent={
+            <ExperimentOverviewPanel
+              projectId={projectId}
+              experiment={experiment}
+            />
+          }
+          defaultMainSize={75}
+          defaultSidebarSize={25}
+          minMainSize={50}
+          maxSidebarSize={40}
+        />
       ) : (
         <div className="p-4">Loading experiment...</div>
       )}
