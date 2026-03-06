@@ -138,87 +138,21 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Print Docker environment
+      - name: Build images
         run: |
-          date -u +"%Y-%m-%dT%H:%M:%SZ"
-          docker version
-          docker info
-          docker buildx version
-          docker buildx ls
-          docker system df
-      - name: Show compose services and images
-        run: |
-          docker compose -f "$DOCKER_COMPOSE_FILE" config --services
-          docker compose -f "$DOCKER_COMPOSE_FILE" config --images
-      - name: Render compose bake plan
-        run: |
-          set -eo pipefail
-          docker compose --progress plain --verbose -f "$DOCKER_COMPOSE_FILE" build --print | tee /tmp/bake.json
-      - name: Build images from bake plan
-        run: |
+          docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
           time docker buildx bake -f /tmp/bake.json
-      - name: Show built images
-        run: |
-          docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' | sed -n '1,40p'
       - name: Start compose services and wait for healthchecks
         run: |
-          time timeout 180 docker compose --progress plain -f "$DOCKER_COMPOSE_FILE" up -d --wait
-      - name: Show compose state after startup
-        if: always()
-        run: |
-          docker compose -f "$DOCKER_COMPOSE_FILE" ps -a
+          time timeout 180 docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait
       - name: Check worker health
         run: |
-          probe_url() {
-            local name="$1"
-            local url="$2"
-            local timeout_seconds="$3"
-            local deadline=$((SECONDS + timeout_seconds))
-            local attempt=1
-
-            while true; do
-              echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${name} health attempt ${attempt}: ${url}"
-              if curl -svf "$url"; then
-                return 0
-              fi
-
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                echo "${name} healthcheck timed out after ${timeout_seconds}s"
-                return 1
-              fi
-
-              attempt=$((attempt + 1))
-              sleep 2
-            done
-          }
-
-          probe_url worker http://localhost:3030/api/health 60
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3030/api/health
       - name: Check server health
         run: |
-          probe_url() {
-            local name="$1"
-            local url="$2"
-            local timeout_seconds="$3"
-            local deadline=$((SECONDS + timeout_seconds))
-            local attempt=1
-
-            while true; do
-              echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${name} health attempt ${attempt}: ${url}"
-              if curl -svf "$url"; then
-                return 0
-              fi
-
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                echo "${name} healthcheck timed out after ${timeout_seconds}s"
-                return 1
-              fi
-
-              attempt=$((attempt + 1))
-              sleep 2
-            done
-          }
-
-          probe_url server http://localhost:3000/api/public/health 60
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3000/api/public/health
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
