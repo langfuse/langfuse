@@ -54,7 +54,11 @@ services:
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/api/public/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,7 +76,11 @@ services:
       <<: *langfuse-web-env
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3030/api/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3030/api/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
