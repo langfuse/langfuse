@@ -1,9 +1,17 @@
 import {
+  AnnotationQueueObjectType,
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { CommentsSection } from "../shared/CommentsSection";
 import { SessionIO } from "@/src/components/session";
 import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -31,6 +39,10 @@ export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
+  const [verticalSize, setVerticalSize] = useSessionStorage(
+    `annotationQueueSessionComments-${projectId}`,
+    60,
+  );
   const [currentTraceIndex, setCurrentTraceIndex] = useState(1);
 
   // Intersection observer to which trace is currently in view
@@ -146,16 +158,40 @@ export const SessionAnnotationProcessor: React.FC<
   );
 
   const rightPanel = (
-    <AnnotationDrawerSection
-      item={item}
-      scoreTarget={{
-        type: "session",
-        sessionId: item.objectId,
+    <ResizablePanelGroup
+      orientation="vertical"
+      className="h-full"
+      onLayoutChanged={(layout) => {
+        const top = layout["session-annotation-top"];
+        if (top != null) setVerticalSize(top);
       }}
-      scores={data?.scores ?? []}
-      configs={configs}
-      environment={data?.environment}
-    />
+    >
+      <ResizablePanel
+        id="session-annotation-top"
+        className="overflow-y-auto"
+        minSize="30%"
+        defaultSize={`${verticalSize}%`}
+      >
+        <AnnotationDrawerSection
+          item={item}
+          scoreTarget={{
+            type: "session",
+            sessionId: item.objectId,
+          }}
+          scores={data?.scores ?? []}
+          configs={configs}
+          environment={data?.environment}
+        />
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel className="overflow-y-auto" minSize="20%">
+        <CommentsSection
+          projectId={projectId}
+          objectId={item.objectId}
+          objectType={AnnotationQueueObjectType.SESSION}
+        />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 
   return (
