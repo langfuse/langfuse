@@ -10,6 +10,7 @@ import {
   calculateTimelineWidth,
   SCALE_WIDTH,
 } from "./timeline-calculations";
+import { isPresent } from "@langfuse/shared";
 
 /**
  * Flattens tree into list for timeline virtualized rendering.
@@ -83,7 +84,6 @@ export function flattenTreeWithTimelineMetrics(
     // Handle first token time for streaming LLMs (completionStartTime)
     // This is stored on observations that have streaming responses
     const firstTokenTimeOffset =
-      "completionStartTime" in currentNode &&
       currentNode.completionStartTime instanceof Date
         ? calculateTimelineOffset(
             currentNode.completionStartTime,
@@ -93,10 +93,19 @@ export function flattenTreeWithTimelineMetrics(
           )
         : undefined;
 
+    const timeToFirstToken = isPresent(currentNode.timeToFirstToken)
+      ? currentNode.timeToFirstToken
+      : currentNode.completionStartTime instanceof Date
+        ? (currentNode.completionStartTime.getTime() -
+            currentNode.startTime.getTime()) /
+          1000
+        : undefined;
+
     const metrics: TimelineMetrics = {
       startOffset,
       itemWidth,
       firstTokenTimeOffset,
+      timeToFirstToken,
       latency,
     };
 
