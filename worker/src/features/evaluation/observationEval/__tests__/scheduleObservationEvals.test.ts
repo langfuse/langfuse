@@ -6,7 +6,11 @@ import {
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { EvalTargetObject, JobExecutionStatus } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  JobConfigState,
+  JobExecutionStatus,
+} from "@langfuse/shared";
 import { createW3CTraceId } from "../../../utils";
 
 describe("scheduleObservationEvals", () => {
@@ -103,6 +107,32 @@ describe("scheduleObservationEvals", () => {
       await scheduleObservationEvals({
         observation,
         configs: [],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("executability", () => {
+    it("should skip paused and inactive configs before uploading to S3", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "paused-config",
+            blockedAt: new Date(),
+          }),
+          createMockConfig({
+            id: "inactive-config",
+            status: JobConfigState.INACTIVE,
+          }),
+        ],
         schedulerDeps,
       });
 

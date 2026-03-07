@@ -17,9 +17,12 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  type JobConfigBlockReason,
+  JobConfigBlockReasonValues,
   orderBy,
   jsonSchema,
   EvalTargetObject,
+  getEvaluatorDisplayStatus,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -33,7 +36,9 @@ import {
   orderByToPrismaSql,
   DefaultEvalModelService,
   testModelCall,
-  clearNoEvalConfigsCache,
+  clearAllEvalConfigsCaches,
+  clearEvalConfigBlocksInTransaction,
+  fetchEvalConfigBlockStates,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -65,6 +70,9 @@ const ConfigWithTemplateSchema = z.object({
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
   status: z.enum(JobConfigState),
+  blockedAt: z.date().nullable(),
+  blockReason: z.enum(JobConfigBlockReasonValues).nullable(),
+  blockMessage: z.string().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -186,11 +194,10 @@ const fetchJobExecutionsByStatus = async ({
 
 export const calculateEvaluatorFinalStatus = (
   status: string,
+  blockedAt: Date | null,
   timeScope: string[],
   jobExecutionsByState: JobExecutionState[],
 ): string => {
-  // If timeScope is only "EXISTING" and there are no pending jobs and there are some jobs,
-  // then the status is "FINISHED", otherwise it's the original status
   const hasPendingJobs = jobExecutionsByState.some(
     (je) => je.status === "PENDING",
   );
@@ -198,17 +205,66 @@ export const calculateEvaluatorFinalStatus = (
     (acc, je) => acc + je._count,
     0,
   );
+  return getEvaluatorDisplayStatus({
+    status: status as JobConfigState,
+    blockedAt,
+    timeScope,
+    hasPendingJobs,
+    totalJobCount,
+  });
+};
 
-  if (
-    timeScope.length === 1 &&
-    timeScope[0] === "EXISTING" &&
-    !hasPendingJobs &&
-    totalJobCount > 0
-  ) {
-    return "FINISHED";
+const validateEvalTemplateActivation = async ({
+  prisma,
+  projectId,
+  evalTemplateId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  evalTemplateId: string;
+}) => {
+  const template = await prisma.evalTemplate.findFirst({
+    where: {
+      id: evalTemplateId,
+      OR: [{ projectId }, { projectId: null }],
+    },
+  });
+
+  if (!template) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Evaluator template not found",
+    });
   }
 
-  return status;
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    projectId,
+    template.provider ?? undefined,
+    template.model ?? undefined,
+    template.modelParams,
+  );
+
+  if (!modelConfig.valid) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
+    });
+  }
+
+  try {
+    await testModelCall({
+      provider: modelConfig.config.provider,
+      model: modelConfig.config.model,
+      apiKey: modelConfig.config.apiKey,
+      modelConfig: modelConfig.config.modelParams,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+    });
+  }
 };
 
 export const evalRouter = createTRPCRouter({
@@ -310,6 +366,9 @@ export const evalRouter = createTRPCRouter({
               JobConfiguration,
               "projectId" | "jobType" | "variableMapping" | "sampling" | "delay"
             > & {
+              blockedAt: Date | null;
+              blockReason: JobConfigBlockReason | null;
+              blockMessage: string | null;
               templateName: string;
               templateVersion: number;
               templateProjectId: string;
@@ -320,6 +379,9 @@ export const evalRouter = createTRPCRouter({
             Prisma.sql`
             jc.id,
             jc.status,
+            jc.blocked_at as "blockedAt",
+            jc.block_reason as "blockReason",
+            jc.block_message as "blockMessage",
             jc.created_at as "createdAt",
             jc.updated_at as "updatedAt",
             jc.score_name as "scoreName",
@@ -374,6 +436,7 @@ export const evalRouter = createTRPCRouter({
           ),
           finalStatus: calculateEvaluatorFinalStatus(
             config.status,
+            config.blockedAt,
             Array.isArray(config.timeScope) ? config.timeScope : [],
             jobExecutionsByState.filter(
               (je) => je.jobConfigurationId === config.id,
@@ -417,14 +480,23 @@ export const evalRouter = createTRPCRouter({
         configIds: [config.id],
       });
 
+      const [configBlockState] = await fetchEvalConfigBlockStates({
+        projectId: input.projectId,
+        configIds: [config.id],
+      });
+
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
+        configBlockState?.blockedAt ?? null,
         Array.isArray(config.timeScope) ? config.timeScope : [],
         jobExecutionsByStatus,
       );
 
       return {
         ...config,
+        blockedAt: configBlockState?.blockedAt ?? null,
+        blockReason: configBlockState?.blockReason ?? null,
+        blockMessage: configBlockState?.blockMessage ?? null,
         jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
@@ -758,8 +830,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches only if the new config is ACTIVE
       if (input.status === JobConfigState.ACTIVE) {
-        await clearNoEvalConfigsCache(input.projectId, "traceBased");
-        await clearNoEvalConfigsCache(input.projectId, "eventBased");
+        await clearAllEvalConfigsCaches(input.projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -999,35 +1070,90 @@ export const evalRouter = createTRPCRouter({
           scope: "evalJob:CUD",
         });
 
-        const oldStatus = newStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-
         const evaluators = await ctx.prisma.jobConfiguration.findMany({
           where: {
             projectId: projectId,
             evalTemplateId: evalTemplateId,
-            status: oldStatus,
             targetObject: EvalTargetObject.DATASET,
+            status: {
+              in: [JobConfigState.ACTIVE, JobConfigState.INACTIVE],
+            },
           },
         });
 
+        const evaluatorBlockStateById = new Map(
+          (
+            await fetchEvalConfigBlockStates({
+              projectId,
+              configIds: evaluators.map((evaluator) => evaluator.id),
+            })
+          ).map((blockState) => [blockState.id, blockState]),
+        );
+
         const filteredEvaluators =
-          evaluators?.filter(({ filter }) => {
-            const parsedFilter = z.array(singleFilter).safeParse(filter);
+          evaluators?.filter((evaluator) => {
+            const parsedFilter = z
+              .array(singleFilter)
+              .safeParse(evaluator.filter);
             if (!parsedFilter.success) return false;
-            if (parsedFilter.data.length === 0) return true;
-            else
-              return parsedFilter.data.some(
+            const matchesDataset =
+              parsedFilter.data.length === 0 ||
+              parsedFilter.data.some(
                 ({ type, value }) =>
                   type === "stringOptions" && value.includes(datasetId),
               );
+
+            if (!matchesDataset) {
+              return false;
+            }
+
+            const blockedAt =
+              evaluatorBlockStateById.get(evaluator.id)?.blockedAt ?? null;
+
+            return newStatus === JobConfigState.ACTIVE
+              ? evaluator.status === JobConfigState.INACTIVE ||
+                  blockedAt !== null
+              : evaluator.status === JobConfigState.ACTIVE;
           }) || [];
 
-        await ctx.prisma.jobConfiguration.updateMany({
-          where: {
-            id: { in: filteredEvaluators.map((e) => e.id) },
-          },
-          data: { status: newStatus },
+        if (
+          newStatus === JobConfigState.ACTIVE &&
+          filteredEvaluators.length > 0
+        ) {
+          await validateEvalTemplateActivation({
+            prisma: ctx.prisma,
+            projectId,
+            evalTemplateId,
+          });
+        }
+
+        const filteredEvaluatorIds = filteredEvaluators.map(
+          (evaluator) => evaluator.id,
+        );
+
+        await ctx.prisma.$transaction(async (tx) => {
+          await tx.jobConfiguration.updateMany({
+            where: {
+              id: { in: filteredEvaluatorIds },
+            },
+            data: {
+              status: newStatus,
+            },
+          });
+
+          await clearEvalConfigBlocksInTransaction({
+            tx,
+            projectId,
+            configIds: filteredEvaluatorIds,
+          });
         });
+
+        if (
+          newStatus === JobConfigState.ACTIVE &&
+          filteredEvaluators.length > 0
+        ) {
+          await clearAllEvalConfigsCaches(projectId);
+        }
 
         return {
           success: true,
@@ -1067,6 +1193,11 @@ export const evalRouter = createTRPCRouter({
           message: "Job not found",
         });
       }
+
+      const [existingJobBlockState] = await fetchEvalConfigBlockStates({
+        projectId,
+        configIds: [existingJob.id],
+      });
 
       if (
         // check if:
@@ -1112,18 +1243,48 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
 
-      const updatedJob = await ctx.prisma.jobConfiguration.update({
-        where: {
-          id: evalConfigId,
-          projectId: projectId,
-        },
-        data: config,
+      if (
+        config.status === JobConfigState.ACTIVE &&
+        (existingJob.status !== JobConfigState.ACTIVE ||
+          existingJobBlockState?.blockedAt !== null)
+      ) {
+        if (!existingJob.evalTemplateId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Evaluator template not found",
+          });
+        }
+
+        await validateEvalTemplateActivation({
+          prisma: ctx.prisma,
+          projectId,
+          evalTemplateId: existingJob.evalTemplateId,
+        });
+      }
+
+      const updatedJob = await ctx.prisma.$transaction(async (tx) => {
+        const job = await tx.jobConfiguration.update({
+          where: {
+            id: evalConfigId,
+            projectId: projectId,
+          },
+          data: config,
+        });
+
+        if (config.status !== undefined) {
+          await clearEvalConfigBlocksInTransaction({
+            tx,
+            projectId,
+            configIds: [evalConfigId],
+          });
+        }
+
+        return job;
       });
 
       // Clear the "no job configs" caches if we're activating a job configuration
       if (config.status === "ACTIVE") {
-        await clearNoEvalConfigsCache(projectId, "traceBased");
-        await clearNoEvalConfigsCache(projectId, "eventBased");
+        await clearAllEvalConfigsCaches(projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -1211,8 +1372,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches to ensure they are re-evaluated
       // This is conservative but ensures correctness after deletion
-      await clearNoEvalConfigsCache(projectId, "traceBased");
-      await clearNoEvalConfigsCache(projectId, "eventBased");
+      await clearAllEvalConfigsCaches(projectId);
     }),
 
   // TODO: moved to LFE-4573

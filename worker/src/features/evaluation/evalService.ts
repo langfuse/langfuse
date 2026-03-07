@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import {
-  JobConfigState,
   JobExecutionStatus,
   type JobExecution,
   type JobConfiguration,
@@ -33,6 +32,8 @@ import {
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
   isLLMCompletionError,
+  blockEvalConfigs,
+  fetchEvalConfigBlockStates,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -51,6 +52,10 @@ import {
   Observation,
   DatasetItem,
   EvalTargetObject,
+  JobConfigBlockReason,
+  getJobConfigBlockMeta,
+  inferJobConfigBlockReasonFromInvalidModelConfig,
+  isJobConfigExecutable,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
@@ -328,10 +333,23 @@ export const createEvalJobs = async ({
     }
   }
 
+  const blockStates = await fetchEvalConfigBlockStates({
+    projectId: event.projectId,
+    configIds: configs.map((config) => config.id),
+  });
+  const blockStateByConfigId = new Map(
+    blockStates.map((blockState) => [blockState.id, blockState]),
+  );
+
   // Optimization: Batch query for existing job executions
   // Instead of querying once per config (N queries), fetch all at once and filter in-memory
   const configIds = configs
-    .filter((c) => c.status !== JobConfigState.INACTIVE)
+    .filter((c) =>
+      isJobConfigExecutable({
+        status: c.status,
+        blockedAt: blockStateByConfigId.get(c.id)?.blockedAt ?? null,
+      }),
+    )
     .map((c) => c.id);
 
   const allExistingJobs =
@@ -369,8 +387,18 @@ export const createEvalJobs = async ({
   };
 
   for (const config of configs) {
-    if (config.status === JobConfigState.INACTIVE) {
-      logger.debug(`Skipping inactive config ${config.id}`);
+    const blockedAt = blockStateByConfigId.get(config.id)?.blockedAt ?? null;
+
+    if (
+      !isJobConfigExecutable({
+        status: config.status,
+        blockedAt,
+      })
+    ) {
+      logger.debug(`Skipping non-executable config ${config.id}`, {
+        status: config.status,
+        blockedAt,
+      });
       continue;
     }
 
@@ -795,6 +823,21 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       if (!modelConfig.valid) {
+        const blockReason = inferJobConfigBlockReasonFromInvalidModelConfig({
+          templateProvider: template.provider,
+          templateModel: template.model,
+          error: modelConfig.error,
+        });
+
+        await blockEvalConfigs({
+          projectId,
+          scope: {
+            configIds: [config.id],
+          },
+          blockReason,
+          blockMessage: getJobConfigBlockMeta(blockReason).message,
+        });
+
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
@@ -857,6 +900,21 @@ export async function executeLLMAsJudgeEvaluation({
                 "http.response.status_code",
                 e.responseStatusCode,
               );
+
+              if (e.shouldBlockConfig()) {
+                const blockReason =
+                  e.getBlockReason() ??
+                  JobConfigBlockReason.MODEL_CONFIG_INVALID;
+
+                await blockEvalConfigs({
+                  projectId,
+                  scope: {
+                    configIds: [config.id],
+                  },
+                  blockReason,
+                  blockMessage: getJobConfigBlockMeta(blockReason).message,
+                });
+              }
             }
             throw e;
           }
@@ -985,6 +1043,33 @@ export const evaluate = async ({
     throw new UnrecoverableError(
       `Job configuration or template not found for job ${job.id}`,
     );
+  }
+
+  const [configBlockState] = await fetchEvalConfigBlockStates({
+    projectId: event.projectId,
+    configIds: [config.id],
+  });
+
+  if (
+    !isJobConfigExecutable({
+      status: config.status,
+      blockedAt: configBlockState?.blockedAt ?? null,
+    })
+  ) {
+    logger.debug(
+      `Skipping non-executable config ${config.id} for job ${job.id}`,
+    );
+    await prisma.jobExecution.update({
+      where: {
+        id: job.id,
+        projectId: event.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.CANCELLED,
+        endTime: new Date(),
+      },
+    });
+    return;
   }
 
   // Fetch template to get variable names

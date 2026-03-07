@@ -5,8 +5,14 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     name: "Status",
     id: "status",
     type: "stringOptions",
-    internal: 'jc."status"::text',
-    options: Object.values(JobConfigState).map((value) => ({ value })),
+    internal: `CASE
+      WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
+      WHEN jc."blocked_at" IS NOT NULL THEN 'PAUSED'
+      ELSE jc."status"::text
+    END`,
+    options: [...Object.values(JobConfigState), "PAUSED"].map((value) => ({
+      value,
+    })),
   },
   {
     name: "Target",
