@@ -28,6 +28,7 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -745,11 +746,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
 });
 
 describe("Implicit Environment Defaults (sidebar only)", () => {
-  const hiddenEnvironments = [
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ];
+  const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
     "production",
     "staging",
