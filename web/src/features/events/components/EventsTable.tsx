@@ -1,4 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableSkeletonLoadingRows } from "@/src/components/table/data-table-loading-rows";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -579,7 +580,7 @@ export default function ObservationsEventsTable({
           return (
             <JsonSkeleton
               borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
+              className="h-full w-full overflow-hidden px-2"
             />
           );
         }
@@ -604,7 +605,7 @@ export default function ObservationsEventsTable({
           return (
             <JsonSkeleton
               borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
+              className="h-full w-full overflow-hidden px-2"
             />
           );
         }
@@ -1363,6 +1364,7 @@ export default function ObservationsEventsTable({
               tableName={"observations"}
               columns={columns}
               peekView={peekConfig}
+              loadingRowsComponent={DataTableSkeletonLoadingRows}
               data={
                 observations.status === "loading" || isViewLoading
                   ? { isLoading: true, isError: false }

@@ -28,6 +28,7 @@ const IOTableCellContent = ({
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
+  const jsonCodeContainerClassName = "px-2 min-h-0 h-full overflow-y-auto";
 
   return singleLine ? (
     <div
@@ -49,7 +50,7 @@ const IOTableCellContent = ({
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
         className={cn("h-full w-full self-stretch", className)}
-        codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+        codeClassName={jsonCodeContainerClassName}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
@@ -63,7 +64,7 @@ const IOTableCellContent = ({
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
       className={cn("h-full w-full self-stretch", className)}
-      codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+      codeClassName={jsonCodeContainerClassName}
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
       borderless
     />
@@ -85,10 +86,7 @@ export const IOTableCell = ({
 }) => {
   if (isLoading) {
     return (
-      <JsonSkeleton
-        borderless
-        className="h-full w-full overflow-hidden px-2 py-1"
-      />
+      <JsonSkeleton borderless className="h-full w-full overflow-hidden px-2" />
     );
   }
 
