@@ -289,6 +289,11 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
+    // sketrace: LLM response cache size (number of recent responses to keep per project)
+    SKETRACE_CACHE_SIZE: z.coerce.number().default(20),
+    // sketrace: Enable/disable LLM response caching proxy
+    SKETRACE_LLM_CACHE_ENABLED: z.enum(["true", "false"]).default("true"),
+
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
       .number()
@@ -717,6 +722,9 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+    // sketrace
+    SKETRACE_CACHE_SIZE: process.env.SKETRACE_CACHE_SIZE,
+    SKETRACE_LLM_CACHE_ENABLED: process.env.SKETRACE_LLM_CACHE_ENABLED,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
