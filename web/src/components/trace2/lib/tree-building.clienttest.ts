@@ -113,6 +113,25 @@ describe("buildTraceUiData", () => {
       expect(result.roots[0].children[1].id).toBe("obs-2");
     });
 
+    it("preserves streaming timing fields on observation nodes", () => {
+      const trace = createMockTrace();
+      const completionStartTime = new Date("2024-01-01T00:00:00.750Z");
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "streaming-generation",
+          type: "GENERATION",
+          completionStartTime,
+          timeToFirstToken: 0.75,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const node = result.nodeMap.get("streaming-generation");
+
+      expect(node?.completionStartTime).toEqual(completionStartTime);
+      expect(node?.timeToFirstToken).toBe(0.75);
+    });
+
     it("nests child observations under parent observations", () => {
       const trace = createMockTrace();
       const observations: ObservationReturnType[] = [
