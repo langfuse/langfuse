@@ -23,7 +23,8 @@ const partitionEvaluators = (
 
   const [activeEvaluators, pausedEvaluators] = partition(
     filteredEvaluators,
-    (evaluator) => evaluator.status === "ACTIVE",
+    (evaluator) =>
+      evaluator.status === "ACTIVE" && evaluator.blockedAt === null,
   );
 
   const activeIds = activeEvaluators.map(

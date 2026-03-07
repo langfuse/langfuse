@@ -93,6 +93,8 @@ export function createTestEvalConfig(
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: `template-${randomUUID()}`,
     scoreName: "test-score",
+    status: "ACTIVE",
+    blockedAt: null,
     targetObject: EvalTargetObject.EVENT,
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },

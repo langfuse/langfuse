@@ -14,17 +14,22 @@ import {
 import { UnrecoverableError } from "../../../../errors/UnrecoverableError";
 
 // Mock prisma
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {
-    jobExecution: {
-      findFirst: vi.fn(),
-      update: vi.fn(),
+vi.mock("@langfuse/shared/src/db", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/db");
+
+  return {
+    ...actual,
+    prisma: {
+      jobExecution: {
+        findFirst: vi.fn(),
+        update: vi.fn(),
+      },
+      jobConfiguration: {
+        findFirst: vi.fn(),
+      },
     },
-    jobConfiguration: {
-      findFirst: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 // Mock executeLLMAsJudgeEvaluation
 vi.mock("../../evalService", () => ({
@@ -36,6 +41,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    fetchEvalConfigBlockStates: vi.fn().mockResolvedValue([]),
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -47,6 +53,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
+import { fetchEvalConfigBlockStates } from "@langfuse/shared/src/server";
 import { executeLLMAsJudgeEvaluation } from "../../evalService";
 
 describe("processObservationEval", () => {
@@ -62,6 +69,7 @@ describe("processObservationEval", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (fetchEvalConfigBlockStates as Mock).mockResolvedValue([]);
   });
 
   describe("job execution lookup", () => {
@@ -127,6 +135,47 @@ describe("processObservationEval", () => {
       await expect(
         processObservationEval({ event: baseEvent, deps }),
       ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should cancel the job when the evaluator is blocked", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+      (fetchEvalConfigBlockStates as Mock).mockResolvedValue([
+        {
+          id: "config-123",
+          blockedAt: new Date(),
+          blockReason: "MODEL_CONFIG_INVALID",
+          blockMessage: "paused",
+        },
+      ]);
+
+      const deps = createMockProcessorDeps();
+
+      await processObservationEval({ event: baseEvent, deps });
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: job.id,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.CANCELLED,
+          endTime: expect.any(Date),
+        },
+      });
+      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
+      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
   });
 

@@ -15,7 +15,12 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  JobConfigBlockReason,
+  getEvalBlockResolutionPath,
+  singleFilter,
+} from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
@@ -76,11 +81,14 @@ export type EvaluatorDataRow = {
   createdAt: string;
   updatedAt: string;
   maintainer: string;
+  rawStatus: string;
   template?: {
     id: string;
     name: string;
     version: number;
   };
+  blockMessage?: string | null;
+  blockReason?: JobConfigBlockReason | null;
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
@@ -155,7 +163,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE"],
+    status: ["ACTIVE", "INACTIVE", "PAUSED"],
     target: ["trace", "dataset"],
   };
 
@@ -309,6 +317,36 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
+            {row.original.status === "PAUSED" && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="warning" className="w-fit text-xs">
+                    Paused
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[320px]">
+                  <div className="space-y-1 text-sm">
+                    {row.original.blockMessage}
+                  </div>
+                  <Link
+                    href={getEvalBlockResolutionPath({
+                      projectId,
+                      blockReason:
+                        row.original.blockReason ??
+                        JobConfigBlockReason.MODEL_CONFIG_INVALID,
+                      templateId: template.id,
+                    })}
+                    className="mt-2 inline-flex items-center gap-1 font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLinkIcon className="h-3 w-3" />
+                    Resolve issue
+                  </Link>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <TableIdOrName value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
@@ -336,7 +374,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.row.original.target;
-        const status = row.row.original.status;
+        const status = row.row.original.rawStatus;
         const isDeprecated = isLegacyEvalTarget(targetObject);
 
         if (!isDeprecated) return null;
@@ -477,6 +515,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     return {
       id: jobConfig.id,
       status: jobConfig.finalStatus,
+      rawStatus: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       updatedAt: jobConfig.updatedAt.toLocaleString(),
       template: jobConfig.evalTemplate
@@ -486,6 +525,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             version: jobConfig.evalTemplate.version,
           }
         : undefined,
+      blockMessage: jobConfig.blockMessage,
+      blockReason: jobConfig.blockReason,
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),

@@ -20,6 +20,8 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  JobConfigBlockReason,
+  getJobConfigBlockMeta,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -28,6 +30,8 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
+  blockEvalConfigsInTransaction,
+  clearAllEvalConfigsCaches,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -226,34 +230,74 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         // Check if the llm api key is used for the default evaluation model
-        // If so, it will be deleted and we must invalidate all eval jobs that rely on it
         const defaultModel = await tx.defaultLlmModel.findFirst({
           where: {
             projectId: input.projectId,
           },
+          select: {
+            llmApiKeyId: true,
+          },
         });
 
+        const blockedConfigIds = new Set<string>();
+
+        if (llmApiKey?.provider) {
+          const evalTemplates = await tx.evalTemplate.findMany({
+            where: {
+              OR: [{ projectId: input.projectId }, { projectId: null }],
+              provider: llmApiKey.provider,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          const providerBlockResult = await blockEvalConfigsInTransaction({
+            tx,
+            projectId: input.projectId,
+            scope: {
+              evalTemplateIds: evalTemplates.map((template) => template.id),
+            },
+            blockReason: JobConfigBlockReason.CONNECTION_MISSING,
+            blockMessage: getJobConfigBlockMeta(
+              JobConfigBlockReason.CONNECTION_MISSING,
+            ).message,
+          });
+
+          for (const configId of providerBlockResult.blockedConfigIds) {
+            blockedConfigIds.add(configId);
+          }
+        }
+
         if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          // Invalidate all eval jobs that rely on the default model
           const evalTemplates = await tx.evalTemplate.findMany({
             where: {
               OR: [{ projectId: input.projectId }, { projectId: null }],
               provider: null,
               model: null,
             },
+            select: {
+              id: true,
+            },
           });
 
-          await tx.jobConfiguration.updateMany({
-            where: {
-              evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-              projectId: input.projectId,
+          const defaultModelBlockResult = await blockEvalConfigsInTransaction({
+            tx,
+            projectId: input.projectId,
+            scope: {
+              evalTemplateIds: evalTemplates.map((template) => template.id),
             },
-            data: {
-              status: "INACTIVE",
-            },
+            blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+            blockMessage: getJobConfigBlockMeta(
+              JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+            ).message,
           });
+
+          for (const configId of defaultModelBlockResult.blockedConfigIds) {
+            blockedConfigIds.add(configId);
+          }
         }
 
         await tx.llmApiKeys.delete({
@@ -271,8 +315,14 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return { success: true };
+        return { blockedConfigIds: Array.from(blockedConfigIds) };
       });
+
+      if (result.blockedConfigIds.length > 0) {
+        await clearAllEvalConfigsCaches(input.projectId);
+      }
+
+      return { success: true };
     }),
   all: protectedProjectProcedure
     .input(

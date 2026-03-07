@@ -4,8 +4,16 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { ZodModelConfig } from "@langfuse/shared";
-import { DefaultEvalModelService } from "@langfuse/shared/src/server";
+import {
+  JobConfigBlockReason,
+  ZodModelConfig,
+  getJobConfigBlockMeta,
+} from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  blockEvalConfigsInTransaction,
+  clearAllEvalConfigsCaches,
+} from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -47,24 +55,28 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      // Invalidate all eval jobs that rely on the default model
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         const evalTemplates = await tx.evalTemplate.findMany({
           where: {
             OR: [{ projectId: input.projectId }, { projectId: null }],
             provider: null,
             model: null,
           },
+          select: {
+            id: true,
+          },
         });
 
-        await tx.jobConfiguration.updateMany({
-          where: {
-            evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-            projectId: input.projectId,
+        const blockResult = await blockEvalConfigsInTransaction({
+          tx,
+          projectId: input.projectId,
+          scope: {
+            evalTemplateIds: evalTemplates.map((template) => template.id),
           },
-          data: {
-            status: "INACTIVE",
-          },
+          blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+          blockMessage: getJobConfigBlockMeta(
+            JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+          ).message,
         });
 
         // Delete the default model within the transaction
@@ -75,7 +87,13 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
-        return { success: true };
+        return blockResult;
       });
+
+      if (result.blockedConfigIds.length > 0) {
+        await clearAllEvalConfigsCaches(input.projectId);
+      }
+
+      return { success: true };
     }),
 });

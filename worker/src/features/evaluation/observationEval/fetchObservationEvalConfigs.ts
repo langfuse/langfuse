@@ -1,5 +1,5 @@
 import { EvalTargetObject } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   hasNoEvalConfigsCache,
@@ -8,7 +8,7 @@ import {
 import { type ObservationEvalConfig } from "./types";
 
 /**
- * Fetches active observation eval configs for a project.
+ * Fetches executable observation eval configs for a project.
  *
  * Uses a cache to avoid unnecessary database queries:
  * - If cached as "no configs", returns empty array immediately
@@ -31,25 +31,27 @@ export async function fetchObservationEvalConfigs(
   }
 
   // Fetch configs from database
-  const configs = await prisma.jobConfiguration.findMany({
-    where: {
-      projectId,
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
-      status: "ACTIVE",
-    },
-    select: {
-      id: true,
-      projectId: true,
-      filter: true,
-      sampling: true,
-      evalTemplateId: true,
-      scoreName: true,
-      targetObject: true,
-      variableMapping: true,
-    },
-  });
+  const configs = await prisma.$queryRaw<ObservationEvalConfig[]>(Prisma.sql`
+    SELECT
+      id,
+      project_id AS "projectId",
+      filter,
+      sampling,
+      eval_template_id AS "evalTemplateId",
+      score_name AS "scoreName",
+      status::text AS status,
+      blocked_at AS "blockedAt",
+      target_object AS "targetObject",
+      variable_mapping AS "variableMapping"
+    FROM job_configurations
+    WHERE project_id = ${projectId}
+      AND target_object IN (${Prisma.join([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+      ])})
+      AND status::text = 'ACTIVE'
+      AND blocked_at IS NULL
+  `);
 
   // Cache if no configs found
   if (configs.length === 0) {
@@ -65,5 +67,5 @@ export async function fetchObservationEvalConfigs(
     `Found ${configs.length} observation eval configs for project ${projectId}`,
   );
 
-  return configs as ObservationEvalConfig[];
+  return configs;
 }
