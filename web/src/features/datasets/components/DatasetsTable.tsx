@@ -1,5 +1,4 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -15,8 +14,9 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { MoreVertical } from "lucide-react";
+import { Folder, MoreVertical } from "lucide-react";
 import { useEffect, useMemo } from "react";
+import { useRouter } from "next/router";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
@@ -29,7 +29,6 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 
 type DatasetTableRow = {
   key: {
@@ -72,6 +71,7 @@ function createRow(
 }
 
 export function DatasetsTable(props: { projectId: string }) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
 
@@ -135,19 +135,14 @@ export function DatasetsTable(props: { projectId: string }) {
 
         if (rowData.isFolder) {
           return (
-            <FolderBreadcrumbLink
-              name={key.name}
-              onClick={() => navigateToFolder(rowData.folderPath)}
-            />
+            <div className="flex items-center gap-1">
+              <Folder className="h-4 w-4" />
+              {key.name}
+            </div>
           );
         }
 
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
-            value={key.name}
-          />
-        );
+        return key.name;
       },
     },
     {
@@ -261,42 +256,46 @@ export function DatasetsTable(props: { projectId: string }) {
         }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="flex flex-col [&>*]:w-full [&>*]:justify-start"
-            >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="update"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
-                  datasetDescription={row.getValue("description") ?? undefined}
-                  datasetMetadata={row.getValue("metadata") ?? undefined}
-                  datasetInputSchema={row.original.inputSchema ?? undefined}
-                  datasetExpectedOutputSchema={
-                    row.original.expectedOutputSchema ?? undefined
-                  }
-                />
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="delete"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <span className="sr-only">Open menu</span>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="flex flex-col [&>*]:w-full [&>*]:justify-start"
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <DatasetActionButton
+                    mode="update"
+                    projectId={props.projectId}
+                    datasetId={key.id}
+                    datasetName={row.original.folderPath}
+                    datasetDescription={
+                      row.getValue("description") ?? undefined
+                    }
+                    datasetMetadata={row.getValue("metadata") ?? undefined}
+                    datasetInputSchema={row.original.inputSchema ?? undefined}
+                    datasetExpectedOutputSchema={
+                      row.original.expectedOutputSchema ?? undefined
+                    }
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <DatasetActionButton
+                    mode="delete"
+                    projectId={props.projectId}
+                    datasetId={key.id}
+                    datasetName={row.original.folderPath}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
       },
     },
@@ -432,6 +431,15 @@ export function DatasetsTable(props: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        onRowClick={(row) => {
+          if (row.isFolder) {
+            navigateToFolder(row.folderPath);
+          } else {
+            router.push(
+              `/project/${props.projectId}/datasets/${encodeURIComponent(row.key.id)}`,
+            );
+          }
+        }}
       />
     </>
   );
