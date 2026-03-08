@@ -1,13 +1,7 @@
 /** @jest-environment node */
 
 import type { Session } from "next-auth";
-import {
-  EvalTargetObject,
-  JobConfigState,
-  JobType,
-  LLMAdapter,
-  Prisma,
-} from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -476,78 +470,5 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("Authorization");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
-  });
-
-  it("should not block provider evaluators when another provider key remains", async () => {
-    const provider = "openai";
-
-    const firstKey = await prisma.llmApiKeys.create({
-      data: {
-        projectId,
-        secretKey: "encrypted-key-1",
-        displaySecretKey: "...key1",
-        provider,
-        adapter: LLMAdapter.OpenAI,
-      },
-    });
-
-    await prisma.llmApiKeys.create({
-      data: {
-        projectId,
-        secretKey: "encrypted-key-2",
-        displaySecretKey: "...key2",
-        provider,
-        adapter: LLMAdapter.OpenAI,
-      },
-    });
-
-    const evalTemplate = await prisma.evalTemplate.create({
-      data: {
-        projectId,
-        name: "provider-backed-evaluator",
-        version: 1,
-        prompt: "score this",
-        provider,
-        model: "gpt-4o-mini",
-        modelParams: {},
-        vars: [],
-        outputSchema: {
-          score: "A score",
-          reasoning: "Reasoning",
-        },
-      },
-    });
-
-    const evaluator = await prisma.jobConfiguration.create({
-      data: {
-        projectId,
-        jobType: JobType.EVAL,
-        status: JobConfigState.ACTIVE,
-        evalTemplateId: evalTemplate.id,
-        scoreName: "provider-score",
-        filter: [],
-        targetObject: EvalTargetObject.TRACE,
-        variableMapping: [],
-        sampling: new Prisma.Decimal(1),
-        delay: 0,
-        timeScope: ["NEW"],
-      },
-    });
-
-    await caller.llmApiKey.delete({
-      projectId,
-      id: firstKey.id,
-    });
-
-    const updatedEvaluator = await prisma.jobConfiguration.findUnique({
-      where: {
-        id: evaluator.id,
-        projectId,
-      },
-    });
-
-    expect(updatedEvaluator?.blockedAt).toBeNull();
-    expect(updatedEvaluator?.blockReason).toBeNull();
-    expect(updatedEvaluator?.blockMessage).toBeNull();
   });
 });

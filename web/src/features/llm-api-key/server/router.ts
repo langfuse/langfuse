@@ -244,44 +244,32 @@ export const llmApiKeyRouter = createTRPCRouter({
         const blockedConfigIds = new Set<string>();
 
         if (llmApiKey?.provider) {
-          const remainingProviderKeys = await tx.llmApiKeys.count({
+          const evalTemplates = await tx.evalTemplate.findMany({
             where: {
-              projectId: input.projectId,
+              OR: [{ projectId: input.projectId }, { projectId: null }],
               provider: llmApiKey.provider,
-              id: {
-                not: input.id,
-              },
+            },
+            select: {
+              id: true,
             },
           });
 
-          if (remainingProviderKeys === 0) {
-            const evalTemplates = await tx.evalTemplate.findMany({
-              where: {
-                OR: [{ projectId: input.projectId }, { projectId: null }],
-                provider: llmApiKey.provider,
+          const providerBlockResult = await blockEvalConfigsInTransaction({
+            tx,
+            projectId: input.projectId,
+            where: {
+              evalTemplateId: {
+                in: evalTemplates.map((template) => template.id),
               },
-              select: {
-                id: true,
-              },
-            });
+            },
+            blockReason: JobConfigBlockReason.CONNECTION_MISSING,
+            blockMessage: getJobConfigBlockMeta(
+              JobConfigBlockReason.CONNECTION_MISSING,
+            ).message,
+          });
 
-            const providerBlockResult = await blockEvalConfigsInTransaction({
-              tx,
-              projectId: input.projectId,
-              where: {
-                evalTemplateId: {
-                  in: evalTemplates.map((template) => template.id),
-                },
-              },
-              blockReason: JobConfigBlockReason.CONNECTION_MISSING,
-              blockMessage: getJobConfigBlockMeta(
-                JobConfigBlockReason.CONNECTION_MISSING,
-              ).message,
-            });
-
-            for (const configId of providerBlockResult.blockedConfigIds) {
-              blockedConfigIds.add(configId);
-            }
+          for (const configId of providerBlockResult.blockedConfigIds) {
+            blockedConfigIds.add(configId);
           }
         }
 
