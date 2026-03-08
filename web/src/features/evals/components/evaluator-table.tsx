@@ -17,8 +17,8 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import {
   type FilterState,
-  JobConfigBlockReason,
-  getEvalBlockResolutionPath,
+  EvaluatorBlockReason,
+  getEvaluatorBlockResolutionPath,
   singleFilter,
 } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -88,7 +88,7 @@ export type EvaluatorDataRow = {
     version: number;
   };
   blockMessage?: string | null;
-  blockReason?: JobConfigBlockReason | null;
+  blockReason?: EvaluatorBlockReason | null;
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
@@ -329,11 +329,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                     {row.original.blockMessage}
                   </div>
                   <Link
-                    href={getEvalBlockResolutionPath({
+                    href={getEvaluatorBlockResolutionPath({
                       projectId,
                       blockReason:
                         row.original.blockReason ??
-                        JobConfigBlockReason.MODEL_CONFIG_INVALID,
+                        EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
                       templateId: template.id,
                     })}
                     className="mt-2 inline-flex items-center gap-1 font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"

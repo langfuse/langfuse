@@ -955,13 +955,13 @@ enum JobConfigState {
   INACTIVE
 }
 
-enum JobConfigBlockReason {
-  CONNECTION_AUTH_INVALID
-  CONNECTION_MISSING
-  DEFAULT_MODEL_MISSING
-  MODEL_CONFIG_INVALID
-  MODEL_UNAVAILABLE
-  PROVIDER_ACCOUNT_UNREADY
+enum EvaluatorBlockReason {
+  LLM_CONNECTION_AUTH_INVALID
+  LLM_CONNECTION_MISSING
+  DEFAULT_EVAL_MODEL_MISSING
+  EVAL_MODEL_CONFIG_INVALID
+  EVAL_MODEL_UNAVAILABLE
+  PROVIDER_ACCOUNT_NOT_READY
 }
 
 model JobConfiguration {
@@ -975,7 +975,7 @@ model JobConfiguration {
   jobType        JobType               @map("job_type")
   status         JobConfigState        @default(ACTIVE)
   blockedAt      DateTime?             @map("blocked_at")
-  blockReason    JobConfigBlockReason? @map("block_reason")
+  blockReason    EvaluatorBlockReason? @map("block_reason")
   blockMessage   String?               @map("block_message")
   evalTemplateId String?               @map("eval_template_id")
   evalTemplate   EvalTemplate?         @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)

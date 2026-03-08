@@ -17,7 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
-  JobConfigBlockReason,
+  EvaluatorBlockReason,
   orderBy,
   jsonSchema,
   EvalTargetObject,
@@ -34,7 +34,7 @@ import {
   orderByToPrismaSql,
   DefaultEvalModelService,
   testModelCall,
-  clearAllEvalConfigsCaches,
+  invalidateProjectEvalConfigCaches,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -50,11 +50,11 @@ import {
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import {
-  calculateEvaluatorFinalStatus,
-  clearedEvalConfigBlockFields,
-  filterDatasetEvaluatorsForStatusChange,
-  shouldValidateEvalActivation,
-} from "@/src/features/evals/server/evalConfigStatus";
+  deriveEvaluatorDisplayStatus,
+  resetEvalConfigBlockFields,
+  selectDatasetEvaluatorsForStatusChange,
+  shouldValidateBeforeActivation,
+} from "@/src/features/evals/server/evalConfigState";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -72,7 +72,7 @@ const ConfigWithTemplateSchema = z.object({
   delay: z.number(),
   status: z.enum(JobConfigState),
   blockedAt: z.date().nullable(),
-  blockReason: z.enum(JobConfigBlockReason).nullable(),
+  blockReason: z.enum(EvaluatorBlockReason).nullable(),
   blockMessage: z.string().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
@@ -346,7 +346,7 @@ export const evalRouter = createTRPCRouter({
               "projectId" | "jobType" | "variableMapping" | "sampling" | "delay"
             > & {
               blockedAt: Date | null;
-              blockReason: JobConfigBlockReason | null;
+              blockReason: EvaluatorBlockReason | null;
               blockMessage: string | null;
               templateName: string;
               templateVersion: number;
@@ -413,7 +413,7 @@ export const evalRouter = createTRPCRouter({
           jobExecutionsByState: jobExecutionsByState.filter(
             (je) => je.jobConfigurationId === config.id,
           ),
-          finalStatus: calculateEvaluatorFinalStatus(
+          finalStatus: deriveEvaluatorDisplayStatus(
             config.status,
             config.blockedAt,
             Array.isArray(config.timeScope) ? config.timeScope : [],
@@ -459,7 +459,7 @@ export const evalRouter = createTRPCRouter({
         configIds: [config.id],
       });
 
-      const finalStatus = calculateEvaluatorFinalStatus(
+      const finalStatus = deriveEvaluatorDisplayStatus(
         config.status,
         config.blockedAt,
         Array.isArray(config.timeScope) ? config.timeScope : [],
@@ -801,7 +801,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches only if the new config is ACTIVE
       if (input.status === JobConfigState.ACTIVE) {
-        await clearAllEvalConfigsCaches(input.projectId);
+        await invalidateProjectEvalConfigCaches(input.projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -1062,7 +1062,7 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
-        const filteredEvaluators = filterDatasetEvaluatorsForStatusChange({
+        const filteredEvaluators = selectDatasetEvaluatorsForStatusChange({
           evaluators,
           datasetId,
           newStatus,
@@ -1090,7 +1090,7 @@ export const evalRouter = createTRPCRouter({
             },
             data: {
               status: newStatus,
-              ...clearedEvalConfigBlockFields,
+              ...resetEvalConfigBlockFields,
             },
           });
         });
@@ -1099,7 +1099,7 @@ export const evalRouter = createTRPCRouter({
           newStatus === JobConfigState.ACTIVE &&
           filteredEvaluators.length > 0
         ) {
-          await clearAllEvalConfigsCaches(projectId);
+          await invalidateProjectEvalConfigCaches(projectId);
         }
 
         return {
@@ -1186,7 +1186,7 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        shouldValidateEvalActivation({
+        shouldValidateBeforeActivation({
           currentStatus: existingJob.status,
           blockedAt: existingJob.blockedAt,
           nextStatus: config.status,
@@ -1208,7 +1208,7 @@ export const evalRouter = createTRPCRouter({
 
       const updatedConfig = {
         ...config,
-        ...(config.status !== undefined ? clearedEvalConfigBlockFields : {}),
+        ...(config.status !== undefined ? resetEvalConfigBlockFields : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({
@@ -1221,7 +1221,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches if we're activating a job configuration
       if (config.status === "ACTIVE") {
-        await clearAllEvalConfigsCaches(projectId);
+        await invalidateProjectEvalConfigCaches(projectId);
       }
 
       // EVENT targets handle historical evaluation via the dedicated batch
@@ -1309,7 +1309,7 @@ export const evalRouter = createTRPCRouter({
 
       // Clear the "no job configs" caches to ensure they are re-evaluated
       // This is conservative but ensures correctness after deletion
-      await clearAllEvalConfigsCaches(projectId);
+      await invalidateProjectEvalConfigCaches(projectId);
     }),
 
   // TODO: moved to LFE-4573

@@ -33,7 +33,7 @@ import {
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
   isLLMCompletionError,
-  blockEvalConfigs,
+  blockEvaluatorConfigs,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -52,9 +52,9 @@ import {
   Observation,
   DatasetItem,
   EvalTargetObject,
-  JobConfigBlockReason,
-  getJobConfigBlockMeta,
-  inferJobConfigBlockReasonFromInvalidModelConfig,
+  EvaluatorBlockReason,
+  getEvaluatorBlockMetadata,
+  getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -801,17 +801,17 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       if (!modelConfig.valid) {
-        const blockReason = inferJobConfigBlockReasonFromInvalidModelConfig({
+        const blockReason = getBlockReasonForInvalidModelConfig({
           templateProvider: template.provider,
           templateModel: template.model,
           error: modelConfig.error,
         });
 
-        await blockEvalConfigs({
+        await blockEvaluatorConfigs({
           projectId,
           where: { id: config.id },
           blockReason,
-          blockMessage: getJobConfigBlockMeta(blockReason).message,
+          blockMessage: getEvaluatorBlockMetadata(blockReason).message,
         });
 
         logger.warn(
@@ -879,14 +879,14 @@ export async function executeLLMAsJudgeEvaluation({
 
               if (e.shouldBlockConfig()) {
                 const blockReason =
-                  e.getBlockReason() ??
-                  JobConfigBlockReason.MODEL_CONFIG_INVALID;
+                  e.getEvaluatorBlockReason() ??
+                  EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
 
-                await blockEvalConfigs({
+                await blockEvaluatorConfigs({
                   projectId,
                   where: { id: config.id },
                   blockReason,
-                  blockMessage: getJobConfigBlockMeta(blockReason).message,
+                  blockMessage: getEvaluatorBlockMetadata(blockReason).message,
                 });
               }
             }

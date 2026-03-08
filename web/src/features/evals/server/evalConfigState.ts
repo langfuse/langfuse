@@ -2,18 +2,18 @@ import { z } from "zod/v4";
 import {
   type JobConfiguration,
   JobConfigState,
-  getEvaluatorDisplayStatus,
+  deriveEvaluatorDisplayState,
   singleFilter,
 } from "@langfuse/shared";
 import { type JobExecutionState } from "@/src/features/evals/utils/job-execution-utils";
 
-export const clearedEvalConfigBlockFields = {
+export const resetEvalConfigBlockFields = {
   blockedAt: null,
   blockReason: null,
   blockMessage: null,
 } as const;
 
-export const calculateEvaluatorFinalStatus = (
+export const deriveEvaluatorDisplayStatus = (
   status: string,
   blockedAt: Date | null,
   timeScope: string[],
@@ -27,7 +27,7 @@ export const calculateEvaluatorFinalStatus = (
     0,
   );
 
-  return getEvaluatorDisplayStatus({
+  return deriveEvaluatorDisplayState({
     status: status as JobConfigState,
     blockedAt,
     timeScope,
@@ -36,7 +36,7 @@ export const calculateEvaluatorFinalStatus = (
   });
 };
 
-export const shouldValidateEvalActivation = ({
+export const shouldValidateBeforeActivation = ({
   currentStatus,
   blockedAt,
   nextStatus,
@@ -48,7 +48,7 @@ export const shouldValidateEvalActivation = ({
   nextStatus === JobConfigState.ACTIVE &&
   (currentStatus !== JobConfigState.ACTIVE || blockedAt !== null);
 
-const matchesDatasetEvaluatorFilter = ({
+const evaluatorTargetsDataset = ({
   filter,
   datasetId,
 }: Pick<JobConfiguration, "filter"> & {
@@ -69,7 +69,7 @@ const matchesDatasetEvaluatorFilter = ({
   );
 };
 
-export const filterDatasetEvaluatorsForStatusChange = ({
+export const selectDatasetEvaluatorsForStatusChange = ({
   evaluators,
   datasetId,
   newStatus,
@@ -82,7 +82,7 @@ export const filterDatasetEvaluatorsForStatusChange = ({
 }) =>
   evaluators.filter((evaluator) => {
     if (
-      !matchesDatasetEvaluatorFilter({
+      !evaluatorTargetsDataset({
         filter: evaluator.filter,
         datasetId,
       })

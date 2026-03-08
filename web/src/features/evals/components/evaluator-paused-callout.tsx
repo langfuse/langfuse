@@ -5,10 +5,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { api } from "@/src/utils/api";
 import {
   type EvalTemplate,
-  JobConfigBlockReason,
+  EvaluatorBlockReason,
   type JobConfiguration,
   JobConfigState,
-  getEvalBlockResolutionPath,
+  getEvaluatorBlockResolutionPath,
 } from "@langfuse/shared";
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
@@ -45,10 +45,10 @@ export function EvaluatorPausedCallout({
     return null;
   }
 
-  const resolutionPath = getEvalBlockResolutionPath({
+  const resolutionPath = getEvaluatorBlockResolutionPath({
     projectId,
     blockReason:
-      evalConfig.blockReason ?? JobConfigBlockReason.MODEL_CONFIG_INVALID,
+      evalConfig.blockReason ?? EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
     templateId: evalConfig.evalTemplate?.id,
   });
 

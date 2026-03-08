@@ -1,24 +1,24 @@
-import { JobConfigBlockReason } from "@prisma/client";
+import { EvaluatorBlockReason } from "@prisma/client";
 
 const LLMCompletionErrorName = "LLMCompletionError";
 
 const BLOCK_REASON_PATTERNS = [
   {
     pattern: "Model use case details have not been submitted for this account",
-    blockReason: JobConfigBlockReason.PROVIDER_ACCOUNT_UNREADY,
+    blockReason: EvaluatorBlockReason.PROVIDER_ACCOUNT_NOT_READY,
   },
 ] as const;
 
 export function inferLLMCompletionBlockReason(params: {
   responseStatusCode: number;
   message: string;
-}): JobConfigBlockReason | null {
+}): EvaluatorBlockReason | null {
   if (params.responseStatusCode === 401) {
-    return JobConfigBlockReason.CONNECTION_AUTH_INVALID;
+    return EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID;
   }
 
   if (params.responseStatusCode === 404) {
-    return JobConfigBlockReason.MODEL_UNAVAILABLE;
+    return EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE;
   }
 
   const reasonByMessage = BLOCK_REASON_PATTERNS.find((entry) =>
@@ -31,7 +31,7 @@ export function inferLLMCompletionBlockReason(params: {
 export class LLMCompletionError extends Error {
   responseStatusCode: number;
   isRetryable: boolean;
-  blockReason: JobConfigBlockReason | null;
+  blockReason: EvaluatorBlockReason | null;
 
   constructor(params: {
     message: string;
@@ -57,7 +57,7 @@ export class LLMCompletionError extends Error {
     return this.blockReason !== null;
   }
 
-  getBlockReason(): JobConfigBlockReason | null {
+  getEvaluatorBlockReason(): EvaluatorBlockReason | null {
     return this.blockReason;
   }
 }

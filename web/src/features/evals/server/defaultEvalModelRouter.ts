@@ -5,14 +5,14 @@ import {
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
-  JobConfigBlockReason,
+  EvaluatorBlockReason,
   ZodModelConfig,
-  getJobConfigBlockMeta,
+  getEvaluatorBlockMetadata,
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  blockEvalConfigsInTransaction,
-  clearAllEvalConfigsCaches,
+  blockEvaluatorConfigsInTx,
+  invalidateProjectEvalConfigCaches,
 } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -67,7 +67,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
-        const blockResult = await blockEvalConfigsInTransaction({
+        const blockResult = await blockEvaluatorConfigsInTx({
           tx,
           projectId: input.projectId,
           where: {
@@ -75,9 +75,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
               in: evalTemplates.map((template) => template.id),
             },
           },
-          blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
-          blockMessage: getJobConfigBlockMeta(
-            JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+          blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+          blockMessage: getEvaluatorBlockMetadata(
+            EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
           ).message,
         });
 
@@ -92,8 +92,8 @@ export const defaultEvalModelRouter = createTRPCRouter({
         return blockResult;
       });
 
-      if (result.blockedConfigIds.length > 0) {
-        await clearAllEvalConfigsCaches(input.projectId);
+      if (result.blockedJobConfigIds.length > 0) {
+        await invalidateProjectEvalConfigCaches(input.projectId);
       }
 
       return { success: true };

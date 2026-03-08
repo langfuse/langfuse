@@ -90,7 +90,7 @@ export const clearNoEvalConfigsCache = async (
   }
 };
 
-export const clearAllEvalConfigsCaches = (
+export const invalidateProjectEvalConfigCaches = (
   projectId: string,
 ): Promise<[void, void]> =>
   Promise.all([

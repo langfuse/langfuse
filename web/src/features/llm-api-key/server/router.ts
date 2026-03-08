@@ -20,8 +20,8 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  JobConfigBlockReason,
-  getJobConfigBlockMeta,
+  EvaluatorBlockReason,
+  getEvaluatorBlockMetadata,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -30,8 +30,8 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
-  blockEvalConfigsInTransaction,
-  clearAllEvalConfigsCaches,
+  blockEvaluatorConfigsInTx,
+  invalidateProjectEvalConfigCaches,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -241,7 +241,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        const blockedConfigIds = new Set<string>();
+        const blockedJobConfigIds = new Set<string>();
 
         if (llmApiKey?.provider) {
           const evalTemplates = await tx.evalTemplate.findMany({
@@ -254,7 +254,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             },
           });
 
-          const providerBlockResult = await blockEvalConfigsInTransaction({
+          const providerBlockResult = await blockEvaluatorConfigsInTx({
             tx,
             projectId: input.projectId,
             where: {
@@ -262,14 +262,14 @@ export const llmApiKeyRouter = createTRPCRouter({
                 in: evalTemplates.map((template) => template.id),
               },
             },
-            blockReason: JobConfigBlockReason.CONNECTION_MISSING,
-            blockMessage: getJobConfigBlockMeta(
-              JobConfigBlockReason.CONNECTION_MISSING,
+            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+            blockMessage: getEvaluatorBlockMetadata(
+              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
             ).message,
           });
 
-          for (const configId of providerBlockResult.blockedConfigIds) {
-            blockedConfigIds.add(configId);
+          for (const configId of providerBlockResult.blockedJobConfigIds) {
+            blockedJobConfigIds.add(configId);
           }
         }
 
@@ -285,7 +285,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             },
           });
 
-          const defaultModelBlockResult = await blockEvalConfigsInTransaction({
+          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
             tx,
             projectId: input.projectId,
             where: {
@@ -293,14 +293,14 @@ export const llmApiKeyRouter = createTRPCRouter({
                 in: evalTemplates.map((template) => template.id),
               },
             },
-            blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
-            blockMessage: getJobConfigBlockMeta(
-              JobConfigBlockReason.DEFAULT_MODEL_MISSING,
+            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+            blockMessage: getEvaluatorBlockMetadata(
+              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
             ).message,
           });
 
-          for (const configId of defaultModelBlockResult.blockedConfigIds) {
-            blockedConfigIds.add(configId);
+          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
+            blockedJobConfigIds.add(configId);
           }
         }
 
@@ -319,11 +319,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return { blockedConfigIds: Array.from(blockedConfigIds) };
+        return { blockedJobConfigIds: Array.from(blockedJobConfigIds) };
       });
 
-      if (result.blockedConfigIds.length > 0) {
-        await clearAllEvalConfigsCaches(input.projectId);
+      if (result.blockedJobConfigIds.length > 0) {
+        await invalidateProjectEvalConfigCaches(input.projectId);
       }
 
       return { success: true };
