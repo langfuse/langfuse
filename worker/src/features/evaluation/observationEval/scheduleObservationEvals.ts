@@ -7,7 +7,6 @@ import { shouldSampleObservation } from "./shouldSampleObservation";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
-  JobConfigState,
   JobExecutionStatus,
   type FilterState,
   isJobConfigExecutable,
@@ -47,12 +46,7 @@ export async function scheduleObservationEvals(
   // Filter configs that match this observation (filter + sampling).
   // This is done before S3 upload to avoid unnecessary uploads.
   const matchingConfigs = configs.filter((config) => {
-    if (
-      !isJobConfigExecutable({
-        status: config.status ?? JobConfigState.ACTIVE,
-        blockedAt: config.blockedAt ?? null,
-      })
-    ) {
+    if (!isJobConfigExecutable(config)) {
       logger.debug("Skipping non-executable observation eval config", {
         configId: config.id,
       });
