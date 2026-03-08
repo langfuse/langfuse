@@ -36,7 +36,7 @@ const NewChatPromptSchema = NewPromptBaseSchema.extend({
             PlaceholderMessageSchema.safeParse(message).success
           );
         }),
-      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
+      "Placeholder name must start with a letter and contain only letters, digits, and underscores",
     )
     .refine(
       (messages: Array<{ type?: ChatMessageType; content?: string }>) =>
