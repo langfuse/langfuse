@@ -20,7 +20,7 @@ services:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
+      DATABASE_URL: ${DATABASE_URL:-postgresql://neuro_admin:N3ur0_s3cure!@postgres:5432/langfuse_db}
       SALT: ${SALT:-mysalt} # CHANGEME
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
@@ -153,9 +153,9 @@ services:
       timeout: 3s
       retries: 10
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres} # CHANGEME
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-neuro_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-N3ur0_s3cure!}
+      POSTGRES_DB: ${POSTGRES_DB:-langfuse_db}
       TZ: UTC
       PGTZ: UTC
     ports:
