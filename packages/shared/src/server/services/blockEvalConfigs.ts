@@ -1,9 +1,4 @@
-import {
-  JobConfigBlockReason,
-  JobConfigState,
-  JobExecutionStatus,
-  Prisma,
-} from "@prisma/client";
+import { JobConfigBlockReason, JobConfigState, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { clearAllEvalConfigsCaches } from "../evalJobConfigCache";
 
@@ -114,9 +109,7 @@ export async function blockEvalConfigsInTransaction({
 
   const activeConfigs = await tx.jobConfiguration.findMany({
     where: {
-      projectId,
-      status: JobConfigState.ACTIVE,
-      ...where,
+      AND: [where, { projectId, status: JobConfigState.ACTIVE }],
     },
     select: {
       id: true,
@@ -144,22 +137,7 @@ export async function blockEvalConfigsInTransaction({
     },
   });
 
-  await tx.jobExecution.updateMany({
-    where: {
-      projectId,
-      jobConfigurationId: {
-        in: blockedConfigIds,
-      },
-      status: {
-        in: [JobExecutionStatus.PENDING, JobExecutionStatus.DELAYED],
-      },
-    },
-    data: {
-      status: JobExecutionStatus.CANCELLED,
-      endTime: blockedAt,
-    },
-  });
-
+  // Queued executions are cancelled when workers re-check executability on pickup.
   return { blockedConfigIds };
 }
 

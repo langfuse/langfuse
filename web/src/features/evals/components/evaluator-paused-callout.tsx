@@ -4,7 +4,9 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import {
+  type EvalTemplate,
   JobConfigBlockReason,
+  type JobConfiguration,
   JobConfigState,
   getEvalBlockResolutionPath,
 } from "@langfuse/shared";
@@ -13,14 +15,11 @@ import Link from "next/link";
 
 type EvaluatorPausedCalloutProps = {
   projectId: string;
-  evalConfig: {
-    id: string;
-    blockedAt: Date | null;
-    blockReason: JobConfigBlockReason | null;
-    blockMessage: string | null;
-    evalTemplate?: {
-      id: string;
-    } | null;
+  evalConfig: Pick<
+    JobConfiguration,
+    "id" | "blockedAt" | "blockReason" | "blockMessage"
+  > & {
+    evalTemplate?: Pick<EvalTemplate, "id"> | null;
   };
 };
 

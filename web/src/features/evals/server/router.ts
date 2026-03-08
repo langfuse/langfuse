@@ -211,6 +211,72 @@ export const calculateEvaluatorFinalStatus = (
   });
 };
 
+const clearedEvalConfigBlockFields = {
+  blockedAt: null,
+  blockReason: null,
+  blockMessage: null,
+} as const;
+
+const shouldValidateEvalActivation = ({
+  currentStatus,
+  blockedAt,
+  nextStatus,
+}: {
+  currentStatus: JobConfigState;
+  blockedAt: Date | null;
+  nextStatus?: JobConfigState;
+}) =>
+  nextStatus === JobConfigState.ACTIVE &&
+  (currentStatus !== JobConfigState.ACTIVE || blockedAt !== null);
+
+const matchesDatasetEvaluatorFilter = ({
+  filter,
+  datasetId,
+}: Pick<JobConfiguration, "filter"> & {
+  datasetId: string;
+}) => {
+  const parsedFilter = z.array(singleFilter).safeParse(filter);
+
+  if (!parsedFilter.success) {
+    return false;
+  }
+
+  return (
+    parsedFilter.data.length === 0 ||
+    parsedFilter.data.some(
+      ({ type, value }) =>
+        type === "stringOptions" && value.includes(datasetId),
+    )
+  );
+};
+
+const filterDatasetEvaluatorsForStatusChange = ({
+  evaluators,
+  datasetId,
+  newStatus,
+}: {
+  evaluators: Array<
+    Pick<JobConfiguration, "id" | "status" | "blockedAt" | "filter">
+  >;
+  datasetId: string;
+  newStatus: JobConfigState;
+}) =>
+  evaluators.filter((evaluator) => {
+    if (
+      !matchesDatasetEvaluatorFilter({
+        filter: evaluator.filter,
+        datasetId,
+      })
+    ) {
+      return false;
+    }
+
+    return newStatus === JobConfigState.ACTIVE
+      ? evaluator.status === JobConfigState.INACTIVE ||
+          evaluator.blockedAt !== null
+      : evaluator.status === JobConfigState.ACTIVE;
+  });
+
 const validateEvalTemplateActivation = async ({
   prisma,
   projectId,
@@ -1080,28 +1146,11 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
-        const filteredEvaluators =
-          evaluators?.filter((evaluator) => {
-            const parsedFilter = z
-              .array(singleFilter)
-              .safeParse(evaluator.filter);
-            if (!parsedFilter.success) return false;
-            const matchesDataset =
-              parsedFilter.data.length === 0 ||
-              parsedFilter.data.some(
-                ({ type, value }) =>
-                  type === "stringOptions" && value.includes(datasetId),
-              );
-
-            if (!matchesDataset) {
-              return false;
-            }
-
-            return newStatus === JobConfigState.ACTIVE
-              ? evaluator.status === JobConfigState.INACTIVE ||
-                  evaluator.blockedAt !== null
-              : evaluator.status === JobConfigState.ACTIVE;
-          }) || [];
+        const filteredEvaluators = filterDatasetEvaluatorsForStatusChange({
+          evaluators,
+          datasetId,
+          newStatus,
+        });
 
         if (
           newStatus === JobConfigState.ACTIVE &&
@@ -1125,9 +1174,7 @@ export const evalRouter = createTRPCRouter({
             },
             data: {
               status: newStatus,
-              blockedAt: null,
-              blockReason: null,
-              blockMessage: null,
+              ...clearedEvalConfigBlockFields,
             },
           });
         });
@@ -1223,9 +1270,11 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        config.status === JobConfigState.ACTIVE &&
-        (existingJob.status !== JobConfigState.ACTIVE ||
-          existingJob.blockedAt !== null)
+        shouldValidateEvalActivation({
+          currentStatus: existingJob.status,
+          blockedAt: existingJob.blockedAt,
+          nextStatus: config.status,
+        })
       ) {
         if (!existingJob.evalTemplateId) {
           throw new TRPCError({
@@ -1243,13 +1292,7 @@ export const evalRouter = createTRPCRouter({
 
       const updatedConfig = {
         ...config,
-        ...(config.status !== undefined
-          ? {
-              blockedAt: null,
-              blockReason: null,
-              blockMessage: null,
-            }
-          : {}),
+        ...(config.status !== undefined ? clearedEvalConfigBlockFields : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({
