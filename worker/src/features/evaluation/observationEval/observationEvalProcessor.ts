@@ -75,6 +75,9 @@ export async function processObservationEval({
     return;
   }
 
+  // Observation eval executions may already be CANCELLED if the evaluator was
+  // blocked after scheduling, or ERROR if a previous attempt already failed and
+  // the processor retried the same queue job.
   if (job.status === "CANCELLED" || job.status === "ERROR") {
     logger.debug(
       `Job execution ${event.jobExecutionId} was cancelled or has an error.`,

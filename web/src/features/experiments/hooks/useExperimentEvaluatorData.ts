@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate, isJobConfigExecutable } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type PartialConfig } from "@/src/features/evals/types";
 import partition from "lodash/partition";
@@ -24,7 +24,10 @@ const partitionEvaluators = (
   const [activeEvaluators, pausedEvaluators] = partition(
     filteredEvaluators,
     (evaluator) =>
-      evaluator.status === "ACTIVE" && evaluator.blockedAt === null,
+      isJobConfigExecutable({
+        status: evaluator.status,
+        blockedAt: evaluator.blockedAt,
+      }),
   );
 
   const activeIds = activeEvaluators.map(

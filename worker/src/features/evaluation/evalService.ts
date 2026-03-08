@@ -187,6 +187,7 @@ export const createEvalJobs = async ({
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
     .where(sql.raw("status::text"), "=", "ACTIVE")
+    .where(sql<boolean>`blocked_at IS NULL`)
     .where("target_object", "in", [
       EvalTargetObject.TRACE,
       EvalTargetObject.DATASET,
@@ -333,24 +334,9 @@ export const createEvalJobs = async ({
     }
   }
 
-  const blockStates = await fetchEvalConfigBlockStates({
-    projectId: event.projectId,
-    configIds: configs.map((config) => config.id),
-  });
-  const blockStateByConfigId = new Map(
-    blockStates.map((blockState) => [blockState.id, blockState]),
-  );
-
   // Optimization: Batch query for existing job executions
   // Instead of querying once per config (N queries), fetch all at once and filter in-memory
-  const configIds = configs
-    .filter((c) =>
-      isJobConfigExecutable({
-        status: c.status,
-        blockedAt: blockStateByConfigId.get(c.id)?.blockedAt ?? null,
-      }),
-    )
-    .map((c) => c.id);
+  const configIds = configs.map((c) => c.id);
 
   const allExistingJobs =
     configIds.length > 0
@@ -387,21 +373,6 @@ export const createEvalJobs = async ({
   };
 
   for (const config of configs) {
-    const blockedAt = blockStateByConfigId.get(config.id)?.blockedAt ?? null;
-
-    if (
-      !isJobConfigExecutable({
-        status: config.status,
-        blockedAt,
-      })
-    ) {
-      logger.debug(`Skipping non-executable config ${config.id}`, {
-        status: config.status,
-        blockedAt,
-      });
-      continue;
-    }
-
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
