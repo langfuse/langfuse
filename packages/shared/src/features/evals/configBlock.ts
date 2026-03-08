@@ -1,24 +1,4 @@
-import { JobConfigState } from "@prisma/client";
-
-export const JobConfigBlockReasonValues = [
-  "CONNECTION_AUTH_INVALID",
-  "CONNECTION_MISSING",
-  "DEFAULT_MODEL_MISSING",
-  "MODEL_CONFIG_INVALID",
-  "MODEL_UNAVAILABLE",
-  "PROVIDER_ACCOUNT_UNREADY",
-] as const;
-
-export type JobConfigBlockReason = (typeof JobConfigBlockReasonValues)[number];
-
-export const JobConfigBlockReason = {
-  CONNECTION_AUTH_INVALID: "CONNECTION_AUTH_INVALID",
-  CONNECTION_MISSING: "CONNECTION_MISSING",
-  DEFAULT_MODEL_MISSING: "DEFAULT_MODEL_MISSING",
-  MODEL_CONFIG_INVALID: "MODEL_CONFIG_INVALID",
-  MODEL_UNAVAILABLE: "MODEL_UNAVAILABLE",
-  PROVIDER_ACCOUNT_UNREADY: "PROVIDER_ACCOUNT_UNREADY",
-} as const satisfies Record<JobConfigBlockReason, JobConfigBlockReason>;
+import { JobConfigBlockReason, JobConfigState } from "@prisma/client";
 
 export const PausedEvaluatorStatus = "PAUSED" as const;
 export type PausedEvaluatorStatus = typeof PausedEvaluatorStatus;

@@ -33,7 +33,6 @@ import {
   DatasetRunItemUpsertEventType,
   isLLMCompletionError,
   blockEvalConfigs,
-  fetchEvalConfigBlockStates,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -187,7 +186,7 @@ export const createEvalJobs = async ({
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
     .where(sql.raw("status::text"), "=", "ACTIVE")
-    .where(sql<boolean>`blocked_at IS NULL`)
+    .where(sql.raw("blocked_at"), "is", null)
     .where("target_object", "in", [
       EvalTargetObject.TRACE,
       EvalTargetObject.DATASET,
@@ -802,9 +801,7 @@ export async function executeLLMAsJudgeEvaluation({
 
         await blockEvalConfigs({
           projectId,
-          scope: {
-            configIds: [config.id],
-          },
+          where: { id: config.id },
           blockReason,
           blockMessage: getJobConfigBlockMeta(blockReason).message,
         });
@@ -879,9 +876,7 @@ export async function executeLLMAsJudgeEvaluation({
 
                 await blockEvalConfigs({
                   projectId,
-                  scope: {
-                    configIds: [config.id],
-                  },
+                  where: { id: config.id },
                   blockReason,
                   blockMessage: getJobConfigBlockMeta(blockReason).message,
                 });
@@ -1016,17 +1011,7 @@ export const evaluate = async ({
     );
   }
 
-  const [configBlockState] = await fetchEvalConfigBlockStates({
-    projectId: event.projectId,
-    configIds: [config.id],
-  });
-
-  if (
-    !isJobConfigExecutable({
-      status: config.status,
-      blockedAt: configBlockState?.blockedAt ?? null,
-    })
-  ) {
+  if (!isJobConfigExecutable(config)) {
     logger.debug(
       `Skipping non-executable config ${config.id} for job ${job.id}`,
     );

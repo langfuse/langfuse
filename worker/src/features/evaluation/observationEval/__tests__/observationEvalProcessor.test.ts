@@ -41,7 +41,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchEvalConfigBlockStates: vi.fn().mockResolvedValue([]),
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -53,7 +52,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { fetchEvalConfigBlockStates } from "@langfuse/shared/src/server";
 import { executeLLMAsJudgeEvaluation } from "../../evalService";
 
 describe("processObservationEval", () => {
@@ -69,7 +67,6 @@ describe("processObservationEval", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (fetchEvalConfigBlockStates as Mock).mockResolvedValue([]);
   });
 
   describe("job execution lookup", () => {
@@ -147,18 +144,11 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
+        blockedAt: new Date(),
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (fetchEvalConfigBlockStates as Mock).mockResolvedValue([
-        {
-          id: "config-123",
-          blockedAt: new Date(),
-          blockReason: "MODEL_CONFIG_INVALID",
-          blockMessage: "paused",
-        },
-      ]);
 
       const deps = createMockProcessorDeps();
 

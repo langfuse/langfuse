@@ -205,6 +205,7 @@ export function createMockJobConfiguration(
     sampling: string;
     delay: number;
     status: string;
+    blockedAt: Date | null;
     timeScope: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -228,6 +229,7 @@ export function createMockJobConfiguration(
     sampling: overrides.sampling ?? "1.0",
     delay: overrides.delay ?? 0,
     status: overrides.status ?? "ACTIVE",
+    blockedAt: overrides.blockedAt ?? null,
     timeScope: overrides.timeScope ?? ["NEW"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),

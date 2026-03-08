@@ -70,8 +70,10 @@ export const defaultEvalModelRouter = createTRPCRouter({
         const blockResult = await blockEvalConfigsInTransaction({
           tx,
           projectId: input.projectId,
-          scope: {
-            evalTemplateIds: evalTemplates.map((template) => template.id),
+          where: {
+            evalTemplateId: {
+              in: evalTemplates.map((template) => template.id),
+            },
           },
           blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
           blockMessage: getJobConfigBlockMeta(

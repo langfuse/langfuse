@@ -2,7 +2,6 @@ import { z } from "zod/v4";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   LLMAsJudgeExecutionEventSchema,
-  fetchEvalConfigBlockStates,
   logger,
 } from "@langfuse/shared/src/server";
 import {
@@ -103,17 +102,7 @@ export async function processObservationEval({
     );
   }
 
-  const [blockState] = await fetchEvalConfigBlockStates({
-    projectId: event.projectId,
-    configIds: [evalJobConfig.id],
-  });
-
-  if (
-    !isJobConfigExecutable({
-      status: evalJobConfig.status,
-      blockedAt: blockState?.blockedAt ?? null,
-    })
-  ) {
+  if (!isJobConfigExecutable(evalJobConfig)) {
     logger.debug(
       `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
     );

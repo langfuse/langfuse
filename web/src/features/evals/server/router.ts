@@ -17,8 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
-  type JobConfigBlockReason,
-  JobConfigBlockReasonValues,
+  JobConfigBlockReason,
   orderBy,
   jsonSchema,
   EvalTargetObject,
@@ -37,8 +36,6 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearAllEvalConfigsCaches,
-  clearEvalConfigBlocksInTransaction,
-  fetchEvalConfigBlockStates,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -71,7 +68,7 @@ const ConfigWithTemplateSchema = z.object({
   delay: z.number(),
   status: z.enum(JobConfigState),
   blockedAt: z.date().nullable(),
-  blockReason: z.enum(JobConfigBlockReasonValues).nullable(),
+  blockReason: z.enum(JobConfigBlockReason).nullable(),
   blockMessage: z.string().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
@@ -480,23 +477,15 @@ export const evalRouter = createTRPCRouter({
         configIds: [config.id],
       });
 
-      const [configBlockState] = await fetchEvalConfigBlockStates({
-        projectId: input.projectId,
-        configIds: [config.id],
-      });
-
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
-        configBlockState?.blockedAt ?? null,
+        config.blockedAt,
         Array.isArray(config.timeScope) ? config.timeScope : [],
         jobExecutionsByStatus,
       );
 
       return {
         ...config,
-        blockedAt: configBlockState?.blockedAt ?? null,
-        blockReason: configBlockState?.blockReason ?? null,
-        blockMessage: configBlockState?.blockMessage ?? null,
         jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
@@ -1075,20 +1064,21 @@ export const evalRouter = createTRPCRouter({
             projectId: projectId,
             evalTemplateId: evalTemplateId,
             targetObject: EvalTargetObject.DATASET,
-            status: {
-              in: [JobConfigState.ACTIVE, JobConfigState.INACTIVE],
-            },
+            ...(newStatus === JobConfigState.ACTIVE
+              ? {
+                  OR: [
+                    { status: JobConfigState.INACTIVE },
+                    {
+                      status: JobConfigState.ACTIVE,
+                      blockedAt: { not: null },
+                    },
+                  ],
+                }
+              : {
+                  status: JobConfigState.ACTIVE,
+                }),
           },
         });
-
-        const evaluatorBlockStateById = new Map(
-          (
-            await fetchEvalConfigBlockStates({
-              projectId,
-              configIds: evaluators.map((evaluator) => evaluator.id),
-            })
-          ).map((blockState) => [blockState.id, blockState]),
-        );
 
         const filteredEvaluators =
           evaluators?.filter((evaluator) => {
@@ -1107,12 +1097,9 @@ export const evalRouter = createTRPCRouter({
               return false;
             }
 
-            const blockedAt =
-              evaluatorBlockStateById.get(evaluator.id)?.blockedAt ?? null;
-
             return newStatus === JobConfigState.ACTIVE
               ? evaluator.status === JobConfigState.INACTIVE ||
-                  blockedAt !== null
+                  evaluator.blockedAt !== null
               : evaluator.status === JobConfigState.ACTIVE;
           }) || [];
 
@@ -1138,13 +1125,10 @@ export const evalRouter = createTRPCRouter({
             },
             data: {
               status: newStatus,
+              blockedAt: null,
+              blockReason: null,
+              blockMessage: null,
             },
-          });
-
-          await clearEvalConfigBlocksInTransaction({
-            tx,
-            projectId,
-            configIds: filteredEvaluatorIds,
           });
         });
 
@@ -1194,11 +1178,6 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const [existingJobBlockState] = await fetchEvalConfigBlockStates({
-        projectId,
-        configIds: [existingJob.id],
-      });
-
       if (
         // check if:
         // - existing job ran on existing traces
@@ -1246,7 +1225,7 @@ export const evalRouter = createTRPCRouter({
       if (
         config.status === JobConfigState.ACTIVE &&
         (existingJob.status !== JobConfigState.ACTIVE ||
-          existingJobBlockState?.blockedAt !== null)
+          existingJob.blockedAt !== null)
       ) {
         if (!existingJob.evalTemplateId) {
           throw new TRPCError({
@@ -1262,24 +1241,23 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const updatedJob = await ctx.prisma.$transaction(async (tx) => {
-        const job = await tx.jobConfiguration.update({
-          where: {
-            id: evalConfigId,
-            projectId: projectId,
-          },
-          data: config,
-        });
+      const updatedConfig = {
+        ...config,
+        ...(config.status !== undefined
+          ? {
+              blockedAt: null,
+              blockReason: null,
+              blockMessage: null,
+            }
+          : {}),
+      };
 
-        if (config.status !== undefined) {
-          await clearEvalConfigBlocksInTransaction({
-            tx,
-            projectId,
-            configIds: [evalConfigId],
-          });
-        }
-
-        return job;
+      const updatedJob = await ctx.prisma.jobConfiguration.update({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+        data: updatedConfig,
       });
 
       // Clear the "no job configs" caches if we're activating a job configuration

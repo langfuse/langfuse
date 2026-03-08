@@ -1,4 +1,4 @@
-import { JobConfigBlockReason } from "../../features/evals/configBlock";
+import { JobConfigBlockReason } from "@prisma/client";
 
 const LLMCompletionErrorName = "LLMCompletionError";
 

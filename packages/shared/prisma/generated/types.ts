@@ -106,6 +106,16 @@ export const JobConfigState = {
 } as const;
 export type JobConfigState =
   (typeof JobConfigState)[keyof typeof JobConfigState];
+export const JobConfigBlockReason = {
+  CONNECTION_AUTH_INVALID: "CONNECTION_AUTH_INVALID",
+  CONNECTION_MISSING: "CONNECTION_MISSING",
+  DEFAULT_MODEL_MISSING: "DEFAULT_MODEL_MISSING",
+  MODEL_CONFIG_INVALID: "MODEL_CONFIG_INVALID",
+  MODEL_UNAVAILABLE: "MODEL_UNAVAILABLE",
+  PROVIDER_ACCOUNT_UNREADY: "PROVIDER_ACCOUNT_UNREADY",
+} as const;
+export type JobConfigBlockReason =
+  (typeof JobConfigBlockReason)[keyof typeof JobConfigBlockReason];
 export const JobExecutionStatus = {
   COMPLETED: "COMPLETED",
   ERROR: "ERROR",
@@ -528,6 +538,9 @@ export type JobConfiguration = {
   project_id: string;
   job_type: JobType;
   status: Generated<JobConfigState>;
+  blocked_at: Timestamp | null;
+  block_reason: JobConfigBlockReason | null;
+  block_message: string | null;
   eval_template_id: string | null;
   score_name: string;
   filter: unknown;

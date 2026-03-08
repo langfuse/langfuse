@@ -1,5 +1,5 @@
-import { EvalTargetObject } from "@langfuse/shared";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   hasNoEvalConfigsCache,
@@ -31,27 +31,28 @@ export async function fetchObservationEvalConfigs(
   }
 
   // Fetch configs from database
-  const configs = await prisma.$queryRaw<ObservationEvalConfig[]>(Prisma.sql`
-    SELECT
-      id,
-      project_id AS "projectId",
-      filter,
-      sampling,
-      eval_template_id AS "evalTemplateId",
-      score_name AS "scoreName",
-      status::text AS status,
-      blocked_at AS "blockedAt",
-      target_object AS "targetObject",
-      variable_mapping AS "variableMapping"
-    FROM job_configurations
-    WHERE project_id = ${projectId}
-      AND target_object IN (${Prisma.join([
-        EvalTargetObject.EVENT,
-        EvalTargetObject.EXPERIMENT,
-      ])})
-      AND status::text = 'ACTIVE'
-      AND blocked_at IS NULL
-  `);
+  const configs = await prisma.jobConfiguration.findMany({
+    where: {
+      projectId,
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
+      status: JobConfigState.ACTIVE,
+      blockedAt: null,
+    },
+    select: {
+      id: true,
+      projectId: true,
+      filter: true,
+      sampling: true,
+      evalTemplateId: true,
+      scoreName: true,
+      status: true,
+      blockedAt: true,
+      targetObject: true,
+      variableMapping: true,
+    },
+  });
 
   // Cache if no configs found
   if (configs.length === 0) {

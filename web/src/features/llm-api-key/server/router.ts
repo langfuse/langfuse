@@ -257,8 +257,10 @@ export const llmApiKeyRouter = createTRPCRouter({
           const providerBlockResult = await blockEvalConfigsInTransaction({
             tx,
             projectId: input.projectId,
-            scope: {
-              evalTemplateIds: evalTemplates.map((template) => template.id),
+            where: {
+              evalTemplateId: {
+                in: evalTemplates.map((template) => template.id),
+              },
             },
             blockReason: JobConfigBlockReason.CONNECTION_MISSING,
             blockMessage: getJobConfigBlockMeta(
@@ -286,8 +288,10 @@ export const llmApiKeyRouter = createTRPCRouter({
           const defaultModelBlockResult = await blockEvalConfigsInTransaction({
             tx,
             projectId: input.projectId,
-            scope: {
-              evalTemplateIds: evalTemplates.map((template) => template.id),
+            where: {
+              evalTemplateId: {
+                in: evalTemplates.map((template) => template.id),
+              },
             },
             blockReason: JobConfigBlockReason.DEFAULT_MODEL_MISSING,
             blockMessage: getJobConfigBlockMeta(
