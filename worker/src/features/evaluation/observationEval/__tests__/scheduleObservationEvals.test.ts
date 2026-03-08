@@ -84,6 +84,8 @@ describe("scheduleObservationEvals", () => {
     scoreName: "quality",
     variableMapping: [],
     targetObject: EvalTargetObject.EVENT,
+    status: JobConfigState.ACTIVE,
+    blockedAt: null,
     ...overrides,
   });
 

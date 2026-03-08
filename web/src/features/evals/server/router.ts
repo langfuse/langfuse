@@ -21,7 +21,6 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
-  getEvaluatorDisplayStatus,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -45,12 +44,17 @@ import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type JobExecution, type PrismaClient } from "@prisma/client";
-import { type JobExecutionState } from "@/src/features/evals/utils/job-execution-utils";
 import {
   evalConfigFilterColumns,
   evalConfigsTableCols,
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import {
+  calculateEvaluatorFinalStatus,
+  clearedEvalConfigBlockFields,
+  filterDatasetEvaluatorsForStatusChange,
+  shouldValidateEvalActivation,
+} from "@/src/features/evals/server/evalConfigStatus";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -188,94 +192,6 @@ const fetchJobExecutionsByStatus = async ({
     _count: true,
   });
 };
-
-export const calculateEvaluatorFinalStatus = (
-  status: string,
-  blockedAt: Date | null,
-  timeScope: string[],
-  jobExecutionsByState: JobExecutionState[],
-): string => {
-  const hasPendingJobs = jobExecutionsByState.some(
-    (je) => je.status === "PENDING",
-  );
-  const totalJobCount = jobExecutionsByState.reduce(
-    (acc, je) => acc + je._count,
-    0,
-  );
-  return getEvaluatorDisplayStatus({
-    status: status as JobConfigState,
-    blockedAt,
-    timeScope,
-    hasPendingJobs,
-    totalJobCount,
-  });
-};
-
-const clearedEvalConfigBlockFields = {
-  blockedAt: null,
-  blockReason: null,
-  blockMessage: null,
-} as const;
-
-const shouldValidateEvalActivation = ({
-  currentStatus,
-  blockedAt,
-  nextStatus,
-}: {
-  currentStatus: JobConfigState;
-  blockedAt: Date | null;
-  nextStatus?: JobConfigState;
-}) =>
-  nextStatus === JobConfigState.ACTIVE &&
-  (currentStatus !== JobConfigState.ACTIVE || blockedAt !== null);
-
-const matchesDatasetEvaluatorFilter = ({
-  filter,
-  datasetId,
-}: Pick<JobConfiguration, "filter"> & {
-  datasetId: string;
-}) => {
-  const parsedFilter = z.array(singleFilter).safeParse(filter);
-
-  if (!parsedFilter.success) {
-    return false;
-  }
-
-  return (
-    parsedFilter.data.length === 0 ||
-    parsedFilter.data.some(
-      ({ type, value }) =>
-        type === "stringOptions" && value.includes(datasetId),
-    )
-  );
-};
-
-const filterDatasetEvaluatorsForStatusChange = ({
-  evaluators,
-  datasetId,
-  newStatus,
-}: {
-  evaluators: Array<
-    Pick<JobConfiguration, "id" | "status" | "blockedAt" | "filter">
-  >;
-  datasetId: string;
-  newStatus: JobConfigState;
-}) =>
-  evaluators.filter((evaluator) => {
-    if (
-      !matchesDatasetEvaluatorFilter({
-        filter: evaluator.filter,
-        datasetId,
-      })
-    ) {
-      return false;
-    }
-
-    return newStatus === JobConfigState.ACTIVE
-      ? evaluator.status === JobConfigState.INACTIVE ||
-          evaluator.blockedAt !== null
-      : evaluator.status === JobConfigState.ACTIVE;
-  });
 
 const validateEvalTemplateActivation = async ({
   prisma,
