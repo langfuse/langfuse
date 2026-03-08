@@ -1,0 +1,47 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEPLOY_PATH: /home/${{ secrets.EC2_USER }}/langfuse
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync files to EC2
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Deploy on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd ${{ env.DEPLOY_PATH }}
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 30
+          curl -sf http://${{ secrets.EC2_HOST }}:3000/api/public/health || echo "Health check failed - service may still be starting"
