@@ -37,19 +37,16 @@ export class LLMCompletionError extends Error {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
-    blockReason?: JobConfigBlockReason | null;
   }) {
     super(params.message);
 
     this.name = LLMCompletionErrorName;
     this.responseStatusCode = params.responseStatusCode ?? 500;
     this.isRetryable = params.isRetryable ?? false; // Default to false - be explicit about retryability
-    this.blockReason =
-      params.blockReason ??
-      inferLLMCompletionBlockReason({
-        responseStatusCode: this.responseStatusCode,
-        message: this.message,
-      });
+    this.blockReason = inferLLMCompletionBlockReason({
+      responseStatusCode: this.responseStatusCode,
+      message: this.message,
+    });
 
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this);

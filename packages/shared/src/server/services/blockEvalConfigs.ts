@@ -114,7 +114,9 @@ export async function blockEvalConfigsInTransaction({
 
   const activeConfigs = await tx.jobConfiguration.findMany({
     where: {
-      AND: [where, { projectId, status: JobConfigState.ACTIVE }],
+      projectId,
+      status: JobConfigState.ACTIVE,
+      ...where,
     },
     select: {
       id: true,

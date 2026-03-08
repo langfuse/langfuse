@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import {
+  JobConfigState,
   JobExecutionStatus,
   type JobExecution,
   type JobConfiguration,
@@ -335,7 +336,9 @@ export const createEvalJobs = async ({
 
   // Optimization: Batch query for existing job executions
   // Instead of querying once per config (N queries), fetch all at once and filter in-memory
-  const configIds = configs.map((c) => c.id);
+  const configIds = configs
+    .filter((c) => c.status !== JobConfigState.INACTIVE)
+    .map((c) => c.id);
 
   const allExistingJobs =
     configIds.length > 0
@@ -372,6 +375,11 @@ export const createEvalJobs = async ({
   };
 
   for (const config of configs) {
+    if (config.status === JobConfigState.INACTIVE) {
+      logger.debug(`Skipping inactive config ${config.id}`);
+      continue;
+    }
+
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
