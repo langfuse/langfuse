@@ -1471,7 +1471,8 @@ model Trigger {
   filter       Json? // Filter conditions (format: { field: "name", operator: "equals", value: "my_trace" })
 
   // Additional attributes
-  status JobConfigState @default(ACTIVE) @map("status")
+  status          JobConfigState @default(ACTIVE) @map("status")
+  lastTriggeredAt DateTime?      @map("last_triggered_at")
 
   // Link to executions
   automationExecutions AutomationExecution[]
@@ -1502,6 +1503,9 @@ enum ActionType {
   WEBHOOK
   SLACK
   GITHUB_DISPATCH
+  PAGERDUTY
+  MICROSOFT_TEAMS
+  JIRA
   // More action types can be added as needed
 }
 

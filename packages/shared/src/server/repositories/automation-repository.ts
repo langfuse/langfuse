@@ -140,6 +140,7 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
     eventActions: (trigger.eventActions || []) as TriggerEventAction[],
     filter: (trigger.filter || []) as FilterState,
     eventSource: trigger.eventSource as TriggerEventSource,
+    lastTriggeredAt: trigger.lastTriggeredAt ?? null,
   };
 };
 
@@ -236,6 +237,35 @@ export const getAutomations = async ({
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));
+};
+
+export const updateTriggerLastTriggeredAt = async ({
+  triggerId,
+  projectId,
+  lastTriggeredAt,
+}: {
+  triggerId: string;
+  projectId: string;
+  lastTriggeredAt: Date;
+}): Promise<void> => {
+  await prisma.trigger.update({
+    where: { id: triggerId, projectId },
+    data: { lastTriggeredAt },
+  });
+};
+
+export const getActiveProjectsWithMetricTriggers = async (): Promise<
+  string[]
+> => {
+  const results = await prisma.trigger.findMany({
+    where: {
+      eventSource: "trace_metric",
+      status: "ACTIVE",
+    },
+    select: { projectId: true },
+    distinct: ["projectId"],
+  });
+  return results.map((r) => r.projectId);
 };
 
 export const getConsecutiveAutomationFailures = async ({

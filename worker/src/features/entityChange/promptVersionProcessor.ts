@@ -67,9 +67,10 @@ export const promptVersionProcessor = async (
         };
 
         // Use InMemoryFilterService for all filtering including actions
+        // Prompt triggers use FilterState arrays; metric triggers have their own evaluator
         const eventMatches = InMemoryFilterService.evaluateFilter(
           eventData,
-          trigger.filter,
+          Array.isArray(trigger.filter) ? trigger.filter : [],
           fieldMapper,
         );
 

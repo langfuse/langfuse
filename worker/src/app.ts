@@ -19,6 +19,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { metricAlertQueueProcessor } from "./queues/metricAlertQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
@@ -37,6 +38,7 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
+  MetricAlertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -398,6 +400,12 @@ if (
     },
   );
 }
+
+// Metric Alert Queue: Evaluates metric-based triggers every 5 minutes
+MetricAlertQueue.getInstance();
+WorkerManager.register(QueueName.MetricAlertQueue, metricAlertQueueProcessor, {
+  concurrency: 1,
+});
 
 if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(

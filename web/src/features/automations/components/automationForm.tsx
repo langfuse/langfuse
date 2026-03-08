@@ -36,6 +36,7 @@ import {
   type ActionTypes,
   type JobConfigState,
   webhookActionFilterOptions,
+  isMetricCondition,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -64,17 +65,38 @@ const githubDispatchSchema = z.object({
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
+  TraceMetric = "trace_metric",
 }
+
+// Schema for metric trigger condition fields
+const metricConditionFormSchema = z.object({
+  metric: z.enum([
+    "failure_rate",
+    "p99_latency_ms",
+    "total_cost_usd",
+    "avg_score",
+  ]),
+  operator: z.enum([">", ">=", "<", "<="]),
+  threshold: z.number({ error: "Threshold must be a number" }),
+  lookbackWindowMinutes: z
+    .number({ error: "Lookback window must be a number" })
+    .int()
+    .positive("Lookback window must be positive"),
+  cooldownMinutes: z
+    .number({ error: "Cooldown must be a number" })
+    .int()
+    .positive("Cooldown must be positive"),
+  scoreName: z.string().optional(),
+});
 
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
-  eventAction: z
-    .array(z.string())
-    .min(1, "At least one event action is required"),
+  eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
+  metricCondition: metricConditionFormSchema.optional(),
 });
 
 const formSchema = z.discriminatedUnion("actionType", [
@@ -153,6 +175,11 @@ export const AutomationForm = ({
     const actionType = getActionType();
     const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
+    const existingMetricCondition =
+      automation && isMetricCondition(automation.trigger.filter)
+        ? automation.trigger.filter
+        : undefined;
+
     const baseValues = {
       name:
         isEditing && automation ? automation.name : `${actionType} ${today}`,
@@ -165,7 +192,19 @@ export const AutomationForm = ({
       status: (isEditing && automation
         ? automation.trigger.status
         : "ACTIVE") as "ACTIVE" | "INACTIVE",
-      filter: automation ? automation.trigger.filter || [] : [],
+      filter: automation
+        ? Array.isArray(automation.trigger.filter)
+          ? automation.trigger.filter
+          : []
+        : [],
+      metricCondition: existingMetricCondition ?? {
+        metric: "total_cost_usd" as const,
+        operator: ">" as const,
+        threshold: 0,
+        lookbackWindowMinutes: 60,
+        cooldownMinutes: 60,
+        scoreName: undefined,
+      },
     };
 
     if (actionType === "WEBHOOK") {
@@ -256,6 +295,8 @@ export const AutomationForm = ({
 
     const actionConfig = handler.buildActionConfig(data);
 
+    const isMetricTrigger = data.eventSource === TriggerEventSource.TraceMetric;
+
     if (isEditing && automation) {
       // Update existing automation
       await updateAutomationMutation.mutateAsync({
@@ -263,8 +304,13 @@ export const AutomationForm = ({
         automationId: automation.id,
         name: data.name,
         eventSource: data.eventSource,
-        eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        eventAction: isMetricTrigger ? [] : data.eventAction,
+        filter: isMetricTrigger
+          ? null
+          : data.filter && data.filter.length > 0
+            ? data.filter
+            : null,
+        metricCondition: isMetricTrigger ? data.metricCondition : undefined,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -282,8 +328,13 @@ export const AutomationForm = ({
         projectId,
         name: data.name,
         eventSource: data.eventSource,
-        eventAction: data.eventAction,
-        filter: data.filter && data.filter.length > 0 ? data.filter : null,
+        eventAction: isMetricTrigger ? [] : data.eventAction,
+        filter: isMetricTrigger
+          ? null
+          : data.filter && data.filter.length > 0
+            ? data.filter
+            : null,
+        metricCondition: isMetricTrigger ? data.metricCondition : undefined,
         status: data.status as JobConfigState,
         actionType: data.actionType,
         actionConfig: actionConfig,
@@ -309,7 +360,10 @@ export const AutomationForm = ({
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
     setActiveTab(value.toLowerCase());
-    form.setValue("actionType", value);
+    form.setValue(
+      "actionType",
+      value as "WEBHOOK" | "SLACK" | "GITHUB_DISPATCH",
+    );
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
@@ -340,6 +394,10 @@ export const AutomationForm = ({
       router.push(`/project/${projectId}/settings/automations`);
     }
   };
+
+  const watchedEventSource = form.watch("eventSource");
+  const isMetricTrigger = watchedEventSource === TriggerEventSource.TraceMetric;
+  const watchedMetric = form.watch("metricCondition.metric");
 
   // Get current action handler for rendering
   const getCurrentActionHandler = () => {
@@ -429,8 +487,8 @@ export const AutomationForm = ({
                       <SelectItem value={TriggerEventSource.Prompt}>
                         Prompt
                       </SelectItem>
-                      <SelectItem disabled={true} value="planned">
-                        More coming soon...
+                      <SelectItem value={TriggerEventSource.TraceMetric}>
+                        Trace Metric
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -441,72 +499,256 @@ export const AutomationForm = ({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="eventAction"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Action</FormLabel>
-                  <FormControl>
-                    <MultiSelect
-                      title="Event Actions"
-                      label="Actions"
-                      values={field.value}
-                      onValueChange={field.onChange}
-                      options={[
-                        {
-                          value: "created",
-                          description:
-                            "Whenever a new prompt version is created",
-                        },
-                        {
-                          value: "updated",
-                          description:
-                            "Whenever tags or labels on a prompt version are updated",
-                        },
-                        {
-                          value: "deleted",
-                          description: "Whenever a prompt version is deleted",
-                        },
-                      ]}
-                      className="my-0 w-auto overflow-hidden"
-                      disabled={!hasAccess || !isEditing}
-                      labelTruncateCutOff={4}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The actions on the event source that trigger this
-                    automation.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="filter"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Filter</FormLabel>
-                  <FormControl>
-                    <InlineFilterBuilder
-                      columns={webhookActionFilterOptions()}
-                      filterState={field.value || []}
-                      onChange={field.onChange}
-                      disabled={
-                        activeTab === "annotation_queue" ||
-                        !hasAccess ||
-                        !isEditing
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Add conditions to narrow down when this trigger fires.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {!isMetricTrigger && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="eventAction"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Event Action</FormLabel>
+                      <FormControl>
+                        <MultiSelect
+                          title="Event Actions"
+                          label="Actions"
+                          values={field.value}
+                          onValueChange={field.onChange}
+                          options={[
+                            {
+                              value: "created",
+                              description:
+                                "Whenever a new prompt version is created",
+                            },
+                            {
+                              value: "updated",
+                              description:
+                                "Whenever tags or labels on a prompt version are updated",
+                            },
+                            {
+                              value: "deleted",
+                              description:
+                                "Whenever a prompt version is deleted",
+                            },
+                          ]}
+                          className="my-0 w-auto overflow-hidden"
+                          disabled={!hasAccess || !isEditing}
+                          labelTruncateCutOff={4}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        The actions on the event source that trigger this
+                        automation.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="filter"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Filter</FormLabel>
+                      <FormControl>
+                        <InlineFilterBuilder
+                          columns={webhookActionFilterOptions()}
+                          filterState={field.value || []}
+                          onChange={field.onChange}
+                          disabled={
+                            activeTab === "annotation_queue" ||
+                            !hasAccess ||
+                            !isEditing
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Add conditions to narrow down when this trigger fires.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            {isMetricTrigger && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="metricCondition.metric"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Metric</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={!hasAccess || !isEditing}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a metric" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="total_cost_usd">
+                              Total Cost (USD)
+                            </SelectItem>
+                            <SelectItem value="failure_rate">
+                              Failure Rate
+                            </SelectItem>
+                            <SelectItem value="p99_latency_ms">
+                              P99 Latency (ms)
+                            </SelectItem>
+                            <SelectItem value="avg_score">Avg Score</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="metricCondition.operator"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Operator</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={!hasAccess || !isEditing}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an operator" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value=">">
+                              {">"} (greater than)
+                            </SelectItem>
+                            <SelectItem value=">=">
+                              {">="} (greater than or equal)
+                            </SelectItem>
+                            <SelectItem value="<">{"<"} (less than)</SelectItem>
+                            <SelectItem value="<=">
+                              {"<="} (less than or equal)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="metricCondition.threshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Threshold</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="e.g. 10"
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value))
+                          }
+                          disabled={!hasAccess || !isEditing}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        The value the metric is compared against.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="metricCondition.lookbackWindowMinutes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lookback Window (minutes)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="e.g. 60"
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10))
+                            }
+                            disabled={!hasAccess || !isEditing}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          How far back to aggregate the metric.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="metricCondition.cooldownMinutes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cooldown (minutes)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="e.g. 60"
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10))
+                            }
+                            disabled={!hasAccess || !isEditing}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Minimum time between consecutive alerts.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {watchedMetric === "avg_score" && (
+                  <FormField
+                    control={form.control}
+                    name="metricCondition.scoreName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Score Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. quality"
+                            {...field}
+                            value={field.value ?? ""}
+                            disabled={!hasAccess || !isEditing}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          The name of the score to average.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -4,21 +4,50 @@ import { z } from "zod/v4";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  TraceMetric = "trace_metric",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.TraceMetric,
+]);
+
+export const MetricTypeSchema = z.enum([
+  "failure_rate",
+  "p99_latency_ms",
+  "total_cost_usd",
+  "avg_score",
+]);
+
+export type MetricType = z.infer<typeof MetricTypeSchema>;
+
+export const MetricConditionSchema = z.object({
+  metric: MetricTypeSchema,
+  operator: z.enum([">", ">=", "<", "<="]),
+  threshold: z.number(),
+  lookbackWindowMinutes: z.number().int().positive(),
+  cooldownMinutes: z.number().int().positive(),
+  scoreName: z.string().optional(), // only for avg_score
+});
+
+export type MetricCondition = z.infer<typeof MetricConditionSchema>;
+
+export function isMetricCondition(filter: unknown): filter is MetricCondition {
+  return MetricConditionSchema.safeParse(filter).success;
+}
 
 export type TriggerDomain = Omit<
   Trigger,
   "filter" | "eventSource" | "eventActions"
 > & {
-  filter: FilterState;
+  filter: FilterState | MetricCondition;
   eventSource: TriggerEventSource;
   eventActions: TriggerEventAction[];
+  lastTriggeredAt: Date | null;
 };
 
 export type AutomationDomain = {
@@ -36,7 +65,14 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
   config: ActionConfigWithSecrets;
 };
 
-export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
+export const ActionTypeSchema = z.enum([
+  "WEBHOOK",
+  "SLACK",
+  "GITHUB_DISPATCH",
+  "PAGERDUTY",
+  "MICROSOFT_TEAMS",
+  "JIRA",
+]);
 
 export const AvailableWebhookApiSchema = z.record(
   z.enum(["prompt"]),
@@ -118,22 +154,107 @@ export type GitHubDispatchActionConfigWithSecrets = z.infer<
   typeof GitHubDispatchActionConfigSchema
 >;
 
+export const PagerDutyActionConfigSchema = z.object({
+  type: z.literal("PAGERDUTY"),
+  integrationKey: z.string(),
+  displayIntegrationKey: z.string(),
+  severity: z.enum(["critical", "error", "warning", "info"]).default("error"),
+  source: z.string().optional(),
+  component: z.string().optional(),
+  lastFailingExecutionId: z.string().nullish(),
+});
+
+export const SafePagerDutyActionConfigSchema = PagerDutyActionConfigSchema.omit(
+  { integrationKey: true },
+);
+
+export type PagerDutyActionConfig = z.infer<typeof PagerDutyActionConfigSchema>;
+export type SafePagerDutyActionConfig = z.infer<
+  typeof SafePagerDutyActionConfigSchema
+>;
+
+export const PagerDutyActionCreateSchema = z.object({
+  type: z.literal("PAGERDUTY"),
+  integrationKey: z.string().optional(),
+  severity: z
+    .enum(["critical", "error", "warning", "info"])
+    .default("error")
+    .optional(),
+  source: z.string().optional(),
+  component: z.string().optional(),
+});
+
+export const MicrosoftTeamsActionConfigSchema = z.object({
+  type: z.literal("MICROSOFT_TEAMS"),
+  webhookUrl: z.url(),
+  lastFailingExecutionId: z.string().nullish(),
+});
+
+export type MicrosoftTeamsActionConfig = z.infer<
+  typeof MicrosoftTeamsActionConfigSchema
+>;
+
+export const MicrosoftTeamsActionCreateSchema = z.object({
+  type: z.literal("MICROSOFT_TEAMS"),
+  webhookUrl: z.string().url().optional(),
+});
+
+export const JiraActionConfigSchema = z.object({
+  type: z.literal("JIRA"),
+  jiraBaseUrl: z.url(),
+  projectKey: z.string(),
+  issueType: z.string().default("Bug"),
+  apiToken: z.string(),
+  displayApiToken: z.string(),
+  email: z.string().email(),
+  labels: z.array(z.string()).optional(),
+  assigneeAccountId: z.string().optional(),
+  lastFailingExecutionId: z.string().nullish(),
+});
+
+export const SafeJiraActionConfigSchema = JiraActionConfigSchema.omit({
+  apiToken: true,
+});
+
+export type JiraActionConfig = z.infer<typeof JiraActionConfigSchema>;
+export type SafeJiraActionConfig = z.infer<typeof SafeJiraActionConfigSchema>;
+
+export const JiraActionCreateSchema = z.object({
+  type: z.literal("JIRA"),
+  jiraBaseUrl: z.string().url().optional(),
+  projectKey: z.string().optional(),
+  issueType: z.string().optional(),
+  apiToken: z.string().optional(),
+  email: z.string().email().optional(),
+  labels: z.array(z.string()).optional(),
+  assigneeAccountId: z.string().optional(),
+});
+
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionConfigSchema,
+  PagerDutyActionConfigSchema,
+  MicrosoftTeamsActionConfigSchema,
+  JiraActionConfigSchema,
 ]);
 
 export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionCreateSchema,
+  PagerDutyActionCreateSchema,
+  MicrosoftTeamsActionCreateSchema,
+  JiraActionCreateSchema,
 ]);
 
 export const SafeActionConfigSchema = z.discriminatedUnion("type", [
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  SafePagerDutyActionConfigSchema,
+  MicrosoftTeamsActionConfigSchema,
+  SafeJiraActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;

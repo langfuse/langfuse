@@ -230,10 +230,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const PromptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -242,6 +242,21 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+export const MetricAlertWebhookEnvelopeSchema = z.object({
+  type: z.literal("metric-alert"),
+  metric: z.string(),
+  value: z.number(),
+  threshold: z.number(),
+  operator: z.string(),
+  lookbackWindowMinutes: z.number(),
+  triggeredAt: z.string(), // ISO timestamp
+});
+
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  PromptVersionWebhookEnvelopeSchema,
+  MetricAlertWebhookEnvelopeSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -354,6 +369,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MetricAlertQueue = "metric-alert-queue",
 }
 
 export enum QueueJobs {
@@ -390,6 +406,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MetricAlertJob = "metric-alert-job",
 }
 
 export type TQueueJobTypes = {
@@ -557,5 +574,10 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MetricAlertQueue]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.MetricAlertJob;
   };
 };

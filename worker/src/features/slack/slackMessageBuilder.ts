@@ -10,6 +10,11 @@ export class SlackMessageBuilder {
    * Build Block Kit message for prompt version events
    */
   static buildPromptVersionMessage(payload: WebhookInput["payload"]): any[] {
+    if (payload.type !== "prompt-version") {
+      throw new Error(
+        `buildPromptVersionMessage called with non-prompt-version payload type: ${payload.type}`,
+      );
+    }
     const { action, prompt } = payload;
 
     // Determine action emoji and color
@@ -112,7 +117,7 @@ export class SlackMessageBuilder {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*Langfuse Notification*\n${payload.type} event: *${payload.action}*`,
+          text: `*Langfuse Notification*\n${payload.type} event: *${"action" in payload ? payload.action : payload.type}*`,
         },
       },
       {
