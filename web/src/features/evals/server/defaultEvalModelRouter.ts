@@ -94,15 +94,10 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
       await finalizeBlockedEvaluatorConfigBlocks({
         projectId: input.projectId,
-        notifications: [
-          {
-            blockedJobConfigIds: result.blockedJobConfigIds,
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          },
-        ],
+        blockedByReason: {
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.blockedJobConfigIds,
+        },
       });
 
       return { success: true };

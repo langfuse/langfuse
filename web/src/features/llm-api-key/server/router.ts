@@ -330,22 +330,12 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       await finalizeBlockedEvaluatorConfigBlocks({
         projectId: input.projectId,
-        notifications: [
-          {
-            blockedJobConfigIds: result.providerBlockedJobConfigIds,
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            ).message,
-          },
-          {
-            blockedJobConfigIds: result.defaultModelBlockedJobConfigIds,
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          },
-        ],
+        blockedByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
+            result.providerBlockedJobConfigIds,
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.defaultModelBlockedJobConfigIds,
+        },
       });
 
       return { success: true };

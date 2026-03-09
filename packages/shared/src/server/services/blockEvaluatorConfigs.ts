@@ -1,7 +1,10 @@
 import { EvaluatorBlockReason, JobConfigState, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { env } from "../../env";
-import { getEvaluatorBlockResolutionPath } from "../../features/evals/evalConfigBlocking";
+import {
+  getEvaluatorBlockMetadata,
+  getEvaluatorBlockResolutionPath,
+} from "../../features/evals/evalConfigBlocking";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import { logger } from "../logger";
 import { sendEvaluatorBlockedEmail } from "./email/evaluatorBlocked/sendEvaluatorBlockedEmail";
@@ -19,10 +22,8 @@ type BlockEvaluatorConfigsInTxParams = BlockEvaluatorConfigsParams & {
   tx: Prisma.TransactionClient;
 };
 
-export type BlockedEvaluatorNotification = {
-  blockedJobConfigIds: string[];
-  blockReason: EvaluatorBlockReason;
-  blockMessage: string;
+export type BlockedEvaluatorConfigIdsByReason = {
+  [reason in EvaluatorBlockReason]?: string[];
 };
 
 export async function blockEvaluatorConfigsInTx({
@@ -94,13 +95,9 @@ export async function blockEvaluatorConfigs(
 
   await finalizeBlockedEvaluatorConfigBlocks({
     projectId: params.projectId,
-    notifications: [
-      {
-        blockedJobConfigIds: result.blockedJobConfigIds,
-        blockReason: params.blockReason,
-        blockMessage: params.blockMessage,
-      },
-    ],
+    blockedByReason: {
+      [params.blockReason]: result.blockedJobConfigIds,
+    },
   });
 
   return result;
@@ -108,22 +105,24 @@ export async function blockEvaluatorConfigs(
 
 export async function finalizeBlockedEvaluatorConfigBlocks(params: {
   projectId: string;
-  notifications: BlockedEvaluatorNotification[];
+  blockedByReason: BlockedEvaluatorConfigIdsByReason;
 }): Promise<void> {
-  const notifications = params.notifications.filter(
-    (notification) => notification.blockedJobConfigIds.length > 0,
+  const blockedByReasonEntries = Object.entries(params.blockedByReason).filter(
+    (entry): entry is [EvaluatorBlockReason, string[]] =>
+      Array.isArray(entry[1]) && entry[1].length > 0,
   );
 
-  if (notifications.length === 0) {
+  if (blockedByReasonEntries.length === 0) {
     return;
   }
 
   await invalidateProjectEvalConfigCaches(params.projectId);
 
-  for (const notification of notifications) {
+  for (const [blockReason, blockedJobConfigIds] of blockedByReasonEntries) {
     void notifyBlockedEvaluatorConfigs({
       projectId: params.projectId,
-      ...notification,
+      blockedJobConfigIds,
+      blockReason,
     }).catch((error) =>
       logger.error(
         "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
@@ -135,17 +134,20 @@ export async function finalizeBlockedEvaluatorConfigBlocks(params: {
 
 type NotifyBlockedEvaluatorConfigsParams = {
   projectId: string;
-} & BlockedEvaluatorNotification;
+  blockedJobConfigIds: string[];
+  blockReason: EvaluatorBlockReason;
+};
 
 export async function notifyBlockedEvaluatorConfigs({
   projectId,
   blockedJobConfigIds,
   blockReason,
-  blockMessage,
 }: NotifyBlockedEvaluatorConfigsParams): Promise<void> {
   if (blockedJobConfigIds.length === 0) {
     return;
   }
+
+  const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
 
   const emailEnv = {
     EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
