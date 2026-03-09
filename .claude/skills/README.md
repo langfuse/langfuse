@@ -1,214 +1,59 @@
 # Skills
 
-Production-tested skills for Claude Code that auto-activate based on context.
+Repo-local skills for agents working in this repository.
 
----
-
-## What Are Skills?
-
-Skills are modular knowledge bases that Claude loads when needed. They provide:
-
-- Domain-specific guidelines
-- Best practices
-- Code examples
-- Anti-patterns to avoid
-
-**Problem:** Skills don't activate automatically by default.
-
-**Solution:** This showcase includes the hooks + configuration to make them activate.
-
----
+The current setup is intentionally simple:
+- `AGENTS.md` is the canonical shared instruction file for the repo.
+- `CLAUDE.md` is a thin Claude Code entrypoint that points back to `AGENTS.md`.
+- Skills are linked explicitly from those files and opened on demand.
+- There is no hook-based auto-activation in this repository.
 
 ## Available Skills
 
-### skill-developer (Meta-Skill)
-
-**Purpose:** Creating and managing Claude Code skills
-
-**Files:** 7 resource files (426 lines total)
-
-**Use when:**
-
-- Creating new skills
-- Understanding skill structure
-- Working with skill-rules.json
-- Debugging skill activation
-
-**Customization:** ✅ None - copy as-is
-
-**[View Skill →](skill-developer/)**
-
----
-
 ### backend-dev-guidelines
 
-**Purpose:** Node.js/Express/TypeScript development patterns
+Purpose: backend development patterns for Langfuse's web, worker, and shared
+packages.
 
-**Files:** 12 resource files (304 lines main + resources)
+Use when:
+- creating or modifying tRPC routers or procedures
+- creating or modifying public API endpoints
+- creating or modifying BullMQ processors
+- changing Prisma or ClickHouse-backed services
+- adding backend validation, auth, or observability logic
 
-**Covers:**
+Open: [backend-dev-guidelines/SKILL.md](backend-dev-guidelines/SKILL.md)
 
-- Layered architecture (Routes → Controllers → Services → Repositories)
-- BaseController pattern
-- Prisma database access
-- Sentry error tracking
-- Zod validation
-- UnifiedConfig pattern
-- Dependency injection
-- Testing strategies
+### add-model-price
 
-**Use when:**
+Purpose: rules for updating Langfuse's default model pricing definitions.
 
-- Creating/modifying API routes
-- Building controllers or services
-- Database operations with Prisma
-- Setting up error tracking
+Use when:
+- adding or updating entries in `worker/src/constants/default-model-prices.json`
+- changing model pricing-related types in `packages/shared/src/server/llm/types.ts`
+- working on pricing tiers, tokenizer IDs, or model match patterns
 
-**Customization:** ⚠️ Update `pathPatterns` in skill-rules.json to match your backend directories
+Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
 
-**Example pathPatterns:**
+## Adding a New Skill
 
-```json
-{
-  "pathPatterns": [
-    "src/api/**/*.ts", // Single app with src/api
-    "backend/**/*.ts", // Backend directory
-    "services/*/src/**/*.ts" // Multi-service monorepo
-  ]
-}
-```
+1. Create `.claude/skills/<skill-name>/SKILL.md`.
+2. Keep the skill focused on one domain or workflow.
+3. Link the skill from `AGENTS.md` if it is broadly relevant across the repo.
+4. Link the skill from `CLAUDE.md` if Claude Code should discover it from the
+   project entrypoint.
+5. Add resource files only when the main `SKILL.md` would otherwise become too
+   large or too noisy.
 
-**[View Skill →](backend-dev-guidelines/)**
-
----
-
-## How to Add a Skill to Your Project
-
-### Quick Integration
-
-**For Claude Code:**
-
-```
-User: "Add the backend-dev-guidelines skill to my project"
-
-Claude should:
-1. Ask about project structure
-2. Copy skill directory
-3. Update skill-rules.json with their paths
-4. Verify integration
-```
-
-See [CLAUDE_INTEGRATION_GUIDE.md](../../CLAUDE_INTEGRATION_GUIDE.md) for complete instructions.
-
-### Manual Integration
-
-**Step 1: Copy the skill directory**
-
-```bash
-cp -r claude-code-infrastructure-showcase/.claude/skills/backend-dev-guidelines \\
-      your-project/.claude/skills/
-```
-
-**Step 2: Update skill-rules.json**
-
-If you don't have one, create it:
-
-```bash
-cp claude-code-infrastructure-showcase/.claude/skills/skill-rules.json \\
-   your-project/.claude/skills/
-```
-
-Then customize the `pathPatterns` for your project:
-
-```json
-{
-  "skills": {
-    "backend-dev-guidelines": {
-      "fileTriggers": {
-        "pathPatterns": [
-          "YOUR_BACKEND_PATH/**/*.ts" // ← Update this!
-        ]
-      }
-    }
-  }
-}
-```
-
-**Step 3: Test**
-
-- Edit a file in your backend directory
-- The skill should activate automatically
-
----
-
-## skill-rules.json Configuration
-
-### What It Does
-
-Defines when skills should activate based on:
-
-- **Keywords** in user prompts ("backend", "API", "route")
-- **Intent patterns** (regex matching user intent)
-- **File path patterns** (editing backend files)
-- **Content patterns** (code contains Prisma queries)
-
-### Configuration Format
-
-```json
-{
-  "skill-name": {
-    "type": "domain" | "guardrail",
-    "enforcement": "suggest" | "block",
-    "priority": "high" | "medium" | "low",
-    "promptTriggers": {
-      "keywords": ["list", "of", "keywords"],
-      "intentPatterns": ["regex patterns"]
-    },
-    "fileTriggers": {
-      "pathPatterns": ["path/to/files/**/*.ts"],
-      "contentPatterns": ["import.*Prisma"]
-    }
-  }
-}
-```
-
-### Enforcement Levels
-
-- **suggest**: Skill appears as suggestion, doesn't block
-- **block**: Must use skill before proceeding (guardrail)
-
-**Use "block" for:**
-
-- Preventing breaking changes (MUI v6→v7)
-- Critical database operations
-- Security-sensitive code
-
-**Use "suggest" for:**
-
-- General best practices
-- Domain guidance
-- Code organization
-
----
-
-## Creating Your Own Skills
-
-See the **skill-developer** skill for complete guide on:
-
-- Skill YAML frontmatter structure
-- Resource file organization
-- Trigger pattern design
-- Testing skill activation
-
-**Quick template:**
+## Authoring Template
 
 ```markdown
 ---
 name: my-skill
-description: What this skill does
+description: Brief description of what this skill covers and when to use it.
 ---
 
-# My Skill Title
+# My Skill
 
 ## Purpose
 
@@ -216,89 +61,9 @@ description: What this skill does
 
 ## When to Use This Skill
 
-[Auto-activation scenarios]
+[Concrete triggers and file areas]
 
 ## Quick Reference
 
-[Key patterns and examples]
-
-## Resource Files
-
-- [topic-1.md](resources/topic-1.md)
-- [topic-2.md](resources/topic-2.md)
+[Checklist, patterns, or examples]
 ```
-
----
-
-## Troubleshooting
-
-### Skill isn't activating
-
-**Check:**
-
-1. Is skill directory in `.claude/skills/`?
-2. Is skill listed in `skill-rules.json`?
-3. Do `pathPatterns` match your files?
-4. Are hooks installed and working?
-5. Is settings.json configured correctly?
-
-**Debug:**
-
-```bash
-# Check skill exists
-ls -la .claude/skills/
-
-# Validate skill-rules.json
-cat .claude/skills/skill-rules.json | jq .
-
-# Check hooks are executable
-ls -la .claude/hooks/*.sh
-
-# Test hook manually
-./.claude/hooks/skill-activation-prompt.sh
-```
-
-### Skill activates too often
-
-Update skill-rules.json:
-
-- Make keywords more specific
-- Narrow `pathPatterns`
-- Increase specificity of `intentPatterns`
-
-### Skill never activates
-
-Update skill-rules.json:
-
-- Add more keywords
-- Broaden `pathPatterns`
-- Add more `intentPatterns`
-
----
-
-## For Claude Code
-
-**When integrating a skill for a user:**
-
-1. **Read [CLAUDE_INTEGRATION_GUIDE.md](../../CLAUDE_INTEGRATION_GUIDE.md)** first
-2. Ask about their project structure
-3. Customize `pathPatterns` in skill-rules.json
-4. Verify the skill file has no hardcoded paths
-5. Test activation after integration
-
-**Common mistakes:**
-
-- Keeping example paths (blog-api/, frontend/)
-- Not asking about monorepo vs single-app
-- Copying skill-rules.json without customization
-
----
-
-## Next Steps
-
-1. **Start simple:** Add one skill that matches your work
-2. **Verify activation:** Edit a relevant file, skill should suggest
-3. **Add more:** Once first skill works, add others
-4. **Customize:** Adjust triggers based on your workflow
-
-**Questions?** See [CLAUDE_INTEGRATION_GUIDE.md](../../CLAUDE_INTEGRATION_GUIDE.md) for comprehensive integration instructions.
