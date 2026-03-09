@@ -25,7 +25,10 @@ export const PublishTraceSwitch = (props: {
   });
   const utils = api.useUtils();
   const mut = api.traces.publish.useMutation({
-    onSuccess: () => utils.traces.invalidate(),
+    onSuccess: () => {
+      void utils.traces.invalidate();
+      void utils.events.byTraceId.invalidate();
+    },
   });
 
   return (

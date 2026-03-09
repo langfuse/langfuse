@@ -141,6 +141,7 @@ export function StarTraceDetailsToggle({
   });
   const capture = usePostHogClientCapture();
   const [isLoading, setIsLoading] = useState(false);
+  const traceQueryInput = { traceId, projectId, timestamp };
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
     onMutate: async (newBookmarkState) => {
@@ -151,23 +152,18 @@ export function StarTraceDetailsToggle({
       setIsLoading(true);
 
       // Snapshot the previous value
-      const prevData = utils.traces.byIdWithObservationsAndScores.getData({
-        traceId,
-        projectId,
-        timestamp,
-      });
+      const prevData =
+        utils.traces.byIdWithObservationsAndScores.getData(traceQueryInput);
 
       // Optimistically update to the new value
       utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId, timestamp },
-        (oldQueryData) => {
-          return oldQueryData
-            ? {
-                ...oldQueryData,
-                bookmarked: newBookmarkState.bookmarked,
-              }
-            : undefined;
-        },
+        traceQueryInput,
+        prevData
+          ? {
+              ...prevData,
+              bookmarked: newBookmarkState.bookmarked,
+            }
+          : undefined,
       );
 
       return { prevData };
@@ -177,7 +173,7 @@ export function StarTraceDetailsToggle({
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
       utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId, timestamp },
+        traceQueryInput,
         context?.prevData,
       );
     },
@@ -186,6 +182,7 @@ export function StarTraceDetailsToggle({
       // Refetch to ensure we have the latest data from the server
       void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.all.invalidate();
+      void utils.events.byTraceId.invalidate();
     },
   });
 
