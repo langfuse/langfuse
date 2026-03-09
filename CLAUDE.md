@@ -10,8 +10,9 @@ Start here:
   the closest package-local `AGENTS.md`.
 
 Repo-local skills:
-- Backend work: @.claude/skills/backend-dev-guidelines/SKILL.md
-- Model pricing updates: @.claude/skills/add-model-price/SKILL.md
+- Shared skill index: @.agents/skills/README.md
+- Backend work: @.agents/skills/backend-dev-guidelines/SKILL.md
+- Model pricing updates: @.agents/skills/add-model-price/SKILL.md
 
 Specialized agent:
 - Changelog entries for completed features: @.claude/agents/changelog-writer.md

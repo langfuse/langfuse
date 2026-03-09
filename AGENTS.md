@@ -90,9 +90,11 @@ Minimum verification matrix:
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
 - `CLAUDE.md` is the Claude Code entrypoint for this repo and should stay as a thin shim that points back to this file.
-- Use repo-local skills by opening the linked `SKILL.md` files directly instead of relying on Claude hooks:
-  - Backend work in `web/src/server/**`, `web/src/pages/api/public/**`, `worker/src/**`, or `packages/shared/src/**`: [`.claude/skills/backend-dev-guidelines/SKILL.md`](.claude/skills/backend-dev-guidelines/SKILL.md)
-  - Model pricing updates in `worker/src/constants/default-model-prices.json`, `packages/shared/src/server/llm/types.ts`, or related pricing files: [`.claude/skills/add-model-price/SKILL.md`](.claude/skills/add-model-price/SKILL.md)
+- Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
+- If a task matches one of the shared skill scopes below, read the linked skill before editing code:
+  - Backend and API work in `web/src/server/**`, `web/src/pages/api/public/**`, `worker/src/**`, or `packages/shared/src/**`: [`.agents/skills/backend-dev-guidelines/SKILL.md`](.agents/skills/backend-dev-guidelines/SKILL.md)
+  - Model pricing work in `worker/src/constants/default-model-prices.json`, `packages/shared/src/server/llm/types.ts`, or related pricing files: [`.agents/skills/add-model-price/SKILL.md`](.agents/skills/add-model-price/SKILL.md)
+- If more than one skill matches, read the minimal set required.
 - For completed feature branches that need a changelog entry, use [`.claude/agents/changelog-writer.md`](.claude/agents/changelog-writer.md).
 
 ## Release Channel
