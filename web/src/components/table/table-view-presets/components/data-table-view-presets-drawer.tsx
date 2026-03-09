@@ -52,9 +52,9 @@ import {
   type OrderByState,
   type FilterState,
   type TableViewPresetTableName,
-  type TableViewPresetDomain,
+  type TableViewPresetState,
 } from "@langfuse/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -139,7 +139,7 @@ interface TableViewPresetsDrawerProps {
     controllers: {
       selectedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      applyViewState: (viewData: TableViewPresetDomain) => void;
+      applyViewState: (viewData: TableViewPresetState) => void;
     };
   };
   currentState: {
@@ -157,16 +157,24 @@ function formatOrderBy(orderBy?: OrderByState) {
   return orderBy?.column ? `${orderBy.column} ${orderBy.order}` : "none";
 }
 
+function buildSystemFilterPresetState(
+  preset: SystemFilterPreset,
+): TableViewPresetState {
+  return {
+    filters: preset.filters,
+    columnOrder: [],
+    columnVisibility: {},
+    orderBy: null,
+    searchQuery: "",
+  };
+}
+
 export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
   systemFilterPresets,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [viewDetailsById, setViewDetailsById] = useState<
-    Record<string, TableViewPresetDomain | null>
-  >({});
   const { tableName, projectId, controllers } = viewConfig;
   const { handleSetViewId, applyViewState, selectedViewId } = controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
@@ -204,50 +212,6 @@ export function TableViewPresetsDrawer({
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isDrawerOpen || !TableViewPresetsList?.length) {
-      return;
-    }
-
-    const missingPreviewIds = TableViewPresetsList.map(
-      (view) => view.id,
-    ).filter((viewId) => !(viewId in viewDetailsById));
-
-    if (missingPreviewIds.length === 0) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    void Promise.all(
-      missingPreviewIds.map(async (viewId) => {
-        try {
-          const view = await utils.TableViewPresets.getById.fetch({
-            projectId,
-            viewId,
-          });
-
-          return [viewId, view] as const;
-        } catch {
-          return [viewId, null] as const;
-        }
-      }),
-    ).then((previews) => {
-      if (isCancelled) {
-        return;
-      }
-
-      setViewDetailsById((currentState) => ({
-        ...currentState,
-        ...Object.fromEntries(previews),
-      }));
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [TableViewPresetsList, isDrawerOpen, projectId, utils, viewDetailsById]);
-
   const selectedViewName = useMemo(() => {
     // Check system filter presets first
     const systemPreset = systemFilterPresets?.find(
@@ -257,7 +221,7 @@ export function TableViewPresetsDrawer({
       // Normalize both to handle missing vs undefined property mismatch
       const normalizedCurrent = normalizeForComparison(currentState.filters);
       const normalizedPreset = normalizeForComparison(systemPreset.filters);
-      // If filters have been modified from the preset, show "Saved Views" instead
+      // If filters have been modified from the preset, show the generic trigger label instead
       if (!isEqual(normalizedCurrent, normalizedPreset)) {
         return undefined;
       }
@@ -284,35 +248,14 @@ export function TableViewPresetsDrawer({
     errorMessage: "View name already exists.",
   });
 
-  const handleSelectView = async (viewId: string) => {
-    // Handle system preset - just select it like any view
-    if (viewId === SYSTEM_PRESETS.DEFAULT.id) {
-      handleSetViewId(null);
-      return;
-    }
-
+  const handleSelectView = (view: TableViewPresetState & { id: string }) => {
     capture("saved_views:view_selected", {
       tableName,
-      viewId,
+      viewId: view.id,
     });
 
-    handleSetViewId(viewId);
-    try {
-      const fetchedViewData = await utils.TableViewPresets.getById.fetch({
-        projectId,
-        viewId,
-      });
-
-      if (fetchedViewData) {
-        applyViewState(fetchedViewData);
-      }
-    } catch {
-      showErrorToast(
-        "Failed to apply view selection",
-        "Please try again",
-        "WARNING",
-      );
-    }
+    handleSetViewId(view.id);
+    applyViewState(view);
   };
 
   const handleSelectSystemFilterPreset = useCallback(
@@ -322,23 +265,9 @@ export function TableViewPresetsDrawer({
         presetId: preset.id,
       });
       handleSetViewId(preset.id);
-      applyViewState({
-        id: preset.id,
-        name: preset.name,
-        filters: preset.filters,
-        columnOrder: [],
-        columnVisibility: {},
-        orderBy: null,
-        searchQuery: "",
-        tableName,
-        projectId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: "",
-        createdByUser: null,
-      } as TableViewPresetDomain);
+      applyViewState(buildSystemFilterPresetState(preset));
     },
-    [capture, tableName, handleSetViewId, applyViewState, projectId],
+    [capture, tableName, handleSetViewId, applyViewState],
   );
 
   const handleCreateView = (createdView: { name: string }) => {
@@ -447,7 +376,6 @@ export function TableViewPresetsDrawer({
       <Drawer
         forceDirection="responsive-left"
         onOpenChange={(open) => {
-          setIsDrawerOpen(open);
           if (open) {
             capture("saved_views:drawer_open", { tableName });
           } else {
@@ -507,9 +435,7 @@ export function TableViewPresetsDrawer({
                   {!systemFilterPresets?.length && (
                     <CommandItem
                       key={SYSTEM_PRESETS.DEFAULT.id}
-                      onSelect={() =>
-                        handleSelectView(SYSTEM_PRESETS.DEFAULT.id)
-                      }
+                      onSelect={() => handleSetViewId(null)}
                       className={cn(
                         "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
                         selectedViewId === null && "bg-muted",
@@ -570,22 +496,22 @@ export function TableViewPresetsDrawer({
                     const isProjectDefault =
                       currentDefault?.viewId === view.id &&
                       currentDefault?.scope === "project";
-                    const previewText = viewDetailsById[view.id]
-                      ? summarizeTableViewPreset(viewDetailsById[view.id])
-                      : null;
+                    const previewText = summarizeTableViewPreset(view);
 
                     return (
                       <CommandItem
                         key={view.id}
-                        onSelect={() => handleSelectView(view.id)}
+                        onSelect={() => handleSelectView(view)}
                         className={cn(
                           "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
                           selectedViewId === view.id && "bg-muted",
                         )}
                       >
-                        <div className="flex flex-col">
+                        <div className="flex min-w-0 flex-1 flex-col">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm">{view.name}</span>
+                            <span className="truncate text-sm">
+                              {view.name}
+                            </span>
                             {isUserDefault && (
                               <Badge variant="secondary" className="text-xs">
                                 Your default
@@ -598,7 +524,10 @@ export function TableViewPresetsDrawer({
                             )}
                           </div>
                           {previewText ? (
-                            <span className="line-clamp-1 text-xs text-muted-foreground">
+                            <span
+                              className="truncate text-xs text-muted-foreground"
+                              title={previewText}
+                            >
                               {previewText}
                             </span>
                           ) : null}

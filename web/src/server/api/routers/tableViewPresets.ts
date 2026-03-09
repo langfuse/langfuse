@@ -14,6 +14,7 @@ import {
   GetDefaultViewInput,
   SetDefaultViewInput,
   ClearDefaultViewInput,
+  TableViewPresetsNamesCreatorListSchema,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -137,6 +138,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
+    .output(TableViewPresetsNamesCreatorListSchema)
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,

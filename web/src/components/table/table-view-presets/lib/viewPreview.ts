@@ -1,23 +1,9 @@
-import { type FilterState, type TableViewPresetDomain } from "@langfuse/shared";
-
-const MAX_FILTERS_IN_PREVIEW = 2;
-const MAX_VALUES_IN_FILTER_PREVIEW = 2;
+import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
 
 function formatFilterLabel(filter: FilterState[number]) {
   return "key" in filter && filter.key
     ? `${filter.column}.${filter.key}`
     : filter.column;
-}
-
-function formatArrayFilterValue(values: string[]) {
-  const previewValues = values
-    .slice(0, MAX_VALUES_IN_FILTER_PREVIEW)
-    .join(", ");
-  const hiddenValueCount = values.length - MAX_VALUES_IN_FILTER_PREVIEW;
-
-  return hiddenValueCount > 0
-    ? `${previewValues} +${hiddenValueCount}`
-    : previewValues;
 }
 
 function formatFilterValue(filter: FilterState[number]) {
@@ -28,11 +14,16 @@ function formatFilterValue(filter: FilterState[number]) {
   }
 
   if (filter.type === "datetime") {
-    return filter.value.toISOString().slice(0, 10);
+    const dateValue =
+      filter.value instanceof Date ? filter.value : new Date(filter.value);
+
+    return Number.isNaN(dateValue.getTime())
+      ? String(filter.value)
+      : dateValue.toISOString().slice(0, 10);
   }
 
   if (Array.isArray(filter.value)) {
-    return formatArrayFilterValue(filter.value);
+    return filter.value.join(", ");
   }
 
   return String(filter.value);
@@ -48,20 +39,8 @@ export function formatFilterPreview(filter: FilterState[number]) {
   return `${label} ${filter.operator} ${formatFilterValue(filter)}`;
 }
 
-export function summarizeTableViewPreset(
-  view: Pick<
-    TableViewPresetDomain,
-    "filters" | "searchQuery" | "orderBy" | "columnVisibility" | "columnOrder"
-  >,
-) {
-  const previewParts = view.filters
-    .slice(0, MAX_FILTERS_IN_PREVIEW)
-    .map(formatFilterPreview);
-
-  const hiddenFilterCount = view.filters.length - MAX_FILTERS_IN_PREVIEW;
-  if (hiddenFilterCount > 0) {
-    previewParts.push(`+${hiddenFilterCount} more filters`);
-  }
+export function summarizeTableViewPreset(view: TableViewPresetState) {
+  const previewParts = view.filters.map(formatFilterPreview);
 
   if (previewParts.length < 2 && view.searchQuery?.trim()) {
     previewParts.push(`Search "${view.searchQuery.trim()}"`);
