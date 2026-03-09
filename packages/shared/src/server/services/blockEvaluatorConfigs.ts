@@ -36,7 +36,14 @@ export async function blockEvaluatorConfigsInTx({
 
   const activeEvaluatorConfigs = await tx.jobConfiguration.findMany({
     where: {
-      AND: [where, { projectId, status: JobConfigState.ACTIVE }],
+      AND: [
+        where,
+        {
+          projectId,
+          status: JobConfigState.ACTIVE,
+          blockedAt: null,
+        },
+      ],
     },
     select: {
       id: true,
@@ -53,6 +60,7 @@ export async function blockEvaluatorConfigsInTx({
     where: {
       projectId,
       status: JobConfigState.ACTIVE,
+      blockedAt: null,
       id: {
         in: blockedJobConfigIds,
       },
