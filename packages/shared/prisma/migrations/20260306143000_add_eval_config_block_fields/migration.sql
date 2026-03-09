@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "JobConfigBlockReason" AS ENUM (
+CREATE TYPE "EvaluatorBlockReason" AS ENUM (
   'CONNECTION_AUTH_INVALID',
   'CONNECTION_MISSING',
   'DEFAULT_MODEL_MISSING',
@@ -11,5 +11,5 @@ CREATE TYPE "JobConfigBlockReason" AS ENUM (
 -- AlterTable
 ALTER TABLE "job_configurations"
 ADD COLUMN "blocked_at" TIMESTAMP(3),
-ADD COLUMN "block_reason" "JobConfigBlockReason",
+ADD COLUMN "block_reason" "EvaluatorBlockReason",
 ADD COLUMN "block_message" TEXT;
