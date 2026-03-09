@@ -5,35 +5,96 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { type RouterInput } from "@/src/utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
 
 export const PublishTraceSwitch = (props: {
   traceId: string;
   projectId: string;
+  timestamp?: Date;
   isPublic: boolean;
   size?: "icon" | "icon-xs";
 }) => {
+  const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "objects:publish",
   });
   const utils = api.useUtils();
+  const traceQueryInput: RouterInput["traces"]["byIdWithObservationsAndScores"] =
+    {
+      projectId: props.projectId,
+      traceId: props.traceId,
+      timestamp: props.timestamp,
+    };
+  const eventsTraceQueryInput: RouterInput["events"]["byTraceId"] = {
+    projectId: props.projectId,
+    traceId: props.traceId,
+    timestamp: props.timestamp,
+  };
   const mut = api.traces.publish.useMutation({
-    onError: (err) => {
+    onMutate: async (input) => {
+      if (isBetaEnabled) {
+        await utils.events.byTraceId.cancel(eventsTraceQueryInput);
+
+        const previousEvents = utils.events.byTraceId.getData(
+          eventsTraceQueryInput,
+        );
+
+        utils.events.byTraceId.setData(eventsTraceQueryInput, (old) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            observations: old.observations.map((observation) =>
+              !observation.parentObservationId
+                ? { ...observation, public: input.public }
+                : observation,
+            ),
+          };
+        });
+
+        return { previousEvents };
+      }
+
+      await utils.traces.byIdWithObservationsAndScores.cancel(traceQueryInput);
+
+      const previousTrace =
+        utils.traces.byIdWithObservationsAndScores.getData(traceQueryInput);
+
+      utils.traces.byIdWithObservationsAndScores.setData(
+        traceQueryInput,
+        (old) => (old ? { ...old, public: input.public } : old),
+      );
+
+      return { previousTrace };
+    },
+    onError: (err, _input, context) => {
+      if (isBetaEnabled) {
+        utils.events.byTraceId.setData(
+          eventsTraceQueryInput,
+          context?.previousEvents,
+        );
+      } else {
+        utils.traces.byIdWithObservationsAndScores.setData(
+          traceQueryInput,
+          context?.previousTrace,
+        );
+      }
       trpcErrorToast(err);
     },
     onSuccess: async () => {
-      await Promise.all([
-        utils.traces.invalidate(),
-        utils.events.byTraceId.invalidate(),
-      ]);
+      if (!isBetaEnabled) {
+        await utils.traces.all.invalidate();
+      }
     },
   });
 
