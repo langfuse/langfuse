@@ -54,7 +54,7 @@ import {
   type TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "@langfuse/shared";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -83,6 +83,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import isEqual from "lodash/isEqual";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
 import { DropdownMenuSeparator } from "@/src/components/ui/dropdown-menu";
+import { summarizeTableViewPreset } from "../lib/viewPreview";
 
 /**
  * Prefix for system preset IDs. These are page-specific presets defined in code
@@ -162,6 +163,10 @@ export function TableViewPresetsDrawer({
   systemFilterPresets,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [viewDetailsById, setViewDetailsById] = useState<
+    Record<string, TableViewPresetDomain | null>
+  >({});
   const { tableName, projectId, controllers } = viewConfig;
   const { handleSetViewId, applyViewState, selectedViewId } = controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
@@ -198,6 +203,50 @@ export function TableViewPresetsDrawer({
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isDrawerOpen || !TableViewPresetsList?.length) {
+      return;
+    }
+
+    const missingPreviewIds = TableViewPresetsList.map(
+      (view) => view.id,
+    ).filter((viewId) => !(viewId in viewDetailsById));
+
+    if (missingPreviewIds.length === 0) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    void Promise.all(
+      missingPreviewIds.map(async (viewId) => {
+        try {
+          const view = await utils.TableViewPresets.getById.fetch({
+            projectId,
+            viewId,
+          });
+
+          return [viewId, view] as const;
+        } catch {
+          return [viewId, null] as const;
+        }
+      }),
+    ).then((previews) => {
+      if (isCancelled) {
+        return;
+      }
+
+      setViewDetailsById((currentState) => ({
+        ...currentState,
+        ...Object.fromEntries(previews),
+      }));
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [TableViewPresetsList, isDrawerOpen, projectId, utils, viewDetailsById]);
 
   const selectedViewName = useMemo(() => {
     // Check system filter presets first
@@ -398,6 +447,7 @@ export function TableViewPresetsDrawer({
       <Drawer
         forceDirection="responsive-left"
         onOpenChange={(open) => {
+          setIsDrawerOpen(open);
           if (open) {
             capture("saved_views:drawer_open", { tableName });
           } else {
@@ -520,6 +570,9 @@ export function TableViewPresetsDrawer({
                     const isProjectDefault =
                       currentDefault?.viewId === view.id &&
                       currentDefault?.scope === "project";
+                    const previewText = viewDetailsById[view.id]
+                      ? summarizeTableViewPreset(viewDetailsById[view.id])
+                      : null;
 
                     return (
                       <CommandItem
@@ -544,6 +597,11 @@ export function TableViewPresetsDrawer({
                               </Badge>
                             )}
                           </div>
+                          {previewText ? (
+                            <span className="line-clamp-1 text-xs text-muted-foreground">
+                              {previewText}
+                            </span>
+                          ) : null}
                           {view.id === selectedViewId && (
                             <Button
                               variant="ghost"
