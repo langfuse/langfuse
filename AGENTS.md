@@ -89,6 +89,7 @@ Minimum verification matrix:
 - Root `AGENTS.md` is monorepo-level only.
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
+- Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
 
 ## Release Channel
 - Release workflow is managed at root (`pnpm run release`).
