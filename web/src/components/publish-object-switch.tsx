@@ -9,8 +9,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const PublishTraceSwitch = (props: {
   traceId: string;
@@ -24,7 +25,22 @@ export const PublishTraceSwitch = (props: {
     scope: "objects:publish",
   });
   const utils = api.useUtils();
+  const [optimisticIsPublic, setOptimisticIsPublic] = useState(props.isPublic);
+
+  useEffect(() => {
+    setOptimisticIsPublic(props.isPublic);
+  }, [props.isPublic]);
+
   const mut = api.traces.publish.useMutation({
+    onMutate: (input) => {
+      const previousIsPublic = optimisticIsPublic;
+      setOptimisticIsPublic(input.public);
+      return { previousIsPublic };
+    },
+    onError: (err, _input, context) => {
+      setOptimisticIsPublic(context?.previousIsPublic ?? props.isPublic);
+      trpcErrorToast(err);
+    },
     onSuccess: () => {
       void utils.traces.invalidate();
       void utils.events.byTraceId.invalidate();
@@ -35,7 +51,7 @@ export const PublishTraceSwitch = (props: {
     <Base
       id={props.traceId}
       itemName="trace"
-      isPublic={props.isPublic}
+      isPublic={optimisticIsPublic}
       size={props.size}
       onChange={(val) => {
         mut.mutate({
@@ -63,15 +79,32 @@ export const PublishSessionSwitch = (props: {
     scope: "objects:publish",
   });
   const utils = api.useUtils();
+  const [optimisticIsPublic, setOptimisticIsPublic] = useState(props.isPublic);
+
+  useEffect(() => {
+    setOptimisticIsPublic(props.isPublic);
+  }, [props.isPublic]);
+
   const mut = api.sessions.publish.useMutation({
-    onSuccess: () => utils.sessions.invalidate(),
+    onMutate: (input) => {
+      const previousIsPublic = optimisticIsPublic;
+      setOptimisticIsPublic(input.public);
+      return { previousIsPublic };
+    },
+    onError: (err, _input, context) => {
+      setOptimisticIsPublic(context?.previousIsPublic ?? props.isPublic);
+      trpcErrorToast(err);
+    },
+    onSuccess: () => {
+      void utils.sessions.invalidate();
+    },
   });
 
   return (
     <Base
       id={props.sessionId}
       itemName="session"
-      isPublic={props.isPublic}
+      isPublic={optimisticIsPublic}
       size={props.size}
       onChange={(val) => {
         mut.mutate({
