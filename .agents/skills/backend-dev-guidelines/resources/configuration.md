@@ -558,5 +558,5 @@ langfuse/
 
 **Related Files:**
 
-- [SKILL.md](../SKILL.md) - Main guide
+- [../AGENTS.md](../AGENTS.md) - Main guide
 - [architecture-overview.md](architecture-overview.md) - Architecture patterns

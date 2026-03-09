@@ -553,6 +553,6 @@ pnpm run test --filter=worker -- --coverage
 ---
 
 **Related Files:**
-- [SKILL.md](../SKILL.md) - Main backend guidelines
+- [../AGENTS.md](../AGENTS.md) - Main backend guidelines
 - [architecture-overview.md](architecture-overview.md) - Architecture patterns
-- [complete-examples.md](complete-examples.md) - Full code examples
+- [services-and-repositories.md](services-and-repositories.md) - Service and repository examples

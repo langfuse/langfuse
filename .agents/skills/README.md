@@ -6,6 +6,14 @@ Use these from `AGENTS.md` and `CLAUDE.md`. They are not tool-specific and
 should stay focused on reusable implementation guidance rather than runtime
 automation.
 
+Shared skills should use progressive disclosure:
+
+- `SKILL.md` is the short entrypoint with trigger guidance and navigation.
+- `AGENTS.md` is optional and holds the full compiled guide when a skill needs
+  longer instructions.
+- `resources/` holds focused references that agents should open only when the
+  task needs them.
+
 ## Available Skills
 
 ### backend-dev-guidelines
@@ -30,9 +38,13 @@ Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
 
 ## Adding a New Shared Skill
 
-1. Create `.agents/skills/<skill-name>/SKILL.md`.
-2. Keep the skill tightly scoped to one domain or workflow.
-3. Link the skill from `AGENTS.md` if it is relevant across the repo.
-4. Link the skill from `CLAUDE.md` if Claude Code should load it from the
+1. Codex may create or refine shared skills under `.agents/skills/` when a
+   repo-specific workflow becomes repeated enough to justify durable guidance.
+2. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
+3. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill needs a
+   longer compiled guide.
+4. Keep the skill tightly scoped to one domain or workflow.
+5. Link the skill from `AGENTS.md` if it is relevant across the repo.
+6. Link the skill from `CLAUDE.md` if Claude Code should load it from the
    project entrypoint.
-5. Add extra resource files only when they materially improve signal-to-noise.
+7. Add `resources/` files only when they materially improve signal-to-noise.

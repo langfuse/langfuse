@@ -864,7 +864,7 @@ const validated = bodySchema.parse(req.body);
 
 **Related Files:**
 
-- [SKILL.md](../SKILL.md) - Main guide
+- [../AGENTS.md](../AGENTS.md) - Main guide
 - [routing-and-controllers.md](routing-and-controllers.md) - tRPC and Public API details
 - [services-and-repositories.md](services-and-repositories.md) - Service patterns
 - [testing-guide.md](testing-guide.md) - Testing strategies

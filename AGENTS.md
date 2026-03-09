@@ -97,8 +97,10 @@ Minimum verification matrix:
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
 - `CLAUDE.md` is the Claude Code entrypoint for this repo and should stay as a thin shim that points back to this file.
+- Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
-- If a task matches one of the shared skill scopes below, read the linked skill before editing code:
+- Shared skills use a short `SKILL.md` entrypoint and may link to a local `AGENTS.md` or `resources/` files for detailed guidance.
+- If a task matches one of the shared skill scopes below, read the linked `SKILL.md` before editing code, then follow its local references as needed:
   - Backend and API work in `web/src/server/**`, `web/src/pages/api/public/**`, `worker/src/**`, or `packages/shared/src/**`: [`.agents/skills/backend-dev-guidelines/SKILL.md`](.agents/skills/backend-dev-guidelines/SKILL.md)
   - Model pricing work in `worker/src/constants/default-model-prices.json`, `packages/shared/src/server/llm/types.ts`, or related pricing files: [`.agents/skills/add-model-price/SKILL.md`](.agents/skills/add-model-price/SKILL.md)
 - If more than one skill matches, read the minimal set required.

@@ -871,7 +871,7 @@ describe("UserService", () => {
 
 **Related Files:**
 
-- [SKILL.md](SKILL.md) - Main guide
+- [../AGENTS.md](../AGENTS.md) - Main guide
 - [routing-and-controllers.md](routing-and-controllers.md) - Controllers that use services
 - [database-patterns.md](database-patterns.md) - Prisma and repository patterns
-- [complete-examples.md](complete-examples.md) - Full service/repository examples
+- [testing-guide.md](testing-guide.md) - Testing service and repository code

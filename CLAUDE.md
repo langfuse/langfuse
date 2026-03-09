@@ -11,6 +11,8 @@ Start here:
 
 Repo-local skills:
 - Shared skill index: @.agents/skills/README.md
+- Shared skills start in `SKILL.md` and may route to a local `AGENTS.md` or
+  `resources/` files.
 - Backend work: @.agents/skills/backend-dev-guidelines/SKILL.md
 - Model pricing updates: @.agents/skills/add-model-price/SKILL.md
 

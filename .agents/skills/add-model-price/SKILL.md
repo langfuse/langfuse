@@ -5,47 +5,35 @@ description: Use when adding or updating model pricing entries in Langfuse, incl
 
 # Add Model Price
 
-## When to Use This Skill
+Use this skill when working on model pricing entries, `matchPattern` regexes,
+pricing tiers, tokenizer IDs, or shared model type definitions.
 
-Use this skill when changing:
-- `worker/src/constants/default-model-prices.json`
-- `packages/shared/src/server/llm/types.ts`
-- model `matchPattern` values
-- pricing tiers or cache pricing fields
+## When to Apply
 
-## Workflow
+- Editing `worker/src/constants/default-model-prices.json`
+- Editing `packages/shared/src/server/llm/types.ts`
+- Adding a new priced model
+- Updating provider prices, cache pricing, or tier conditions
+- Expanding regex coverage for Bedrock, Vertex, Azure, or provider-prefixed
+  model names
 
-1. Fetch pricing from the official provider source.
-2. Convert provider pricing from per-million tokens to per-token values.
-3. Generate lowercase UUIDs for new entries and tiers.
-4. Add or update the pricing entry in
-   `worker/src/constants/default-model-prices.json`.
-5. Update `packages/shared/src/server/llm/types.ts` if the model must be
-   available in Langfuse type definitions.
-6. Set `updatedAt` to the current ISO timestamp when modifying an existing
-   entry.
-7. Validate the JSON after editing.
+## How to Read This Skill
 
-## Rules
+- Start with [AGENTS.md](AGENTS.md) for the full schema, provider source URLs,
+  regex patterns, validation rules, and worked examples.
+- Use the compiled guide whenever you need provider-specific price-key mapping
+  or multi-tier examples.
 
-- Every model must have exactly one default pricing tier.
-- The default tier must use `isDefault: true`, `priority: 0`, and empty
-  `conditions`.
-- `matchPattern` should cover provider-specific variants you intend to support.
-- Prefer explicit regex coverage for Anthropic, OpenAI, Bedrock, Vertex, or
-  other platform-specific naming variants instead of loose matching.
-- Do not guess provider pricing. Use official documentation.
+## Core Rules
 
-## Common Checks
+- Use official provider pricing, not heuristics.
+- Store prices per token, not per million tokens.
+- Keep exactly one default pricing tier with `isDefault: true`,
+  `priority: 0`, and empty `conditions`.
+- Refresh `updatedAt` whenever you modify an existing entry.
+- Update `packages/shared/src/server/llm/types.ts` when the model should be
+  selectable in product flows.
 
-- `tokenizerId` matches the provider behavior.
-- Cache write and cache read pricing are added when supported.
-- Any long-context or conditional pricing becomes a non-default tier.
-- The model name and pattern fit existing naming conventions.
+## Full Compiled Guide
 
-## Finish Checklist
-
-- JSON is valid.
-- `updatedAt` is refreshed for edits.
-- The regex matches expected provider model names.
-- Shared LLM types are updated when required.
+Read [AGENTS.md](AGENTS.md) for the detailed workflow and reference material.
