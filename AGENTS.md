@@ -10,13 +10,15 @@ Langfuse monorepo guidance for fast, safe code changes.
   dependency boundaries, mandatory verification commands, or release/security
   processes materially change.
 - Update this file when user feedback adds a durable repo-level instruction that
-  future agents should follow. Treat feedback as durable when it changes the
-  default workflow, review expectations, naming rules, verification rules, or
-  handoff conventions for future tasks. Do not edit `AGENTS.md` for one-off
-  task preferences.
+  future agents should follow. Update the relevant shared skill files under
+  `.agents/skills/` as well when that feedback changes a reusable workflow,
+  checklist, or decision rule that those skills should teach. Treat feedback as
+  durable when it changes the default workflow, review expectations, naming
+  rules, verification rules, or handoff conventions for future tasks. Do not
+  edit `AGENTS.md` or shared skills for one-off task preferences.
 - For package-local material changes, update the package-local `AGENTS.md` in
   the same PR.
-- If no material guidance changed, do not edit AGENTS files.
+- If no material guidance changed, do not edit AGENTS files or shared skills.
 
 ## Project Structure & Module Organization
 ```text
@@ -76,14 +78,20 @@ Minimum verification matrix:
 
 ## Testing Guidelines
 - Keep each test independent and parallel-safe.
+- Implement automated tests for every new feature and for material feature
+  behavior changes. If a test is genuinely not feasible, document the reason in
+  the PR description.
 - `web/src/__tests__/server`: avoid `pruneDatabase` calls.
 - Client tests contain `....clienttest.ts`
 - When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits.
-- Pull request titles must follow Conventional Commits:
-  https://www.conventionalcommits.org/en/v1.0.0/
+- Pull request titles must use Conventional Commits format:
+  `type(scope): short description` or `type: short description`.
+- Use a lowercase conventional type such as `feat`, `fix`, `docs`, `refactor`,
+  `chore`, or `test`; keep the description concise and imperative.
+- Reference: https://www.conventionalcommits.org/en/v1.0.0/
 - Include AGENTS.md updates in the same PR when guidance materially changes.
 - In PR descriptions, list impacted packages and executed verification commands.
 
