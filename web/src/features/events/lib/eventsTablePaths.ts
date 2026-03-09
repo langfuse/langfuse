@@ -13,24 +13,6 @@ type BuildEventsTablePathForObservationTypeParams = {
   observationType: string;
 };
 
-const EVENT_TABLE_PARAMS_TO_CLEAR = [
-  "peek",
-  "observation",
-  "traceId",
-  "timestamp",
-  "display",
-  "traceTab",
-  "pref",
-  "view",
-  "search",
-  "searchType",
-  "page",
-  "pageIndex",
-  "pageSize",
-  "limit",
-  "viewId",
-];
-
 function buildEventsTablePathForStringFilter({
   currentPath,
   projectId,
@@ -43,9 +25,12 @@ function buildEventsTablePathForStringFilter({
   value: string;
 }) {
   const url = new URL(currentPath, "https://langfuse.local");
-  const params = new URLSearchParams(url.search);
+  const params = new URLSearchParams();
+  const dateRange = url.searchParams.get("dateRange");
 
-  EVENT_TABLE_PARAMS_TO_CLEAR.forEach((param) => params.delete(param));
+  if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
 
   const filters: FilterState = [
     {
