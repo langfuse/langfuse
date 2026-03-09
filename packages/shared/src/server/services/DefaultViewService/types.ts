@@ -24,6 +24,14 @@ export const GetDefaultViewInput = z.object({
 });
 export type GetDefaultViewInput = z.infer<typeof GetDefaultViewInput>;
 
+export const DefaultViewAssignmentsSchema = z.object({
+  userDefaultViewId: z.string().nullable(),
+  projectDefaultViewId: z.string().nullable(),
+});
+export type DefaultViewAssignments = z.infer<
+  typeof DefaultViewAssignmentsSchema
+>;
+
 export interface ResolvedDefault {
   viewId: string;
   scope: DefaultViewScope;

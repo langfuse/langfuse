@@ -20,6 +20,10 @@ export function useDefaultViewMutations({
         projectId,
         viewName: tableName,
       });
+      utils.TableViewPresets.getDefaultAssignments.invalidate({
+        projectId,
+        viewName: tableName,
+      });
       const scopeLabel = variables.scope === "user" ? "your" : "project";
       showSuccessToast({
         title: "Default view set",
@@ -34,6 +38,10 @@ export function useDefaultViewMutations({
   const clearDefault = api.TableViewPresets.clearDefault.useMutation({
     onSuccess: (_, variables) => {
       utils.TableViewPresets.getDefault.invalidate({
+        projectId,
+        viewName: tableName,
+      });
+      utils.TableViewPresets.getDefaultAssignments.invalidate({
         projectId,
         viewName: tableName,
       });

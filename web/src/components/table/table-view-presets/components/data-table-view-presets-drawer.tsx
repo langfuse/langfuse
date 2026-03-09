@@ -200,10 +200,11 @@ export function TableViewPresetsDrawer({
     scope: "TableViewPresets:CUD",
   });
 
-  const { data: currentDefault } = api.TableViewPresets.getDefault.useQuery(
-    { projectId, viewName: tableName },
-    { enabled: !!projectId },
-  );
+  const { data: defaultAssignments } =
+    api.TableViewPresets.getDefaultAssignments.useQuery(
+      { projectId, viewName: tableName },
+      { enabled: !!projectId },
+    );
 
   const { setViewAsDefault, clearViewDefault, isSettingDefault } =
     useDefaultViewMutations({ tableName, projectId });
@@ -491,11 +492,9 @@ export function TableViewPresetsDrawer({
                   {/* User Presets */}
                   {TableViewPresetsList?.map((view) => {
                     const isUserDefault =
-                      currentDefault?.viewId === view.id &&
-                      currentDefault?.scope === "user";
+                      defaultAssignments?.userDefaultViewId === view.id;
                     const isProjectDefault =
-                      currentDefault?.viewId === view.id &&
-                      currentDefault?.scope === "project";
+                      defaultAssignments?.projectDefaultViewId === view.id;
                     const previewText = summarizeTableViewPreset(view);
 
                     return (
