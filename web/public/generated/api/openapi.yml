@@ -1729,6 +1729,536 @@ paths:
                         name: My Score
                         value: 0.9
                         environment: default
+  /api/public/metrics:
+    get:
+      description: >-
+        Get metrics from the Langfuse project using a query object.
+
+
+        Consider using the [v2 metrics
+        endpoint](/api-reference#tag/metricsv2/GET/api/public/v2/metrics) for
+        better performance.
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
+      operationId: legacy_metricsV1_metrics
+      tags:
+        - LegacyMetricsV1
+      parameters:
+        - name: query
+          in: query
+          description: >-
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
+                }
+              ],
+              "config": {               // Optional. Query-specific configuration
+                "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                "row_limit": number     // Optional. Row limit for results (1-1000)
+              }
+            }
+
+            ```
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/legacyMetricsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/observations/{observationId}:
+    get:
+      description: Get a observation
+      operationId: legacy_observationsV1_get
+      tags:
+        - LegacyObservationsV1
+      parameters:
+        - name: observationId
+          in: path
+          description: >-
+            The unique langfuse identifier of an observation, can be an event,
+            span or generation
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationsView'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/observations:
+    get:
+      description: >-
+        Get a list of observations.
+
+
+        Consider using the [v2 observations
+        endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations)
+        for cursor-based pagination and field selection.
+      operationId: legacy_observationsV1_getMany
+      tags:
+        - LegacyObservationsV1
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Limit of items per page. If you encounter api issues due to too
+            large page sizes, try to reduce the limit.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: level
+          in: query
+          description: >-
+            Optional filter for observations with a specific level (e.g.
+            "DEBUG", "DEFAULT", "WARNING", "ERROR").
+          required: false
+          schema:
+            $ref: '#/components/schemas/ObservationLevel'
+            nullable: true
+        - name: parentObservationId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for observations where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
+        - name: fromStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time on or after this
+            datetime (ISO 8601).
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time before this datetime
+            (ISO 8601).
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include observations with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions. When provided,
+            this takes precedence over query parameter filters (userId, name,
+            type, level, environment, fromStartTime, ...).
+
+
+            ## Filter Structure
+
+            Each filter condition has the following structure:
+
+            ```json
+
+            [
+              {
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "column": string,         // Required. Column to filter on (see available columns below)
+                "operator": string,       // Required. Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - categoryOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
+
+
+            ## Available Columns
+
+
+            ### Core Observation Fields
+
+            - `id` (string) - Observation ID
+
+            - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
+
+            - `name` (string) - Observation name
+
+            - `traceId` (string) - Associated trace ID
+
+            - `startTime` (datetime) - Observation start time
+
+            - `endTime` (datetime) - Observation end time
+
+            - `environment` (string) - Environment tag
+
+            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+
+            - `statusMessage` (string) - Status message
+
+            - `version` (string) - Version tag
+
+
+            ### Performance Metrics
+
+            - `latency` (number) - Latency in seconds (calculated: end_time -
+            start_time)
+
+            - `timeToFirstToken` (number) - Time to first token in seconds
+
+            - `tokensPerSecond` (number) - Output tokens per second
+
+
+            ### Token Usage
+
+            - `inputTokens` (number) - Number of input tokens
+
+            - `outputTokens` (number) - Number of output tokens
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+
+            ### Cost Metrics
+
+            - `inputCost` (number) - Input cost in USD
+
+            - `outputCost` (number) - Output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Model Information
+
+            - `model` (string) - Provided model name
+
+            - `promptName` (string) - Associated prompt name
+
+            - `promptVersion` (number) - Associated prompt version
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ### Associated Trace Fields (requires join with traces table)
+
+            - `userId` (string) - User ID from associated trace
+
+            - `traceName` (string) - Name from associated trace
+
+            - `traceEnvironment` (string) - Environment from associated trace
+
+            - `traceTags` (arrayOptions) - Tags from associated trace
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "string",
+                "column": "type",
+                "operator": "=",
+                "value": "GENERATION"
+              },
+              {
+                "type": "number",
+                "column": "latency",
+                "operator": ">=",
+                "value": 2.5
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "environment",
+                "operator": "=",
+                "value": "production"
+              }
+            ]
+
+            ```
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/legacyObservationsViews'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/scores:
+    post:
+      description: Create a score (supports both trace and session scores)
+      operationId: legacy_scoreV1_create
+      tags:
+        - LegacyScoreV1
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/legacyCreateScoreResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/legacyCreateScoreRequest'
+  /api/public/scores/{scoreId}:
+    delete:
+      description: Delete a score (supports both trace and session scores)
+      operationId: legacy_scoreV1_delete
+      tags:
+        - LegacyScoreV1
+      parameters:
+        - name: scoreId
+          in: path
+          description: The unique langfuse identifier of a score
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/llm-connections:
     get:
       description: Get all LLM connections in a project
@@ -2176,9 +2706,9 @@ paths:
 
         - `auto` bins the data into approximately 50 buckets based on the time
         range
-      operationId: metricsV2_metrics
+      operationId: metrics_metrics
       tags:
-        - MetricsV2
+        - Metrics
       parameters:
         - name: query
           in: query
@@ -2246,108 +2776,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetricsV2Response'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-  /api/public/metrics:
-    get:
-      description: >-
-        Get metrics from the Langfuse project using a query object.
-
-
-        Consider using the [v2 metrics
-        endpoint](/api-reference#tag/metricsv2/GET/api/public/v2/metrics) for
-        better performance.
-
-
-        For more details, see the [Metrics API
-        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
-      operationId: metrics_metrics
-      tags:
-        - Metrics
-      parameters:
-        - name: query
-          in: query
-          description: >-
-            JSON string containing the query parameters with the following
-            structure:
-
-            ```json
-
-            {
-              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
-              "dimensions": [           // Optional. Default: []
-                {
-                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
-                }
-              ],
-              "metrics": [              // Required. At least one metric must be provided
-                {
-                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
-                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
-                }
-              ],
-              "filters": [              // Optional. Default: []
-                {
-                  "column": string,     // Column to filter on
-                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
-                  "value": any,         // Value to compare against
-                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
-                  "key": string         // Required only when filtering on metadata
-                }
-              ],
-              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
-                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
-              },
-              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
-              "toTimestamp": string,    // Required. ISO datetime string for end of time range
-              "orderBy": [              // Optional. Default: null
-                {
-                  "field": string,      // Field to order by
-                  "direction": string   // "asc" or "desc"
-                }
-              ],
-              "config": {               // Optional. Query-specific configuration
-                "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
-                "row_limit": number     // Optional. Row limit for results (1-1000)
-              }
-            }
-
-            ```
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MetricsResponse'
         '400':
           description: ''
           content:
@@ -2621,9 +3049,9 @@ paths:
 
         When using the `filter` parameter, it takes precedence over individual
         query parameter filters.
-      operationId: observationsV2_getMany
+      operationId: observations_getMany
       tags:
-        - ObservationsV2
+        - Observations
       parameters:
         - name: fields
           in: query
@@ -2917,344 +3345,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ObservationsV2Response'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-  /api/public/observations/{observationId}:
-    get:
-      description: Get a observation
-      operationId: observations_get
-      tags:
-        - Observations
-      parameters:
-        - name: observationId
-          in: path
-          description: >-
-            The unique langfuse identifier of an observation, can be an event,
-            span or generation
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ObservationsView'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-  /api/public/observations:
-    get:
-      description: >-
-        Get a list of observations.
-
-
-        Consider using the [v2 observations
-        endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations)
-        for cursor-based pagination and field selection.
-      operationId: observations_getMany
-      tags:
-        - Observations
-      parameters:
-        - name: page
-          in: query
-          description: Page number, starts at 1.
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: limit
-          in: query
-          description: >-
-            Limit of items per page. If you encounter api issues due to too
-            large page sizes, try to reduce the limit.
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: name
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: userId
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: type
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: traceId
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: level
-          in: query
-          description: >-
-            Optional filter for observations with a specific level (e.g.
-            "DEBUG", "DEFAULT", "WARNING", "ERROR").
-          required: false
-          schema:
-            $ref: '#/components/schemas/ObservationLevel'
-            nullable: true
-        - name: parentObservationId
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: environment
-          in: query
-          description: >-
-            Optional filter for observations where the environment is one of the
-            provided values.
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-              nullable: true
-        - name: fromStartTime
-          in: query
-          description: >-
-            Retrieve only observations with a start_time on or after this
-            datetime (ISO 8601).
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
-        - name: toStartTime
-          in: query
-          description: >-
-            Retrieve only observations with a start_time before this datetime
-            (ISO 8601).
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
-        - name: version
-          in: query
-          description: Optional filter to only include observations with a certain version.
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: filter
-          in: query
-          description: >-
-            JSON string containing an array of filter conditions. When provided,
-            this takes precedence over query parameter filters (userId, name,
-            type, level, environment, fromStartTime, ...).
-
-
-            ## Filter Structure
-
-            Each filter condition has the following structure:
-
-            ```json
-
-            [
-              {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
-                "column": string,         // Required. Column to filter on (see available columns below)
-                "operator": string,       // Required. Operator based on type:
-                                          // - datetime: ">", "<", ">=", "<="
-                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
-                                          // - stringOptions: "any of", "none of"
-                                          // - categoryOptions: "any of", "none of"
-                                          // - arrayOptions: "any of", "none of", "all of"
-                                          // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
-                                          // - numberObject: "=", ">", "<", ">=", "<="
-                                          // - boolean: "=", "<>"
-                                          // - null: "is null", "is not null"
-                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
-              }
-            ]
-
-            ```
-
-
-            ## Available Columns
-
-
-            ### Core Observation Fields
-
-            - `id` (string) - Observation ID
-
-            - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
-
-            - `name` (string) - Observation name
-
-            - `traceId` (string) - Associated trace ID
-
-            - `startTime` (datetime) - Observation start time
-
-            - `endTime` (datetime) - Observation end time
-
-            - `environment` (string) - Environment tag
-
-            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
-
-            - `statusMessage` (string) - Status message
-
-            - `version` (string) - Version tag
-
-
-            ### Performance Metrics
-
-            - `latency` (number) - Latency in seconds (calculated: end_time -
-            start_time)
-
-            - `timeToFirstToken` (number) - Time to first token in seconds
-
-            - `tokensPerSecond` (number) - Output tokens per second
-
-
-            ### Token Usage
-
-            - `inputTokens` (number) - Number of input tokens
-
-            - `outputTokens` (number) - Number of output tokens
-
-            - `totalTokens` (number) - Total tokens (alias: `tokens`)
-
-
-            ### Cost Metrics
-
-            - `inputCost` (number) - Input cost in USD
-
-            - `outputCost` (number) - Output cost in USD
-
-            - `totalCost` (number) - Total cost in USD
-
-
-            ### Model Information
-
-            - `model` (string) - Provided model name
-
-            - `promptName` (string) - Associated prompt name
-
-            - `promptVersion` (number) - Associated prompt version
-
-
-            ### Structured Data
-
-            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
-            key-value pairs. Use `key` parameter to filter on specific metadata
-            keys.
-
-
-            ### Associated Trace Fields (requires join with traces table)
-
-            - `userId` (string) - User ID from associated trace
-
-            - `traceName` (string) - Name from associated trace
-
-            - `traceEnvironment` (string) - Environment from associated trace
-
-            - `traceTags` (arrayOptions) - Tags from associated trace
-
-
-            ## Filter Examples
-
-            ```json
-
-            [
-              {
-                "type": "string",
-                "column": "type",
-                "operator": "=",
-                "value": "GENERATION"
-              },
-              {
-                "type": "number",
-                "column": "latency",
-                "operator": ">=",
-                "value": 2.5
-              },
-              {
-                "type": "stringObject",
-                "column": "metadata",
-                "key": "environment",
-                "operator": "=",
-                "value": "production"
-              }
-            ]
-
-            ```
-          required: false
-          schema:
-            type: string
-            nullable: true
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ObservationsViews'
         '400':
           description: ''
           content:
@@ -5075,9 +5165,9 @@ paths:
   /api/public/v2/scores:
     get:
       description: Get a list of scores (supports both trace and session scores)
-      operationId: scoreV2_get
+      operationId: scores_get-many
       tags:
-        - ScoreV2
+        - Scores
       parameters:
         - name: page
           in: query
@@ -5296,9 +5386,9 @@ paths:
   /api/public/v2/scores/{scoreId}:
     get:
       description: Get a score (supports both trace and session scores)
-      operationId: scoreV2_get-by-id
+      operationId: scores_get-by-id
       tags:
-        - ScoreV2
+        - Scores
       parameters:
         - name: scoreId
           in: path
@@ -5313,96 +5403,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Score'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-  /api/public/scores:
-    post:
-      description: Create a score (supports both trace and session scores)
-      operationId: score_create
-      tags:
-        - Score
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateScoreResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateScoreRequest'
-  /api/public/scores/{scoreId}:
-    delete:
-      description: Delete a score (supports both trace and session scores)
-      operationId: score_delete
-      tags:
-        - Score
-      parameters:
-        - name: scoreId
-          in: path
-          description: The unique langfuse identifier of a score
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: ''
         '400':
           description: ''
           content:
@@ -6765,6 +6765,165 @@ components:
           description: The time to the first token in seconds
       allOf:
         - $ref: '#/components/schemas/Observation'
+    ObservationV2:
+      title: ObservationV2
+      type: object
+      description: >-
+        An observation from the v2 API with field-group-based selection.
+
+        Core fields are always present. Other fields are included only when
+        their field group is requested.
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the observation
+        traceId:
+          type: string
+          nullable: true
+          description: The trace ID associated with the observation
+        startTime:
+          type: string
+          format: date-time
+          description: The start time of the observation
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: The end time of the observation
+        projectId:
+          type: string
+          description: The project ID this observation belongs to
+        parentObservationId:
+          type: string
+          nullable: true
+          description: The parent observation ID
+        type:
+          type: string
+          description: The type of the observation (e.g. GENERATION, SPAN, EVENT)
+        name:
+          type: string
+          nullable: true
+          description: The name of the observation
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
+          description: The level of the observation
+        statusMessage:
+          type: string
+          nullable: true
+          description: The status message of the observation
+        version:
+          type: string
+          nullable: true
+          description: The version of the observation
+        environment:
+          type: string
+          nullable: true
+          description: The environment from which this observation originated
+        bookmarked:
+          type: boolean
+          nullable: true
+          description: Whether the observation is bookmarked
+        public:
+          type: boolean
+          nullable: true
+          description: Whether the observation is public
+        userId:
+          type: string
+          nullable: true
+          description: The user ID associated with the observation
+        sessionId:
+          type: string
+          nullable: true
+          description: The session ID associated with the observation
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: The completion start time of the observation
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The creation timestamp of the observation
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The last update timestamp of the observation
+        input:
+          nullable: true
+          description: The input data of the observation
+        output:
+          nullable: true
+          description: The output data of the observation
+        metadata:
+          nullable: true
+          description: Additional metadata of the observation
+        providedModelName:
+          type: string
+          nullable: true
+          description: The model name as provided by the user
+        internalModelId:
+          type: string
+          nullable: true
+          description: The internal model ID matched by Langfuse
+        modelParameters:
+          nullable: true
+          description: The parameters of the model used for the observation
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+          description: >-
+            The usage details of the observation. Key is the usage metric name,
+            value is the number of units consumed.
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
+          description: >-
+            The cost details of the observation. Key is the cost metric name,
+            value is the cost in USD.
+        totalCost:
+          type: number
+          format: double
+          nullable: true
+          description: The total cost of the observation in USD
+        promptId:
+          type: string
+          nullable: true
+          description: The prompt ID associated with the observation
+        promptName:
+          type: string
+          nullable: true
+          description: The prompt name associated with the observation
+        promptVersion:
+          type: integer
+          nullable: true
+          description: The prompt version associated with the observation
+        latency:
+          type: number
+          format: double
+          nullable: true
+          description: The latency in seconds
+        timeToFirstToken:
+          type: number
+          format: double
+          nullable: true
+          description: The time to first token in seconds
+        modelId:
+          type: string
+          nullable: true
+          description: The matched model ID
+      required:
+        - id
+        - startTime
+        - projectId
+        - type
     Usage:
       title: Usage
       type: object
@@ -8815,6 +8974,124 @@ components:
             type: integer
         - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
         - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
+    legacyMetricsResponse:
+      title: legacyMetricsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
+
+            Histograms will return an array with [lower, upper, height] tuples.
+      required:
+        - data
+    legacyObservations:
+      title: legacyObservations
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Observation'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    legacyObservationsViews:
+      title: legacyObservationsViews
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservationsView'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    legacyCreateScoreRequest:
+      title: legacyCreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          example: novelty
+        value:
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical
+            scores, and numeric for boolean and numeric scores. Boolean score
+            values must equal either 1 or 0 (true or false)
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment of the score. Can be any lowercase alphanumeric
+            string with hyphens and underscores that does not start with
+            'langfuse'.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
+      required:
+        - name
+        - value
+    legacyCreateScoreResponse:
+      title: legacyCreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
     LlmConnection:
       title: LlmConnection
       type: object
@@ -9126,24 +9403,6 @@ components:
             Histograms will return an array with [lower, upper, height] tuples.
       required:
         - data
-    MetricsResponse:
-      title: MetricsResponse
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-          description: >-
-            The metrics data. Each item in the list contains the metric values
-            and dimensions requested in the query.
-
-            Format varies based on the query parameters.
-
-            Histograms will return an array with [lower, upper, height] tuples.
-      required:
-        - data
     PaginatedModels:
       title: PaginatedModels
       type: object
@@ -9258,165 +9517,6 @@ components:
       required:
         - modelName
         - matchPattern
-    ObservationV2:
-      title: ObservationV2
-      type: object
-      description: >-
-        An observation from the v2 API with field-group-based selection.
-
-        Core fields are always present. Other fields are included only when
-        their field group is requested.
-      properties:
-        id:
-          type: string
-          description: The unique identifier of the observation
-        traceId:
-          type: string
-          nullable: true
-          description: The trace ID associated with the observation
-        startTime:
-          type: string
-          format: date-time
-          description: The start time of the observation
-        endTime:
-          type: string
-          format: date-time
-          nullable: true
-          description: The end time of the observation
-        projectId:
-          type: string
-          description: The project ID this observation belongs to
-        parentObservationId:
-          type: string
-          nullable: true
-          description: The parent observation ID
-        type:
-          type: string
-          description: The type of the observation (e.g. GENERATION, SPAN, EVENT)
-        name:
-          type: string
-          nullable: true
-          description: The name of the observation
-        level:
-          $ref: '#/components/schemas/ObservationLevel'
-          nullable: true
-          description: The level of the observation
-        statusMessage:
-          type: string
-          nullable: true
-          description: The status message of the observation
-        version:
-          type: string
-          nullable: true
-          description: The version of the observation
-        environment:
-          type: string
-          nullable: true
-          description: The environment from which this observation originated
-        bookmarked:
-          type: boolean
-          nullable: true
-          description: Whether the observation is bookmarked
-        public:
-          type: boolean
-          nullable: true
-          description: Whether the observation is public
-        userId:
-          type: string
-          nullable: true
-          description: The user ID associated with the observation
-        sessionId:
-          type: string
-          nullable: true
-          description: The session ID associated with the observation
-        completionStartTime:
-          type: string
-          format: date-time
-          nullable: true
-          description: The completion start time of the observation
-        createdAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: The creation timestamp of the observation
-        updatedAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: The last update timestamp of the observation
-        input:
-          nullable: true
-          description: The input data of the observation
-        output:
-          nullable: true
-          description: The output data of the observation
-        metadata:
-          nullable: true
-          description: Additional metadata of the observation
-        providedModelName:
-          type: string
-          nullable: true
-          description: The model name as provided by the user
-        internalModelId:
-          type: string
-          nullable: true
-          description: The internal model ID matched by Langfuse
-        modelParameters:
-          nullable: true
-          description: The parameters of the model used for the observation
-        usageDetails:
-          type: object
-          additionalProperties:
-            type: integer
-          nullable: true
-          description: >-
-            The usage details of the observation. Key is the usage metric name,
-            value is the number of units consumed.
-        costDetails:
-          type: object
-          additionalProperties:
-            type: number
-            format: double
-          nullable: true
-          description: >-
-            The cost details of the observation. Key is the cost metric name,
-            value is the cost in USD.
-        totalCost:
-          type: number
-          format: double
-          nullable: true
-          description: The total cost of the observation in USD
-        promptId:
-          type: string
-          nullable: true
-          description: The prompt ID associated with the observation
-        promptName:
-          type: string
-          nullable: true
-          description: The prompt name associated with the observation
-        promptVersion:
-          type: integer
-          nullable: true
-          description: The prompt version associated with the observation
-        latency:
-          type: number
-          format: double
-          nullable: true
-          description: The latency in seconds
-        timeToFirstToken:
-          type: number
-          format: double
-          nullable: true
-          description: The time to first token in seconds
-        modelId:
-          type: string
-          nullable: true
-          description: The matched model ID
-      required:
-        - id
-        - startTime
-        - projectId
-        - type
     ObservationsV2Response:
       title: ObservationsV2Response
       type: object
@@ -9453,32 +9553,6 @@ components:
           description: >-
             Base64-encoded cursor to use for retrieving the next page. If not
             present, there are no more results.
-    Observations:
-      title: Observations
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Observation'
-        meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
-      required:
-        - data
-        - meta
-    ObservationsViews:
-      title: ObservationsViews
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/ObservationsView'
-        meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
-      required:
-        - data
-        - meta
     OtelResourceSpan:
       title: OtelResourceSpan
       type: object
@@ -10662,80 +10736,6 @@ components:
       required:
         - data
         - meta
-    CreateScoreRequest:
-      title: CreateScoreRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          nullable: true
-        sessionId:
-          type: string
-          nullable: true
-        observationId:
-          type: string
-          nullable: true
-        datasetRunId:
-          type: string
-          nullable: true
-        name:
-          type: string
-          example: novelty
-        value:
-          $ref: '#/components/schemas/CreateScoreValue'
-          description: >-
-            The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean score
-            values must equal either 1 or 0 (true or false)
-        comment:
-          type: string
-          nullable: true
-        metadata:
-          type: object
-          additionalProperties: true
-          nullable: true
-        environment:
-          type: string
-          nullable: true
-          description: >-
-            The environment of the score. Can be any lowercase alphanumeric
-            string with hyphens and underscores that does not start with
-            'langfuse'.
-        queueId:
-          type: string
-          nullable: true
-          description: >-
-            The annotation queue referenced by the score. Indicates if score was
-            initially created while processing annotation queue.
-        dataType:
-          $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
-          description: >-
-            The data type of the score. When passing a configId this field is
-            inferred. Otherwise, this field must be passed or will default to
-            numeric.
-        configId:
-          type: string
-          nullable: true
-          description: >-
-            Reference a score config on a score. The unique langfuse identifier
-            of a score config. When passing this field, the dataType and
-            stringValue fields are automatically populated.
-      required:
-        - name
-        - value
-    CreateScoreResponse:
-      title: CreateScoreResponse
-      type: object
-      properties:
-        id:
-          type: string
-          description: The id of the created object in Langfuse
-      required:
-        - id
     PaginatedSessions:
       title: PaginatedSessions
       type: object

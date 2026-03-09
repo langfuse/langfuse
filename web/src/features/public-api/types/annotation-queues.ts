@@ -61,7 +61,7 @@ export const GetAnnotationQueuesResponse = z
 export const CreateAnnotationQueueBody = z
   .object({
     name: z.string(),
-    description: z.string().nullable(),
+    description: z.string().nullish(),
     scoreConfigIds: z.array(z.string()).min(1),
   })
   .strict();
