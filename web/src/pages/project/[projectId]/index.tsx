@@ -82,6 +82,7 @@ export default function Dashboard() {
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
     isBetaEnabled,
+    timeRange,
   });
 
   const environmentOptionsState = useEnvironmentFilterOptionsCache({
