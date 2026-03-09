@@ -15,6 +15,7 @@ import {
   createNewRedisInstance,
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
 
 // Business Logic
@@ -32,6 +33,7 @@ export class RateLimitService {
       RateLimitService.redis =
         redis ??
         createNewRedisInstance({
+          keyPrefix: sharedEnv.REDIS_KEY_PREFIX ?? undefined, // For multi-tenant Redis isolation
           enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
           enableOfflineQueue: false,
           lazyConnect: true, // Connect when first command is sent
