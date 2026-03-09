@@ -567,6 +567,12 @@ export function WidgetForm({
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
+  const observationLevelOptions = [
+    { value: "DEBUG" },
+    { value: "DEFAULT" },
+    { value: "WARNING" },
+    { value: "ERROR" },
+  ];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -647,6 +653,13 @@ export function WidgetForm({
       id: "providedModelName",
       type: "stringOptions",
       options: modelOptions,
+      internal: "internalValue",
+    });
+    filterColumns.push({
+      name: "Level",
+      id: "level",
+      type: "stringOptions",
+      options: observationLevelOptions,
       internal: "internalValue",
     });
   }
