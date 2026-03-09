@@ -13,6 +13,8 @@ import {
   DefaultEvalModelService,
   blockEvaluatorConfigsInTx,
   invalidateProjectEvalConfigCaches,
+  logger,
+  notifyBlockedEvaluatorConfigs,
 } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -94,6 +96,20 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
       if (result.blockedJobConfigIds.length > 0) {
         await invalidateProjectEvalConfigCaches(input.projectId);
+
+        void notifyBlockedEvaluatorConfigs({
+          projectId: input.projectId,
+          blockedJobConfigIds: result.blockedJobConfigIds,
+          blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+          blockMessage: getEvaluatorBlockMetadata(
+            EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+          ).message,
+        }).catch((error) =>
+          logger.error(
+            "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
+            error,
+          ),
+        );
       }
 
       return { success: true };

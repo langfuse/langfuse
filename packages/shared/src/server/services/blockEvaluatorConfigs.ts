@@ -1,6 +1,11 @@
 import { EvaluatorBlockReason, JobConfigState, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
+import { env } from "../../env";
+import { getEvaluatorBlockResolutionPath } from "../../features/evals/evalConfigBlocking";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
+import { logger } from "../logger";
+import { sendEvaluatorBlockedEmail } from "./email/evaluatorBlocked/sendEvaluatorBlockedEmail";
+import { getProjectAdminEmails } from "./getProjectAdminEmails";
 
 type BlockEvaluatorConfigsParams = {
   projectId: string;
@@ -75,7 +80,107 @@ export async function blockEvaluatorConfigs(
 
   if (result.blockedJobConfigIds.length > 0) {
     await invalidateProjectEvalConfigCaches(params.projectId);
+
+    void notifyBlockedEvaluatorConfigs({
+      projectId: params.projectId,
+      blockedJobConfigIds: result.blockedJobConfigIds,
+      blockReason: params.blockReason,
+      blockMessage: params.blockMessage,
+    }).catch((error) =>
+      logger.error(
+        "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
+        error,
+      ),
+    );
   }
 
   return result;
+}
+
+type NotifyBlockedEvaluatorConfigsParams = {
+  projectId: string;
+  blockedJobConfigIds: string[];
+  blockReason: EvaluatorBlockReason;
+  blockMessage: string;
+};
+
+export async function notifyBlockedEvaluatorConfigs({
+  projectId,
+  blockedJobConfigIds,
+  blockReason,
+  blockMessage,
+}: NotifyBlockedEvaluatorConfigsParams): Promise<void> {
+  if (blockedJobConfigIds.length === 0) {
+    return;
+  }
+
+  const emailEnv = {
+    EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
+    SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
+    NEXTAUTH_URL: env.NEXTAUTH_URL,
+    CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
+  };
+
+  if (
+    !emailEnv.EMAIL_FROM_ADDRESS ||
+    !emailEnv.SMTP_CONNECTION_URL ||
+    !emailEnv.NEXTAUTH_URL
+  ) {
+    logger.warn(
+      `[EVALUATOR BLOCK] Missing email env vars. Skipping notifications for project ${projectId}.`,
+    );
+    return;
+  }
+
+  const adminEmails = await getProjectAdminEmails(projectId);
+  if (adminEmails.length === 0) {
+    logger.warn(
+      `[EVALUATOR BLOCK] No project admins found for project ${projectId}.`,
+    );
+    return;
+  }
+
+  const blockedConfigs = await prisma.jobConfiguration.findMany({
+    where: {
+      projectId,
+      id: {
+        in: blockedJobConfigIds,
+      },
+    },
+    select: {
+      id: true,
+      scoreName: true,
+      evalTemplate: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (blockedConfigs.length === 0) {
+    return;
+  }
+
+  const emailJobs = blockedConfigs.flatMap((config) =>
+    adminEmails.map((receiverEmail) =>
+      sendEvaluatorBlockedEmail({
+        env: emailEnv,
+        evaluatorName: config.evalTemplate?.name ?? config.scoreName,
+        blockReason,
+        blockMessage,
+        resolutionUrl: `${emailEnv.NEXTAUTH_URL}${getEvaluatorBlockResolutionPath(
+          {
+            projectId,
+            blockReason,
+            templateId: config.evalTemplate?.id,
+          },
+        )}`,
+        receiverEmail,
+      }),
+    ),
+  );
+
+  await Promise.allSettled(emailJobs);
 }
