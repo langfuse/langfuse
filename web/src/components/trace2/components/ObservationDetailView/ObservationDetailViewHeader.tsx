@@ -111,6 +111,7 @@ export const ObservationDetailViewHeader = memo(
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
               ]}
+              observationType={observation.type}
               projectId={projectId}
               spanName={observation.name ?? ""}
             />

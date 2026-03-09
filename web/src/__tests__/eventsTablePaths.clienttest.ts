@@ -1,4 +1,7 @@
-import { buildEventsTablePathForSpanName } from "@/src/features/events/lib/eventsTablePaths";
+import {
+  buildEventsTablePathForObservationType,
+  buildEventsTablePathForSpanName,
+} from "@/src/features/events/lib/eventsTablePaths";
 
 describe("buildEventsTablePathForSpanName", () => {
   it("opens the observations table with a name filter", () => {
@@ -56,5 +59,20 @@ describe("buildEventsTablePathForSpanName", () => {
     expect(url.searchParams.get("observation")).toBeNull();
     expect(url.searchParams.get("traceTab")).toBeNull();
     expect(url.searchParams.get("pref")).toBeNull();
+  });
+
+  it("builds a type filter for the observations table", () => {
+    const result = buildEventsTablePathForObservationType({
+      currentPath: "/project/project-1/traces/trace-1?observation=obs-1",
+      projectId: "project-1",
+      observationType: "GENERATION",
+    });
+
+    const url = new URL(result, "https://langfuse.local");
+
+    expect(url.pathname).toBe("/project/project-1/observations");
+    expect(url.searchParams.get("filter")).toBe(
+      "type;stringOptions;;any of;GENERATION",
+    );
   });
 });

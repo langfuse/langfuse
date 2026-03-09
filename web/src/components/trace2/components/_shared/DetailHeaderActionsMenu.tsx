@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { CheckIcon, CopyIcon, EllipsisVertical, Filter } from "lucide-react";
+import { CheckIcon, CopyIcon, EllipsisVertical } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -9,8 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { buildEventsTablePathForSpanName } from "@/src/features/events/lib/eventsTablePaths";
+import {
+  buildEventsTablePathForObservationType,
+  buildEventsTablePathForSpanName,
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { type ObservationType } from "@langfuse/shared";
 
 type IdItem = {
   name: string;
@@ -19,12 +23,14 @@ type IdItem = {
 
 type DetailHeaderActionsMenuProps = {
   idItems: IdItem[];
+  observationType?: ObservationType;
   projectId: string;
   spanName?: string;
 };
 
 export function DetailHeaderActionsMenu({
   idItems,
+  observationType,
   projectId,
   spanName,
 }: DetailHeaderActionsMenuProps) {
@@ -47,6 +53,16 @@ export function DetailHeaderActionsMenu({
       })
     : null;
 
+  const typeHref = observationType
+    ? buildEventsTablePathForObservationType({
+        currentPath: router.asPath,
+        projectId,
+        observationType,
+      })
+    : null;
+
+  const filterTypeLabel = observationType ? `type:${observationType}` : null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -61,19 +77,42 @@ export function DetailHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {href && (
+        {(href || typeHref) && (
           <>
-            <DropdownMenuItem onSelect={() => void router.push(href)}>
-              <Filter className="mr-2 h-4 w-4" />
-              <span className="max-w-[260px] truncate" title={spanName}>
-                Filter observations by {spanName}
-              </span>
-            </DropdownMenuItem>
+            {href && (
+              <DropdownMenuItem
+                className="text-xs"
+                onSelect={() => void router.push(href)}
+              >
+                <span className="max-w-[260px] truncate" title={spanName}>
+                  filter by{" "}
+                  <span className="font-semibold">name:{spanName}</span>
+                </span>
+              </DropdownMenuItem>
+            )}
+            {typeHref && filterTypeLabel && (
+              <DropdownMenuItem
+                className="text-xs"
+                onSelect={() => void router.push(typeHref)}
+              >
+                <span
+                  className="max-w-[260px] truncate"
+                  title={filterTypeLabel}
+                >
+                  filter by{" "}
+                  <span className="font-semibold">{filterTypeLabel}</span>
+                </span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
           </>
         )}
         {idItems.map((item) => (
-          <DropdownMenuItem key={item.id} onSelect={() => handleCopy(item.id)}>
+          <DropdownMenuItem
+            key={item.id}
+            className="text-xs"
+            onSelect={() => handleCopy(item.id)}
+          >
             {copiedId === item.id ? (
               <CheckIcon className="mr-2 h-4 w-4 text-muted-green" />
             ) : (

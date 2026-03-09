@@ -7,6 +7,12 @@ type BuildEventsTablePathForSpanNameParams = {
   spanName: string;
 };
 
+type BuildEventsTablePathForObservationTypeParams = {
+  currentPath: string;
+  projectId: string;
+  observationType: string;
+};
+
 const EVENT_TABLE_PARAMS_TO_CLEAR = [
   "peek",
   "observation",
@@ -25,11 +31,17 @@ const EVENT_TABLE_PARAMS_TO_CLEAR = [
   "viewId",
 ];
 
-export function buildEventsTablePathForSpanName({
+function buildEventsTablePathForStringFilter({
   currentPath,
   projectId,
-  spanName,
-}: BuildEventsTablePathForSpanNameParams) {
+  column,
+  value,
+}: {
+  currentPath: string;
+  projectId: string;
+  column: "name" | "type";
+  value: string;
+}) {
   const url = new URL(currentPath, "https://langfuse.local");
   const params = new URLSearchParams(url.search);
 
@@ -37,10 +49,10 @@ export function buildEventsTablePathForSpanName({
 
   const filters: FilterState = [
     {
-      column: "name",
+      column,
       type: "stringOptions",
       operator: "any of",
-      value: [spanName],
+      value: [value],
     },
   ];
 
@@ -49,4 +61,30 @@ export function buildEventsTablePathForSpanName({
   const query = params.toString();
 
   return `/project/${projectId}/observations${query ? `?${query}` : ""}`;
+}
+
+export function buildEventsTablePathForSpanName({
+  currentPath,
+  projectId,
+  spanName,
+}: BuildEventsTablePathForSpanNameParams) {
+  return buildEventsTablePathForStringFilter({
+    currentPath,
+    projectId,
+    column: "name",
+    value: spanName,
+  });
+}
+
+export function buildEventsTablePathForObservationType({
+  currentPath,
+  projectId,
+  observationType,
+}: BuildEventsTablePathForObservationTypeParams) {
+  return buildEventsTablePathForStringFilter({
+    currentPath,
+    projectId,
+    column: "type",
+    value: observationType,
+  });
 }
