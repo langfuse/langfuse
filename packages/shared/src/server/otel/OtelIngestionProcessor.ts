@@ -2012,13 +2012,46 @@ export class OtelIngestionProcessor {
           if ("anthropic" in parsed && "usage" in parsed["anthropic"]) {
             const anthropicMetadata = parsed["anthropic"]["usage"] as Record<
               string,
-              number
+              unknown
             >;
 
-            usageDetails["input_cache_creation"] ??=
-              anthropicMetadata["cache_creation_input_tokens"];
-            usageDetails["input_cached_tokens"] ??=
-              anthropicMetadata["cache_read_input_tokens"];
+            usageDetails["input_cache_creation"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_creation_input_tokens"];
+            usageDetails["input_cached_tokens"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_read_input_tokens"];
+
+            // Extract cache creation duration breakdown (5m and 1h TTLs)
+            if (
+              typeof anthropicMetadata["cache_creation"] === "object" &&
+              anthropicMetadata["cache_creation"] !== null
+            ) {
+              const cacheCreation = anthropicMetadata[
+                "cache_creation"
+              ] as Record<string, number>;
+
+              if (
+                typeof cacheCreation["ephemeral_5m_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_5m"] ??=
+                  cacheCreation["ephemeral_5m_input_tokens"];
+              }
+              if (
+                typeof cacheCreation["ephemeral_1h_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_1h"] ??=
+                  cacheCreation["ephemeral_1h_input_tokens"];
+              }
+
+              // Subtract duration-specific counts from total to avoid double counting
+              usageDetails["input_cache_creation"] = Math.max(
+                (usageDetails["input_cache_creation"] ?? 0) -
+                  (usageDetails["input_cache_creation_5m"] ?? 0) -
+                  (usageDetails["input_cache_creation_1h"] ?? 0),
+                0,
+              );
+            }
           }
 
           // Bedrock provider metadata extraction
@@ -2050,6 +2083,8 @@ export class OtelIngestionProcessor {
           (usageDetails["input"] ?? 0) -
             (usageDetails["input_cached_tokens"] ?? 0) -
             (usageDetails["input_cache_creation"] ?? 0) -
+            (usageDetails["input_cache_creation_5m"] ?? 0) -
+            (usageDetails["input_cache_creation_1h"] ?? 0) -
             (usageDetails["input_cache_read"] ?? 0),
           0,
         );
