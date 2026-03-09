@@ -1,5 +1,5 @@
 import { Transform, type TransformCallback } from "stream";
-import { stringify } from "./stringify";
+import { stringifyForCsv } from "./stringify";
 
 const DELIMITER = ",";
 const CSV_DOUBLE_QUOTE = /"/g;
@@ -35,7 +35,7 @@ export function transformStreamToCsv(): Transform {
       const values: string[] = new Array(headers.length);
       for (let i = 0; i < headers.length; i++) {
         const field = row[headers[i]] ?? "";
-        const str = stringify(field, headers[i]);
+        const str = stringifyForCsv(field, headers[i]);
         values[i] = escapeCsvField(str);
       }
 

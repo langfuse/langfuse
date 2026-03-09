@@ -121,6 +121,24 @@ const observationTypeMapper = new ObservationTypeMapperRegistry();
  * Manages trace deduplication internally and provides a clean interface
  * for converting OTEL spans to Langfuse events.
  */
+const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
+  "user_speaking",
+  "eou_detection",
+  "llm_request_run",
+  "tts_node",
+  "tts_request",
+  "tts_request_run",
+  "tts_stream_adapter",
+  "agent_speaking",
+  "drain_agent_activity",
+  "on_exit",
+  "on_enter",
+  "llm_fallback_adapter",
+  "tts_fallback_adapter",
+  "start_agent_activity",
+  "on_enter",
+]);
+
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
@@ -237,7 +255,7 @@ export class OtelIngestionProcessor {
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
                   : null;
-                const name = span.name;
+                const name = this.extractName(span.name, spanAttributes);
                 const { startTimeISO, endTimeISO } =
                   OtelIngestionProcessor.resolveSpanTimestamps({
                     startTimeUnixNano: span.startTimeUnixNano,
@@ -346,6 +364,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     resourceAttributes,
                     scopeSpan?.scope,
+                    span.name,
                   ),
                   environment: this.extractEnvironment(
                     spanAttributes,
@@ -365,7 +384,10 @@ export class OtelIngestionProcessor {
                     ] ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
-                      : ObservationLevel.DEFAULT),
+                      : scopeSpan?.scope?.name === "livekit-agents" &&
+                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                        ? ObservationLevel.DEBUG
+                        : ObservationLevel.DEFAULT),
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -943,7 +965,10 @@ export class OtelIngestionProcessor {
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
-          : ObservationLevel.DEFAULT),
+          : scopeSpan?.scope?.name === "livekit-agents" &&
+              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+            ? ObservationLevel.DEBUG
+            : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -980,6 +1005,7 @@ export class OtelIngestionProcessor {
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
+      span.name,
     );
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
@@ -1206,6 +1232,9 @@ export class OtelIngestionProcessor {
       "events",
       // LiveKit
       "lk.input_text",
+      "lk.user_transcript",
+      "lk.chat_ctx",
+      "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
       // MLFlow
@@ -1437,7 +1466,10 @@ export class OtelIngestionProcessor {
     }
 
     // LiveKit
-    input = attributes["lk.input_text"];
+    input =
+      attributes["lk.input_text"] ??
+      attributes["lk.user_transcript"] ??
+      attributes["lk.chat_ctx"];
     output =
       attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
@@ -1980,13 +2012,46 @@ export class OtelIngestionProcessor {
           if ("anthropic" in parsed && "usage" in parsed["anthropic"]) {
             const anthropicMetadata = parsed["anthropic"]["usage"] as Record<
               string,
-              number
+              unknown
             >;
 
-            usageDetails["input_cache_creation"] ??=
-              anthropicMetadata["cache_creation_input_tokens"];
-            usageDetails["input_cached_tokens"] ??=
-              anthropicMetadata["cache_read_input_tokens"];
+            usageDetails["input_cache_creation"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_creation_input_tokens"];
+            usageDetails["input_cached_tokens"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_read_input_tokens"];
+
+            // Extract cache creation duration breakdown (5m and 1h TTLs)
+            if (
+              typeof anthropicMetadata["cache_creation"] === "object" &&
+              anthropicMetadata["cache_creation"] !== null
+            ) {
+              const cacheCreation = anthropicMetadata[
+                "cache_creation"
+              ] as Record<string, number>;
+
+              if (
+                typeof cacheCreation["ephemeral_5m_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_5m"] ??=
+                  cacheCreation["ephemeral_5m_input_tokens"];
+              }
+              if (
+                typeof cacheCreation["ephemeral_1h_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_1h"] ??=
+                  cacheCreation["ephemeral_1h_input_tokens"];
+              }
+
+              // Subtract duration-specific counts from total to avoid double counting
+              usageDetails["input_cache_creation"] = Math.max(
+                (usageDetails["input_cache_creation"] ?? 0) -
+                  (usageDetails["input_cache_creation_5m"] ?? 0) -
+                  (usageDetails["input_cache_creation_1h"] ?? 0),
+                0,
+              );
+            }
           }
 
           // Bedrock provider metadata extraction
@@ -2018,6 +2083,8 @@ export class OtelIngestionProcessor {
           (usageDetails["input"] ?? 0) -
             (usageDetails["input_cached_tokens"] ?? 0) -
             (usageDetails["input_cache_creation"] ?? 0) -
+            (usageDetails["input_cache_creation_5m"] ?? 0) -
+            (usageDetails["input_cache_creation_1h"] ?? 0) -
             (usageDetails["input_cache_read"] ?? 0),
           0,
         );

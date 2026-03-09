@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.155.1",
+  "version": "3.156.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -34,6 +34,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
+    "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -43,7 +44,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "^2.8.10"
+    "turbo": "2.8.13"
   },
   "release-it": {
     "git": {

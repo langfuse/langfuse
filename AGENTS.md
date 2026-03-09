@@ -73,6 +73,7 @@ Minimum verification matrix:
 - Keep each test independent and parallel-safe.
 - `web/src/__tests__/server`: avoid `pruneDatabase` calls.
 - Client tests contain `....clienttest.ts`
+- When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits.
@@ -91,6 +92,9 @@ Minimum verification matrix:
 
 ## Release Channel
 - Release workflow is managed at root (`pnpm run release`).
+- Langfuse Cloud deployments are triggered by pushes to `production` (`.github/workflows/deploy.yml`).
+- Promote `main` to `production` via `.github/workflows/promote-main-to-production.yml` (manual `workflow_dispatch`).
+- Use `pnpm run release:cloud` for CLI-triggered Cloud promotions with preflight branch/migration checks.
 - Do not change release/versioning flow without updating this file and impacted package guides.
 
 ## GitHub Search

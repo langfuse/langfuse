@@ -21,7 +21,16 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggregationFunction: z.string().optional(),
+      // Override for filter generation when the dimension uses complex SQL/aggregation.
+      // where: column expressions OR'd together for pre-aggregation row pruning.
+      // The exact match uses dimension.sql (the row-level expression).
+      filterSql: z
+        .object({
+          where: z.array(z.string()),
+        })
+        .optional(),
       highCardinality: z.boolean().optional(),
+      uiHidden: z.boolean().optional(),
       explodeArray: z.boolean().optional(),
       pairExpand: z
         .object({
@@ -53,6 +62,7 @@ export const viewDeclaration = z.object({
       name: z.string(),
       joinConditionSql: z.string(),
       timeDimension: z.string(),
+      useFinal: z.boolean().optional(),
     }),
   ),
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
@@ -109,6 +119,24 @@ export const metricAggregations = z.enum([
   "histogram",
   "uniq",
 ]);
+
+/**
+ * Returns the subset of aggregations that are valid for a given measure type.
+ * Whitelists known numeric types; unknown or missing types default to the
+ * restrictive count/uniq set to surface missing type annotations early.
+ */
+export function getValidAggregationsForMeasureType(
+  measureType: string | undefined,
+): z.infer<typeof metricAggregations>[] {
+  if (
+    measureType === "integer" ||
+    measureType === "decimal" ||
+    measureType === "number"
+  ) {
+    return [...metricAggregations.options];
+  }
+  return ["count", "uniq"];
+}
 
 export const metric = z.object({
   measure: z.string(),
