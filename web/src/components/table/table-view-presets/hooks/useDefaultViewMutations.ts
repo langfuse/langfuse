@@ -77,6 +77,5 @@ export function useDefaultViewMutations({
     setViewAsDefault,
     clearViewDefault,
     isSettingDefault: setAsDefault.isPending,
-    isClearingDefault: clearDefault.isPending,
   };
 }
