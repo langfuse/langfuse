@@ -31,3 +31,46 @@ export type ExperimentsTableProps = {
   projectId: string;
   hideControls?: boolean;
 };
+
+/**
+ * Row type for the experiment items table.
+ * Represents a single item within an experiment (one trace execution).
+ */
+export type ExperimentItemsTableRow = {
+  // Identity fields
+  id: string; // experiment_item_id
+  observationId: string;
+  traceId: string;
+  level: string;
+
+  // Time fields
+  startTime: Date;
+
+  // I/O data
+  input?: string | null;
+  output?: string | null;
+  expectedOutput?: string | null;
+
+  // Metrics - from separate query
+  totalCost?: number | null;
+  latencyMs?: number | null;
+
+  // Metadata
+  experimentId: string;
+  experimentName: string;
+  datasetId: string;
+  rootSpanId: string;
+  datasetItemVersion: Date | null;
+  itemMetadata: Record<string, string>;
+  eventMetadata: Record<string, string>;
+};
+
+/**
+ * Props for the ExperimentItemsTable component.
+ */
+export type ExperimentItemsTableProps = {
+  projectId: string;
+  experimentId: string;
+  datasetId: string;
+  hideControls?: boolean;
+};

@@ -2,11 +2,13 @@ import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
+  CTEQueryBuilder,
+  CTEWithSchema,
+  EventsQueryBuilder,
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
-  CTEQueryBuilder,
-  CTEWithSchema,
+  orderByToEntries,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -17,6 +19,7 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
   experimentScoreAggCols,
@@ -365,4 +368,203 @@ const getExperimentsFromEventsGeneric = async <T>(
       });
     },
   });
+};
+
+// ============================================================================
+// Experiment Items Queries
+// ============================================================================
+
+/**
+ * Return type for experiment item rows from ClickHouse.
+ */
+export type ExperimentItemEventsDataReturnType = {
+  id: string; // span_id
+  trace_id: string;
+  input: string | null;
+  output: string | null;
+  start_time: string;
+  level: string;
+
+  experiment_id: string;
+  experiment_name: string;
+  experiment_dataset_id: string;
+
+  experiment_item_id: string;
+  experiment_item_root_span_id: string;
+  experiment_item_version: string | null;
+  experiment_item_expected_output: string | null;
+  experiment_item_metadata: Record<string, string>;
+  metadata: Record<string, string>;
+};
+
+/**
+ * Return type for experiment item metrics from ClickHouse.
+ */
+export type ExperimentItemMetricsReturnType = {
+  experiment_item_id: string;
+  trace_id: string;
+  total_cost: number | null;
+  latency_milliseconds: number | null;
+};
+
+/**
+ * Get experiment items count for pagination.
+ * Counts only the root spans for each experiment item (where span_id = experiment_item_root_span_id).
+ */
+export const getExperimentItemsCountFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  filter: FilterState;
+}) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      props.filter,
+      experimentItemsTableNativeUiColumnDefinitions,
+    ),
+  );
+
+  const { query, params } = new EventsQueryBuilder({
+    projectId: props.projectId,
+  })
+    .selectRaw("count(*) as count")
+    .whereRaw("e.experiment_item_id != ''")
+    .whereRaw("e.experiment_id = {experimentId: String}", {
+      experimentId: props.experimentId,
+    })
+    .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .applyFilters(eventsFilter)
+    .buildWithParams();
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params,
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-count",
+      projectId: props.projectId,
+    },
+  });
+
+  return rows.length > 0 ? Number(rows[0].count) : 0;
+};
+
+/**
+ * Get experiment items for a single experiment.
+ * Returns only the root span for each experiment item (where span_id = experiment_item_root_span_id).
+ */
+export const getExperimentItemsFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
+  const { projectId, experimentId, filter, orderBy, limit, offset } = props;
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      experimentItemsTableNativeUiColumnDefinitions,
+    ),
+  );
+
+  const orderByEntries = orderByToEntries(
+    [orderBy ?? null],
+    experimentItemsTableNativeUiColumnDefinitions,
+  );
+
+  const builder = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("experimentItems")
+    .whereRaw("e.experiment_item_id != ''")
+    .whereRaw("e.experiment_id = {experimentId: String}", { experimentId })
+    .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .applyFilters(eventsFilter)
+    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries));
+
+  if (limit !== undefined && offset !== undefined) {
+    builder.limit(limit, limit * offset);
+  }
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
+    query,
+    params,
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-list",
+      projectId,
+    },
+  });
+
+  console.log("rows", rows);
+
+  return rows.map((row) => ({
+    id: row.experiment_item_id,
+    observationId: row.id, // span_id
+    traceId: row.trace_id,
+    input: row.input,
+    output: row.output,
+    expectedOutput: row.experiment_item_expected_output,
+    level: row.level,
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+    experimentId: row.experiment_id,
+    experimentName: row.experiment_name,
+    datasetId: row.experiment_dataset_id,
+    rootSpanId: row.experiment_item_root_span_id,
+    datasetItemVersion: row.experiment_item_version
+      ? parseClickhouseUTCDateTimeFormat(row.experiment_item_version)
+      : null,
+    itemMetadata: row.experiment_item_metadata || {},
+    eventMetadata: row.metadata || {},
+  }));
+};
+
+/**
+ * Get metrics for specific experiment items.
+ */
+export const getExperimentItemMetricsFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  experimentItemIds: string[];
+}) => {
+  if (props.experimentItemIds.length === 0) {
+    return [];
+  }
+
+  const tracesBuilder = eventsTracesAggregation({
+    projectId: props.projectId,
+  })
+    .whereRaw("e.experiment_id = {experimentId: String}", {
+      experimentId: props.experimentId,
+    })
+    .whereRaw("e.experiment_item_id IN ({experimentItemIds: Array(String)})", {
+      experimentItemIds: props.experimentItemIds,
+    })
+    .whereRaw("e.is_deleted = 0");
+
+  const { query, params } = tracesBuilder.buildWithParams();
+
+  const rows = await queryClickhouse<ExperimentItemMetricsReturnType>({
+    query,
+    params: {
+      ...params,
+      projectId: props.projectId,
+    },
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-metrics",
+      projectId: props.projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.experiment_item_id,
+    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
+    latencyMs:
+      row.latency_milliseconds !== null
+        ? Number(row.latency_milliseconds)
+        : null,
+  }));
 };

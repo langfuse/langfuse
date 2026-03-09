@@ -1,25 +1,168 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
+import { api } from "@/src/utils/api";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { Button } from "@/src/components/ui/button";
+import { Columns3, MoreVertical } from "lucide-react";
+import Link from "next/link";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
+import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
+import { ExperimentOverviewPanel } from "@/src/features/experiments/components/ExperimentOverviewPanel";
+import {
+  OverviewPanelLayout,
+  OverviewPanelToggle,
+} from "@/src/components/layouts/overview-panel";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { useExperimentComparisonState } from "@/src/features/experiments/hooks/useExperimentComparisonState";
 
 export default function ExperimentDetail() {
   const router = useRouter();
+  const projectId = router.query.projectId as string;
   const experimentId = router.query.experimentId as string;
+
+  const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
+    "overview-panel-experiment-detail",
+    true,
+  );
+
+  // URL state for experiment comparison
+  const { comparisonIds, setComparisonIds } = useExperimentComparisonState();
+  const [comparisonSearchQuery, setComparisonSearchQuery] = useState("");
+
+  // TODO: Replace with actual query - api.experiments.byDatasetId.useQuery(...)
+  // Mock data for testing the comparison selector UI
+  const mockExperiments = [
+    {
+      id: "demo-dataset-run-1-demo-countries-dataset-950dc53a",
+      name: "demo-dataset-run-1-demo-countries-dataset",
+    },
+    {
+      id: "demo-dataset-run-0-demo-countries-dataset-950dc53a",
+      name: "demo-dataset-run-0-demo-countries-dataset",
+    },
+    { id: "exp-003", name: "Claude-3 Sonnet Test" },
+    { id: "exp-004", name: "Claude-3 Opus Test" },
+    { id: "exp-005", name: "Gemini Pro Evaluation" },
+    { id: "exp-006", name: "Llama-2 70B Benchmark" },
+    { id: "exp-007", name: "Mistral Large Test" },
+    { id: "exp-008", name: "Temperature 0.7 Run" },
+    { id: "exp-009", name: "Temperature 1.0 Run" },
+    { id: "exp-010", name: "Few-shot Prompting Test" },
+  ];
+
+  // Filter mock experiments by search query (simulating API search)
+  const availableExperiments = mockExperiments.filter(
+    (exp) =>
+      !comparisonSearchQuery ||
+      exp.name.toLowerCase().includes(comparisonSearchQuery.toLowerCase()),
+  );
+  const isLoadingExperiments = false;
+
+  // Fetch experiment to get dataset ID and other details
+  const { data: experiment } = api.experiments.byId.useQuery(
+    {
+      projectId,
+      experimentId,
+    },
+    {
+      enabled: Boolean(projectId && experimentId),
+    },
+  );
 
   return (
     <Page
       headerProps={{
-        title: "Experiment Detail",
+        title: experiment?.name ?? experimentId,
+        itemType: "EXPERIMENT",
+        breadcrumb: [
+          { name: "Experiments", href: `/project/${projectId}/experiments` },
+        ],
         help: {
           description:
-            "View and analyze a specific experiment run. See docs to learn more.",
+            "View and analyze experiment items with traces, scores, and metrics.",
           href: "https://langfuse.com/docs/datasets/experiments",
         },
+        actionButtonsRight: experiment?.datasetId ? (
+          <>
+            <OverviewPanelToggle
+              open={isOverviewOpen}
+              onOpenChange={setIsOverviewOpen}
+            />
+            <Link
+              href={{
+                pathname: `/project/${projectId}/datasets/${experiment.datasetId}/compare`,
+                query: { runs: [experimentId] },
+              }}
+            >
+              <Button>
+                <Columns3 className="mr-2 h-4 w-4" />
+                <span>Compare</span>
+              </Button>
+            </Link>
+            <DetailPageNav
+              currentId={experimentId}
+              path={(entry) => `/project/${projectId}/experiments/${entry.id}`}
+              listKey="experiments"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <DeleteDatasetRunButton
+                    projectId={projectId}
+                    datasetRunId={experimentId}
+                    datasetId={experiment.datasetId}
+                    redirectUrl={`/project/${projectId}/datasets/${experiment.datasetId}`}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        ) : undefined,
       }}
     >
-      <div className="p-4">
-        <p>Experiment Detail View - Coming Soon</p>
-        <p>Experiment ID: {experimentId}</p>
-      </div>
+      {experiment?.datasetId ? (
+        <OverviewPanelLayout
+          open={isOverviewOpen}
+          persistId={`experiment-detail-${experimentId}`}
+          mainContent={
+            <ExperimentItemsTable
+              projectId={projectId}
+              experimentId={experimentId}
+              datasetId={experiment.datasetId}
+            />
+          }
+          overviewContent={
+            <ExperimentOverviewPanel
+              projectId={projectId}
+              experiment={experiment}
+              comparisonIds={comparisonIds}
+              onComparisonIdsChange={setComparisonIds}
+              comparisonSearchQuery={comparisonSearchQuery}
+              onComparisonSearchQueryChange={setComparisonSearchQuery}
+              availableExperiments={availableExperiments}
+              isLoadingExperiments={isLoadingExperiments}
+            />
+          }
+          defaultMainSize={75}
+          defaultSidebarSize={25}
+          minMainSize={50}
+          maxSidebarSize={40}
+        />
+      ) : (
+        <div className="p-4">Loading experiment...</div>
+      )}
     </Page>
   );
 }
