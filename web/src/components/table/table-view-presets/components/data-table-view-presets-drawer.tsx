@@ -396,6 +396,7 @@ export function TableViewPresetsDrawer({
   return (
     <>
       <Drawer
+        forceDirection="responsive-left"
         onOpenChange={(open) => {
           if (open) {
             capture("saved_views:drawer_open", { tableName });
@@ -407,12 +408,10 @@ export function TableViewPresetsDrawer({
         <DrawerTrigger asChild>
           <Button
             variant="outline"
-            title={
-              selectedViewName ? `View: ${selectedViewName}` : "Saved Views"
-            }
+            title={selectedViewName ? `View: ${selectedViewName}` : "Views"}
           >
             <span>
-              {selectedViewName ? `View: ${selectedViewName}` : "Saved Views"}
+              {selectedViewName ? `View: ${selectedViewName}` : "Views"}
             </span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
@@ -427,7 +426,7 @@ export function TableViewPresetsDrawer({
           <div className="mx-auto w-full">
             <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
-                Saved Views{" "}
+                Views{" "}
                 <a
                   href="https://github.com/orgs/langfuse/discussions/4657"
                   target="_blank"
@@ -446,13 +445,13 @@ export function TableViewPresetsDrawer({
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
-                placeholder="Search saved views..."
+                placeholder="Search views..."
                 value={searchQuery}
                 onValueChange={setSearchQueryLocal}
                 className="h-9 border-none focus:ring-0"
               />
               <CommandList className="max-h-[calc(100vh-150px)]">
-                <CommandEmpty>No saved views found</CommandEmpty>
+                <CommandEmpty>No views found</CommandEmpty>
                 <CommandGroup className="pb-0">
                   {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
                   {!systemFilterPresets?.length && (
@@ -727,7 +726,7 @@ export function TableViewPresetsDrawer({
                                   itemId={view.id}
                                   projectId={projectId}
                                   scope="TableViewPresets:CUD"
-                                  entityToDeleteName="saved view"
+                                  entityToDeleteName="view"
                                   executeDeleteMutation={async () => {
                                     await handleDeleteView(view.id);
                                   }}

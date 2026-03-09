@@ -185,6 +185,18 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </Button>
         )}
+        {!!columnVisibility && !!columnOrder && !!viewConfig && (
+          <TableViewPresetsDrawer
+            viewConfig={viewConfig}
+            currentState={{
+              orderBy: orderByState ?? null,
+              filters: filterState ?? [],
+              columnOrder,
+              columnVisibility,
+              searchQuery: searchString,
+            }}
+          />
+        )}
         {searchConfig && (
           <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
             <div
@@ -347,18 +359,6 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-          {!!columnVisibility && !!columnOrder && !!viewConfig && (
-            <TableViewPresetsDrawer
-              viewConfig={viewConfig}
-              currentState={{
-                orderBy: orderByState ?? null,
-                filters: filterState ?? [],
-                columnOrder,
-                columnVisibility,
-                searchQuery: searchString,
-              }}
-            />
-          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
