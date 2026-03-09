@@ -43,6 +43,8 @@ langfuse/
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
 - Dev worker only: `pnpm run dev:worker`
+- Codex environment bootstrap: `bash scripts/codex/setup.sh`
+- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
