@@ -9,6 +9,11 @@ Langfuse monorepo guidance for fast, safe code changes.
 - Update this file in the same PR when monorepo-level architecture, workflows,
   dependency boundaries, mandatory verification commands, or release/security
   processes materially change.
+- Update this file when user feedback adds a durable repo-level instruction that
+  future agents should follow. Treat feedback as durable when it changes the
+  default workflow, review expectations, naming rules, verification rules, or
+  handoff conventions for future tasks. Do not edit `AGENTS.md` for one-off
+  task preferences.
 - For package-local material changes, update the package-local `AGENTS.md` in
   the same PR.
 - If no material guidance changed, do not edit AGENTS files.
@@ -77,6 +82,8 @@ Minimum verification matrix:
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits.
+- Pull request titles must follow Conventional Commits:
+  https://www.conventionalcommits.org/en/v1.0.0/
 - Include AGENTS.md updates in the same PR when guidance materially changes.
 - In PR descriptions, list impacted packages and executed verification commands.
 
