@@ -29,9 +29,11 @@ export const PublishTraceSwitch = (props: {
     onError: (err) => {
       trpcErrorToast(err);
     },
-    onSuccess: () => {
-      void utils.traces.invalidate();
-      void utils.events.byTraceId.invalidate();
+    onSuccess: async () => {
+      await Promise.all([
+        utils.traces.invalidate(),
+        utils.events.byTraceId.invalidate(),
+      ]);
     },
   });
 
@@ -71,8 +73,8 @@ export const PublishSessionSwitch = (props: {
     onError: (err) => {
       trpcErrorToast(err);
     },
-    onSuccess: () => {
-      void utils.sessions.invalidate();
+    onSuccess: async () => {
+      await utils.sessions.invalidate();
     },
   });
 
