@@ -46,8 +46,7 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { type ScoreDomain } from "@langfuse/shared";
-import { type AggregatedTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
-import type Decimal from "decimal.js";
+import { type TreeNode } from "@/src/components/trace2/lib/types";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -69,8 +68,10 @@ export interface ObservationDetailViewHeaderProps {
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
-  subtreeMetrics?: AggregatedTraceMetrics | null;
-  treeNodeTotalCost?: Decimal;
+  /** Whether this observation is a root in the tree */
+  isRoot?: boolean;
+  /** TreeNode with pre-computed aggregated metrics */
+  treeNode?: TreeNode;
 }
 
 export const ObservationDetailViewHeader = memo(
@@ -86,14 +87,17 @@ export const ObservationDetailViewHeader = memo(
     onSelectionUsed,
     isCommentDrawerOpen,
     onCommentDrawerOpenChange,
-    subtreeMetrics,
-    treeNodeTotalCost,
+    isRoot,
+    treeNode,
   }: ObservationDetailViewHeaderProps) {
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+
+    // For root observations, use aggregated values from TreeNode
+    const showAggregated = isRoot && treeNode;
 
     return (
       <div className="flex-shrink-0 space-y-2 border-b p-2 @container">
@@ -200,23 +204,25 @@ export const ObservationDetailViewHeader = memo(
             <EnvironmentBadge environment={observation.environment} />
             <CostBadge
               totalCost={
-                subtreeMetrics
-                  ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+                showAggregated
+                  ? (treeNode.totalCost?.toNumber() ?? null)
                   : totalCost
               }
               costDetails={
-                subtreeMetrics?.costDetails ?? observation.costDetails
+                showAggregated
+                  ? treeNode.aggregatedCostDetails
+                  : observation.costDetails
               }
             />
-            {subtreeMetrics ? (
-              subtreeMetrics.hasGenerationLike &&
-              subtreeMetrics.usageDetails && (
+            {showAggregated ? (
+              treeNode.hasGenerationLike &&
+              treeNode.aggregatedUsageDetails && (
                 <UsageBadge
                   type="GENERATION"
-                  inputUsage={subtreeMetrics.inputUsage}
-                  outputUsage={subtreeMetrics.outputUsage}
-                  totalUsage={subtreeMetrics.totalUsage}
-                  usageDetails={subtreeMetrics.usageDetails}
+                  inputUsage={treeNode.aggregatedInputUsage ?? 0}
+                  outputUsage={treeNode.aggregatedOutputUsage ?? 0}
+                  totalUsage={treeNode.aggregatedTotalUsage ?? 0}
+                  usageDetails={treeNode.aggregatedUsageDetails}
                 />
               )
             ) : (
