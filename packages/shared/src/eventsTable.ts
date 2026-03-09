@@ -120,7 +120,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal:
@@ -228,6 +228,20 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "score_categories",
     type: "categoryOptions",
     internal: "score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (numeric)",
+    id: "trace_scores_avg",
+    type: "numberObject",
+    internal: "trace_scores_avg",
+  },
+  {
+    name: "Trace Scores (categorical)",
+    id: "trace_score_categories",
+    type: "categoryOptions",
+    internal: "trace_score_categories",
     options: [], // to be added at runtime
     nullable: true,
   },

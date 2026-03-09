@@ -6,10 +6,12 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 
 export function V4BetaSidebarToggle() {
   const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
+  const capture = usePostHogClientCapture();
 
   return (
     <Tooltip>
@@ -24,7 +26,10 @@ export function V4BetaSidebarToggle() {
             id="v4-beta-toggle"
             size="sm"
             checked={isBetaEnabled}
-            onCheckedChange={setBetaEnabled}
+            onCheckedChange={(enabled) => {
+              setBetaEnabled(enabled);
+              capture("sidebar:v4_beta_toggled", { enabled });
+            }}
             disabled={isLoading}
             className="shrink-0"
           />

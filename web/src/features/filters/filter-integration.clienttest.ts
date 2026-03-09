@@ -22,6 +22,13 @@ import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
+import {
+  buildManagedEnvironmentPolicyConfig,
+  buildImplicitEnvironmentFilter,
+  buildEffectiveEnvironmentFilter,
+  stripImplicitEnvironmentFilterFromExplicitState,
+} from "./lib/managedEnvironmentPolicy";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -569,6 +576,24 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[1]?.value).toBe("a");
   });
 
+  it("should drop filters for columns missing in active table definitions", () => {
+    const urlFilter =
+      "environment;stringOptions;;any of;production,trace_scores_v4_only;number;;>=;0.8";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      traceFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]).toEqual({
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    });
+  });
+
   it("should handle backend column remapping from URL", () => {
     // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
     const urlFilter = "tags;arrayOptions;;any of;tag1";
@@ -717,5 +742,171 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         finalValues: ["tag-1", "tag-2"],
       });
     });
+  });
+});
+
+describe("Implicit Environment Defaults (sidebar only)", () => {
+  const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
+  const availableValues = [
+    "production",
+    "staging",
+    ...hiddenEnvironments,
+  ] as const;
+  const managedEnvironmentConfig = buildManagedEnvironmentPolicyConfig({
+    managedEnvironmentColumn: "environment",
+    hiddenEnvironments,
+  });
+  const strip = (explicitFilters: FilterState) =>
+    stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters,
+      availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
+    });
+
+  it("applies implicit env exclusion only when no explicit env filter exists", () => {
+    expect(
+      buildImplicitEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["trace-a"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: hiddenEnvironments,
+      },
+    ]);
+
+    expect(
+      buildImplicitEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([]);
+  });
+
+  it("strips default-equivalent env filters before URL/session persistence", () => {
+    const explicitWithExactDefault: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: hiddenEnvironments,
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(strip(explicitWithExactDefault)).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("keeps explicit overrides that enable hidden environments", () => {
+    const explicitWithHiddenEnabled: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "langfuse-evaluation"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(strip(explicitWithHiddenEnabled)).toEqual(explicitWithHiddenEnabled);
+
+    const explicitAll: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: [...availableValues],
+      },
+    ];
+
+    expect(strip(explicitAll)).toEqual(explicitAll);
+  });
+
+  it("keeps hidden-only explicit selection as explicit override", () => {
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("returns explicit environment filters as effective state", () => {
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["langfuse-evaluation"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
   });
 });
