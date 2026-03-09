@@ -31,8 +31,7 @@ import {
   logger,
   decryptAndParseExtraHeaders,
   blockEvaluatorConfigsInTx,
-  invalidateProjectEvalConfigCaches,
-  notifyBlockedEvaluatorConfigs,
+  finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -242,7 +241,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        const blockedJobConfigIds = new Set<string>();
         const providerBlockedJobConfigIds = new Set<string>();
         const defaultModelBlockedJobConfigIds = new Set<string>();
 
@@ -272,7 +270,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
 
           for (const configId of providerBlockResult.blockedJobConfigIds) {
-            blockedJobConfigIds.add(configId);
             providerBlockedJobConfigIds.add(configId);
           }
         }
@@ -304,7 +301,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
 
           for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
-            blockedJobConfigIds.add(configId);
             defaultModelBlockedJobConfigIds.add(configId);
           }
         }
@@ -325,7 +321,6 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         return {
-          blockedJobConfigIds: Array.from(blockedJobConfigIds),
           providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
           defaultModelBlockedJobConfigIds: Array.from(
             defaultModelBlockedJobConfigIds,
@@ -333,41 +328,25 @@ export const llmApiKeyRouter = createTRPCRouter({
         };
       });
 
-      if (result.blockedJobConfigIds.length > 0) {
-        await invalidateProjectEvalConfigCaches(input.projectId);
-
-        if (result.providerBlockedJobConfigIds.length > 0) {
-          void notifyBlockedEvaluatorConfigs({
-            projectId: input.projectId,
+      await finalizeBlockedEvaluatorConfigBlocks({
+        projectId: input.projectId,
+        notifications: [
+          {
             blockedJobConfigIds: result.providerBlockedJobConfigIds,
             blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
             blockMessage: getEvaluatorBlockMetadata(
               EvaluatorBlockReason.LLM_CONNECTION_MISSING,
             ).message,
-          }).catch((error) =>
-            logger.error(
-              "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
-              error,
-            ),
-          );
-        }
-
-        if (result.defaultModelBlockedJobConfigIds.length > 0) {
-          void notifyBlockedEvaluatorConfigs({
-            projectId: input.projectId,
+          },
+          {
             blockedJobConfigIds: result.defaultModelBlockedJobConfigIds,
             blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
             blockMessage: getEvaluatorBlockMetadata(
               EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
             ).message,
-          }).catch((error) =>
-            logger.error(
-              "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
-              error,
-            ),
-          );
-        }
-      }
+          },
+        ],
+      });
 
       return { success: true };
     }),

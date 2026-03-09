@@ -19,6 +19,12 @@ type BlockEvaluatorConfigsInTxParams = BlockEvaluatorConfigsParams & {
   tx: Prisma.TransactionClient;
 };
 
+export type BlockedEvaluatorNotification = {
+  blockedJobConfigIds: string[];
+  blockReason: EvaluatorBlockReason;
+  blockMessage: string;
+};
+
 export async function blockEvaluatorConfigsInTx({
   tx,
   projectId,
@@ -86,14 +92,38 @@ export async function blockEvaluatorConfigs(
     }),
   );
 
-  if (result.blockedJobConfigIds.length > 0) {
-    await invalidateProjectEvalConfigCaches(params.projectId);
+  await finalizeBlockedEvaluatorConfigBlocks({
+    projectId: params.projectId,
+    notifications: [
+      {
+        blockedJobConfigIds: result.blockedJobConfigIds,
+        blockReason: params.blockReason,
+        blockMessage: params.blockMessage,
+      },
+    ],
+  });
 
+  return result;
+}
+
+export async function finalizeBlockedEvaluatorConfigBlocks(params: {
+  projectId: string;
+  notifications: BlockedEvaluatorNotification[];
+}): Promise<void> {
+  const notifications = params.notifications.filter(
+    (notification) => notification.blockedJobConfigIds.length > 0,
+  );
+
+  if (notifications.length === 0) {
+    return;
+  }
+
+  await invalidateProjectEvalConfigCaches(params.projectId);
+
+  for (const notification of notifications) {
     void notifyBlockedEvaluatorConfigs({
       projectId: params.projectId,
-      blockedJobConfigIds: result.blockedJobConfigIds,
-      blockReason: params.blockReason,
-      blockMessage: params.blockMessage,
+      ...notification,
     }).catch((error) =>
       logger.error(
         "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
@@ -101,16 +131,11 @@ export async function blockEvaluatorConfigs(
       ),
     );
   }
-
-  return result;
 }
 
 type NotifyBlockedEvaluatorConfigsParams = {
   projectId: string;
-  blockedJobConfigIds: string[];
-  blockReason: EvaluatorBlockReason;
-  blockMessage: string;
-};
+} & BlockedEvaluatorNotification;
 
 export async function notifyBlockedEvaluatorConfigs({
   projectId,
