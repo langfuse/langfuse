@@ -576,15 +576,6 @@ Environment variable validation with Zod, package-specific configs (web/env.mjs 
 
 Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Jest for web, vitest for worker)
 
----
-
-## Related Skills
-
-- **database-verification** - Verify column names and schema consistency
-- **skill-developer** - Meta-skill for creating and managing skills
-
----
-
 **Skill Status**: COMPLETE ✅
 **Line Count**: ~540 lines
 **Progressive Disclosure**: 7 resource files ✅
