@@ -7,7 +7,7 @@ import {
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
-  type TableViewPresetDomain,
+  type TableViewPresetState,
   type TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
@@ -90,7 +90,7 @@ interface SearchConfig {
 }
 
 interface TableViewControllers {
-  applyViewState: (viewData: TableViewPresetDomain) => void;
+  applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
@@ -236,6 +236,18 @@ export function DataTableToolbar<TData, TValue>({
               </Badge>
             )}
           </Button>
+        )}
+        {!!columnVisibility && !!columnOrder && !!viewConfig && (
+          <TableViewPresetsDrawer
+            viewConfig={viewConfig}
+            currentState={{
+              orderBy: orderByState ?? null,
+              filters: filterState ?? [],
+              columnOrder,
+              columnVisibility,
+              searchQuery: searchString,
+            }}
+          />
         )}
         {searchConfig && (
           <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
@@ -407,18 +419,6 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-          {!!columnVisibility && !!columnOrder && !!viewConfig && (
-            <TableViewPresetsDrawer
-              viewConfig={viewConfig}
-              currentState={{
-                orderBy: orderByState ?? null,
-                filters: filterState ?? [],
-                columnOrder,
-                columnVisibility,
-                searchQuery: searchString,
-              }}
-            />
-          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
