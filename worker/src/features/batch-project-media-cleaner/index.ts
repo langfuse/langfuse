@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   deleteMediaByProjectId,
   logger,
+  recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -10,6 +11,8 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 export const BATCH_PROJECT_MEDIA_CLEANER_LOCK_KEY =
   "langfuse:batch-project-media-cleaner";
+
+const METRIC_PREFIX = "langfuse.batch_project_media_cleaner";
 
 export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
   protected get defaultIntervalMs(): number {
@@ -34,6 +37,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       intervalMs: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_INTERVAL_MS,
       sleepOnEmptyMs:
         env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS,
+      projectLimit: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_PROJECT_LIMIT,
       mediaBatchSize: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_MEDIA_BATCH_SIZE,
     });
     super.start();
@@ -44,22 +48,24 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<number> {
-    const deletedProjects = await prisma.project.findMany({
-      select: { id: true },
-      where: { deletedAt: { not: null } },
-    });
+    const projectsWithMedia = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT p.id
+      FROM projects p
+      INNER JOIN media m ON m.project_id = p.id
+      WHERE p.deleted_at IS NOT NULL
+      GROUP BY p.id
+      ORDER BY count(*) DESC
+      LIMIT ${env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_PROJECT_LIMIT}
+    `;
 
-    for (const project of deletedProjects) {
-      const mediaCount = await prisma.media.count({
-        where: { projectId: project.id },
-      });
+    const project = projectsWithMedia.at(0);
+    if (!project) {
+      return env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS;
+    }
 
-      if (mediaCount === 0) {
-        continue;
-      }
-
-      return (
-        (await this.withLock(async () => {
+    return (
+      (await this.withLock(
+        async () => {
           try {
             await deleteMediaByProjectId({
               projectId: project.id,
@@ -92,10 +98,11 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
           }
 
           return env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_INTERVAL_MS;
-        })) ?? env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS
-      );
-    }
-
-    return env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS;
+        },
+        () => {
+          recordIncrement(`${METRIC_PREFIX}.deletion_failures`, 1);
+        },
+      )) ?? env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS
+    );
   }
 }

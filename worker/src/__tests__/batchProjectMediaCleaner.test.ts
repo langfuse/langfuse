@@ -21,13 +21,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-vi.mock("../../env", async () => {
-  const actual = await vi.importActual("../../env");
+vi.mock("../env", async () => {
+  const actual = await vi.importActual("../env");
   return {
     env: {
       ...(actual as { env: object }).env,
       LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_INTERVAL_MS: 60_000,
       LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS: 300_000,
+      LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_PROJECT_LIMIT: 1000,
       LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_MEDIA_BATCH_SIZE: 2,
       LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "true",
     },
@@ -109,9 +110,7 @@ describe("BatchProjectMediaCleaner", () => {
     const cleaner = new BatchProjectMediaCleaner();
     const delay = await cleaner.processBatch();
 
-    expect(delay).toBe(
-      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS,
-    );
+    expect(delay).toBe(300_000);
     expect(deleteMediaByProjectId).not.toHaveBeenCalled();
     expect(await prisma.media.count({ where: { projectId } })).toBe(2);
   });
@@ -171,6 +170,20 @@ describe("BatchProjectMediaCleaner", () => {
     expect(await prisma.media.count({ where: { projectId } })).toBe(3);
   });
 
+  it("respects project limit when selecting deleted projects", async () => {
+    const cleaner = new BatchProjectMediaCleaner();
+
+    const queryRawSpy = vi.spyOn(prisma, "$queryRaw").mockResolvedValueOnce([]);
+
+    const delay = await cleaner.processBatch();
+
+    expect(delay).toBe(300_000);
+    expect(deleteMediaByProjectId).not.toHaveBeenCalled();
+    expect(queryRawSpy).toHaveBeenCalledTimes(1);
+
+    queryRawSpy.mockRestore();
+  });
+
   it("returns sleep interval when no work and interval when work exists", async () => {
     const cleaner = new BatchProjectMediaCleaner();
     const emptyDelay = await cleaner.processBatch();
@@ -185,8 +198,6 @@ describe("BatchProjectMediaCleaner", () => {
     await createMedia(projectId, 1);
 
     const workDelay = await cleaner.processBatch();
-    expect(workDelay).toBe(
-      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_INTERVAL_MS,
-    );
+    expect(workDelay).toBe(60_000);
   });
 });

@@ -154,22 +154,15 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
   private async processProject(workload: ProjectWorkload): Promise<void> {
     // Delete media files (S3 + PostgreSQL)
-    const pendingItemCount = await prisma.media.count({
-      where: {
-        projectId: workload.projectId,
-        createdAt: { lte: workload.cutoffDate },
-      },
-    });
-
-    // Record gauge for observed work
-    recordGauge(`${METRIC_PREFIX}.pending_items`, pendingItemCount, {
-      projectId: workload.projectId,
-    });
-
     const deletedCount = await deleteMediaByProjectId({
       projectId: workload.projectId,
       cutoffDate: workload.cutoffDate,
       limit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,
+    });
+
+    // Record gauge for observed work in this run
+    recordGauge(`${METRIC_PREFIX}.pending_items`, deletedCount, {
+      projectId: workload.projectId,
     });
 
     if (deletedCount > 0) {

@@ -349,6 +349,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3_600_000), // 1 hour sleep when there is no work
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_PROJECT_LIMIT: z.coerce
+    .number()
+    .positive()
+    .default(1000), // Max deleted projects to inspect per batch
   LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_MEDIA_BATCH_SIZE: z.coerce
     .number()
     .positive()

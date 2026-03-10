@@ -37,8 +37,10 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
   // Delete media data (S3 + postgres) for project
-  logger.info(`Deleting media for ${projectId} in org ${orgId}`);
-  await deleteMediaByProjectId({ projectId });
+  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+    logger.info(`Deleting media for ${projectId} in org ${orgId}`);
+    await deleteMediaByProjectId({ projectId });
+  }
 
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,
