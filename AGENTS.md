@@ -50,6 +50,8 @@ langfuse/
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
 - Dev worker only: `pnpm run dev:worker`
+- Codex environment bootstrap: `bash scripts/codex/setup.sh`
+- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
@@ -105,6 +107,7 @@ Minimum verification matrix:
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
 - `CLAUDE.md` is the Claude Code entrypoint for this repo and should stay as a thin shim that points back to this file.
+- Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
 - Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
 - Shared skills use a short `SKILL.md` entrypoint and may link to a local `AGENTS.md` or `resources/` files for detailed guidance.
