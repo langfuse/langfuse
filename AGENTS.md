@@ -1,19 +1,40 @@
-# Codex Guidelines for Langfuse
+# Langfuse Agent Guide
 
 Langfuse is an open source LLM engineering platform for developing, monitoring,
 evaluating, and debugging AI applications.
-Langfuse monorepo guidance for fast, safe code changes.
 
-## Maintenance Contract
+This file is the canonical, shared guide for coding and review agents in this
+repository.
+
+## Source of Truth & Scope
 - `AGENTS.md` is a living document.
 - Update this file in the same PR when monorepo-level architecture, workflows,
   dependency boundaries, mandatory verification commands, or release/security
   processes materially change.
-- For package-local material changes, update the package-local `AGENTS.md` in
-  the same PR.
-- If no material guidance changed, do not edit AGENTS files.
+- For package-local material changes, update the corresponding package guide in
+  the same PR:
+  - `web/AGENTS.md`
+  - `worker/AGENTS.md`
+  - `packages/shared/AGENTS.md`
+  - `ee/AGENTS.md`
+- Keep guidance DRY: this root file should stay monorepo-level; package-local
+  implementation details belong in package guides.
 
-## Project Structure & Module Organization
+## Production Scale Context (Use for Engineering Decisions)
+Langfuse operates at large multi-tenant scale:
+- **>80M traces/day**
+- **>5B tracing events/month**
+- **Thousands of customers** in one shared multi-tenant deployment
+
+Design implications:
+- Optimize for tenant isolation and predictable, index-friendly access paths.
+- Avoid global scans on hot paths.
+- Be careful with operations that work at small scale but degrade heavily at
+  production volume.
+- Assume noisy-neighbor effects and design queueing, retries, and caching
+  accordingly.
+
+## Monorepo Architecture
 ```text
 langfuse/
 ├─ web/                     # Next.js app (UI + tRPC + public REST)
@@ -25,33 +46,55 @@ langfuse/
 └─ scripts/                 # Repo scripts
 ```
 
-- Package guides:
-  - `web/AGENTS.md`
-  - `worker/AGENTS.md`
-  - `packages/shared/AGENTS.md`
-  - `ee/AGENTS.md`
-- Dependency direction:
-  - `web` -> `@langfuse/shared`, `@langfuse/ee`
-  - `worker` -> `@langfuse/shared`
-  - `@langfuse/ee` -> `@langfuse/shared`
-  - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
+Dependency direction:
+- `web` -> `@langfuse/shared`, `@langfuse/ee`
+- `worker` -> `@langfuse/shared`
+- `@langfuse/ee` -> `@langfuse/shared`
+- `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
+
+Ownership note:
 - Queue payload schemas and queue-name contracts are owned by
   `packages/shared/src/server/queues.ts`.
 
-## Build, Test, and Development Commands
+## Tech Stack & Key Patterns
+- **Web (`web/`)**: Next.js 14 Pages Router, tRPC + public REST, Prisma +
+  Postgres, ClickHouse, NextAuth/Auth.js, Tailwind, Zod v4 (`zod/v4`).
+- **Worker (`worker/`)**: Express.js, BullMQ + Redis.
+- **Infra**: Postgres, ClickHouse, Redis, MinIO/S3.
+
+Implementation conventions:
+- New frontend features belong in `web/src/features/[feature-name]/`.
+- Public API routes belong in `web/src/pages/api/public`.
+- For frontend cloud detection, use `useLangfuseCloudRegion` (never direct env
+  checks for this decision).
+- Window location usage must support custom `basePath`.
+
+## Build, Dev, and Verification
+Core commands:
 - Install deps: `pnpm install`
-- Dev all packages: `pnpm run dev`
-- Dev web only: `pnpm run dev:web`
-- Dev worker only: `pnpm run dev:worker`
-- Codex environment bootstrap: `bash scripts/codex/setup.sh`
-- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
+- Dev all: `pnpm run dev`
+- Dev web: `pnpm run dev:web`
+- Dev worker: `pnpm run dev:worker`
+- Codex bootstrap: `bash scripts/codex/setup.sh`
+- Codex maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
-- To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
-- If you have to rebuild all for testing, run: `pnpm run build`
+- Build verification (required when trying builds): `pnpm run build:check`
+- Full build: `pnpm run build`
 - Full reset/bootstrap (destructive): `pnpm run dx`
 
+Additional useful commands:
+- DB generate: `pnpm run db:generate`
+- DB migrate/reset/seed (run from `packages/shared/`):
+  - `pnpm run db:migrate`
+  - `pnpm run db:reset`
+  - `pnpm run db:seed`
+- Infra down: `pnpm run infra:dev:down`
+- Format: `pnpm run format`
+- Nuke (destructive): `pnpm run nuke`
+
 Minimum verification matrix:
+
 | Change scope | Minimum verification |
 | --- | --- |
 | `web/**` only | `pnpm --filter web run lint` + targeted web tests |
@@ -61,65 +104,110 @@ Minimum verification matrix:
 | Public API contract (`web/src/pages/api/public/**`, `web/src/features/public-api/types/**`, `fern/apis/**`) | web lint + targeted server API tests + Fern update/regeneration; never hand-edit `generated/**` |
 | Cross-package refactor (`web` + `worker` + `shared`) | `pnpm run lint` + `pnpm run typecheck` + targeted tests per impacted package |
 
-## Coding Style & Naming Conventions
+## Coding & Testing Standards
+General:
 - Keep changes scoped; avoid unrelated refactors.
-- Prefer package-local implementation details in package AGENTS files.
-- Do not hand-edit generated/build artifacts:
-  - `generated/*`
-  - `web/.next/*`
-  - `web/.next-check/*`
-  - `*/dist/*`
-  - `packages/shared/prisma/generated/*`
+- Prefer package-local details in package `AGENTS.md` files.
+- TypeScript: avoid `any` when possible.
+- Prefer a single params object for functions with multiple args.
+- Avoid moving functions around unless needed (reviewability).
+- For large arrays, prefer `concat` over spread.
 
-## Testing Guidelines
-- Keep each test independent and parallel-safe.
-- `web/src/__tests__/server`: avoid `pruneDatabase` calls.
-- Client tests contain `....clienttest.ts`
-- When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
+Generated/build artifacts (never hand-edit):
+- `generated/*`
+- `web/.next/*`
+- `web/.next-check/*`
+- `*/dist/*`
+- `packages/shared/prisma/generated/*`
 
-## Commit & Pull Request Guidelines
+Testing:
+- Keep tests independent and parallel-safe.
+- In `web/src/__tests__/server`, avoid `pruneDatabase`.
+- Client tests should use `....clienttest.ts` naming.
+- For bug fixes: write a failing test first, verify failure, then implement fix.
+
+## Review Checklist (Apply During Implementation and Review)
+Database & queries:
+- **ClickHouse clustered migrations** (`packages/shared/clickhouse/migrations/clustered`):
+  - include `ON CLUSTER default`
+  - use `Replicated*MergeTree`
+- **ClickHouse unclustered migrations** (`.../unclustered`):
+  - no `ON CLUSTER`
+  - no `Replicated*`
+- Keep clustered/unclustered migration counterparts aligned except for the
+  required cluster/replication differences.
+- New ClickHouse indexes should include corresponding `MATERIALIZE INDEX`
+  statements in the same migration (consider `SETTINGS mutations_sync = 2` for
+  smaller tables).
+- On project-scoped ClickHouse tables, require
+  `WHERE project_id = {projectId: String}`.
+- Never use `FINAL` on the `events` table.
+- Most `schema.prisma` changes should produce a migration in
+  `packages/shared/prisma/migrations`.
+- On project-scoped Prisma queries, include `projectId` in `where`.
+
+Runtime/config:
+- Import env vars via package `env.mjs/ts` modules, not `process.env.*`
+  directly.
+- Avoid generic `redis.call` when native redis client methods are available.
+
+Frontend layout:
+- Use `top-banner-offset` instead of `top-0` for global
+  `sticky`/`fixed`/`absolute` top positioning.
+- Banner offset uses CSS vars (`--banner-height`, `--banner-offset`) in
+  `web/src/styles/globals.css`.
+- Banner components should update `--banner-height` via `ResizeObserver` when
+  needed.
+- Available utilities:
+  - `top-banner-offset` / `pt-banner-offset`
+  - `h-screen-with-banner` / `min-h-screen-with-banner`
+
+Public API docs:
+- Changes in `web/src/features/public-api/types` usually require updates in
+  `fern/apis` and regeneration outputs (never hand-edit `generated/**`).
+- Fern type mapping:
+  - `nullish` -> `optional<nullable<T>>`
+  - `nullable` -> `nullable<T>`
+  - `optional` -> `optional<T>`
+
+Data model changes:
+- Update seeders when new features change the data model.
+
+## PR, Release, and Operations Notes
 - Follow Conventional Commits.
-- Include AGENTS.md updates in the same PR when guidance materially changes.
 - In PR descriptions, list impacted packages and executed verification commands.
+- Use repo-relative paths in docs/runbooks.
+- Docs repository is available at `../langfuse-docs/`.
+- GitHub issue search: `gh search issues`.
 
-## Docs Linking
-- Public API contract changes must update Fern sources in `fern/apis/**` and regenerated outputs; do not hand-edit `generated/**`.
-- Use repo-relative file paths in docs and runbooks.
-- Our docs live in `../langfuse-docs/` which is a different repo. You may always access this.
-
-## Agent-specific Notes
-- Root `AGENTS.md` is monorepo-level only.
-- Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
-- Keep guidance DRY: canonicalize to the most specific file.
-- Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
-
-## Release Channel
+Release:
 - Release workflow is managed at root (`pnpm run release`).
-- Langfuse Cloud deployments are triggered by pushes to `production` (`.github/workflows/deploy.yml`).
-- Promote `main` to `production` via `.github/workflows/promote-main-to-production.yml` (manual `workflow_dispatch`).
-- Use `pnpm run release:cloud` for CLI-triggered Cloud promotions with preflight branch/migration checks.
-- Do not change release/versioning flow without updating this file and impacted package guides.
+- Cloud deployments trigger from pushes to `production`
+  (`.github/workflows/deploy.yml`).
+- Promote `main` to `production` via
+  `.github/workflows/promote-main-to-production.yml` (`workflow_dispatch`).
+- Use `pnpm run release:cloud` for CLI-triggered cloud promotions with
+  preflight checks.
+- Do not change release/versioning flow without updating this file and impacted
+  package guides.
 
-## GitHub Search
-- use the github cli `gh search issues` to search github.
+Security:
+- Never commit secrets/credentials.
+- Keep `.env*.example` synchronized with required env vars.
+- Follow `SECURITY.md` for vulnerability handling.
 
-## GitHub Issues and Pull Requests
-- Placeholder: add issue triage and PR hygiene conventions used by maintainers.
+Troubleshooting:
+- Lint/typecheck failures: `pnpm run lint`, `pnpm run tc`.
+- Schema/client drift: `pnpm run db:generate`.
+- Local infra issues: `pnpm run infra:dev:up`; use `pnpm run dx` only when a
+  destructive reset is intended.
 
-## Security and Configuration Tips
-- Never commit secrets or credentials.
-- Keep examples in `.env*.example` files in sync with required env vars.
-- Follow `SECURITY.md` for vulnerability reporting/handling.
-
-## Troubleshooting
-- Lint/typecheck failures: run `pnpm run lint` and `pnpm run tc`.
-- Schema/client drift: run `pnpm run db:generate`.
-- Local infra issues: run `pnpm run infra:dev:up`; use `pnpm run dx` only when destructive reset is intended.
-
-## Git Notes
-- Do not use destructive git commands (for example `reset --hard`) unless explicitly requested.
+Git hygiene:
+- Do not use destructive git commands (for example `reset --hard`) unless
+  explicitly requested.
 - Do not revert unrelated working-tree changes.
 - Keep commits focused and atomic.
 
-## Cursor Rules
-- Additional folder-specific rules live in `.cursor/rules/`.
+## Related Guidance Files
+- `CLAUDE.md` points to this file as canonical guidance.
+- Additional folder-specific rules may exist under `.cursor/rules/`.
