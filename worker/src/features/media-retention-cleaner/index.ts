@@ -1,10 +1,10 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getS3MediaStorageClient,
   logger,
   recordGauge,
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+  deleteMediaByProjectId,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -154,11 +154,34 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
   private async processProject(workload: ProjectWorkload): Promise<void> {
     // Delete media files (S3 + PostgreSQL)
-    if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-      await this.deleteExpiredMedia(
-        workload,
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-      );
+    const pendingItemCount = await prisma.media.count({
+      where: {
+        projectId: workload.projectId,
+        createdAt: { lte: workload.cutoffDate },
+      },
+    });
+
+    // Record gauge for observed work
+    recordGauge(`${METRIC_PREFIX}.pending_items`, pendingItemCount, {
+      projectId: workload.projectId,
+    });
+
+    const deletedCount = await deleteMediaByProjectId({
+      projectId: workload.projectId,
+      cutoffDate: workload.cutoffDate,
+      limit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,
+    });
+
+    if (deletedCount > 0) {
+      // Record successful deletion metrics
+      recordIncrement(`${METRIC_PREFIX}.files_deleted`, deletedCount, {
+        projectId: workload.projectId,
+      });
+
+      logger.info(`${this.name}: Media files deleted`, {
+        projectId: workload.projectId,
+        count: deletedCount,
+      });
     }
 
     // Delete blob storage entries (S3 + ClickHouse soft delete)
@@ -172,50 +195,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     logger.info(`${this.name}: Project processed`, {
       projectId: workload.projectId,
       retentionDays: workload.retentionDays,
-    });
-  }
-
-  private async deleteExpiredMedia(
-    workload: ProjectWorkload,
-    bucket: string,
-  ): Promise<void> {
-    const mediaFiles = await prisma.media.findMany({
-      select: { id: true, bucketPath: true },
-      where: {
-        projectId: workload.projectId,
-        createdAt: { lte: workload.cutoffDate },
-      },
-    });
-
-    // Record gauge for observed work
-    recordGauge(`${METRIC_PREFIX}.pending_items`, mediaFiles.length, {
-      projectId: workload.projectId,
-    });
-
-    if (mediaFiles.length === 0) {
-      return;
-    }
-
-    // Delete from S3 first
-    const mediaStorageClient = getS3MediaStorageClient(bucket);
-    await mediaStorageClient.deleteFiles(mediaFiles.map((f) => f.bucketPath));
-
-    // Delete from PostgreSQL (cascades to traceMedia/observationMedia)
-    await prisma.media.deleteMany({
-      where: {
-        id: { in: mediaFiles.map((f) => f.id) },
-        projectId: workload.projectId,
-      },
-    });
-
-    // Record successful deletion metrics
-    recordIncrement(`${METRIC_PREFIX}.files_deleted`, mediaFiles.length, {
-      projectId: workload.projectId,
-    });
-
-    logger.info(`${this.name}: Media files deleted`, {
-      projectId: workload.projectId,
-      count: mediaFiles.length,
     });
   }
 }

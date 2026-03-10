@@ -9,31 +9,12 @@ import {
   logger,
   QueueName,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
-  StorageService,
-  StorageServiceFactory,
+  deleteMediaByProjectId,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
 import { env } from "../env";
-
-let s3MediaStorageClient: StorageService;
-
-const getS3MediaStorageClient = (bucketName: string): StorageService => {
-  if (!s3MediaStorageClient) {
-    s3MediaStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
-    });
-  }
-  return s3MediaStorageClient;
-};
 
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
@@ -55,28 +36,9 @@ export const projectDeleteProcessor: Processor = async (
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
-  // Delete media data from S3 for project
-  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-    logger.info(`Deleting media for ${projectId} in org ${orgId}`);
-    const mediaFilesToDelete = await prisma.media.findMany({
-      select: {
-        id: true,
-        projectId: true,
-        bucketPath: true,
-      },
-      where: {
-        projectId,
-      },
-    });
-    const mediaStorageClient = getS3MediaStorageClient(
-      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-    );
-    // Delete from Cloud Storage
-    await mediaStorageClient.deleteFiles(
-      mediaFilesToDelete.map((f) => f.bucketPath),
-    );
-    // No need to delete from table as this will be done below via Prisma
-  }
+  // Delete media data (S3 + postgres) for project
+  logger.info(`Deleting media for ${projectId} in org ${orgId}`);
+  await deleteMediaByProjectId({ projectId });
 
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,

@@ -337,6 +337,23 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
 
+  // Batch Project Media Cleaner configuration
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000), // 10 minutes between runs when work is found
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_SLEEP_ON_EMPTY_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // 1 hour sleep when there is no work
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_MEDIA_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(10_000), // Max media items to process per batch
+
   // Batch Data Retention Cleaner configuration (ClickHouse)
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED: z
     .enum(["true", "false"])

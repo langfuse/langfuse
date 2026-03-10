@@ -83,6 +83,7 @@ import {
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
+import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 
 const app = express();
 
@@ -633,6 +634,14 @@ export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
   batchTraceDeletionCleaner.start();
+}
+
+// Batch project media cleaner for soft-deleted project media/blob cleanup
+export let batchProjectMediaCleaner: BatchProjectMediaCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_ENABLED === "true") {
+  batchProjectMediaCleaner = new BatchProjectMediaCleaner();
+  batchProjectMediaCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
