@@ -3,6 +3,7 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TracingSearchType,
+  tracesTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -93,6 +94,7 @@ export const getTraceStream = async (props: {
         },
       ],
       tracesTableUiColumnDefinitions,
+      tracesTableCols,
     ),
   );
 

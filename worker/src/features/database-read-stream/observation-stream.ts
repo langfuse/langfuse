@@ -5,6 +5,7 @@ import {
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  observationsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -164,6 +165,7 @@ export const getObservationStream = async (props: {
         },
       ],
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
