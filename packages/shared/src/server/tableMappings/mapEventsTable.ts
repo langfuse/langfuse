@@ -174,6 +174,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "e.prompt_name",
   },
   {
+    uiTableName: "Prompt Version",
+    uiTableId: "promptVersion",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.prompt_version",
+  },
+  {
     uiTableName: "Input",
     uiTableId: "input",
     clickhouseTableName: "events_proto",
