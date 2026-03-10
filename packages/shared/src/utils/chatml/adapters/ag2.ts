@@ -118,6 +118,14 @@ export const ag2Adapter: ProviderAdapter = {
     // Explicit framework override
     if (ctx.framework === "ag2" || ctx.framework === "autogen") return true;
 
+    // Check observation name for AG2 patterns (before metadata, as metadata may be absent)
+    if (ctx.observationName) {
+      for (const pattern of AG2_NAME_PATTERNS) {
+        if (pattern.test(ctx.observationName)) return true;
+      }
+      // "chat <model>" pattern is too generic, only match if combined with other signals
+    }
+
     const meta = parseMetadata(ctx.metadata);
     if (!meta) return false;
 
@@ -136,14 +144,6 @@ export const ag2Adapter: ProviderAdapter = {
 
       // Check for ag2-prefixed attributes
       if (Object.keys(attrs).some((key) => key.startsWith("ag2."))) return true;
-    }
-
-    // Check observation name for AG2 patterns
-    if (ctx.observationName) {
-      for (const pattern of AG2_NAME_PATTERNS) {
-        if (pattern.test(ctx.observationName)) return true;
-      }
-      // "chat <model>" pattern is too generic, only match if combined with other signals
     }
 
     return false;
