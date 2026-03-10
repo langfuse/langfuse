@@ -30,7 +30,7 @@ export function V4BetaSidebarToggle() {
             htmlFor="v4-beta-toggle"
             className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
           >
-            Preview (fast)
+            Fast (Preview)
           </Label>
         </div>
         <Tooltip>
