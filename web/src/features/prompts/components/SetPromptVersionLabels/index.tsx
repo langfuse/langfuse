@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
-import { CircleFadingArrowUp, PlusIcon } from "lucide-react";
+import { CircleFadingArrowUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import {
   InputCommand,
   InputCommandGroup,
@@ -15,8 +16,11 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { PRODUCTION_LABEL, type Prompt } from "@langfuse/shared";
-import { AddLabelForm } from "./AddLabelForm";
+import {
+  PRODUCTION_LABEL,
+  PromptLabelSchema,
+  type Prompt,
+} from "@langfuse/shared";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
@@ -47,7 +51,7 @@ export function SetPromptVersionLabels({
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
-  const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const labelsChanged =
     JSON.stringify([...selectedLabels].sort()) !==
     JSON.stringify([...prompt.labels].sort());
@@ -55,7 +59,7 @@ export function SetPromptVersionLabels({
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(
     {
-      projectId: projectId as string, // Typecast as query is enabled only when projectId is present
+      projectId: projectId as string,
     },
     { enabled: Boolean(projectId) },
   );
@@ -67,6 +71,7 @@ export function SetPromptVersionLabels({
         ...new Set([...prompt.labels, ...(usedLabelsInProject.data ?? [])]),
       ]);
       setSelectedLabels(prompt.labels);
+      setSearchValue("");
     }
   }, [isOpen, prompt.labels, usedLabelsInProject.data]);
 
@@ -107,6 +112,41 @@ export function SetPromptVersionLabels({
   const handleOnOpenChange = (open: boolean) => {
     if (!hasAccess) setIsOpen(false);
     else setIsOpen(open);
+  };
+
+  // Derived label lists
+  const customLabels = labels.filter((l) => !isReservedPromptLabel(l));
+  const filteredCustomLabels = customLabels.filter((l) =>
+    l.toLowerCase().includes(searchValue.toLowerCase().trim()),
+  );
+  const unselectedCount = customLabels.filter(
+    (l) => !selectedLabels.includes(l),
+  ).length;
+
+  // Validate new label creation from search input
+  const trimmedSearch = searchValue.trim();
+  const isValidNewLabel =
+    trimmedSearch.length > 0 &&
+    !isReservedPromptLabel(trimmedSearch) &&
+    PromptLabelSchema.safeParse(trimmedSearch).success &&
+    !labels.includes(trimmedSearch);
+  const noExactMatch =
+    trimmedSearch.length > 0 && !labels.includes(trimmedSearch);
+
+  const handleCreateLabel = () => {
+    if (!isValidNewLabel) return;
+    setLabels((prev) => [...prev, trimmedSearch]);
+    setSelectedLabels((prev) => [...new Set([...prev, trimmedSearch])]);
+    capture("prompt_detail:add_label_submit");
+    setSearchValue("");
+    setTimeout(
+      () =>
+        customLabelScrollRef.current?.scrollTo({
+          top: customLabelScrollRef.current?.scrollHeight,
+          behavior: "smooth",
+        }),
+      0,
+    );
   };
 
   return (
@@ -166,50 +206,100 @@ export function SetPromptVersionLabels({
               </InputCommandGroup>
               <InputCommandSeparator />
               <InputCommandGroup heading="Custom labels">
+                {/* Search + create input */}
+                <div className="px-2 pb-2 pt-1">
+                  <Input
+                    placeholder="Search or create label…"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateLabel();
+                    }}
+                    className="h-7 text-sm"
+                  />
+                </div>
+
+                {/* Select all N / Clear links */}
+                {customLabels.length > 0 && (
+                  <div className="flex items-center gap-3 px-2 pb-1">
+                    <button
+                      type="button"
+                      className={cn(
+                        "text-xs text-primary underline-offset-2 hover:underline",
+                        unselectedCount === 0 &&
+                          "cursor-default text-muted-foreground no-underline opacity-50",
+                      )}
+                      disabled={unselectedCount === 0}
+                      onClick={() =>
+                        setSelectedLabels((prev) => [
+                          ...new Set([...prev, ...customLabels]),
+                        ])
+                      }
+                    >
+                      {unselectedCount > 0
+                        ? `Select all ${unselectedCount}`
+                        : "Select all"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <button
+                      type="button"
+                      className={cn(
+                        "text-xs text-primary underline-offset-2 hover:underline",
+                        customLabels.every(
+                          (l) => !selectedLabels.includes(l),
+                        ) &&
+                          "cursor-default text-muted-foreground no-underline opacity-50",
+                      )}
+                      disabled={customLabels.every(
+                        (l) => !selectedLabels.includes(l),
+                      )}
+                      onClick={() =>
+                        setSelectedLabels((prev) =>
+                          prev.filter((l) => isReservedPromptLabel(l)),
+                        )
+                      }
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                {/* Filtered label list */}
                 <div
-                  className="max-h-[300px] overflow-y-auto overflow-x-hidden"
+                  className="max-h-[240px] overflow-y-auto overflow-x-hidden"
                   ref={customLabelScrollRef}
                 >
-                  {labels
-                    .filter((l) => !isReservedPromptLabel(l))
-                    .map((label) => (
-                      <LabelCommandItem
-                        key={label}
-                        {...{ selectedLabels, setSelectedLabels, label }}
-                      />
-                    ))}
+                  {filteredCustomLabels.map((label) => (
+                    <LabelCommandItem
+                      key={label}
+                      {...{ selectedLabels, setSelectedLabels, label }}
+                    />
+                  ))}
+
+                  {/* Create new label option */}
+                  {noExactMatch && (
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center px-2 py-1.5 text-left text-sm text-muted-foreground",
+                        isValidNewLabel
+                          ? "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                          : "cursor-default opacity-50",
+                      )}
+                      disabled={!isValidNewLabel}
+                      onClick={handleCreateLabel}
+                    >
+                      <span className="truncate">
+                        Create a new label:{" "}
+                        <strong className="text-foreground">
+                          {trimmedSearch}
+                        </strong>
+                      </span>
+                    </button>
+                  )}
                 </div>
               </InputCommandGroup>
             </InputCommandList>
-            <div className="px-1">
-              {isAddingLabel ? (
-                <AddLabelForm
-                  {...{
-                    setLabels,
-                    setSelectedLabels,
-                    onAddLabel: () => {
-                      setTimeout(
-                        () =>
-                          customLabelScrollRef.current?.scrollTo({
-                            top: customLabelScrollRef.current?.scrollHeight,
-                            behavior: "smooth",
-                          }),
-                        0,
-                      );
-                    },
-                  }}
-                />
-              ) : (
-                <Button
-                  variant="ghost"
-                  className="mt-2 w-full justify-start px-2 py-1 text-sm font-normal"
-                  onClick={() => setIsAddingLabel(true)}
-                >
-                  <PlusIcon className="mr-2 h-4 w-4" />
-                  Add custom label
-                </Button>
-              )}
-            </div>
           </InputCommand>
           <Button
             type="button"
