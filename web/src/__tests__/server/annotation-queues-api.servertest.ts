@@ -199,6 +199,57 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.scoreConfigIds).toEqual([scoreConfig.id]);
     });
 
+    it("should create a queue with description set to null", async () => {
+      const scoreConfig = await prisma.scoreConfig.create({
+        data: {
+          name: "Score Config for Null Desc",
+          description: "Test",
+          projectId,
+          dataType: "NUMERIC",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: `Null Desc Queue ${uuidv4()}`,
+          description: null,
+          scoreConfigIds: [scoreConfig.id],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.description).toBeNull();
+    });
+
+    it("should create a queue with description omitted", async () => {
+      const scoreConfig = await prisma.scoreConfig.create({
+        data: {
+          name: "Score Config for No Desc",
+          description: "Test",
+          projectId,
+          dataType: "NUMERIC",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: `No Desc Queue ${uuidv4()}`,
+          scoreConfigIds: [scoreConfig.id],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.description).toBeNull();
+    });
+
     it("should return 400 if the queue name already exists", async () => {
       await prisma.annotationQueue.create({
         data: {
