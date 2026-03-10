@@ -149,6 +149,11 @@ export class TableViewService {
             name: true,
           },
         },
+        filters: true,
+        columnOrder: true,
+        columnVisibility: true,
+        searchQuery: true,
+        orderBy: true,
       },
     });
 

@@ -3,7 +3,7 @@ import {
   type TableViewPresetTableName,
   type FilterState,
   type OrderByState,
-  type TableViewPresetDomain,
+  type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
@@ -179,7 +179,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetDomain) => {
+    (viewData: TableViewPresetState) => {
       // lock table
       setIsLoading(true);
 
