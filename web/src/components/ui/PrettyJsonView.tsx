@@ -10,10 +10,6 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
-  replacePromptReferencesWithMarkdownLinks,
-  usePromptReferenceProjectId,
-} from "@/src/components/ui/PromptReferences";
-import {
   ChevronDown,
   ChevronRight,
   UnfoldVertical,
@@ -793,7 +789,6 @@ export function PrettyJsonView(props: {
     return result;
   }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
-  const promptReferenceProjectId = usePromptReferenceProjectId();
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
@@ -1222,16 +1217,7 @@ export function PrettyJsonView(props: {
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          <MarkdownView
-            markdown={
-              promptReferenceProjectId
-                ? replacePromptReferencesWithMarkdownLinks(
-                    promptReferenceProjectId,
-                    markdownContent || "",
-                  )
-                : markdownContent || ""
-            }
-          />
+          <MarkdownView markdown={markdownContent || ""} />
         </div>
       ) : (
         <>

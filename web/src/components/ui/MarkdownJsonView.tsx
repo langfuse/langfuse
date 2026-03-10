@@ -1,16 +1,11 @@
 import {
   OpenAIContentSchema,
-  isOpenAITextContentPart,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import {
-  replacePromptReferencesWithMarkdownLinks,
-  usePromptReferenceProjectId,
-} from "@/src/components/ui/PromptReferences";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
@@ -109,66 +104,23 @@ export function MarkdownJsonView({
     () => OpenAIContentSchema.safeParse(content),
     [content],
   );
-  const promptReferenceProjectId = usePromptReferenceProjectId();
 
   const canEnableMarkdown = isSupportedMarkdownFormat(
     content,
     validatedOpenAIContent,
   );
 
-  const markdownWithPromptLinks = useMemo<
-    z.infer<typeof OpenAIContentSchema>
-  >(() => {
-    const markdownValue = validatedOpenAIContent.success
-      ? validatedOpenAIContent.data
-      : null;
-    if (!promptReferenceProjectId) return markdownValue;
-
-    if (typeof markdownValue === "string") {
-      return replacePromptReferencesWithMarkdownLinks(
-        promptReferenceProjectId,
-        markdownValue,
-      );
-    }
-
-    if (Array.isArray(markdownValue)) {
-      return markdownValue.map((part) =>
-        isOpenAITextContentPart(part)
-          ? {
-              ...part,
-              text: replacePromptReferencesWithMarkdownLinks(
-                promptReferenceProjectId,
-                part.text,
-              ),
-            }
-          : part,
-      );
-    }
-
-    return markdownValue;
-  }, [promptReferenceProjectId, validatedOpenAIContent]);
-
-  const audioWithPromptLinks = useMemo(() => {
-    if (!promptReferenceProjectId || !audio?.transcript) return audio;
-
-    return {
-      ...audio,
-      transcript: replacePromptReferencesWithMarkdownLinks(
-        promptReferenceProjectId,
-        audio.transcript,
-      ),
-    };
-  }, [audio, promptReferenceProjectId]);
-
   return (
     <>
       {canEnableMarkdown ? (
         <MarkdownView
-          markdown={markdownWithPromptLinks}
+          markdown={
+            validatedOpenAIContent.success ? validatedOpenAIContent.data : null
+          }
           title={title}
           titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}
-          audio={audioWithPromptLinks}
+          audio={audio}
           media={media}
           controlButtons={controlButtons}
           afterHeader={afterHeader}

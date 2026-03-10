@@ -10,6 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { FileCode } from "lucide-react";
 
+const PROMPT_REFERENCE_MARKDOWN_PREFIX = "langfuse-prompt://reference?";
 const PromptReferenceContext = createContext<string | undefined>(undefined);
 
 export const PromptReferenceProvider = ({
@@ -87,7 +88,6 @@ const escapeMarkdownLinkText = (text: string) =>
   text.replace(/[[\]\\]/g, "\\$&");
 
 export const replacePromptReferencesWithMarkdownLinks = (
-  projectId: string,
   content: string,
 ): string => {
   if (!content) return content;
@@ -103,16 +103,66 @@ export const replacePromptReferencesWithMarkdownLinks = (
       const suffix =
         tag.type === "version" ? ` v${tag.version}` : ` ${tag.label}`.trimEnd();
       const linkText = escapeMarkdownLinkText(`${tag.name}${suffix}`);
-      return `[${linkText}](${getPromptReferenceUrl(projectId, tag)})`;
+      return `[${linkText}](${getPromptReferenceMarkdownHref(tag)})`;
     },
   );
+};
+
+export const getPromptReferenceMarkdownHref = (
+  tag: ParsedPromptDependencyTag,
+) => {
+  const params = new URLSearchParams({
+    name: tag.name,
+    type: tag.type,
+  });
+
+  if (tag.type === "version") {
+    params.set("version", String(tag.version));
+  } else {
+    params.set("label", tag.label);
+  }
+
+  return `${PROMPT_REFERENCE_MARKDOWN_PREFIX}${params.toString()}`;
+};
+
+export const parsePromptReferenceMarkdownHref = (
+  href: string | undefined,
+): ParsedPromptDependencyTag | null => {
+  if (!href?.startsWith(PROMPT_REFERENCE_MARKDOWN_PREFIX)) return null;
+
+  const params = new URLSearchParams(
+    href.slice(PROMPT_REFERENCE_MARKDOWN_PREFIX.length),
+  );
+  const name = params.get("name");
+  const type = params.get("type");
+
+  if (!name || !type) return null;
+
+  if (type === "version") {
+    const version = Number(params.get("version"));
+    if (!Number.isFinite(version)) return null;
+
+    return {
+      name,
+      type,
+      version,
+    };
+  }
+
+  if (type !== "label") return null;
+
+  return {
+    name,
+    type,
+    label: params.get("label") ?? "",
+  };
 };
 
 export const PromptReferenceButton = ({
   promptRef,
   fallbackText,
 }: {
-  promptRef: PromptReferenceWithPosition;
+  promptRef: ParsedPromptDependencyTag;
   fallbackText: string;
 }) => {
   const projectId = usePromptReferenceProjectId();

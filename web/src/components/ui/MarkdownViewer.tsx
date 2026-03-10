@@ -38,6 +38,11 @@ import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
+import {
+  parsePromptReferenceMarkdownHref,
+  PromptReferenceButton,
+  replacePromptReferencesWithMarkdownLinks,
+} from "@/src/components/ui/PromptReferences";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -109,6 +114,22 @@ const isImageNode = (node?: ReactMarkdownNode): boolean =>
       "tagName" in child && child.tagName === "img",
   );
 
+const getNodeTextContent = (node: ReactNode): string => {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(getNodeTextContent).join("");
+  }
+
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return getNodeTextContent(node.props.children);
+  }
+
+  return "";
+};
+
 function MarkdownRenderer({
   markdown,
   theme,
@@ -120,6 +141,9 @@ function MarkdownRenderer({
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
+  const markdownWithPromptReferences =
+    replacePromptReferencesWithMarkdownLinks(markdown);
+
   // Try to parse markdown content
 
   try {
@@ -143,6 +167,16 @@ function MarkdownRenderer({
               );
             },
             a({ children, href }) {
+              const promptReference = parsePromptReferenceMarkdownHref(href);
+              if (promptReference) {
+                return (
+                  <PromptReferenceButton
+                    promptRef={promptReference}
+                    fallbackText={getNodeTextContent(children)}
+                  />
+                );
+              }
+
               // Handle mention links
               if (href?.startsWith(MENTION_USER_PREFIX)) {
                 const userId = href.replace(MENTION_USER_PREFIX, "");
@@ -278,7 +312,7 @@ function MarkdownRenderer({
             },
           }}
         >
-          {markdown}
+          {markdownWithPromptReferences}
         </MemoizedReactMarkdown>
       </div>
     );
