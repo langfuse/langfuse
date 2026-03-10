@@ -13,6 +13,7 @@ import {
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  eventsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -113,6 +114,7 @@ export const getEventsStream = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -387,6 +389,7 @@ export const getEventsStreamForEval = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -525,6 +528,7 @@ export const getEventsStreamForDataset = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
