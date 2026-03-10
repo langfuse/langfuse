@@ -21,6 +21,7 @@ import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
   MediaReferenceStringSchema,
+  PromptDependencyRegex,
   type OpenAIContentParts,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
@@ -39,9 +40,12 @@ import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
 import {
+  getPromptReferenceMarkdownHref,
+  getPromptReferenceMarkdownLabel,
+  parsePromptDependencyInnerContent,
   parsePromptReferenceMarkdownHref,
   PromptReferenceButton,
-  replacePromptReferencesWithMarkdownLinks,
+  usePromptReferenceProjectId,
 } from "@/src/components/ui/PromptReferences";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
@@ -130,6 +134,92 @@ const getNodeTextContent = (node: ReactNode): string => {
   return "";
 };
 
+type MarkdownAstNode = {
+  type: string;
+  value?: string;
+  url?: string;
+  children?: MarkdownAstNode[];
+};
+
+const splitTextNodeWithPromptReferences = (
+  node: MarkdownAstNode,
+): MarkdownAstNode[] => {
+  const value = node.value;
+  if (!value) return [node];
+
+  const promptRegex = new RegExp(PromptDependencyRegex.source, "g");
+  const parts: MarkdownAstNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = promptRegex.exec(value)) !== null) {
+    const index = match.index ?? 0;
+    const fullMatch = match[0];
+    const innerContent = match[1];
+
+    if (typeof innerContent !== "string") continue;
+
+    const tag = parsePromptDependencyInnerContent(innerContent, index);
+    if (!tag) continue;
+
+    if (index > lastIndex) {
+      parts.push({
+        type: "text",
+        value: value.slice(lastIndex, index),
+      });
+    }
+
+    parts.push({
+      type: "link",
+      url: getPromptReferenceMarkdownHref(tag),
+      children: [
+        {
+          type: "text",
+          value: getPromptReferenceMarkdownLabel(tag),
+        },
+      ],
+    });
+
+    lastIndex = index + fullMatch.length;
+  }
+
+  if (parts.length === 0) return [node];
+
+  if (lastIndex < value.length) {
+    parts.push({
+      type: "text",
+      value: value.slice(lastIndex),
+    });
+  }
+
+  return parts;
+};
+
+const transformPromptReferenceNodes = (node: MarkdownAstNode): void => {
+  if (!Array.isArray(node.children)) return;
+  if (
+    node.type === "code" ||
+    node.type === "inlineCode" ||
+    node.type === "link" ||
+    node.type === "linkReference"
+  ) {
+    return;
+  }
+
+  node.children = node.children.flatMap((child) => {
+    if (child.type === "text") {
+      return splitTextNodeWithPromptReferences(child);
+    }
+
+    transformPromptReferenceNodes(child);
+    return [child];
+  });
+};
+
+const remarkPromptReferences = () => (tree: MarkdownAstNode) => {
+  transformPromptReferenceNodes(tree);
+};
+
 function MarkdownRenderer({
   markdown,
   theme,
@@ -141,8 +231,7 @@ function MarkdownRenderer({
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
-  const markdownWithPromptReferences =
-    replacePromptReferencesWithMarkdownLinks(markdown);
+  const promptReferenceProjectId = usePromptReferenceProjectId();
 
   // Try to parse markdown content
 
@@ -156,7 +245,11 @@ function MarkdownRenderer({
         )}
       >
         <MemoizedReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={
+            promptReferenceProjectId
+              ? [remarkGfm, remarkPromptReferences]
+              : [remarkGfm]
+          }
           components={{
             p({ children, node }) {
               if (isImageNode(node)) {
@@ -312,7 +405,7 @@ function MarkdownRenderer({
             },
           }}
         >
-          {markdownWithPromptReferences}
+          {markdown}
         </MemoizedReactMarkdown>
       </div>
     );

@@ -10,7 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { FileCode } from "lucide-react";
 
-const PROMPT_REFERENCE_MARKDOWN_PREFIX = "langfuse-prompt://reference?";
+const PROMPT_REFERENCE_MARKDOWN_PREFIX = "/__langfuse_prompt_reference__?";
 const PromptReferenceContext = createContext<string | undefined>(undefined);
 
 export const PromptReferenceProvider = ({
@@ -84,29 +84,12 @@ export const getPromptReferenceUrl = (
   return `${baseUrl}${encodeURIComponent(tag.name)}?label=${encodeURIComponent(tag.label)}`;
 };
 
-const escapeMarkdownLinkText = (text: string) =>
-  text.replace(/[[\]\\]/g, "\\$&");
-
-export const replacePromptReferencesWithMarkdownLinks = (
-  content: string,
-): string => {
-  if (!content) return content;
-
-  return content.replace(
-    PromptDependencyRegex,
-    (fullMatch: string, innerContent: string, offset: number) => {
-      if (typeof innerContent !== "string") return fullMatch;
-
-      const tag = parsePromptDependencyInnerContent(innerContent, offset);
-      if (!tag) return fullMatch;
-
-      const suffix =
-        tag.type === "version" ? ` v${tag.version}` : ` ${tag.label}`.trimEnd();
-      const linkText = escapeMarkdownLinkText(`${tag.name}${suffix}`);
-      return `[${linkText}](${getPromptReferenceMarkdownHref(tag)})`;
-    },
-  );
-};
+export const getPromptReferenceMarkdownLabel = (
+  tag: ParsedPromptDependencyTag,
+) =>
+  tag.type === "version"
+    ? `${tag.name} v${tag.version}`
+    : `${tag.name} ${tag.label}`.trimEnd();
 
 export const getPromptReferenceMarkdownHref = (
   tag: ParsedPromptDependencyTag,
