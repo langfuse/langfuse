@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { Sparkles, X } from "lucide-react";
+import { ZapIcon, X, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -10,7 +10,8 @@ import {
 } from "@/src/features/top-banner";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
-const CHANGELOG_URL = "https://langfuse.com/changelog"; // TODO: update after changelog release
+const CHANGELOG_URL =
+  "https://langfuse.com/changelog/2026-03-10-simplify-for-scale";
 const DISMISSED_STORAGE_KEY = "v4-beta-enabled-banner:v1:dismissed";
 const V4_BETA_BANNER_ID = "v4-beta-enabled-banner";
 const V4_BETA_BANNER_ORDER = 20;
@@ -61,19 +62,21 @@ export function V4BetaEnabledBanner() {
       aria-live="polite"
     >
       <div className="flex items-center gap-2 py-1.5 pl-3">
-        <Sparkles className="h-4 w-4 shrink-0" />
-        <p className="flex-1 text-sm">
-          <span className="font-semibold">Preview (fast) is enabled.</span>{" "}
-          You&apos;re using Langfuse&apos;s new observation-centric architecture
-          for faster charts and APIs.{" "}
+        <ZapIcon className="h-4 w-4 shrink-0" />
+        <p className="flex flex-1 flex-row gap-1 text-sm">
+          <span className="font-semibold">
+            Faster Langfuse experience enabled (preview).
+          </span>{" "}
+          Missing real-time data? Upgrade your Langfuse SDK to the latest major
+          version.{" "}
           <Link
             href={CHANGELOG_URL}
             target="_blank"
-            className="font-medium underline underline-offset-2"
+            className="flex flex-row items-center gap-1 underline underline-offset-2"
           >
-            Read the blog post
+            Learn more
+            <ExternalLink className="h-3 w-3" />
           </Link>
-          .
         </p>
         <Button
           variant="ghost"

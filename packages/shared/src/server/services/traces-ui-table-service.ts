@@ -1,5 +1,6 @@
 import { OrderByState } from "../../interfaces/orderBy";
 import { tracesTableUiColumnDefinitions } from "../tableMappings";
+import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { FilterState } from "../../types";
 import {
   StringFilter,
@@ -221,7 +222,11 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
   tracesFilter.push(
-    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    ...createFilterFromFilterState(
+      filter,
+      tracesTableUiColumnDefinitions,
+      tracesTableCols,
+    ),
   );
 
   const traceIdFilter = tracesFilter.find(
