@@ -63,9 +63,9 @@ export function V4BetaEnabledBanner() {
       <div className="flex items-center gap-2 py-1.5 pl-3">
         <Sparkles className="h-4 w-4 shrink-0" />
         <p className="flex-1 text-sm">
-          <span className="font-semibold">v4 Beta is enabled.</span> You&apos;re
-          using Langfuse&apos;s new observation-centric architecture for faster
-          charts and APIs.{" "}
+          <span className="font-semibold">Preview (fast) is enabled.</span>{" "}
+          You&apos;re using Langfuse&apos;s new observation-centric architecture
+          for faster charts and APIs.{" "}
           <Link
             href={CHANGELOG_URL}
             target="_blank"
@@ -80,7 +80,7 @@ export function V4BetaEnabledBanner() {
           size="sm"
           className="h-6 w-6 p-0"
           onClick={dismissBanner}
-          aria-label="Dismiss v4 beta banner"
+          aria-label="Dismiss Preview (fast) banner"
           title="Dismiss"
         >
           <X className="h-4 w-4" />
