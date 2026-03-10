@@ -32,7 +32,6 @@ export interface ChatMessageProps {
   shouldRenderMarkdown: boolean;
   currentView: ViewMode;
   toolCallNumbers?: number[];
-  projectIdForPromptButtons?: string;
   isOutputMessage?: boolean;
 }
 
@@ -50,7 +49,6 @@ export function ChatMessage({
   shouldRenderMarkdown,
   currentView,
   toolCallNumbers,
-  projectIdForPromptButtons,
   isOutputMessage,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
@@ -93,7 +91,6 @@ export function ChatMessage({
           <PrettyJsonView
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
-            projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={currentView}
           />
         </div>
@@ -108,7 +105,6 @@ export function ChatMessage({
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}
         />
       </div>
@@ -122,7 +118,6 @@ export function ChatMessage({
         <PrettyJsonView
           title={title}
           json={message.json}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
         />
@@ -210,7 +205,6 @@ export function ChatMessage({
           <PrettyJsonView
             title={title}
             json={message.content}
-            projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={currentView}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
@@ -235,7 +229,6 @@ export function ChatMessage({
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message}
-          projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}
         />
       </div>

@@ -17,7 +17,6 @@ export interface ChatMessageListProps {
   currentView: ViewMode;
   messageToToolCallNumbers: Map<number, number[]>;
   collapseLongHistory?: boolean;
-  projectIdForPromptButtons?: string;
   inputMessageCount?: number;
 }
 
@@ -38,7 +37,6 @@ export function ChatMessageList({
   currentView,
   messageToToolCallNumbers,
   collapseLongHistory = true,
-  projectIdForPromptButtons,
   inputMessageCount,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
@@ -75,7 +73,6 @@ export function ChatMessageList({
                   shouldRenderMarkdown={shouldRenderMarkdown}
                   currentView={currentView}
                   toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                  projectIdForPromptButtons={projectIdForPromptButtons}
                   isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
                 />
                 {/* Show collapse/expand button after first message */}
@@ -100,7 +97,6 @@ export function ChatMessageList({
           <PrettyJsonView
             title="Additional Input"
             json={additionalInput}
-            projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={shouldRenderMarkdown ? "pretty" : "json"}
           />
         )}
