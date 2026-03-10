@@ -232,6 +232,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "parentObservationId",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."parent_span_id"',
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Experiment Dataset ID",
