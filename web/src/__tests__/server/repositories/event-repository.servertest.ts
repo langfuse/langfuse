@@ -524,6 +524,83 @@ describe("Clickhouse Events Repository Test", () => {
       });
     });
 
+    describe("Prompt Filters", () => {
+      it("should filter observations by prompt name and prompt version", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const matchingEventId = randomUUID();
+
+        const events = [
+          createEvent({
+            id: matchingEventId,
+            span_id: matchingEventId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "prompt-match",
+            prompt_name: "chat-parent",
+            prompt_version: 1,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-version",
+            prompt_name: "chat-parent",
+            prompt_version: 2,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-name",
+            prompt_name: "other-prompt",
+            prompt_version: 1,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "string",
+            column: "Prompt Name",
+            operator: "=",
+            value: "chat-parent",
+          },
+          {
+            type: "number",
+            column: "Prompt Version",
+            operator: "=",
+            value: 1,
+          },
+        ];
+
+        const [observations, count] = await Promise.all([
+          getObservationsWithModelDataFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+            limit: 100,
+            offset: 0,
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+          }),
+        ]);
+
+        expect(count).toBe(1);
+        expect(observations).toHaveLength(1);
+        expect(observations[0]?.id).toBe(matchingEventId);
+        expect(observations[0]?.promptName).toBe("chat-parent");
+        expect(observations[0]?.promptVersion).toBe(1);
+      });
+    });
+
     describe("Trace ID Filters", () => {
       it("should filter observations by multiple trace IDs with 'any of' operator", async () => {
         const traceId1 = randomUUID();
