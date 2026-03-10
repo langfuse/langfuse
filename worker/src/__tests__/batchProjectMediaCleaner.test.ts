@@ -53,7 +53,13 @@ async function createMedia(projectId: string, count: number) {
 }
 
 describe("BatchProjectMediaCleaner", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await prisma.media.deleteMany({});
+    await prisma.project.updateMany({
+      where: { deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+
     vi.clearAllMocks();
     vi.mocked(deleteMediaByProjectId).mockImplementation(async (params) => {
       const media = await prisma.media.findMany({

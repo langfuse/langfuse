@@ -2,7 +2,7 @@ import { expect, describe, it, vi, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import {
   createOrgProjectAndApiKey,
-  getS3MediaStorageClient,
+  deleteMediaByProjectId,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -13,7 +13,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    getS3MediaStorageClient: vi.fn(),
+    deleteMediaByProjectId: vi.fn(),
     removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject: vi.fn(),
   };
 });
@@ -97,7 +97,31 @@ async function drainExpiredMedia(maxIterations = 20): Promise<void> {
 describe("MediaRetentionCleaner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getS3MediaStorageClient).mockReturnValue(mockS3Client as never);
+    vi.mocked(deleteMediaByProjectId).mockImplementation(async (params) => {
+      const mediaFiles = await prisma.media.findMany({
+        select: { id: true, bucketPath: true },
+        where: {
+          projectId: params.projectId,
+          createdAt: params.cutoffDate ? { lte: params.cutoffDate } : undefined,
+        },
+        take: params.limit,
+      });
+
+      if (mediaFiles.length === 0) {
+        return 0;
+      }
+
+      await mockDeleteFiles(mediaFiles.map((file) => file.bucketPath));
+
+      await prisma.media.deleteMany({
+        where: {
+          id: { in: mediaFiles.map((file) => file.id) },
+          projectId: params.projectId,
+        },
+      });
+
+      return mediaFiles.length;
+    });
   });
 
   afterEach(() => {
