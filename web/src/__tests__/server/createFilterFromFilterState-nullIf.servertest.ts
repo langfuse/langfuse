@@ -19,7 +19,7 @@ describe("createFilterFromFilterState parentObservationId on events tables", () 
   // Column mapping that mirrors eventsObservationsView (nullIf wrapper present)
   const withNullIf = {
     ...baseMapping,
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "nullIf(events_observations.parent_span_id, '')",
     queryPrefix: "",
   };
@@ -27,7 +27,7 @@ describe("createFilterFromFilterState parentObservationId on events tables", () 
   // Column mapping without nullIf (raw column, e.g. eventsTracesView)
   const withoutNullIf = {
     ...baseMapping,
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "events_traces.parent_span_id",
     queryPrefix: "",
   };
