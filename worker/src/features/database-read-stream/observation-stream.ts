@@ -184,11 +184,16 @@ export const getObservationStream = async (props: {
             tuple(name, avg_value, data_type, string_value),
             data_type IN ('NUMERIC', 'BOOLEAN')
           ) AS scores_avg,
-          -- For categorical scores, use tuples to avoid delimiter issues with names containing colons
+          -- concat encoding for hasAny filter compatibility
+          groupArrayIf(
+            concat(name, ':', string_value),
+            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          ) AS score_categories,
+          -- tuple encoding for accurate output parsing (names may contain colons)
           groupArrayIf(
             tuple(name, string_value),
             data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
+          ) AS score_categories_tuples
         FROM (
           SELECT
             trace_id,
@@ -253,7 +258,8 @@ export const getObservationStream = async (props: {
         t.timestamp as traceTimestamp,
         t.user_id as userId,
         s.scores_avg as scores_avg,
-        s.score_categories as score_categories
+        s.score_categories as score_categories,
+        s.score_categories_tuples as score_categories_tuples
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
@@ -274,6 +280,7 @@ export const getObservationStream = async (props: {
           }[]
         | undefined;
       score_categories: string[] | undefined;
+      score_categories_tuples: [string, string | null][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -315,6 +322,7 @@ export const getObservationStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -339,8 +347,8 @@ export const getObservationStream = async (props: {
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: any) => ({
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat) => ({
         name: cat[0],
         value: null,
         dataType: ScoreDataTypeEnum.CATEGORICAL,
