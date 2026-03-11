@@ -17,8 +17,7 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import {
   type FilterState,
-  EvaluatorBlockReason,
-  getEvaluatorBlockResolutionPath,
+  type EvaluatorBlockReason,
   singleFilter,
 } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -317,36 +316,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!template) return "template not found";
         return (
           <div className="flex items-center gap-2">
-            {row.original.status === "PAUSED" && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="warning" className="w-fit text-xs">
-                    Paused
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[320px]">
-                  <div className="space-y-1 text-sm">
-                    {row.original.blockMessage}
-                  </div>
-                  <Link
-                    href={getEvaluatorBlockResolutionPath({
-                      projectId,
-                      blockReason:
-                        row.original.blockReason ??
-                        EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
-                      templateId: template.id,
-                    })}
-                    className="mt-2 inline-flex items-center gap-1 font-medium text-blue-600 underline underline-offset-2 hover:opacity-80"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ExternalLinkIcon className="h-3 w-3" />
-                    Resolve issue
-                  </Link>
-                </TooltipContent>
-              </Tooltip>
-            )}
             <TableIdOrName value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />

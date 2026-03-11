@@ -49,7 +49,7 @@ export const StatusBadge = ({
     dotPingColor = "bg-dark-blue";
   } else if (statusCategories.paused.includes(normalizedType)) {
     badgeColor = "bg-light-yellow text-dark-yellow";
-    showDot = false;
+    dotPingColor = "bg-dark-yellow";
   } else if (statusCategories.error.includes(normalizedType)) {
     badgeColor = "bg-light-red text-dark-red";
     showDot = false;
