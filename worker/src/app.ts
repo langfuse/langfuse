@@ -83,6 +83,8 @@ import {
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
+import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
+import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 
 const app = express();
 
@@ -625,6 +627,28 @@ export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   mediaRetentionCleaner = new MediaRetentionCleaner();
   mediaRetentionCleaner.start();
+}
+
+// Batch project media cleaner for S3 media cleanup of soft-deleted projects
+export let batchProjectMediaCleaner: BatchProjectMediaCleaner | null = null;
+
+if (
+  env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true" &&
+  env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+) {
+  batchProjectMediaCleaner = new BatchProjectMediaCleaner();
+  batchProjectMediaCleaner.start();
+}
+
+// Batch project blob cleaner for ingestion event S3/ClickHouse cleanup of soft-deleted projects
+export let batchProjectBlobCleaner: BatchProjectBlobCleaner | null = null;
+
+if (
+  env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true" &&
+  env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+) {
+  batchProjectBlobCleaner = new BatchProjectBlobCleaner();
+  batchProjectBlobCleaner.start();
 }
 
 // Batch trace deletion cleaner for supplementary trace deletion
