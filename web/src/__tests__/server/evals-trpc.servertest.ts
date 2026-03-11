@@ -4,7 +4,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, EvaluatorBlockReason } from "@langfuse/shared";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -163,6 +163,80 @@ describe("evals trpc", () => {
         ]),
         totalCount: expect.any(Number),
       });
+    });
+
+    it("should order evaluators by display status as active, paused, inactive", async () => {
+      const { project, caller } = await prepare();
+
+      const inactiveEvaluator = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "inactive-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          createdAt: new Date("2024-03-03T00:00:00.000Z"),
+        },
+      });
+
+      const pausedEvaluator = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "paused-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          blockedAt: new Date("2024-03-04T00:00:00.000Z"),
+          blockReason: EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
+          blockMessage: "Paused for verification",
+          createdAt: new Date("2024-02-02T00:00:00.000Z"),
+        },
+      });
+
+      const activeEvaluator = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "active-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        },
+      });
+
+      const response = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "status",
+          order: "ASC",
+        },
+        limit: 10,
+        page: 0,
+      });
+
+      expect(
+        response.configs.map((config) => ({
+          id: config.id,
+          finalStatus: config.finalStatus,
+        })),
+      ).toEqual([
+        { id: activeEvaluator.id, finalStatus: "ACTIVE" },
+        { id: pausedEvaluator.id, finalStatus: "PAUSED" },
+        { id: inactiveEvaluator.id, finalStatus: "INACTIVE" },
+      ]);
     });
   });
 

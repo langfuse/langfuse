@@ -158,12 +158,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
 
   const [orderByState, setOrderByState] = useOrderByState({
-    column: "createdAt",
-    order: "DESC",
+    column: "status",
+    order: "ASC",
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE",  "PAUSED"],
+    status: ["ACTIVE", "PAUSED", "INACTIVE"],
     target: evalConfigTargetValues,
   };
 

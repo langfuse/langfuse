@@ -8,6 +8,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   ZodModelConfig,
+  type OrderByState,
   singleFilter,
   variableMapping,
   observationVariableMapping,
@@ -327,9 +328,8 @@ export const evalRouter = createTRPCRouter({
         "job_configurations",
       );
 
-      const orderByCondition = orderByToPrismaSql(
+      const orderByCondition = getEvaluatorConfigsOrderByCondition(
         input.orderBy,
-        evalConfigsTableCols,
       );
 
       const searchCondition =
@@ -1574,6 +1574,19 @@ const generateConfigsQuery = (
    ${orderCondition}
    LIMIT ${limit} OFFSET ${page * limit};
   `;
+};
+
+const getEvaluatorConfigsOrderByCondition = (orderByState: OrderByState) => {
+  const orderByCondition = orderByToPrismaSql(
+    orderByState,
+    evalConfigsTableCols,
+  );
+
+  if (orderByState?.column !== "status" && orderByState?.column !== "Status") {
+    return orderByCondition;
+  }
+
+  return Prisma.sql`${orderByCondition}, jc.created_at DESC`;
 };
 
 const generateExecutionsQuery = (
