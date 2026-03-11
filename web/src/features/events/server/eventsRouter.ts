@@ -7,6 +7,7 @@ import {
 import {
   type Observation,
   type OrderByState,
+  normalizeOrderByForTable,
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
@@ -88,14 +89,18 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
           });
@@ -121,13 +126,17 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-count-trpc",
         },
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: input.orderBy });
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
           return getEventCount({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
-            orderBy: input.orderBy,
+            orderBy: normalizedOrderBy,
           });
         },
       );

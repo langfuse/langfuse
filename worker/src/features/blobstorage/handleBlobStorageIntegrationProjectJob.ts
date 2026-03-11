@@ -449,7 +449,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
             timestamp: new Date(),
             payload: { projectId },
           },
-          { jobId },
+          { jobId, removeOnFail: true },
         );
         logger.info(
           `[BLOB INTEGRATION] Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,

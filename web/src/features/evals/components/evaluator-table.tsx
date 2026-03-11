@@ -15,7 +15,11 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  type EvaluatorBlockReason,
+  singleFilter,
+} from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
@@ -38,6 +42,7 @@ import {
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { TablePeekView } from "@/src/components/table/peek";
+import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -76,13 +81,16 @@ export type EvaluatorDataRow = {
   createdAt: string;
   updatedAt: string;
   maintainer: string;
+  rawStatus: string;
   template?: {
     id: string;
     name: string;
     version: number;
   };
+  blockMessage?: string | null;
+  blockReason?: EvaluatorBlockReason | null;
   scoreName: string;
-  target: string; // "trace" or "dataset"
+  target: string;
   filter: FilterState;
   result: {
     level: string;
@@ -150,13 +158,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
 
   const [orderByState, setOrderByState] = useOrderByState({
-    column: "createdAt",
-    order: "DESC",
+    column: "status",
+    order: "ASC",
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE"],
-    target: ["trace", "dataset"],
+    status: ["ACTIVE", "PAUSED", "INACTIVE"],
+    target: evalConfigTargetValues,
   };
 
   const queryFilter = useSidebarFilterState(
@@ -336,7 +344,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.row.original.target;
-        const status = row.row.original.status;
+        const status = row.row.original.rawStatus;
         const isDeprecated = isLegacyEvalTarget(targetObject);
 
         if (!isDeprecated) return null;
@@ -477,6 +485,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     return {
       id: jobConfig.id,
       status: jobConfig.finalStatus,
+      rawStatus: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       updatedAt: jobConfig.updatedAt.toLocaleString(),
       template: jobConfig.evalTemplate
@@ -486,6 +495,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             version: jobConfig.evalTemplate.version,
           }
         : undefined,
+      blockMessage: jobConfig.blockMessage,
+      blockReason: jobConfig.blockReason,
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
