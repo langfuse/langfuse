@@ -3034,47 +3034,36 @@ describe("queryBuilder", () => {
         expect(Number(row.sum_totalTokens)).toBe(1000);
       });
 
-      it("should filter observations by metadata correctly", async () => {
-        // Setup
+      it("should filter observations by metadata correctly (trace metadata)", async () => {
+        // On observations view, metadata filter applies to trace metadata so dashboard
+        // filters (e.g. sessionName) work when charting observation-level metrics.
         const projectId = randomUUID();
         const traceId = randomUUID();
 
-        // Create a trace
         const trace = await createTrace({
           id: traceId,
           name: "trace-for-observations",
           project_id: projectId,
+          metadata: { customer: "test" },
         });
         await createTracesCh([trace]);
 
-        // Create observations with different metadata
         const observations = [
           await createObservation({
             id: randomUUID(),
             trace_id: traceId,
             project_id: projectId,
-            name: "observation-premium",
-            metadata: { customer: "test1" },
+            name: "observation-a",
           }),
           await createObservation({
             id: randomUUID(),
             trace_id: traceId,
             project_id: projectId,
-            name: "observation-basic",
-            metadata: { customer: "test2" },
-          }),
-          await createObservation({
-            id: randomUUID(),
-            trace_id: traceId,
-            project_id: projectId,
-            name: "observation-no-metadata",
-            metadata: undefined,
+            name: "observation-b",
           }),
         ];
-
         await createObservationsCh(observations);
 
-        // Define query with metadata filter for observations
         const query: QueryType = {
           view: "observations",
           dimensions: [{ field: "name" }],
@@ -3098,13 +3087,12 @@ describe("queryBuilder", () => {
           orderBy: null,
         };
 
-        // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
         expect(result.data).toHaveLength(2);
-        expect(result.data[0].name).toBe("observation-basic");
         expect(Number(result.data[0].count_count)).toBe(1);
+        expect(Number(result.data[1].count_count)).toBe(1);
       });
 
       it("should generate histogram with custom bin count for cost distribution", async () => {
