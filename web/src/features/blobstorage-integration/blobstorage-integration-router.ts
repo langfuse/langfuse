@@ -89,6 +89,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           exportMode,
           exportStartDate,
           exportSource,
+          exportTraces,
+          exportObservations,
+          exportScores,
+          exportEvents,
         } = input;
 
         const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -127,6 +131,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           exportMode,
           exportStartDate: finalExportStartDate,
           exportSource,
+          exportTraces,
+          exportObservations,
+          exportScores,
+          exportEvents,
         };
 
         // Use a transaction to check if record exists, then create or update

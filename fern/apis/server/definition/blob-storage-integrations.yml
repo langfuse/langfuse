@@ -88,6 +88,18 @@ types:
       exportStartDate:
         type: optional<datetime>
         docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+      exportTraces:
+        type: optional<boolean>
+        docs: Export traces (overrides exportSource preset when provided)
+      exportObservations:
+        type: optional<boolean>
+        docs: Export observations (overrides exportSource preset when provided)
+      exportScores:
+        type: optional<boolean>
+        docs: Export scores (overrides exportSource preset when provided)
+      exportEvents:
+        type: optional<boolean>
+        docs: Export events/enriched observations (overrides exportSource preset when provided)
 
   BlobStorageIntegrationResponse:
     properties:
@@ -109,6 +121,10 @@ types:
       lastSyncAt: optional<datetime>
       createdAt: datetime
       updatedAt: datetime
+      exportTraces: optional<boolean>
+      exportObservations: optional<boolean>
+      exportScores: optional<boolean>
+      exportEvents: optional<boolean>
 
   BlobStorageIntegrationsResponse:
     properties:

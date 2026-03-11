@@ -89,6 +89,10 @@ async function handleGetBlobStorageIntegrations(
       lastSyncAt: integration.lastSyncAt,
       createdAt: integration.createdAt,
       updatedAt: integration.updatedAt,
+      exportTraces: integration.exportTraces,
+      exportObservations: integration.exportObservations,
+      exportScores: integration.exportScores,
+      exportEvents: integration.exportEvents,
     }),
   );
 
@@ -162,6 +166,10 @@ async function handleUpsertBlobStorageIntegration(
     fileType: validatedData.fileType,
     exportMode: validatedData.exportMode,
     exportStartDate: validatedData.exportStartDate || null,
+    exportTraces: validatedData.exportTraces,
+    exportObservations: validatedData.exportObservations,
+    exportScores: validatedData.exportScores,
+    exportEvents: validatedData.exportEvents,
   };
 
   // Upsert the integration (create or update)
@@ -191,6 +199,10 @@ async function handleUpsertBlobStorageIntegration(
     lastSyncAt: integration.lastSyncAt,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
+    exportTraces: integration.exportTraces,
+    exportObservations: integration.exportObservations,
+    exportScores: integration.exportScores,
+    exportEvents: integration.exportEvents,
   };
 
   return res.status(200).json(responseData);
