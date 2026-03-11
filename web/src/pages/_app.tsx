@@ -191,7 +191,6 @@ function UserTracking() {
           email: sessionUser.email ?? undefined,
           name: sessionUser.name ?? undefined,
           featureFlags: sessionUser.featureFlags ?? undefined,
-          v4BetaEnabled: sessionUser.v4BetaEnabled ?? false,
           projects:
             sessionUser.organizations.flatMap((org) =>
               org.projects.map((project) => ({
