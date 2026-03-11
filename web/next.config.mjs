@@ -193,13 +193,6 @@ const nextConfig = {
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
 
-    // @langchain/google uses jose (ESM-only) which webpack can't bundle as CJS.
-    // Externalize the package and all subpath imports (e.g. @langchain/google/node)
-    // so Node.js resolves them at runtime.
-    if (isServer) {
-      config.externals.push(/^@langchain\/google(\/.*)?$/);
-    }
-
     return config;
   },
 };
