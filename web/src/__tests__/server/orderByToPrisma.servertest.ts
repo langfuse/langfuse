@@ -1,7 +1,13 @@
-import { orderByToPrismaSql } from "@langfuse/shared/src/server";
-import { normalizeOrderByForTable, tracesTableCols } from "@langfuse/shared";
-import { tracesTableUiColumnDefinitions } from "@langfuse/shared/src/server";
-import { orderByToClickhouseSql } from "../../../../packages/shared/src/server/queries/clickhouse-sql/orderby-factory";
+import {
+  orderByToClickhouseSql,
+  orderByToPrismaSql,
+  tracesTableUiColumnDefinitions,
+} from "@langfuse/shared/src/server";
+import {
+  InvalidRequestError,
+  normalizeOrderByForTable,
+  tracesTableCols,
+} from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
@@ -51,18 +57,6 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         { column: "not_a_column", order: "ASC" },
         tracesTableUiColumnDefinitions,
       ),
-    ).toThrow("Invalid order by column: not_a_column");
-
-    try {
-      orderByToClickhouseSql(
-        { column: "not_a_column", order: "ASC" },
-        tracesTableUiColumnDefinitions,
-      );
-    } catch (error) {
-      expect(error).toMatchObject({
-        name: "InvalidRequestError",
-        httpCode: 400,
-      });
-    }
+    ).toThrow(InvalidRequestError);
   });
 });
