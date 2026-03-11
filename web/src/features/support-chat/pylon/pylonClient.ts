@@ -43,14 +43,9 @@ export async function createPylonIssue(
     title,
     body_html: bodyHtml,
     requester_email: requesterEmail,
-    // If a destination other than "internal" is specified, a message with the
-    // issue's body_html will be delivered to the requester. Use "internal" to
-    // keep the issue internal without contacting the requester.
-    // Currently set to "internal" because Plain still handles the user-facing
-    // email. Once Plain is removed, switch back to destination: "email" with
-    // email: "support@langfuse.com" so Pylon sends the acknowledgement.
     destination_metadata: {
-      destination: "internal",
+      destination: "email",
+      email: "support@langfuse.com",
     },
   };
 
