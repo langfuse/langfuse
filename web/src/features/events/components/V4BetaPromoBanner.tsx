@@ -10,6 +10,7 @@ import {
   useTopBannerRegistration,
 } from "@/src/features/top-banner";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const CHANGELOG_URL =
@@ -31,6 +32,7 @@ export function V4BetaPromoBanner() {
   const router = useRouter();
   const session = useSession();
   const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
+  const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { getTopBannerOffset } = useTopBanner();
   const [isDismissed, setIsDismissed] = useLocalStorage<boolean>(
@@ -82,7 +84,13 @@ export function V4BetaPromoBanner() {
           <span className="font-semibold">{pageMessage}</span> Enable the{" "}
           <button
             className="inline cursor-pointer font-semibold underline underline-offset-2"
-            onClick={() => setBetaEnabled(true)}
+            onClick={() => {
+              setBetaEnabled(true, {
+                onSuccess: () => {
+                  capture("sidebar:v4_beta_toggled", { enabled: true });
+                },
+              });
+            }}
             disabled={isLoading}
           >
             Fast (Preview)
