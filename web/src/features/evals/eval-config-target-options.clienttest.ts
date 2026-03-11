@@ -7,8 +7,13 @@ describe("eval config target filter options", () => {
     const targetColumn = evalConfigFilterColumns.find(
       (col) => col.id === "target",
     );
+
+    expect(targetColumn?.type).toBe("stringOptions");
+
     const availableValues =
-      targetColumn?.options?.map((option) => option.value) ?? [];
+      targetColumn?.type === "stringOptions"
+        ? targetColumn.options.map((option) => option.value)
+        : [];
 
     expect(availableValues).toEqual(
       expect.arrayContaining(Object.values(EvalTargetObject)),
