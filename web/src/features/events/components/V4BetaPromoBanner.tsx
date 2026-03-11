@@ -37,12 +37,12 @@ export function V4BetaPromoBanner() {
   const bannerRef = useRef<HTMLDivElement>(null);
 
   const isAuthenticated = session.status === "authenticated";
-  const isAdmin = session.data?.user?.admin ?? false;
   const enableExperimentalFeatures =
     session.data?.environment?.enableExperimentalFeatures ?? false;
 
-  const isToggleVisible =
-    isLangfuseCloud || enableExperimentalFeatures || isAdmin;
+  // Match the v4BetaToggleVisible logic from navigationFilters.ts
+  // cloudAdmin = isLangfuseCloud && isAdmin (already covered by isLangfuseCloud)
+  const isToggleVisible = isLangfuseCloud || enableExperimentalFeatures;
   const pageMessage = PAGE_MESSAGES[router.pathname];
 
   const isVisible =
