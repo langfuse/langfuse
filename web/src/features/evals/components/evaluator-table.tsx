@@ -42,6 +42,7 @@ import {
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { TablePeekView } from "@/src/components/table/peek";
+import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -89,7 +90,7 @@ export type EvaluatorDataRow = {
   blockMessage?: string | null;
   blockReason?: EvaluatorBlockReason | null;
   scoreName: string;
-  target: string; // "trace" or "dataset"
+  target: string;
   filter: FilterState;
   result: {
     level: string;
@@ -162,8 +163,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE", "PAUSED"],
-    target: ["trace", "dataset"],
+    status: ["ACTIVE", "INACTIVE",  "PAUSED"],
+    target: evalConfigTargetValues,
   };
 
   const queryFilter = useSidebarFilterState(
