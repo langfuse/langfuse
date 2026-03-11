@@ -77,6 +77,29 @@ const baseFormSchema = z.object({
   filter: z.array(z.any()).optional(),
 });
 
+const pagerdutySchema = z.object({
+  integrationKey: z.string(),
+  displayIntegrationKey: z.string().optional(),
+  severity: z.enum(["critical", "error", "warning", "info"]).optional(),
+  source: z.string().optional(),
+  component: z.string().optional(),
+});
+
+const microsoftTeamsSchema = z.object({
+  webhookUrl: z.string().url("Invalid URL"),
+});
+
+const jiraSchema = z.object({
+  jiraBaseUrl: z.string().url("Invalid URL"),
+  projectKey: z.string().min(1, "Project key is required"),
+  issueType: z.string().min(1, "Issue type is required"),
+  apiToken: z.string(),
+  displayApiToken: z.string().optional(),
+  email: z.string().email("Invalid email"),
+  labels: z.array(z.string()).optional(),
+  assigneeAccountId: z.string().optional(),
+});
+
 const formSchema = z.discriminatedUnion("actionType", [
   baseFormSchema.extend({
     actionType: z.literal("WEBHOOK"),
@@ -89,6 +112,18 @@ const formSchema = z.discriminatedUnion("actionType", [
   baseFormSchema.extend({
     actionType: z.literal("GITHUB_DISPATCH"),
     githubDispatch: githubDispatchSchema,
+  }),
+  baseFormSchema.extend({
+    actionType: z.literal("PAGERDUTY"),
+    pagerduty: pagerdutySchema,
+  }),
+  baseFormSchema.extend({
+    actionType: z.literal("MICROSOFT_TEAMS"),
+    microsoftTeams: microsoftTeamsSchema,
+  }),
+  baseFormSchema.extend({
+    actionType: z.literal("JIRA"),
+    jira: jiraSchema,
   }),
 ]);
 
@@ -214,6 +249,33 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
         },
       };
+    } else if (actionType === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const pdDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "PAGERDUTY" as const,
+        eventSource: TriggerEventSource.Prompt,
+        pagerduty: pdDefaults.pagerduty,
+      };
+    } else if (actionType === "MICROSOFT_TEAMS") {
+      const handler = ActionHandlerRegistry.getHandler("MICROSOFT_TEAMS");
+      const teamsDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "MICROSOFT_TEAMS" as const,
+        eventSource: TriggerEventSource.Prompt,
+        microsoftTeams: teamsDefaults.microsoftTeams,
+      };
+    } else if (actionType === "JIRA") {
+      const handler = ActionHandlerRegistry.getHandler("JIRA");
+      const jiraDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "JIRA" as const,
+        eventSource: TriggerEventSource.Prompt,
+        jira: jiraDefaults.jira,
+      };
     } else {
       throw new Error("Invalid action type");
     }
@@ -323,6 +385,18 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("pagerduty", defaultValues.pagerduty);
+    } else if (value === "MICROSOFT_TEAMS") {
+      const handler = ActionHandlerRegistry.getHandler("MICROSOFT_TEAMS");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("microsoftTeams", defaultValues.microsoftTeams);
+    } else if (value === "JIRA") {
+      const handler = ActionHandlerRegistry.getHandler("JIRA");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("jira", defaultValues.jira);
     }
 
     // If we are creating a new automation, update the default name

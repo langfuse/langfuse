@@ -1502,7 +1502,9 @@ enum ActionType {
   WEBHOOK
   SLACK
   GITHUB_DISPATCH
-  // More action types can be added as needed
+  PAGERDUTY
+  MICROSOFT_TEAMS
+  JIRA
 }
 
 enum ActionExecutionStatus {

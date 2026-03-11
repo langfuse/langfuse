@@ -11,6 +11,8 @@ import {
   convertToSafeWebhookConfig,
   isGitHubDispatchAction,
   convertToSafeGitHubDispatchConfig,
+  type PagerDutyActionConfig,
+  type JiraActionConfig,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -21,7 +23,11 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
+import {
+  generateWebhookSecret,
+  encrypt,
+  decrypt,
+} from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import { TRPCError } from "@trpc/server";
@@ -287,6 +293,39 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
+      } else if (input.actionType === "PAGERDUTY") {
+        if (input.actionConfig.type !== "PAGERDUTY") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Action config type must be PAGERDUTY",
+          });
+        }
+        const rawKey = input.actionConfig.integrationKey ?? "";
+        const displayKey =
+          rawKey.length > 4 ? `****${rawKey.slice(-4)}` : "****";
+        finalActionConfig = {
+          ...input.actionConfig,
+          integrationKey: encrypt(rawKey),
+          displayIntegrationKey: displayKey,
+        } as PagerDutyActionConfig;
+      } else if (input.actionType === "MICROSOFT_TEAMS") {
+        // Teams uses the webhookUrl directly — no secrets to encrypt
+        finalActionConfig = input.actionConfig;
+      } else if (input.actionType === "JIRA") {
+        if (input.actionConfig.type !== "JIRA") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Action config type must be JIRA",
+          });
+        }
+        const rawToken = input.actionConfig.apiToken ?? "";
+        const displayToken =
+          rawToken.length > 4 ? `****${rawToken.slice(-4)}` : "****";
+        finalActionConfig = {
+          ...input.actionConfig,
+          apiToken: encrypt(rawToken),
+          displayApiToken: displayToken,
+        } as JiraActionConfig;
       }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
@@ -297,7 +336,7 @@ export const automationsRouter = createTRPCRouter({
               projectId: ctx.session.projectId,
               eventSource: input.eventSource,
               eventActions: input.eventAction,
-              filter: input.filter || [],
+              filter: input.filter ?? [],
               status: input.status,
             },
           });
@@ -407,6 +446,62 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = githubResult.finalActionConfig;
+      } else if (input.actionType === "PAGERDUTY") {
+        if (input.actionConfig.type !== "PAGERDUTY") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Action config type must be PAGERDUTY",
+          });
+        }
+        const existingAction = await getActionById({
+          projectId: input.projectId,
+          actionId: existingAutomation.action.id,
+        });
+        const existingPdConfig = existingAction?.config as
+          | PagerDutyActionConfig
+          | undefined;
+        const rawKey = input.actionConfig.integrationKey;
+        const encryptedKey = rawKey
+          ? encrypt(rawKey)
+          : (existingPdConfig?.integrationKey ?? encrypt(""));
+        const displayKey =
+          rawKey && rawKey.length > 4
+            ? `****${rawKey.slice(-4)}`
+            : (existingPdConfig?.displayIntegrationKey ?? "****");
+        finalActionConfig = {
+          ...input.actionConfig,
+          integrationKey: encryptedKey,
+          displayIntegrationKey: displayKey,
+        } as PagerDutyActionConfig;
+      } else if (input.actionType === "MICROSOFT_TEAMS") {
+        finalActionConfig = input.actionConfig;
+      } else if (input.actionType === "JIRA") {
+        if (input.actionConfig.type !== "JIRA") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Action config type must be JIRA",
+          });
+        }
+        const existingAction = await getActionById({
+          projectId: input.projectId,
+          actionId: existingAutomation.action.id,
+        });
+        const existingJiraConfig = existingAction?.config as
+          | JiraActionConfig
+          | undefined;
+        const rawToken = input.actionConfig.apiToken;
+        const encryptedToken = rawToken
+          ? encrypt(rawToken)
+          : (existingJiraConfig?.apiToken ?? encrypt(""));
+        const displayToken =
+          rawToken && rawToken.length > 4
+            ? `****${rawToken.slice(-4)}`
+            : (existingJiraConfig?.displayApiToken ?? "****");
+        finalActionConfig = {
+          ...input.actionConfig,
+          apiToken: encryptedToken,
+          displayApiToken: displayToken,
+        } as JiraActionConfig;
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
@@ -432,7 +527,7 @@ export const automationsRouter = createTRPCRouter({
             data: {
               eventSource: input.eventSource,
               eventActions: input.eventAction,
-              filter: input.filter || [],
+              filter: input.filter ?? [],
               status: input.status,
             },
           });

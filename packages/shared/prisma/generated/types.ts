@@ -168,6 +168,9 @@ export const ActionType = {
   WEBHOOK: "WEBHOOK",
   SLACK: "SLACK",
   GITHUB_DISPATCH: "GITHUB_DISPATCH",
+  PAGERDUTY: "PAGERDUTY",
+  MICROSOFT_TEAMS: "MICROSOFT_TEAMS",
+  JIRA: "JIRA",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {
