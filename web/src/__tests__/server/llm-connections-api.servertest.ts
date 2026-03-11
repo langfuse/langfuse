@@ -229,6 +229,14 @@ describe("/api/public/llm-connections API Endpoints", () => {
         auth,
       );
       expect(negativeLimitResponse.status).toBe(400);
+
+      const zeroLimitResponse = await makeAPICall(
+        "GET",
+        "/api/public/llm-connections?page=1&limit=0",
+        undefined,
+        auth,
+      );
+      expect(zeroLimitResponse.status).toBe(400);
     });
 
     it("should use default pagination values when not provided", async () => {
