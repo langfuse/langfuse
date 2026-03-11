@@ -14,6 +14,7 @@ import {
   BatchActionType,
   ActionId,
   filterAndValidateDbScoreList,
+  normalizeOrderByForTable,
   orderBy,
   paginationZod,
   singleFilter,
@@ -136,7 +137,10 @@ export const traceRouter = createTRPCRouter({
         filter: filterState,
         searchQuery: input.searchQuery ?? undefined,
         searchType: input.searchType ?? ["id"],
-        orderBy: input.orderBy,
+        orderBy: normalizeOrderByForTable({
+          orderBy: input.orderBy,
+          expectedTimeColumn: "timestamp",
+        }),
         limit: input.limit,
         page: input.page,
       });
