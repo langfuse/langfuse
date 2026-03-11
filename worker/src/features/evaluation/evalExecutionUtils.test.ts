@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compileEvalPrompt,
-  buildEvalScoreSchema,
+  buildEvalResponseValidationSchema,
   buildExecutionMetadata,
   buildEvalMessages,
   buildScoreEvent,
@@ -10,7 +10,12 @@ import {
   evalTemplateOutputSchema,
 } from "./evalExecutionUtils";
 import { type ExtractedVariable } from "./evalService";
-import { ChatMessageRole } from "@langfuse/shared";
+import {
+  buildEvalTemplateStructuredOutputJsonSchema,
+  ChatMessageRole,
+  createCategoricalEvalTemplateOutputSchema,
+  createNumericEvalTemplateOutputSchema,
+} from "@langfuse/shared";
 import { ChatMessageType } from "@langfuse/shared/src/server";
 
 describe("evalExecutionUtils", () => {
@@ -65,27 +70,26 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("buildEvalScoreSchema", () => {
-    it("should build schema with descriptions", () => {
-      const outputSchema = {
-        score: "A number between 0 and 1 indicating accuracy",
-        reasoning: "Explanation of the score",
-      };
+  describe("buildEvalResponseValidationSchema", () => {
+    it("should build numeric response schema with descriptions", () => {
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "A number between 0 and 1 indicating accuracy",
+          reasoningDescription: "Explanation of the score",
+        }),
+      );
 
-      const schema = buildEvalScoreSchema(outputSchema);
-
-      // Validate schema shape
       expect(schema.shape.score).toBeDefined();
       expect(schema.shape.reasoning).toBeDefined();
     });
 
     it("should validate correct response", () => {
-      const outputSchema = {
-        score: "Score between 0 and 1",
-        reasoning: "The reasoning",
-      };
-
-      const schema = buildEvalScoreSchema(outputSchema);
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score between 0 and 1",
+          reasoningDescription: "The reasoning",
+        }),
+      );
       const result = schema.safeParse({
         score: 0.75,
         reasoning: "Good accuracy overall",
@@ -99,12 +103,12 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should reject invalid response - missing score", () => {
-      const outputSchema = {
-        score: "Score between 0 and 1",
-        reasoning: "The reasoning",
-      };
-
-      const schema = buildEvalScoreSchema(outputSchema);
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score between 0 and 1",
+          reasoningDescription: "The reasoning",
+        }),
+      );
       const result = schema.safeParse({
         reasoning: "Missing score",
       });
@@ -113,18 +117,88 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should reject invalid response - string score", () => {
-      const outputSchema = {
-        score: "Score between 0 and 1",
-        reasoning: "The reasoning",
-      };
-
-      const schema = buildEvalScoreSchema(outputSchema);
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score between 0 and 1",
+          reasoningDescription: "The reasoning",
+        }),
+      );
       const result = schema.safeParse({
         score: "0.75",
         reasoning: "Score is string",
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should validate categorical responses against allowed values", () => {
+      const schema = buildEvalResponseValidationSchema(
+        createCategoricalEvalTemplateOutputSchema({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          options: [
+            { value: "correct", description: "Fully supported" },
+            { value: "partial", description: "Some support but incomplete" },
+          ],
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: "correct",
+          reasoning: "The answer is fully supported.",
+        }).success,
+      ).toBe(true);
+
+      expect(
+        schema.safeParse({
+          score: "incorrect",
+          reasoning: "The answer is unsupported.",
+        }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe("buildEvalTemplateStructuredOutputJsonSchema", () => {
+    it("should build categorical JSON schema with described enum options", () => {
+      const schema = buildEvalTemplateStructuredOutputJsonSchema(
+        createCategoricalEvalTemplateOutputSchema({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          options: [
+            { value: "correct", description: "Fully supported" },
+            { value: "partial", description: "Mixed or incomplete" },
+          ],
+        }),
+      );
+
+      expect(schema).toMatchObject({
+        type: "object",
+        required: ["reasoning", "score"],
+        additionalProperties: false,
+        properties: {
+          reasoning: {
+            type: "string",
+            description: "Explain the selected category",
+          },
+          score: {
+            type: "string",
+            description: "Choose the best matching category",
+            oneOf: [
+              {
+                const: "correct",
+                title: "correct",
+                description: "Fully supported",
+              },
+              {
+                const: "partial",
+                title: "partial",
+                description: "Mixed or incomplete",
+              },
+            ],
+          },
+        },
+      });
     });
   });
 
@@ -201,11 +275,12 @@ describe("evalExecutionUtils", () => {
         traceId: "trace-789",
         observationId: null,
         scoreName: "accuracy",
-        value: 0.85,
+        score: 0.85,
         reasoning: "High accuracy observed",
         environment: "production",
         executionTraceId: "exec-trace-abc",
         metadata: { job_execution_id: "exec-123" },
+        dataType: "NUMERIC" as const,
       };
 
       const result = buildScoreEvent(params);
@@ -232,16 +307,36 @@ describe("evalExecutionUtils", () => {
         traceId: "trace-789",
         observationId: "obs-abc",
         scoreName: "relevance",
-        value: 0.9,
+        score: 0.9,
         reasoning: "Highly relevant",
         environment: "default",
         executionTraceId: "exec-trace-def",
         metadata: {},
+        dataType: "NUMERIC" as const,
       };
 
       const result = buildScoreEvent(params);
 
       expect(result.body.observationId).toBe("obs-abc");
+    });
+
+    it("should build categorical score events", () => {
+      const result = buildScoreEvent({
+        eventId: "event-123",
+        scoreId: "score-456",
+        traceId: "trace-789",
+        observationId: null,
+        scoreName: "factuality",
+        score: "correct",
+        reasoning: "The answer is fully supported.",
+        environment: "production",
+        executionTraceId: "exec-trace-abc",
+        metadata: { job_execution_id: "exec-123" },
+        dataType: "CATEGORICAL",
+      });
+
+      expect(result.body.value).toBe("correct");
+      expect(result.body.dataType).toBe("CATEGORICAL");
     });
   });
 
@@ -289,10 +384,12 @@ describe("evalExecutionUtils", () => {
 
   describe("validateLLMResponse", () => {
     it("should validate correct response", () => {
-      const schema = buildEvalScoreSchema({
-        score: "Score 0-1",
-        reasoning: "Why",
-      });
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score 0-1",
+          reasoningDescription: "Why",
+        }),
+      );
 
       const result = validateLLMResponse({
         response: { score: 0.8, reasoning: "Good" },
@@ -307,10 +404,12 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should return error for invalid response", () => {
-      const schema = buildEvalScoreSchema({
-        score: "Score 0-1",
-        reasoning: "Why",
-      });
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score 0-1",
+          reasoningDescription: "Why",
+        }),
+      );
 
       const result = validateLLMResponse({
         response: { score: "invalid", reasoning: "Test" },
@@ -324,10 +423,12 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should return error for null response", () => {
-      const schema = buildEvalScoreSchema({
-        score: "Score 0-1",
-        reasoning: "Why",
-      });
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score 0-1",
+          reasoningDescription: "Why",
+        }),
+      );
 
       const result = validateLLMResponse({
         response: null,
@@ -338,10 +439,12 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should return error for missing fields", () => {
-      const schema = buildEvalScoreSchema({
-        score: "Score 0-1",
-        reasoning: "Why",
-      });
+      const schema = buildEvalResponseValidationSchema(
+        createNumericEvalTemplateOutputSchema({
+          scoreDescription: "Score 0-1",
+          reasoningDescription: "Why",
+        }),
+      );
 
       const result = validateLLMResponse({
         response: { score: 0.5 },
@@ -349,6 +452,29 @@ describe("evalExecutionUtils", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should validate categorical responses", () => {
+      const schema = buildEvalResponseValidationSchema(
+        createCategoricalEvalTemplateOutputSchema({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Why",
+          options: [
+            { value: "correct", description: "Fully supported" },
+            { value: "incorrect", description: "Unsupported" },
+          ],
+        }),
+      );
+
+      const result = validateLLMResponse({
+        response: { score: "correct", reasoning: "Supported by the context" },
+        schema,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.score).toBe("correct");
+      }
     });
   });
 
@@ -385,6 +511,21 @@ describe("evalExecutionUtils", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should accept versioned categorical schemas", () => {
+      const result = evalTemplateOutputSchema.safeParse(
+        createCategoricalEvalTemplateOutputSchema({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          options: [
+            { value: "correct", description: "Fully supported" },
+            { value: "partial", description: "Mixed or incomplete" },
+          ],
+        }),
+      );
+
+      expect(result.success).toBe(true);
     });
   });
 });

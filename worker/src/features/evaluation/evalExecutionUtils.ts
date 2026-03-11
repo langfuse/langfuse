@@ -1,6 +1,12 @@
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
-import { ScoreSourceEnum, ChatMessageRole } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  EvalTemplateOutputKind,
+  EvalTemplateOutputSchema as SharedEvalTemplateOutputSchema,
+  normalizeEvalTemplateOutputSchema,
+  ScoreSourceEnum,
+} from "@langfuse/shared";
 import {
   ChatMessageType,
   eventTypes,
@@ -9,13 +15,7 @@ import {
 import { compileTemplateString } from "../utils";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 
-/**
- * Output schema for eval templates - defines the expected LLM response structure.
- */
-export const evalTemplateOutputSchema = z.object({
-  score: z.string(),
-  reasoning: z.string(),
-});
+export const evalTemplateOutputSchema = SharedEvalTemplateOutputSchema;
 
 export type EvalTemplateOutputSchema = z.infer<typeof evalTemplateOutputSchema>;
 
@@ -42,16 +42,38 @@ export function compileEvalPrompt(params: CompileEvalPromptParams): string {
 }
 
 /**
- * Builds a Zod v3 schema for validating LLM structured output.
- * Uses Zod v3 because the LLM completion service requires it.
+ * Builds a Zod v3 schema for validating LLM structured output responses.
  *
  * @param outputSchema - The parsed output schema from the eval template
  * @returns A Zod v3 schema for validating LLM responses
  */
-export function buildEvalScoreSchema(outputSchema: EvalTemplateOutputSchema) {
+export function buildEvalResponseValidationSchema(
+  outputSchema: EvalTemplateOutputSchema,
+) {
+  const normalizedSchema = normalizeEvalTemplateOutputSchema(outputSchema);
+
+  if (normalizedSchema.kind === EvalTemplateOutputKind.CATEGORICAL) {
+    const [firstOption, ...restOptions] = normalizedSchema.options.map(
+      (option) => option.value,
+    );
+
+    if (!firstOption) {
+      throw new Error(
+        "Categorical eval output schema requires at least one option",
+      );
+    }
+
+    return zodV3.object({
+      reasoning: zodV3.string().describe(normalizedSchema.reasoningDescription),
+      score: zodV3
+        .enum([firstOption, ...restOptions])
+        .describe(normalizedSchema.scoreDescription),
+    });
+  }
+
   return zodV3.object({
-    reasoning: zodV3.string().describe(outputSchema.reasoning),
-    score: zodV3.number().describe(outputSchema.score),
+    reasoning: zodV3.string().describe(normalizedSchema.reasoningDescription),
+    score: zodV3.number().describe(normalizedSchema.scoreDescription),
   });
 }
 
@@ -98,18 +120,29 @@ export function buildEvalMessages(prompt: string) {
 /**
  * Parameters for building a score event.
  */
-export interface BuildScoreEventParams {
+type BuildScoreEventBase = {
   eventId: string;
   scoreId: string;
   traceId: string | null;
   observationId: string | null;
   scoreName: string;
-  value: number;
   reasoning: string;
   environment: string;
   executionTraceId: string;
   metadata: Record<string, string>;
-}
+};
+
+export type BuildScoreEventParams = BuildScoreEventBase &
+  (
+    | {
+        dataType: "NUMERIC";
+        score: number;
+      }
+    | {
+        dataType: "CATEGORICAL";
+        score: string;
+      }
+  );
 
 /**
  * Builds a score event for S3 upload and ingestion queue.
@@ -118,21 +151,38 @@ export interface BuildScoreEventParams {
  * @returns A score event ready for persistence
  */
 export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
+  const bodyBase = {
+    id: params.scoreId,
+    traceId: params.traceId,
+    observationId: params.observationId,
+    name: params.scoreName,
+    comment: params.reasoning,
+    source: ScoreSourceEnum.EVAL,
+    environment: params.environment,
+    executionTraceId: params.executionTraceId,
+    metadata: params.metadata,
+  };
+
+  if (params.dataType === "CATEGORICAL") {
+    return {
+      id: params.eventId,
+      timestamp: new Date().toISOString(),
+      type: eventTypes.SCORE_CREATE,
+      body: {
+        ...bodyBase,
+        value: params.score,
+        dataType: "CATEGORICAL",
+      },
+    };
+  }
+
   return {
     id: params.eventId,
     timestamp: new Date().toISOString(),
     type: eventTypes.SCORE_CREATE,
     body: {
-      id: params.scoreId,
-      traceId: params.traceId,
-      observationId: params.observationId,
-      name: params.scoreName,
-      value: params.value,
-      comment: params.reasoning,
-      source: ScoreSourceEnum.EVAL,
-      environment: params.environment,
-      executionTraceId: params.executionTraceId,
-      metadata: params.metadata,
+      ...bodyBase,
+      value: params.score,
       dataType: "NUMERIC",
     },
   };
@@ -156,7 +206,7 @@ export function getEnvironmentFromVariables(
  */
 export interface ValidateLLMResponseParams {
   response: unknown;
-  schema: ReturnType<typeof buildEvalScoreSchema>;
+  schema: ReturnType<typeof buildEvalResponseValidationSchema>;
 }
 
 /**
@@ -168,7 +218,7 @@ export interface ValidateLLMResponseParams {
 export function validateLLMResponse(
   params: ValidateLLMResponseParams,
 ):
-  | { success: true; data: { score: number; reasoning: string } }
+  | { success: true; data: { score: number | string; reasoning: string } }
   | { success: false; error: string } {
   const result = params.schema.safeParse(params.response);
 

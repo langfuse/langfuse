@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
@@ -14,15 +14,20 @@ import {
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { extractVariables, getIsCharOrUnderscore } from "@langfuse/shared";
+import {
+  createCategoricalEvalTemplateOutputSchema,
+  createNumericEvalTemplateOutputSchema,
+  EvalTemplateOutputKind,
+  EvalTemplateOutputKindSchema,
+  EvalTemplateOutputSchema,
+  extractVariables,
+  getIsCharOrUnderscore,
+  normalizeEvalTemplateOutputSchema,
+} from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import {
-  OutputSchema,
-  type ModelParams,
-  ZodModelConfig,
-} from "@langfuse/shared";
+import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -36,8 +41,15 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, PlusIcon, Trash } from "lucide-react";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -74,10 +86,8 @@ export const EvalTemplateForm = (props: {
                 name: props.existingEvalTemplate.name,
                 prompt: props.existingEvalTemplate.prompt,
                 vars: props.existingEvalTemplate.vars,
-                outputSchema: props.existingEvalTemplate.outputSchema as {
-                  score: string;
-                  reasoning: string;
-                },
+                outputSchema: props.existingEvalTemplate
+                  .outputSchema as z.infer<typeof EvalTemplateOutputSchema>,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -102,43 +112,113 @@ const selectedModelSchema = z.object({
   modelParams: ZodModelConfig,
 });
 
-const formSchema = z.object({
-  name: z.string().min(1, "Enter a name"),
-  prompt: z
-    .string()
-    .min(1, "Enter a prompt")
-    .refine((val) => {
-      const variables = extractVariables(val);
-      const matches = variables.map((variable) => {
-        // check regex here
-        if (variable.match(/^[A-Za-z_]+$/)) {
-          return true;
-        }
-        return false;
-      });
-      return !matches.includes(false);
-    }, "Variables must only contain letters and underscores (_)"),
-
-  variables: z.array(
-    z.string().min(1, "Variables must have at least one character"),
-  ),
-  outputScore: z.string().min(1, "Enter a score function"),
-  outputReasoning: z.string().min(1, "Enter a reasoning function"),
-  referencedEvaluators: z
-    .enum(EvalReferencedEvaluators)
-    .optional()
-    .default(EvalReferencedEvaluators.PERSIST),
-  shouldUseDefaultModel: z.boolean().default(true),
+const categoricalOptionSchema = z.object({
+  value: z.string().trim().min(1, "Enter a category value"),
+  description: z.string().optional(),
 });
+
+const formSchema = z
+  .object({
+    name: z.string().min(1, "Enter a name"),
+    prompt: z
+      .string()
+      .min(1, "Enter a prompt")
+      .refine((val) => {
+        const variables = extractVariables(val);
+        const matches = variables.map((variable) => {
+          // check regex here
+          if (variable.match(/^[A-Za-z_]+$/)) {
+            return true;
+          }
+          return false;
+        });
+        return !matches.includes(false);
+      }, "Variables must only contain letters and underscores (_)"),
+
+    variables: z.array(
+      z.string().min(1, "Variables must have at least one character"),
+    ),
+    outputType: EvalTemplateOutputKindSchema.default(
+      EvalTemplateOutputKind.NUMERIC,
+    ),
+    outputScore: z.string().min(1, "Enter a score function"),
+    outputReasoning: z.string().min(1, "Enter a reasoning function"),
+    outputOptions: z.array(categoricalOptionSchema).default([]),
+    referencedEvaluators: z
+      .enum(EvalReferencedEvaluators)
+      .optional()
+      .default(EvalReferencedEvaluators.PERSIST),
+    shouldUseDefaultModel: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    if (value.outputType !== EvalTemplateOutputKind.CATEGORICAL) {
+      return;
+    }
+
+    if (value.outputOptions.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Add at least one category",
+        path: ["outputOptions"],
+      });
+      return;
+    }
+
+    const seenValues = new Set<string>();
+
+    value.outputOptions.forEach((option, index) => {
+      const normalizedValue = option.value.trim();
+      if (seenValues.has(normalizedValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Category values must be unique",
+          path: ["outputOptions", index, "value"],
+        });
+        return;
+      }
+
+      seenValues.add(normalizedValue);
+    });
+  });
+
+const defaultNumericOutputValues = {
+  outputType: EvalTemplateOutputKind.NUMERIC,
+  outputReasoning: "One sentence reasoning for the score",
+  outputScore:
+    "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
+  outputOptions: [] as Array<{ value: string; description?: string }>,
+};
+
+const getOutputSchemaFormDefaults = (
+  outputSchema?: z.infer<typeof EvalTemplateOutputSchema>,
+) => {
+  if (!outputSchema) {
+    return defaultNumericOutputValues;
+  }
+
+  const normalizedOutputSchema = normalizeEvalTemplateOutputSchema(
+    EvalTemplateOutputSchema.parse(outputSchema),
+  );
+
+  return {
+    outputType: normalizedOutputSchema.kind,
+    outputReasoning: normalizedOutputSchema.reasoningDescription,
+    outputScore: normalizedOutputSchema.scoreDescription,
+    outputOptions:
+      normalizedOutputSchema.kind === EvalTemplateOutputKind.CATEGORICAL
+        ? normalizedOutputSchema.options.map((option) => ({
+            value: option.value,
+            description: option.description ?? "",
+          }))
+        : [],
+  };
+};
 
 export type EvalTemplateFormPreFill = {
   name: string;
   prompt: string;
   vars: string[];
-  outputSchema: {
-    score: string;
-    reasoning: string;
-  };
+  outputSchema: z.infer<typeof EvalTemplateOutputSchema>;
   selectedModel?: {
     provider: string;
     model: string;
@@ -200,6 +280,10 @@ export const InnerEvalTemplateForm = (props: {
     props.preFilledFormValues?.selectedModel,
   );
 
+  const outputSchemaDefaults = getOutputSchemaFormDefaults(
+    props.preFilledFormValues?.outputSchema,
+  );
+
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
   const form = useForm({
@@ -210,17 +294,27 @@ export const InnerEvalTemplateForm = (props: {
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
-      outputReasoning: props.preFilledFormValues
-        ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).reasoning
-        : "One sentence reasoning for the score",
-      outputScore: props.preFilledFormValues
-        ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
-        : "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
+      outputType: outputSchemaDefaults.outputType,
+      outputReasoning: outputSchemaDefaults.outputReasoning,
+      outputScore: outputSchemaDefaults.outputScore,
+      outputOptions: outputSchemaDefaults.outputOptions,
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
 
+  const {
+    fields: outputOptionFields,
+    append,
+    remove,
+    replace,
+  } = useFieldArray({
+    control: form.control,
+    name: "outputOptions",
+  });
+
   const useDefaultModel = form.watch("shouldUseDefaultModel");
+  const outputType = form.watch("outputType");
+  const isCategoricalOutput = outputType === EvalTemplateOutputKind.CATEGORICAL;
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -274,6 +368,21 @@ export const InnerEvalTemplateForm = (props: {
         : "eval_templates:new_form_submit",
     );
 
+    const outputSchema =
+      values.outputType === EvalTemplateOutputKind.CATEGORICAL
+        ? createCategoricalEvalTemplateOutputSchema({
+            scoreDescription: values.outputScore,
+            reasoningDescription: values.outputReasoning,
+            options: values.outputOptions.map((option) => ({
+              value: option.value,
+              description: option.description,
+            })),
+          })
+        : createNumericEvalTemplateOutputSchema({
+            scoreDescription: values.outputScore,
+            reasoningDescription: values.outputReasoning,
+          });
+
     const evalTemplate = {
       name: values.name,
       projectId: props.projectId,
@@ -287,10 +396,7 @@ export const InnerEvalTemplateForm = (props: {
         ? undefined
         : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
-      outputSchema: {
-        score: values.outputScore,
-        reasoning: values.outputReasoning,
-      },
+      outputSchema,
       referencedEvaluators: values.referencedEvaluators,
       sourceTemplateId: props.cloneSourceId ?? undefined,
     };
@@ -474,6 +580,49 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
+            name="outputType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Score type</FormLabel>
+                <FormDescription>
+                  Choose whether the evaluator should return a numeric score or
+                  one of a fixed set of categories.
+                </FormDescription>
+                <Select
+                  value={field.value}
+                  disabled={!props.isEditing}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+
+                    if (
+                      value === EvalTemplateOutputKind.CATEGORICAL &&
+                      (form.getValues("outputOptions") ?? []).length === 0
+                    ) {
+                      replace([{ value: "", description: "" }]);
+                    }
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a score type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={EvalTemplateOutputKind.NUMERIC}>
+                      Numeric
+                    </SelectItem>
+                    <SelectItem value={EvalTemplateOutputKind.CATEGORICAL}>
+                      Categorical
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="outputReasoning"
             render={({ field }) => (
               <FormItem>
@@ -496,10 +645,15 @@ export const InnerEvalTemplateForm = (props: {
             name="outputScore"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Score range prompt</FormLabel>
+                <FormLabel>
+                  {isCategoricalOutput
+                    ? "Category selection prompt"
+                    : "Score output prompt"}
+                </FormLabel>
                 <FormDescription>
-                  Define how the LLM should return the evaluation score in
-                  natural language. Needs to yield a numeric value.
+                  {isCategoricalOutput
+                    ? "Define how the LLM should choose exactly one category from the list below."
+                    : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} />
@@ -508,6 +662,87 @@ export const InnerEvalTemplateForm = (props: {
               </FormItem>
             )}
           />
+
+          {isCategoricalOutput ? (
+            <FormField
+              control={form.control}
+              name="outputOptions"
+              render={() => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <FormLabel>Categories</FormLabel>
+                      <FormDescription>
+                        Add the allowed category values. Descriptions are
+                        included in the JSON schema sent to the model.
+                      </FormDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={!props.isEditing}
+                      onClick={() => append({ value: "", description: "" })}
+                    >
+                      <PlusIcon className="mr-1.5 h-4 w-4" />
+                      Add category
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {outputOptionFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto]"
+                      >
+                        <FormField
+                          control={form.control}
+                          name={`outputOptions.${index}.value`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Value</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`outputOptions.${index}.description`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description (optional)</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value ?? ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!props.isEditing}
+                            onClick={() => remove(index)}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {form.formState.errors.outputOptions?.message ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {form.formState.errors.outputOptions.message}
+                    </p>
+                  ) : null}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
         </CardContent>
       </Card>
     </>

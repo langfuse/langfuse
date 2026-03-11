@@ -7,6 +7,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
+  buildEvalTemplateStructuredOutputJsonSchema,
   ZodModelConfig,
   type OrderByState,
   singleFilter,
@@ -22,6 +23,7 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
+  EvalTemplateOutputSchema,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -129,10 +131,7 @@ export const CreateEvalTemplate = z.object({
   model: z.string().nullish(),
   modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
-  outputSchema: z.object({
-    score: z.string(),
-    reasoning: z.string(),
-  }),
+  outputSchema: EvalTemplateOutputSchema,
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .enum(EvalReferencedEvaluators)
@@ -232,11 +231,17 @@ const validateEvalTemplateActivation = async ({
   }
 
   try {
+    const parsedOutputSchema = EvalTemplateOutputSchema.parse(
+      template.outputSchema,
+    );
+
     await testModelCall({
       provider: modelConfig.config.provider,
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
+      structuredOutputSchema:
+        buildEvalTemplateStructuredOutputJsonSchema(parsedOutputSchema),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -876,6 +881,9 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
+          structuredOutputSchema: buildEvalTemplateStructuredOutputJsonSchema(
+            input.outputSchema,
+          ),
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";

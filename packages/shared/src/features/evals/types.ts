@@ -165,10 +165,197 @@ export const availableDatasetEvalVariables = [
   ...availableTraceEvalVariables,
 ];
 
-export const OutputSchema = z.object({
-  reasoning: z.string(),
-  score: z.string(),
+export const EvalTemplateOutputKind = {
+  NUMERIC: "numeric",
+  CATEGORICAL: "categorical",
+} as const;
+
+export const EvalTemplateOutputKindSchema = z.enum(
+  Object.values(EvalTemplateOutputKind),
+);
+export type EvalTemplateOutputKind =
+  (typeof EvalTemplateOutputKind)[keyof typeof EvalTemplateOutputKind];
+
+const EvalTemplateLegacyOutputSchema = z.object({
+  reasoning: z.string().trim().min(1),
+  score: z.string().trim().min(1),
 });
+
+const EvalTemplateOutputFieldSchema = z.object({
+  description: z.string().trim().min(1),
+});
+
+export const EvalTemplateCategoricalOptionSchema = z.object({
+  value: z.string().trim().min(1),
+  description: z.string().trim().min(1).optional(),
+});
+export type EvalTemplateCategoricalOption = z.infer<
+  typeof EvalTemplateCategoricalOptionSchema
+>;
+
+export const VersionedNumericEvalTemplateOutputSchema = z.object({
+  version: z.literal(2),
+  kind: z.literal(EvalTemplateOutputKind.NUMERIC),
+  reasoning: EvalTemplateOutputFieldSchema,
+  score: EvalTemplateOutputFieldSchema,
+});
+
+export const VersionedCategoricalEvalTemplateOutputSchema = z
+  .object({
+    version: z.literal(2),
+    kind: z.literal(EvalTemplateOutputKind.CATEGORICAL),
+    reasoning: EvalTemplateOutputFieldSchema,
+    score: z.object({
+      description: z.string().trim().min(1),
+      options: z.array(EvalTemplateCategoricalOptionSchema).min(1),
+    }),
+  })
+  .superRefine((value, ctx) => {
+    const seenValues = new Set<string>();
+
+    value.score.options.forEach((option, index) => {
+      const normalizedValue = option.value.trim();
+      if (seenValues.has(normalizedValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Category values must be unique",
+          path: ["score", "options", index, "value"],
+        });
+        return;
+      }
+
+      seenValues.add(normalizedValue);
+    });
+  });
+
+export const EvalTemplateOutputSchema = z.union([
+  EvalTemplateLegacyOutputSchema,
+  VersionedNumericEvalTemplateOutputSchema,
+  VersionedCategoricalEvalTemplateOutputSchema,
+]);
+export type EvalTemplateOutputSchema = z.infer<typeof EvalTemplateOutputSchema>;
+
+export type NormalizedEvalTemplateOutputSchema =
+  | {
+      version: 2;
+      kind: "numeric";
+      reasoningDescription: string;
+      scoreDescription: string;
+    }
+  | {
+      version: 2;
+      kind: "categorical";
+      reasoningDescription: string;
+      scoreDescription: string;
+      options: EvalTemplateCategoricalOption[];
+    };
+
+export function normalizeEvalTemplateOutputSchema(
+  outputSchema: EvalTemplateOutputSchema,
+): NormalizedEvalTemplateOutputSchema {
+  if (!("version" in outputSchema)) {
+    return {
+      version: 2,
+      kind: EvalTemplateOutputKind.NUMERIC,
+      reasoningDescription: outputSchema.reasoning,
+      scoreDescription: outputSchema.score,
+    };
+  }
+
+  if (outputSchema.kind === EvalTemplateOutputKind.NUMERIC) {
+    return {
+      version: 2,
+      kind: EvalTemplateOutputKind.NUMERIC,
+      reasoningDescription: outputSchema.reasoning.description,
+      scoreDescription: outputSchema.score.description,
+    };
+  }
+
+  return {
+    version: 2,
+    kind: EvalTemplateOutputKind.CATEGORICAL,
+    reasoningDescription: outputSchema.reasoning.description,
+    scoreDescription: outputSchema.score.description,
+    options: outputSchema.score.options,
+  };
+}
+
+export function createNumericEvalTemplateOutputSchema(params: {
+  reasoningDescription: string;
+  scoreDescription: string;
+}) {
+  return VersionedNumericEvalTemplateOutputSchema.parse({
+    version: 2,
+    kind: EvalTemplateOutputKind.NUMERIC,
+    reasoning: {
+      description: params.reasoningDescription,
+    },
+    score: {
+      description: params.scoreDescription,
+    },
+  });
+}
+
+export function createCategoricalEvalTemplateOutputSchema(params: {
+  reasoningDescription: string;
+  scoreDescription: string;
+  options: Array<{
+    value: string;
+    description?: string | null;
+  }>;
+}) {
+  return VersionedCategoricalEvalTemplateOutputSchema.parse({
+    version: 2,
+    kind: EvalTemplateOutputKind.CATEGORICAL,
+    reasoning: {
+      description: params.reasoningDescription,
+    },
+    score: {
+      description: params.scoreDescription,
+      options: params.options.map((option) => ({
+        value: option.value,
+        ...(option.description?.trim()
+          ? { description: option.description.trim() }
+          : {}),
+      })),
+    },
+  });
+}
+
+export function buildEvalTemplateStructuredOutputJsonSchema(
+  outputSchema: EvalTemplateOutputSchema,
+): Record<string, unknown> {
+  const normalizedSchema = normalizeEvalTemplateOutputSchema(outputSchema);
+
+  return {
+    type: "object",
+    properties: {
+      reasoning: {
+        type: "string",
+        description: normalizedSchema.reasoningDescription,
+      },
+      score:
+        normalizedSchema.kind === EvalTemplateOutputKind.CATEGORICAL
+          ? {
+              type: "string",
+              description: normalizedSchema.scoreDescription,
+              oneOf: normalizedSchema.options.map((option) => ({
+                const: option.value,
+                title: option.value,
+                ...(option.description
+                  ? { description: option.description }
+                  : {}),
+              })),
+            }
+          : {
+              type: "number",
+              description: normalizedSchema.scoreDescription,
+            },
+    },
+    required: ["reasoning", "score"],
+    additionalProperties: false,
+  };
+}
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 

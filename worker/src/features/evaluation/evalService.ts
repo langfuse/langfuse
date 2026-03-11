@@ -42,6 +42,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
+  buildEvalTemplateStructuredOutputJsonSchema,
   singleFilter,
   variableMappingList,
   evalDatasetFormFilterCols,
@@ -65,7 +66,7 @@ import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   compileEvalPrompt,
-  buildEvalScoreSchema,
+  buildEvalResponseValidationSchema,
   buildExecutionMetadata,
   buildEvalMessages,
   buildScoreEvent,
@@ -791,7 +792,11 @@ export async function executeLLMAsJudgeEvaluation({
         );
       }
 
-      const evalScoreSchema = buildEvalScoreSchema(parsedOutputSchema.data);
+      const evalStructuredOutputSchema =
+        buildEvalTemplateStructuredOutputJsonSchema(parsedOutputSchema.data);
+      const evalResponseSchema = buildEvalResponseValidationSchema(
+        parsedOutputSchema.data,
+      );
 
       // Get model configuration
       const modelConfig = await deps.fetchModelConfig({
@@ -860,7 +865,7 @@ export async function executeLLMAsJudgeEvaluation({
             return await deps.callLLM({
               messages,
               modelConfig: modelConfig.config,
-              structuredOutputSchema: evalScoreSchema,
+              structuredOutputSchema: evalStructuredOutputSchema,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,
@@ -900,7 +905,7 @@ export async function executeLLMAsJudgeEvaluation({
 
       const parsedLLMOutput = validateLLMResponse({
         response: llmOutput,
-        schema: evalScoreSchema,
+        schema: evalResponseSchema,
       });
 
       if (!parsedLLMOutput.success) {
@@ -915,18 +920,34 @@ export async function executeLLMAsJudgeEvaluation({
 
       // Build and persist score
       const eventId = randomUUID();
-      const scoreEvent = buildScoreEvent({
-        eventId,
-        scoreId,
-        traceId: job.jobInputTraceId,
-        observationId: job.jobInputObservationId,
-        scoreName: config.scoreName,
-        value: parsedLLMOutput.data.score,
-        reasoning: parsedLLMOutput.data.reasoning,
-        environment,
-        executionTraceId,
-        metadata: executionMetadata,
-      });
+      const scoreEvent =
+        typeof parsedLLMOutput.data.score === "number"
+          ? buildScoreEvent({
+              eventId,
+              scoreId,
+              traceId: job.jobInputTraceId,
+              observationId: job.jobInputObservationId,
+              scoreName: config.scoreName,
+              score: parsedLLMOutput.data.score,
+              reasoning: parsedLLMOutput.data.reasoning,
+              environment,
+              executionTraceId,
+              metadata: executionMetadata,
+              dataType: "NUMERIC",
+            })
+          : buildScoreEvent({
+              eventId,
+              scoreId,
+              traceId: job.jobInputTraceId,
+              observationId: job.jobInputObservationId,
+              scoreName: config.scoreName,
+              score: parsedLLMOutput.data.score,
+              reasoning: parsedLLMOutput.data.reasoning,
+              environment,
+              executionTraceId,
+              metadata: executionMetadata,
+              dataType: "CATEGORICAL",
+            });
 
       // Write score to S3 and enqueue for ingestion
       try {

@@ -23,7 +23,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 export type JobExecutionRow = {
   status: string;
   scoreName?: string;
-  scoreValue?: number;
+  scoreValue?: number | string;
   scoreComment?: string;
   scoreMetadata?: Prisma.JsonValue;
   startTime?: string;
@@ -101,7 +101,10 @@ export default function EvalLogTable({
         if (value === undefined) {
           return undefined;
         }
-        return value % 1 === 0 ? value : value.toFixed(4);
+        if (typeof value === "number") {
+          return value % 1 === 0 ? value : value.toFixed(4);
+        }
+        return value;
       },
     }),
     columnHelper.accessor("scoreComment", {
@@ -218,7 +221,8 @@ export default function EvalLogTable({
     return {
       status: jobConfig.status,
       scoreName: jobConfig.score?.name ?? undefined,
-      scoreValue: jobConfig.score?.value ?? undefined,
+      scoreValue:
+        jobConfig.score?.stringValue ?? jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
       scoreMetadata: jobConfig.score?.metadata ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,

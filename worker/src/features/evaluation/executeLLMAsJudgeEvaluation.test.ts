@@ -4,7 +4,10 @@ import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  type EvalTemplateOutputSchema,
+  EvalTargetObject,
+} from "@langfuse/shared";
 
 /**
  * Unit tests for executeLLMAsJudgeEvaluation with mocked dependencies.
@@ -62,7 +65,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
     timeScope: ["NEW" as const],
   };
 
-  const mockEvalTemplate = {
+  const mockEvalTemplate: {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    version: number;
+    prompt: string;
+    model: string;
+    provider: string;
+    modelParams: Record<string, unknown>;
+    outputSchema: EvalTemplateOutputSchema;
+    vars: string[];
+    projectId: string;
+  } = {
     id: "template-xyz",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -108,7 +124,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
   /** Creates a mock for callLLM with a successful response */
-  const mockSuccessfulLLMCall = (score: number, reasoning: string) =>
+  const mockSuccessfulLLMCall = (score: number | string, reasoning: string) =>
     vi.fn().mockResolvedValue({ score, reasoning });
 
   /** Creates standard deps with all mocks for a successful execution flow */
@@ -449,9 +465,58 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           structuredOutputSchema: expect.objectContaining({
-            shape: expect.objectContaining({
+            properties: expect.objectContaining({
               reasoning: expect.any(Object),
               score: expect.any(Object),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should pass categorical structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall("correct", "Fully supported");
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputSchema: {
+              version: 2,
+              kind: "categorical",
+              reasoning: {
+                description: "Explain the selected category",
+              },
+              score: {
+                description: "Choose the best matching category",
+                options: [
+                  { value: "correct", description: "Fully supported" },
+                  { value: "partial", description: "Mixed or incomplete" },
+                ],
+              },
+            },
+          },
+        }),
+      );
+
+      expect(callLLM).toHaveBeenCalledWith(
+        expect.objectContaining({
+          structuredOutputSchema: expect.objectContaining({
+            properties: expect.objectContaining({
+              score: expect.objectContaining({
+                oneOf: [
+                  expect.objectContaining({
+                    const: "correct",
+                    description: "Fully supported",
+                  }),
+                  expect.objectContaining({
+                    const: "partial",
+                    description: "Mixed or incomplete",
+                  }),
+                ],
+              }),
             }),
           }),
         }),
@@ -691,6 +756,52 @@ describe("executeLLMAsJudgeEvaluation", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             executionTraceId,
+          }),
+        }),
+      );
+    });
+
+    it("should persist categorical eval scores", async () => {
+      const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "correct",
+          "The answer is fully supported by the context.",
+        ),
+        uploadScore,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputSchema: {
+              version: 2,
+              kind: "categorical",
+              reasoning: {
+                description: "Explain the selected category",
+              },
+              score: {
+                description: "Choose the best matching category",
+                options: [
+                  { value: "correct", description: "Fully supported" },
+                  { value: "partial", description: "Mixed or incomplete" },
+                ],
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              value: "correct",
+              comment: "The answer is fully supported by the context.",
+              dataType: "CATEGORICAL",
+            }),
           }),
         }),
       );
