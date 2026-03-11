@@ -2,7 +2,6 @@ import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
-import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
@@ -101,10 +100,6 @@ export function MarkdownJsonView({
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
 }) {
-  const stringOrValidatedMarkdown = useMemo(
-    () => StringOrMarkdownSchema.safeParse(content),
-    [content],
-  );
   const validatedOpenAIContent = useMemo(
     () => OpenAIContentSchema.safeParse(content),
     [content],
@@ -119,7 +114,9 @@ export function MarkdownJsonView({
     <>
       {canEnableMarkdown ? (
         <MarkdownView
-          markdown={stringOrValidatedMarkdown.data ?? content}
+          markdown={
+            validatedOpenAIContent.success ? validatedOpenAIContent.data : null
+          }
           title={title}
           titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}
