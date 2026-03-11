@@ -108,6 +108,7 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
+export * from "./services/blockEvaluatorConfigs";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
@@ -115,6 +116,7 @@ export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
+export * from "./media-deletion";
 export * from "./s3";
 
 // dataset run items
