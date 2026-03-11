@@ -14,13 +14,27 @@ export const evalConfigTargetValues = evalConfigTargetOptions.map(
   (option) => option.value,
 );
 
+const evaluatorDisplayStatusSql = `CASE
+  WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
+  WHEN jc."blocked_at" IS NOT NULL THEN 'PAUSED'
+  ELSE jc."status"::text
+END`;
+
+const evaluatorStatusSortRankSql = `CASE
+  WHEN jc."status" = 'INACTIVE' THEN 2
+  WHEN jc."blocked_at" IS NOT NULL THEN 1
+  ELSE 0
+END`;
+
 export const evalConfigFilterColumns: ColumnDefinition[] = [
   {
     name: "Status",
     id: "status",
     type: "stringOptions",
-    internal: 'jc."status"::text',
-    options: Object.values(JobConfigState).map((value) => ({ value })),
+    internal: evaluatorDisplayStatusSql,
+    options: [...Object.values(JobConfigState), "PAUSED"].map((value) => ({
+      value,
+    })),
   },
   {
     name: "Target",
@@ -32,7 +46,11 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
 ];
 
 export const evalConfigsTableCols: ColumnDefinition[] = [
-  ...evalConfigFilterColumns,
+  {
+    ...evalConfigFilterColumns[0],
+    internal: evaluatorStatusSortRankSql,
+  },
+  evalConfigFilterColumns[1],
   {
     name: "Updated At",
     id: "updatedAt",
