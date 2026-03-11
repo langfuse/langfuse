@@ -37,10 +37,7 @@ import {
 } from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import {
-  StringOrMarkdownSchema,
-  containsAnyMarkdown,
-} from "@/src/components/schemas/MarkdownSchema";
+import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
   convertRowIdToKeyPath,
@@ -53,6 +50,8 @@ import {
   getValueStringLength,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { detectCodeInValue } from "@/src/components/table/utils/codeDetection";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
@@ -161,9 +160,35 @@ function isChatMLFormat(json: unknown): boolean {
   return false;
 }
 
+function analyzeStringContent(content: string): {
+  isMarkdown: boolean;
+  mode?: string;
+  isPureCode?: boolean;
+} {
+  // First check if it's pure code
+  const codeDetection = detectCodeInValue(content);
+  if (codeDetection.isCode && codeDetection.mode) {
+    return {
+      isMarkdown: true,
+      mode: codeDetection.mode,
+      isPureCode: true,
+    };
+  }
+
+  // Then check if it's markdown
+  const markdownResult = StringOrMarkdownSchema.safeParse(content);
+  if (markdownResult.success) {
+    return { isMarkdown: true };
+  }
+
+  return { isMarkdown: false };
+}
+
 function isMarkdownContent(json: unknown): {
   isMarkdown: boolean;
   content?: string;
+  mode?: string;
+  isPureCode?: boolean;
 } {
   const contentSize = JSON.stringify(json || {}).length;
   if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
@@ -171,9 +196,9 @@ function isMarkdownContent(json: unknown): {
   }
 
   if (typeof json === "string") {
-    const markdownResult = StringOrMarkdownSchema.safeParse(json);
-    if (markdownResult.success) {
-      return { isMarkdown: true, content: json };
+    const analysis = analyzeStringContent(json);
+    if (analysis.isMarkdown) {
+      return { ...analysis, content: json };
     }
   }
 
@@ -188,8 +213,9 @@ function isMarkdownContent(json: unknown): {
     if (entries.length === 1) {
       const [, value] = entries[0];
       if (typeof value === "string") {
-        if (containsAnyMarkdown(value)) {
-          return { isMarkdown: true, content: value };
+        const analysis = analyzeStringContent(value);
+        if (analysis.isMarkdown) {
+          return { ...analysis, content: value };
         }
       }
     }
@@ -833,10 +859,12 @@ export function PrettyJsonView(props: {
     useState<LangfuseExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
-  const { isMarkdown, content: markdownContent } = useMemo(
-    () => isMarkdownContent(parsedJson),
-    [parsedJson],
-  );
+  const {
+    isMarkdown,
+    content: markdownContent,
+    mode: detectedMode,
+    isPureCode,
+  } = useMemo(() => isMarkdownContent(parsedJson), [parsedJson]);
 
   const baseTableData = useMemo(() => {
     try {
@@ -1217,7 +1245,23 @@ export function PrettyJsonView(props: {
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          <MarkdownView markdown={markdownContent || ""} />
+          {isPureCode && detectedMode ? (
+            // Pure code content - render with CodeMirror for consistency
+            <div className="flex whitespace-pre-wrap break-words p-3 text-xs">
+              <CodeMirrorEditor
+                value={markdownContent || ""}
+                mode={detectedMode as any}
+                editable={false}
+                lineNumbers={true}
+                lineWrapping={true}
+                minHeight={200}
+                className="w-full border-0 text-xs"
+              />
+            </div>
+          ) : (
+            // Mixed content - render with MarkdownView (keeps rich features)
+            <MarkdownView markdown={markdownContent || ""} />
+          )}
         </div>
       ) : (
         <>

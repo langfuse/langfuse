@@ -8,6 +8,14 @@ import CodeMirror, {
 } from "@uiw/react-codemirror";
 import { RangeSetBuilder } from "@codemirror/state";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
+import { javascript } from "@codemirror/lang-javascript";
+import { python } from "@codemirror/lang-python";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { sql } from "@codemirror/lang-sql";
+import { java } from "@codemirror/lang-java";
+import { cpp } from "@codemirror/lang-cpp";
+import { php } from "@codemirror/lang-php";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
@@ -180,7 +188,19 @@ export function CodeMirrorEditor({
   lineNumbers?: boolean;
   lineWrapping?: boolean;
   className?: string;
-  mode: "json" | "text" | "prompt";
+  mode:
+    | "json"
+    | "text"
+    | "prompt"
+    | "javascript"
+    | "typescript"
+    | "python"
+    | "html"
+    | "css"
+    | "sql"
+    | "java"
+    | "cpp"
+    | "php";
   minHeight?: number | string;
   maxHeight?: number | string;
   placeholder?: string;
@@ -193,6 +213,95 @@ export function CodeMirrorEditor({
     !!value && value !== "",
   );
 
+  // Build extensions array more safely to avoid instanceof errors
+  const extensions = [];
+
+  // RTL/bidi support - must be early for proper line decoration
+  extensions.push(...bidiSupport);
+
+  // Remove outline if field is focussed
+  extensions.push(
+    EditorView.theme({
+      "&.cm-focused": {
+        outline: "none",
+      },
+    }),
+  );
+
+  // Hide gutter when lineNumbers is false or fix missing gutter border
+  if (!lineNumbers) {
+    extensions.push(
+      EditorView.theme({
+        ".cm-gutters": { display: "none" },
+      }),
+    );
+  } else {
+    extensions.push(
+      EditorView.theme({
+        ".cm-gutters": { borderRight: "1px solid" },
+      }),
+    );
+  }
+
+  // Extend gutter to full height when minHeight > content height
+  if (minHeight) {
+    extensions.push(
+      EditorView.theme({
+        ".cm-gutter,.cm-content": {
+          minHeight:
+            typeof minHeight === "number" ? `${minHeight}px` : minHeight,
+        },
+        ".cm-scroller": { overflow: "auto" },
+      }),
+    );
+  }
+
+  // Add max height support for very long bodies of text
+  if (maxHeight) {
+    extensions.push(
+      EditorView.theme({
+        ".cm-scroller": {
+          maxHeight:
+            typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight,
+        },
+      }),
+    );
+  }
+
+  // Add language support
+  if (mode === "json") {
+    extensions.push(json());
+    if (linterEnabled) {
+      extensions.push(linter(jsonParseLinter()));
+    }
+  } else if (mode === "prompt") {
+    extensions.push(promptSupport);
+    extensions.push(promptLinter);
+  } else if (mode === "javascript" || mode === "typescript") {
+    extensions.push(
+      javascript({ jsx: true, typescript: mode === "typescript" }),
+    );
+  } else if (mode === "python") {
+    extensions.push(python());
+  } else if (mode === "html") {
+    extensions.push(html());
+  } else if (mode === "css") {
+    extensions.push(css());
+  } else if (mode === "sql") {
+    extensions.push(sql());
+  } else if (mode === "java") {
+    extensions.push(java());
+  } else if (mode === "cpp") {
+    extensions.push(cpp());
+  } else if (mode === "php") {
+    extensions.push(php());
+  }
+
+  // Add line wrapping if enabled
+  if (lineWrapping) {
+    extensions.push(EditorView.lineWrapping);
+  }
+
   return (
     <CodeMirror
       value={value}
@@ -203,64 +312,7 @@ export function CodeMirrorEditor({
         highlightActiveLine: false,
         lineNumbers: lineNumbers,
       }}
-      lang={mode === "json" ? "json" : undefined}
-      extensions={[
-        // RTL/bidi support - must be early for proper line decoration
-        ...bidiSupport,
-        // Remove outline if field is focussed
-        EditorView.theme({
-          "&.cm-focused": {
-            outline: "none",
-          },
-        }),
-        // Hide gutter when lineNumbers is false
-        // Fix missing gutter border
-        ...(!lineNumbers
-          ? [
-              EditorView.theme({
-                ".cm-gutters": { display: "none" },
-              }),
-            ]
-          : [
-              EditorView.theme({
-                ".cm-gutters": { borderRight: "1px solid" },
-              }),
-            ]),
-        // Extend gutter to full height when minHeight > content height
-        // This also enlarges the text area to minHeight
-        ...(!!minHeight
-          ? [
-              EditorView.theme({
-                ".cm-gutter,.cm-content": {
-                  minHeight:
-                    typeof minHeight === "number"
-                      ? `${minHeight}px`
-                      : minHeight,
-                },
-                ".cm-scroller": { overflow: "auto" },
-              }),
-            ]
-          : []),
-        // Add max height support for very long bodies of text
-        ...(!!maxHeight
-          ? [
-              EditorView.theme({
-                ".cm-scroller": {
-                  maxHeight:
-                    typeof maxHeight === "number"
-                      ? `${maxHeight}px`
-                      : maxHeight,
-                },
-              }),
-            ]
-          : []),
-        ...(mode === "json" ? [json()] : []),
-        ...(mode === "json" && linterEnabled
-          ? [linter(jsonParseLinter())]
-          : []),
-        ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
-        ...(lineWrapping ? [EditorView.lineWrapping] : []),
-      ]}
+      extensions={extensions}
       defaultValue={value}
       onChange={(c) => {
         if (onChange) onChange(c);
