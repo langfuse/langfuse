@@ -81,3 +81,20 @@ export async function getDeletedProjects(
     take: limit,
   });
 }
+
+/**
+ * Find the oldest soft-deleted project that still has media.
+ * Uses EXISTS join supposed to be fast even with millions of media rows.
+ */
+export async function getDeletedProjectWithMedia(): Promise<string | null> {
+  const result = await prisma.project.findFirst({
+    select: { id: true },
+    where: {
+      deletedAt: { not: null },
+      Media: { some: {} },
+    },
+    orderBy: { deletedAt: "asc" },
+  });
+
+  return result?.id ?? null;
+}
