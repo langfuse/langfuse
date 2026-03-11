@@ -200,8 +200,8 @@ export const PlaceholderMessageSchema = z.object({
   name: z
     .string()
     .regex(
-      /^[a-zA-Z][a-zA-Z0-9_]*$/,
-      "Placeholder name must start with a letter and contain only alphanumeric characters and underscores",
+      /^[\p{L}][\p{L}\p{N}_]*$/u,
+      "Placeholder name must start with a letter and contain only letters, digits, and underscores",
     ),
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
