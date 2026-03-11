@@ -26,6 +26,11 @@ export type BlockedEvaluatorConfigIdsByReason = {
   [reason in EvaluatorBlockReason]?: string[];
 };
 
+type BlockedEvaluatorConfigNotification = {
+  blockReason: EvaluatorBlockReason;
+  blockedJobConfigIds: string[];
+};
+
 export async function blockEvaluatorConfigsInTx({
   tx,
   projectId,
@@ -107,30 +112,49 @@ export async function finalizeBlockedEvaluatorConfigBlocks(params: {
   projectId: string;
   blockedByReason: BlockedEvaluatorConfigIdsByReason;
 }): Promise<void> {
-  const blockedByReasonEntries = Object.entries(params.blockedByReason).filter(
-    (entry): entry is [EvaluatorBlockReason, string[]] =>
-      Array.isArray(entry[1]) && entry[1].length > 0,
+  const blockedNotifications = getBlockedEvaluatorConfigNotifications(
+    params.blockedByReason,
   );
 
-  if (blockedByReasonEntries.length === 0) {
+  if (blockedNotifications.length === 0) {
     return;
   }
 
   await invalidateProjectEvalConfigCaches(params.projectId);
 
-  for (const [blockReason, blockedJobConfigIds] of blockedByReasonEntries) {
-    void notifyBlockedEvaluatorConfigs({
+  for (const notification of blockedNotifications) {
+    notifyBlockedEvaluatorConfigsInBackground({
       projectId: params.projectId,
-      blockedJobConfigIds,
-      blockReason,
-    }).catch((error) =>
-      logger.error(
-        "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
-        error,
-      ),
-    );
+      ...notification,
+    });
   }
 }
+
+const getBlockedEvaluatorConfigNotifications = (
+  blockedByReason: BlockedEvaluatorConfigIdsByReason,
+): BlockedEvaluatorConfigNotification[] =>
+  Object.entries(blockedByReason).flatMap(
+    ([blockReason, blockedJobConfigIds]) =>
+      blockedJobConfigIds?.length
+        ? [
+            {
+              blockReason: blockReason as EvaluatorBlockReason,
+              blockedJobConfigIds,
+            },
+          ]
+        : [],
+  );
+
+const notifyBlockedEvaluatorConfigsInBackground = (
+  params: NotifyBlockedEvaluatorConfigsParams,
+): void => {
+  void notifyBlockedEvaluatorConfigs(params).catch((error) =>
+    logger.error(
+      "[EVALUATOR BLOCK] Failed to send blocked evaluator notifications",
+      error,
+    ),
+  );
+};
 
 type NotifyBlockedEvaluatorConfigsParams = {
   projectId: string;

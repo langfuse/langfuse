@@ -28,44 +28,5 @@ export async function getProjectAdminEmails(
     ),
   );
 
-  if (projectAdminEmails.length > 0) {
-    return projectAdminEmails;
-  }
-
-  const project = await prisma.project.findUnique({
-    where: {
-      id: projectId,
-    },
-    select: {
-      orgId: true,
-    },
-  });
-
-  if (!project) {
-    return [];
-  }
-
-  const orgAdmins = await prisma.organizationMembership.findMany({
-    where: {
-      orgId: project.orgId,
-      role: {
-        in: [Role.OWNER, Role.ADMIN],
-      },
-    },
-    include: {
-      user: {
-        select: {
-          email: true,
-        },
-      },
-    },
-  });
-
-  return Array.from(
-    new Set(
-      orgAdmins
-        .map((membership) => membership.user.email)
-        .filter((email): email is string => Boolean(email)),
-    ),
-  );
+  return projectAdminEmails;
 }
