@@ -9,13 +9,15 @@ export const orderBy = z
 
 export type OrderByState = z.infer<typeof orderBy>;
 
+const ALL_TIME_COLUMN_ALIASES = ["timestamp", "startTime", "createdAt"];
+
 const TIME_COLUMN_ALIASES: Record<
   "timestamp" | "startTime" | "createdAt",
   string[]
 > = {
-  timestamp: ["timestamp", "startTime", "createdAt"],
-  startTime: ["timestamp", "startTime", "createdAt"],
-  createdAt: ["timestamp", "startTime", "createdAt"],
+  timestamp: ALL_TIME_COLUMN_ALIASES,
+  startTime: ALL_TIME_COLUMN_ALIASES,
+  createdAt: ALL_TIME_COLUMN_ALIASES,
 };
 
 export const normalizeOrderByForTable = ({
