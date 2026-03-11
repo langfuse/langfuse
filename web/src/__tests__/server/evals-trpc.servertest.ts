@@ -68,7 +68,7 @@ describe("evals trpc", () => {
   });
 
   describe("evals.allConfigs", () => {
-    it("should retrieve all evaluator configurations with execution status counts", async () => {
+    it("should retrieve all evaluator configurations without execution status counts", async () => {
       const { project, caller } = await prepare();
 
       const evalJobConfig1 = await prisma.jobConfiguration.create({
@@ -138,27 +138,11 @@ describe("evals trpc", () => {
         configs: expect.arrayContaining([
           expect.objectContaining({
             id: evalJobConfig1.id,
-            jobExecutionsByState: expect.arrayContaining([
-              expect.objectContaining({
-                status: "PENDING",
-                _count: 1,
-                jobConfigurationId: evalJobConfig1.id,
-              }),
-              expect.objectContaining({
-                status: "COMPLETED",
-                _count: 1,
-                jobConfigurationId: evalJobConfig1.id,
-              }),
-              expect.objectContaining({
-                status: "ERROR",
-                _count: 1,
-                jobConfigurationId: evalJobConfig1.id,
-              }),
-            ]),
+            finalStatus: "ACTIVE",
           }),
           expect.objectContaining({
             id: evalJobConfig2.id,
-            jobExecutionsByState: expect.arrayContaining([]),
+            finalStatus: "ACTIVE",
           }),
         ]),
         totalCount: expect.any(Number),
@@ -237,6 +221,90 @@ describe("evals trpc", () => {
         { id: pausedEvaluator.id, finalStatus: "PAUSED" },
         { id: inactiveEvaluator.id, finalStatus: "INACTIVE" },
       ]);
+    });
+  });
+
+  describe("evals.jobExecutionCountsByEvaluatorIds", () => {
+    it("should lazily retrieve execution status counts grouped by evaluator id", async () => {
+      const { project, caller } = await prepare();
+
+      const evalJobConfig1 = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      await prisma.jobExecution.create({
+        data: {
+          jobConfigurationId: evalJobConfig1.id,
+          status: "PENDING",
+          projectId: project.id,
+        },
+      });
+
+      await prisma.jobExecution.create({
+        data: {
+          jobConfigurationId: evalJobConfig1.id,
+          status: "COMPLETED",
+          projectId: project.id,
+        },
+      });
+
+      await prisma.jobExecution.create({
+        data: {
+          jobConfigurationId: evalJobConfig1.id,
+          status: "ERROR",
+          projectId: project.id,
+        },
+      });
+
+      const evalJobConfig2 = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score-2",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      const response = await caller.evals.jobExecutionCountsByEvaluatorIds({
+        projectId: project.id,
+        evaluatorIds: [evalJobConfig1.id, evalJobConfig2.id],
+      });
+
+      expect(response).toEqual({
+        [evalJobConfig1.id]: expect.arrayContaining([
+          expect.objectContaining({
+            status: "PENDING",
+            _count: 1,
+            jobConfigurationId: evalJobConfig1.id,
+          }),
+          expect.objectContaining({
+            status: "COMPLETED",
+            _count: 1,
+            jobConfigurationId: evalJobConfig1.id,
+          }),
+          expect.objectContaining({
+            status: "ERROR",
+            _count: 1,
+            jobConfigurationId: evalJobConfig1.id,
+          }),
+        ]),
+        [evalJobConfig2.id]: [],
+      });
     });
   });
 

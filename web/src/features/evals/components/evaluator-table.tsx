@@ -25,7 +25,10 @@ import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { z } from "zod/v4";
-import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
+import {
+  deriveEvaluatorStatusFromExecutionCounts,
+  generateJobExecutionCounts,
+} from "@/src/features/evals/utils/job-execution-utils";
 import {
   isLegacyEvalTarget,
   isEventTarget,
@@ -97,6 +100,7 @@ export type EvaluatorDataRow = {
     count: number;
     symbol: string;
   }[];
+  isResultLoading: boolean;
   logs?: string;
   actions?: string;
   totalCost?: number | null;
@@ -215,15 +219,40 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     },
   );
-
-  const hasLegacyEvals = useMemo(() => {
-    if (!evaluators.data?.configs) return false;
-    return evaluators.data.configs.some(
-      (config) =>
-        config.finalStatus === "ACTIVE" &&
-        isLegacyEvalTarget(config.targetObject),
+  const jobExecutionCounts =
+    api.evals.jobExecutionCountsByEvaluatorIds.useQuery(
+      {
+        projectId,
+        evaluatorIds,
+      },
+      {
+        enabled: evaluators.isSuccess && evaluatorIds.length > 0,
+      },
     );
-  }, [evaluators.data?.configs]);
+
+  const getEvaluatorStatus = (
+    jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
+  ) => {
+    const jobExecutionsByState = jobExecutionCounts.data?.[jobConfig.id];
+
+    if (!jobExecutionsByState) {
+      return jobConfig.finalStatus;
+    }
+
+    return deriveEvaluatorStatusFromExecutionCounts({
+      status: jobConfig.status,
+      blockedAt: jobConfig.blockedAt,
+      timeScope: Array.isArray(jobConfig.timeScope) ? jobConfig.timeScope : [],
+      jobExecutionsByState,
+    });
+  };
+
+  const hasLegacyEvals =
+    evaluators.data?.configs?.some(
+      (config) =>
+        getEvaluatorStatus(config) === "ACTIVE" &&
+        isLegacyEvalTarget(config.targetObject),
+    ) ?? false;
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -281,7 +310,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 150,
       cell: (row) => {
         const result = row.getValue();
-        return <LevelCountsDisplay counts={result} />;
+        return (
+          <LevelCountsDisplay
+            counts={result}
+            isLoading={row.row.original.isResultLoading}
+          />
+        );
       },
     }),
     columnHelper.accessor("logs", {
@@ -479,12 +513,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
-    const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
+    const jobExecutionsByState = jobExecutionCounts.data?.[jobConfig.id];
+    const result = generateJobExecutionCounts(jobExecutionsByState);
     const costData = costs.data?.[jobConfig.id];
 
     return {
       id: jobConfig.id,
-      status: jobConfig.finalStatus,
+      status: getEvaluatorStatus(jobConfig),
       rawStatus: jobConfig.status,
       createdAt: jobConfig.createdAt.toLocaleString(),
       updatedAt: jobConfig.updatedAt.toLocaleString(),
@@ -501,6 +536,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
       result: result,
+      isResultLoading: !jobExecutionCounts.data,
       maintainer: jobConfig.evalTemplate
         ? jobConfig.evalTemplate.projectId
           ? "User maintained"

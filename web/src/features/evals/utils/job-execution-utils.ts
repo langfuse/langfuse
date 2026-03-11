@@ -1,3 +1,7 @@
+import {
+  deriveEvaluatorDisplayState,
+  type JobConfigState,
+} from "@langfuse/shared";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
@@ -38,3 +42,29 @@ export const generateJobExecutionCounts = (
     },
   ];
 };
+
+export const deriveEvaluatorStatusFromExecutionCounts = ({
+  status,
+  blockedAt,
+  timeScope,
+  jobExecutionsByState,
+}: {
+  status: JobConfigState;
+  blockedAt: Date | null;
+  timeScope: string[];
+  jobExecutionsByState?: JobExecutionState[];
+}) =>
+  deriveEvaluatorDisplayState({
+    status,
+    blockedAt,
+    timeScope,
+    hasPendingJobs:
+      jobExecutionsByState?.some(
+        (jobExecution) => jobExecution.status === "PENDING",
+      ) ?? false,
+    totalJobCount:
+      jobExecutionsByState?.reduce(
+        (count, jobExecution) => count + jobExecution._count,
+        0,
+      ) ?? 0,
+  });
