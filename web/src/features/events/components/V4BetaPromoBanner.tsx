@@ -21,7 +21,10 @@ const V4_BETA_PROMO_BANNER_ORDER = 25;
 const PAGE_MESSAGES: Record<string, string> = {
   "/project/[projectId]": "Faster dashboards available.",
   "/project/[projectId]/dashboards": "Faster dashboards available.",
-  "/project/[projectId]/traces": "Faster trace viewing available.",
+  "/project/[projectId]/dashboards/[dashboardId]":
+    "Faster dashboards available.",
+  "/project/[projectId]/traces": "Faster trace UI available.",
+  "/project/[projectId]/traces/[traceId]": "Faster trace UI available.",
 };
 
 export function V4BetaPromoBanner() {
