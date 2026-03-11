@@ -1,4 +1,18 @@
-import { type ColumnDefinition, JobConfigState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type ColumnDefinition,
+  JobConfigState,
+} from "@langfuse/shared";
+
+export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+  (value) => ({
+    value,
+  }),
+);
+
+export const evalConfigTargetValues = evalConfigTargetOptions.map(
+  (option) => option.value,
+);
 
 export const evalConfigFilterColumns: ColumnDefinition[] = [
   {
@@ -13,7 +27,7 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     id: "target",
     type: "stringOptions",
     internal: 'jc."target_object"',
-    options: [{ value: "trace" }, { value: "dataset" }],
+    options: evalConfigTargetOptions,
   },
 ];
 
