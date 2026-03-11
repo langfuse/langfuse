@@ -34,6 +34,7 @@ import {
   DatasetRunItemUpsertEventType,
   isLLMCompletionError,
   blockEvaluatorConfigs,
+  EvaluatorBlockSource,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -812,6 +813,7 @@ export async function executeLLMAsJudgeEvaluation({
           where: { id: config.id },
           blockReason,
           blockMessage: getEvaluatorBlockMetadata(blockReason).message,
+          source: EvaluatorBlockSource.INVALID_MODEL_CONFIG,
         });
 
         logger.warn(
@@ -887,6 +889,7 @@ export async function executeLLMAsJudgeEvaluation({
                   where: { id: config.id },
                   blockReason,
                   blockMessage: getEvaluatorBlockMetadata(blockReason).message,
+                  source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
                 });
               }
             }

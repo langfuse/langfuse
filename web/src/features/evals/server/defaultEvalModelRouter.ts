@@ -12,6 +12,7 @@ import {
 import {
   DefaultEvalModelService,
   blockEvaluatorConfigsInTx,
+  EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
 
@@ -94,6 +95,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
       await finalizeBlockedEvaluatorConfigBlocks({
         projectId: input.projectId,
+        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
         blockedByReason: {
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
             result.blockedJobConfigIds,

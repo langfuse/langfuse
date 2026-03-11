@@ -6,11 +6,22 @@ import {
   getEvaluatorBlockResolutionPath,
 } from "../../features/evals/evalConfigBlocking";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
+import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import { sendEvaluatorBlockedEmail } from "./email/evaluatorBlocked/sendEvaluatorBlockedEmail";
 import { getProjectAdminEmails } from "./getProjectAdminEmails";
 
-type BlockEvaluatorConfigsParams = {
+export const EvaluatorBlockSource = {
+  DEFAULT_EVAL_MODEL_DELETION: "default_eval_model_deletion",
+  INVALID_MODEL_CONFIG: "invalid_model_config",
+  LLM_API_KEY_DELETION: "llm_api_key_deletion",
+  LLM_COMPLETION_ERROR: "llm_completion_error",
+} as const;
+
+export type EvaluatorBlockSource =
+  (typeof EvaluatorBlockSource)[keyof typeof EvaluatorBlockSource];
+
+type BlockEvaluatorConfigsBaseParams = {
   projectId: string;
   where: Prisma.JobConfigurationWhereInput;
   blockReason: EvaluatorBlockReason;
@@ -18,7 +29,11 @@ type BlockEvaluatorConfigsParams = {
   blockedAt?: Date;
 };
 
-type BlockEvaluatorConfigsInTxParams = BlockEvaluatorConfigsParams & {
+type BlockEvaluatorConfigsParams = BlockEvaluatorConfigsBaseParams & {
+  source: EvaluatorBlockSource;
+};
+
+type BlockEvaluatorConfigsInTxParams = BlockEvaluatorConfigsBaseParams & {
   tx: Prisma.TransactionClient;
 };
 
@@ -100,6 +115,7 @@ export async function blockEvaluatorConfigs(
 
   await finalizeBlockedEvaluatorConfigBlocks({
     projectId: params.projectId,
+    source: params.source,
     blockedByReason: {
       [params.blockReason]: result.blockedJobConfigIds,
     },
@@ -110,6 +126,7 @@ export async function blockEvaluatorConfigs(
 
 export async function finalizeBlockedEvaluatorConfigBlocks(params: {
   projectId: string;
+  source: EvaluatorBlockSource;
   blockedByReason: BlockedEvaluatorConfigIdsByReason;
 }): Promise<void> {
   const blockedNotifications = getBlockedEvaluatorConfigNotifications(
@@ -123,6 +140,17 @@ export async function finalizeBlockedEvaluatorConfigBlocks(params: {
   await invalidateProjectEvalConfigCaches(params.projectId);
 
   for (const notification of blockedNotifications) {
+    const blockedCount = notification.blockedJobConfigIds.length;
+
+    recordIncrement("langfuse.evals.blocked_total", blockedCount, {
+      reason: notification.blockReason,
+      source: params.source,
+    });
+
+    logger.info(
+      `[EVALUATOR BLOCK] Blocked evaluator configs for project ${params.projectId}, reason: ${notification.blockReason}, source: ${params.source}, blocked_count: ${blockedCount}`,
+    );
+
     notifyBlockedEvaluatorConfigsInBackground({
       projectId: params.projectId,
       ...notification,

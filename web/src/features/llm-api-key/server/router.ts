@@ -31,6 +31,7 @@ import {
   logger,
   decryptAndParseExtraHeaders,
   blockEvaluatorConfigsInTx,
+  EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -330,6 +331,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
       await finalizeBlockedEvaluatorConfigBlocks({
         projectId: input.projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
         blockedByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
             result.providerBlockedJobConfigIds,
