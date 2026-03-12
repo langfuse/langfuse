@@ -11,7 +11,10 @@ import {
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod/v4";
 import type { FilterState } from "../../types";
-import type { UiColumnMappings } from "../../tableDefinitions";
+import type {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
@@ -353,10 +356,15 @@ export function deriveFilters<T extends BaseQueryType>(
   filterParamsMapping: ApiColumnMapping[],
   advancedFilters: FilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ): FilterList {
   // Start with advanced filters converted to FilterList
   const filterList = new FilterList(
-    createFilterFromFilterState(advancedFilters ?? [], uiColumnDefinitions),
+    createFilterFromFilterState(
+      advancedFilters ?? [],
+      uiColumnDefinitions,
+      columnDefinitions,
+    ),
   );
 
   // Convert simple parameters to filters

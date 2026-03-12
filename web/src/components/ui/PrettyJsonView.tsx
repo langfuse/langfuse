@@ -751,7 +751,6 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
@@ -1274,7 +1273,6 @@ export function PrettyJsonView(props: {
               collapseStringsAfterLength={props.collapseStringsAfterLength}
               media={props.media}
               scrollable={props.scrollable}
-              projectIdForPromptButtons={props.projectIdForPromptButtons}
               externalJsonCollapsed={jsonIsCollapsed}
               onToggleCollapse={handleJsonToggleCollapse}
             />

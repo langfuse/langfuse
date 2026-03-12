@@ -10,6 +10,7 @@ import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/features/evals/utils/job-execution-utils";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -112,6 +113,14 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
+          {existingEvaluator.blockedAt && (
+            <div className="mx-3 mt-3">
+              <EvaluatorPausedCallout
+                projectId={projectId}
+                evalConfig={existingEvaluator}
+              />
+            </div>
+          )}
           <EvalLogTable
             projectId={projectId}
             jobConfigurationId={existingEvaluator.id}

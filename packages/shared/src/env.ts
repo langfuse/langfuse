@@ -7,6 +7,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.string().url().optional(),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
