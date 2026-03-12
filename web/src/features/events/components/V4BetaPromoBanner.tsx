@@ -10,6 +10,7 @@ import {
   useTopBannerRegistration,
 } from "@/src/features/top-banner";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { V4BetaIntroDialog } from "@/src/features/events/components/V4BetaIntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
@@ -31,7 +32,13 @@ const PAGE_MESSAGES: Record<string, string> = {
 export function V4BetaPromoBanner() {
   const router = useRouter();
   const session = useSession();
-  const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
+  const {
+    isBetaEnabled,
+    enableWithIntro,
+    showIntroDialog,
+    confirmIntroDialog,
+    isLoading,
+  } = useV4Beta();
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { getTopBannerOffset } = useTopBanner();
@@ -67,7 +74,12 @@ export function V4BetaPromoBanner() {
   });
 
   if (!isVisible) {
-    return null;
+    return (
+      <V4BetaIntroDialog
+        open={showIntroDialog}
+        onConfirm={confirmIntroDialog}
+      />
+    );
   }
 
   return (
@@ -85,7 +97,7 @@ export function V4BetaPromoBanner() {
           <button
             className="inline cursor-pointer font-semibold underline underline-offset-2"
             onClick={() => {
-              setBetaEnabled(true, {
+              enableWithIntro({
                 onSuccess: () => {
                   capture("sidebar:v4_beta_toggled", { enabled: true });
                 },
@@ -116,6 +128,10 @@ export function V4BetaPromoBanner() {
           <X className="h-4 w-4" />
         </Button>
       </div>
+      <V4BetaIntroDialog
+        open={showIntroDialog}
+        onConfirm={confirmIntroDialog}
+      />
     </div>
   );
 }
