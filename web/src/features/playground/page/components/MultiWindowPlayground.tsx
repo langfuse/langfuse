@@ -8,7 +8,7 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
-import { usePlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
+import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
 import {
   Tooltip,
   TooltipContent,
@@ -154,8 +154,8 @@ function PlaygroundWindowContent({
   isMobile?: boolean;
 }) {
   const playgroundContext = usePlaygroundContext();
-  const { registerWindowTarget, unregisterWindowTarget } =
-    usePlaygroundMessageSearchActions();
+  const { registerPageTarget, unregisterPageTarget } =
+    useMessageSearchActions();
   const windowContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleRemove = useCallback(() => {
@@ -167,14 +167,14 @@ function PlaygroundWindowContent({
   }, [windowId, onCopy]);
 
   useEffect(() => {
-    registerWindowTarget(windowId, {
-      windowRef: windowContainerRef,
+    registerPageTarget(windowId, {
+      pageRef: windowContainerRef,
     });
 
     return () => {
-      unregisterWindowTarget(windowId);
+      unregisterPageTarget(windowId);
     };
-  }, [registerWindowTarget, unregisterWindowTarget, windowId]);
+  }, [registerPageTarget, unregisterPageTarget, windowId]);
 
   return (
     <div

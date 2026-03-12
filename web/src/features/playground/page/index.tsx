@@ -10,9 +10,9 @@ import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
 import {
-  PlaygroundMessageSearchProvider,
-  PlaygroundMessageSearchToolbar,
-} from "@/src/features/playground/page/components/PlaygroundMessageSearch";
+  MessageSearchProvider,
+  MessageSearchToolbar,
+} from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /**
@@ -119,9 +119,17 @@ export default function PlaygroundPage() {
     windowIds,
     isExecutingAll: globalIsExecutingAll,
   };
+  const getMessageSearchPageLabel = useCallback(
+    (_pageId: string, pageIndex: number) =>
+      windowIds.length > 1 ? `Window ${pageIndex + 1}` : null,
+    [windowIds.length],
+  );
 
   return (
-    <PlaygroundMessageSearchProvider windowIds={windowIds}>
+    <MessageSearchProvider
+      pageIds={windowIds}
+      getPageLabel={getMessageSearchPageLabel}
+    >
       <Page
         scrollable={false}
         withPadding={false}
@@ -134,7 +142,7 @@ export default function PlaygroundPage() {
           },
           actionButtonsRight: (
             <div className="flex flex-nowrap items-center gap-2">
-              <PlaygroundMessageSearchToolbar className="max-w-[24rem]" />
+              <MessageSearchToolbar className="max-w-[24rem]" />
 
               {/* Window Count Display - Hidden on mobile */}
               <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
@@ -194,6 +202,6 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </Page>
-    </PlaygroundMessageSearchProvider>
+    </MessageSearchProvider>
   );
 }

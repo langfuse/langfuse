@@ -47,7 +47,7 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
-import { useOptionalPlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
+import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
 type PlaygroundContextType = {
@@ -100,12 +100,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
-  const playgroundMessageSearchActions =
-    useOptionalPlaygroundMessageSearchActions();
-  const registerWindowMessages =
-    playgroundMessageSearchActions?.registerWindowMessages;
-  const unregisterWindowMessages =
-    playgroundMessageSearchActions?.unregisterWindowMessages;
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -244,24 +238,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [messages]);
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
-
-  useEffect(() => {
-    if (!registerWindowMessages) {
-      return;
-    }
-
-    registerWindowMessages(effectiveWindowId, messages);
-  }, [effectiveWindowId, messages, registerWindowMessages]);
-
-  useEffect(() => {
-    if (!unregisterWindowMessages) {
-      return;
-    }
-
-    return () => {
-      unregisterWindowMessages(effectiveWindowId);
-    };
-  }, [effectiveWindowId, unregisterWindowMessages]);
+  useSyncMessageSearchMessages(effectiveWindowId, messages);
 
   const addMessage: PlaygroundContextType["addMessage"] = useCallback(
     (message) => {

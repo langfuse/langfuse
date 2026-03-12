@@ -33,7 +33,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
-import { useOptionalPlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
+import {
+  useOptionalMessageSearchActions,
+  useOptionalMessageSearchPageId,
+} from "./MessageSearch";
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -94,15 +97,13 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
-  const playgroundMessageSearchActions =
-    useOptionalPlaygroundMessageSearchActions();
-  const windowId = playgroundContext?.windowId;
-  const registerMessageTarget =
-    playgroundMessageSearchActions?.registerMessageTarget;
-  const unregisterMessageTarget =
-    playgroundMessageSearchActions?.unregisterMessageTarget;
-  const shouldUsePlaygroundMessageSearch = Boolean(
-    windowId && registerMessageTarget && unregisterMessageTarget,
+  const searchPageId = useOptionalMessageSearchPageId();
+  const messageSearchActions = useOptionalMessageSearchActions();
+  const pageId = playgroundContext?.windowId ?? searchPageId;
+  const registerMessageTarget = messageSearchActions?.registerMessageTarget;
+  const unregisterMessageTarget = messageSearchActions?.unregisterMessageTarget;
+  const shouldUseMessageSearch = Boolean(
+    pageId && registerMessageTarget && unregisterMessageTarget,
   );
   const rowRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -222,36 +223,36 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
   useEffect(() => {
-    if (!windowId || !registerMessageTarget || !unregisterMessageTarget) {
+    if (!pageId || !registerMessageTarget || !unregisterMessageTarget) {
       return;
     }
 
-    registerMessageTarget(windowId, message.id, {
+    registerMessageTarget(pageId, message.id, {
       rowRef,
       editorRef,
     });
 
     return () => {
-      unregisterMessageTarget(windowId, message.id);
+      unregisterMessageTarget(pageId, message.id);
     };
   }, [
     editorRef,
     message.id,
+    pageId,
     registerMessageTarget,
     unregisterMessageTarget,
-    windowId,
   ]);
 
   const handleEditorMount = useCallback(() => {
-    if (!windowId || !registerMessageTarget) {
+    if (!pageId || !registerMessageTarget) {
       return;
     }
 
-    registerMessageTarget(windowId, message.id, {
+    registerMessageTarget(pageId, message.id, {
       rowRef,
       editorRef,
     });
-  }, [message.id, registerMessageTarget, windowId]);
+  }, [message.id, pageId, registerMessageTarget]);
 
   return (
     <Card
@@ -328,7 +329,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   role={message.type}
                   editorRef={editorRef}
                   onEditorMount={handleEditorMount}
-                  enableSearchKeymap={!shouldUsePlaygroundMessageSearch}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               ) : (
                 <MemoizedEditor
@@ -337,7 +338,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   role={message.role}
                   editorRef={editorRef}
                   onEditorMount={handleEditorMount}
-                  enableSearchKeymap={!shouldUsePlaygroundMessageSearch}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               )}
             </div>
