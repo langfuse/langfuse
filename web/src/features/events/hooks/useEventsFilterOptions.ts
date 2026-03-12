@@ -32,6 +32,18 @@ export const getEventFilterOptionsQueryInput = ({
   };
 };
 
+export const getEventMetadataSuggestionsQueryInput = ({
+  projectId,
+  oldFilterState,
+}: Pick<UseEventsFilterOptionsParams, "projectId" | "oldFilterState">) => {
+  const startTimeFilters = getEventStartTimeFilters(oldFilterState);
+
+  return {
+    projectId,
+    startTimeFilter: startTimeFilters.length > 0 ? startTimeFilters : undefined,
+  };
+};
+
 export const SHARED_EVENT_FILTER_QUERY_OPTIONS = {
   trpc: {
     context: {

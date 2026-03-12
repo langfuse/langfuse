@@ -52,6 +52,11 @@ const GetEventFilterOptionsInput = zodSchema.object({
   hasParentObservation: zodSchema.boolean().optional(),
 });
 
+const GetEventMetadataKeySuggestionsInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  startTimeFilter: zodSchema.array(timeFilter).optional(),
+});
+
 export type GetEventFilterOptionsInput = z.infer<
   typeof GetEventFilterOptionsInput
 >;
@@ -162,7 +167,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   metadataKeySuggestions: protectedProjectProcedure
-    .input(GetEventFilterOptionsInput)
+    .input(GetEventMetadataKeySuggestionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -173,7 +178,6 @@ export const eventsRouter = createTRPCRouter({
           return getEventMetadataKeySuggestions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
-            hasParentObservation: input.hasParentObservation,
           });
         },
       );

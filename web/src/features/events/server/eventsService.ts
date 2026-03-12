@@ -431,13 +431,15 @@ export async function getEventFilterOptions(
 }
 
 export async function getEventMetadataKeySuggestions(
-  params: GetObservationsFilterOptionsParams,
+  params: Pick<
+    GetObservationsFilterOptionsParams,
+    "projectId" | "startTimeFilter"
+  >,
 ) {
   const metadataKeys = await getEventsGroupedByMetadataKey(
     params.projectId,
     buildScopedEventsFilter({
       startTimeFilter: params.startTimeFilter,
-      hasParentObservation: params.hasParentObservation,
     }),
   );
 
