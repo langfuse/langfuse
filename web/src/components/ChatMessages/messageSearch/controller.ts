@@ -36,11 +36,6 @@ export type MessageSearchPageLabelResolver = (
   pageIndex: number,
 ) => string | null;
 
-type MessageSearchPageMessages = {
-  pageId: string;
-  messages: ChatMessageWithId[];
-};
-
 type MessageSearchState = {
   isOpen: boolean;
   openRequestCount: number;
@@ -50,7 +45,7 @@ type MessageSearchState = {
   matches: MessageSearchMatch[];
   pageIds: string[];
   getPageLabel?: MessageSearchPageLabelResolver;
-  pageMessagesById: Record<string, MessageSearchPageMessages>;
+  pageMessagesById: Record<string, ChatMessageWithId[]>;
 };
 
 type MessageSearchPageTarget = {
@@ -145,12 +140,12 @@ function buildMatches(state: MessageSearchState) {
   const allMatches: MessageSearchMatch[] = [];
 
   for (const [pageIndex, pageId] of state.pageIds.entries()) {
-    const registeredPage = state.pageMessagesById[pageId];
-    if (!registeredPage) {
+    const pageMessages = state.pageMessagesById[pageId];
+    if (!pageMessages) {
       continue;
     }
 
-    for (const [messageIndex, message] of registeredPage.messages.entries()) {
+    for (const [messageIndex, message] of pageMessages.entries()) {
       const text = getMessageSearchText(message);
       if (!text) {
         continue;
@@ -295,20 +290,14 @@ export function createMessageSearchController(
 
     if (!committedQuery) {
       if (state.matches.length === 0 && state.activeMatchKey === null) {
-        return {
-          matchesChanged: false,
-          activeMatchChanged: false,
-        };
+        return false;
       }
 
       state.matches = [];
       const previousActiveMatchKey = state.activeMatchKey;
       state.activeMatchKey = null;
 
-      return {
-        matchesChanged: true,
-        activeMatchChanged: previousActiveMatchKey !== null,
-      };
+      return previousActiveMatchKey !== null;
     }
 
     const previousActiveMatchKey = state.activeMatchKey;
@@ -323,18 +312,11 @@ export function createMessageSearchController(
       state.activeMatchKey = state.matches[0]?.key ?? null;
     }
 
-    return {
-      matchesChanged: true,
-      activeMatchChanged: previousActiveMatchKey !== state.activeMatchKey,
-    };
+    return previousActiveMatchKey !== state.activeMatchKey;
   };
 
-  const refreshSearchResults = ({
-    shouldSyncEditors,
-  }: {
-    shouldSyncEditors: boolean;
-  }) => {
-    const { activeMatchChanged, matchesChanged } = recomputeMatches();
+  const refreshSearchResults = (shouldSyncEditors: boolean) => {
+    const activeMatchChanged = recomputeMatches();
 
     if (shouldSyncEditors) {
       syncEditorsToQuery();
@@ -343,32 +325,25 @@ export function createMessageSearchController(
     if (shouldSyncEditors || activeMatchChanged) {
       syncActiveMatchTarget();
     }
+  };
 
-    return {
-      activeMatchChanged,
-      matchesChanged,
-    };
+  const refreshSearchResultsIfSearching = (shouldSyncEditors: boolean) => {
+    if (!getCommittedQuery(state)) {
+      return;
+    }
+
+    refreshSearchResults(shouldSyncEditors);
+    emit();
   };
 
   const commitSearchQuery = (nextSearchQuery: string) => {
     if (state.searchQuery === nextSearchQuery) {
-      return {
-        queryChanged: false,
-        activeMatchChanged: false,
-        matchesChanged: false,
-      };
+      return false;
     }
 
     state.searchQuery = nextSearchQuery;
-    const { activeMatchChanged, matchesChanged } = refreshSearchResults({
-      shouldSyncEditors: true,
-    });
-
-    return {
-      queryChanged: true,
-      activeMatchChanged,
-      matchesChanged,
-    };
+    refreshSearchResults(true);
+    return true;
   };
 
   const flushPendingQuery = () => {
@@ -378,12 +353,42 @@ export function createMessageSearchController(
 
     clearPendingQueryTimeout();
 
-    const { queryChanged } = commitSearchQuery(state.queryInput.trim());
+    const queryChanged = commitSearchQuery(state.queryInput.trim());
     if (queryChanged) {
       emit();
     }
 
     return queryChanged;
+  };
+
+  const moveActiveMatch = (direction: 1 | -1) => {
+    flushPendingQuery();
+
+    if (state.matches.length === 0) {
+      return;
+    }
+
+    if (!state.activeMatchKey) {
+      state.activeMatchKey =
+        direction > 0
+          ? (state.matches[0]?.key ?? null)
+          : (state.matches[state.matches.length - 1]?.key ?? null);
+    } else {
+      const currentIndex = state.matches.findIndex(
+        (match) => match.key === state.activeMatchKey,
+      );
+      const fallbackIndex = direction > 0 ? 0 : state.matches.length - 1;
+      const nextIndex =
+        currentIndex < 0
+          ? fallbackIndex
+          : (currentIndex + direction + state.matches.length) %
+            state.matches.length;
+
+      state.activeMatchKey = state.matches[nextIndex]?.key ?? null;
+    }
+
+    syncActiveMatchTarget();
+    emit();
   };
 
   return {
@@ -453,7 +458,7 @@ export function createMessageSearchController(
       pendingQueryTimeout = window.setTimeout(() => {
         pendingQueryTimeout = null;
 
-        const { queryChanged } = commitSearchQuery(nextSearchQuery);
+        const queryChanged = commitSearchQuery(nextSearchQuery);
         if (queryChanged) {
           emit();
         }
@@ -461,52 +466,11 @@ export function createMessageSearchController(
     },
 
     nextMatch() {
-      flushPendingQuery();
-
-      if (state.matches.length === 0) {
-        return;
-      }
-
-      if (!state.activeMatchKey) {
-        state.activeMatchKey = state.matches[0]?.key ?? null;
-      } else {
-        const currentIndex = state.matches.findIndex(
-          (match) => match.key === state.activeMatchKey,
-        );
-        const nextIndex =
-          currentIndex < 0 ? 0 : (currentIndex + 1) % state.matches.length;
-
-        state.activeMatchKey = state.matches[nextIndex]?.key ?? null;
-      }
-
-      syncActiveMatchTarget();
-      emit();
+      moveActiveMatch(1);
     },
 
     previousMatch() {
-      flushPendingQuery();
-
-      if (state.matches.length === 0) {
-        return;
-      }
-
-      if (!state.activeMatchKey) {
-        state.activeMatchKey =
-          state.matches[state.matches.length - 1]?.key ?? null;
-      } else {
-        const currentIndex = state.matches.findIndex(
-          (match) => match.key === state.activeMatchKey,
-        );
-        const previousIndex =
-          currentIndex < 0
-            ? state.matches.length - 1
-            : (currentIndex - 1 + state.matches.length) % state.matches.length;
-
-        state.activeMatchKey = state.matches[previousIndex]?.key ?? null;
-      }
-
-      syncActiveMatchTarget();
-      emit();
+      moveActiveMatch(-1);
     },
 
     setPageIds(pageIds) {
@@ -515,15 +479,7 @@ export function createMessageSearchController(
       }
 
       state.pageIds = pageIds;
-
-      if (!getCommittedQuery(state)) {
-        return;
-      }
-
-      refreshSearchResults({
-        shouldSyncEditors: false,
-      });
-      emit();
+      refreshSearchResultsIfSearching(false);
     },
 
     setPageLabelResolver(getPageLabel) {
@@ -532,31 +488,12 @@ export function createMessageSearchController(
       }
 
       state.getPageLabel = getPageLabel;
-
-      if (!getCommittedQuery(state)) {
-        return;
-      }
-
-      refreshSearchResults({
-        shouldSyncEditors: false,
-      });
-      emit();
+      refreshSearchResultsIfSearching(false);
     },
 
     registerPageMessages(pageId, messages) {
-      state.pageMessagesById[pageId] = {
-        pageId,
-        messages,
-      };
-
-      if (!getCommittedQuery(state)) {
-        return;
-      }
-
-      refreshSearchResults({
-        shouldSyncEditors: false,
-      });
-      emit();
+      state.pageMessagesById[pageId] = messages;
+      refreshSearchResultsIfSearching(false);
     },
 
     unregisterPageMessages(pageId) {
@@ -565,15 +502,7 @@ export function createMessageSearchController(
       }
 
       delete state.pageMessagesById[pageId];
-
-      if (!getCommittedQuery(state)) {
-        return;
-      }
-
-      refreshSearchResults({
-        shouldSyncEditors: false,
-      });
-      emit();
+      refreshSearchResultsIfSearching(false);
     },
 
     registerPageTarget(pageId, target) {

@@ -87,6 +87,12 @@ export default function PlaygroundPage() {
     executeAllWindows();
   });
 
+  const getMessageSearchPageLabel = useCallback(
+    (_pageId: string, pageIndex: number) =>
+      windowIds.length > 1 ? `Window ${pageIndex + 1}` : null,
+    [windowIds.length],
+  );
+
   // Don't render until window IDs are loaded
   if (!isLoaded) {
     return (
@@ -119,11 +125,6 @@ export default function PlaygroundPage() {
     windowIds,
     isExecutingAll: globalIsExecutingAll,
   };
-  const getMessageSearchPageLabel = useCallback(
-    (_pageId: string, pageIndex: number) =>
-      windowIds.length > 1 ? `Window ${pageIndex + 1}` : null,
-    [windowIds.length],
-  );
 
   return (
     <MessageSearchProvider
