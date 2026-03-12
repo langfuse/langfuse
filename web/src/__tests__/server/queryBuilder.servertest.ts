@@ -2264,50 +2264,53 @@ describe("queryBuilder", () => {
         expect(Number(isHelpful.count_count)).toBe(2);
       });
 
-      it("should filter scores-numeric by metadata correctly", async () => {
-        // Setup
+      it("should filter scores-numeric by metadata correctly (trace metadata)", async () => {
+        // Dashboard metadata filter targets trace metadata, not score metadata.
         const projectId = randomUUID();
-        const traceId = randomUUID();
 
-        // Create a trace
-        const trace = await createTrace({
-          id: traceId,
-          name: "trace-for-scores",
+        // Create two traces: one with matching metadata, one without
+        const traceMatch = await createTrace({
+          id: randomUUID(),
+          name: "trace-match",
           project_id: projectId,
+          metadata: { customer: "test1" },
         });
-        await createTracesCh([trace]);
+        const traceNoMatch = await createTrace({
+          id: randomUUID(),
+          name: "trace-no-match",
+          project_id: projectId,
+          metadata: { customer: "other" },
+        });
+        await createTracesCh([traceMatch, traceNoMatch]);
 
-        // Create scores with different metadata
+        // Scores on the matching trace
         const scores = [
           await createTraceScore({
             id: randomUUID(),
-            trace_id: traceId,
+            trace_id: traceMatch.id,
             project_id: projectId,
             name: "score-premium",
             value: 0.95,
-            metadata: { customer: "test1" },
           }),
           await createTraceScore({
             id: randomUUID(),
-            trace_id: traceId,
+            trace_id: traceMatch.id,
             project_id: projectId,
             name: "score-basic",
             value: 0.75,
-            metadata: { customer: "test2" },
           }),
+          // Score on the non-matching trace — should be excluded
           await createTraceScore({
             id: randomUUID(),
-            trace_id: traceId,
+            trace_id: traceNoMatch.id,
             project_id: projectId,
-            name: "score-no-metadata",
+            name: "score-excluded",
             value: 0.5,
-            metadata: undefined,
           }),
         ];
 
         await createScoresCh(scores);
 
-        // Define query with metadata filter for scores-numeric
         const query: QueryType = {
           view: "scores-numeric",
           dimensions: [{ field: "name" }],
@@ -2331,13 +2334,18 @@ describe("queryBuilder", () => {
           orderBy: null,
         };
 
-        // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
         expect(result.data).toHaveLength(2);
-        expect(result.data[0].name).toBe("score-premium");
-        expect(parseFloat(result.data[0].avg_value)).toBeCloseTo(0.95);
+        const premium = result.data.find(
+          (r: any) => r.name === "score-premium",
+        );
+        const basic = result.data.find((r: any) => r.name === "score-basic");
+        expect(premium).toBeDefined();
+        expect(parseFloat(premium.avg_value)).toBeCloseTo(0.95);
+        expect(basic).toBeDefined();
+        expect(parseFloat(basic.avg_value)).toBeCloseTo(0.75);
       });
 
       it("LFE-4838: should filter scores-numeric by scoreName (fallback handling) without errors", async () => {
