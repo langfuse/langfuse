@@ -1,9 +1,7 @@
 import { type ZodSchema, z } from "zod/v4";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
-import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
   BaseMessage,
@@ -51,16 +49,28 @@ export type CompletionWithReasoning = { text: string; reasoning?: string };
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-// Maps adapters to the content block types that represent "thinking".
-// Used to extract reasoning separately and strip thinking parts from parsed output.
-const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
-  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
-  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
-};
-
-function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
-  return THINKING_BLOCK_TYPES[adapter];
+// Dynamically imported to avoid ESM/CJS incompatibility (jose is ESM-only).
+// Cached after first call so the async overhead is paid only once.
+let _ChatGoogle: any;
+async function getChatGoogle() {
+  if (!_ChatGoogle) {
+    _ChatGoogle = (await import("@langchain/google/node")).ChatGoogle;
+  }
+  return _ChatGoogle;
 }
+
+// Predicate to identify "thinking" content blocks per adapter.
+// @langchain/google returns thinking blocks as { type: "text", thought: true }.
+type ThinkingBlockPredicate = (block: any) => boolean;
+
+const isGoogleThinkingBlock: ThinkingBlockPredicate = (block) =>
+  block.thought === true;
+
+const THINKING_PREDICATES: Partial<Record<LLMAdapter, ThinkingBlockPredicate>> =
+  {
+    [LLMAdapter.VertexAI]: isGoogleThinkingBlock,
+    [LLMAdapter.GoogleAIStudio]: isGoogleThinkingBlock,
+  };
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
@@ -246,12 +256,8 @@ export async function fetchLLMCompletion(
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
-  let chatModel:
-    | ChatOpenAI
-    | ChatAnthropic
-    | ChatBedrockConverse
-    | ChatVertexAI
-    | ChatGoogleGenerativeAI;
+  // ChatGoogle is dynamically imported to avoid ESM/CJS incompatibility (jose)
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const isClaude45Family =
       modelParams.model?.includes("claude-sonnet-4-5") ||
@@ -391,11 +397,11 @@ export async function fetchLLMCompletion(
     const shouldUseDefaultCredentials =
       apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
 
-    // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
+    // When using ADC, googleAuthOptions must be undefined to use google-auth-library's default credential chain
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
     // Security: We intentionally ignore user-provided projectId when using ADC to prevent
     // privilege escalation attacks where users could access other GCP projects via the server's credentials
-    const authOptions = shouldUseDefaultCredentials
+    const googleAuthOptions = shouldUseDefaultCredentials
       ? undefined // Always use ADC auto-detection, never allow user-specified projectId
       : {
           credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
@@ -405,7 +411,8 @@ export async function fetchLLMCompletion(
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    chatModel = new ChatVertexAI({
+    const ChatGoogleImpl = await getChatGoogle();
+    chatModel = new ChatGoogleImpl({
       model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
@@ -413,32 +420,30 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       location,
-      authOptions,
-      ...(modelParams.maxReasoningTokens !== undefined && {
-        maxReasoningTokens: modelParams.maxReasoningTokens,
-      }),
-      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
-    });
+      platformType: "gcp",
+      googleAuthOptions,
+      maxReasoningTokens: modelParams.maxReasoningTokens,
+      thinkingBudget: googleProviderOptions?.thinkingBudget,
+      thinkingLevel: googleProviderOptions?.thinkingLevel as any, // Typecast as thinkingLevel is intentionally looser typed
+    }) as any;
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     const googleProviderOptions = googleProviderOptionsSchema.parse(
       modelParams.providerOptions,
     );
 
-    chatModel = new ChatGoogleGenerativeAI({
+    const ChatGoogleImpl = await getChatGoogle();
+    chatModel = new ChatGoogleImpl({
       model: modelParams.model,
-      baseUrl: baseURL ?? undefined,
+      ...(baseURL ? { endpoint: baseUrlToEndpoint(baseURL) } : {}),
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(googleProviderOptions
-        ? {
-            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
-          }
-        : {}),
-    });
+      thinkingBudget: googleProviderOptions?.thinkingBudget,
+      thinkingLevel: googleProviderOptions?.thinkingLevel as any, // Typecast as thinkingLevel is intentionally looser typed
+    }) as any;
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
@@ -453,7 +458,7 @@ export async function fetchLLMCompletion(
     metadata: traceSinkParams?.metadata,
   };
 
-  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+  const isThinkingBlock = THINKING_PREDICATES[modelParams.adapter];
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -461,11 +466,11 @@ export async function fetchLLMCompletion(
       // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
       // parsing. Force function calling so the parser reads from tool_calls instead.
       const structuredOutputConfig =
-        thinkingTypes != null
+        isThinkingBlock != null
           ? { method: "functionCalling" as const }
           : undefined;
 
-      const structuredOutput = await chatModel
+      const structuredOutput = await (chatModel as any)
         .withStructuredOutput(
           params.structuredOutputSchema,
           structuredOutputConfig,
@@ -487,12 +492,11 @@ export async function fetchLLMCompletion(
 
       // For thinking adapters, strip reasoning blocks from content before parsing
       // so ToolCallResponseSchema can validate. Extract reasoning separately.
-      if (thinkingTypes != null && Array.isArray(result.content)) {
-        const reasoning = extractReasoning(result.content, thinkingTypes);
+      if (isThinkingBlock != null && Array.isArray(result.content)) {
+        const reasoning = extractReasoning(result.content, isThinkingBlock);
         // mutates Langchain AIMessage in place, not ideal but safe because only used for parsing below
         result.content = result.content.filter(
-          (block) =>
-            typeof block === "string" || !thinkingTypes.has(block.type),
+          (block: any) => typeof block === "string" || !isThinkingBlock(block),
         );
 
         const parsed = ToolCallResponseSchema.safeParse(result);
@@ -518,9 +522,9 @@ export async function fetchLLMCompletion(
 
     // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
-    if (thinkingTypes != null) {
+    if (isThinkingBlock != null) {
       const aiMessage = await chatModel.invoke(finalMessages, runConfig);
-      return extractCompletionWithReasoning(aiMessage, thinkingTypes);
+      return extractCompletionWithReasoning(aiMessage, isThinkingBlock);
     }
 
     const completion = await chatModel
@@ -586,12 +590,12 @@ export async function fetchLLMCompletion(
 // returns concatenated reasoning or undefined if no reasoning blocks are found
 function extractReasoning(
   content: AIMessage["content"],
-  thinkingBlockTypes: Set<string>,
+  isThinking: ThinkingBlockPredicate,
 ): string | undefined {
   if (typeof content === "string" || !Array.isArray(content)) return undefined;
   const parts: string[] = [];
   for (const block of content) {
-    if (typeof block !== "string" && thinkingBlockTypes.has(block.type)) {
+    if (typeof block !== "string" && isThinking(block)) {
       const text = (block as any).text ?? (block as any).reasoning;
       if (typeof text === "string") parts.push(text);
     }
@@ -605,20 +609,20 @@ function extractReasoning(
  */
 function extractCompletionWithReasoning(
   message: AIMessage,
-  thinkingBlockTypes: Set<string>,
+  isThinking: ThinkingBlockPredicate,
 ): CompletionWithReasoning {
   const { content } = message;
 
   if (typeof content === "string") return { text: content };
   if (!Array.isArray(content)) return { text: String(content) };
 
-  const reasoning = extractReasoning(content, thinkingBlockTypes);
+  const reasoning = extractReasoning(content, isThinking);
 
   const textParts: string[] = [];
   for (const block of content) {
     if (typeof block === "string") {
       textParts.push(block);
-    } else if (!thinkingBlockTypes.has(block.type)) {
+    } else if (!isThinking(block)) {
       const text = (block as any).text ?? (block as any).reasoning;
       if (typeof text === "string") textParts.push(text);
     }
@@ -628,6 +632,21 @@ function extractCompletionWithReasoning(
     text: textParts.join(""),
     ...(reasoning ? { reasoning } : {}),
   };
+}
+
+/**
+ * Extracts hostname (+ optional port/path) from a full URL for use as ChatGoogle endpoint.
+ * The new @langchain/google package builds URLs as: https://${endpoint}/${apiVersion}/models/${model}:${method}
+ * So we need to extract just the host (+ any path prefix) from a full URL.
+ */
+function baseUrlToEndpoint(baseUrl: string): string {
+  try {
+    const url = new URL(baseUrl);
+    const path = url.pathname.replace(/\/+$/, "");
+    return path && path !== "" ? `${url.host}${path}` : url.host;
+  } catch {
+    return baseUrl;
+  }
 }
 
 /**
