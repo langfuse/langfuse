@@ -1,6 +1,8 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useCallback } from "react";
+import posthog from "posthog-js";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type SetV4BetaEnabledOptions = {
   onSuccess?: () => void | Promise<void>;
@@ -18,7 +20,13 @@ export function useV4Beta() {
       mutation.mutate(
         { enabled },
         {
-          onSuccess: async () => {
+          onSuccess: async ({ v4BetaEnabled }) => {
+            posthog.setPersonProperties({
+              [V4_BETA_ENABLED_POSTHOG_PROPERTY]: v4BetaEnabled,
+            });
+            posthog.register({
+              [V4_BETA_ENABLED_POSTHOG_PROPERTY]: v4BetaEnabled,
+            });
             await updateSession();
             await options?.onSuccess?.();
           },
