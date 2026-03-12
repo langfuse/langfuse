@@ -1,6 +1,7 @@
 import { type ZodSchema, z } from "zod/v4";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
+import { ChatGoogle } from "@langchain/google/node";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
@@ -48,16 +49,6 @@ import { LLMCompletionError } from "./errors";
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
-// Dynamically imported to avoid ESM/CJS incompatibility (jose is ESM-only).
-// Cached after first call so the async overhead is paid only once.
-let _ChatGoogle: any;
-async function getChatGoogle() {
-  if (!_ChatGoogle) {
-    _ChatGoogle = (await import("@langchain/google/node")).ChatGoogle;
-  }
-  return _ChatGoogle;
-}
 
 // Predicate to identify "thinking" content blocks per adapter.
 // @langchain/google returns thinking blocks as { type: "text", thought: true }.
@@ -256,8 +247,7 @@ export async function fetchLLMCompletion(
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
-  // ChatGoogle is dynamically imported to avoid ESM/CJS incompatibility (jose)
-  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse;
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const isClaude45Family =
       modelParams.model?.includes("claude-sonnet-4-5") ||
@@ -411,8 +401,7 @@ export async function fetchLLMCompletion(
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    const ChatGoogleImpl = await getChatGoogle();
-    chatModel = new ChatGoogleImpl({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
@@ -425,14 +414,13 @@ export async function fetchLLMCompletion(
       maxReasoningTokens: modelParams.maxReasoningTokens,
       thinkingBudget: googleProviderOptions?.thinkingBudget,
       thinkingLevel: googleProviderOptions?.thinkingLevel as any, // Typecast as thinkingLevel is intentionally looser typed
-    }) as any;
+    });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     const googleProviderOptions = googleProviderOptionsSchema.parse(
       modelParams.providerOptions,
     );
 
-    const ChatGoogleImpl = await getChatGoogle();
-    chatModel = new ChatGoogleImpl({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
       ...(baseURL ? { endpoint: baseUrlToEndpoint(baseURL) } : {}),
       temperature: modelParams.temperature,
@@ -443,7 +431,7 @@ export async function fetchLLMCompletion(
       apiKey,
       thinkingBudget: googleProviderOptions?.thinkingBudget,
       thinkingLevel: googleProviderOptions?.thinkingLevel as any, // Typecast as thinkingLevel is intentionally looser typed
-    }) as any;
+    });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
