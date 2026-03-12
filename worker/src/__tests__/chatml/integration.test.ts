@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { readFileSync, readdirSync, existsSync } from "fs";
+import path from "path";
 
 vi.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
@@ -40,6 +42,9 @@ import {
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
+  selectAdapter,
+  langgraphAdapter,
+  Framework,
 } from "@langfuse/shared/src/utils/chatml";
 
 describe("ChatML Integration", () => {
@@ -526,4 +531,93 @@ describe("ChatML Integration", () => {
 
     expect(allMessages).toHaveLength(4);
   });
+});
+
+type SeedFileTestCase = {
+  seed: string;
+  adapter: string;
+};
+
+describe("should categorize correctly the seed spans", () => {
+  it.each([
+    { seed: "agno-2025-06-11.json", adapter: "generic" },
+    { seed: "autogen-2025-06-06.json", adapter: "generic" },
+    { seed: "beeai-2025-08-01.json", adapter: "generic" },
+    { seed: "google-adk-2025-08-28.json", adapter: "gemini" },
+    { seed: "google-gemini-2025-08-01.json", adapter: "gemini" },
+    {
+      seed: "google-vertex-tools-langchain-2025-09-19.json",
+      adapter: "langgraph",
+    },
+    { seed: "langgraph-2025-08-22.json", adapter: "langgraph" },
+    { seed: "llamaindex-2025-06-05.json", adapter: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
+    { seed: "microsoft-agent-2025-10-14.json", adapter: "microsoft-agent" },
+    { seed: "openai-agents-2025-09-30.json", adapter: "openai" },
+    { seed: "openai-assistants-2024-05-29.json", adapter: "generic" },
+    { seed: "pydantic-ai-tools-2025-12-04.json", adapter: "pydantic-ai" },
+  ] as SeedFileTestCase[])(
+    "should select adapter $adapter for seed file $seed ",
+    ({ seed, adapter }) => {
+      const seedDir = path.resolve(
+        __dirname,
+        "../../../../packages/shared/scripts/seeder/utils/framework-traces",
+      );
+
+      const filePath = path.join(seedDir, seed);
+      expect(existsSync(filePath), "Seed file should exist").toBe(true);
+
+      const content = readFileSync(filePath, "utf-8");
+      const data = JSON.parse(content);
+
+      const inputs = data.observations.filter((o: any) => o.input != null);
+      expect(
+        inputs.length,
+        "Seed file should have at least one span input",
+      ).not.toBe(0);
+      const outputs = data.observations.filter((o: any) => o.output != null);
+      expect(
+        outputs.length,
+        "Seed file should have at least one span output",
+      ).not.toBe(0);
+
+      let obsCount = 0;
+      for (let obs of data.observations) {
+        const input =
+          obs.input === undefined || obs.input === null
+            ? obs.input
+            : JSON.stringify(obs.input);
+        const output =
+          obs.output === undefined || obs.output === null
+            ? obs.output
+            : JSON.stringify(obs.output);
+        const metadata =
+          obs.metadata === undefined || obs.metadata === null
+            ? obs.metadata
+            : JSON.stringify(obs.metadata);
+
+        if (input) {
+          const inputAdapter = selectAdapter({
+            metadata: metadata ?? input,
+            data: input,
+          });
+          expect(
+            inputAdapter.id,
+            `Input of observation #${obsCount} should have the expected framework`,
+          ).toBe(adapter);
+        }
+        if (output) {
+          const outputAdapter = selectAdapter({
+            metadata: metadata ?? output,
+            data: output,
+          });
+          expect(
+            outputAdapter.id,
+            `Output of observation #${obsCount} should have the expected framework`,
+          ).toBe(adapter);
+        }
+
+        obsCount++;
+      }
+    },
+  );
 });
