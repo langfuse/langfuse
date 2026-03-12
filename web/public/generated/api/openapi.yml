@@ -650,6 +650,53 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateBlobStorageIntegrationRequest'
   /api/public/integrations/blob-storage/{id}:
+    get:
+      description: >-
+        Get the sync status of a blob storage integration by integration ID
+        (requires organization-scoped API key)
+      operationId: blobStorageIntegrations_getBlobStorageIntegrationStatus
+      tags:
+        - BlobStorageIntegrations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationStatusResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
     delete:
       description: >-
         Delete a blob storage integration by ID (requires organization-scoped
@@ -4370,6 +4417,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: resolve
+          in: query
+          description: >-
+            Resolve prompt dependencies before returning the prompt. Defaults to
+            `true`. Set to `false` to return the raw stored prompt with
+            dependency tags intact. This bypasses prompt caching and is intended
+            for debugging or one-off jobs, not production runtime fetches.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
       responses:
         '200':
           description: ''
@@ -6349,6 +6407,13 @@ components:
           type: string
           format: date-time
           nullable: true
+        lastError:
+          type: string
+          nullable: true
+        lastErrorAt:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -6379,6 +6444,79 @@ components:
             $ref: '#/components/schemas/BlobStorageIntegrationResponse'
       required:
         - data
+    BlobStorageSyncStatus:
+      title: BlobStorageSyncStatus
+      type: string
+      enum:
+        - idle
+        - queued
+        - up_to_date
+        - disabled
+        - error
+      description: >-
+        Sync status of the blob storage integration:
+
+        - `disabled` — integration is not enabled
+
+        - `error` — last export failed (see `lastError` for details)
+
+        - `idle` — enabled but has never exported yet
+
+        - `queued` — next export is overdue (`nextSyncAt` is in the past) and
+        waiting to be picked up by the worker
+
+        - `up_to_date` — all available data has been exported; next export is
+        scheduled for the future
+
+
+        **ETL usage**: poll this endpoint and check for `up_to_date` status.
+        Compare `lastSyncAt` against your
+
+        ETL bookmark to determine if new data is available. Note that exports
+        run with a 30-minute lag buffer,
+
+        so `lastSyncAt` will always be at least 30 minutes behind real-time.
+    BlobStorageIntegrationStatusResponse:
+      title: BlobStorageIntegrationStatusResponse
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        syncStatus:
+          $ref: '#/components/schemas/BlobStorageSyncStatus'
+        enabled:
+          type: boolean
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            End of the last successfully exported time window. Compare against
+            your ETL bookmark to determine if new data is available. Null if the
+            integration has never synced.
+        nextSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the next export is scheduled. Null if no sync has occurred yet.
+        lastError:
+          type: string
+          nullable: true
+          description: >-
+            Raw error message from the storage provider (S3/Azure/GCS) if the
+            last export failed. Cleared on successful export.
+        lastErrorAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the last error occurred. Cleared on successful export.
+      required:
+        - id
+        - projectId
+        - syncStatus
+        - enabled
     BlobStorageIntegrationDeletionResponse:
       title: BlobStorageIntegrationDeletionResponse
       type: object
@@ -10147,8 +10285,8 @@ components:
           additionalProperties: true
           nullable: true
           description: >-
-            The dependency resolution graph for the current prompt. Null if
-            prompt has no dependencies.
+            The dependency resolution graph for the current prompt. Null if the
+            prompt has no dependencies or if `resolve=false` was used.
       required:
         - name
         - version

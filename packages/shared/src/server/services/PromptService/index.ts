@@ -14,7 +14,6 @@ import {
 } from "./types";
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
-import { PRODUCTION_LABEL } from "../../../features/prompts/constants";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
 
@@ -46,6 +45,10 @@ export class PromptService {
   }
 
   public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
+    if (params.resolve === false) {
+      return this.getRawPrompt(params);
+    }
+
     if (this.cacheEnabled) {
       const cachedPrompt = await this.getCachedPrompt(params);
 
@@ -78,22 +81,37 @@ export class PromptService {
   private async getDbPrompt(
     params: PromptParams,
   ): Promise<PromptResult | null> {
+    return this.resolvePrompt(await this.findPrompt(params));
+  }
+
+  private async getRawPrompt(
+    params: PromptParams,
+  ): Promise<PromptResult | null> {
+    const prompt = await this.findPrompt(params);
+
+    if (!prompt) return null;
+
+    return {
+      ...prompt,
+      resolutionGraph: null,
+    };
+  }
+
+  private async findPrompt(params: PromptParams): Promise<Prompt | null> {
     const { projectId, promptName, version, label } = params;
 
     if (version) {
-      const prompt = await this.prisma.prompt.findFirst({
+      return this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
           version,
         },
       });
-
-      return this.resolvePrompt(prompt);
     }
 
     if (label) {
-      const prompt = await this.prisma.prompt.findFirst({
+      return this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
@@ -102,8 +120,6 @@ export class PromptService {
           },
         },
       });
-
-      return this.resolvePrompt(prompt);
     }
 
     this.logError("Invalid prompt params", params);
@@ -125,8 +141,6 @@ export class PromptService {
       ...prompt,
       prompt: promptGraph.resolvedPrompt,
       resolutionGraph: promptGraph.graph,
-      // Compute isActive based on labels (deprecated field in DB)
-      isActive: prompt.labels.includes(PRODUCTION_LABEL),
     };
   }
 
