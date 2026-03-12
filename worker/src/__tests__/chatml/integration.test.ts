@@ -549,11 +549,12 @@ describe("ChatML seed spans tests", () => {
       seed: "google-vertex-tools-langchain-2025-09-19.json",
       adapter: "langgraph",
     },
+    { seed: "koog-2025-08-26.json", adapter: "generic" },
     { seed: "langgraph-2025-08-22.json", adapter: "langgraph" },
     { seed: "llamaindex-2025-06-05.json", adapter: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
     { seed: "microsoft-agent-2025-10-14.json", adapter: "microsoft-agent" },
     { seed: "openai-agents-2025-09-30.json", adapter: "openai" },
-    { seed: "openai-assistants-2024-05-29.json", adapter: "generic" },
+    { seed: "openai-assistants-2024-05-29.json", adapter: "openai" },
     { seed: "pydantic-ai-tools-2025-12-04.json", adapter: "pydantic-ai" },
   ] as SeedFileTestCase[])(
     "should select adapter $adapter for seed file $seed ",
