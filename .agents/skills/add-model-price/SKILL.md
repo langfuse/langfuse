@@ -1,12 +1,12 @@
 ---
 name: add-model-price
-description: Use when adding or updating model pricing entries in Langfuse, including default-model-prices.json, matchPattern regexes, pricing tiers, tokenizer IDs, and related LLM type definitions.
+description: Use when editing worker/src/constants/default-model-prices.json, packages/shared/src/server/llm/types.ts, pricing tiers, tokenizer IDs, or matchPattern regexes for OpenAI, Anthropic, Bedrock, Vertex, Azure, or Gemini model pricing.
 ---
 
 # Add Model Price
 
-Use this skill when working on model pricing entries, `matchPattern` regexes,
-pricing tiers, tokenizer IDs, or shared model type definitions.
+Use this skill for model pricing changes in `worker/` and shared LLM type
+updates in `packages/shared/`.
 
 ## When to Apply
 
@@ -19,21 +19,22 @@ pricing tiers, tokenizer IDs, or shared model type definitions.
 
 ## How to Read This Skill
 
-- Start with [AGENTS.md](AGENTS.md) for the full schema, provider source URLs,
-  regex patterns, validation rules, and worked examples.
-- Use the compiled guide whenever you need provider-specific price-key mapping
-  or multi-tier examples.
+- Start with [AGENTS.md](AGENTS.md) for the high-level workflow and helper
+  scripts.
+- Then open only the specific reference file that matches the task.
 
-## Core Rules
+## Reference Map
 
-- Use official provider pricing, not heuristics.
-- Store prices per token, not per million tokens.
-- Keep exactly one default pricing tier with `isDefault: true`,
-  `priority: 0`, and empty `conditions`.
-- Refresh `updatedAt` whenever you modify an existing entry.
-- Update `packages/shared/src/server/llm/types.ts` when the model should be
-  selectable in product flows.
+| Topic | Read this when | File |
+| --- | --- | --- |
+| Schema and tier rules | You need the entry shape or pricing-tier invariants | [references/schema-and-tiers.md](references/schema-and-tiers.md) |
+| Provider sources and price keys | You need official pricing URLs, per-token conversion, or provider-specific usage keys | [references/provider-sources-and-price-keys.md](references/provider-sources-and-price-keys.md) |
+| Match patterns | You are editing `matchPattern` regexes or provider coverage | [references/match-patterns.md](references/match-patterns.md) |
+| Workflow and validation | You are applying the end-to-end edit process or checking common mistakes | [references/workflow-and-validation.md](references/workflow-and-validation.md) |
 
-## Full Compiled Guide
+## Deterministic Helpers
 
-Read [AGENTS.md](AGENTS.md) for the detailed workflow and reference material.
+- Pricing file validator:
+  `node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs`
+- Match-pattern tester:
+  `node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --model <modelName> --accept <sample...> --reject <sample...>`

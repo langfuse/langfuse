@@ -100,7 +100,7 @@ Use this guide when working on:
 - **Worker**: Queue processors → Services → Database
 - **packages/shared**: Shared code for Web and Worker
 
-See [resources/architecture-overview.md](resources/architecture-overview.md)
+See [references/architecture-overview.md](references/architecture-overview.md)
 for complete details.
 
 ---
@@ -355,7 +355,7 @@ const result = await instrumentAsync(
 
 ### 7. Comprehensive Testing Required
 
-Write tests for all new features and bug fixes. See [testing-guide.md](resources/testing-guide.md) for detailed examples.
+Write tests for all new features and bug fixes. See [testing-guide.md](references/testing-guide.md) for detailed examples.
 
 **Test Types:**
 
@@ -532,46 +532,46 @@ Reference existing Langfuse features for implementation patterns:
 
 | Need to...                | Read this                                                    |
 | ------------------------- | ------------------------------------------------------------ |
-| Understand architecture   | [architecture-overview.md](resources/architecture-overview.md)         |
-| Create routes/controllers | [routing-and-controllers.md](resources/routing-and-controllers.md)     |
-| Organize business logic   | [services-and-repositories.md](resources/services-and-repositories.md) |
-| Create middleware         | [middleware-guide.md](resources/middleware-guide.md)                   |
-| Database access           | [database-patterns.md](resources/database-patterns.md)                 |
-| Manage config             | [configuration.md](resources/configuration.md)                         |
-| Write tests               | [testing-guide.md](resources/testing-guide.md)                         |
+| Understand architecture   | [architecture-overview.md](references/architecture-overview.md)         |
+| Create routes/controllers | [routing-and-controllers.md](references/routing-and-controllers.md)     |
+| Organize business logic   | [services-and-repositories.md](references/services-and-repositories.md) |
+| Create middleware         | [middleware-guide.md](references/middleware-guide.md)                   |
+| Database access           | [database-patterns.md](references/database-patterns.md)                 |
+| Manage config             | [configuration.md](references/configuration.md)                         |
+| Write tests               | [testing-guide.md](references/testing-guide.md)                         |
 
 ---
 
-## Resource Files
+## Reference Files
 
-### [architecture-overview.md](resources/architecture-overview.md)
+### [architecture-overview.md](references/architecture-overview.md)
 
 Three-layer architecture (tRPC/Public API → Services → Data Access), request lifecycle for tRPC/Public API/Worker, Next.js 14 directory structure, dual database system (PostgreSQL + ClickHouse), separation of concerns, repository pattern for complex queries
 
-### [routing-and-controllers.md](resources/routing-and-controllers.md)
+### [routing-and-controllers.md](references/routing-and-controllers.md)
 
 Next.js file-based routing, tRPC router patterns, Public REST API routes, layered architecture (Entry Points → Services → Repositories → Database), service layer organization, anti-patterns to avoid
 
-### [services-and-repositories.md](resources/services-and-repositories.md)
+### [services-and-repositories.md](references/services-and-repositories.md)
 
 Service layer overview, dependency injection patterns, singleton patterns, repository pattern for data access, service design principles, caching strategies, testing services
 
-### [middleware-guide.md](resources/middleware-guide.md)
+### [middleware-guide.md](references/middleware-guide.md)
 
 tRPC middleware (withErrorHandling, withOtelInstrumentation, enforceUserIsAuthed), seven tRPC procedure types (publicProcedure, authenticatedProcedure, protectedProjectProcedure, etc.), Public API middleware (withMiddlewares, createAuthedProjectAPIRoute), authentication patterns (NextAuth for tRPC, Basic Auth for Public API)
 
-### [database-patterns.md](resources/database-patterns.md)
+### [database-patterns.md](references/database-patterns.md)
 
 Dual database architecture (PostgreSQL via Prisma + ClickHouse via direct client), PostgreSQL CRUD operations, ClickHouse query patterns (queryClickhouse, queryClickhouseStream, upsertClickhouse), repository pattern for complex queries, tenant isolation with projectId filtering, when to use which database
 
-### [configuration.md](resources/configuration.md)
+### [configuration.md](references/configuration.md)
 
 Environment variable validation with Zod, package-specific configs (web/env.mjs with t3-oss/env-nextjs, worker/env.ts, shared/env.ts), NEXT_PUBLIC_LANGFUSE_CLOUD_REGION usage, LANGFUSE_EE_LICENSE_KEY for enterprise features, best practices for env management
 
-### [testing-guide.md](resources/testing-guide.md)
+### [testing-guide.md](references/testing-guide.md)
 
 Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Jest for web, vitest for worker)
 
 **Skill Status**: COMPLETE ✅
 **Line Count**: ~540 lines
-**Progressive Disclosure**: 7 resource files ✅
+**Progressive Disclosure**: 7 reference files ✅

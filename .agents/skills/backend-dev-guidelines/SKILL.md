@@ -22,20 +22,20 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 
 - Start with [AGENTS.md](AGENTS.md) when the task spans multiple backend areas
   or you need the end-to-end checklists.
-- Read only the specific resource file that matches the work when the scope is
+- Read only the specific reference file that matches the work when the scope is
   narrower.
 
-## Resource Map
+## Reference Map
 
 | Topic | Read this when | File |
 | --- | --- | --- |
-| Architecture and package boundaries | You need the web/worker/shared split, request flow, or queue lifecycle | [resources/architecture-overview.md](resources/architecture-overview.md) |
-| Routing and controllers | You are writing tRPC procedures, public API routes, or queue entrypoints | [resources/routing-and-controllers.md](resources/routing-and-controllers.md) |
-| Middleware and auth | You are changing request auth, permissions, or middleware composition | [resources/middleware-guide.md](resources/middleware-guide.md) |
-| Services and repositories | You are placing business logic, repository code, or DI patterns | [resources/services-and-repositories.md](resources/services-and-repositories.md) |
-| Database access | You are touching Prisma, ClickHouse, tenant filters, or query patterns | [resources/database-patterns.md](resources/database-patterns.md) |
-| Configuration | You are adding env vars, startup config, or runtime toggles | [resources/configuration.md](resources/configuration.md) |
-| Testing | You are adding or updating backend tests | [resources/testing-guide.md](resources/testing-guide.md) |
+| Architecture and package boundaries | You need the web/worker/shared split, request flow, or queue lifecycle | [references/architecture-overview.md](references/architecture-overview.md) |
+| Routing and controllers | You are writing tRPC procedures, public API routes, or queue entrypoints | [references/routing-and-controllers.md](references/routing-and-controllers.md) |
+| Middleware and auth | You are changing request auth, permissions, or middleware composition | [references/middleware-guide.md](references/middleware-guide.md) |
+| Services and repositories | You are placing business logic, repository code, or DI patterns | [references/services-and-repositories.md](references/services-and-repositories.md) |
+| Database access | You are touching Prisma, ClickHouse, tenant filters, or query patterns | [references/database-patterns.md](references/database-patterns.md) |
+| Configuration | You are adding env vars, startup config, or runtime toggles | [references/configuration.md](references/configuration.md) |
+| Testing | You are adding or updating backend tests | [references/testing-guide.md](references/testing-guide.md) |
 
 ## Full Compiled Guide
 

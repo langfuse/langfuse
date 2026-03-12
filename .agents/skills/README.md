@@ -9,10 +9,10 @@ automation.
 Shared skills should use progressive disclosure:
 
 - `SKILL.md` is the short entrypoint with trigger guidance and navigation.
-- `AGENTS.md` is optional and holds the full compiled guide when a skill needs
-  longer instructions.
-- `resources/` holds focused references that agents should open only when the
-  task needs them.
+- `AGENTS.md` is optional and should stay concise when it exists.
+- `references/` holds focused prose references that agents should open only
+  when the task needs them.
+- `scripts/` holds deterministic helpers for repetitive or fragile steps.
 
 ## Available Skills
 
@@ -41,10 +41,12 @@ Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
 1. Codex may create or refine shared skills under `.agents/skills/` when a
    repo-specific workflow becomes repeated enough to justify durable guidance.
 2. Create a concise `.agents/skills/<skill-name>/SKILL.md`.
-3. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill needs a
-   longer compiled guide.
-4. Keep the skill tightly scoped to one domain or workflow.
-5. Link the skill from `AGENTS.md` if it is relevant across the repo.
-6. Link the skill from `CLAUDE.md` if Claude Code should load it from the
+3. Add `.agents/skills/<skill-name>/AGENTS.md` only when the skill benefits
+   from a short router or checklist on top of `SKILL.md`.
+4. Prefer `references/` for detailed prose and `scripts/` for deterministic
+   execution helpers.
+5. Keep the skill tightly scoped to one domain or workflow.
+6. Link the skill from `AGENTS.md` if it is relevant across the repo.
+7. Link the skill from `CLAUDE.md` if Claude Code should load it from the
    project entrypoint.
-7. Add `resources/` files only when they materially improve signal-to-noise.
+8. Run `pnpm run skills:check` after editing any skill files.

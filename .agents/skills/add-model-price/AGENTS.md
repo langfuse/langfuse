@@ -10,6 +10,29 @@ tokenizer IDs, or pricing tiers.
 This guide keeps model pricing changes consistent across providers and runtime
 surfaces so Langfuse can calculate token costs accurately.
 
+## How to Use This Skill
+
+1. Read [references/schema-and-tiers.md](references/schema-and-tiers.md) for
+   the JSON shape and pricing-tier rules.
+2. Read
+   [references/provider-sources-and-price-keys.md](references/provider-sources-and-price-keys.md)
+   for official pricing URLs, per-token conversion, and provider-specific usage
+   keys.
+3. Read [references/match-patterns.md](references/match-patterns.md) when you
+   need to add or expand regex coverage.
+4. Read
+   [references/workflow-and-validation.md](references/workflow-and-validation.md)
+   for the end-to-end edit workflow, validation rules, and common mistakes.
+
+## Deterministic Helpers
+
+- Validate the pricing file:
+  `node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs`
+- Test a regex directly:
+  `node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --pattern '(?i)^(openai/)?(gpt-4o)$' --accept gpt-4o openai/gpt-4o --reject gpt-4o-mini`
+- Test the regex for an existing model entry:
+  `node .agents/skills/add-model-price/scripts/test-match-pattern.mjs --model gpt-4o --accept gpt-4o openai/gpt-4o --reject gpt-4o-mini`
+
 ## Quick Start Checklist
 
 ### Adding a New Model
@@ -37,11 +60,11 @@ surfaces so Langfuse can calculate token costs accurately.
 - Shared model types:
   `packages/shared/src/server/llm/types.ts`
 - Validation logic:
-  `packages/shared/src/server/pricing-tiers/validation.ts`
+  `packages/shared/src/features/model-pricing/validation.ts`
 - Matching logic:
   `packages/shared/src/server/pricing-tiers/matcher.ts`
 - Tests:
-  `web/src/__tests__/async/model-pricing-tiers.servertest.ts`
+  `worker/src/__tests__/pricing-tier-matcher.test.ts`
 
 ## Data Structure
 

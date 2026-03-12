@@ -53,6 +53,7 @@ langfuse/
 - Codex environment bootstrap: `bash scripts/codex/setup.sh`
 - Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
+- Shared skill validation: `pnpm run skills:check`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
 - If you have to rebuild all for testing, run: `pnpm run build`
@@ -67,6 +68,7 @@ Minimum verification matrix:
 | `packages/shared/prisma/**` or `packages/shared/clickhouse/**` | `pnpm --filter @langfuse/shared run lint` + `pnpm run db:generate` + targeted web/worker regressions |
 | Public API contract (`web/src/pages/api/public/**`, `web/src/features/public-api/types/**`, `fern/apis/**`) | web lint + targeted server API tests + Fern update/regeneration; never hand-edit `generated/**` |
 | Cross-package refactor (`web` + `worker` + `shared`) | `pnpm run lint` + `pnpm run typecheck` + targeted tests per impacted package |
+| Shared or package-local skill files (`**/.agents/skills/**`) | `pnpm run skills:check` + any skill-specific helper commands documented in the edited skill |
 
 ## Coding Style & Naming Conventions
 - Keep changes scoped; avoid unrelated refactors.
@@ -110,7 +112,7 @@ Minimum verification matrix:
 - Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
 - Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
-- Shared skills use a short `SKILL.md` entrypoint and may link to a local `AGENTS.md` or `resources/` files for detailed guidance.
+- Shared skills use a short `SKILL.md` entrypoint and should prefer focused `references/` docs and `scripts/` helpers over large compiled guides. Keep any local `AGENTS.md` concise and use it as a router, not a dump of all details.
 - If a task matches one of the shared skill scopes below, read the linked `SKILL.md` before editing code, then follow its local references as needed:
   - Backend and API work in `web/src/server/**`, `web/src/pages/api/public/**`, `worker/src/**`, or `packages/shared/src/**`: [`.agents/skills/backend-dev-guidelines/SKILL.md`](.agents/skills/backend-dev-guidelines/SKILL.md)
   - Model pricing work in `worker/src/constants/default-model-prices.json`, `packages/shared/src/server/llm/types.ts`, or related pricing files: [`.agents/skills/add-model-price/SKILL.md`](.agents/skills/add-model-price/SKILL.md)
