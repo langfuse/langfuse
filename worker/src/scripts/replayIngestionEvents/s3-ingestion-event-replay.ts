@@ -15,11 +15,12 @@ import * as path from "path";
 import * as readline from "readline";
 import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
+import { type Queue } from "bullmq";
 import {
-  getQueue,
   OtelIngestionQueue,
   QueueJobs,
   QueueName,
+  SecondaryIngestionQueue,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 
@@ -455,13 +456,7 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
 
   const startTime = Date.now();
   let processedEvents = 0;
-
-  // Set up BullMQ queue with Redis connection
-  const queue = getQueue(QueueName.IngestionSecondaryQueue);
-
-  if (!queue) {
-    throw new Error("Failed to get queue");
-  }
+  const usedQueueNames = new Set<string>();
 
   console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
 
@@ -488,7 +483,12 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
       // Process queue ingestion in batches
       if (batch.length >= BATCH_SIZE) {
         batchNumber++;
-        await processQueueBatch(queue, batch, batchNumber, processedEvents);
+        await processQueueBatch(
+          batch,
+          batchNumber,
+          processedEvents,
+          usedQueueNames,
+        );
         processedEvents += batch.length;
         batch = [];
       }
@@ -500,12 +500,20 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
   // Process remaining batch
   if (batch.length > 0) {
     batchNumber++;
-    await processQueueBatch(queue, batch, batchNumber, processedEvents);
+    await processQueueBatch(
+      batch,
+      batchNumber,
+      processedEvents,
+      usedQueueNames,
+    );
     processedEvents += batch.length;
   }
 
-  // Close the queue connection
-  await queue.close();
+  await Promise.all(
+    Array.from(usedQueueNames).map((queueName) =>
+      SecondaryIngestionQueue.getInstance({ shardName: queueName })?.close(),
+    ),
+  );
 
   const processingTimeMs = Date.now() - startTime;
 
@@ -522,24 +530,59 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
 }
 
 async function processQueueBatch(
-  queue: NonNullable<ReturnType<typeof getQueue>>,
   batch: JsonOutputItem[],
   batchNumber: number,
   processedEvents: number,
+  usedQueueNames: Set<string>,
 ): Promise<void> {
-  // Prepare jobs for bulk insertion
-  const jobs = batch.map((event) => ({
-    name: JOB_NAME,
-    data: {
-      payload: event,
-      id: randomUUID(),
-      timestamp: new Date(),
-      name: JOB_NAME,
-    },
-  }));
+  const jobsByQueue = new Map<
+    string,
+    {
+      queue: Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>;
+      jobs: Array<{
+        name: QueueJobs.IngestionJob;
+        data: TQueueJobTypes[QueueName.IngestionSecondaryQueue];
+      }>;
+    }
+  >();
 
-  // Add batch to queue
-  await queue.addBulk(jobs);
+  batch.forEach((event) => {
+    const queue = SecondaryIngestionQueue.getInstance({
+      shardingKey: SecondaryIngestionQueue.getShardingKey({
+        projectId: event.authCheck.scope.projectId,
+        eventBodyId: event.data.eventBodyId,
+      }),
+    });
+
+    if (!queue) {
+      throw new Error("Failed to get secondary ingestion shard queue");
+    }
+
+    usedQueueNames.add(queue.name);
+
+    const existing = jobsByQueue.get(queue.name) ?? {
+      queue,
+      jobs: [],
+    };
+
+    existing.jobs.push({
+      name: JOB_NAME,
+      data: {
+        payload: event,
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: JOB_NAME,
+      },
+    });
+
+    jobsByQueue.set(queue.name, existing);
+  });
+
+  await Promise.all(
+    Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
+      queue.addBulk(jobs),
+    ),
+  );
 
   // Log progress
   console.log(
@@ -564,13 +607,7 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
 
   const startTime = Date.now();
   let processedEvents = 0;
-
-  // Set up BullMQ queue with Redis connection
-  const queue = OtelIngestionQueue.getInstance({});
-
-  if (!queue) {
-    throw new Error("Failed to get queue");
-  }
+  const usedQueueNames = new Set<string>();
 
   console.log(`🔗 Connected to Redis and created queue: ${OTEL_NAME}`);
 
@@ -597,7 +634,12 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
       // Process queue ingestion in batches
       if (batch.length >= BATCH_SIZE) {
         batchNumber++;
-        await processOtelQueueBatch(queue, batch, batchNumber, processedEvents);
+        await processOtelQueueBatch(
+          batch,
+          batchNumber,
+          processedEvents,
+          usedQueueNames,
+        );
         processedEvents += batch.length;
         batch = [];
       }
@@ -609,12 +651,20 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
   // Process remaining batch
   if (batch.length > 0) {
     batchNumber++;
-    await processOtelQueueBatch(queue, batch, batchNumber, processedEvents);
+    await processOtelQueueBatch(
+      batch,
+      batchNumber,
+      processedEvents,
+      usedQueueNames,
+    );
     processedEvents += batch.length;
   }
 
-  // Close the queue connection
-  await queue.close();
+  await Promise.all(
+    Array.from(usedQueueNames).map((queueName) =>
+      OtelIngestionQueue.getInstance({ shardName: queueName })?.close(),
+    ),
+  );
 
   const processingTimeMs = Date.now() - startTime;
 
@@ -631,27 +681,59 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
 }
 
 async function processOtelQueueBatch(
-  queue: NonNullable<ReturnType<typeof getQueue>>,
   batch: OTelJsonOutputItem[],
   batchNumber: number,
   processedEvents: number,
+  usedQueueNames: Set<string>,
 ): Promise<void> {
-  // Prepare jobs for bulk insertion
-  const jobs: Array<{
-    name: QueueJobs.OtelIngestionJob;
-    data: TQueueJobTypes[QueueName.OtelIngestionQueue];
-  }> = batch.map((event) => ({
-    name: QueueJobs.OtelIngestionJob,
-    data: {
-      payload: event,
-      id: randomUUID(),
-      timestamp: new Date(),
-      name: QueueJobs.OtelIngestionJob,
-    },
-  }));
+  const jobsByQueue = new Map<
+    string,
+    {
+      queue: Queue<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+      jobs: Array<{
+        name: QueueJobs.OtelIngestionJob;
+        data: TQueueJobTypes[QueueName.OtelIngestionQueue];
+      }>;
+    }
+  >();
 
-  // Add batch to queue
-  await queue.addBulk(jobs);
+  batch.forEach((event) => {
+    const queue = OtelIngestionQueue.getInstance({
+      shardingKey: OtelIngestionQueue.getShardingKey({
+        projectId: event.authCheck.scope.projectId,
+        fileKey: event.data.fileKey,
+      }),
+    });
+
+    if (!queue) {
+      throw new Error("Failed to get OTEL ingestion shard queue");
+    }
+
+    usedQueueNames.add(queue.name);
+
+    const existing = jobsByQueue.get(queue.name) ?? {
+      queue,
+      jobs: [],
+    };
+
+    existing.jobs.push({
+      name: QueueJobs.OtelIngestionJob,
+      data: {
+        payload: event,
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: QueueJobs.OtelIngestionJob,
+      },
+    });
+
+    jobsByQueue.set(queue.name, existing);
+  });
+
+  await Promise.all(
+    Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
+      queue.addBulk(jobs),
+    ),
+  );
 
   // Log progress
   console.log(

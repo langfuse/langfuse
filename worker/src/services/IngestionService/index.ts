@@ -796,7 +796,10 @@ export class IngestionService {
       return;
     } else {
       // Job configs present, so we add to the TraceUpsert queue.
-      const shardingKey = `${projectId}-${entityId}`;
+      const shardingKey = TraceUpsertQueue.getShardingKey({
+        projectId,
+        traceId: entityId,
+      });
       const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
       if (!traceUpsertQueue) {
         logger.error("TraceUpsertQueue is not initialized");

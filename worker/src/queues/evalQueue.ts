@@ -6,11 +6,11 @@ import {
   TQueueJobTypes,
   logger,
   traceException,
-  LLMAsJudgeExecutionQueue,
+  SecondaryEvalExecutionQueue,
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
-  getQueue,
+  getQueueByName,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -114,9 +114,7 @@ export const evalJobCreatorQueueProcessor = async (
   }
 };
 
-type EvalExecutionQueueName =
-  | QueueName.EvaluationExecution
-  | QueueName.EvaluationExecutionSecondaryQueue;
+type EvalExecutionQueueName = string;
 
 export const evalJobExecutorQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -141,9 +139,12 @@ export const evalJobExecutorQueueProcessorBuilder = (
           logger.debug(
             `Redirecting evaluation execution job to secondary queue for project ${projectId}`,
           );
-          const secondaryQueue = getQueue(
-            QueueName.EvaluationExecutionSecondaryQueue,
-          );
+          const secondaryQueue = SecondaryEvalExecutionQueue.getInstance({
+            shardingKey: SecondaryEvalExecutionQueue.getShardingKey({
+              projectId,
+              jobExecutionId: job.data.payload.jobExecutionId,
+            }),
+          });
           if (!secondaryQueue) {
             throw new Error(
               "Secondary evaluation execution queue is not available",
@@ -210,7 +211,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
         await retryLLMRateLimitError(job, {
           table: "job_executions",
           idField: "jobExecutionId",
-          queue: getQueue(queueName),
+          queue: getQueueByName(queueName),
           queueName,
           jobName: QueueJobs.EvaluationExecution,
           delayFn: delayInMs,
@@ -268,43 +269,62 @@ export const evalJobExecutorQueueProcessorBuilder = (
  * Processor for observation-level LLM-as-a-judge evaluation jobs.
  * This handles evals triggered during OTEL ingestion for single observations.
  */
-export const llmAsJudgeExecutionQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>,
-) => {
-  try {
-    logger.debug("Executing LLM-as-Judge Observation Evaluation Job", job.data);
+export const llmAsJudgeExecutionQueueProcessorBuilder =
+  (queueName: string): Processor =>
+  async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
+    try {
+      logger.debug(
+        "Executing LLM-as-Judge Observation Evaluation Job",
+        job.data,
+      );
 
-    const span = getCurrentSpan();
+      const span = getCurrentSpan();
 
-    if (span) {
-      span.setAttribute(
-        "messaging.bullmq.job.input.jobExecutionId",
+      if (span) {
+        span.setAttribute(
+          "messaging.bullmq.job.input.jobExecutionId",
+          job.data.payload.jobExecutionId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.projectId",
+          job.data.payload.projectId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.retryBaggage.attempt",
+          job.data.retryBaggage?.attempt ?? 0,
+        );
+      }
+
+      await processObservationEval({ event: job.data.payload });
+      return true;
+    } catch (e) {
+      const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
-      span.setAttribute(
-        "messaging.bullmq.job.input.projectId",
-        job.data.payload.projectId,
-      );
-      span.setAttribute(
-        "messaging.bullmq.job.input.retryBaggage.attempt",
-        job.data.retryBaggage?.attempt ?? 0,
-      );
-    }
 
-    await processObservationEval({ event: job.data.payload });
-    return true;
-  } catch (e) {
-    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+      if (isLLMCompletionError(e) && e.isRetryable) {
+        await retryLLMRateLimitError(job, {
+          table: "job_executions",
+          idField: "jobExecutionId",
+          queue: getQueueByName(queueName),
+          queueName,
+          jobName: QueueJobs.LLMAsJudgeExecution,
+          delayFn: delayInMs,
+        });
 
-    if (isLLMCompletionError(e) && e.isRetryable) {
-      await retryLLMRateLimitError(job, {
-        table: "job_executions",
-        idField: "jobExecutionId",
-        queue: LLMAsJudgeExecutionQueue.getInstance(),
-        queueName: QueueName.LLMAsJudgeExecution,
-        jobName: QueueJobs.LLMAsJudgeExecution,
-        delayFn: delayInMs,
-      });
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        return;
+      }
 
       await prisma.jobExecution.update({
         where: {
@@ -312,38 +332,27 @@ export const llmAsJudgeExecutionQueueProcessor = async (
           projectId: job.data.payload.projectId,
         },
         data: {
-          status: JobExecutionStatus.DELAYED,
+          status: JobExecutionStatus.ERROR,
+          endTime: new Date(),
+          error:
+            isLLMCompletionError(e) || isUnrecoverableError(e)
+              ? e.message
+              : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      return;
+      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+
+      traceException(e);
+      logger.error(
+        `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
+        e,
+      );
+
+      throw e;
     }
+  };
 
-    await prisma.jobExecution.update({
-      where: {
-        id: job.data.payload.jobExecutionId,
-        projectId: job.data.payload.projectId,
-      },
-      data: {
-        status: JobExecutionStatus.ERROR,
-        endTime: new Date(),
-        error:
-          isLLMCompletionError(e) || isUnrecoverableError(e)
-            ? e.message
-            : "An internal error occurred",
-        executionTraceId,
-      },
-    });
-
-    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
-
-    traceException(e);
-    logger.error(
-      `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
-      e,
-    );
-
-    throw e;
-  }
-};
+export const llmAsJudgeExecutionQueueProcessor =
+  llmAsJudgeExecutionQueueProcessorBuilder(QueueName.LLMAsJudgeExecution);

@@ -2,9 +2,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 import {
+  EvalExecutionQueue,
   logger,
-  QueueName,
-  getQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -49,11 +48,6 @@ export default async function handler(
         `Retrying eval jobs for createdAtCutoff ${body.data.createdAtCutoff}`,
       );
 
-      const queue = getQueue(QueueName.EvaluationExecution);
-      if (!queue) {
-        throw new Error("Failed to get queue");
-      }
-
       const jobs = await prisma.jobExecution.findMany({
         where: {
           createdAt: {
@@ -67,8 +61,46 @@ export default async function handler(
         const chunkSize = 1000;
         for (let i = 0; i < jobs.length; i += chunkSize) {
           const chunk = jobs.slice(i, i + chunkSize);
-          await queue.addBulk(
-            chunk.map((job) => ({
+          const jobsByShard = new Map<
+            string,
+            {
+              queue: NonNullable<
+                ReturnType<typeof EvalExecutionQueue.getInstance>
+              >;
+              jobs: Array<{
+                name: QueueJobs.EvaluationExecution;
+                data: {
+                  timestamp: Date;
+                  id: string;
+                  payload: {
+                    jobExecutionId: string;
+                    projectId: string;
+                    delay: number;
+                  };
+                  name: QueueJobs.EvaluationExecution;
+                };
+              }>;
+            }
+          >();
+
+          chunk.forEach((job) => {
+            const queue = EvalExecutionQueue.getInstance({
+              shardingKey: EvalExecutionQueue.getShardingKey({
+                projectId: job.projectId,
+                jobExecutionId: job.id,
+              }),
+            });
+
+            if (!queue) {
+              throw new Error("Failed to get evaluation execution queue");
+            }
+
+            const existing = jobsByShard.get(queue.name) ?? {
+              queue,
+              jobs: [],
+            };
+
+            existing.jobs.push({
               name: QueueJobs.EvaluationExecution,
               data: {
                 timestamp: new Date(),
@@ -78,8 +110,17 @@ export default async function handler(
                   projectId: job.projectId,
                   delay: 0,
                 },
+                name: QueueJobs.EvaluationExecution,
               },
-            })),
+            });
+
+            jobsByShard.set(queue.name, existing);
+          });
+
+          await Promise.all(
+            Array.from(jobsByShard.values()).map(({ queue, jobs }) =>
+              queue.addBulk(jobs),
+            ),
           );
         }
       }

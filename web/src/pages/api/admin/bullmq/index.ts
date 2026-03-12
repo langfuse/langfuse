@@ -1,13 +1,11 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
 import {
+  getAllQueueNames,
+  getQueueByName,
   logger,
   QueueName,
-  getQueue,
-  IngestionQueue,
-  TraceUpsertQueue,
   IngestionEvent,
-  OtelIngestionQueue,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
@@ -62,30 +60,11 @@ export default async function handler(
     }
 
     if (req.method === "GET") {
-      const queues: string[] = Object.values(QueueName);
-      queues.push(...IngestionQueue.getShardNames());
-      queues.push(...TraceUpsertQueue.getShardNames());
-      queues.push(...OtelIngestionQueue.getShardNames());
+      const queues = getAllQueueNames();
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
           try {
-            let queue;
-            if (queueName.startsWith(QueueName.IngestionQueue)) {
-              queue = IngestionQueue.getInstance({ shardName: queueName });
-            } else if (queueName.startsWith(QueueName.TraceUpsert)) {
-              queue = TraceUpsertQueue.getInstance({ shardName: queueName });
-            } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
-              queue = OtelIngestionQueue.getInstance({ shardName: queueName });
-            } else {
-              queue = getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              );
-            }
+            const queue = getQueueByName(queueName);
             const jobCount = await queue?.getJobCounts();
             return { queueName, jobCount };
           } catch (e) {
@@ -110,23 +89,7 @@ export default async function handler(
       );
 
       for (const queueName of body.data.queueNames) {
-        let queue;
-        if (queueName.startsWith(QueueName.IngestionQueue)) {
-          queue = IngestionQueue.getInstance({ shardName: queueName });
-        } else if (queueName.startsWith(QueueName.TraceUpsert)) {
-          queue = TraceUpsertQueue.getInstance({ shardName: queueName });
-        } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
-          queue = OtelIngestionQueue.getInstance({ shardName: queueName });
-        } else {
-          queue = getQueue(
-            queueName as Exclude<
-              QueueName,
-              | QueueName.IngestionQueue
-              | QueueName.TraceUpsert
-              | QueueName.OtelIngestionQueue
-            >,
-          );
-        }
+        const queue = getQueueByName(queueName);
 
         let totalCount = 0;
         let failedCountInLoop;
@@ -161,23 +124,7 @@ export default async function handler(
       );
 
       for (const queueName of body.data.queueNames) {
-        let queue;
-        if (queueName.startsWith(QueueName.IngestionQueue)) {
-          queue = IngestionQueue.getInstance({ shardName: queueName });
-        } else if (queueName.startsWith(QueueName.TraceUpsert)) {
-          queue = TraceUpsertQueue.getInstance({ shardName: queueName });
-        } else if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
-          queue = OtelIngestionQueue.getInstance({ shardName: queueName });
-        } else {
-          queue = getQueue(
-            queueName as Exclude<
-              QueueName,
-              | QueueName.IngestionQueue
-              | QueueName.TraceUpsert
-              | QueueName.OtelIngestionQueue
-            >,
-          );
-        }
+        const queue = getQueueByName(queueName);
         const jobCount = await queue?.getJobCounts("failed");
         logger.info(
           `Retrying ${JSON.stringify(jobCount)} jobs for queue ${queueName}`,

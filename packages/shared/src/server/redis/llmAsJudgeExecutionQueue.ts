@@ -1,51 +1,48 @@
-import { Queue } from "bullmq";
-import { logger } from "../logger";
+import { type Queue } from "bullmq";
 import { TQueueJobTypes, QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { env } from "../../env";
+import { createShardedQueueAccessor } from "./shardedQueue";
+
+const llmAsJudgeExecutionQueue = createShardedQueueAccessor({
+  queueName: QueueName.LLMAsJudgeExecution,
+  shardCount: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_QUEUE_SHARD_COUNT,
+  errorLabel: "LLMAsJudgeExecutionQueue",
+  defaultJobOptions: {
+    removeOnComplete: 10_000,
+    removeOnFail: 10_000,
+    attempts: 10,
+    backoff: {
+      type: "exponential",
+      delay: 1000,
+    },
+  },
+});
 
 export class LLMAsJudgeExecutionQueue {
-  private static instance: Queue<
-    TQueueJobTypes[QueueName.LLMAsJudgeExecution]
-  > | null = null;
+  static getShardingKey(params: {
+    projectId: string;
+    jobExecutionId: string;
+  }): string {
+    return `${params.projectId}-${params.jobExecutionId}`;
+  }
 
-  public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.LLMAsJudgeExecution]
-  > | null {
-    if (LLMAsJudgeExecutionQueue.instance)
-      return LLMAsJudgeExecutionQueue.instance;
+  public static getShardNames() {
+    return llmAsJudgeExecutionQueue.getShardNames();
+  }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+  static getShardIndexFromShardName(
+    shardName: string | undefined,
+  ): number | null {
+    return llmAsJudgeExecutionQueue.getShardIndexFromShardName(shardName);
+  }
 
-    LLMAsJudgeExecutionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>(
-          QueueName.LLMAsJudgeExecution,
-          {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.LLMAsJudgeExecution),
-            defaultJobOptions: {
-              removeOnComplete: 10_000, // important for job deduplication
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-            },
-          },
-        )
-      : null;
-
-    LLMAsJudgeExecutionQueue.instance?.on("error", (err) => {
-      logger.error("LLMAsJudgeExecutionQueue error", err);
-    });
-
-    return LLMAsJudgeExecutionQueue.instance;
+  public static getInstance({
+    shardingKey,
+    shardName,
+  }: {
+    shardingKey?: string;
+    shardName?: string;
+  } = {}): Queue<TQueueJobTypes[QueueName.LLMAsJudgeExecution]> | null {
+    return llmAsJudgeExecutionQueue.getInstance({ shardingKey, shardName });
   }
 }

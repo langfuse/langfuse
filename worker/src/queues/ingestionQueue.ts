@@ -3,10 +3,10 @@ import {
   clickhouseClient,
   getClickhouseEntityType,
   getCurrentSpan,
-  getQueue,
   getS3EventStorageClient,
   hasS3SlowdownFlag,
   IngestionEventType,
+  SecondaryIngestionQueue,
   isS3SlowDownError,
   logger,
   markProjectS3Slowdown,
@@ -121,7 +121,12 @@ export const ingestionQueueProcessorBuilder = (
             reason: shouldRedirectSlowdown ? "s3_slowdown_flag" : "env_config",
           },
         );
-        const secondaryQueue = getQueue(QueueName.IngestionSecondaryQueue);
+        const secondaryQueue = SecondaryIngestionQueue.getInstance({
+          shardingKey: SecondaryIngestionQueue.getShardingKey({
+            projectId,
+            eventBodyId: job.data.payload.data.eventBodyId,
+          }),
+        });
         if (secondaryQueue) {
           await secondaryQueue.add(QueueName.IngestionSecondaryQueue, job.data);
           // If we don't redirect, we continue with the ingestion. Otherwise, we finish here.

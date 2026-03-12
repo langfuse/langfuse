@@ -34,11 +34,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
     getCurrentSpan: vi.fn().mockReturnValue({
       setAttribute: vi.fn(),
     }),
-    LLMAsJudgeExecutionQueue: {
-      getInstance: vi.fn().mockReturnValue({
-        add: vi.fn(),
-      }),
-    },
+    getQueueByName: vi.fn().mockReturnValue({
+      add: vi.fn(),
+    }),
     isLLMCompletionError: vi.fn(),
   };
 });

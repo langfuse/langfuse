@@ -13,7 +13,7 @@ import {
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessorBuilder,
   evalJobTraceCreatorQueueProcessor,
-  llmAsJudgeExecutionQueueProcessor,
+  llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -32,8 +32,12 @@ import {
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
+  EvalExecutionQueue,
   IngestionQueue,
+  LLMAsJudgeExecutionQueue,
   OtelIngestionQueue,
+  SecondaryEvalExecutionQueue,
+  SecondaryIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
@@ -120,13 +124,9 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   // Register workers for all trace upsert queue shards
   const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
   traceUpsertShardNames.forEach((shardName) => {
-    WorkerManager.register(
-      shardName as QueueName,
-      evalJobTraceCreatorQueueProcessor,
-      {
-        concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
-      },
-    );
+    WorkerManager.register(shardName, evalJobTraceCreatorQueueProcessor, {
+      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+    });
   });
 }
 
@@ -231,49 +231,56 @@ if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.EvaluationExecution,
-    evalJobExecutorQueueProcessorBuilder(true, QueueName.EvaluationExecution),
-    {
-      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
-      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
-      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
-      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
-      lockDuration: 60000, // 60 seconds
-      stalledInterval: 120000, // 120 seconds
-      maxStalledCount: 3,
-    },
-  );
+  const evalExecutionShardNames = EvalExecutionQueue.getShardNames();
+  evalExecutionShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName,
+      evalJobExecutorQueueProcessorBuilder(true, shardName),
+      {
+        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+        // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+        // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+        // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+        lockDuration: 60000, // 60 seconds
+        stalledInterval: 120000, // 120 seconds
+        maxStalledCount: 3,
+      },
+    );
+  });
 
   // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
-  WorkerManager.register(
-    QueueName.LLMAsJudgeExecution,
-    llmAsJudgeExecutionQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-      lockDuration: 60000,
-      stalledInterval: 120000,
-      maxStalledCount: 3,
-    },
-  );
+  const llmAsJudgeShardNames = LLMAsJudgeExecutionQueue.getShardNames();
+  llmAsJudgeShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName,
+      llmAsJudgeExecutionQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.EvaluationExecutionSecondaryQueue,
-    evalJobExecutorQueueProcessorBuilder(
-      false,
-      QueueName.EvaluationExecutionSecondaryQueue,
-    ),
-    {
-      concurrency:
-        env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
-      lockDuration: 60000, // 60 seconds
-      stalledInterval: 120000, // 120 seconds
-      maxStalledCount: 3,
-    },
-  );
+  const secondaryEvalExecutionShardNames =
+    SecondaryEvalExecutionQueue.getShardNames();
+  secondaryEvalExecutionShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName,
+      evalJobExecutorQueueProcessorBuilder(false, shardName),
+      {
+        concurrency:
+          env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+        lockDuration: 60000, // 60 seconds
+        stalledInterval: 120000, // 120 seconds
+        maxStalledCount: 3,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
@@ -305,13 +312,9 @@ if (env.QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED === "true") {
   // Register workers for all ingestion queue shards
   const shardNames = OtelIngestionQueue.getShardNames();
   shardNames.forEach((shardName) => {
-    WorkerManager.register(
-      shardName as QueueName,
-      otelIngestionQueueProcessor,
-      {
-        concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
-      },
-    );
+    WorkerManager.register(shardName, otelIngestionQueueProcessor, {
+      concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+    });
   });
 }
 
@@ -320,7 +323,7 @@ if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
   const shardNames = IngestionQueue.getShardNames();
   shardNames.forEach((shardName) => {
     WorkerManager.register(
-      shardName as QueueName,
+      shardName,
       ingestionQueueProcessorBuilder(true), // this might redirect to secondary queue
       {
         concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
@@ -330,14 +333,13 @@ if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.IngestionSecondaryQueue,
-    ingestionQueueProcessorBuilder(false),
-    {
+  const secondaryIngestionShardNames = SecondaryIngestionQueue.getShardNames();
+  secondaryIngestionShardNames.forEach((shardName) => {
+    WorkerManager.register(shardName, ingestionQueueProcessorBuilder(false), {
       concurrency:
         env.LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
-    },
-  );
+    });
+  });
 }
 
 if (

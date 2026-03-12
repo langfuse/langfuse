@@ -1,14 +1,10 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
-  getQueue,
+  getQueueByName,
   convertQueueNameToMetricName,
   createNewRedisInstance,
   getQueuePrefix,
   logger,
-  QueueName,
-  IngestionQueue,
-  TraceUpsertQueue,
-  OtelIngestionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -21,7 +17,7 @@ export class WorkerManager {
 
   private static metricWrapper(
     processor: Processor,
-    queueName: QueueName,
+    queueName: string,
   ): Processor {
     return async (job: Job) => {
       const startTime = Date.now();
@@ -35,20 +31,7 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      const queue = queueName.startsWith(QueueName.IngestionQueue)
-        ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.TraceUpsert)
-          ? TraceUpsertQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.OtelIngestionQueue)
-            ? OtelIngestionQueue.getInstance({ shardName: queueName })
-            : getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              );
+      const queue = getQueueByName(queueName);
       Promise.allSettled([
         // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
         // or "prioritized" or "waiting-children") that count provides
@@ -89,12 +72,12 @@ export class WorkerManager {
     logger.info("All workers have been closed.");
   }
 
-  public static getWorker(queueName: QueueName): Worker | undefined {
+  public static getWorker(queueName: string): Worker | undefined {
     return WorkerManager.workers[queueName];
   }
 
   public static register(
-    queueName: QueueName,
+    queueName: string,
     processor: Processor,
     additionalOptions: Partial<WorkerOptions> = {},
   ): void {

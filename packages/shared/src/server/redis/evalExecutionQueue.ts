@@ -1,93 +1,94 @@
-import { Queue } from "bullmq";
-import { logger } from "../logger";
+import { type Queue } from "bullmq";
 import { TQueueJobTypes, QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { env } from "../../env";
+import { createShardedQueueAccessor } from "./shardedQueue";
+
+const evalExecutionQueue = createShardedQueueAccessor({
+  queueName: QueueName.EvaluationExecution,
+  shardCount: env.LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT,
+  errorLabel: "EvalExecutionQueue",
+  defaultJobOptions: {
+    removeOnComplete: true,
+    removeOnFail: 10_000,
+    attempts: 10,
+    backoff: {
+      type: "exponential",
+      delay: 1000,
+    },
+  },
+});
+
+const secondaryEvalExecutionQueue = createShardedQueueAccessor({
+  queueName: QueueName.EvaluationExecutionSecondaryQueue,
+  shardCount: env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_SHARD_COUNT,
+  errorLabel: "SecondaryEvalExecutionQueue",
+  defaultJobOptions: {
+    removeOnComplete: true,
+    removeOnFail: 10_000,
+    attempts: 10,
+    backoff: {
+      type: "exponential",
+      delay: 1000,
+    },
+  },
+});
 
 export class EvalExecutionQueue {
-  private static instance: Queue<
-    TQueueJobTypes[QueueName.EvaluationExecution]
-  > | null = null;
+  static getShardingKey(params: {
+    projectId: string;
+    jobExecutionId: string;
+  }): string {
+    return `${params.projectId}-${params.jobExecutionId}`;
+  }
 
-  public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.EvaluationExecution]
-  > | null {
-    if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
+  public static getShardNames() {
+    return evalExecutionQueue.getShardNames();
+  }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
+  static getShardIndexFromShardName(
+    shardName: string | undefined,
+  ): number | null {
+    return evalExecutionQueue.getShardIndexFromShardName(shardName);
+  }
 
-    EvalExecutionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
-          QueueName.EvaluationExecution,
-          {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.EvaluationExecution),
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-            },
-          },
-        )
-      : null;
-
-    EvalExecutionQueue.instance?.on("error", (err) => {
-      logger.error("EvalExecutionQueue error", err);
-    });
-
-    return EvalExecutionQueue.instance;
+  public static getInstance({
+    shardingKey,
+    shardName,
+  }: {
+    shardingKey?: string;
+    shardName?: string;
+  } = {}): Queue<TQueueJobTypes[QueueName.EvaluationExecution]> | null {
+    return evalExecutionQueue.getInstance({ shardingKey, shardName });
   }
 }
 
 export class SecondaryEvalExecutionQueue {
-  private static instance: Queue<
-    TQueueJobTypes[QueueName.EvaluationExecutionSecondaryQueue]
-  > | null = null;
+  static getShardingKey(params: {
+    projectId: string;
+    jobExecutionId: string;
+  }): string {
+    return EvalExecutionQueue.getShardingKey(params);
+  }
 
-  public static getInstance(): Queue<
+  public static getShardNames() {
+    return secondaryEvalExecutionQueue.getShardNames();
+  }
+
+  static getShardIndexFromShardName(
+    shardName: string | undefined,
+  ): number | null {
+    return secondaryEvalExecutionQueue.getShardIndexFromShardName(shardName);
+  }
+
+  public static getInstance({
+    shardingKey,
+    shardName,
+  }: {
+    shardingKey?: string;
+    shardName?: string;
+  } = {}): Queue<
     TQueueJobTypes[QueueName.EvaluationExecutionSecondaryQueue]
   > | null {
-    if (SecondaryEvalExecutionQueue.instance)
-      return SecondaryEvalExecutionQueue.instance;
-
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    SecondaryEvalExecutionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.EvaluationExecutionSecondaryQueue]>(
-          QueueName.EvaluationExecutionSecondaryQueue,
-          {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.EvaluationExecutionSecondaryQueue),
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 10,
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-            },
-          },
-        )
-      : null;
-
-    SecondaryEvalExecutionQueue.instance?.on("error", (err) => {
-      logger.error("SecondaryEvalExecutionQueue error", err);
-    });
-
-    return SecondaryEvalExecutionQueue.instance;
+    return secondaryEvalExecutionQueue.getInstance({ shardingKey, shardName });
   }
 }

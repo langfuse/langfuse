@@ -640,7 +640,14 @@ export const createEvalJobs = async ({
       });
 
       // add the job to the next queue so that eval can be executed
-      await EvalExecutionQueue.getInstance()?.add(
+      const evalExecutionQueue = EvalExecutionQueue.getInstance({
+        shardingKey: EvalExecutionQueue.getShardingKey({
+          projectId: event.projectId,
+          jobExecutionId,
+        }),
+      });
+
+      await evalExecutionQueue?.add(
         QueueName.EvaluationExecution,
         {
           name: QueueJobs.EvaluationExecution,

@@ -5,13 +5,7 @@ import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { CloudSpendAlertQueue } from "./cloudSpendAlertQueue";
 import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
-import {
-  EvalExecutionQueue,
-  SecondaryEvalExecutionQueue,
-} from "./evalExecutionQueue";
-import { LLMAsJudgeExecutionQueue } from "./llmAsJudgeExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
-import { SecondaryIngestionQueue } from "./ingestionQueue";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -33,17 +27,24 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
+import { getShardedQueueByName, getShardedQueueNames } from "./shardedQueues";
 
-// IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
-// Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
-export function getQueue(
-  queueName: Exclude<
-    QueueName,
-    | QueueName.IngestionQueue
-    | QueueName.TraceUpsert
-    | QueueName.OtelIngestionQueue
-  >,
-): Queue | null {
+type ShardedQueueName =
+  | QueueName.EvaluationExecution
+  | QueueName.EvaluationExecutionSecondaryQueue
+  | QueueName.IngestionQueue
+  | QueueName.IngestionSecondaryQueue
+  | QueueName.LLMAsJudgeExecution
+  | QueueName.OtelIngestionQueue
+  | QueueName.TraceUpsert;
+
+type NonShardedQueueName = Exclude<QueueName, ShardedQueueName>;
+
+const allQueueNames = new Set<string>(Object.values(QueueName));
+
+// Sharded queues require either a sharding key when producing jobs or a shard name when inspecting a shard directly.
+// Use the specific queue helper for producers and `getQueueByName` for shard lookup by name.
+export function getQueue(queueName: NonShardedQueueName): Queue | null {
   switch (queueName) {
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
@@ -57,12 +58,6 @@ export function getQueue(
       return DatasetRunItemUpsertQueue.getInstance();
     case QueueName.DatasetDelete:
       return DatasetDeleteQueue.getInstance();
-    case QueueName.EvaluationExecution:
-      return EvalExecutionQueue.getInstance();
-    case QueueName.EvaluationExecutionSecondaryQueue:
-      return SecondaryEvalExecutionQueue.getInstance();
-    case QueueName.LLMAsJudgeExecution:
-      return LLMAsJudgeExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:
       return ExperimentCreateQueue.getInstance();
     case QueueName.TraceDelete:
@@ -81,8 +76,6 @@ export function getQueue(
       return BlobStorageIntegrationQueue.getInstance();
     case QueueName.BlobStorageIntegrationProcessingQueue:
       return BlobStorageIntegrationProcessingQueue.getInstance();
-    case QueueName.IngestionSecondaryQueue:
-      return SecondaryIngestionQueue.getInstance();
     case QueueName.CoreDataS3ExportQueue:
       return CoreDataS3ExportQueue.getInstance();
     case QueueName.MeteringDataPostgresExportQueue:
@@ -113,3 +106,19 @@ export function getQueue(
     }
   }
 }
+
+export function getQueueByName(queueName: string): Queue | null {
+  const shardedQueue = getShardedQueueByName(queueName);
+  if (shardedQueue) {
+    return shardedQueue;
+  }
+
+  if (!allQueueNames.has(queueName)) {
+    return null;
+  }
+
+  return getQueue(queueName as NonShardedQueueName);
+}
+
+export const getAllQueueNames = (): string[] =>
+  Array.from(new Set([...Object.values(QueueName), ...getShardedQueueNames()]));

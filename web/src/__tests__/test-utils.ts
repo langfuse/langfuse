@@ -2,12 +2,10 @@ import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createBasicAuthHeader,
-  getQueue,
-  IngestionQueue,
+  getAllQueueNames,
+  getQueueByName,
   logger,
-  OtelIngestionQueue,
   QueueName,
-  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
@@ -82,12 +80,6 @@ export const ensureTestDatabaseExists = async () => {
 };
 
 export const getQueues = () => {
-  const queues: string[] = Object.values(QueueName);
-  queues.push(
-    ...IngestionQueue.getShardNames(),
-    ...TraceUpsertQueue.getShardNames(),
-  );
-
   const listOfQueuesToIgnore = [
     QueueName.DataRetentionQueue,
     QueueName.BlobStorageIntegrationQueue,
@@ -96,26 +88,11 @@ export const getQueues = () => {
     QueueName.CloudFreeTierUsageThresholdQueue,
   ];
 
-  return queues
+  return getAllQueueNames()
     .filter(
       (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
     )
-    .map((queueName) =>
-      queueName.startsWith(QueueName.IngestionQueue)
-        ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.TraceUpsert)
-          ? TraceUpsertQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.OtelIngestionQueue)
-            ? OtelIngestionQueue.getInstance({ shardName: queueName })
-            : getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              ),
-    );
+    .map((queueName) => getQueueByName(queueName));
 };
 
 export const disconnectQueues = async () => {
