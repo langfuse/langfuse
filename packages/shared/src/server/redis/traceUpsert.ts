@@ -1,23 +1,90 @@
 import { QueueName, TQueueJobTypes } from "../queues";
-import { type Queue } from "bullmq";
+import { Queue } from "bullmq";
 import { env } from "../../env";
-import { createShardedQueueAccessor } from "./shardedQueue";
+import { logger } from "../logger";
+import {
+  createNewRedisInstance,
+  getQueuePrefix,
+  redisQueueRetryOptions,
+} from "./redis";
+import { getShardIndex } from "./sharding";
 
-const traceUpsertQueue = createShardedQueueAccessor({
-  queueName: QueueName.TraceUpsert,
-  shardCount: env.LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT,
-  errorLabel: "TraceUpsertQueue",
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 100_000,
-    attempts: env.LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS,
-    delay: 30_000,
-    backoff: {
-      type: "exponential",
-      delay: 5000,
-    },
-  },
-});
+const traceUpsertQueueInstances = new Map<
+  number,
+  Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null
+>();
+
+const getTraceUpsertQueueNameForShardIndex = (shardIndex: number) =>
+  `${QueueName.TraceUpsert}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
+
+const getTraceUpsertShardNames = () =>
+  Array.from(
+    { length: env.LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT },
+    (_, shardIndex) => getTraceUpsertQueueNameForShardIndex(shardIndex),
+  );
+
+const getTraceUpsertShardIndexFromShardName = (
+  shardName: string | undefined,
+): number | null => {
+  if (!shardName) return null;
+
+  const shardIndex =
+    shardName === QueueName.TraceUpsert
+      ? 0
+      : parseInt(shardName.replace(`${QueueName.TraceUpsert}-`, ""), 10);
+
+  if (isNaN(shardIndex)) return null;
+  return shardIndex;
+};
+
+const getTraceUpsertQueueInstance = ({
+  shardingKey,
+  shardName,
+}: {
+  shardingKey?: string;
+  shardName?: string;
+} = {}): Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null => {
+  const shardIndex =
+    getTraceUpsertShardIndexFromShardName(shardName) ??
+    (env.REDIS_CLUSTER_ENABLED === "true" && shardingKey
+      ? getShardIndex(shardingKey, env.LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT)
+      : 0);
+
+  if (traceUpsertQueueInstances.has(shardIndex)) {
+    return traceUpsertQueueInstances.get(shardIndex) || null;
+  }
+
+  const newRedis = createNewRedisInstance({
+    enableOfflineQueue: false,
+    ...redisQueueRetryOptions,
+  });
+
+  const queueName = getTraceUpsertQueueNameForShardIndex(shardIndex);
+  const queueInstance = newRedis
+    ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(queueName, {
+        connection: newRedis,
+        prefix: getQueuePrefix(queueName),
+        defaultJobOptions: {
+          removeOnComplete: 100,
+          removeOnFail: 100_000,
+          attempts: env.LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS,
+          delay: 30_000,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+        },
+      })
+    : null;
+
+  queueInstance?.on("error", (err) => {
+    logger.error(`TraceUpsertQueue shard ${shardIndex} error`, err);
+  });
+
+  traceUpsertQueueInstances.set(shardIndex, queueInstance);
+
+  return queueInstance;
+};
 
 export class TraceUpsertQueue {
   static getShardingKey(params: {
@@ -28,13 +95,13 @@ export class TraceUpsertQueue {
   }
 
   public static getShardNames() {
-    return traceUpsertQueue.getShardNames();
+    return getTraceUpsertShardNames();
   }
 
   static getShardIndexFromShardName(
     shardName: string | undefined,
   ): number | null {
-    return traceUpsertQueue.getShardIndexFromShardName(shardName);
+    return getTraceUpsertShardIndexFromShardName(shardName);
   }
 
   /**
@@ -49,6 +116,6 @@ export class TraceUpsertQueue {
     shardingKey?: string;
     shardName?: string;
   } = {}): Queue<TQueueJobTypes[QueueName.TraceUpsert]> | null {
-    return traceUpsertQueue.getInstance({ shardingKey, shardName });
+    return getTraceUpsertQueueInstance({ shardingKey, shardName });
   }
 }

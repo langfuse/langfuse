@@ -27,7 +27,14 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
-import { getShardedQueueByName, getShardedQueueNames } from "./shardedQueues";
+import {
+  EvalExecutionQueue,
+  SecondaryEvalExecutionQueue,
+} from "./evalExecutionQueue";
+import { IngestionQueue, SecondaryIngestionQueue } from "./ingestionQueue";
+import { LLMAsJudgeExecutionQueue } from "./llmAsJudgeExecutionQueue";
+import { OtelIngestionQueue } from "./otelIngestionQueue";
+import { TraceUpsertQueue } from "./traceUpsert";
 
 type ShardedQueueName =
   | QueueName.EvaluationExecution
@@ -108,9 +115,34 @@ export function getQueue(queueName: NonShardedQueueName): Queue | null {
 }
 
 export function getQueueByName(queueName: string): Queue | null {
-  const shardedQueue = getShardedQueueByName(queueName);
-  if (shardedQueue) {
-    return shardedQueue;
+  if (IngestionQueue.getShardIndexFromShardName(queueName) !== null) {
+    return IngestionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (SecondaryIngestionQueue.getShardIndexFromShardName(queueName) !== null) {
+    return SecondaryIngestionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (EvalExecutionQueue.getShardIndexFromShardName(queueName) !== null) {
+    return EvalExecutionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (
+    SecondaryEvalExecutionQueue.getShardIndexFromShardName(queueName) !== null
+  ) {
+    return SecondaryEvalExecutionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (LLMAsJudgeExecutionQueue.getShardIndexFromShardName(queueName) !== null) {
+    return LLMAsJudgeExecutionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (OtelIngestionQueue.getShardIndexFromShardName(queueName) !== null) {
+    return OtelIngestionQueue.getInstance({ shardName: queueName });
+  }
+
+  if (TraceUpsertQueue.getShardIndexFromShardName(queueName) !== null) {
+    return TraceUpsertQueue.getInstance({ shardName: queueName });
   }
 
   if (!allQueueNames.has(queueName)) {
@@ -121,4 +153,15 @@ export function getQueueByName(queueName: string): Queue | null {
 }
 
 export const getAllQueueNames = (): string[] =>
-  Array.from(new Set([...Object.values(QueueName), ...getShardedQueueNames()]));
+  Array.from(
+    new Set([
+      ...Object.values(QueueName),
+      ...IngestionQueue.getShardNames(),
+      ...SecondaryIngestionQueue.getShardNames(),
+      ...EvalExecutionQueue.getShardNames(),
+      ...SecondaryEvalExecutionQueue.getShardNames(),
+      ...LLMAsJudgeExecutionQueue.getShardNames(),
+      ...OtelIngestionQueue.getShardNames(),
+      ...TraceUpsertQueue.getShardNames(),
+    ]),
+  );
