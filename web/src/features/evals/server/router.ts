@@ -8,6 +8,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   ZodModelConfig,
+  deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
   variableMapping,
@@ -27,6 +28,7 @@ import {
   getQueue,
   getAvgCostByEvaluatorIds,
   getCostByEvaluatorIds,
+  getEvaluatorExecutionStatusCountsByEvaluatorId,
   getScoresByIds,
   logger,
   QueueName,
@@ -51,7 +53,6 @@ import {
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import {
-  deriveEvaluatorDisplayStatus,
   resetEvalConfigBlockFields,
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
@@ -169,30 +170,6 @@ const UpdateEvalJobSchema = z.object({
   status: z.enum(EvaluatorStatus).optional(),
   timeScope: TimeScopeSchema.optional(),
 });
-
-const fetchJobExecutionsByStatus = async ({
-  prisma,
-  projectId,
-  configIds,
-}: {
-  prisma: PrismaClient;
-  projectId: string;
-  configIds: string[];
-}) => {
-  return prisma.jobExecution.groupBy({
-    where: {
-      // jobConfiguration: {
-      //   projectId: projectId,
-      //   jobType: "EVAL",
-      //   id: { in: configIds },
-      // },
-      jobConfigurationId: { in: configIds },
-      projectId: projectId,
-    },
-    by: ["status", "jobConfigurationId"],
-    _count: true,
-  });
-};
 
 const validateEvalTemplateActivation = async ({
   prisma,
@@ -393,12 +370,6 @@ export const evalRouter = createTRPCRouter({
         ),
       ]);
 
-      const jobExecutionsByState = await fetchJobExecutionsByStatus({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        configIds: configs.map((c) => c.id),
-      });
-
       return {
         configs: configs.map((config) => ({
           ...config,
@@ -410,17 +381,12 @@ export const evalRouter = createTRPCRouter({
                 projectId: config.templateProjectId,
               }
             : null,
-          jobExecutionsByState: jobExecutionsByState.filter(
-            (je) => je.jobConfigurationId === config.id,
-          ),
-          finalStatus: deriveEvaluatorDisplayStatus(
-            config.status,
-            config.blockedAt,
-            Array.isArray(config.timeScope) ? config.timeScope : [],
-            jobExecutionsByState.filter(
-              (je) => je.jobConfigurationId === config.id,
-            ),
-          ),
+          displayStatus: deriveEvaluatorDisplayStateFromExecutionCounts({
+            status: config.status,
+            blockedAt: config.blockedAt,
+            timeScope: Array.isArray(config.timeScope) ? config.timeScope : [],
+            executionCounts: [],
+          }),
         })),
         totalCount:
           configsCount.length > 0 ? Number(configsCount[0]?.totalCount) : 0,
@@ -453,23 +419,27 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
-      const jobExecutionsByStatus = await fetchJobExecutionsByStatus({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        configIds: [config.id],
-      });
+      const jobExecutionCountsByEvaluatorId =
+        await getEvaluatorExecutionStatusCountsByEvaluatorId({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          evaluatorIds: [config.id],
+        });
 
-      const finalStatus = deriveEvaluatorDisplayStatus(
-        config.status,
-        config.blockedAt,
-        Array.isArray(config.timeScope) ? config.timeScope : [],
-        jobExecutionsByStatus,
-      );
+      const jobExecutionCounts =
+        jobExecutionCountsByEvaluatorId[config.id] ?? [];
+
+      const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
+        status: config.status,
+        blockedAt: config.blockedAt,
+        timeScope: Array.isArray(config.timeScope) ? config.timeScope : [],
+        executionCounts: jobExecutionCounts,
+      });
 
       return {
         ...config,
-        jobExecutionsByState: jobExecutionsByStatus,
-        finalStatus,
+        jobExecutionCounts,
+        displayStatus,
       };
     }),
 
@@ -1493,6 +1463,31 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
+    }),
+
+  jobExecutionCountsByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      if (input.evaluatorIds.length === 0) {
+        return {};
+      }
+
+      return getEvaluatorExecutionStatusCountsByEvaluatorId({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        evaluatorIds: input.evaluatorIds,
+      });
     }),
 
   costByEvaluatorIds: protectedProjectProcedure
