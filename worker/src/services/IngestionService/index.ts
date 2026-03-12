@@ -336,13 +336,13 @@ export class IngestionService {
 
     const now = this.getMicrosecondTimestamp();
 
-    // Store the full metadata JSON
-    const metadata = convertRecordValuesToString(eventData.metadata);
-
-    // Flatten to path-based arrays
-    const flattened = flattenJsonToPathArrays(metadata);
+    // Flatten raw metadata first (before stringification destroys nested structure)
+    const flattened = flattenJsonToPathArrays(eventData.metadata);
     const metadataNames = flattened.names;
     const metadataValues = flattened.values;
+
+    // Store the full metadata JSON (stringified for the metadata column)
+    const metadata = convertRecordValuesToString(eventData.metadata);
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
