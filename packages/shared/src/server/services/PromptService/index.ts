@@ -14,7 +14,6 @@ import {
 } from "./types";
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
-import { PRODUCTION_LABEL } from "../../../features/prompts/constants";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
 
@@ -95,8 +94,6 @@ export class PromptService {
     return {
       ...prompt,
       resolutionGraph: null,
-      // Compute isActive based on labels (deprecated field in DB)
-      isActive: prompt.labels.includes(PRODUCTION_LABEL),
     };
   }
 
@@ -144,8 +141,6 @@ export class PromptService {
       ...prompt,
       prompt: promptGraph.resolvedPrompt,
       resolutionGraph: promptGraph.graph,
-      // Compute isActive based on labels (deprecated field in DB)
-      isActive: prompt.labels.includes(PRODUCTION_LABEL),
     };
   }
 
