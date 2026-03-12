@@ -1,7 +1,11 @@
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import {
+  ObservationType,
+  type FilterState,
+  getGenerationLikeTypes,
+} from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { truncate } from "@/src/utils/string";
@@ -72,9 +76,9 @@ export const LatencyTables = ({
     },
   );
 
-  const spansLatenciesQuery: QueryType = {
+  const observationsLatenciesQuery: QueryType = {
     view: "observations",
-    dimensions: [{ field: "name" }],
+    dimensions: [{ field: "type" }, { field: "name" }],
     metrics: [
       { measure: "latency", aggregation: "p50" },
       { measure: "latency", aggregation: "p90" },
@@ -85,9 +89,9 @@ export const LatencyTables = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "SPAN",
-        type: "string",
+        operator: "none of",
+        value: [ObservationType.GENERATION],
+        type: "stringOptions",
       },
     ],
     timeDimension: null,
@@ -97,10 +101,10 @@ export const LatencyTables = ({
     chartConfig: { type: "table", row_limit: 20 },
   };
 
-  const spansLatencies = useScheduledDashboardExecuteQuery(
+  const observationsLatencies = useScheduledDashboardExecuteQuery(
     {
       projectId,
-      query: spansLatenciesQuery,
+      query: observationsLatenciesQuery,
       version: metricsVersion,
     },
     {
@@ -109,7 +113,7 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:latency-tables"}:spans`,
+      queryId: `${schedulerId ?? "home:latency-tables"}:observations`,
       enabled: !isLoading,
     },
   );
@@ -155,8 +159,23 @@ export const LatencyTables = ({
           .map((item, i) => [
             <div key={`${item.name as string}-${i}`}>
               <Popup
-                triggerContent={truncate(item.name as string)}
-                description={item.name as string}
+                triggerContent={
+                  item.type ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {String(item.type)}
+                      </span>
+                      <span>{truncate(item.name as string)}</span>
+                    </div>
+                  ) : (
+                    truncate(item.name as string)
+                  )
+                }
+                description={
+                  item.type
+                    ? `${String(item.type)} · ${item.name as string}`
+                    : (item.name as string)
+                }
               />
             </div>,
             <RightAlignedCell key={`${i}-p50`}>
@@ -227,12 +246,12 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Span latency percentiles"
-        isLoading={isLoading || spansLatencies.isPending}
+        title="Observation latency percentiles"
+        isLoading={isLoading || observationsLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Span Name",
+            "Observation",
             <RightAlignedCell key="p50">p50</RightAlignedCell>,
             <RightAlignedCell key="p90">p90</RightAlignedCell>,
             <RightAlignedCell key="p95">
@@ -240,8 +259,8 @@ export const LatencyTables = ({
             </RightAlignedCell>,
             <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
-          rows={generateLatencyData(spansLatencies.data)}
-          isLoading={isLoading || spansLatencies.isPending}
+          rows={generateLatencyData(observationsLatencies.data)}
+          isLoading={isLoading || observationsLatencies.isPending}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
