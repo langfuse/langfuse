@@ -889,7 +889,15 @@ export const InnerEvaluatorForm = (props: {
                         {!field.value && isEventTarget(target) && (
                           <p className="text-xs text-muted-foreground">
                             This evaluator can still be used for batched
-                            evaluation of historic observations.
+                            evaluation of historic observations.{" "}
+                            <a
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-dark-blue hover:opacity-80"
+                            >
+                              Read the docs
+                            </a>
                           </p>
                         )}
                       </div>
