@@ -10,6 +10,7 @@ const langfuseUrls = {
   EU: "https://cloud.langfuse.com",
   STAGING: "https://staging.langfuse.com",
   HIPAA: "https://hipaa.cloud.langfuse.com",
+  JP: "https://jp.cloud.langfuse.com",
 };
 
 type SendMembershipInvitationParams = {
