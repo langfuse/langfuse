@@ -2,39 +2,14 @@ import { z } from "zod/v4";
 import {
   type JobConfiguration,
   JobConfigState,
-  deriveEvaluatorDisplayState,
   singleFilter,
 } from "@langfuse/shared";
-import { type JobExecutionState } from "@/src/features/evals/utils/job-execution-utils";
 
 export const resetEvalConfigBlockFields = {
   blockedAt: null,
   blockReason: null,
   blockMessage: null,
 } as const;
-
-export const deriveEvaluatorDisplayStatus = (
-  status: string,
-  blockedAt: Date | null,
-  timeScope: string[],
-  jobExecutionsByState: JobExecutionState[],
-): string => {
-  const hasPendingJobs = jobExecutionsByState.some(
-    (jobExecution) => jobExecution.status === "PENDING",
-  );
-  const totalJobCount = jobExecutionsByState.reduce(
-    (count, jobExecution) => count + jobExecution._count,
-    0,
-  );
-
-  return deriveEvaluatorDisplayState({
-    status: status as JobConfigState,
-    blockedAt,
-    timeScope,
-    hasPendingJobs,
-    totalJobCount,
-  });
-};
 
 export const shouldValidateBeforeActivation = ({
   currentStatus,
