@@ -40,7 +40,7 @@ const getCalloutContent = (
           Python SDK v3+. You can still configure this evaluator now—it will
           start running once you upgrade.{" "}
           <a
-            href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
+            href="https://langfuse.com/docs/observability/sdk/upgrade-path"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-dark-blue hover:opacity-80"
