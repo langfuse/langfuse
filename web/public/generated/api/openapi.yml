@@ -4417,6 +4417,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: resolve
+          in: query
+          description: >-
+            Resolve prompt dependencies before returning the prompt. Defaults to
+            `true`. Set to `false` to return the raw stored prompt with
+            dependency tags intact. This bypasses prompt caching and is intended
+            for debugging or one-off jobs, not production runtime fetches.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
       responses:
         '200':
           description: ''
@@ -10274,8 +10285,8 @@ components:
           additionalProperties: true
           nullable: true
           description: >-
-            The dependency resolution graph for the current prompt. Null if
-            prompt has no dependencies.
+            The dependency resolution graph for the current prompt. Null if the
+            prompt has no dependencies or if `resolve=false` was used.
       required:
         - name
         - version
