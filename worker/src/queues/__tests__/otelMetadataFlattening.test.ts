@@ -62,7 +62,10 @@ describe("OTel metadata flattening", () => {
   });
 
   it("should flatten nested metadata objects into dot-notation keys", async () => {
-    // This mirrors real production metadata with nested objects
+    // Mirrors real OTel flow: resource/scope attributes become nested objects in metadata,
+    // individual langfuse.observation.metadata.* keys become flat metadata entries.
+    // OtelIngestionProcessor extracts resource.attributes and scope.attributes as OBJECTS,
+    // NOT as stringified JSON in span attributes.
     const otelSpan = {
       resource: {
         attributes: [
@@ -88,7 +91,7 @@ describe("OTel metadata flattening", () => {
         {
           scope: {
             name: "langfuse-sdk",
-            version: "3.8.1",
+            version: "4.0.0",
             attributes: [
               {
                 key: "public_key",
@@ -111,36 +114,17 @@ describe("OTel metadata flattening", () => {
                   key: "langfuse.observation.type",
                   value: { stringValue: "span" },
                 },
-                // Nested metadata: resourceAttributes with nested keys
-                {
-                  key: "langfuse.observation.metadata.resourceAttributes",
-                  value: {
-                    stringValue: JSON.stringify({
-                      "telemetry.sdk.language": "python",
-                      "telemetry.sdk.name": "opentelemetry",
-                      "telemetry.sdk.version": "1.38.0",
-                      "service.name": "unknown_service",
-                    }),
-                  },
-                },
-                // Nested metadata: scopeAttributes with nested key
-                {
-                  key: "langfuse.observation.metadata.scopeAttributes",
-                  value: {
-                    stringValue: JSON.stringify({
-                      public_key: "pk-lf-1234567890",
-                    }),
-                  },
-                },
                 // Flat metadata: simple string value
                 {
                   key: "langfuse.observation.metadata.environment",
-                  value: { stringValue: '"development"' },
+                  value: { stringValue: "development" },
                 },
-                // Flat metadata: simple number
+                // Flat metadata: number via intValue
                 {
                   key: "langfuse.observation.metadata.langgraph_step",
-                  value: { stringValue: "2" },
+                  value: {
+                    intValue: { low: 2, high: 0, unsigned: false },
+                  },
                 },
               ],
               status: {},
