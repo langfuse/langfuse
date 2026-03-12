@@ -26,6 +26,7 @@ import {
   getEventsGroupedByHasParentObservation,
   getEventsGroupedByToolName,
   getEventsGroupedByCalledToolName,
+  getEventsGroupedByMetadataKey,
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
@@ -263,6 +264,7 @@ export async function getEventFilterOptions(
     hasParentObservationResults,
     toolNames,
     calledToolNames,
+    metadataKeys,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -288,6 +290,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByHasParentObservation(projectId, eventsFilter),
     getEventsGroupedByToolName(projectId, eventsFilter),
     getEventsGroupedByCalledToolName(projectId, eventsFilter),
+    getEventsGroupedByMetadataKey(projectId, eventsFilter),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -406,6 +409,9 @@ export async function getEventFilterOptions(
     calledToolNames: calledToolNames
       .filter((i) => i.calledToolName !== null)
       .map((i) => ({ value: i.calledToolName as string })),
+    metadata: metadataKeys
+      .filter((i) => i.metadataKey !== null)
+      .map((i) => ({ value: i.metadataKey as string, count: i.count })),
   };
 }
 

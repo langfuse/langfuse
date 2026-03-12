@@ -74,7 +74,10 @@ import { type EventsObservationPublic } from "../queries/createGenerationsQuery"
 import { UiColumnMappings } from "../../tableDefinitions";
 import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
-import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import {
+  parseMetadataCHRecordToDomain,
+  unflattenMetadata,
+} from "../utils/metadata_conversion";
 
 /**
  * Attempt to command the legacy events table.
@@ -2340,6 +2343,53 @@ export const getEventsGroupedByCalledToolName = async (
 };
 
 /**
+ * Get grouped available metadata keys from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByMetadataKey = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(e.metadata_names)",
+    selectExpression:
+      "arrayJoin(e.metadata_names) as metadataKey, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(e.metadata_names) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    metadataKey: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
@@ -2668,7 +2718,9 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
         ? applyInputOutputRendering(r.output, DEFAULT_RENDERING_PROPS)
         : null,
     metadata:
-      r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+      r.metadata !== undefined
+        ? unflattenMetadata(parseMetadataCHRecordToDomain(r.metadata))
+        : {},
   }));
 };
 

@@ -89,6 +89,7 @@ export function useEventsFilterOptions({
         filterOptions.data?.hasParentObservation ?? undefined,
       toolNames: filterOptions.data?.toolNames ?? undefined,
       calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
+      metadata: filterOptions.data?.metadata ?? undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],
