@@ -17,24 +17,43 @@ function convertDate(
   date: number,
   agg: DashboardDateRangeAggregationOption,
 ): string {
-  const showMinutes = ["minute", "hour"].includes(
-    dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "",
-  );
+  const parsedDate = new Date(date);
+  const { dateTrunc, minutes } = dashboardDateRangeAggregationSettings[agg];
 
-  if (showMinutes) {
-    return new Date(date).toLocaleTimeString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  switch (dateTrunc) {
+    case "minute":
+      return parsedDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    case "hour":
+      if (minutes && minutes <= 24 * 60) {
+        return parsedDate.toLocaleTimeString("en-US", {
+          hour: "numeric",
+        });
+      }
+      return parsedDate.toLocaleString("en-US", {
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+      });
+    case "day":
+    case "week":
+      return parsedDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    case "month":
+      return parsedDate.toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      });
+    default:
+      return parsedDate.toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+      });
   }
-  return new Date(date).toLocaleDateString("en-US", {
-    year: "2-digit",
-    month: "numeric",
-    day: "numeric",
-  });
 }
 
 /**
