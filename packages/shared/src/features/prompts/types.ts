@@ -98,11 +98,6 @@ export const GetPromptByNameSchema = z.object({
   promptName: z.string(),
   version: z.coerce.number().int().nullish(),
   label: z.string().optional(),
-  resolve: z
-    .enum(["true", "false"])
-    .nullish()
-    .default("true")
-    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 const BaseTextPromptSchema = z.object({
