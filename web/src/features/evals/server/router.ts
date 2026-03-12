@@ -419,26 +419,14 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
-      const jobExecutionCountsByEvaluatorId =
-        await getEvaluatorExecutionStatusCountsByEvaluatorId({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          evaluatorIds: [config.id],
-        });
-
-      const jobExecutionCounts =
-        jobExecutionCountsByEvaluatorId[config.id] ?? [];
-
       const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
         status: config.status,
         blockedAt: config.blockedAt,
         timeScope: Array.isArray(config.timeScope) ? config.timeScope : [],
-        executionCounts: jobExecutionCounts,
       });
 
       return {
         ...config,
-        jobExecutionCounts,
         displayStatus,
       };
     }),
