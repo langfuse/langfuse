@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "fs";
+import { ProviderAdapter } from "@langfuse/shared";
 import path from "path";
 
 vi.mock("@langfuse/shared", () => {
@@ -43,8 +44,6 @@ import {
   cleanLegacyOutput,
   extractAdditionalInput,
   selectAdapter,
-  langgraphAdapter,
-  Framework,
 } from "@langfuse/shared/src/utils/chatml";
 
 describe("ChatML Integration", () => {
@@ -533,92 +532,75 @@ describe("ChatML Integration", () => {
   });
 });
 
-type SeedFileTestCase = {
-  seed: string;
-  adapter: string;
+type FileTestCase = {
+  file: string;
+  expected: string;
 };
 
-describe("ChatML seed spans tests", () => {
+describe("ChatML adapter selection tests", () => {
   it.each([
-    { seed: "agno-2025-06-11.json", adapter: "generic" },
-    { seed: "autogen-2025-06-06.json", adapter: "generic" },
-    { seed: "beeai-2025-08-01.json", adapter: "generic" },
-    { seed: "google-adk-2025-08-28.json", adapter: "gemini" },
-    { seed: "google-gemini-2025-08-01.json", adapter: "gemini" },
-    {
-      seed: "google-vertex-tools-langchain-2025-09-19.json",
-      adapter: "langgraph",
-    },
-    { seed: "koog-2025-08-26.json", adapter: "generic" },
-    { seed: "langgraph-2025-08-22.json", adapter: "langgraph" },
-    { seed: "llamaindex-2025-06-05.json", adapter: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
-    { seed: "microsoft-agent-2025-10-14.json", adapter: "microsoft-agent" },
-    { seed: "openai-agents-2025-09-30.json", adapter: "openai" },
-    { seed: "openai-assistants-2024-05-29.json", adapter: "openai" },
-    { seed: "pydantic-ai-tools-2025-12-04.json", adapter: "pydantic-ai" },
-  ] as SeedFileTestCase[])(
-    "should select adapter $adapter for seed file $seed ",
-    ({ seed, adapter }) => {
-      const seedDir = path.resolve(
-        __dirname,
-        "../../../../packages/shared/scripts/seeder/utils/framework-traces",
-      );
+    { file: "agno-2025-06-11.json", expected: "generic" },
+    { file: "autogen-2025-06-06.json", expected: "generic" },
+    { file: "beeai-2025-08-01.json", expected: "generic" },
+    { file: "claude-agent-2025-12-22.json", expected: "generic" },
+    { file: "crewai-2025-07-11.json", expected: "generic" },
+    { file: "google-adk-2025-08-28.json", expected: "gemini" },
+    { file: "google-gemini-2025-08-01.json", expected: "gemini" },
+    { file: "koog-2025-08-26.json", expected: "generic" },
+    { file: "langchain-deepagent-2025-10-29.json", expected: "langgraph" },
+    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
+    { file: "langgraph-python-2025-08-22.json", expected: "langgraph" },
+    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
+    { file: "llamaindex-2025-06-05.json", expected: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
+    { file: "microsoft-agent-2025-12-17.json", expected: "microsoft-agent" },
+    { file: "openai-agents-2025-09-30.json", expected: "openai" },
+    { file: "pydantic-ai-2025-06-06.json", expected: "pydantic-ai" },
+    { file: "pydantic-ai-tools-2025-12-04.json", expected: "pydantic-ai" },
+    { file: "vercel-aisdk-2025-11-17.json", expected: "aisdk" },
+  ] as FileTestCase[])(
+    "should select adapter $expected for trace file $file ",
+    ({ file, expected }) => {
+      const fileDir = path.resolve(__dirname, "framework-traces");
 
-      const filePath = path.join(seedDir, seed);
-      expect(existsSync(filePath), "Seed file should exist").toBe(true);
+      const filePath = path.join(fileDir, file);
+      expect(existsSync(filePath), "File should exist").toBe(true);
 
       const content = readFileSync(filePath, "utf-8");
-      const data = JSON.parse(content);
+      const observations = JSON.parse(content).observations;
 
-      const inputs = data.observations.filter((o: any) => o.input != null);
-      expect(
-        inputs.length,
-        "Seed file should have at least one span input",
-      ).not.toBe(0);
-      const outputs = data.observations.filter((o: any) => o.output != null);
-      expect(
-        outputs.length,
-        "Seed file should have at least one span output",
-      ).not.toBe(0);
+      //check if data has at least one observation with a non undefined input
+      const errorMessage = `File should have at least one observation with input and output`;
+      const hasFilledObs = observations.some((o: any) => o.input && o.output);
+      expect(hasFilledObs, errorMessage).toBe(true);
 
-      let obsCount = 0;
-      for (let obs of data.observations) {
-        const input =
-          obs.input === undefined || obs.input === null
-            ? obs.input
-            : JSON.stringify(obs.input);
-        const output =
-          obs.output === undefined || obs.output === null
-            ? obs.output
-            : JSON.stringify(obs.output);
-        const metadata =
-          obs.metadata === undefined || obs.metadata === null
-            ? obs.metadata
-            : JSON.stringify(obs.metadata);
-
-        if (input) {
-          const inputAdapter = selectAdapter({
-            metadata: metadata ?? input,
-            data: input,
+      //test each observation with an input and/or output
+      for (const [index, obs] of observations.entries()) {
+        if (obs.input) {
+          const actual = selectAdapter({
+            metadata: tryParseAsJson(obs.metadata ?? obs.input),
+            data: tryParseAsJson(obs.input),
           });
-          expect(
-            inputAdapter.id,
-            `Input of observation #${obsCount} should have the expected framework`,
-          ).toBe(adapter);
+          const errorMessage = `Input of observation #${index} should have the expected adapter`;
+          expect(actual.id, errorMessage).toBe(expected);
         }
-        if (output) {
-          const outputAdapter = selectAdapter({
-            metadata: metadata ?? output,
-            data: output,
+        if (obs.output) {
+          const actual = selectAdapter({
+            metadata: tryParseAsJson(obs.metadata ?? obs.output),
+            data: tryParseAsJson(obs.output),
           });
-          expect(
-            outputAdapter.id,
-            `Output of observation #${obsCount} should have the expected framework`,
-          ).toBe(adapter);
+          const errorMessage = `Output of observation #${index} should have the expected adapter`;
+          expect(actual.id, errorMessage).toBe(expected);
         }
-
-        obsCount++;
       }
     },
   );
 });
+
+function tryParseAsJson(data: any) {
+  if (typeof data !== "string") return data;
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return data;
+  }
+}
