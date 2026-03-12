@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -15,38 +14,32 @@ import { ZapIcon } from "lucide-react";
 const PREVIEW_FAST_DESCRIPTION =
   "Get a more performant Langfuse experience. Upgrade SDKs to the latest major for real-time data. This is a personal setting.";
 const PREVIEW_FAST_DESCRIPTION_ID = "preview-fast-toggle-description";
-const INTRO_DIALOG_SEEN_KEY = "v4-beta-intro-dialog-seen";
 
 export function V4BetaSidebarToggle() {
-  const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
+  const {
+    isBetaEnabled,
+    setBetaEnabled,
+    enableWithIntro,
+    showIntroDialog,
+    confirmIntroDialog,
+    isLoading,
+  } = useV4Beta();
   const capture = usePostHogClientCapture();
-  const [showIntroDialog, setShowIntroDialog] = useState(false);
 
   const handleToggle = (enabled: boolean) => {
-    if (
-      enabled &&
-      typeof window !== "undefined" &&
-      !localStorage.getItem(INTRO_DIALOG_SEEN_KEY)
-    ) {
-      setShowIntroDialog(true);
-      return;
+    if (enabled) {
+      enableWithIntro({
+        onSuccess: () => {
+          capture("sidebar:v4_beta_toggled", { enabled: true });
+        },
+      });
+    } else {
+      setBetaEnabled(false, {
+        onSuccess: () => {
+          capture("sidebar:v4_beta_toggled", { enabled: false });
+        },
+      });
     }
-
-    setBetaEnabled(enabled, {
-      onSuccess: () => {
-        capture("sidebar:v4_beta_toggled", { enabled });
-      },
-    });
-  };
-
-  const handleIntroConfirm = () => {
-    localStorage.setItem(INTRO_DIALOG_SEEN_KEY, "true");
-    setShowIntroDialog(false);
-    setBetaEnabled(true, {
-      onSuccess: () => {
-        capture("sidebar:v4_beta_toggled", { enabled: true });
-      },
-    });
   };
 
   return (
@@ -91,7 +84,7 @@ export function V4BetaSidebarToggle() {
       </SidebarMenuButton>
       <V4BetaIntroDialog
         open={showIntroDialog}
-        onConfirm={handleIntroConfirm}
+        onConfirm={confirmIntroDialog}
       />
     </>
   );

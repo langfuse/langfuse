@@ -22,7 +22,7 @@ export function V4BetaIntroDialog({
         <DialogBody>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/assets/v4-beta-intro.png"
+            src="/assets/v4-beta-intro.jpg"
             alt="Langfuse gets Faster — performance comparison showing 5x to 165x speedups"
             className="w-full rounded-md"
           />
@@ -74,7 +74,7 @@ export function V4BetaIntroDialog({
           >
             Read the v4 docs &rarr;
           </a>
-          <Button onClick={onConfirm}>Got it, let&apos;s explore</Button>
+          <Button onClick={onConfirm}>Understood &rarr;</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
