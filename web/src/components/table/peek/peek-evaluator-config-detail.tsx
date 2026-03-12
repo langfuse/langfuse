@@ -51,7 +51,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           <span className="max-h-fit text-lg font-medium">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge
-              type={evalConfig.finalStatus.toLowerCase()}
+              type={evalConfig.displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
@@ -85,7 +85,7 @@ export const PeekViewEvaluatorConfigDetail = ({
       {evalConfig &&
         evalConfig.targetObject &&
         evalConfig.evalTemplate &&
-        evalConfig.finalStatus === "ACTIVE" && (
+        evalConfig.displayStatus === "ACTIVE" && (
           <LegacyEvalCallout
             projectId={projectId}
             evalConfigId={evalConfig.id}

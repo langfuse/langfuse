@@ -138,11 +138,11 @@ describe("evals trpc", () => {
         configs: expect.arrayContaining([
           expect.objectContaining({
             id: evalJobConfig1.id,
-            finalStatus: "ACTIVE",
+            displayStatus: "ACTIVE",
           }),
           expect.objectContaining({
             id: evalJobConfig2.id,
-            finalStatus: "ACTIVE",
+            displayStatus: "ACTIVE",
           }),
         ]),
         totalCount: expect.any(Number),
@@ -214,12 +214,12 @@ describe("evals trpc", () => {
       expect(
         response.configs.map((config) => ({
           id: config.id,
-          finalStatus: config.finalStatus,
+          displayStatus: config.displayStatus,
         })),
       ).toEqual([
-        { id: activeEvaluator.id, finalStatus: "ACTIVE" },
-        { id: pausedEvaluator.id, finalStatus: "PAUSED" },
-        { id: inactiveEvaluator.id, finalStatus: "INACTIVE" },
+        { id: activeEvaluator.id, displayStatus: "ACTIVE" },
+        { id: pausedEvaluator.id, displayStatus: "PAUSED" },
+        { id: inactiveEvaluator.id, displayStatus: "INACTIVE" },
       ]);
     });
   });
@@ -289,18 +289,15 @@ describe("evals trpc", () => {
         [evalJobConfig1.id]: expect.arrayContaining([
           expect.objectContaining({
             status: "PENDING",
-            _count: 1,
-            jobConfigurationId: evalJobConfig1.id,
+            count: 1,
           }),
           expect.objectContaining({
             status: "COMPLETED",
-            _count: 1,
-            jobConfigurationId: evalJobConfig1.id,
+            count: 1,
           }),
           expect.objectContaining({
             status: "ERROR",
-            _count: 1,
-            jobConfigurationId: evalJobConfig1.id,
+            count: 1,
           }),
         ]),
         [evalJobConfig2.id]: [],

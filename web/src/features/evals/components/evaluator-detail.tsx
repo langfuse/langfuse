@@ -6,22 +6,20 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
-import {
-  type JobExecutionState,
-  generateJobExecutionCounts,
-} from "@/src/features/evals/utils/job-execution-utils";
+import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { type EvaluatorExecutionStatusCount } from "@langfuse/shared";
 
 const JobExecutionCounts = ({
-  jobExecutionsByState,
+  jobExecutionCounts,
 }: {
-  jobExecutionsByState?: JobExecutionState[];
+  jobExecutionCounts?: EvaluatorExecutionStatusCount[];
 }) => {
-  if (!jobExecutionsByState || jobExecutionsByState.length === 0) {
+  if (!jobExecutionCounts || jobExecutionCounts.length === 0) {
     return null;
   }
 
-  const counts = generateJobExecutionCounts(jobExecutionsByState);
+  const counts = generateJobExecutionCounts(jobExecutionCounts);
   return <LevelCountsDisplay counts={counts} />;
 };
 
@@ -84,15 +82,15 @@ export const EvaluatorDetail = () => {
 
         actionButtonsRight: (
           <>
-            {evaluator.data?.jobExecutionsByState && (
+            {evaluator.data?.jobExecutionCounts && (
               <div className="flex flex-col items-center justify-center rounded-md bg-muted-gray px-2">
                 <JobExecutionCounts
-                  jobExecutionsByState={evaluator.data.jobExecutionsByState}
+                  jobExecutionCounts={evaluator.data.jobExecutionCounts}
                 />
               </div>
             )}
             <StatusBadge
-              type={evaluator.data?.finalStatus.toLowerCase()}
+              type={evaluator.data?.displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
