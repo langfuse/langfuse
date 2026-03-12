@@ -9,18 +9,21 @@ import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { type EvaluatorExecutionStatusCount } from "@langfuse/shared";
+import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 
 const JobExecutionCounts = ({
+  isLoading,
   jobExecutionCounts,
 }: {
+  isLoading?: boolean;
   jobExecutionCounts?: EvaluatorExecutionStatusCount[];
 }) => {
-  if (!jobExecutionCounts || jobExecutionCounts.length === 0) {
+  if (!isLoading && (!jobExecutionCounts || jobExecutionCounts.length === 0)) {
     return null;
   }
 
   const counts = generateJobExecutionCounts(jobExecutionCounts);
-  return <LevelCountsDisplay counts={counts} />;
+  return <LevelCountsDisplay counts={counts} isLoading={isLoading} />;
 };
 
 export const EvaluatorDetail = () => {
@@ -32,6 +35,12 @@ export const EvaluatorDetail = () => {
   const evaluator = api.evals.configById.useQuery({
     projectId: projectId,
     id: evaluatorId,
+  });
+
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
+    projectId,
+    evaluatorId,
+    evaluator: evaluator.data,
   });
 
   // get all templates for the current template name
@@ -65,6 +74,11 @@ export const EvaluatorDetail = () => {
           evalTemplate: evaluator.data.evalTemplate,
         }
       : undefined;
+  const displayStatus =
+    lazyExecutionCounts.displayStatus ?? evaluator.data.displayStatus;
+  const shouldRenderExecutionCounts =
+    lazyExecutionCounts.isLoading ||
+    Boolean(lazyExecutionCounts.jobExecutionCounts?.length);
 
   return (
     <Page
@@ -82,15 +96,16 @@ export const EvaluatorDetail = () => {
 
         actionButtonsRight: (
           <>
-            {evaluator.data?.jobExecutionCounts && (
-              <div className="flex flex-col items-center justify-center rounded-md bg-muted-gray px-2">
+            {shouldRenderExecutionCounts && (
+              <div className="flex min-h-8 min-w-24 flex-col items-center justify-center rounded-md bg-muted-gray px-2">
                 <JobExecutionCounts
-                  jobExecutionCounts={evaluator.data.jobExecutionCounts}
+                  isLoading={lazyExecutionCounts.isLoading}
+                  jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}
                 />
               </div>
             )}
             <StatusBadge
-              type={evaluator.data?.displayStatus.toLowerCase()}
+              type={displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
