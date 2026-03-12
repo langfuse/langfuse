@@ -9,6 +9,10 @@ import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
+import {
+  PlaygroundMessageSearchProvider,
+  PlaygroundMessageSearchToolbar,
+} from "@/src/features/playground/page/components/PlaygroundMessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /**
@@ -117,75 +121,79 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <Page
-      scrollable={false}
-      withPadding={false}
-      headerProps={{
-        title: "Playground",
-        help: {
-          description:
-            "A sandbox to test and iterate your prompts across multiple windows",
-          href: "https://langfuse.com/docs/prompt-management/features/playground",
-        },
-        actionButtonsRight: (
-          <div className="flex flex-nowrap items-center gap-2">
-            {/* Window Count Display - Hidden on mobile */}
-            <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
-              <span className="whitespace-nowrap">
-                {windowIds.length} window
-                {windowIds.length === 1 ? "" : "s"}
-              </span>
-              {executionStatus && (
-                <>
-                  <span className="hidden sm:inline">•</span>
-                  <div className="flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="hidden whitespace-nowrap sm:inline">
-                      {executionStatus}
-                    </span>
-                  </div>
-                </>
-              )}
+    <PlaygroundMessageSearchProvider windowIds={windowIds}>
+      <Page
+        scrollable={false}
+        withPadding={false}
+        headerProps={{
+          title: "Playground",
+          help: {
+            description:
+              "A sandbox to test and iterate your prompts across multiple windows",
+            href: "https://langfuse.com/docs/prompt-management/features/playground",
+          },
+          actionButtonsRight: (
+            <div className="flex flex-nowrap items-center gap-2">
+              <PlaygroundMessageSearchToolbar className="max-w-[24rem]" />
+
+              {/* Window Count Display - Hidden on mobile */}
+              <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
+                <span className="whitespace-nowrap">
+                  {windowIds.length} window
+                  {windowIds.length === 1 ? "" : "s"}
+                </span>
+                {executionStatus && (
+                  <>
+                    <span className="hidden sm:inline">•</span>
+                    <div className="flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span className="hidden whitespace-nowrap sm:inline">
+                        {executionStatus}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Multi-Window Controls - Hidden on mobile */}
+              <Button
+                variant="outline"
+                onClick={handleExecuteAll}
+                disabled={isRunAllDisabled}
+                className="hidden flex-shrink-0 gap-1 md:flex"
+                title={
+                  !hasAnyModelConfigured
+                    ? "Please configure a model in Project Settings first"
+                    : "Execute all playground windows simultaneously"
+                }
+              >
+                {globalIsExecutingAll ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="h-3 w-3" />
+                )}
+                <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
+              </Button>
+
+              {/* Reset Playground Button */}
+              <ResetPlaygroundButton />
             </div>
-
-            {/* Multi-Window Controls - Hidden on mobile */}
-            <Button
-              variant="outline"
-              onClick={handleExecuteAll}
-              disabled={isRunAllDisabled}
-              className="hidden flex-shrink-0 gap-1 md:flex"
-              title={
-                !hasAnyModelConfigured
-                  ? "Please configure a model in Project Settings first"
-                  : "Execute all playground windows simultaneously"
-              }
-            >
-              {globalIsExecutingAll ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Play className="h-3 w-3" />
-              )}
-              <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
-            </Button>
-
-            {/* Reset Playground Button */}
-            <ResetPlaygroundButton />
+          ),
+        }}
+      >
+        <div className="flex h-full flex-col">
+          {!hasAnyModelConfigured && projectId && (
+            <NoModelConfiguredAlert projectId={projectId} />
+          )}
+          <div className="flex-1 overflow-hidden">
+            <MultiWindowPlayground
+              windowState={windowState}
+              onRemoveWindow={removeWindow}
+              onAddWindow={addWindow}
+            />
           </div>
-        ),
-      }}
-    >
-      <div className="flex h-full flex-col">
-        {!hasAnyModelConfigured && projectId && (
-          <NoModelConfiguredAlert projectId={projectId} />
-        )}
-        <div className="flex-1 overflow-hidden">
-          <MultiWindowPlayground
-            windowState={windowState}
-            onRemoveWindow={removeWindow}
-            onAddWindow={addWindow}
-          />
         </div>
-      </div>
-    </Page>
+      </Page>
+    </PlaygroundMessageSearchProvider>
   );
 }

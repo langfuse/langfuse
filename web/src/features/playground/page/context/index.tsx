@@ -47,9 +47,11 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
+import { usePlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
 type PlaygroundContextType = {
+  windowId: string;
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
@@ -92,9 +94,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
   windowId,
 }) => {
+  const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
+  const { registerWindowMessages, unregisterWindowMessages } =
+    usePlaygroundMessageSearchActions();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -233,6 +238,16 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [messages]);
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
+
+  useEffect(() => {
+    registerWindowMessages(effectiveWindowId, messages);
+  }, [effectiveWindowId, messages, registerWindowMessages]);
+
+  useEffect(() => {
+    return () => {
+      unregisterWindowMessages(effectiveWindowId);
+    };
+  }, [effectiveWindowId, unregisterWindowMessages]);
 
   const addMessage: PlaygroundContextType["addMessage"] = useCallback(
     (message) => {
@@ -553,7 +568,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // This effect registers the window with the global coordination system
   // and sets up event listeners for global actions like "Run All" and "Stop All"
   useEffect(() => {
-    const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
     const playgroundEventBus = getPlaygroundEventBus();
 
     const playgroundHandle: PlaygroundHandle = {
@@ -620,7 +634,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       );
     };
   }, [
-    windowId,
+    effectiveWindowId,
     handleSubmit,
     registerWindow,
     unregisterWindow,
@@ -638,12 +652,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           isStreaming,
         },
       }),
     );
-  }, [windowId, isStreaming]);
+  }, [effectiveWindowId, isStreaming]);
 
   // Notify when model configuration changes
   useEffect(() => {
@@ -651,18 +665,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           hasModel: Boolean(
             modelParams.provider.value && modelParams.model.value,
           ),
         },
       }),
     );
-  }, [windowId, modelParams.provider.value, modelParams.model.value]);
+  }, [effectiveWindowId, modelParams.provider.value, modelParams.model.value]);
 
   return (
     <PlaygroundContext.Provider
       value={{
+        windowId: effectiveWindowId,
         promptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
