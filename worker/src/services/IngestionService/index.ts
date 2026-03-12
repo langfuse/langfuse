@@ -343,8 +343,8 @@ export class IngestionService {
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
 
-    // Store the full metadata as nested JSON (preserves structure for UI display)
-    const metadata = eventData.metadata;
+    // Stringify metadata for the JSON column (Record<string, string>)
+    const metadata = convertRecordValuesToString(eventData.metadata);
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
