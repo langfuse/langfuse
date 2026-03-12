@@ -183,7 +183,7 @@ describe("OTel metadata processing", () => {
   });
 
   describe("json column", () => {
-    it("preserves nested structure in metadata JSON column", async () => {
+    it("stringifies nested objects in metadata JSON column", async () => {
       const { eventRecord } = await processAndCreateEvent(
         buildOtelSpan({
           scopeVersion: "4.0.0",
@@ -195,10 +195,14 @@ describe("OTel metadata processing", () => {
         }),
       );
 
-      // metadata JSON column must keep nested objects (not stringify them)
-      const meta = eventRecord.metadata as Record<string, unknown>;
-      expect(meta.resourceAttributes).toEqual({ "service.name": "svc-a" });
-      expect(meta.scopeAttributes).toEqual({ public_key: "pk-test" });
+      // metadata JSON column stores stringified values (Record<string, string>)
+      const meta = eventRecord.metadata;
+      expect(meta.resourceAttributes).toBe(
+        JSON.stringify({ "service.name": "svc-a" }),
+      );
+      expect(meta.scopeAttributes).toBe(
+        JSON.stringify({ public_key: "pk-test" }),
+      );
       expect(meta.env).toBe("prod");
     });
   });
