@@ -4,7 +4,7 @@ import Page from "@/src/components/layouts/page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, Sparkles } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
@@ -91,6 +91,19 @@ export default function PromptsWithFolder() {
         actionButtonsRight: (
           <>
             {projectId && <AutomationButton projectId={projectId} />}
+            <ActionButton
+              icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/prompts/new-with-ai`}
+              variant="secondary"
+              limit={promptLimit}
+              limitValue={Number(count?.totalCount ?? 0)}
+              onClick={() => {
+                capture("prompts:new_with_ai_form_open");
+              }}
+            >
+              New prompt with AI
+            </ActionButton>
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
