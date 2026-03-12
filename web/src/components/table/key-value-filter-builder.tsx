@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -8,21 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-} from "@/src/components/ui/input-command";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { Plus, X, Check, ChevronDown } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type {
   KeyValueFilterEntry,
@@ -79,9 +66,6 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
 
-  // Track which popover is open (by index)
-  const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
-
   // Local UI state for filter rows (includes incomplete filters)
   // Initialize once from activeFilters but don't sync on every change
   // This allows incomplete filter rows to persist in the UI while being edited
@@ -90,6 +74,15 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     | NumericKeyValueFilterEntry[]
     | StringKeyValueFilterEntry[]
   >(() => (activeFilters.length > 0 ? activeFilters : []));
+
+  // Sync when parent clears all filters externally
+  const prevActiveFiltersLen = useRef(activeFilters.length);
+  useEffect(() => {
+    if (activeFilters.length === 0 && prevActiveFiltersLen.current > 0) {
+      setLocalFilters([]);
+    }
+    prevActiveFiltersLen.current = activeFilters.length;
+  }, [activeFilters.length]);
 
   const handleFilterChange = (
     index: number,
@@ -194,79 +187,12 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
           >
             {/* Key input and delete button row */}
             <div className="flex items-center gap-2">
-              {keyOptions ? (
-                // Combobox for known keys
-                <Popover
-                  open={openPopoverIndex === index}
-                  onOpenChange={(open) =>
-                    setOpenPopoverIndex(open ? index : null)
-                  }
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="flex-1 justify-between text-left font-normal"
-                    >
-                      <span
-                        className={cn(!filter.key && "text-muted-foreground")}
-                      >
-                        {filter.key || keyPlaceholder}
-                      </span>
-                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[200px] p-0" align="start">
-                    <InputCommand>
-                      <InputCommandInput
-                        placeholder="Search keys..."
-                        variant="bottom"
-                      />
-                      <InputCommandList>
-                        <InputCommandEmpty>No keys found.</InputCommandEmpty>
-                        <InputCommandGroup>
-                          {keyOptions.map((option) => (
-                            <InputCommandItem
-                              key={option}
-                              value={option}
-                              onSelect={(value) => {
-                                // Only update the key, preserve the existing value
-                                handleFilterChange(index, {
-                                  key: value,
-                                });
-                                setOpenPopoverIndex(null); // Close after selection
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  option === filter.key
-                                    ? "visible"
-                                    : "invisible",
-                                )}
-                              />
-                              {option}
-                            </InputCommandItem>
-                          ))}
-                        </InputCommandGroup>
-                      </InputCommandList>
-                    </InputCommand>
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                // Text input for free-form keys
-                <Input
-                  placeholder={keyPlaceholder}
-                  value={filter.key}
-                  onChange={(e) => {
-                    // Only update the key, preserve the existing value
-                    handleFilterChange(index, {
-                      key: e.target.value,
-                    });
-                  }}
-                  className="flex-1"
-                />
-              )}
+              <KeyAutocompleteInput
+                value={filter.key}
+                placeholder={keyPlaceholder}
+                keyOptions={keyOptions}
+                onChange={(key) => handleFilterChange(index, { key })}
+              />
 
               {/* Delete button */}
               <Button
@@ -402,6 +328,175 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         <Plus className="mr-2 h-4 w-4" />
         Add filter
       </Button>
+    </div>
+  );
+}
+
+function KeyAutocompleteInput({
+  value,
+  placeholder,
+  keyOptions,
+  onChange,
+}: {
+  value: string;
+  placeholder: string;
+  keyOptions?: string[];
+  onChange: (key: string) => void;
+}) {
+  const [localValue, setLocalValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync from parent when value changes externally (e.g. reset)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const debouncedOnChange = useCallback(
+    (v: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => onChange(v), 300);
+    },
+    [onChange],
+  );
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setLocalValue(v);
+    setHighlightIndex(-1);
+    debouncedOnChange(v);
+  };
+
+  // Hierarchical segment navigation:
+  // "abc." → show unique next segments (e.g. "def", "xyz") from keys starting with "abc."
+  // "abc.d" → filter next segments to those containing "d"
+  // No dot → show unique first segments matching input
+  const lastDotIndex = localValue.lastIndexOf(".");
+  const dotPrefix =
+    lastDotIndex !== -1 ? localValue.slice(0, lastDotIndex + 1) : "";
+  const currentSegmentInput = dotPrefix
+    ? localValue.slice(dotPrefix.length)
+    : localValue;
+
+  // Keys matching the current dot prefix
+  const prefixMatchingKeys = dotPrefix
+    ? (keyOptions ?? []).filter((k) =>
+        k.toLowerCase().startsWith(dotPrefix.toLowerCase()),
+      )
+    : (keyOptions ?? []);
+
+  // Extract unique next segments from matching keys
+  const nextSegmentsSet = new Set<string>();
+  for (const k of prefixMatchingKeys) {
+    const suffix = dotPrefix ? k.slice(dotPrefix.length) : k;
+    const nextDot = suffix.indexOf(".");
+    const segment = nextDot === -1 ? suffix : suffix.slice(0, nextDot);
+    if (segment) nextSegmentsSet.add(segment);
+  }
+
+  // Filter by what user typed for current segment
+  const suggestions = [...nextSegmentsSet]
+    .filter((s) =>
+      currentSegmentInput
+        ? s.toLowerCase().includes(currentSegmentInput.toLowerCase())
+        : true,
+    )
+    .slice(0, 20);
+
+  const handleSelect = (segment: string) => {
+    const fullKey = dotPrefix + segment;
+    const childPrefix = fullKey + ".";
+    const hasChildren = (keyOptions ?? []).some((k) =>
+      k.toLowerCase().startsWith(childPrefix.toLowerCase()),
+    );
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (hasChildren) {
+      // Drill down: append dot to continue navigating deeper
+      setLocalValue(childPrefix);
+      onChange(childPrefix);
+    } else {
+      // Leaf key: set final value and close
+      setLocalValue(fullKey);
+      onChange(fullKey);
+      setIsFocused(false);
+    }
+  };
+
+  // Don't show dropdown if only suggestion is exactly what user already typed
+  const showSuggestions =
+    isFocused &&
+    suggestions.length > 0 &&
+    !(suggestions.length === 1 && suggestions[0] === currentSegmentInput);
+
+  // Measure prefix width to offset the dropdown when completing after a dot
+  const inputRef = useRef<HTMLInputElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+
+  return (
+    <div className="relative flex-1">
+      {/* Hidden span to measure prefix text width */}
+      {dotPrefix && (
+        <span
+          ref={measureRef}
+          className="pointer-events-none invisible absolute whitespace-pre text-sm"
+          aria-hidden
+        >
+          {dotPrefix}
+        </span>
+      )}
+      <Input
+        ref={inputRef}
+        placeholder={placeholder}
+        value={localValue}
+        onChange={handleInputChange}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+        onKeyDown={(e) => {
+          if (!showSuggestions) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHighlightIndex((i) => (i < suggestions.length - 1 ? i + 1 : 0));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlightIndex((i) => (i > 0 ? i - 1 : suggestions.length - 1));
+          } else if (e.key === "Enter" && highlightIndex >= 0) {
+            e.preventDefault();
+            handleSelect(suggestions[highlightIndex]);
+          }
+        }}
+        className="flex-1"
+      />
+      {showSuggestions && (
+        <div
+          className="absolute z-50 mt-1 w-fit max-w-full overflow-auto rounded-md border bg-popover p-0.5 shadow-md"
+          style={{
+            maxHeight: "6rem",
+            left: dotPrefix
+              ? `${(measureRef.current?.offsetWidth ?? 0) + 8}px`
+              : undefined,
+          }}
+        >
+          {suggestions.map((segment, i) => (
+            <div
+              key={segment}
+              className={cn(
+                "cursor-pointer truncate rounded-sm px-2 py-0.5 text-xs hover:bg-accent hover:text-accent-foreground",
+                (i === highlightIndex || dotPrefix + segment === localValue) &&
+                  "bg-accent text-accent-foreground",
+              )}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(segment);
+              }}
+            >
+              {segment}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
