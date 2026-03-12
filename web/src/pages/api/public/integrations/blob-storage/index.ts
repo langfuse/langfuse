@@ -89,6 +89,14 @@ async function handleGetBlobStorageIntegrations(
       lastSyncAt: integration.lastSyncAt,
       createdAt: integration.createdAt,
       updatedAt: integration.updatedAt,
+      exportTraces: integration.exportTraces,
+      exportObservations: integration.exportObservations,
+      exportScores: integration.exportScores,
+      exportEvents: integration.exportEvents,
+      tagFilters: integration.tagFilters as {
+        operator: "any of" | "all of" | "none of";
+        tags: string[];
+      }[],
     }),
   );
 
@@ -162,6 +170,11 @@ async function handleUpsertBlobStorageIntegration(
     fileType: validatedData.fileType,
     exportMode: validatedData.exportMode,
     exportStartDate: validatedData.exportStartDate || null,
+    exportTraces: validatedData.exportTraces,
+    exportObservations: validatedData.exportObservations,
+    exportScores: validatedData.exportScores,
+    exportEvents: validatedData.exportEvents,
+    tagFilters: validatedData.tagFilters ?? [],
   };
 
   // Upsert the integration (create or update)
@@ -191,6 +204,14 @@ async function handleUpsertBlobStorageIntegration(
     lastSyncAt: integration.lastSyncAt,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
+    exportTraces: integration.exportTraces,
+    exportObservations: integration.exportObservations,
+    exportScores: integration.exportScores,
+    exportEvents: integration.exportEvents,
+    tagFilters: integration.tagFilters as {
+      operator: "any of" | "all of" | "none of";
+      tags: string[];
+    }[],
   };
 
   return res.status(200).json(responseData);

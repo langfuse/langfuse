@@ -1126,6 +1126,17 @@ model BlobStorageIntegration {
   exportStartDate DateTime?                        @map("export_start_date")
   exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // Granular export source flags (optional - null means use exportSource enum behavior)
+  exportTraces       Boolean? @map("export_traces")
+  exportObservations Boolean? @map("export_observations")
+  exportScores       Boolean? @map("export_scores")
+  exportEvents       Boolean? @map("export_events")
+
+  // Tag filtering (optional - filter exports by trace tags)
+  // Array of filter conditions: [{ operator: "any of" | "all of" | "none of", tags: string[] }]
+  // Conditions are combined with AND logic
+  tagFilters Json @default("[]") @map("tag_filters")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
