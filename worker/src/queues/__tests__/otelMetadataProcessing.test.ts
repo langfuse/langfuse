@@ -1,5 +1,5 @@
 /**
- * Tests for OTel metadata processing in the direct event write path.
+ * Tests for OTel metadata processing
  * Flow: ResourceSpan -> processToEvent() -> createEventRecord() -> metadata_names/metadata_raw_values
  *
  * NOTE: The dual-write path (otel-dual-write) uses mapKeys() in SQL which doesn't flatten.
@@ -125,13 +125,16 @@ async function processAndCreateEvent(
     "metadata_raw_values:",
     JSON.stringify(eventRecord.metadata_raw_values),
   );
+  console.log("metadata:", JSON.stringify(eventRecord.metadata));
 
-  return Object.fromEntries(
+  const nameToValue = Object.fromEntries(
     eventRecord.metadata_names.map((name, i) => [
       name,
       eventRecord.metadata_raw_values[i],
     ]),
   );
+
+  return { eventRecord, nameToValue };
 }
 
 describe("OTel metadata processing", () => {
@@ -141,7 +144,7 @@ describe("OTel metadata processing", () => {
 
   describe("flattening", () => {
     it("flattens resource/scope attrs to dot-notation (SDK v4.0)", async () => {
-      const nameToValue = await processAndCreateEvent(
+      const { nameToValue } = await processAndCreateEvent(
         buildOtelSpan({
           scopeVersion: "4.0.0",
           resourceAttrKey: "service.name",
@@ -160,7 +163,7 @@ describe("OTel metadata processing", () => {
     });
 
     it("flattens resource/scope attrs to dot-notation (SDK v3.8)", async () => {
-      const nameToValue = await processAndCreateEvent(
+      const { nameToValue } = await processAndCreateEvent(
         buildOtelSpan({
           scopeVersion: "3.8.1",
           resourceAttrKey: "service.name",
@@ -176,6 +179,27 @@ describe("OTel metadata processing", () => {
       expect(nameToValue["topic"]).toBe("test");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
       expect(nameToValue["scopeAttributes"]).toBeUndefined();
+    });
+  });
+
+  describe("json column", () => {
+    it("preserves nested structure in metadata JSON column", async () => {
+      const { eventRecord } = await processAndCreateEvent(
+        buildOtelSpan({
+          scopeVersion: "4.0.0",
+          resourceAttrKey: "service.name",
+          resourceAttrValue: "svc-a",
+          scopeAttrKey: "public_key",
+          scopeAttrValue: "pk-test",
+          metadataAttrs: [{ key: "env", value: { stringValue: "prod" } }],
+        }),
+      );
+
+      // metadata JSON column must keep nested objects (not stringify them)
+      const meta = eventRecord.metadata as Record<string, unknown>;
+      expect(meta.resourceAttributes).toEqual({ "service.name": "svc-a" });
+      expect(meta.scopeAttributes).toEqual({ public_key: "pk-test" });
+      expect(meta.env).toBe("prod");
     });
   });
 });

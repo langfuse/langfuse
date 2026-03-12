@@ -339,10 +339,12 @@ export class IngestionService {
     // Flatten raw metadata first (before stringification destroys nested structure)
     const flattened = flattenJsonToPathArrays(eventData.metadata);
     const metadataNames = flattened.names;
-    const metadataValues = flattened.values;
+    // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
+    // Should not be required as convertValueToPlainJavascript() never returns null.
+    const metadataValues = flattened.values.map((v) => v ?? "");
 
-    // Store the full metadata JSON (stringified for the metadata column)
-    const metadata = convertRecordValuesToString(eventData.metadata);
+    // Store the full metadata as nested JSON (preserves structure for UI display)
+    const metadata = eventData.metadata;
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
