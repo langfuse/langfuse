@@ -72,6 +72,56 @@ describe("/api/public/prompts API Endpoint", () => {
     expect(fetchedObservations.body.tags).toEqual([]);
   });
 
+  it("should ignore resolve=false and still return the resolved prompt", async () => {
+    const childPromptName = `child-prompt-${uuidv4()}`;
+    const parentPromptName = `parent-prompt-${uuidv4()}`;
+
+    await prisma.prompt.create({
+      data: {
+        id: uuidv4(),
+        name: childPromptName,
+        prompt: "child prompt content",
+        labels: ["production"],
+        version: 1,
+        config: {},
+        project: {
+          connect: { id: projectId },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    await prisma.prompt.create({
+      data: {
+        id: uuidv4(),
+        name: parentPromptName,
+        prompt: `Parent prompt: @@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        project: {
+          connect: { id: projectId },
+        },
+        createdBy: "user-1",
+      },
+    });
+
+    const fetchedObservations = await apiCall(
+      "GET",
+      `/api/public/prompts?name=${encodeURIComponent(parentPromptName)}&version=1&resolve=false`,
+      undefined,
+    );
+
+    expect(fetchedObservations.status).toBe(200);
+
+    if (!isPrompt(fetchedObservations.body)) {
+      throw new Error("Expected body to be a prompt");
+    }
+
+    expect(fetchedObservations.body.prompt).toContain("child prompt content");
+    expect(fetchedObservations.body.prompt).not.toContain("@@@langfusePrompt");
+  });
+
   it("should fetch a prompt with special character", async () => {
     const promptId = uuidv4();
 
