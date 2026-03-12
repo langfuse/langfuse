@@ -153,8 +153,7 @@ const getSecondaryEvalExecutionQueueInstance = ({
     ...redisQueueRetryOptions,
   });
 
-  const queueName =
-    getSecondaryEvalExecutionQueueNameForShardIndex(shardIndex);
+  const queueName = getSecondaryEvalExecutionQueueNameForShardIndex(shardIndex);
   const queueInstance = newRedis
     ? new Queue<TQueueJobTypes[QueueName.EvaluationExecutionSecondaryQueue]>(
         queueName,
