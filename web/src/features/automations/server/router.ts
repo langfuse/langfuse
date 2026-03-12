@@ -23,11 +23,7 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import {
-  generateWebhookSecret,
-  encrypt,
-  decrypt,
-} from "@langfuse/shared/encryption";
+import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import { TRPCError } from "@trpc/server";
