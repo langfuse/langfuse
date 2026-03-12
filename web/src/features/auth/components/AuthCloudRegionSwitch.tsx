@@ -35,28 +35,46 @@ const regions =
             flag: "🚧",
           },
         ]
-      : [
-          {
-            name: "US",
-            hostname: "us.cloud.langfuse.com",
-            flag: "🇺🇸",
-          },
-          {
-            name: "EU",
-            hostname: "cloud.langfuse.com",
-            flag: "🇪🇺",
-          },
-          {
-            name: "JP",
-            hostname: "jp.cloud.langfuse.com",
-            flag: "️🇯🇵",
-          },
-          {
-            name: "HIPAA",
-            hostname: "hipaa.cloud.langfuse.com",
-            flag: "⚕️",
-          },
-        ];
+      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "JP"
+        ? [
+            {
+              name: "JP",
+              hostname: "jp.cloud.langfuse.com",
+              flag: "️🇯🇵",
+            },
+            {
+              name: "US",
+              hostname: "us.cloud.langfuse.com",
+              flag: "🇺🇸",
+            },
+            {
+              name: "EU",
+              hostname: "cloud.langfuse.com",
+              flag: "🇪🇺",
+            },
+            {
+              name: "HIPAA",
+              hostname: "hipaa.cloud.langfuse.com",
+              flag: "⚕️",
+            },
+          ]
+        : [
+            {
+              name: "US",
+              hostname: "us.cloud.langfuse.com",
+              flag: "🇺🇸",
+            },
+            {
+              name: "EU",
+              hostname: "cloud.langfuse.com",
+              flag: "🇪🇺",
+            },
+            {
+              name: "HIPAA",
+              hostname: "hipaa.cloud.langfuse.com",
+              flag: "⚕️",
+            },
+          ];
 
 export function CloudRegionSwitch({
   isSignUpPage,
