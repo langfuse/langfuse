@@ -26,8 +26,8 @@ import {
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
 import { areStringSetsEqual } from "../lib/stringSetUtils";
+import { useFilterExpandedState } from "./useFilterExpandedState";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -340,7 +340,7 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
-type UseSidebarFilterStateOptions = {
+type UseSidebarFilterStateBaseOptions = {
   loading?: boolean;
   /**
    * If true, prevents filter state from being persisted to/read from URL query params.
@@ -355,6 +355,12 @@ type UseSidebarFilterStateOptions = {
   sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
 };
+
+type UseSidebarFilterStateWithExpansionStateOptions =
+  UseSidebarFilterStateBaseOptions & {
+    expandedState: string[];
+    onExpandedChange: (value: string[]) => void;
+  };
 
 /**
  * Pure function that determines the operator and values for checkbox-based
@@ -406,38 +412,23 @@ export function resolveCheckboxOperator(params: {
   return { finalOperator: "any of", finalValues: values };
 }
 
-export function useSidebarFilterState(
+function useSidebarFilterStateInternal(
   config: FilterConfig,
   options: Record<
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  hookOptions: UseSidebarFilterStateOptions = {},
+  hookOptions: UseSidebarFilterStateWithExpansionStateOptions,
 ) {
   const {
     loading,
     disableUrlPersistence,
     sessionFilterContextId,
     implicitDefaultConfig,
+    expandedState,
+    onExpandedChange,
   } = hookOptions;
   const peekContext = usePeekTableState();
-
-  const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
-  const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
-
-  const [expandedString, setExpandedString] = useSessionStorage<string>(
-    FILTER_EXPANDED_STORAGE_KEY,
-    DEFAULT_EXPANDED_FILTERS.join(","),
-  );
-  const expandedState = useMemo(() => {
-    return expandedString.split(",").filter(Boolean);
-  }, [expandedString]);
-  const onExpandedChange = useCallback(
-    (value: string[]) => {
-      setExpandedString(value.join(","));
-    },
-    [setExpandedString],
-  );
 
   const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
   const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
@@ -1725,4 +1716,35 @@ export function useSidebarFilterState(
     expanded: expandedState,
     onExpandedChange,
   };
+}
+
+export function useSidebarFilterState(
+  config: FilterConfig,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  hookOptions: UseSidebarFilterStateBaseOptions = {},
+) {
+  const persistedExpandedState = useFilterExpandedState({
+    tableName: config.tableName,
+    defaultExpanded: config.defaultExpanded,
+  });
+
+  return useSidebarFilterStateInternal(config, options, {
+    ...hookOptions,
+    expandedState: persistedExpandedState.expandedState,
+    onExpandedChange: persistedExpandedState.onExpandedChange,
+  });
+}
+
+export function useSidebarFilterStateWithExpansionState(
+  config: FilterConfig,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  hookOptions: UseSidebarFilterStateWithExpansionStateOptions,
+) {
+  return useSidebarFilterStateInternal(config, options, hookOptions);
 }

@@ -2,49 +2,70 @@ import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 
-type UseEventsFilterOptionsParams = {
+export type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
   hasParentObservation?: boolean;
 };
+
+export const getEventStartTimeFilters = (
+  oldFilterState: FilterState,
+): TimeFilter[] => {
+  return oldFilterState.filter(
+    (f) =>
+      (f.column === "Start Time" || f.column === "startTime") &&
+      f.type === "datetime",
+  ) as TimeFilter[];
+};
+
+export const getEventFilterOptionsQueryInput = ({
+  projectId,
+  oldFilterState,
+  hasParentObservation,
+}: UseEventsFilterOptionsParams) => {
+  const startTimeFilters = getEventStartTimeFilters(oldFilterState);
+
+  return {
+    projectId,
+    startTimeFilter: startTimeFilters.length > 0 ? startTimeFilters : undefined,
+    hasParentObservation,
+  };
+};
+
+export const SHARED_EVENT_FILTER_QUERY_OPTIONS = {
+  trpc: {
+    context: {
+      skipBatch: true,
+    },
+  },
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+} as const;
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
   hasParentObservation,
 }: UseEventsFilterOptionsParams) {
-  // Extract start time filters for filter options query
-  const startTimeFilters = useMemo(() => {
-    return oldFilterState.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    ) as TimeFilter[];
-  }, [oldFilterState]);
+  const queryInput = useMemo(
+    () =>
+      getEventFilterOptionsQueryInput({
+        projectId,
+        oldFilterState,
+        hasParentObservation,
+      }),
+    [projectId, oldFilterState, hasParentObservation],
+  );
 
   // Fetch filter options
-  const filterOptions = api.events.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      hasParentObservation,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      // Keep showing previous options while fetching new ones to avoid sidebar flicker
-      // TODO: maybe remove b/c unnecessary?
-      placeholderData: (prev) => prev,
-    },
-  );
+  const filterOptions = api.events.filterOptions.useQuery(queryInput, {
+    ...SHARED_EVENT_FILTER_QUERY_OPTIONS,
+    // Keep showing previous options while fetching new ones to avoid sidebar flicker
+    // TODO: maybe remove b/c unnecessary?
+    placeholderData: (prev) => prev,
+  });
 
   // Transform filter options for sidebar
   const newFilterOptions = useMemo(() => {
@@ -89,7 +110,7 @@ export function useEventsFilterOptions({
         filterOptions.data?.hasParentObservation ?? undefined,
       toolNames: filterOptions.data?.toolNames ?? undefined,
       calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
-      metadata: filterOptions.data?.metadata ?? undefined,
+      metadata: undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],

@@ -17,6 +17,7 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  getEventMetadataKeySuggestions,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -48,6 +49,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -142,13 +144,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-        hasParentObservation: zodSchema.boolean().optional(),
-      }),
-    )
+    .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -158,6 +154,23 @@ export const eventsRouter = createTRPCRouter({
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: undefined });
           return getEventFilterOptions({
+            projectId: input.projectId,
+            startTimeFilter: input.startTimeFilter,
+            hasParentObservation: input.hasParentObservation,
+          });
+        },
+      );
+    }),
+  metadataKeySuggestions: protectedProjectProcedure
+    .input(GetEventFilterOptionsInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        {
+          name: "get-event-metadata-key-suggestions-trpc",
+        },
+        async (span) => {
+          addAttributesToSpan({ span, input, orderBy: undefined });
+          return getEventMetadataKeySuggestions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
             hasParentObservation: input.hasParentObservation,

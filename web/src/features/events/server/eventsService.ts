@@ -79,6 +79,52 @@ interface GetObservationsFilterOptionsParams {
   hasParentObservation?: boolean;
 }
 
+type EventsFilterScope = Pick<
+  GetObservationsFilterOptionsParams,
+  "startTimeFilter" | "hasParentObservation"
+>;
+
+const buildScopedEventsFilter = ({
+  startTimeFilter,
+  hasParentObservation,
+}: EventsFilterScope): FilterState => [
+  ...(startTimeFilter ?? []),
+  ...(hasParentObservation !== undefined
+    ? [
+        {
+          column: "hasParentObservation" as const,
+          type: "boolean" as const,
+          operator: "=" as const,
+          value: hasParentObservation,
+        },
+      ]
+    : []),
+];
+
+const mapStartTimeFiltersToTraceTimestampFilters = (
+  startTimeFilter?: TimeFilter[],
+): FilterCondition[] =>
+  startTimeFilter && startTimeFilter.length > 0
+    ? startTimeFilter.map((f) => ({
+        column: "Timestamp" as const,
+        operator: f.operator,
+        value: f.value,
+        type: "datetime" as const,
+      }))
+    : [];
+
+const mapStartTimeFiltersToTraceScoreTimestampFilters = (
+  startTimeFilter?: TimeFilter[],
+): FilterCondition[] =>
+  startTimeFilter && startTimeFilter.length > 0
+    ? startTimeFilter.map((f) => ({
+        column: "timestamp",
+        operator: f.operator,
+        value: f.value,
+        type: "datetime",
+      }))
+    : [];
+
 /**
  * Get paginated list of events
  */
@@ -207,40 +253,14 @@ export async function getEventFilterOptions(
 ) {
   const { projectId, startTimeFilter, hasParentObservation } = params;
 
-  // Build filter with optional hasParentObservation for scoping filter options
-  const eventsFilter: FilterState = [
-    ...(startTimeFilter ?? []),
-    ...(hasParentObservation !== undefined
-      ? [
-          {
-            column: "hasParentObservation" as const,
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: hasParentObservation,
-          },
-        ]
-      : []),
-  ];
-
-  // Map startTimeFilter to Timestamp column for trace queries
+  const eventsFilter = buildScopedEventsFilter({
+    startTimeFilter,
+    hasParentObservation,
+  });
   const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
-  const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+    mapStartTimeFiltersToTraceTimestampFilters(startTimeFilter);
+  const traceScoreTimestampFilters =
+    mapStartTimeFiltersToTraceScoreTimestampFilters(startTimeFilter);
 
   const [
     numericScoreNames,
@@ -264,7 +284,6 @@ export async function getEventFilterOptions(
     hasParentObservationResults,
     toolNames,
     calledToolNames,
-    metadataKeys,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -290,7 +309,6 @@ export async function getEventFilterOptions(
     getEventsGroupedByHasParentObservation(projectId, eventsFilter),
     getEventsGroupedByToolName(projectId, eventsFilter),
     getEventsGroupedByCalledToolName(projectId, eventsFilter),
-    getEventsGroupedByMetadataKey(projectId, eventsFilter),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -409,10 +427,23 @@ export async function getEventFilterOptions(
     calledToolNames: calledToolNames
       .filter((i) => i.calledToolName !== null)
       .map((i) => ({ value: i.calledToolName as string })),
-    metadata: metadataKeys
-      .filter((i) => i.metadataKey !== null)
-      .map((i) => ({ value: i.metadataKey as string, count: i.count })),
   };
+}
+
+export async function getEventMetadataKeySuggestions(
+  params: GetObservationsFilterOptionsParams,
+) {
+  const metadataKeys = await getEventsGroupedByMetadataKey(
+    params.projectId,
+    buildScopedEventsFilter({
+      startTimeFilter: params.startTimeFilter,
+      hasParentObservation: params.hasParentObservation,
+    }),
+  );
+
+  return metadataKeys
+    .filter((key) => key.metadataKey !== null)
+    .map((key) => key.metadataKey as string);
 }
 
 interface GetEventBatchIOParams {

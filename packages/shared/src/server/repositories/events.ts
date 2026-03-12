@@ -2363,19 +2363,17 @@ export const getEventsGroupedByMetadataKey = async (
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "arrayJoin(e.metadata_names)",
-    selectExpression:
-      "arrayJoin(e.metadata_names) as metadataKey, count() as count",
+    selectExpression: "arrayJoin(e.metadata_names) as metadataKey",
   })
     .where(appliedEventsFilter)
     .whereRaw("length(e.metadata_names) > 0")
-    .orderBy("ORDER BY count() DESC")
+    .orderBy("ORDER BY metadataKey ASC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
 
   const res = await queryClickhouse<{
     metadataKey: string;
-    count: number;
   }>({
     query,
     params,
