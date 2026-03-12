@@ -281,10 +281,14 @@ export class OtelIngestionProcessor {
                 });
 
                 // Construct metadata object with the specified structure
+                // Match v3 path: store full scope object (name, version, attributes)
                 const metadata = {
                   // attributes: filteredAttributes,
                   resourceAttributes: resourceAttributes,
-                  scopeAttributes: scopeAttributes,
+                  scope: {
+                    ...(scopeSpan.scope || {}),
+                    attributes: scopeAttributes,
+                  },
                   ...spanMetadata,
                   ...traceMetadata,
                 };
