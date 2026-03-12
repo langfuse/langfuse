@@ -20,6 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
+import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 export const PeekViewEvaluatorConfigDetail = ({
@@ -91,6 +92,8 @@ export const PeekViewEvaluatorConfigDetail = ({
             targetObject={evalConfig.targetObject}
           />
         )}
+
+      <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>

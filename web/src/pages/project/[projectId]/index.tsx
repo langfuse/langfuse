@@ -8,7 +8,7 @@ import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageC
 import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { api } from "@/src/utils/api";
+import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -79,22 +79,11 @@ export default function Dashboard() {
     projectId,
   );
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+  const { nameOptions, tagsOptions } = useDashboardFilterOptions({
+    projectId,
+    isBetaEnabled,
+    timeRange,
+  });
 
   const environmentOptionsState = useEnvironmentFilterOptionsCache({
     projectId,
@@ -105,13 +94,6 @@ export default function Dashboard() {
 
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
-
-  const nameOptions =
-    traceFilterOptions.data?.name?.map((n) => ({
-      value: n.value,
-      count: Number(n.count),
-    })) || [];
-  const tagsOptions = traceFilterOptions.data?.tags || [];
 
   const filterColumns: ColumnDefinition[] = [
     {
