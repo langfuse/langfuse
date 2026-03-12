@@ -1,6 +1,14 @@
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { memo, useState, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type RefObject,
+} from "react";
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -24,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -83,6 +93,11 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   toolCallIds,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
+  const { windowId } = usePlaygroundContext();
+  const { registerMessageTarget, unregisterMessageTarget } =
+    usePlaygroundMessageSearchActions();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const {
     attributes,
@@ -92,6 +107,14 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     transition,
     isDragging,
   } = useSortable({ id: message.id });
+
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rowRef.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
 
   const toggleRole = () => {
     // Only allow role toggling for messages that have a role property (not placeholder messages)
@@ -190,9 +213,33 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
+  useEffect(() => {
+    registerMessageTarget(windowId, message.id, {
+      rowRef,
+      editorRef,
+    });
+
+    return () => {
+      unregisterMessageTarget(windowId, message.id);
+    };
+  }, [
+    editorRef,
+    message.id,
+    registerMessageTarget,
+    unregisterMessageTarget,
+    windowId,
+  ]);
+
+  const handleEditorMount = useCallback(() => {
+    registerMessageTarget(windowId, message.id, {
+      rowRef,
+      editorRef,
+    });
+  }, [message.id, registerMessageTarget, windowId]);
+
   return (
     <Card
-      ref={setNodeRef}
+      ref={setCardRef}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -263,12 +310,16 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   value={(message as PlaceholderMessage).name || ""}
                   onChange={onPlaceholderNameChange}
                   role={message.type}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
                 />
               ) : (
                 <MemoizedEditor
                   value={message.content}
                   onChange={onValueChange}
                   role={message.role}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
                 />
               )}
             </div>
@@ -296,8 +347,10 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   value: string;
   role: ChatMessage["role"];
   onChange: (value: string) => void;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+  onEditorMount: () => void;
 }) {
-  const { value, role, onChange } = props;
+  const { value, role, onChange, editorRef, onEditorMount } = props;
   const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
 
   return (
@@ -309,6 +362,9 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
       editable={true}
       lineNumbers={false}
       placeholder={placeholder}
+      editorRef={editorRef}
+      enableSearchKeymap={false}
+      onEditorMount={onEditorMount}
     />
   );
 });
