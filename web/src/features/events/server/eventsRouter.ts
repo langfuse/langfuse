@@ -52,9 +52,8 @@ const GetEventFilterOptionsInput = zodSchema.object({
   hasParentObservation: zodSchema.boolean().optional(),
 });
 
-const GetEventMetadataKeySuggestionsInput = zodSchema.object({
-  projectId: zodSchema.string(),
-  startTimeFilter: zodSchema.array(timeFilter).optional(),
+const GetEventMetadataKeySuggestionsInput = GetEventFilterOptionsInput.omit({
+  hasParentObservation: true,
 });
 
 export type GetEventFilterOptionsInput = z.infer<
