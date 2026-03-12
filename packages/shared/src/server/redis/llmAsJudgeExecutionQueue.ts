@@ -19,7 +19,6 @@ export class LLMAsJudgeExecutionQueue {
       return LLMAsJudgeExecutionQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

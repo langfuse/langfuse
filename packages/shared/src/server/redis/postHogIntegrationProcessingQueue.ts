@@ -16,7 +16,6 @@ export class PostHogIntegrationProcessingQueue {
     }
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
