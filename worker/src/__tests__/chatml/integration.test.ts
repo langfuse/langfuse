@@ -538,7 +538,7 @@ type SeedFileTestCase = {
   adapter: string;
 };
 
-describe("should categorize correctly the seed spans", () => {
+describe("ChatML seed spans tests", () => {
   it.each([
     { seed: "agno-2025-06-11.json", adapter: "generic" },
     { seed: "autogen-2025-06-06.json", adapter: "generic" },
