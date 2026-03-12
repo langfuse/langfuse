@@ -42,6 +42,21 @@ const regions =
               hostname: "jp.cloud.langfuse.com",
               flag: "️🇯🇵",
             },
+            {
+              name: "US",
+              hostname: "us.cloud.langfuse.com",
+              flag: "🇺🇸",
+            },
+            {
+              name: "EU",
+              hostname: "cloud.langfuse.com",
+              flag: "🇪🇺",
+            },
+            {
+              name: "HIPAA",
+              hostname: "hipaa.cloud.langfuse.com",
+              flag: "⚕️",
+            },
           ]
         : [
             {
