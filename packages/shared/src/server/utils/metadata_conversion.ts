@@ -34,7 +34,7 @@ export function unflattenMetadata(flat: MetadataDomain): MetadataDomain {
     } else {
       const parent = key.slice(0, dotIndex);
       const child = key.slice(dotIndex + 1);
-      if (result[parent] === undefined) {
+      if (result[parent] === undefined || typeof result[parent] !== "object") {
         result[parent] = {} as { [key: string]: JsonNested };
       }
       (result[parent] as { [key: string]: JsonNested })[child] =

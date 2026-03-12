@@ -353,6 +353,13 @@ function KeyAutocompleteInput({
     setLocalValue(value);
   }, [value]);
 
+  // Clean up pending debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const debouncedOnChange = useCallback(
     (v: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
