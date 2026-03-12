@@ -9,8 +9,8 @@ CREATE TABLE event_log ON CLUSTER default
     `bucket_name` String,
     `bucket_path` String,
 
-    `created_at`  DateTime64(3) DEFAULT now(),
-    `updated_at`  DateTime64(3) DEFAULT now()
+    `created_at`  DateTime64(3, 'UTC') DEFAULT now('UTC'),
+    `updated_at`  DateTime64(3, 'UTC') DEFAULT now('UTC')
 ) ENGINE = MergeTree()
       ORDER BY (
                 project_id,

@@ -8,9 +8,9 @@ CREATE TABLE blob_storage_file_log ON CLUSTER default (
     `bucket_name` String,
     `bucket_path` String,
 
-    `created_at`  DateTime64(3) DEFAULT now(),
-    `updated_at`  DateTime64(3) DEFAULT now(),
-    event_ts DateTime64(3),
+    `created_at`  DateTime64(3, 'UTC') DEFAULT now('UTC'),
+    `updated_at`  DateTime64(3, 'UTC') DEFAULT now('UTC'),
+    event_ts DateTime64(3, 'UTC'),
     is_deleted UInt8,
 ) ENGINE = ReplicatedReplacingMergeTree(event_ts, is_deleted)
       ORDER BY (

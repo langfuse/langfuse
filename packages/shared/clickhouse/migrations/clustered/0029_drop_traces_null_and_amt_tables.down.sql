@@ -4,8 +4,8 @@ CREATE TABLE traces_null ON CLUSTER default
     -- Identifiers
     `project_id`      String,
     `id`              String,
-    `start_time`      DateTime64(3),
-    `end_time`        Nullable(DateTime64(3)),
+    `start_time`      DateTime64(3, 'UTC'),
+    `end_time`        Nullable(DateTime64(3, 'UTC')),
     `name`            Nullable(String),
 
     -- Metadata properties
@@ -32,9 +32,9 @@ CREATE TABLE traces_null ON CLUSTER default
     `input`           String,
     `output`          String,
 
-    `created_at`      DateTime64(3),
-    `updated_at`      DateTime64(3),
-    `event_ts`        DateTime64(3)
+    `created_at`      DateTime64(3, 'UTC'),
+    `updated_at`      DateTime64(3, 'UTC'),
+    `event_ts`        DateTime64(3, 'UTC')
 ) Engine = Null();
 
 CREATE TABLE traces_all_amt ON CLUSTER default
@@ -42,9 +42,9 @@ CREATE TABLE traces_all_amt ON CLUSTER default
     -- Identifiers
     `project_id`         String,
     `id`                 String,
-    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
-    `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
-    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3, 'UTC')),  -- Backward compatibility: redundant with start_time
+    `start_time`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3, 'UTC'))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
@@ -57,8 +57,8 @@ CREATE TABLE traces_all_amt ON CLUSTER default
     `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
-    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
-    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
+    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
+    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
 
     -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
@@ -67,11 +67,11 @@ CREATE TABLE traces_all_amt ON CLUSTER default
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
     -- Input/Output -> prefer correctness via argMax
-    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `input`       AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
 
-    `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
-    `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
+    `created_at`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `updated_at`         SimpleAggregateFunction(max, DateTime64(3, 'UTC')),
 
     -- Indexes
     INDEX idx_trace_id id TYPE bloom_filter(0.001) GRANULARITY 1,
@@ -89,9 +89,9 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     -- Identifiers
     `project_id`         String,
     `id`                 String,
-    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
-    `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
-    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3, 'UTC')),  -- Backward compatibility: redundant with start_time
+    `start_time`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3, 'UTC'))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
@@ -104,8 +104,8 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
-    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
-    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
+    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
+    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
 
     -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
@@ -114,11 +114,11 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
     -- Input/Output -> prefer correctness via argMax
-    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `input`       AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
 
-    `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
-    `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
+    `created_at`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `updated_at`         SimpleAggregateFunction(max, DateTime64(3, 'UTC')),
 
     -- Indexes
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
@@ -136,9 +136,9 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     -- Identifiers
     `project_id`         String,
     `id`                 String,
-    `timestamp`          SimpleAggregateFunction(min, DateTime64(3)),  -- Backward compatibility: redundant with start_time
-    `start_time`         SimpleAggregateFunction(min, DateTime64(3)),
-    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3))),
+    `timestamp`          SimpleAggregateFunction(min, DateTime64(3, 'UTC')),  -- Backward compatibility: redundant with start_time
+    `start_time`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `end_time`           SimpleAggregateFunction(max, Nullable(DateTime64(3, 'UTC'))),
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
@@ -151,8 +151,8 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     `release`            SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- UI properties
-    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
-    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
+    `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
+    `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3, 'UTC')),
 
     -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
@@ -161,11 +161,11 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     `usage_details`      SimpleAggregateFunction(sumMap, Map(String, UInt64)),
 
     -- Input/Output -> prefer correctness via argMax
-    `input`       AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
-    `output`      AggregateFunction(argMax, String, DateTime64(3)) CODEC (ZSTD(3)),
+    `input`       AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
+    `output`      AggregateFunction(argMax, String, DateTime64(3, 'UTC')) CODEC (ZSTD(3)),
 
-    `created_at`         SimpleAggregateFunction(min, DateTime64(3)),
-    `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
+    `created_at`         SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    `updated_at`         SimpleAggregateFunction(max, DateTime64(3, 'UTC')),
 
     -- Indexes
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,

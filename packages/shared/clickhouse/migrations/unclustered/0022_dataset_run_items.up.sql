@@ -12,14 +12,14 @@ CREATE TABLE dataset_run_items (
     `error` Nullable(String),
 
      -- timestamps
-    `created_at` DateTime64(3) DEFAULT now(),
-    `updated_at` DateTime64(3) DEFAULT now(),
+    `created_at` DateTime64(3, 'UTC') DEFAULT now('UTC'),
+    `updated_at` DateTime64(3, 'UTC') DEFAULT now('UTC'),
 
     -- denormalized immutable dataset run fields
     `dataset_run_name` String,
     `dataset_run_description` Nullable(String),
     `dataset_run_metadata` Map(LowCardinality(String), String),
-    `dataset_run_created_at` DateTime64(3),
+    `dataset_run_created_at` DateTime64(3, 'UTC'),
 
     -- denormalized dataset item fields (mutable, but snapshots are relevant)
     `dataset_item_input` Nullable(String) CODEC(ZSTD(3)), -- json
@@ -27,7 +27,7 @@ CREATE TABLE dataset_run_items (
     `dataset_item_metadata` Map(LowCardinality(String), String),
 
     -- clickhouse engine fields
-    `event_ts` DateTime64(3),
+    `event_ts` DateTime64(3, 'UTC'),
     `is_deleted` UInt8,
 
     -- For dataset item lookups
