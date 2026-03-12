@@ -79,6 +79,8 @@ interface GetObservationsFilterOptionsParams {
   hasParentObservation?: boolean;
 }
 
+const MAX_METADATA_SUGGESTION_TIMESPAN_MS = 14 * 24 * 60 * 60 * 1000;
+
 type EventsFilterScope = Pick<
   GetObservationsFilterOptionsParams,
   "startTimeFilter" | "hasParentObservation"
@@ -124,6 +126,35 @@ const mapStartTimeFiltersToTraceScoreTimestampFilters = (
         type: "datetime",
       }))
     : [];
+
+const capMetadataSuggestionTimeFilters = (
+  startTimeFilter?: TimeFilter[],
+): TimeFilter[] => {
+  const timeFilters = startTimeFilter ?? [];
+  const lowerBound = timeFilters.find((filter) => filter.operator === ">=");
+  const upperBound = timeFilters.find((filter) => filter.operator === "<=");
+  const effectiveUpperBound = upperBound?.value ?? new Date();
+  const minAllowedStartTime = new Date(
+    effectiveUpperBound.getTime() - MAX_METADATA_SUGGESTION_TIMESPAN_MS,
+  );
+
+  if (
+    lowerBound &&
+    lowerBound.value.getTime() >= minAllowedStartTime.getTime()
+  ) {
+    return timeFilters;
+  }
+
+  return [
+    ...timeFilters.filter((filter) => filter.operator !== ">="),
+    {
+      column: lowerBound?.column ?? timeFilters[0]?.column ?? "startTime",
+      operator: ">=",
+      value: minAllowedStartTime,
+      type: "datetime",
+    },
+  ];
+};
 
 /**
  * Get paginated list of events
@@ -436,10 +467,15 @@ export async function getEventMetadataKeySuggestions(
     "projectId" | "startTimeFilter"
   >,
 ) {
+  // Cap metadata key suggestions to the most recent 14 days to reduce load.
+  const cappedStartTimeFilter = capMetadataSuggestionTimeFilters(
+    params.startTimeFilter,
+  );
+
   const metadataKeys = await getEventsGroupedByMetadataKey(
     params.projectId,
     buildScopedEventsFilter({
-      startTimeFilter: params.startTimeFilter,
+      startTimeFilter: cappedStartTimeFilter,
     }),
   );
 
