@@ -337,6 +337,12 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
 
+  // Batch Project Media Cleaner configuration (S3/PostgreSQL)
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(5000), // Media items per chunk
+
   // Batch Data Retention Cleaner configuration (ClickHouse)
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED: z
     .enum(["true", "false"])
