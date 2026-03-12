@@ -28,7 +28,9 @@ function convertDate(
       });
     case "hour":
       if (minutes && minutes <= 24 * 60) {
-        return parsedDate.toLocaleTimeString("en-US", {
+        return parsedDate.toLocaleString("en-US", {
+          month: "numeric",
+          day: "numeric",
           hour: "numeric",
         });
       }
