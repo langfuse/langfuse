@@ -47,7 +47,7 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
-import { usePlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
+import { useOptionalPlaygroundMessageSearchActions } from "@/src/features/playground/page/components/PlaygroundMessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
 type PlaygroundContextType = {
@@ -90,6 +90,8 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
+export const useOptionalPlaygroundContext = () => useContext(PlaygroundContext);
+
 export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
   windowId,
@@ -98,8 +100,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
-  const { registerWindowMessages, unregisterWindowMessages } =
-    usePlaygroundMessageSearchActions();
+  const playgroundMessageSearchActions =
+    useOptionalPlaygroundMessageSearchActions();
+  const registerWindowMessages =
+    playgroundMessageSearchActions?.registerWindowMessages;
+  const unregisterWindowMessages =
+    playgroundMessageSearchActions?.unregisterWindowMessages;
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -240,10 +246,18 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
 
   useEffect(() => {
+    if (!registerWindowMessages) {
+      return;
+    }
+
     registerWindowMessages(effectiveWindowId, messages);
   }, [effectiveWindowId, messages, registerWindowMessages]);
 
   useEffect(() => {
+    if (!unregisterWindowMessages) {
+      return;
+    }
+
     return () => {
       unregisterWindowMessages(effectiveWindowId);
     };
