@@ -123,3 +123,28 @@ Minimum verification matrix:
 
 ## Cursor Rules
 - Additional folder-specific rules live in `.cursor/rules/`.
+
+## Cursor Cloud specific instructions
+
+### Prerequisites
+The VM snapshot includes Node.js v24.6.0 (via nvm), pnpm 9.5.0, Docker, the `migrate` CLI (golang-migrate), and the `clickhouse` client. The update script runs `pnpm install` and `pnpm run db:generate` automatically on startup.
+
+### Starting the development environment
+1. **Start infrastructure** (Postgres, ClickHouse, Redis, MinIO): `pnpm run infra:dev:up`
+2. **Reset databases** (only if needed on first run or after schema changes):
+   - Set `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` env var to the user's request text to bypass the Prisma AI-agent safety check.
+   - `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="<user request>" pnpm --filter=shared run db:reset -f`
+   - `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="<user request>" pnpm --filter=shared run db:reset:test`
+   - `SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset`
+   - `pnpm --filter=shared run db:seed:examples`
+3. **Build shared package** before running worker tests: `pnpm --filter @langfuse/shared run build`
+4. **Start dev servers**: `pnpm run dev` (web on :3000, worker on :3030)
+
+### Gotchas
+- **Prisma AI-agent guard**: Prisma `migrate reset` detects Cursor and blocks unless `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` env var is set with the user's consent text.
+- **ClickHouse dev tables**: The `ch:dev-tables` step in `ch:reset` requires the `clickhouse` client binary (installed in the snapshot). If it fails with "clickhouse binary could not be found", install via `sudo apt-get install -y clickhouse-client`.
+- **Worker tests require shared build**: Run `pnpm --filter @langfuse/shared run build` before running worker tests; otherwise imports from `@langfuse/shared/src/*` will fail to resolve.
+- **Lint requires the dev server**: Per `.cursor/rules/general-info.mdc`, ESLint only works correctly when the development server is running.
+- **Docker in Cloud VM**: Docker runs inside a Firecracker VM container. The daemon is configured with `fuse-overlayfs` storage driver and `iptables-legacy`. If `dockerd` is not running, start it with `sudo dockerd &`.
+- **Login credentials** (after seeding): `demo@langfuse.com` / `password`. The seeded demo project URL: `http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`
+- **Format before committing**: Always run `pnpm format` before finishing a task to pass CI formatting checks.
