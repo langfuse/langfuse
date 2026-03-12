@@ -96,6 +96,24 @@ describe("PromptService", () => {
         expect.any(Number),
       );
     });
+
+    it("should bypass cache entirely when resolve is false", async () => {
+      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+
+      const result = await promptService.getPrompt({
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: 1,
+        label: undefined,
+        resolve: false,
+      });
+
+      expect(result).toEqual(mockPrompt);
+      expect(mockPrisma.prompt.findFirst).toHaveBeenCalled();
+      expect(mockRedis.get).not.toHaveBeenCalled();
+      expect(mockRedis.set).not.toHaveBeenCalled();
+      expect(mockMetricIncrementer).not.toHaveBeenCalled();
+    });
   });
 
   describe("invalidateCache", () => {

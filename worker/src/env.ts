@@ -17,7 +17,7 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-    .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+    .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
     .optional(),
 
   STRIPE_SECRET_KEY: z.string().optional(),

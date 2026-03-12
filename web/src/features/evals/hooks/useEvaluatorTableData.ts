@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import { z } from "zod/v4";
 import {
-  deriveEvaluatorDisplayStateFromExecutionCounts,
   type EvaluatorBlockReason,
   type FilterState,
   singleFilter,
   type OrderByState,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import {
+  getLazyEvaluatorDisplayStatus,
+  useLazyEvaluatorExecutionCountsByIds,
+} from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
@@ -84,32 +87,23 @@ export const useEvaluatorTableData = ({
     },
   );
 
-  const jobExecutionCounts =
-    api.evals.jobExecutionCountsByEvaluatorIds.useQuery(
-      {
-        projectId,
-        evaluatorIds,
-      },
-      {
-        enabled: evaluators.isSuccess && evaluatorIds.length > 0,
-      },
-    );
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCountsByIds({
+    projectId,
+    evaluatorIds,
+    enabled: evaluators.isSuccess,
+  });
 
   const rows = useMemo(
     () =>
       (evaluators.data?.configs ?? []).map((jobConfig) => {
-        const executionCounts = jobExecutionCounts.data?.[jobConfig.id];
+        const executionCounts =
+          lazyExecutionCounts.jobExecutionCountsByEvaluatorId[jobConfig.id];
         const costData = costs.data?.[jobConfig.id];
-        const status = executionCounts
-          ? deriveEvaluatorDisplayStateFromExecutionCounts({
-              status: jobConfig.status,
-              blockedAt: jobConfig.blockedAt,
-              timeScope: Array.isArray(jobConfig.timeScope)
-                ? jobConfig.timeScope
-                : [],
-              executionCounts,
-            })
-          : jobConfig.displayStatus;
+        const status =
+          getLazyEvaluatorDisplayStatus({
+            evaluator: jobConfig,
+            jobExecutionCounts: executionCounts,
+          }) ?? jobConfig.displayStatus;
 
         return {
           id: jobConfig.id,
@@ -131,7 +125,9 @@ export const useEvaluatorTableData = ({
           filter: z.array(singleFilter).parse(jobConfig.filter),
           result: generateJobExecutionCounts(executionCounts),
           isCostLoading: !costs.data,
-          isResultLoading: !jobExecutionCounts.data,
+          isResultLoading:
+            lazyExecutionCounts.isLoading &&
+            !lazyExecutionCounts.jobExecutionCountsByEvaluatorId[jobConfig.id],
           maintainer: jobConfig.evalTemplate
             ? jobConfig.evalTemplate.projectId
               ? "User maintained"
@@ -143,7 +139,12 @@ export const useEvaluatorTableData = ({
           isLegacy: isLegacyEvalTarget(jobConfig.targetObject),
         } satisfies EvaluatorDataRow;
       }),
-    [costs.data, evaluators.data?.configs, jobExecutionCounts.data],
+    [
+      costs.data,
+      evaluators.data?.configs,
+      lazyExecutionCounts.isLoading,
+      lazyExecutionCounts.jobExecutionCountsByEvaluatorId,
+    ],
   );
 
   return {
