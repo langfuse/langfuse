@@ -117,7 +117,7 @@ export function RequestResetPasswordEmailButton({
         </Button>
       )}
       {errorMessage && (
-        <div className="mt-3 text-center text-sm text-destructive">
+        <div className="text-destructive mt-3 text-center text-sm">
           {errorMessage}
         </div>
       )}

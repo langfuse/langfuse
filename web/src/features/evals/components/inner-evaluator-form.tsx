@@ -174,14 +174,14 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
+          <span className="text-sm leading-none font-medium">
             Preview sample matched traces
           </span>
           <FormDescription>
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -225,7 +225,7 @@ const ObservationsPreview = memo(
             Sample over the last 24 hours that match filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {isBetaEnabled ? (
               <EventsTable
@@ -621,7 +621,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="size-3 text-muted-foreground" />
+                            <InfoIcon className="text-muted-foreground size-3" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -662,7 +662,7 @@ export const InnerEvaluatorForm = (props: {
                               <Badge
                                 variant="secondary"
                                 size="sm"
-                                className="border border-border font-normal"
+                                className="border-border border font-normal"
                               >
                                 Legacy
                               </Badge>
@@ -742,7 +742,7 @@ export const InnerEvaluatorForm = (props: {
                         <Badge
                           variant="secondary"
                           size="sm"
-                          className="border border-border font-normal"
+                          className="border-border border font-normal"
                         >
                           Legacy
                         </Badge>
@@ -786,7 +786,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -811,7 +811,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}
@@ -821,7 +821,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="size-3 text-muted-foreground" />
+                                      <InfoIcon className="text-muted-foreground size-3" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -887,7 +887,7 @@ export const InnerEvaluatorForm = (props: {
                           </FormControl>
                         </FormItem>
                         {!field.value && isEventTarget(target) && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             This evaluator can still be used for batched
                             evaluation of historic observations.
                           </p>
@@ -942,7 +942,7 @@ export const InnerEvaluatorForm = (props: {
                         <FormControl>
                           <div className="max-w-[500px]">
                             {props.disabled && !hasFilters ? (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-muted-foreground text-xs">
                                 All {getTargetDisplayName(target)} will be
                                 evaluated
                               </p>
@@ -986,7 +986,7 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="align-center flex max-w-[500px] gap-1">
-                            <AlertTriangle className="h-4 w-4 text-dark-yellow" />
+                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
                             <AlertDescription className="text-dark-yellow">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.

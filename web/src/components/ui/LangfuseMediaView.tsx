@@ -121,7 +121,7 @@ function FileViewer({
       onClick={openInNewTab}
       aria-label={`Open ${fileName} in new tab`}
       title={fileName}
-      className="group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-gradient-to-br from-accent-light-green/30 to-muted px-2 transition-colors hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30"
+      className="group from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
     >
       <div className="flex flex-col items-center gap-2">
         {fileType === "image" ? (
@@ -134,7 +134,7 @@ function FileViewer({
 
         <div className="flex flex-col items-center gap-1">
           <span className="text-sm font-medium">{fileExtension}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
           </span>
         </div>

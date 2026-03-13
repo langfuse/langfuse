@@ -154,7 +154,7 @@ export function SetPromptVersionLabels({
       <PopoverTrigger asChild data-version-trigger="true">
         <div
           className={cn(
-            "flex w-fit min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
+            "flex w-fit max-w-full min-w-0 cursor-pointer flex-wrap gap-1",
             !hasAccess && "cursor-not-allowed",
           )}
         >
@@ -167,7 +167,7 @@ export function SetPromptVersionLabels({
             variant="outline"
             title="Add prompt label"
             className={cn(
-              "h-6 w-6 bg-muted-gray text-primary",
+              "bg-muted-gray text-primary h-6 w-6",
               showOnlyOnHover && "opacity-0 group-hover:opacity-100",
               !hasAccess && "cursor-not-allowed group-hover:opacity-50",
             )}
@@ -266,7 +266,7 @@ export function SetPromptVersionLabels({
 
                 {/* Filtered label list */}
                 <div
-                  className="max-h-[240px] overflow-y-auto overflow-x-hidden"
+                  className="max-h-[240px] overflow-x-hidden overflow-y-auto"
                   ref={customLabelScrollRef}
                 >
                   {filteredCustomLabels.map((label) => (
