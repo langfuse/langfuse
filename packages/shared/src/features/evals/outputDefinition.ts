@@ -32,6 +32,61 @@ export function getMinimumCategoricalOptionsMessage(allowNoMatch: boolean) {
   return `Add at least ${minimumCount} ${minimumCount === 1 ? "category" : "categories"}`;
 }
 
+export type CategoricalOptionRuleViolation =
+  | {
+      type: "minimum_count";
+      minimumCount: number;
+    }
+  | {
+      type: "reserved_value";
+      index: number;
+    }
+  | {
+      type: "duplicate_value";
+      index: number;
+    };
+
+export function getCategoricalOptionRuleViolations(params: {
+  options: Array<{ value: string }>;
+  allowNoMatch: boolean;
+}) {
+  const violations: CategoricalOptionRuleViolation[] = [];
+  const minimumCount = getMinimumCategoricalOptionsCount(params.allowNoMatch);
+
+  if (params.options.length < minimumCount) {
+    violations.push({
+      type: "minimum_count",
+      minimumCount,
+    });
+  }
+
+  const seenValues = new Set<string>();
+
+  params.options.forEach((option, index) => {
+    const normalizedValue = option.value.trim();
+
+    if (params.allowNoMatch && normalizedValue === EvalNoMatchOptionValue) {
+      violations.push({
+        type: "reserved_value",
+        index,
+      });
+      return;
+    }
+
+    if (seenValues.has(normalizedValue)) {
+      violations.push({
+        type: "duplicate_value",
+        index,
+      });
+      return;
+    }
+
+    seenValues.add(normalizedValue);
+  });
+
+  return violations;
+}
+
 const EvalLegacyCategoricalOptionDefinitionSchema = z.object({
   value: z.string().trim().min(1),
   description: z.string().trim().min(1).optional(),
@@ -67,44 +122,35 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     }),
   })
   .superRefine((value, ctx) => {
-    const minimumOptionCount = getMinimumCategoricalOptionsCount(
-      value.score.allowNoMatch,
-    );
-
-    if (value.score.options.length < minimumOptionCount) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: getMinimumCategoricalOptionsMessage(value.score.allowNoMatch),
-        path: ["score", "options"],
-      });
-    }
-
-    const seenValues = new Set<string>();
-
-    value.score.options.forEach((option, index) => {
-      const normalizedValue = option.value.trim();
-      if (
-        value.score.allowNoMatch &&
-        normalizedValue === EvalNoMatchOptionValue
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
-          path: ["score", "options", index, "value"],
-        });
-        return;
+    getCategoricalOptionRuleViolations({
+      options: value.score.options,
+      allowNoMatch: value.score.allowNoMatch,
+    }).forEach((violation) => {
+      switch (violation.type) {
+        case "minimum_count":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: getMinimumCategoricalOptionsMessage(
+              value.score.allowNoMatch,
+            ),
+            path: ["score", "options"],
+          });
+          return;
+        case "reserved_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
+            path: ["score", "options", violation.index, "value"],
+          });
+          return;
+        case "duplicate_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Category values must be unique",
+            path: ["score", "options", violation.index, "value"],
+          });
+          return;
       }
-
-      if (seenValues.has(normalizedValue)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Category values must be unique",
-          path: ["score", "options", index, "value"],
-        });
-        return;
-      }
-
-      seenValues.add(normalizedValue);
     });
   });
 export type CategoricalEvalOutputDefinitionV2 = z.infer<
@@ -137,10 +183,22 @@ export type ResolvedEvalOutputDefinition =
       allowMultipleMatches: boolean;
     };
 
-export type EvalOutputResult = {
+type RawEvalOutputResult = {
   score: number | string | string[];
   reasoning: string;
 };
+
+export type EvalOutputResult =
+  | {
+      dataType: typeof ScoreDataTypeEnum.NUMERIC;
+      score: number;
+      reasoning: string;
+    }
+  | {
+      dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
+      matches: string[];
+      reasoning: string;
+    };
 
 // Resolve the persisted evaluator output definition into one stable execution
 // shape regardless of whether the source row is legacy or v2.
@@ -387,16 +445,46 @@ export function compilePersistedEvalOutputDefinition(
   };
 }
 
+function normalizeValidatedEvalOutputResult(params: {
+  result: RawEvalOutputResult;
+  resolvedOutputDefinition: ResolvedEvalOutputDefinition;
+}): EvalOutputResult {
+  if (params.resolvedOutputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return {
+      dataType: ScoreDataTypeEnum.NUMERIC,
+      score: params.result.score as number,
+      reasoning: params.result.reasoning,
+    };
+  }
+
+  return {
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    matches: Array.isArray(params.result.score)
+      ? params.result.score
+      : [params.result.score as string],
+    reasoning: params.result.reasoning,
+  };
+}
+
 export function validateEvalOutputResult(params: {
   response: unknown;
-  resultSchema: ReturnType<typeof buildEvalOutputResultSchema>;
+  compiledOutputDefinition: CompiledEvalOutputDefinition;
 }):
   | { success: true; data: EvalOutputResult }
   | { success: false; error: string } {
-  const result = params.resultSchema.safeParse(params.response);
+  const result = params.compiledOutputDefinition.outputResultSchema.safeParse(
+    params.response,
+  );
 
   if (result.success) {
-    return { success: true, data: result.data };
+    return {
+      success: true,
+      data: normalizeValidatedEvalOutputResult({
+        result: result.data as RawEvalOutputResult,
+        resolvedOutputDefinition:
+          params.compiledOutputDefinition.resolvedOutputDefinition,
+      }),
+    };
   }
 
   return { success: false, error: result.error.message };

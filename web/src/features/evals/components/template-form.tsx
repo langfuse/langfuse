@@ -19,6 +19,7 @@ import {
   createNumericEvalOutputDefinition,
   EvalOutputDataTypeSchema,
   EvalNoMatchOptionValue,
+  getCategoricalOptionRuleViolations,
   getMinimumCategoricalOptionsCount,
   getMinimumCategoricalOptionsMessage,
   type PersistedEvalOutputDefinition,
@@ -158,40 +159,33 @@ const formSchema = z
       return;
     }
 
-    if (
-      value.categoricalOptions.length <
-      getMinimumCategoricalOptionsCount(value.allowNoMatch)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: getMinimumCategoricalOptionsMessage(value.allowNoMatch),
-        path: ["categoricalOptions"],
-      });
-    }
-
-    const seenValues = new Set<string>();
-
-    value.categoricalOptions.forEach((option, index) => {
-      const normalizedValue = option.value.trim();
-      if (value.allowNoMatch && normalizedValue === EvalNoMatchOptionValue) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
-          path: ["categoricalOptions", index, "value"],
-        });
-        return;
+    getCategoricalOptionRuleViolations({
+      options: value.categoricalOptions,
+      allowNoMatch: value.allowNoMatch,
+    }).forEach((violation) => {
+      switch (violation.type) {
+        case "minimum_count":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: getMinimumCategoricalOptionsMessage(value.allowNoMatch),
+            path: ["categoricalOptions"],
+          });
+          return;
+        case "reserved_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
+            path: ["categoricalOptions", violation.index, "value"],
+          });
+          return;
+        case "duplicate_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Category values must be unique",
+            path: ["categoricalOptions", violation.index, "value"],
+          });
+          return;
       }
-
-      if (seenValues.has(normalizedValue)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Category values must be unique",
-          path: ["categoricalOptions", index, "value"],
-        });
-        return;
-      }
-
-      seenValues.add(normalizedValue);
     });
   });
 

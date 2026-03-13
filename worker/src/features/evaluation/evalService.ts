@@ -59,6 +59,7 @@ import {
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
   PersistedEvalOutputDefinitionSchema,
+  ScoreDataTypeEnum,
   validateEvalOutputResult,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -904,7 +905,7 @@ export async function executeLLMAsJudgeEvaluation({
 
       const parsedLLMOutput = validateEvalOutputResult({
         response: llmOutput,
-        resultSchema: compiledOutputDefinition.outputResultSchema,
+        compiledOutputDefinition,
       });
 
       if (!parsedLLMOutput.success) {
@@ -914,11 +915,15 @@ export async function executeLLMAsJudgeEvaluation({
       }
 
       logger.debug(
-        `Job ${jobExecutionId} received LLM output: score=${parsedLLMOutput.data.score}`,
+        `Job ${jobExecutionId} received LLM output: ${
+          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
+            ? `score=${parsedLLMOutput.data.score}`
+            : `matches=${parsedLLMOutput.data.matches.join(",")}`
+        }`,
       );
 
       const scoreWritePayloads =
-        typeof parsedLLMOutput.data.score === "number"
+        parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
           ? (() => {
               const eventId = randomUUID();
 
@@ -942,10 +947,7 @@ export async function executeLLMAsJudgeEvaluation({
                 },
               ];
             })()
-          : (Array.isArray(parsedLLMOutput.data.score)
-              ? parsedLLMOutput.data.score
-              : [parsedLLMOutput.data.score]
-            ).map((scoreValue, index) => {
+          : parsedLLMOutput.data.matches.map((scoreValue, index) => {
               const scoreId = index === 0 ? primaryScoreId : randomUUID();
               const eventId = randomUUID();
 
@@ -1013,7 +1015,11 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       logger.debug(
-        `Eval job ${job.id} completed with score ${parsedLLMOutput.data.score}`,
+        `Eval job ${job.id} completed with ${
+          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
+            ? `score ${parsedLLMOutput.data.score}`
+            : `matches ${parsedLLMOutput.data.matches.join(",")}`
+        }`,
       );
     },
   );

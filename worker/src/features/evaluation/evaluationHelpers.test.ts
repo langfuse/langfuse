@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compilePersistedEvalOutputDefinition,
   buildEvalOutputResultSchema,
   buildEvalOutputJsonSchema,
   ChatMessageRole,
@@ -458,36 +459,36 @@ describe("evaluation helpers", () => {
 
   describe("validateEvalOutputResult", () => {
     it("should validate correct response", () => {
-      const schema = buildEvalOutputResultSchema(
-        createNumericEvalOutputDefinition({
-          scoreDescription: "Score 0-1",
-          reasoningDescription: "Why",
-        }),
-      );
-
+      const outputDefinition = createNumericEvalOutputDefinition({
+        scoreDescription: "Score 0-1",
+        reasoningDescription: "Why",
+      });
       const result = validateEvalOutputResult({
         response: { score: 0.8, reasoning: "Good" },
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.score).toBe(0.8);
-        expect(result.data.reasoning).toBe("Good");
+        expect(result.data).toEqual({
+          dataType: ScoreDataTypeEnum.NUMERIC,
+          score: 0.8,
+          reasoning: "Good",
+        });
       }
     });
 
     it("should return error for invalid response", () => {
-      const schema = buildEvalOutputResultSchema(
-        createNumericEvalOutputDefinition({
-          scoreDescription: "Score 0-1",
-          reasoningDescription: "Why",
-        }),
-      );
+      const outputDefinition = createNumericEvalOutputDefinition({
+        scoreDescription: "Score 0-1",
+        reasoningDescription: "Why",
+      });
 
       const result = validateEvalOutputResult({
         response: { score: "invalid", reasoning: "Test" },
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(false);
@@ -497,78 +498,82 @@ describe("evaluation helpers", () => {
     });
 
     it("should return error for null response", () => {
-      const schema = buildEvalOutputResultSchema(
-        createNumericEvalOutputDefinition({
-          scoreDescription: "Score 0-1",
-          reasoningDescription: "Why",
-        }),
-      );
+      const outputDefinition = createNumericEvalOutputDefinition({
+        scoreDescription: "Score 0-1",
+        reasoningDescription: "Why",
+      });
 
       const result = validateEvalOutputResult({
         response: null,
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(false);
     });
 
     it("should return error for missing fields", () => {
-      const schema = buildEvalOutputResultSchema(
-        createNumericEvalOutputDefinition({
-          scoreDescription: "Score 0-1",
-          reasoningDescription: "Why",
-        }),
-      );
+      const outputDefinition = createNumericEvalOutputDefinition({
+        scoreDescription: "Score 0-1",
+        reasoningDescription: "Why",
+      });
 
       const result = validateEvalOutputResult({
         response: { score: 0.5 },
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(false);
     });
 
-    it("should validate categorical responses", () => {
-      const schema = buildEvalOutputResultSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose the best matching category",
-          reasoningDescription: "Why",
-          options: [{ value: "correct" }, { value: "incorrect" }],
-        }),
-      );
+    it("should normalize categorical responses to a matches array", () => {
+      const outputDefinition = createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose the best matching category",
+        reasoningDescription: "Why",
+        options: [{ value: "correct" }, { value: "incorrect" }],
+      });
 
       const result = validateEvalOutputResult({
         response: { score: "correct", reasoning: "Supported by the context" },
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.score).toBe("correct");
+        expect(result.data).toEqual({
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          matches: ["correct"],
+          reasoning: "Supported by the context",
+        });
       }
     });
 
     it("should validate categorical multi-match responses", () => {
-      const schema = buildEvalOutputResultSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose all matching categories",
-          reasoningDescription: "Why",
-          options: [{ value: "correct" }, { value: "incorrect" }],
-          allowMultipleMatches: true,
-        }),
-      );
+      const outputDefinition = createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose all matching categories",
+        reasoningDescription: "Why",
+        options: [{ value: "correct" }, { value: "incorrect" }],
+        allowMultipleMatches: true,
+      });
 
       const result = validateEvalOutputResult({
         response: {
           score: ["correct", "incorrect"],
           reasoning: "Both labels apply in this synthetic test.",
         },
-        resultSchema: schema,
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.score).toEqual(["correct", "incorrect"]);
+        expect(result.data).toEqual({
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          matches: ["correct", "incorrect"],
+          reasoning: "Both labels apply in this synthetic test.",
+        });
       }
     });
   });
