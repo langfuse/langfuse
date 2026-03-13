@@ -407,7 +407,7 @@ export const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };
 
-const unflattenMetadataForTrpc = (
+export const unflattenMetadataForTrpc = (
   metadata: MetadataDomain | undefined,
 ): MetadataDomain => {
   if (!metadata) {
