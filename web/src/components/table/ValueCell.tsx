@@ -1,10 +1,12 @@
-import { memo, type JSX, useState } from "react";
+import { memo, type JSX, useState, useMemo } from "react";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import { Copy, Check } from "lucide-react";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { detectCodeInValue } from "@/src/components/table/utils/codeDetection";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 export const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -13,6 +15,7 @@ const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+// Debug: CodeMirror code detection enabled
 
 function renderStringWithLinks(text: string): React.ReactNode {
   if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
@@ -169,6 +172,12 @@ export const ValueCell = memo(
     const isCellExpanded = expandedCells.has(cellId);
     const [showCopySuccess, setShowCopySuccess] = useState(false);
 
+    // Code detection for strings
+    const codeDetection = useMemo(() => {
+      if (typeof value !== "string") return { isCode: false };
+      return detectCodeInValue(value);
+    }, [value]);
+
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
       const copyValue = getCopyValue(value);
@@ -186,6 +195,29 @@ export const ValueCell = memo(
       switch (type) {
         case "string": {
           const stringValue = String(value);
+
+          // If it's detected as code, render with CodeMirror
+          if (codeDetection.isCode && codeDetection.mode) {
+            return {
+              content: (
+                <div className="code-cell w-full">
+                  <CodeMirrorEditor
+                    value={stringValue}
+                    mode={codeDetection.mode as any} // CodeMirror handles unsupported modes gracefully
+                    editable={false}
+                    lineNumbers={false} // No line numbers in table cells
+                    lineWrapping={true}
+                    minHeight={100}
+                    maxHeight={200}
+                    className="border-0 text-xs"
+                  />
+                </div>
+              ),
+              needsTruncation: false, // CodeMirror handles its own display
+            };
+          }
+
+          // Regular string handling for non-code strings
           const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
           const displayValue =
             needsTruncation && !isCellExpanded
