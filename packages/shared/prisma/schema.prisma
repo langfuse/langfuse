@@ -944,8 +944,8 @@ model EvalTemplate {
   @@map("eval_templates")
 }
 
-// We currently assume in the evalRouter that _all_ job_executions are for EVAL job_configs.
-// If we ever extend this, we need to adjust the filter condition there. ref.: fetchJobExecutionsByStatus.
+// We currently assume in evaluator execution-count queries that _all_ job_executions are for EVAL job_configs.
+// If we ever extend this, we need to adjust the filter condition there. ref.: getEvaluatorExecutionStatusCounts.
 enum JobType {
   EVAL
 }
@@ -1125,6 +1125,10 @@ model BlobStorageIntegration {
   exportMode      BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                        @map("export_start_date")
   exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // Error tracking
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

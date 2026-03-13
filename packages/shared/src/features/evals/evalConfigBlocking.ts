@@ -1,4 +1,8 @@
-import { EvaluatorBlockReason, JobConfigState } from "@prisma/client";
+import {
+  EvaluatorBlockReason,
+  JobConfigState,
+  JobExecutionStatus,
+} from "@prisma/client";
 
 export const PausedEvaluatorDisplayState = "PAUSED" as const;
 export type PausedEvaluatorDisplayState = typeof PausedEvaluatorDisplayState;
@@ -7,6 +11,16 @@ export type EvaluatorDisplayState =
   | JobConfigState
   | PausedEvaluatorDisplayState
   | "FINISHED";
+
+export type EvaluatorExecutionStatusCount = {
+  status: JobExecutionStatus;
+  count: number;
+};
+
+export type EvaluatorExecutionCountsByEvaluatorId = Record<
+  string,
+  EvaluatorExecutionStatusCount[]
+>;
 
 type BlockStateLike = {
   status: JobConfigState;
@@ -135,4 +149,26 @@ export function deriveEvaluatorDisplayState(params: {
   }
 
   return JobConfigState.ACTIVE;
+}
+
+export function deriveEvaluatorDisplayStateFromExecutionCounts(params: {
+  status: JobConfigState;
+  blockedAt?: Date | null;
+  timeScope: string[];
+  executionCounts?: EvaluatorExecutionStatusCount[];
+}): EvaluatorDisplayState {
+  const { status, blockedAt, timeScope, executionCounts = [] } = params;
+
+  return deriveEvaluatorDisplayState({
+    status,
+    blockedAt,
+    timeScope,
+    hasPendingJobs: executionCounts.some(
+      (executionCount) => executionCount.status === JobExecutionStatus.PENDING,
+    ),
+    totalJobCount: executionCounts.reduce(
+      (total, executionCount) => total + executionCount.count,
+      0,
+    ),
+  });
 }
