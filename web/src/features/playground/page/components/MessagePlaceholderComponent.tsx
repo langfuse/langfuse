@@ -96,6 +96,7 @@ export const MessagePlaceholderComponent: React.FC<{
         editable={true}
         lineNumbers={false}
         placeholder={`[\n  {\n    "role": "user",\n    "content": "Hello!"\n  },\n  {\n    "role": "assistant",\n    "content": "Hi there!"\n  }\n]`}
+        enableSearchKeymap={false}
       />
 
       {hasConflict && (
