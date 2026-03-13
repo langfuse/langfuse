@@ -38,3 +38,10 @@ export const blobStorageIntegrationFormSchema = z.object({
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema
 >;
+
+export type BlobStorageSyncStatus =
+  | "idle"
+  | "queued"
+  | "up_to_date"
+  | "disabled"
+  | "error";
