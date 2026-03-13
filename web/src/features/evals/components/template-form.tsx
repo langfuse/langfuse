@@ -18,6 +18,7 @@ import {
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   EvalOutputDataTypeSchema,
+  EvalNoMatchOptionValue,
   type PersistedEvalOutputDefinition,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
@@ -115,7 +116,6 @@ const selectedModelSchema = z.object({
 
 const categoricalOptionSchema = z.object({
   value: z.string().trim().min(1, "Enter a category value"),
-  description: z.string().optional(),
 });
 
 const formSchema = z
@@ -143,6 +143,7 @@ const formSchema = z
     scoreDescription: z.string().min(1, "Enter a score function"),
     reasoningDescription: z.string().min(1, "Enter a reasoning function"),
     categoricalOptions: z.array(categoricalOptionSchema).default([]),
+    allowNoMatch: z.boolean().default(false),
     referencedEvaluators: z
       .enum(EvalReferencedEvaluators)
       .optional()
@@ -167,6 +168,15 @@ const formSchema = z
 
     value.categoricalOptions.forEach((option, index) => {
       const normalizedValue = option.value.trim();
+      if (value.allowNoMatch && normalizedValue === EvalNoMatchOptionValue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
+          path: ["categoricalOptions", index, "value"],
+        });
+        return;
+      }
+
       if (seenValues.has(normalizedValue)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -185,7 +195,8 @@ const defaultNumericOutputDefinitionFormValues = {
   reasoningDescription: "One sentence reasoning for the score",
   scoreDescription:
     "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
-  categoricalOptions: [] as Array<{ value: string; description?: string }>,
+  categoricalOptions: [] as Array<{ value: string }>,
+  allowNoMatch: false,
 };
 
 const toOutputDefinitionFormValues = (
@@ -203,11 +214,14 @@ const toOutputDefinitionFormValues = (
     scoreDataType: resolvedOutputDefinition.dataType,
     reasoningDescription: resolvedOutputDefinition.reasoningDescription,
     scoreDescription: resolvedOutputDefinition.scoreDescription,
+    allowNoMatch:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.allowNoMatch
+        : false,
     categoricalOptions:
       resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
         ? resolvedOutputDefinition.options.map((option) => ({
             value: option.value,
-            description: option.description ?? "",
           }))
         : [],
   };
@@ -297,6 +311,7 @@ export const InnerEvalTemplateForm = (props: {
       reasoningDescription: outputDefinitionFormValues.reasoningDescription,
       scoreDescription: outputDefinitionFormValues.scoreDescription,
       categoricalOptions: outputDefinitionFormValues.categoricalOptions,
+      allowNoMatch: outputDefinitionFormValues.allowNoMatch,
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
@@ -374,8 +389,8 @@ export const InnerEvalTemplateForm = (props: {
             reasoningDescription: values.reasoningDescription,
             options: values.categoricalOptions.map((option) => ({
               value: option.value,
-              description: option.description,
             })),
+            allowNoMatch: values.allowNoMatch,
           })
         : createNumericEvalOutputDefinition({
             scoreDescription: values.scoreDescription,
@@ -597,7 +612,7 @@ export const InnerEvalTemplateForm = (props: {
                       value === ScoreDataTypeEnum.CATEGORICAL &&
                       (form.getValues("categoricalOptions") ?? []).length === 0
                     ) {
-                      replace([{ value: "", description: "" }]);
+                      replace([{ value: "" }]);
                     }
                   }}
                 >
@@ -672,15 +687,14 @@ export const InnerEvalTemplateForm = (props: {
                     <div>
                       <FormLabel>Categories</FormLabel>
                       <FormDescription>
-                        Add the allowed category values. Descriptions are
-                        included in the JSON schema sent to the model.
+                        Add the allowed category values the model may return.
                       </FormDescription>
                     </div>
                     <Button
                       type="button"
                       variant="secondary"
                       disabled={!props.isEditing}
-                      onClick={() => append({ value: "", description: "" })}
+                      onClick={() => append({ value: "" })}
                     >
                       <PlusIcon className="mr-1.5 h-4 w-4" />
                       Add category
@@ -690,7 +704,7 @@ export const InnerEvalTemplateForm = (props: {
                     {categoricalOptionFields.map((field, index) => (
                       <div
                         key={field.id}
-                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto]"
+                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
                       >
                         <FormField
                           control={form.control}
@@ -700,19 +714,6 @@ export const InnerEvalTemplateForm = (props: {
                               <FormLabel>Value</FormLabel>
                               <FormControl>
                                 <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`categoricalOptions.${index}.description`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Description (optional)</FormLabel>
-                              <FormControl>
-                                <Input {...field} value={field.value ?? ""} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -732,6 +733,31 @@ export const InnerEvalTemplateForm = (props: {
                       </div>
                     ))}
                   </div>
+                  <FormField
+                    control={form.control}
+                    name="allowNoMatch"
+                    render={({ field }) => (
+                      <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!props.isEditing}
+                          />
+                        </FormControl>
+                        <div className="space-y-0.5 leading-none">
+                          <FormLabel>Allow &quot;No match&quot;</FormLabel>
+                          <FormDescription>
+                            Adds a built-in{" "}
+                            <span className="font-mono">
+                              {EvalNoMatchOptionValue}
+                            </span>{" "}
+                            category when none of the listed values apply.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                   {form.formState.errors.categoricalOptions?.message ? (
                     <p className="text-sm font-medium text-destructive">
                       {form.formState.errors.categoricalOptions.message}

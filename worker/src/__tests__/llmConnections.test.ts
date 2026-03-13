@@ -95,16 +95,7 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
       scoreDescription:
         "Select 'correct' when the answer is mathematically accurate, otherwise select 'incorrect'.",
       reasoningDescription: "Explain briefly why you selected that category.",
-      options: [
-        {
-          value: "correct",
-          description: "The judged answer is mathematically correct.",
-        },
-        {
-          value: "incorrect",
-          description: "The judged answer is mathematically wrong.",
-        },
-      ],
+      options: [{ value: "correct" }, { value: "incorrect" }],
     }),
     responseSchema: categoricalEvalResponseSchema,
     assertParsed: (data) => {

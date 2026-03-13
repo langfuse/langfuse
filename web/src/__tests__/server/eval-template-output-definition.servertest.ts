@@ -4,6 +4,7 @@ import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/route
 import {
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
+  EvalNoMatchOptionValue,
   ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
@@ -24,10 +25,7 @@ describe("CreateEvalTemplateInputSchema", () => {
       outputDefinition: createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose the best matching category",
         reasoningDescription: "Explain the selected category",
-        options: [
-          { value: "correct", description: "Fully supported" },
-          { value: "partial", description: "Mixed or incomplete" },
-        ],
+        options: [{ value: "correct" }, { value: "partial" }],
       }),
     });
 
@@ -57,10 +55,27 @@ describe("CreateEvalTemplateInputSchema", () => {
         },
         score: {
           description: "Choose the best matching category",
-          options: [
-            { value: "correct", description: "Fully supported" },
-            { value: "correct", description: "Conflicting duplicate" },
-          ],
+          options: [{ value: "correct" }, { value: "correct" }],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it(`rejects "${EvalNoMatchOptionValue}" as a manual category when the built-in option is enabled`, () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          allowNoMatch: true,
+          options: [{ value: EvalNoMatchOptionValue }],
         },
       },
     });

@@ -6,6 +6,7 @@ import {
   ChatMessageType,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
+  EvalNoMatchOptionValue,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
@@ -137,10 +138,7 @@ describe("evaluation helpers", () => {
         createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
-          options: [
-            { value: "correct", description: "Fully supported" },
-            { value: "partial", description: "Some support but incomplete" },
-          ],
+          options: [{ value: "correct" }, { value: "partial" }],
         }),
       );
 
@@ -161,15 +159,12 @@ describe("evaluation helpers", () => {
   });
 
   describe("buildEvalOutputJsonSchema", () => {
-    it("should build categorical JSON schema with described enum options", () => {
+    it("should build categorical JSON schema with a simple enum", () => {
       const schema = buildEvalOutputJsonSchema(
         createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
-          options: [
-            { value: "correct", description: "Fully supported" },
-            { value: "partial", description: "Mixed or incomplete" },
-          ],
+          options: [{ value: "correct" }, { value: "partial" }],
         }),
       );
 
@@ -185,18 +180,26 @@ describe("evaluation helpers", () => {
           score: {
             type: "string",
             description: "Choose the best matching category",
-            oneOf: [
-              {
-                const: "correct",
-                title: "correct",
-                description: "Fully supported",
-              },
-              {
-                const: "partial",
-                title: "partial",
-                description: "Mixed or incomplete",
-              },
-            ],
+            enum: ["correct", "partial"],
+          },
+        },
+      });
+    });
+
+    it(`should append "${EvalNoMatchOptionValue}" when enabled`, () => {
+      const schema = buildEvalOutputJsonSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          options: [{ value: "correct" }, { value: "partial" }],
+          allowNoMatch: true,
+        }),
+      );
+
+      expect(schema).toMatchObject({
+        properties: {
+          score: {
+            enum: ["correct", "partial", EvalNoMatchOptionValue],
           },
         },
       });
@@ -460,10 +463,7 @@ describe("evaluation helpers", () => {
         createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Why",
-          options: [
-            { value: "correct", description: "Fully supported" },
-            { value: "incorrect", description: "Unsupported" },
-          ],
+          options: [{ value: "correct" }, { value: "incorrect" }],
         }),
       );
 
@@ -525,10 +525,7 @@ describe("evaluation helpers", () => {
         createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
-          options: [
-            { value: "correct", description: "Fully supported" },
-            { value: "partial", description: "Mixed or incomplete" },
-          ],
+          options: [{ value: "correct" }, { value: "partial" }],
         }),
       );
 

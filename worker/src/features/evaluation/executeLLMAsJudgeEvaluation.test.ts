@@ -492,10 +492,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
               },
               score: {
                 description: "Choose the best matching category",
-                options: [
-                  { value: "correct", description: "Fully supported" },
-                  { value: "partial", description: "Mixed or incomplete" },
-                ],
+                options: [{ value: "correct" }, { value: "partial" }],
               },
             },
           },
@@ -507,16 +504,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           structuredOutputSchema: expect.objectContaining({
             properties: expect.objectContaining({
               score: expect.objectContaining({
-                oneOf: [
-                  expect.objectContaining({
-                    const: "correct",
-                    description: "Fully supported",
-                  }),
-                  expect.objectContaining({
-                    const: "partial",
-                    description: "Mixed or incomplete",
-                  }),
-                ],
+                enum: ["correct", "partial"],
               }),
             }),
           }),
@@ -785,10 +773,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
               },
               score: {
                 description: "Choose the best matching category",
-                options: [
-                  { value: "correct", description: "Fully supported" },
-                  { value: "partial", description: "Mixed or incomplete" },
-                ],
+                options: [{ value: "correct" }, { value: "partial" }],
               },
             },
           },

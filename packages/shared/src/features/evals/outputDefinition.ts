@@ -21,10 +21,16 @@ const EvalOutputFieldDefinitionSchema = z.object({
   description: z.string().trim().min(1),
 });
 
-export const EvalCategoricalOptionDefinitionSchema = z.object({
+export const EvalNoMatchOptionValue = "No match";
+
+const EvalLegacyCategoricalOptionDefinitionSchema = z.object({
   value: z.string().trim().min(1),
   description: z.string().trim().min(1).optional(),
 });
+export const EvalCategoricalOptionDefinitionSchema =
+  EvalLegacyCategoricalOptionDefinitionSchema.transform(({ value }) => ({
+    value,
+  }));
 export type EvalCategoricalOptionDefinition = z.infer<
   typeof EvalCategoricalOptionDefinitionSchema
 >;
@@ -47,6 +53,7 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     score: z.object({
       description: z.string().trim().min(1),
       options: z.array(EvalCategoricalOptionDefinitionSchema).min(1),
+      allowNoMatch: z.boolean().default(false),
     }),
   })
   .superRefine((value, ctx) => {
@@ -54,6 +61,18 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
 
     value.score.options.forEach((option, index) => {
       const normalizedValue = option.value.trim();
+      if (
+        value.score.allowNoMatch &&
+        normalizedValue === EvalNoMatchOptionValue
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
+          path: ["score", "options", index, "value"],
+        });
+        return;
+      }
+
       if (seenValues.has(normalizedValue)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -92,6 +111,7 @@ export type ResolvedEvalOutputDefinition =
       reasoningDescription: string;
       scoreDescription: string;
       options: EvalCategoricalOptionDefinition[];
+      allowNoMatch: boolean;
     };
 
 export type EvalOutputResult = {
@@ -128,6 +148,7 @@ export function resolvePersistedEvalOutputDefinition(
     reasoningDescription: outputDefinition.reasoning.description,
     scoreDescription: outputDefinition.score.description,
     options: outputDefinition.score.options,
+    allowNoMatch: outputDefinition.score.allowNoMatch,
   };
 }
 
@@ -152,8 +173,8 @@ export function createCategoricalEvalOutputDefinition(params: {
   scoreDescription: string;
   options: Array<{
     value: string;
-    description?: string | null;
   }>;
+  allowNoMatch?: boolean;
 }) {
   return CategoricalEvalOutputDefinitionV2Schema.parse({
     version: 2,
@@ -165,12 +186,22 @@ export function createCategoricalEvalOutputDefinition(params: {
       description: params.scoreDescription,
       options: params.options.map((option) => ({
         value: option.value,
-        ...(option.description?.trim()
-          ? { description: option.description.trim() }
-          : {}),
       })),
+      allowNoMatch: params.allowNoMatch ?? false,
     },
   });
+}
+
+function getResolvedCategoricalScoreValues(
+  resolvedOutputDefinition: Extract<
+    ResolvedEvalOutputDefinition,
+    { dataType: typeof ScoreDataTypeEnum.CATEGORICAL }
+  >,
+) {
+  return [
+    ...resolvedOutputDefinition.options.map((option) => option.value),
+    ...(resolvedOutputDefinition.allowNoMatch ? [EvalNoMatchOptionValue] : []),
+  ];
 }
 
 function buildResolvedEvalOutputJsonSchema(
@@ -188,13 +219,7 @@ function buildResolvedEvalOutputJsonSchema(
           ? {
               type: "string",
               description: resolvedOutputDefinition.scoreDescription,
-              oneOf: resolvedOutputDefinition.options.map((option) => ({
-                const: option.value,
-                title: option.value,
-                ...(option.description
-                  ? { description: option.description }
-                  : {}),
-              })),
+              enum: getResolvedCategoricalScoreValues(resolvedOutputDefinition),
             }
           : {
               type: "number",
@@ -210,8 +235,8 @@ function buildResolvedEvalOutputResultSchema(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
-    const [firstOption, ...restOptions] = resolvedOutputDefinition.options.map(
-      (option) => option.value,
+    const [firstOption, ...restOptions] = getResolvedCategoricalScoreValues(
+      resolvedOutputDefinition,
     );
 
     if (!firstOption) {
