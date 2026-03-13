@@ -34,6 +34,8 @@ import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { filterEventsForBlockedUsers } from "./userBlocking";
+import { propagateTraceUserIds } from "./userIdPropagation";
 
 let s3StorageServiceClient: StorageService;
 
@@ -185,7 +187,16 @@ export const processEventBatch = async (
       return [event];
     });
 
-  const sortedBatch = sortBatch(batch);
+  // Propagate userId from traces to child events
+  await propagateTraceUserIds(batch, authCheck.scope.projectId);
+
+  // Apply user blocking filter
+  const filteredBatch = await filterEventsForBlockedUsers(
+    batch,
+    authCheck.scope.projectId,
+  );
+
+  const sortedBatch = sortBatch(filteredBatch);
 
   // We group events by eventBodyId which allows us to store and process them
   // as one which reduces infra interactions per event. Only used in the S3 case.

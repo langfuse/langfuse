@@ -485,6 +485,7 @@ export type DatasetRunItems = {
   dataset_item_id: string;
   trace_id: string;
   observation_id: string | null;
+  user_id: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -579,6 +580,7 @@ export type LegacyPrismaObservation = {
   start_time: Generated<Timestamp>;
   end_time: Timestamp | null;
   name: string | null;
+  user_id: string | null;
   metadata: unknown | null;
   parent_observation_id: string | null;
   level: Generated<LegacyPrismaObservationLevel>;
@@ -617,6 +619,7 @@ export type LegacyPrismaScore = {
   trace_id: string;
   observation_id: string | null;
   config_id: string | null;
+  user_id: string | null;
   string_value: string | null;
   queue_id: string | null;
   created_at: Generated<Timestamp>;
@@ -957,6 +960,12 @@ export type User = {
   updated_at: Generated<Timestamp>;
   feature_flags: Generated<string[]>;
 };
+export type UserBlockList = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  created_at: Generated<Timestamp>;
+};
 export type VerificationToken = {
   identifier: string;
   token: string;
@@ -1024,6 +1033,7 @@ export type DB = {
   trace_sessions: TraceSession;
   traces: LegacyPrismaTrace;
   triggers: Trigger;
+  user_block_list: UserBlockList;
   users: User;
   verification_tokens: VerificationToken;
 };

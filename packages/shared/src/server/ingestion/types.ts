@@ -349,6 +349,7 @@ export const LegacyGenerationPatchSchema = z.object({
 export const LegacyObservationBody = z.object({
   id: idSchema.nullish(),
   traceId: idSchema.nullish(),
+  userId: z.string().nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: stringDateTime,
@@ -412,6 +413,7 @@ const createAllIngestionSchemas = ({
 
   const OptionalObservationBody = z.object({
     traceId: idSchema.nullish(),
+    userId: z.string().nullish(),
     environment: environmentSchema,
     name: z.string().nullish(),
     startTime: stringDateTime,
@@ -504,6 +506,7 @@ const createAllIngestionSchemas = ({
     name: NonEmptyString,
     traceId: z.string().nullish(),
     sessionId: z.string().nullish(),
+    userId: z.string().nullish(),
     datasetRunId: z.string().nullish(),
     environment: environmentSchema,
     observationId: z.string().nullish(),
@@ -564,6 +567,7 @@ const createAllIngestionSchemas = ({
     id: idSchema.nullish(),
     traceId: z.string(),
     observationId: z.string().nullish(),
+    userId: z.string().nullish(),
     error: z.string().nullish(),
     // Metadata (optional)
     createdAt: stringDateTime.nullish(),
