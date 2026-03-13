@@ -26,7 +26,6 @@ import {
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
 import { areStringSetsEqual } from "../lib/stringSetUtils";
-import { useFilterExpandedState } from "./useFilterExpandedState";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
