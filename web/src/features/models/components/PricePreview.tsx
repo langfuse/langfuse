@@ -24,17 +24,17 @@ export function PricePreview({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-4">
+    <div className="border-border bg-muted/30 rounded-lg border p-4">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
+          <h4 className="text-muted-foreground text-sm font-medium">
             Price Preview
           </h4>
         </div>
 
         {parsedPrices.success ? (
           <div className="space-y-2">
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b border-border pb-2 text-xs font-medium text-muted-foreground">
+            <div className="border-border text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b pb-2 text-xs font-medium">
               <span>Usage Type</span>
               <span className="text-right">per unit</span>
               <span className="text-right">per 1K</span>
@@ -46,9 +46,9 @@ export function PricePreview({
               .map(([usageType, price]) => (
                 <div
                   key={usageType}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 rounded px-1 py-0.5 text-xs text-muted-foreground"
+                  className="text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 rounded px-1 py-0.5 text-xs"
                 >
-                  <span className="break-all font-medium">{usageType}</span>
+                  <span className="font-medium break-all">{usageType}</span>
                   <span className="text-right font-mono">
                     $
                     {new Decimal(price).toFixed(
@@ -71,7 +71,7 @@ export function PricePreview({
               ))}
           </div>
         ) : (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
             Invalid price entries. Please check your input format.
           </div>
         )}

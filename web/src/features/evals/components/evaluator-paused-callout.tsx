@@ -95,23 +95,23 @@ export function EvaluatorPausedCallout({
       id={calloutId}
       role="alert"
       aria-live="polite"
-      className="rounded-lg border border-light-yellow bg-light-yellow"
+      className="border-light-yellow bg-light-yellow rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-dark-yellow" />
+        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-medium leading-5 text-foreground">
+          <h3 className="text-foreground text-base leading-5 font-medium">
             Evaluator paused
           </h3>
 
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm leading-5 text-muted-foreground">
-            <span className="font-medium text-muted-foreground">
+          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
+            <span className="text-muted-foreground font-medium">
               {blockMetadata.shortLabel}
             </span>
             {blockedAtLabel ? (
               <Fragment>
-                <span className="h-1 w-1 rounded-full bg-border" />
+                <span className="bg-border h-1 w-1 rounded-full" />
                 <span title={blockedAt.toLocaleString()}>
                   Paused {blockedAtLabel}
                 </span>
@@ -119,7 +119,7 @@ export function EvaluatorPausedCallout({
             ) : null}
           </div>
 
-          <p className="mt-2 max-w-3xl text-sm leading-5 text-muted-foreground">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-5">
             {blockMessage}
           </p>
 

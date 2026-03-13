@@ -143,7 +143,7 @@ export function TableActionDialog({
                 {isInProgress.data && (
                   <div className="flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                       Batch action is in progress, please wait.
                     </p>
                   </div>
@@ -167,7 +167,7 @@ export function TableActionDialog({
             {isInProgress.data && (
               <div className="flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Batch action is in progress, please wait.
                 </p>
               </div>

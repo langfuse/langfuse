@@ -20,11 +20,11 @@ export function EvaluatorPromptPreview(props: EvaluatorPromptPreviewProps) {
         align="end"
         onWheel={(event) => event.stopPropagation()}
       >
-        <p className="mb-2 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mb-2 text-xs">
           Prompt preview with the first selected observation
         </p>
         <pre
-          className="max-h-[320px] overflow-y-auto whitespace-pre-wrap break-words rounded-md border bg-muted/20 p-2 text-xs"
+          className="bg-muted/20 max-h-[320px] overflow-y-auto rounded-md border p-2 text-xs wrap-break-word whitespace-pre-wrap"
           onWheel={(event) => event.stopPropagation()}
         >
           {previewContent}

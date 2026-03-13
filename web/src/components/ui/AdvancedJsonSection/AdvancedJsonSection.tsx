@@ -273,7 +273,7 @@ export function AdvancedJsonSection({
 
   return (
     <div
-      className={`flex flex-col border-b border-t ${effectiveCollapsed ? "" : virtualized !== false ? "min-h-0 overflow-hidden" : ""} ${className || ""}`}
+      className={`flex flex-col border-t border-b ${effectiveCollapsed ? "" : virtualized !== false ? "min-h-0 overflow-hidden" : ""} ${className || ""}`}
       style={{
         backgroundColor: headerBackgroundColor || backgroundColor,
       }}
@@ -290,7 +290,7 @@ export function AdvancedJsonSection({
           title={
             <div className="flex items-center gap-2">
               <span>{title}</span>
-              <span className="text-xs font-normal text-muted-foreground">
+              <span className="text-muted-foreground text-xs font-normal">
                 {totalRowCount} rows{isVirtualized ? " (virtualized)" : ""}
               </span>
             </div>
@@ -327,7 +327,7 @@ export function AdvancedJsonSection({
                     />
                     {searchQuery && (
                       <span
-                        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-muted-foreground"
+                        className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap"
                         aria-live="polite"
                       >
                         {searchMatches.length > 0
@@ -341,7 +341,7 @@ export function AdvancedJsonSection({
                       <button
                         type="button"
                         onClick={handlePreviousMatch}
-                        className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-accent hover:text-accent-foreground"
+                        className="hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center rounded-md p-1 transition-colors"
                         aria-label="Previous match (Shift+Enter)"
                         title="Previous match (Shift+Enter)"
                       >
@@ -350,7 +350,7 @@ export function AdvancedJsonSection({
                       <button
                         type="button"
                         onClick={handleNextMatch}
-                        className="inline-flex items-center justify-center rounded-md p-1 transition-colors hover:bg-accent hover:text-accent-foreground"
+                        className="hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center rounded-md p-1 transition-colors"
                         aria-label="Next match (Enter)"
                         title="Next match (Enter)"
                       >
@@ -425,7 +425,7 @@ export function AdvancedJsonSection({
           }}
         >
           {!hasData ? (
-            <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-sm">
               {isLoading ? "Loading..." : "No data"}
             </div>
           ) : (

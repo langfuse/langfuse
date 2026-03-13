@@ -240,7 +240,7 @@ function MarkdownRenderer({
     return (
       <div
         className={cn(
-          "space-y-2 overflow-x-auto break-words text-sm",
+          "space-y-2 overflow-x-auto text-sm wrap-break-word",
           className,
         )}
       >
@@ -353,7 +353,7 @@ function MarkdownRenderer({
                 />
               ) : (
                 // inline code
-                <code className="rounded border bg-secondary px-0.5">
+                <code className="bg-secondary rounded border px-0.5">
                   {codeContent}
                 </code>
               );
@@ -385,7 +385,7 @@ function MarkdownRenderer({
             },
             tbody({ children }) {
               return (
-                <tbody className="divide-y divide-border">{children}</tbody>
+                <tbody className="divide-border divide-y">{children}</tbody>
               );
             },
             tr({ children }) {
@@ -393,14 +393,14 @@ function MarkdownRenderer({
             },
             th({ children }) {
               return (
-                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-xs font-medium tracking-wider uppercase">
                   {children}
                 </th>
               );
             },
             td({ children }) {
               return (
-                <td className="whitespace-nowrap px-4 py-2">{children}</td>
+                <td className="px-4 py-2 whitespace-nowrap">{children}</td>
               );
             },
           }}
@@ -414,7 +414,7 @@ function MarkdownRenderer({
 
     return (
       <>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
           <Info className="h-3 w-3" />
           Markdown parsing failed. Displaying raw JSON.
         </div>
@@ -560,7 +560,7 @@ export function MarkdownView({
                   mediaReferenceString={content.image_url.url}
                 />
               ) : (
-                <div className="grid grid-cols-[auto,1fr] items-center gap-2">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
@@ -591,7 +591,7 @@ export function MarkdownView({
       </div>
       {media && media.length > 0 && (
         <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">

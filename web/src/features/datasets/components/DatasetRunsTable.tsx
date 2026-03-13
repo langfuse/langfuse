@@ -541,7 +541,7 @@ export function DatasetRunsTable(props: {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only [position:relative]">Open menu</span>
+                <span className="sr-only relative">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -625,7 +625,7 @@ export function DatasetRunsTable(props: {
                     return (
                       <div
                         key={key}
-                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                        className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -672,7 +672,7 @@ export function DatasetRunsTable(props: {
                     return (
                       <div
                         key={key}
-                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                        className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -689,7 +689,7 @@ export function DatasetRunsTable(props: {
                   return (
                     <div
                       key={key}
-                      className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                      className="flex h-full max-w-full min-w-80 flex-col gap-2"
                     >
                       <span className="shrink-0 text-sm font-medium">
                         {title}

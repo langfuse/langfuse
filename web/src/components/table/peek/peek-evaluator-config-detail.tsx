@@ -22,6 +22,7 @@ import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -37,6 +38,11 @@ export const PeekViewEvaluatorConfigDetail = ({
     jobConfigurationId: peekId,
     projectId,
   });
+  const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
+    projectId,
+    evaluatorId: evalConfig?.id,
+    evaluator: evalConfig,
+  });
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
@@ -44,14 +50,17 @@ export const PeekViewEvaluatorConfigDetail = ({
     return <Skeleton className="h-full w-full rounded-none" />;
   }
 
+  const displayStatus =
+    lazyExecutionCounts.displayStatus ?? evalConfig.displayStatus;
+
   return (
-    <div className="grid h-full flex-1 grid-rows-[auto,auto,1fr] gap-2 overflow-hidden p-3 contain-layout">
+    <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <span className="max-h-fit text-lg font-medium">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge
-              type={evalConfig.finalStatus.toLowerCase()}
+              type={displayStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
@@ -85,7 +94,7 @@ export const PeekViewEvaluatorConfigDetail = ({
       {evalConfig &&
         evalConfig.targetObject &&
         evalConfig.evalTemplate &&
-        evalConfig.finalStatus === "ACTIVE" && (
+        displayStatus === "ACTIVE" && (
           <LegacyEvalCallout
             projectId={projectId}
             evalConfigId={evalConfig.id}
