@@ -97,7 +97,7 @@ export const EvaluatorDetail = () => {
         actionButtonsRight: (
           <>
             {shouldRenderExecutionCounts && (
-              <div className="flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md bg-muted-gray px-2">
+              <div className="bg-muted-gray flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md px-2">
                 <JobExecutionCounts
                   isLoading={lazyExecutionCounts.isLoading}
                   jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}

@@ -56,10 +56,7 @@ export const ConfigurationDropdowns: React.FC = () => {
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-shrink-0 border-b bg-muted/25 px-3 py-2"
-    >
+    <div ref={containerRef} className="bg-muted/25 shrink-0 border-b px-3 py-2">
       <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
         <Popover>
@@ -77,7 +74,7 @@ export const ConfigurationDropdowns: React.FC = () => {
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
               <h4 className="mb-1 text-sm font-medium">Tools</h4>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Configure tools for your model to use.
               </p>
             </div>
@@ -87,7 +84,7 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             ) : (
               <div className="mb-3">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   No tools attached.
                 </p>
               </div>
@@ -114,7 +111,7 @@ export const ConfigurationDropdowns: React.FC = () => {
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
               <h4 className="mb-1 text-sm font-medium">Structured Output</h4>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Configure JSON schema for structured output.
               </p>
             </div>
@@ -124,7 +121,7 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             ) : (
               <div className="mb-3">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   No schema provided.
                 </p>
               </div>
@@ -153,7 +150,7 @@ export const ConfigurationDropdowns: React.FC = () => {
               <h4 className="mb-1 text-sm font-medium">
                 Variables & Message Placeholders
               </h4>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Configure variables and message placeholders for your prompts.
               </p>
             </div>
@@ -177,7 +174,7 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             ) : (
               <div className="mb-3">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   No variables or message placeholders defined.
                 </p>
               </div>

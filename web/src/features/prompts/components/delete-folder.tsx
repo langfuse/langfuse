@@ -75,9 +75,9 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           </DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             This action permanently deletes the folder{" "}
-            <code className="relative break-all rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+            <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold break-all">
               {folderPath}
             </code>{" "}
             and <b>all prompts inside it recursively</b>. This cannot be undone.
@@ -85,11 +85,11 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
             break.
           </p>
 
-          <div className="rounded-md border bg-muted/50 p-4">
+          <div className="bg-muted/50 rounded-md border p-4">
             <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
               </div>
             ) : prompts.isError ? (
               <div className="py-2 text-xs text-red-500">
@@ -100,7 +100,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                 {prompts.data?.prompts.map((p) => (
                   <li
                     key={`${p.row_type}-${p.id}`}
-                    className="flex items-center gap-2 text-muted-foreground"
+                    className="text-muted-foreground flex items-center gap-2"
                   >
                     {p.row_type === "folder" ? (
                       <Folder className="h-3 w-3 text-blue-500" />
@@ -113,12 +113,12 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                   </li>
                 ))}
                 {(prompts.data?.totalCount ?? 0) > 100 && (
-                  <li className="pt-1 italic text-muted-foreground">
+                  <li className="text-muted-foreground pt-1 italic">
                     And {(prompts.data?.totalCount ?? 0) - 100} more prompts...
                   </li>
                 )}
                 {prompts.data?.prompts.length === 0 && (
-                  <li className="italic text-muted-foreground">
+                  <li className="text-muted-foreground italic">
                     No prompts found in this folder.
                   </li>
                 )}
