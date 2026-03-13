@@ -238,7 +238,7 @@ export const StructuredOutputSchemaSection = () => {
   };
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="max-h-[min(45vh,18rem)]">
       {!structuredOutputSchema ? (
         <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
           <p className="text-muted-foreground text-xs">No schema provided.</p>
@@ -264,10 +264,23 @@ export const StructuredOutputSchemaSection = () => {
                 : undefined
             }
           >
-            <div className="bg-background hover:bg-accent/50 cursor-pointer overflow-hidden rounded-md border p-2 transition-colors duration-200">
-              <div className="mb-1 flex items-center justify-between">
-                <div className="flex min-w-0 items-center gap-1">
-                  <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+            <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-2 right-3 h-6 w-6 p-0"
+                aria-label={`Remove schema ${structuredOutputSchema.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleRemoveSchema();
+                }}
+              >
+                <MinusCircle className="h-4 w-4" />
+              </Button>
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
+                <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0">
                   <h3
                     className="truncate text-sm font-medium"
                     title={structuredOutputSchema.name}
@@ -275,32 +288,18 @@ export const StructuredOutputSchemaSection = () => {
                     {structuredOutputSchema.name}
                   </h3>
                   {!isSchemaSaved(structuredOutputSchema) ? (
-                    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-xs">
+                    <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
                       Unsaved
                     </span>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleRemoveSchema();
-                    }}
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
+                <p
+                  className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
+                  title={structuredOutputSchema.description}
+                >
+                  {structuredOutputSchema.description}
+                </p>
               </div>
-              <p
-                className="text-muted-foreground line-clamp-2 text-xs break-all"
-                title={structuredOutputSchema.description}
-              >
-                {structuredOutputSchema.description}
-              </p>
             </div>
           </CreateOrEditLLMSchemaDialog>
         </div>
