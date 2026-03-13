@@ -8,6 +8,7 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
+import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
 import {
   Tooltip,
   TooltipContent,
@@ -153,6 +154,9 @@ function PlaygroundWindowContent({
   isMobile?: boolean;
 }) {
   const playgroundContext = usePlaygroundContext();
+  const { registerPageTarget, unregisterPageTarget } =
+    useMessageSearchActions();
+  const windowContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleRemove = useCallback(() => {
     onRemove(windowId);
@@ -162,8 +166,21 @@ function PlaygroundWindowContent({
     onCopy(windowId);
   }, [windowId, onCopy]);
 
+  useEffect(() => {
+    registerPageTarget(windowId, {
+      pageRef: windowContainerRef,
+    });
+
+    return () => {
+      unregisterPageTarget(windowId);
+    };
+  }, [registerPageTarget, unregisterPageTarget, windowId]);
+
   return (
-    <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm @container">
+    <div
+      ref={windowContainerRef}
+      className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm @container"
+    >
       {/* Window Header */}
       <div className="relative flex-shrink-0 border-b bg-muted/50 px-3 py-1">
         <div className="flex items-center pr-32 @xl:pr-96">

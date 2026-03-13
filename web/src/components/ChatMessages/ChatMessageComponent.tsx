@@ -1,6 +1,14 @@
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { memo, useState, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type RefObject,
+} from "react";
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -24,6 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import {
+  useOptionalMessageSearchActions,
+  useOptionalMessageSearchPageId,
+} from "./MessageSearch";
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -83,6 +96,17 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   toolCallIds,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
+  const playgroundContext = useOptionalPlaygroundContext();
+  const searchPageId = useOptionalMessageSearchPageId();
+  const messageSearchActions = useOptionalMessageSearchActions();
+  const pageId = playgroundContext?.windowId ?? searchPageId;
+  const registerMessageTarget = messageSearchActions?.registerMessageTarget;
+  const unregisterMessageTarget = messageSearchActions?.unregisterMessageTarget;
+  const shouldUseMessageSearch = Boolean(
+    pageId && registerMessageTarget && unregisterMessageTarget,
+  );
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const {
     attributes,
@@ -92,6 +116,14 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     transition,
     isDragging,
   } = useSortable({ id: message.id });
+
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rowRef.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
 
   const toggleRole = () => {
     // Only allow role toggling for messages that have a role property (not placeholder messages)
@@ -190,9 +222,41 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
+  useEffect(() => {
+    if (!pageId || !registerMessageTarget || !unregisterMessageTarget) {
+      return;
+    }
+
+    registerMessageTarget(pageId, message.id, {
+      rowRef,
+      editorRef,
+    });
+
+    return () => {
+      unregisterMessageTarget(pageId, message.id);
+    };
+  }, [
+    editorRef,
+    message.id,
+    pageId,
+    registerMessageTarget,
+    unregisterMessageTarget,
+  ]);
+
+  const handleEditorMount = useCallback(() => {
+    if (!pageId || !registerMessageTarget) {
+      return;
+    }
+
+    registerMessageTarget(pageId, message.id, {
+      rowRef,
+      editorRef,
+    });
+  }, [message.id, pageId, registerMessageTarget]);
+
   return (
     <Card
-      ref={setNodeRef}
+      ref={setCardRef}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -263,12 +327,18 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   value={(message as PlaceholderMessage).name || ""}
                   onChange={onPlaceholderNameChange}
                   role={message.type}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               ) : (
                 <MemoizedEditor
                   value={message.content}
                   onChange={onValueChange}
                   role={message.role}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               )}
             </div>
@@ -296,8 +366,18 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   value: string;
   role: ChatMessage["role"];
   onChange: (value: string) => void;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+  onEditorMount: () => void;
+  enableSearchKeymap: boolean;
 }) {
-  const { value, role, onChange } = props;
+  const {
+    value,
+    role,
+    onChange,
+    editorRef,
+    onEditorMount,
+    enableSearchKeymap,
+  } = props;
   const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
 
   return (
@@ -309,6 +389,9 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
       editable={true}
       lineNumbers={false}
       placeholder={placeholder}
+      editorRef={editorRef}
+      enableSearchKeymap={enableSearchKeymap}
+      onEditorMount={onEditorMount}
     />
   );
 });
