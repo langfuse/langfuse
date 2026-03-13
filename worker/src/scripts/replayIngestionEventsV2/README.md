@@ -19,20 +19,109 @@ events.csv ──► replay script ──► POST /api/admin/ingestion-replay
 
 ## Prerequisites
 
+- **S3 server access logging** enabled on the Langfuse events bucket (see [Initial setup](#1-initial-setup-one-time))
+- **Athena** configured to query the access logs (see [Initial setup](#1-initial-setup-one-time))
 - **Node.js 18+** with `npx tsx` available (no repo clone or `pnpm` needed)
-- **`events.csv`** exported from Athena (see below)
+- **`events.csv`** exported from Athena (see [Export events](#2-export-events-from-athena))
 - **`LANGFUSE_HOST`** URL of the target Langfuse instance (e.g. `https://cloud.langfuse.com`)
 - **`ADMIN_API_KEY`** for authenticating against the admin API
 - Network access from your machine to the Langfuse host
 
-## 1. Export events from Athena
+## 1. Initial setup (one-time, on AWS)
 
-Query S3 access logs to identify the events that need to be replayed. Adjust the time range and bucket name to match your incident window.
+Before you can query S3 access logs via Athena, you need to configure S3 server access logging and set up Athena.
+Skip this section if your environment already has Athena configured for the events bucket.
+If you're not using AWS as a cloud vendor, consult your cloud provider's documentation on how to store blob storage access logs and efficiently retrieve the events.csv.
+
+### 1a. Enable S3 server access logging
+
+Create a dedicated S3 bucket to store access logs for your Langfuse events bucket.
+Then enable server access logging on the events bucket with the new bucket as the destination.
+
+AWS docs: [Enabling Amazon S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
+
+Set a key prefix (e.g. `logs/<events-bucket-name>/`) to keep logs organized if you reuse the bucket for multiple sources.
+
+### 1b. Set up Athena query result location
+
+Athena requires an S3 location to store query results. Configure this in the Athena console under **Settings → Query result location**.
+
+AWS docs: [Specifying a query result location](https://docs.aws.amazon.com/athena/latest/ug/querying.html#query-results-specify-location)
+
+### 1c. Create an Athena database
+
+```sql
+CREATE DATABASE s3_access_logs_db
+```
+
+### 1d. Create the S3 access logs table
+
+Create an external table that maps the S3 server access log format. Replace the `LOCATION` with the S3 URI of your access log bucket and prefix from step 1a.
+
+AWS docs: [Querying access logs for requests using Amazon Athena](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-s3-access-logs-to-identify-requests.html)
+
+```sql
+CREATE EXTERNAL TABLE `s3_access_logs_db.events_bucket_logs`(
+  `bucketowner` STRING,
+  `bucket_name` STRING,
+  `requestdatetime` STRING,
+  `remoteip` STRING,
+  `requester` STRING,
+  `requestid` STRING,
+  `operation` STRING,
+  `key` STRING,
+  `request_uri` STRING,
+  `httpstatus` STRING,
+  `errorcode` STRING,
+  `bytessent` BIGINT,
+  `objectsize` BIGINT,
+  `totaltime` STRING,
+  `turnaroundtime` STRING,
+  `referrer` STRING,
+  `useragent` STRING,
+  `versionid` STRING,
+  `hostid` STRING,
+  `sigv` STRING,
+  `ciphersuite` STRING,
+  `authtype` STRING,
+  `endpoint` STRING,
+  `tlsversion` STRING,
+  `accesspointarn` STRING,
+  `aclrequired` STRING)
+ROW FORMAT SERDE
+  'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+  'input.regex'='([^ ]*) ([^ ]*) \\[(.*?)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) (-|[0-9]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) ([^ ]*)(?: ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*))?.*$')
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.mapred.TextInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION
+  's3://<your-access-log-bucket>/logs/<your-events-bucket>/'
+```
+
+### 1e. Verify the setup
+
+Run a simple query to confirm logs are being collected and the table is configured correctly:
+
+```sql
+SELECT key, operation, httpstatus, requestdatetime
+FROM s3_access_logs_db.events_bucket_logs
+WHERE operation = 'REST.PUT.OBJECT'
+LIMIT 10
+```
+
+If this returns results, the setup is complete. Note that it may take some time after enabling access logging for the first logs to appear.
+
+## 2. Export events from Athena
+
+Query S3 access logs to identify the events that need to be replayed. Adjust the time range, table name, and bucket name to match your environment and incident window.
 
 ```sql
 SELECT operation, key
-FROM mybucket_logs
+FROM s3_access_logs_db.events_bucket_logs
 WHERE operation = 'REST.PUT.OBJECT'
+  AND bucket_name = '<your-events-bucket>'
   AND parse_datetime(requestdatetime, 'dd/MMM/yyyy:HH:mm:ss Z')
       BETWEEN parse_datetime('2025-07-09:00:30:00', 'yyyy-MM-dd:HH:mm:ss')
       AND     parse_datetime('2025-07-09:07:45:00', 'yyyy-MM-dd:HH:mm:ss')
@@ -55,7 +144,7 @@ Two S3 key formats are supported:
 
 Keys that don't match either pattern are skipped and logged.
 
-## 2. Run the replay script
+## 3. Run the replay script
 
 ```bash
 LANGFUSE_HOST=https://cloud.langfuse.com \
