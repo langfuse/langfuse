@@ -7,6 +7,7 @@ export type UiColumnMapping = Readonly<{
   clickhouseSelect: string;
   clickhouseTypeOverwrite?: string;
   queryPrefix?: string;
+  emptyEqualsNull?: boolean;
 }>;
 
 export type SingleValueOption = {

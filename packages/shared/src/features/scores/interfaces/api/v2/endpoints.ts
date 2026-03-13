@@ -29,6 +29,7 @@ export const GetScoreResponseDataV2 = z
           userId: z.string().nullish(),
           tags: z.array(z.string()).nullish(),
           environment: z.string().nullish(),
+          sessionId: z.string().nullish(),
         })
         .nullish(),
     }),

@@ -31,6 +31,7 @@ export function ScoreAnalytics(props: {
   projectId: string;
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -66,7 +67,7 @@ export function ScoreAnalytics(props: {
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
       isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
+      headerClassName={"grid grid-cols-[1fr_auto_auto] items-center"}
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
@@ -99,7 +100,7 @@ export function ScoreAnalytics(props: {
     >
       {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
       Boolean(scoreAnalyticsValues.length) ? (
-        <div className="grid grid-flow-row gap-4 [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground">
+        <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
             if (!scoreData) return null;
@@ -111,7 +112,7 @@ export function ScoreAnalytics(props: {
                 <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
                   {/* aggregate */}
                   <div>
-                    <div className="mb-2 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 text-sm">
                       Total aggregate scores
                       {isNumericDataType(dataType) && (
                         // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
@@ -127,6 +128,7 @@ export function ScoreAnalytics(props: {
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
+                        schedulerId={props.schedulerId}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -148,7 +150,7 @@ export function ScoreAnalytics(props: {
                   </div>
                   {/* timeseries */}
                   <div>
-                    <div className="mb-2 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 text-sm">
                       {isNumericDataType(dataType)
                         ? "Moving average over time"
                         : "Scores over time"}
@@ -162,6 +164,7 @@ export function ScoreAnalytics(props: {
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
+                        schedulerId={props.schedulerId}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -181,6 +184,7 @@ export function ScoreAnalytics(props: {
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
+                        schedulerId={props.schedulerId}
                       />
                     )}
                   </div>
@@ -193,7 +197,7 @@ export function ScoreAnalytics(props: {
           })}
         </div>
       ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
-        <div className="flex min-h-[9rem] w-full flex-1 items-center justify-center rounded-md border">
+        <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
           <p className="text-muted-foreground">
             Select a score to view analytics
           </p>

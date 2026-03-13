@@ -72,6 +72,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => valueFormatter(Number(value))}
         />
         <YAxis
           type="category"
@@ -107,7 +108,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           dataKey="metric"
           radius={[0, 4, 4, 0]}
           maxBarSize={28}
-          className="fill-[--color-metric]"
+          className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
         >
           {showValueLabels ? (

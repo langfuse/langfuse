@@ -336,13 +336,17 @@ export class IngestionService {
 
     const now = this.getMicrosecondTimestamp();
 
-    // Store the full metadata JSON
-    const metadata = convertRecordValuesToString(eventData.metadata);
-
-    // Flatten to path-based arrays
-    const flattened = flattenJsonToPathArrays(metadata);
+    // Flatten raw metadata first (before stringification destroys nested structure)
+    const flattened = eventData.metadata
+      ? flattenJsonToPathArrays(eventData.metadata)
+      : { names: [], values: [] };
     const metadataNames = flattened.names;
-    const metadataValues = flattened.values;
+    // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
+    // Should not be required as convertValueToPlainJavascript() never returns null.
+    const metadataValues = flattened.values.map((v) => v ?? "");
+
+    // Stringify metadata for the JSON column (Record<string, string>)
+    const metadata = convertRecordValuesToString(eventData.metadata ?? {});
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers

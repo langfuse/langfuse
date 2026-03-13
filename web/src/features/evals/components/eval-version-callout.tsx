@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,
@@ -40,10 +40,10 @@ const getCalloutContent = (
           Python SDK v3+. You can still configure this evaluator now—it will
           start running once you upgrade.{" "}
           <a
-            href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
+            href="https://langfuse.com/docs/observability/sdk/upgrade-path"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-dark-blue hover:opacity-80"
+            className="text-dark-blue font-medium hover:opacity-80"
           >
             Learn more
           </a>
@@ -68,7 +68,7 @@ const getCalloutContent = (
               href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-dark-blue hover:opacity-80"
+              className="text-dark-blue font-medium hover:opacity-80"
             >
               Learn more about the Experiment Runner SDK.
             </a>
@@ -96,7 +96,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-dark-blue hover:opacity-80"
+            className="text-dark-blue font-medium hover:opacity-80"
           >
             Learn more
           </a>
@@ -119,7 +119,7 @@ const getCalloutContent = (
             href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-dark-blue hover:opacity-80"
+            className="text-dark-blue font-medium hover:opacity-80"
           >
             Learn more
           </a>
@@ -145,14 +145,14 @@ export function EvalVersionCallout({
   return (
     <Alert
       variant="default"
-      className="mt-2 max-w-4xl border-light-blue bg-light-blue"
+      className="border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
     >
-      <Info className="h-4 w-4 text-dark-blue dark:text-dark-blue" />
+      <AlertTriangle className="text-dark-yellow h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="font-medium text-foreground">{content.title}</span>
-            <span className="text-sm text-foreground">
+            <span className="text-foreground font-medium">{content.title}</span>
+            <span className="text-foreground text-sm">
               {content.description}
             </span>
           </div>

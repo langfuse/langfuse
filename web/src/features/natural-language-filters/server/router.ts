@@ -65,6 +65,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             case "US":
             case "EU":
             case "HIPAA":
+            case "JP":
               return "prod";
             case "STAGING":
               return "staging";

@@ -168,8 +168,7 @@ export const handleEventPropagationJob = async (
               -- For some reason clickhouse detects any "date >= '1969-12-31'" as false.
               -- Therefore, we add a fallback condition that limits actively to last 7 days.
               -- This means that 7 days becomes the maximum trace data propagation interval.
-              t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats) OR
-              t.timestamp >= now() - interval 7 day
+              t.timestamp >= greatest((select min(min_start_time) - interval 1 day from batch_stats), now() - interval 7 day)
             )
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
@@ -304,6 +303,8 @@ export const handleEventPropagationJob = async (
         request_timeout: 600000, // 10 minutes timeout
       },
       clickhouseSettings: {
+        parallel_view_processing: 1,
+        max_insert_threads: "8",
         type_json_skip_duplicated_paths: true,
       },
     });

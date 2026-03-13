@@ -2,6 +2,8 @@ import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { datasetRunsTableUiColumnDefinitions } from "../../tableDefinitions/mapDatasetRunsTable";
+import { datasetRunItemsTableCols } from "../../tableDefinitions/datasetRunItemsTable";
+import { datasetRunsTableCols } from "../../tableDefinitions/datasetRunsTable";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
@@ -301,6 +303,7 @@ const getDatasetRunsTableInternal = async <T>(
   const userFilters = createFilterFromFilterState(
     filter,
     datasetRunsTableUiColumnDefinitions,
+    datasetRunsTableCols,
   );
   datasetRunItemsFilter.push(...userFilters);
 
@@ -582,6 +585,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
     const userFilters = createFilterFromFilterState(
       filterState,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     );
 
     // Combine run condition with user filters using AND and apply immediately
@@ -771,6 +775,7 @@ const getDatasetRunItemsTableInternal = async <
     ...createFilterFromFilterState(
       filter,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     ),
   );
   const appliedFilter = datasetRunItemsFilter.apply();
@@ -1012,6 +1017,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
     ...createFilterFromFilterState(
       filter,
       datasetRunItemsTableUiColumnDefinitions,
+      datasetRunItemsTableCols,
     ),
   );
   const appliedFilter = datasetRunItemsFilter.apply();

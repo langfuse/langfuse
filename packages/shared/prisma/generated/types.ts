@@ -106,6 +106,16 @@ export const JobConfigState = {
 } as const;
 export type JobConfigState =
   (typeof JobConfigState)[keyof typeof JobConfigState];
+export const EvaluatorBlockReason = {
+  LLM_CONNECTION_AUTH_INVALID: "LLM_CONNECTION_AUTH_INVALID",
+  LLM_CONNECTION_MISSING: "LLM_CONNECTION_MISSING",
+  DEFAULT_EVAL_MODEL_MISSING: "DEFAULT_EVAL_MODEL_MISSING",
+  EVAL_MODEL_CONFIG_INVALID: "EVAL_MODEL_CONFIG_INVALID",
+  EVAL_MODEL_UNAVAILABLE: "EVAL_MODEL_UNAVAILABLE",
+  PROVIDER_ACCOUNT_NOT_READY: "PROVIDER_ACCOUNT_NOT_READY",
+} as const;
+export type EvaluatorBlockReason =
+  (typeof EvaluatorBlockReason)[keyof typeof EvaluatorBlockReason];
 export const JobExecutionStatus = {
   COMPLETED: "COMPLETED",
   ERROR: "ERROR",
@@ -368,6 +378,8 @@ export type BlobStorageIntegration = {
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
   export_source: Generated<AnalyticsIntegrationExportSource>;
+  last_error: string | null;
+  last_error_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -435,6 +447,7 @@ export type DashboardWidget = {
   filters: unknown;
   chart_type: DashboardWidgetChartType;
   chart_config: unknown;
+  min_version: Generated<number>;
 };
 export type Dataset = {
   id: string;
@@ -527,6 +540,9 @@ export type JobConfiguration = {
   project_id: string;
   job_type: JobType;
   status: Generated<JobConfigState>;
+  blocked_at: Timestamp | null;
+  block_reason: EvaluatorBlockReason | null;
+  block_message: string | null;
   eval_template_id: string | null;
   score_name: string;
   filter: unknown;

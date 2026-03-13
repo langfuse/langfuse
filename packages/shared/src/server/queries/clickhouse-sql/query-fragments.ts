@@ -4,9 +4,26 @@
 
 import {
   EventsAggregationQueryBuilder,
+  EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+
+/**
+ * Lightweight trace metadata query: one row per trace with name, user_id, tags.
+ * Picks a row with non-empty trace_name via LIMIT 1 BY trace_id.
+ */
+export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
+  new EventsQueryBuilder({ projectId })
+    .selectRaw(
+      "e.trace_id AS id",
+      "e.trace_name AS name",
+      "e.user_id AS user_id",
+      "e.tags AS tags",
+    )
+    .whereRaw("e.trace_name <> ''")
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.trace_id");
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -30,16 +47,19 @@ interface EventsTracesAggregationParams {
 export const eventsTracesAggregation = (
   params: EventsTracesAggregationParams,
 ): EventsAggregationQueryBuilder => {
-  return (
-    new EventsAggregationQueryBuilder({ projectId: params.projectId })
-      // we always use this as CTE, no need to be smart here.
-      // ClickHouse will optimize unused columns away.
-      .selectFieldSet("all")
-      .withTraceIds(params.traceIds)
-      .withStartTimeFrom(params.startTimeFrom)
-      .withTruncated(params.truncated ?? false)
-      .orderByColumns([{ column: "timestamp", direction: "DESC" }])
-  );
+  const builder = new EventsAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    // we always use this as CTE, no need to be smart here.
+    // ClickHouse will optimize unused columns away.
+    .selectFieldSet("all")
+    .withTraceIds(params.traceIds)
+    .withStartTimeFrom(params.startTimeFrom)
+    .withTruncated(params.truncated ?? false);
+
+  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+
+  return builder;
 };
 
 interface BaseScoresAggregationParams {
@@ -47,6 +67,14 @@ interface BaseScoresAggregationParams {
   startTimeFrom?: string | null;
   level: "observation" | "trace";
   hasScoreAggregationFilters?: boolean;
+  /**
+   * When true, adds an extra `score_categories_tuples` column with
+   * `tuple(name, string_value)` encoding alongside the default concat-encoded
+   * `score_categories`. The tuple column is safe for programmatic parsing
+   * (e.g. batch exports) when score names may contain colons.
+   * The concat column is always present for hasAny filter compatibility.
+   */
+  includeTupleEncoding?: boolean;
 }
 
 /**
@@ -87,7 +115,7 @@ const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories_tuples` : ""}
       FROM (
         SELECT
           ${primaryKey},
@@ -119,6 +147,7 @@ const buildScoresAggregationCTE = (
 interface EventsScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
+  includeTupleEncoding?: boolean;
 }
 
 /**
@@ -140,6 +169,10 @@ interface EventsTracesScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   hasScoreAggregationFilters?: boolean;
+  // Note: includeTupleEncoding is intentionally omitted. This function is only used
+  // in UI table queries where score_categories are used for filtering, not programmatic
+  // parsing. If this is ever used in an export path, add includeTupleEncoding here and
+  // pass it through to buildScoresAggregationCTE (see EventsScoresAggregationParams).
 }
 
 /**

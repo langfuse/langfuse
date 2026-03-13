@@ -32,6 +32,9 @@ import {
   DEFAULT_TRACE_ENVIRONMENT,
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
+  isLLMCompletionError,
+  blockEvaluatorConfigs,
+  EvaluatorBlockSource,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -50,6 +53,10 @@ import {
   Observation,
   DatasetItem,
   EvalTargetObject,
+  EvaluatorBlockReason,
+  getEvaluatorBlockMetadata,
+  getBlockReasonForInvalidModelConfig,
+  isJobConfigExecutable,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
@@ -181,6 +188,7 @@ export const createEvalJobs = async ({
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
     .where(sql.raw("status::text"), "=", "ACTIVE")
+    .where(sql.raw("blocked_at"), "is", null)
     .where("target_object", "in", [
       EvalTargetObject.TRACE,
       EvalTargetObject.DATASET,
@@ -794,6 +802,20 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       if (!modelConfig.valid) {
+        const blockReason = getBlockReasonForInvalidModelConfig({
+          templateProvider: template.provider,
+          templateModel: template.model,
+          error: modelConfig.error,
+        });
+
+        await blockEvaluatorConfigs({
+          projectId,
+          where: { id: config.id },
+          blockReason,
+          blockMessage: getEvaluatorBlockMetadata(blockReason).message,
+          source: EvaluatorBlockSource.INVALID_MODEL_CONFIG,
+        });
+
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
@@ -829,22 +851,50 @@ export async function executeLLMAsJudgeEvaluation({
             modelConfig.config.provider,
           );
           llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
+          llmSpan.setAttribute(
+            "eval.model.adapter",
+            modelConfig.config.adapter,
+          );
 
-          return deps.callLLM({
-            messages,
-            modelConfig: modelConfig.config,
-            structuredOutputSchema: evalScoreSchema,
-            traceSinkParams: {
-              targetProjectId: projectId,
-              traceId: executionTraceId,
-              traceName: `Execute evaluator: ${template.name}`,
-              environment: LangfuseInternalTraceEnvironment.LLMJudge,
-              metadata: {
-                ...executionMetadata,
-                score_id: scoreId,
+          try {
+            return await deps.callLLM({
+              messages,
+              modelConfig: modelConfig.config,
+              structuredOutputSchema: evalScoreSchema,
+              traceSinkParams: {
+                targetProjectId: projectId,
+                traceId: executionTraceId,
+                traceName: `Execute evaluator: ${template.name}`,
+                environment: LangfuseInternalTraceEnvironment.LLMJudge,
+                metadata: {
+                  ...executionMetadata,
+                  score_id: scoreId,
+                },
               },
-            },
-          });
+            });
+          } catch (e) {
+            if (isLLMCompletionError(e)) {
+              llmSpan.setAttribute(
+                "http.response.status_code",
+                e.responseStatusCode,
+              );
+
+              if (e.shouldBlockConfig()) {
+                const blockReason =
+                  e.getEvaluatorBlockReason() ??
+                  EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
+
+                await blockEvaluatorConfigs({
+                  projectId,
+                  where: { id: config.id },
+                  blockReason,
+                  blockMessage: getEvaluatorBlockMetadata(blockReason).message,
+                  source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+                });
+              }
+            }
+            throw e;
+          }
         },
       );
 
@@ -970,6 +1020,23 @@ export const evaluate = async ({
     throw new UnrecoverableError(
       `Job configuration or template not found for job ${job.id}`,
     );
+  }
+
+  if (!isJobConfigExecutable(config)) {
+    logger.debug(
+      `Skipping non-executable config ${config.id} for job ${job.id}`,
+    );
+    await prisma.jobExecution.update({
+      where: {
+        id: job.id,
+        projectId: event.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.CANCELLED,
+        endTime: new Date(),
+      },
+    });
+    return;
   }
 
   // Fetch template to get variable names

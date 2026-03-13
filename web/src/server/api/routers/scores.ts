@@ -14,6 +14,7 @@ import {
 import {
   orderBy,
   paginationZod,
+  normalizeOrderByForTable,
   singleFilter,
   timeFilter,
   UpdateAnnotationScoreData,
@@ -38,7 +39,7 @@ import {
   getScoresUiTable,
   getScoresUiCountFromEvents,
   getScoresUiTableFromEvents,
-  getScoresTraceMetricsFromEvents,
+  getTraceMetadataByIdsFromEvents,
   getScoreNames,
   getScoreStringValues,
   getTracesGroupedByTags,
@@ -106,10 +107,14 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiTable({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: input.limit,
         offset: input.page * input.limit,
         excludeMetadata: true,
@@ -184,10 +189,14 @@ export const scoresRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiCount({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: 1,
         offset: 0,
       });
@@ -202,10 +211,14 @@ export const scoresRouter = createTRPCRouter({
   allFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiTableFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: input.limit,
         offset: input.page * input.limit,
       });
@@ -263,10 +276,14 @@ export const scoresRouter = createTRPCRouter({
   countAllFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const count = await getScoresUiCountFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: 1,
         offset: 0,
       });
@@ -276,7 +293,8 @@ export const scoresRouter = createTRPCRouter({
       };
     }),
   /**
-   * v4: Load trace metadata (name, userId, tags) from events_core for a page of scores.
+   * v4: Load trace metadata (name, userId, tags) via eventsTracesAggregation
+   * builder for a page of scores.
    */
   metricsFromEvents: protectedProjectProcedure
     .input(
@@ -287,13 +305,19 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       if (input.traceIds.length === 0) return [];
-      return getScoresTraceMetricsFromEvents({
+      const rows = await getTraceMetadataByIdsFromEvents({
         projectId: input.projectId,
         traceIds: input.traceIds,
       });
+      return rows.map((row) => ({
+        traceId: row.id,
+        traceName: row.name || null,
+        userId: row.user_id || null,
+        tags: row.tags && row.tags.length > 0 ? row.tags : null,
+      }));
     }),
   /**
-   * v4: Filter options using events_core instead of traces table.
+   * v4: Filter options via events-backed aggregations instead of traces table.
    */
   filterOptionsFromEvents: protectedProjectProcedure
     .input(
@@ -315,12 +339,21 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
+      const scoredTracesScope =
+        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter),
-          getEventsGroupedByTraceName(input.projectId, eventsFilter),
-          getEventsGroupedByUserId(input.projectId, eventsFilter),
+          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByUserId(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
 

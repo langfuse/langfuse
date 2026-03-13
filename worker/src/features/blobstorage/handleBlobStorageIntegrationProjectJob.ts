@@ -241,11 +241,11 @@ const processBlobStorageExport = async (config: {
     // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
     // This prevents hitting AWS's 10,000 part limit on large exports
 
-    await storageService.uploadFile({
+    await storageService.uploadFileBuffered({
       fileName: filePath,
       fileType: blobStorageProps.contentType,
       data: fileStream,
-      partSize: 100 * 1024 * 1024, // 100 MB part size
+      partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
     });
 
     logger.info(
@@ -433,6 +433,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         lastSyncAt: maxTimestamp,
         nextSyncAt,
+        lastError: null,
+        lastErrorAt: null,
       },
     });
 
@@ -449,7 +451,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
             timestamp: new Date(),
             payload: { projectId },
           },
-          { jobId },
+          { jobId, removeOnFail: true },
         );
         logger.info(
           `[BLOB INTEGRATION] Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
@@ -461,6 +463,21 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    try {
+      const errorMessage = extractStorageErrorMessage(error);
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          lastError: errorMessage,
+          lastErrorAt: new Date(),
+        },
+      });
+    } catch (persistError) {
+      logger.error(
+        `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
+        persistError,
+      );
+    }
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
       error,
@@ -468,3 +485,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
     throw error; // Rethrow to trigger retries
   }
 };
+
+function extractStorageErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error).slice(0, 1000);
+
+  // handleStorageError wraps SDK errors via { cause: sdkError }
+  // Unwrap to get the raw SDK message (S3/Azure/GCS)
+  const cause = error.cause;
+  if (cause instanceof Error) {
+    return cause.message.slice(0, 1000);
+  }
+
+  // Fallback: ClickHouse errors or other non-wrapped errors
+  return error.message.slice(0, 1000);
+}

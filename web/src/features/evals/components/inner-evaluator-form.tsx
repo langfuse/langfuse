@@ -101,7 +101,6 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
@@ -175,14 +174,14 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
+          <span className="text-sm leading-none font-medium">
             Preview sample matched traces
           </span>
           <FormDescription>
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -208,7 +207,7 @@ const ObservationsPreview = memo(
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
   }) => {
-    const isv4Enabled = useV4Beta();
+    const { isBetaEnabled } = useV4Beta();
 
     const dateRange = useMemo(() => {
       return {
@@ -226,9 +225,9 @@ const ObservationsPreview = memo(
             Sample over the last 24 hours that match filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isv4Enabled ? (
+            {isBetaEnabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
@@ -278,7 +277,6 @@ export const InnerEvaluatorForm = (props: {
   oldConfigId?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -391,6 +389,18 @@ export const InnerEvaluatorForm = (props: {
     ),
   );
 
+  const watchedTarget = form.watch("target");
+
+  // Clear mapping error if user switches away from trace target
+  useEffect(() => {
+    if (
+      !isTraceTarget(watchedTarget) &&
+      form.formState.errors.mapping?.type === "manual"
+    ) {
+      form.clearErrors("mapping");
+    }
+  }, [watchedTarget, form]);
+
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
     capture(
       props.mode === "edit"
@@ -429,6 +439,22 @@ export const InnerEvaluatorForm = (props: {
       form.setError("filter", {
         type: "manual",
         message: "Please fill out all filter fields",
+      });
+      return;
+    }
+
+    // Block NEW trace-level evals that target observations
+    if (
+      props.mode !== "edit" &&
+      isTraceTarget(values.target) &&
+      values.mapping.some(
+        (m) => m.langfuseObject && m.langfuseObject !== "trace",
+      )
+    ) {
+      form.setError("mapping", {
+        type: "manual",
+        message:
+          "Trace-level evaluators targeting observations are no longer supported. Please use observation-level evaluators or target trace IO instead.",
       });
       return;
     }
@@ -595,7 +621,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="size-3 text-muted-foreground" />
+                            <InfoIcon className="text-muted-foreground size-3" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -624,13 +650,6 @@ export const InnerEvaluatorForm = (props: {
                           >
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
-                            <Badge
-                              variant="secondary"
-                              size="sm"
-                              className="border border-border font-normal"
-                            >
-                              Beta
-                            </Badge>
                           </TabsTrigger>
                           {allowLegacy && (
                             <TabsTrigger
@@ -640,15 +659,13 @@ export const InnerEvaluatorForm = (props: {
                             >
                               <ListTree className="h-3.5 w-3.5" />
                               Traces
-                              {isFullyReleased && (
-                                <Badge
-                                  variant="secondary"
-                                  size="sm"
-                                  className="border border-border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
-                              )}
+                              <Badge
+                                variant="secondary"
+                                size="sm"
+                                className="border-border border font-normal"
+                              >
+                                Legacy
+                              </Badge>
                             </TabsTrigger>
                           )}
                           <TabsTrigger
@@ -714,13 +731,6 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <FlaskConical className="h-3.5 w-3.5" />
                         Experiment Runner SDK
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border border-border font-normal"
-                        >
-                          Beta
-                        </Badge>
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
@@ -729,15 +739,13 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />
                         Low-level SDK methods
-                        {isFullyReleased && (
-                          <Badge
-                            variant="secondary"
-                            size="sm"
-                            className="border border-border font-normal"
-                          >
-                            Legacy
-                          </Badge>
-                        )}
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="border-border border font-normal"
+                        >
+                          Legacy
+                        </Badge>
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
@@ -778,7 +786,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -803,7 +811,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}
@@ -813,7 +821,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="size-3 text-muted-foreground" />
+                                      <InfoIcon className="text-muted-foreground size-3" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -879,7 +887,7 @@ export const InnerEvaluatorForm = (props: {
                           </FormControl>
                         </FormItem>
                         {!field.value && isEventTarget(target) && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             This evaluator can still be used for batched
                             evaluation of historic observations.
                           </p>
@@ -934,12 +942,13 @@ export const InnerEvaluatorForm = (props: {
                         <FormControl>
                           <div className="max-w-[500px]">
                             {props.disabled && !hasFilters ? (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-muted-foreground text-xs">
                                 All {getTargetDisplayName(target)} will be
                                 evaluated
                               </p>
                             ) : (
                               <InlineFilterBuilder
+                                key={target}
                                 columnIdentifier={
                                   isDatasetTarget(target) ||
                                   isTraceTarget(target)
@@ -977,7 +986,7 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="align-center flex max-w-[500px] gap-1">
-                            <AlertTriangle className="h-4 w-4 text-dark-yellow" />
+                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
                             <AlertDescription className="text-dark-yellow">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.

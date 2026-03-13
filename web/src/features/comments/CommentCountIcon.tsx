@@ -9,7 +9,7 @@ export function CommentCountIcon({ count }: { count?: number }) {
       <MessageCircleMore className="h-4 w-4" />
       <span
         className={cn(
-          "absolute -top-0.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-sm border border-muted-foreground bg-muted-foreground px-[0.2rem] text-[8px] text-muted shadow-sm dark:bg-muted dark:text-muted-foreground",
+          "border-muted-foreground bg-muted-foreground text-muted dark:bg-muted dark:text-muted-foreground absolute -top-0.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-sm border px-[0.2rem] text-[8px] shadow-xs",
         )}
       >
         {count > 99 ? "99+" : count}

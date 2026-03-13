@@ -541,7 +541,7 @@ export function DatasetRunsTable(props: {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only [position:relative]">Open menu</span>
+                <span className="sr-only relative">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -601,15 +601,17 @@ export function DatasetRunsTable(props: {
     <>
       {hasCharts ? (
         <ResizablePanelGroup
-          direction="vertical"
+          orientation="vertical"
           className="h-full"
-          onLayout={(sizes) => {
-            setChartsPanelSize(sizes[0]);
+          onLayoutChanged={(layout) => {
+            const charts = layout["dataset-charts"];
+            if (charts != null) setChartsPanelSize(charts);
           }}
         >
           <ResizablePanel
-            defaultSize={chartsPanelSize}
-            minSize={20}
+            id="dataset-charts"
+            defaultSize={`${chartsPanelSize}%`}
+            minSize="20%"
             className="overflow-hidden"
           >
             <div className="h-full w-full overflow-x-auto overflow-y-auto p-3">
@@ -623,7 +625,7 @@ export function DatasetRunsTable(props: {
                     return (
                       <div
                         key={key}
-                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                        className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -670,7 +672,7 @@ export function DatasetRunsTable(props: {
                     return (
                       <div
                         key={key}
-                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                        className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -687,7 +689,7 @@ export function DatasetRunsTable(props: {
                   return (
                     <div
                       key={key}
-                      className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                      className="flex h-full max-w-full min-w-80 flex-col gap-2"
                     >
                       <span className="shrink-0 text-sm font-medium">
                         {title}
@@ -712,7 +714,7 @@ export function DatasetRunsTable(props: {
           </ResizablePanel>
           <ResizableHandle withHandle className="bg-border" />
           <ResizablePanel
-            minSize={40}
+            minSize="40%"
             className="flex h-full flex-1 flex-col overflow-hidden"
           >
             <DataTableToolbar

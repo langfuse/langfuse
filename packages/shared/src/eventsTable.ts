@@ -104,6 +104,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "e.prompt_version",
+    nullable: true,
+  },
+  {
     name: "Model ID",
     id: "modelId",
     type: "stringOptions",
@@ -120,7 +127,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal:
@@ -232,6 +239,20 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Scores (numeric)",
+    id: "trace_scores_avg",
+    type: "numberObject",
+    internal: "trace_scores_avg",
+  },
+  {
+    name: "Trace Scores (categorical)",
+    id: "trace_score_categories",
+    type: "categoryOptions",
+    internal: "trace_score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Comment Count",
     id: "commentCount",
     type: "number",
@@ -248,12 +269,6 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "positionInTrace",
     type: "positionInTrace",
     internal: "positionInTrace",
-  },
-  {
-    name: "Level in Trace",
-    id: "levelInTrace",
-    type: "number",
-    internal: "levelInTrace",
   },
   {
     name: "Has Parent Observation",

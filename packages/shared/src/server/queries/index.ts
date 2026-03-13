@@ -5,6 +5,7 @@ export {
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
+  type Filter,
   FilterList,
   StringFilter,
   DateTimeFilter,
@@ -47,6 +48,7 @@ export {
   eventsScoresAggregation,
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
+  eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "./clickhouse-sql/query-fragments";
