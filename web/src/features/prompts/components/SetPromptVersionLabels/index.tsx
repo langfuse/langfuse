@@ -207,7 +207,7 @@ export function SetPromptVersionLabels({
               <InputCommandSeparator />
               <InputCommandGroup heading="Custom labels">
                 {/* Search + create input */}
-                <div className="px-2 pb-2 pt-1">
+                <div className="px-2 pt-1 pb-2">
                   <Input
                     placeholder="Search or create label…"
                     value={searchValue}
@@ -225,9 +225,9 @@ export function SetPromptVersionLabels({
                     <button
                       type="button"
                       className={cn(
-                        "text-xs text-primary underline-offset-2 hover:underline",
+                        "text-primary text-xs underline-offset-2 hover:underline",
                         unselectedCount === 0 &&
-                          "cursor-default text-muted-foreground no-underline opacity-50",
+                          "text-muted-foreground cursor-default no-underline opacity-50",
                       )}
                       disabled={unselectedCount === 0}
                       onClick={() =>
@@ -240,15 +240,15 @@ export function SetPromptVersionLabels({
                         ? `Select all ${unselectedCount}`
                         : "Select all"}
                     </button>
-                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-muted-foreground text-xs">·</span>
                     <button
                       type="button"
                       className={cn(
-                        "text-xs text-primary underline-offset-2 hover:underline",
+                        "text-primary text-xs underline-offset-2 hover:underline",
                         customLabels.every(
                           (l) => !selectedLabels.includes(l),
                         ) &&
-                          "cursor-default text-muted-foreground no-underline opacity-50",
+                          "text-muted-foreground cursor-default no-underline opacity-50",
                       )}
                       disabled={customLabels.every(
                         (l) => !selectedLabels.includes(l),
@@ -281,9 +281,9 @@ export function SetPromptVersionLabels({
                     <button
                       type="button"
                       className={cn(
-                        "flex w-full items-center px-2 py-1.5 text-left text-sm text-muted-foreground",
+                        "text-muted-foreground flex w-full items-center px-2 py-1.5 text-left text-sm",
                         isValidNewLabel
-                          ? "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                          ? "hover:bg-accent hover:text-accent-foreground cursor-pointer"
                           : "cursor-default opacity-50",
                       )}
                       disabled={!isValidNewLabel}
