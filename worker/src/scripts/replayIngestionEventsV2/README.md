@@ -209,15 +209,14 @@ The endpoint parses each S3 key and constructs the queue payload:
 
 ```json
 {
-  "useS3EventStore": true,
   "authCheck": {
     "validKey": true,
-    "scope": { "projectId": "<projectId>", "accessLevel": "all" }
+    "scope": { "projectId": "<projectId>" }
   },
   "data": {
     "eventBodyId": "<eventBodyId>",
     "fileKey": "<eventId>",
-    "type": "<type>"
+    "type": "<type>-create"
   }
 }
 ```
