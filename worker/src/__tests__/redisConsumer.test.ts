@@ -57,16 +57,22 @@ describe.sequential("handle redis events", () => {
 
     expect(evalExecutionQueue).toBeDefined();
 
-    const job = await evalExecutionQueue?.add(QueueJobs.EvaluationExecution, {
-      id: randomUUID(),
-      timestamp: new Date(),
-      payload: {
-        projectId: "project-id",
-        jobExecutionId: "job-execution-id",
-        delay: 0,
+    const job = await evalExecutionQueue?.add(
+      QueueJobs.EvaluationExecution,
+      {
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: {
+          projectId: "project-id",
+          jobExecutionId: "job-execution-id",
+          delay: 0,
+        },
+        name: QueueJobs.EvaluationExecution,
       },
-      name: QueueJobs.EvaluationExecution,
-    });
+      {
+        removeOnComplete: false,
+      },
+    );
 
     await vi.waitFor(
       async () => {
