@@ -35,11 +35,11 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
         <div className="flex items-center justify-between pt-4">
           <div>
             <h3 className="text-large font-medium">Spend Alerts</h3>
-            <p className="max-w-prose text-sm text-muted-foreground">
+            <p className="text-muted-foreground max-w-prose text-sm">
               Get notified when your organization&apos;s spending exceeds
               configured thresholds. Alerts may be delayed by up to 90 minutes.
             </p>
-            <p className="max-w-prose text-sm text-muted-foreground"></p>
+            <p className="text-muted-foreground max-w-prose text-sm"></p>
           </div>
 
           <Button onClick={() => setIsCreateDialogOpen(true)}>

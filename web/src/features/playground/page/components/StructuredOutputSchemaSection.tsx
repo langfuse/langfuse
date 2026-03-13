@@ -94,7 +94,7 @@ export const StructuredOutputSchemaPopover = () => {
     <Command className="flex flex-col">
       <CommandInput
         placeholder="Search schemas..."
-        className="h-8 border-none py-1 pl-6 pr-1 focus:ring-0 focus:ring-offset-0"
+        className="h-8 border-none py-1 pr-1 pl-6 focus:ring-0 focus:ring-offset-0"
       />
       <CommandList className="max-h-[300px] overflow-y-auto">
         <CommandEmpty>No schemas found.</CommandEmpty>
@@ -107,10 +107,10 @@ export const StructuredOutputSchemaPopover = () => {
               className="flex items-center justify-between px-1 py-2"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <BoxIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{schema.name}</div>
-                  <div className="line-clamp-1 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground line-clamp-1 text-xs">
                     {schema.description}
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export const StructuredOutputSchemaSection = () => {
     <ScrollArea className="h-full">
       {!structuredOutputSchema ? (
         <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
-          <p className="text-xs text-muted-foreground">No schema provided.</p>
+          <p className="text-muted-foreground text-xs">No schema provided.</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -264,10 +264,10 @@ export const StructuredOutputSchemaSection = () => {
                 : undefined
             }
           >
-            <div className="cursor-pointer overflow-hidden rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
+            <div className="bg-background hover:bg-accent/50 cursor-pointer overflow-hidden rounded-md border p-2 transition-colors duration-200">
               <div className="mb-1 flex items-center justify-between">
                 <div className="flex min-w-0 items-center gap-1">
-                  <BoxIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
                   <h3
                     className="truncate text-sm font-medium"
                     title={structuredOutputSchema.name}
@@ -275,7 +275,7 @@ export const StructuredOutputSchemaSection = () => {
                     {structuredOutputSchema.name}
                   </h3>
                   {!isSchemaSaved(structuredOutputSchema) ? (
-                    <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-xs">
                       Unsaved
                     </span>
                   ) : null}
@@ -296,7 +296,7 @@ export const StructuredOutputSchemaSection = () => {
                 </div>
               </div>
               <p
-                className="line-clamp-2 break-all text-xs text-muted-foreground"
+                className="text-muted-foreground line-clamp-2 text-xs break-all"
                 title={structuredOutputSchema.description}
               >
                 {structuredOutputSchema.description}

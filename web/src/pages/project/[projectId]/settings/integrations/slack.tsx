@@ -137,7 +137,7 @@ export default function SlackIntegrationSettings() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <p className="text-sm font-medium">Channel Name</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                           #{selectedChannel.name}
                         </p>
                       </div>
@@ -149,7 +149,7 @@ export default function SlackIntegrationSettings() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">Channel ID</p>
-                        <p className="font-mono text-sm text-muted-foreground">
+                        <p className="text-muted-foreground font-mono text-sm">
                           {selectedChannel.id}
                         </p>
                       </div>
@@ -168,7 +168,7 @@ export default function SlackIntegrationSettings() {
               )}
 
               {!selectedChannel && (
-                <div className="text-sm text-muted-foreground">
+                <div className="text-muted-foreground text-sm">
                   Select a channel above to view its details and test message
                   delivery.
                 </div>

@@ -71,7 +71,7 @@ export function SurveyStep({
                   <Label
                     key={option}
                     htmlFor={option}
-                    className="flex flex-1 cursor-pointer items-center gap-3 rounded-lg border border-border p-3 text-sm font-medium leading-none transition-colors hover:bg-muted/50 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    className="border-border hover:bg-muted/50 flex flex-1 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm leading-none font-medium transition-colors peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     <RadioGroupItem value={option} id={option} />
                     <span className="flex-1">{option}</span>

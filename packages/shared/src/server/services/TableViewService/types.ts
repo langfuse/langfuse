@@ -37,13 +37,18 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
   z.object({
     id: z.string(),
     name: z.string(),
-    createdBy: z.string(),
+    createdBy: z.string().nullable(),
     createdByUser: z
       .object({
         image: z.string().nullish(),
         name: z.string().nullish(),
       })
       .nullish(),
+    filters: z.array(singleFilter),
+    columnOrder: z.array(z.string()),
+    columnVisibility: z.record(z.string(), z.boolean()),
+    searchQuery: z.string().nullish(),
+    orderBy: orderBy,
   }),
 );
 

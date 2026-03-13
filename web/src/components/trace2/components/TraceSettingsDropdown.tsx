@@ -76,7 +76,7 @@ export function TraceSettingsDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-64 space-x-0 space-y-0 p-0 px-0"
+        className="w-64 space-y-0 space-x-0 p-0 px-0"
       >
         <DropdownMenuLabel>View Options</DropdownMenuLabel>
         <DropdownMenuSeparator />

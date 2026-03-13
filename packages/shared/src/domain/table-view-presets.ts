@@ -28,3 +28,9 @@ const TableViewPresetDomainSchema = z.object({
 });
 
 export type TableViewPresetDomain = z.infer<typeof TableViewPresetDomainSchema>;
+export type TableViewPresetState = Pick<
+  TableViewPresetDomain,
+  "filters" | "columnOrder" | "columnVisibility" | "orderBy"
+> & {
+  searchQuery?: string | null;
+};
