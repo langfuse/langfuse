@@ -229,6 +229,7 @@ export const traceRouter = createTRPCRouter({
             value: filteredTraceIds,
           },
         ],
+        orderBy: { column: "timestamp", order: "DESC" },
       });
 
       const traceScores = await getScoresForTraces({
