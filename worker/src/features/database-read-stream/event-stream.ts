@@ -13,6 +13,7 @@ import {
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  eventsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -113,6 +114,7 @@ export const getEventsStream = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -134,8 +136,12 @@ export const getEventsStream = async (props: {
     .selectRaw(
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
+      "s.score_categories_tuples as score_categories_tuples",
     )
-    .withCTE("scores_agg", eventsScoresAggregation({ projectId }))
+    .withCTE(
+      "scores_agg",
+      eventsScoresAggregation({ projectId, includeTupleEncoding: true }),
+    )
     .leftJoin(
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
@@ -191,6 +197,7 @@ export const getEventsStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null][] | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
@@ -218,17 +225,14 @@ export const getEventsStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          stringValue: valueParts.join(":"),
-        };
-      },
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat) => ({
+        name: cat[0],
+        value: null,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =
@@ -387,6 +391,7 @@ export const getEventsStreamForEval = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 
@@ -525,6 +530,7 @@ export const getEventsStreamForDataset = async (props: {
         },
       ],
       eventsTableUiColumnDefinitions,
+      eventsTableCols,
     ),
   );
 

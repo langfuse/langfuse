@@ -30,6 +30,7 @@ export const viewDeclaration = z.object({
         })
         .optional(),
       highCardinality: z.boolean().optional(),
+      uiHidden: z.boolean().optional(),
       explodeArray: z.boolean().optional(),
       pairExpand: z
         .object({
@@ -61,6 +62,7 @@ export const viewDeclaration = z.object({
       name: z.string(),
       joinConditionSql: z.string(),
       timeDimension: z.string(),
+      useFinal: z.boolean().optional(),
     }),
   ),
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.

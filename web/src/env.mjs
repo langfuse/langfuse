@@ -133,14 +133,15 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTHENTIK_ISSUER: z
       .string()
-      .regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+\/?$/, {
         message:
-          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> with optional trailing slash",
       })
       .optional(),
     AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTHENTIK_CHECKS: zAuthChecks,
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL: z.string().url().optional(),
     AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
     AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
     AUTH_ONELOGIN_ISSUER: z.string().optional(),
@@ -253,6 +254,11 @@ export const env = createEnv({
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(168), // 7 days
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -431,7 +437,7 @@ export const env = createEnv({
 
     // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+      .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
       .optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
@@ -538,6 +544,8 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
       process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
     AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL:
+      process.env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
     AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
     AUTH_ONELOGIN_CLIENT_SECRET: process.env.AUTH_ONELOGIN_CLIENT_SECRET,
     AUTH_ONELOGIN_ISSUER: process.env.AUTH_ONELOGIN_ISSUER,
@@ -675,6 +683,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
       process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
+    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS:
+      process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,

@@ -22,6 +22,8 @@ import {
   type Filter,
 } from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
+import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
   table: string;
@@ -322,6 +324,7 @@ export class QueryBuilder {
       clickhouseSelect: string;
       queryPrefix: string;
       type: string;
+      emptyEqualsNull?: boolean;
     }> = [];
 
     for (const filter of filters) {
@@ -345,9 +348,18 @@ export class QueryBuilder {
       let queryPrefix: string = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
+      let emptyEqualsNull: boolean | undefined;
 
       if (dimension) {
-        clickhouseSelect = dimension.sql;
+        // Dimension with nullIf(col, ''): use raw column with emptyEqualsNull
+        // flag for index-friendly filtering while preserving '' ≡ NULL semantic.
+        const nullIfMatch = NULL_IF_EMPTY_RE.exec(dimension.sql);
+        if (nullIfMatch) {
+          clickhouseSelect = nullIfMatch[1];
+          emptyEqualsNull = true;
+        } else {
+          clickhouseSelect = dimension.sql;
+        }
         type = "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
@@ -389,6 +401,7 @@ export class QueryBuilder {
         clickhouseSelect,
         queryPrefix,
         type,
+        emptyEqualsNull,
       });
     }
 
@@ -579,13 +592,13 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      // Conditionally add FINAL - skip for observations if flag is set
-      const shouldUseFinal = !(
-        relation.name === "observations" && skipObservationsFinal
-      );
+      // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
+      const shouldUseFinal =
+        (relation.useFinal ?? true) &&
+        !(relation.name === "observations" && skipObservationsFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      let joinStatement = `LEFT JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -1330,27 +1343,38 @@ export class QueryBuilder {
     // When rootEventCondition is set, add a subquery filter to restrict rows
     // to traces whose root event has timeDimension in the query window.
     // The existing start_time filter above is kept for ClickHouse partition pruning.
-    // Falls back gracefully: if no root events exist in the window at all
-    // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
+    // For wide time windows (default >7 days), the subquery is skipped as the
+    // root-event check has diminishing returns and hurts performance.
+    // Set LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS=0 to always apply the filter.
     if (view.rootEventCondition) {
-      const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
-      const fromP = `subFrom${uid}`;
-      const toP = `subTo${uid}`;
-      const projP = `subProj${uid}`;
-      const baseTable = this.actualTableName(view);
-      const { column, condition } = view.rootEventCondition;
-      const subquery =
-        `SELECT ${column} FROM ${baseTable} ` +
-        `WHERE project_id = {${projP}: String} ` +
-        `AND ${condition} ` +
-        `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-        `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
-      fromClause +=
-        ` AND (${baseTable}.${column} IN (${subquery})` +
-        ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-      parameters[fromP] = new Date(query.fromTimestamp).getTime();
-      parameters[toP] = new Date(query.toTimestamp).getTime();
-      parameters[projP] = projectId;
+      const windowMs =
+        new Date(query.toTimestamp).getTime() -
+        new Date(query.fromTimestamp).getTime();
+      const windowHours = windowMs / (1000 * 60 * 60);
+      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+
+      if (thresholdHours === 0 || windowHours <= thresholdHours) {
+        // Falls back gracefully: if no root events exist in the window at all
+        // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
+        const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+        const fromP = `subFrom${uid}`;
+        const toP = `subTo${uid}`;
+        const projP = `subProj${uid}`;
+        const baseTable = this.actualTableName(view);
+        const { column, condition } = view.rootEventCondition;
+        const subquery =
+          `SELECT ${column} FROM ${baseTable} ` +
+          `WHERE project_id = {${projP}: String} ` +
+          `AND ${condition} ` +
+          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
+          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+        fromClause +=
+          ` AND (${baseTable}.${column} IN (${subquery})` +
+          ` OR NOT EXISTS (${subquery} LIMIT 1))`;
+        parameters[fromP] = new Date(query.fromTimestamp).getTime();
+        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[projP] = projectId;
+      }
     }
 
     // Check if single-level optimization is applicable

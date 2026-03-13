@@ -1,0 +1,90 @@
+import { type ColumnDefinition } from "./types";
+import { ScoreSourceArray, ScoreDataTypeArray } from "../domain/scores";
+
+export const scoresTableCols: ColumnDefinition[] = [
+  {
+    name: "Trace ID",
+    id: "traceId",
+    type: "string",
+    internal: 's."trace_id"',
+  },
+  {
+    name: "Session ID",
+    id: "sessionId",
+    type: "string",
+    internal: 's."session_id"',
+  },
+  {
+    name: "Trace Name",
+    id: "traceName",
+    type: "stringOptions",
+    internal: 't."name"',
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 's."environment"',
+    options: [],
+  },
+  {
+    name: "Observation ID",
+    id: "observationId",
+    type: "string",
+    internal: 's."observation_id"',
+  },
+  {
+    name: "Timestamp",
+    id: "timestamp",
+    type: "datetime",
+    internal: 's."timestamp"',
+  },
+  {
+    name: "Source",
+    id: "source",
+    type: "stringOptions",
+    internal: 's."source"::text',
+    options: ScoreSourceArray.map((value) => ({ value })),
+  },
+  {
+    name: "Data Type",
+    id: "dataType",
+    type: "stringOptions",
+    internal: 's."data_type"::text',
+    options: ScoreDataTypeArray.map((value) => ({ value })),
+  },
+  {
+    name: "Name",
+    id: "name",
+    type: "stringOptions",
+    internal: 's."name"',
+    options: [],
+  },
+  { name: "Value", id: "value", type: "number", internal: 's."value"' },
+  {
+    name: "String Value",
+    id: "stringValue",
+    type: "stringOptions",
+    internal: 's."string_value"',
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "stringOptions",
+    internal: 't."user_id"',
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: 't."tags"',
+    options: [],
+    nullable: true,
+  },
+];
