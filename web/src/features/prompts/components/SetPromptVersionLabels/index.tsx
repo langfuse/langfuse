@@ -50,12 +50,14 @@ export function SetPromptVersionLabels({
   const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [labels, setLabels] = useState<string[]>([]);
+  const [createdLabels, setCreatedLabels] = useState<string[]>([]);
   const [searchValue, setSearchValue] = useState("");
   const labelsChanged =
     JSON.stringify([...selectedLabels].sort()) !==
     JSON.stringify([...prompt.labels].sort());
   const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
+  const previousIsOpenRef = useRef(false);
+  const previousPromptIdRef = useRef(prompt.id);
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(
     {
@@ -64,16 +66,20 @@ export function SetPromptVersionLabels({
     { enabled: Boolean(projectId) },
   );
 
-  // Set initial labels and selected labels
   useEffect(() => {
-    if (isOpen) {
-      setLabels([
-        ...new Set([...prompt.labels, ...(usedLabelsInProject.data ?? [])]),
-      ]);
+    const justOpened = isOpen && !previousIsOpenRef.current;
+    const promptChangedWhileOpen =
+      isOpen && previousPromptIdRef.current !== prompt.id;
+
+    if (justOpened || promptChangedWhileOpen) {
       setSelectedLabels(prompt.labels);
+      setCreatedLabels([]);
       setSearchValue("");
     }
-  }, [isOpen, prompt.labels, usedLabelsInProject.data]);
+
+    previousIsOpenRef.current = isOpen;
+    previousPromptIdRef.current = prompt.id;
+  }, [isOpen, prompt.id, prompt.labels]);
 
   const isPromotingToProduction =
     !prompt.labels.includes(PRODUCTION_LABEL) &&
@@ -115,13 +121,25 @@ export function SetPromptVersionLabels({
   };
 
   // Derived label lists
+  const labels = [
+    ...new Set([
+      ...prompt.labels,
+      ...(usedLabelsInProject.data ?? []),
+      ...createdLabels,
+    ]),
+  ];
   const customLabels = labels.filter((l) => !isReservedPromptLabel(l));
+  const normalizedSearchValue = searchValue.toLowerCase().trim();
   const filteredCustomLabels = customLabels.filter((l) =>
-    l.toLowerCase().includes(searchValue.toLowerCase().trim()),
+    l.toLowerCase().includes(normalizedSearchValue),
   );
-  const unselectedCount = customLabels.filter(
+  const filteredCustomLabelSet = new Set(filteredCustomLabels);
+  const filteredUnselectedCount = filteredCustomLabels.filter(
     (l) => !selectedLabels.includes(l),
   ).length;
+  const hasFilteredSelection = filteredCustomLabels.some((l) =>
+    selectedLabels.includes(l),
+  );
 
   // Validate new label creation from search input
   const trimmedSearch = searchValue.trim();
@@ -135,7 +153,7 @@ export function SetPromptVersionLabels({
 
   const handleCreateLabel = () => {
     if (!isValidNewLabel) return;
-    setLabels((prev) => [...prev, trimmedSearch]);
+    setCreatedLabels((prev) => [...prev, trimmedSearch]);
     setSelectedLabels((prev) => [...new Set([...prev, trimmedSearch])]);
     capture("prompt_detail:add_label_submit");
     setSearchValue("");
@@ -226,18 +244,18 @@ export function SetPromptVersionLabels({
                       type="button"
                       className={cn(
                         "text-primary text-xs underline-offset-2 hover:underline",
-                        unselectedCount === 0 &&
+                        filteredUnselectedCount === 0 &&
                           "text-muted-foreground cursor-default no-underline opacity-50",
                       )}
-                      disabled={unselectedCount === 0}
+                      disabled={filteredUnselectedCount === 0}
                       onClick={() =>
                         setSelectedLabels((prev) => [
-                          ...new Set([...prev, ...customLabels]),
+                          ...new Set([...prev, ...filteredCustomLabels]),
                         ])
                       }
                     >
-                      {unselectedCount > 0
-                        ? `Select all ${unselectedCount}`
+                      {filteredUnselectedCount > 0
+                        ? `Select all ${filteredUnselectedCount}`
                         : "Select all"}
                     </button>
                     <span className="text-muted-foreground text-xs">·</span>
@@ -245,17 +263,17 @@ export function SetPromptVersionLabels({
                       type="button"
                       className={cn(
                         "text-primary text-xs underline-offset-2 hover:underline",
-                        customLabels.every(
-                          (l) => !selectedLabels.includes(l),
-                        ) &&
+                        !hasFilteredSelection &&
                           "text-muted-foreground cursor-default no-underline opacity-50",
                       )}
-                      disabled={customLabels.every(
-                        (l) => !selectedLabels.includes(l),
-                      )}
+                      disabled={!hasFilteredSelection}
                       onClick={() =>
                         setSelectedLabels((prev) =>
-                          prev.filter((l) => isReservedPromptLabel(l)),
+                          prev.filter(
+                            (l) =>
+                              isReservedPromptLabel(l) ||
+                              !filteredCustomLabelSet.has(l),
+                          ),
                         )
                       }
                     >
