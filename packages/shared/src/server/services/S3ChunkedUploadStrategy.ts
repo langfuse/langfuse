@@ -90,7 +90,7 @@ export class S3ChunkedUploadStrategy implements ChunkedUploadStrategy {
     );
   }
 
-  async abort(): Promise<void> {
+  async abort(reason?: string): Promise<void> {
     if (!this.uploadId) return;
 
     try {
@@ -102,7 +102,7 @@ export class S3ChunkedUploadStrategy implements ChunkedUploadStrategy {
         }),
       );
       logger.info(
-        `Aborted multipart upload ${this.uploadId} for ${this.params.key}`,
+        `Aborted multipart upload ${this.uploadId} for ${this.params.key}${reason ? `: ${reason}` : ""}`,
       );
     } catch (abortError) {
       logger.error(

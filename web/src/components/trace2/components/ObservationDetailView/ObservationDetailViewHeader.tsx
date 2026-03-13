@@ -2,7 +2,7 @@
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
- * - Title row with ItemBadge, observation name, CopyIdsPopover
+ * - Title row with ItemBadge, observation name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Playground, Comments)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
@@ -19,7 +19,6 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -48,6 +47,7 @@ import {
 import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
 import type Decimal from "decimal.js";
+import { DetailHeaderActionsMenu } from "@/src/components/trace2/components/_shared/DetailHeaderActionsMenu";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -106,11 +106,14 @@ export const ObservationDetailViewHeader = memo(
             <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {observation.name || observation.id}
             </span>
-            <CopyIdsPopover
+            <DetailHeaderActionsMenu
               idItems={[
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
               ]}
+              observationType={observation.type}
+              projectId={projectId}
+              spanName={observation.name ?? ""}
             />
           </div>
           {/* Action buttons */}

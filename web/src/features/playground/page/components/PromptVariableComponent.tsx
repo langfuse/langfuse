@@ -69,6 +69,7 @@ export const PromptVariableComponent: React.FC<{
         editable={true}
         lineNumbers={false}
         placeholder={name}
+        enableSearchKeymap={false}
       />
 
       {hasConflict && (

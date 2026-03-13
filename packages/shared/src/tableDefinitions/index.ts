@@ -7,3 +7,4 @@ export * from "./mapDatasetRunsTable";
 export * from "./datasetRunsTable";
 export * from "./datasetRunItemsTable";
 export * from "./usersTable";
+export * from "./scoresTable";
