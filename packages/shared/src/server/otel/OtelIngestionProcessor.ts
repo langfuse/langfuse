@@ -2110,13 +2110,21 @@ export class OtelIngestionProcessor {
       const outputTokens = attributes["gen_ai.usage.output_tokens"];
       const cacheReadTokens =
         attributes["gen_ai.usage.cache_read_tokens"] ??
-        attributes["gen_ai.usage.details.cache_read_input_tokens"];
+        attributes["gen_ai.usage.details.cache_read_input_tokens"] ??
+        attributes["gen_ai.usage.details.cache_read_tokens"];
       const cacheWriteTokens =
         attributes["gen_ai.usage.cache_write_tokens"] ??
-        attributes["gen_ai.usage.details.cache_creation_input_tokens"];
+        attributes["gen_ai.usage.details.cache_creation_input_tokens"] ??
+        attributes["gen_ai.usage.details.cache_write_tokens"];
 
+      // Per OTel semantic conventions, gen_ai.usage.input_tokens is the TOTAL
+      // input token count (cached + uncached). Subtract cache tokens to avoid
+      // double-counting, matching the "ai" SDK branch above.
       return {
-        input: inputTokens,
+        input: Math.max(
+          (inputTokens ?? 0) - (cacheReadTokens ?? 0) - (cacheWriteTokens ?? 0),
+          0,
+        ),
         output: outputTokens,
         input_cache_read: cacheReadTokens,
         input_cache_creation: cacheWriteTokens,
