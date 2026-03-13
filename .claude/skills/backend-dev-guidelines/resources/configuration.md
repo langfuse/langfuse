@@ -75,7 +75,7 @@ export const env = createEnv({
   // Client-side variables (exposed to browser)
   client: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-      .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+      .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
       .optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
     // ... client variables
@@ -274,7 +274,7 @@ const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
 
 **Purpose:** Identifies the cloud deployment region for Langfuse Cloud.
 
-**Type:** `"US" | "EU" | "STAGING" | "DEV" | "HIPAA" | undefined`
+**Type:** `"US" | "EU" | "STAGING" | "DEV" | "HIPAA" | "JP" | undefined`
 
 **Where Used:**
 
@@ -286,11 +286,12 @@ const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
 **When Set:**
 
 | Environment              | Value                  | Purpose                                        |
-| ------------------------ | ---------------------- | ---------------------------------------------- |
+|--------------------------|------------------------|------------------------------------------------|
 | **Developer Laptop**     | `"DEV"` or `"STAGING"` | Local development against cloud infrastructure |
 | **Langfuse Cloud US**    | `"US"`                 | Production US region                           |
 | **Langfuse Cloud EU**    | `"EU"`                 | Production EU region                           |
 | **Langfuse Cloud HIPAA** | `"HIPAA"`              | HIPAA-compliant region                         |
+| **Langfuse Cloud JP**    | `"JP"`                 | Production JP region                           |
 | **OSS Self-Hosted**      | `undefined` (not set)  | Self-hosted deployments don't have region      |
 
 **Use Cases:**
