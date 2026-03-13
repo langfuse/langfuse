@@ -230,7 +230,7 @@ export default function Dataset() {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 <DropdownMenuItem asChild>
                   <DatasetActionButton
                     mode="update"
@@ -268,7 +268,7 @@ export default function Dataset() {
                 {hasReadAccess && (
                   <DropdownMenuItem asChild>
                     <Link href={`/project/${projectId}/evals?target=dataset`}>
-                      <Bot className="ml-1 mr-2 h-4 w-4" />
+                      <Bot className="mr-2 ml-1 h-4 w-4" />
                       Manage Evaluators
                     </Link>
                   </DropdownMenuItem>
@@ -295,7 +295,7 @@ export default function Dataset() {
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+          <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}

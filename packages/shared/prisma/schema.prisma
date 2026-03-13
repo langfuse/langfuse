@@ -1126,6 +1126,10 @@ model BlobStorageIntegration {
   exportStartDate DateTime?                        @map("export_start_date")
   exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
+  // Error tracking
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 

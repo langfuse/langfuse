@@ -162,7 +162,7 @@ export function JsonPathInput({
         )}
       />
       {displayError && (
-        <p className="text-xs text-destructive">{displayError}</p>
+        <p className="text-destructive text-xs">{displayError}</p>
       )}
       {showWarning && (
         <p className="text-xs text-amber-600 dark:text-amber-500">
