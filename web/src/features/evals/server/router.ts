@@ -9,6 +9,7 @@ import {
   DEFAULT_TRACE_JOB_DELAY,
   compilePersistedEvalOutputDefinition,
   ZodModelConfig,
+  deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
   variableMapping,
@@ -29,6 +30,7 @@ import {
   getQueue,
   getAvgCostByEvaluatorIds,
   getCostByEvaluatorIds,
+  getEvaluatorExecutionStatusCountsByEvaluatorId,
   getScoresByIds,
   logger,
   QueueName,
@@ -53,7 +55,6 @@ import {
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import {
-  deriveEvaluatorDisplayStatus,
   resetEvalConfigBlockFields,
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
@@ -400,12 +401,6 @@ export const evalRouter = createTRPCRouter({
         ),
       ]);
 
-      const jobExecutionsByState = await fetchJobExecutionsByStatus({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        configIds: configs.map((c) => c.id),
-      });
-
       return {
         configs: configs.map((config) => ({
           ...config,
@@ -417,17 +412,12 @@ export const evalRouter = createTRPCRouter({
                 projectId: config.templateProjectId,
               }
             : null,
-          jobExecutionsByState: jobExecutionsByState.filter(
-            (je) => je.jobConfigurationId === config.id,
-          ),
-          finalStatus: deriveEvaluatorDisplayStatus(
-            config.status,
-            config.blockedAt,
-            Array.isArray(config.timeScope) ? config.timeScope : [],
-            jobExecutionsByState.filter(
-              (je) => je.jobConfigurationId === config.id,
-            ),
-          ),
+          displayStatus: deriveEvaluatorDisplayStateFromExecutionCounts({
+            status: config.status,
+            blockedAt: config.blockedAt,
+            timeScope: Array.isArray(config.timeScope) ? config.timeScope : [],
+            executionCounts: [],
+          }),
         })),
         totalCount:
           configsCount.length > 0 ? Number(configsCount[0]?.totalCount) : 0,
@@ -460,23 +450,15 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
-      const jobExecutionsByStatus = await fetchJobExecutionsByStatus({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        configIds: [config.id],
+      const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
+        status: config.status,
+        blockedAt: config.blockedAt,
+        timeScope: Array.isArray(config.timeScope) ? config.timeScope : [],
       });
-
-      const finalStatus = deriveEvaluatorDisplayStatus(
-        config.status,
-        config.blockedAt,
-        Array.isArray(config.timeScope) ? config.timeScope : [],
-        jobExecutionsByStatus,
-      );
 
       return {
         ...config,
-        jobExecutionsByState: jobExecutionsByStatus,
-        finalStatus,
+        displayStatus,
       };
     }),
 
@@ -1503,6 +1485,31 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
+    }),
+
+  jobExecutionCountsByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      if (input.evaluatorIds.length === 0) {
+        return {};
+      }
+
+      return getEvaluatorExecutionStatusCountsByEvaluatorId({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        evaluatorIds: input.evaluatorIds,
+      });
     }),
 
   costByEvaluatorIds: protectedProjectProcedure

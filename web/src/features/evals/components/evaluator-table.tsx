@@ -13,19 +13,11 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
-import { type RouterOutputs, api } from "@/src/utils/api";
-import { safeExtract } from "@/src/utils/map-utils";
-import {
-  type FilterState,
-  type EvaluatorBlockReason,
-  singleFilter,
-} from "@langfuse/shared";
+import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { z } from "zod/v4";
-import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import {
   isLegacyEvalTarget,
   isEventTarget,
@@ -61,7 +53,6 @@ import {
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -74,34 +65,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-
-export type EvaluatorDataRow = {
-  id: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  maintainer: string;
-  rawStatus: string;
-  template?: {
-    id: string;
-    name: string;
-    version: number;
-  };
-  blockMessage?: string | null;
-  blockReason?: EvaluatorBlockReason | null;
-  scoreName: string;
-  target: string;
-  filter: FilterState;
-  result: {
-    level: string;
-    count: number;
-    symbol: string;
-  }[];
-  logs?: string;
-  actions?: string;
-  totalCost?: number | null;
-  isLegacy?: boolean;
-};
+import {
+  type EvaluatorDataRow,
+  useEvaluatorTableData,
+} from "@/src/features/evals/hooks/useEvaluatorTableData";
 
 function LegacyBadgeCell({ status }: { status: string }) {
   return (
@@ -176,15 +143,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const evaluators = api.evals.allConfigs.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    projectId,
-    filter: queryFilter.filterState,
-    orderBy: orderByState,
-    searchQuery: searchQuery,
-  });
-  const totalCount = evaluators.data?.totalCount ?? null;
+  const { evaluators, rows, totalCount, hasLegacyEvals } =
+    useEvaluatorTableData({
+      projectId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      filter: queryFilter.filterState,
+      orderBy: orderByState,
+      searchQuery,
+    });
 
   const existingEvaluator = api.evals.configById.useQuery(
     {
@@ -199,31 +166,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
-
-  // Fetch costs for all evaluators
-  const evaluatorIds =
-    evaluators.data?.configs.map((config) => config.id) ?? [];
-  const costs = api.evals.costByEvaluatorIds.useQuery(
-    {
-      projectId,
-      evaluatorIds,
-    },
-    {
-      enabled: evaluators.isSuccess && evaluatorIds.length > 0,
-      meta: {
-        silentHttpCodes: [503],
-      },
-    },
-  );
-
-  const hasLegacyEvals = useMemo(() => {
-    if (!evaluators.data?.configs) return false;
-    return evaluators.data.configs.some(
-      (config) =>
-        config.finalStatus === "ACTIVE" &&
-        isLegacyEvalTarget(config.targetObject),
-    );
-  }, [evaluators.data?.configs]);
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -268,7 +210,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const totalCost = row.getValue();
 
-        if (!costs.data) return <Skeleton className="h-4 w-16" />;
+        if (row.row.original.isCostLoading) {
+          return <Skeleton className="h-4 w-16" />;
+        }
 
         if (totalCost != null) return usdFormatter(totalCost, 2, 4);
 
@@ -281,7 +225,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 150,
       cell: (row) => {
         const result = row.getValue();
-        return <LevelCountsDisplay counts={result} />;
+        return (
+          <LevelCountsDisplay
+            counts={result}
+            isLoading={row.row.original.isResultLoading}
+          />
+        );
       },
     }),
     columnHelper.accessor("logs", {
@@ -476,43 +425,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     [projectId, peekNavigationProps],
   );
 
-  const convertToTableRow = (
-    jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
-  ): EvaluatorDataRow => {
-    const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
-    const costData = costs.data?.[jobConfig.id];
-
-    return {
-      id: jobConfig.id,
-      status: jobConfig.finalStatus,
-      rawStatus: jobConfig.status,
-      createdAt: jobConfig.createdAt.toLocaleString(),
-      updatedAt: jobConfig.updatedAt.toLocaleString(),
-      template: jobConfig.evalTemplate
-        ? {
-            id: jobConfig.evalTemplate.id,
-            name: jobConfig.evalTemplate.name,
-            version: jobConfig.evalTemplate.version,
-          }
-        : undefined,
-      blockMessage: jobConfig.blockMessage,
-      blockReason: jobConfig.blockReason,
-      scoreName: jobConfig.scoreName,
-      target: jobConfig.targetObject,
-      filter: z.array(singleFilter).parse(jobConfig.filter),
-      result: result,
-      maintainer: jobConfig.evalTemplate
-        ? jobConfig.evalTemplate.projectId
-          ? "User maintained"
-          : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-            ? "Langfuse and Ragas maintained"
-            : "Langfuse maintained"
-        : "Not available",
-      totalCost: costData,
-      isLegacy: isLegacyEvalTarget(jobConfig.targetObject),
-    };
-  };
-
   return (
     <DataTableControlsProvider
       tableName={evaluatorFilterConfig.tableName}
@@ -591,9 +503,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                     : {
                         isLoading: false,
                         isError: false,
-                        data: safeExtract(evaluators.data, "configs", []).map(
-                          (evaluator) => convertToTableRow(evaluator),
-                        ),
+                        data: rows,
                       }
               }
               pagination={{
