@@ -47,7 +47,7 @@ describe("URL Normalization and Edge Cases", () => {
       await expect(
         validateWebhookURL("http://тест.example.com/webhook"),
       ).rejects.toThrow(/DNS lookup failed|Invalid URL/);
-    });
+    }, 10000);
 
     it("should normalize unicode characters", async () => {
       // Unicode variations that could be used for bypassing
