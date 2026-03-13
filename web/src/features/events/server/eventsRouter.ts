@@ -407,6 +407,71 @@ export const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };
 
+const CONFLICTS_KEY = "__langfuse_conflicts";
+
+const isMetadataObject = (
+  value: JsonNested | undefined,
+): value is Record<string, JsonNested | undefined> =>
+  value !== null &&
+  value !== undefined &&
+  typeof value === "object" &&
+  !Array.isArray(value);
+
+const cloneJsonNested = (
+  value: JsonNested | undefined,
+): JsonNested | undefined => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneJsonNested(item) as JsonNested);
+  }
+
+  if (isMetadataObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        cloneJsonNested(nestedValue),
+      ]),
+    );
+  }
+
+  return value;
+};
+
+const setMetadataConflict = (
+  conflicts: Record<string, JsonNested | undefined>,
+  path: string,
+  value: JsonNested | undefined,
+) => {
+  conflicts[path] = cloneJsonNested(value);
+};
+
+const mergeMetadataObjectIntoTree = (
+  target: Record<string, JsonNested | undefined>,
+  source: Record<string, JsonNested | undefined>,
+  basePath: string,
+  conflicts: Record<string, JsonNested | undefined>,
+) => {
+  for (const [key, value] of Object.entries(source)) {
+    const nextPath = `${basePath}.${key}`;
+    const existing = target[key];
+
+    if (existing === undefined) {
+      target[key] = cloneJsonNested(value);
+      continue;
+    }
+
+    if (isMetadataObject(existing) && isMetadataObject(value)) {
+      mergeMetadataObjectIntoTree(existing, value, nextPath, conflicts);
+      continue;
+    }
+
+    setMetadataConflict(conflicts, nextPath, value);
+  }
+};
+
 export const unflattenMetadataForTrpc = (
   metadata: MetadataDomain | undefined,
 ): MetadataDomain => {
@@ -415,27 +480,66 @@ export const unflattenMetadataForTrpc = (
   }
 
   const result: MetadataDomain = {};
+  const conflicts: Record<string, JsonNested | undefined> = {};
+  const entries = Object.entries(metadata).sort(
+    ([leftKey], [rightKey]) =>
+      leftKey.split(".").length - rightKey.split(".").length ||
+      leftKey.localeCompare(rightKey),
+  );
 
-  for (const [key, value] of Object.entries(metadata)) {
+  for (const [key, value] of entries) {
+    if (key === CONFLICTS_KEY) {
+      setMetadataConflict(conflicts, key, value);
+      continue;
+    }
+
     const segments = key.split(".");
 
     if (segments.length === 1) {
-      result[key] = value;
+      const existing = result[key];
+
+      if (existing === undefined) {
+        result[key] = cloneJsonNested(value);
+      } else if (isMetadataObject(existing) && isMetadataObject(value)) {
+        mergeMetadataObjectIntoTree(existing, value, key, conflicts);
+      } else {
+        setMetadataConflict(conflicts, key, value);
+      }
+
       continue;
     }
 
     let current: Record<string, JsonNested | undefined> = result;
 
-    for (const segment of segments.slice(0, -1)) {
+    for (let index = 0; index < segments.length - 1; index++) {
+      const segment = segments[index];
+      const currentPath = segments.slice(0, index + 1).join(".");
       const existing = current[segment];
-      if (existing === undefined || typeof existing !== "object") {
+
+      if (existing === undefined) {
+        current[segment] = {};
+      } else if (!isMetadataObject(existing)) {
+        setMetadataConflict(conflicts, currentPath, existing);
         current[segment] = {};
       }
+
       current = current[segment] as Record<string, JsonNested | undefined>;
     }
 
     const leafKey = segments[segments.length - 1];
-    current[leafKey] = value;
+    const existing = current[leafKey];
+
+    if (existing === undefined) {
+      current[leafKey] = cloneJsonNested(value);
+    } else if (isMetadataObject(existing) && isMetadataObject(value)) {
+      mergeMetadataObjectIntoTree(existing, value, key, conflicts);
+    } else {
+      setMetadataConflict(conflicts, key, value);
+    }
+  }
+
+  if (Object.keys(conflicts).length > 0) {
+    result[CONFLICTS_KEY] = conflicts;
   }
 
   return result;

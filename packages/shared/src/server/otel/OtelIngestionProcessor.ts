@@ -289,6 +289,9 @@ export class OtelIngestionProcessor {
                     ...(scopeSpan.scope || {}),
                     attributes: scopeAttributes,
                   },
+                  // Note: top-level user metadata can overwrite `scope` here.
+                  // This preserves the v3 behavior/shape, even though it means
+                  // the instrumentation scope object is not guaranteed to win.
                   ...spanMetadata,
                   ...traceMetadata,
                 };

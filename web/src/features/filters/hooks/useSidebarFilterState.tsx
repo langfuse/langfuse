@@ -27,6 +27,7 @@ import {
 } from "../lib/managedEnvironmentPolicy";
 import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
+import { useFilterExpandedState } from "./useFilterExpandedState";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
