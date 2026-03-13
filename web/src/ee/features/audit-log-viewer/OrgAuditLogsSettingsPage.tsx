@@ -12,7 +12,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("audit-logs");
 
   const body = !hasEntitlement ? (
-    <p className="text-sm text-muted-foreground">
+    <p className="text-muted-foreground text-sm">
       Audit logs are an Enterprise feature. Upgrade your plan to track all
       changes made to your organization.
     </p>
@@ -30,7 +30,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   return (
     <>
       <Header title="Organization Audit Logs" />
-      <p className="mb-2 text-sm text-muted-foreground">
+      <p className="text-muted-foreground mb-2 text-sm">
         Track who changed what in your organization and when. Monitor
         organization settings, project creation/deletion, and membership changes
         over time.

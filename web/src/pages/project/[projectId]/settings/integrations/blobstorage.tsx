@@ -98,7 +98,7 @@ export default function BlobStorageIntegrationSettings() {
         ),
       }}
     >
-      <p className="mb-4 text-sm text-primary">
+      <p className="text-primary mb-4 text-sm">
         Configure scheduled exports of your trace data to AWS S3, S3-compatible
         storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
         export to your own storage for data analysis or backup purposes. Use the
@@ -128,13 +128,13 @@ export default function BlobStorageIntegrationSettings() {
         <>
           <Header title="Status" className="mt-8" />
           <div className="space-y-2">
-            <p className="text-sm text-primary">
+            <p className="text-primary text-sm">
               Data last exported:{" "}
               {state.data?.lastSyncAt
                 ? new Date(state.data.lastSyncAt).toLocaleString()
                 : "Never (pending)"}
             </p>
-            <p className="text-sm text-primary">
+            <p className="text-primary text-sm">
               Export mode:{" "}
               {state.data?.exportMode === BlobStorageExportMode.FULL_HISTORY
                 ? "Full history"
@@ -149,7 +149,7 @@ export default function BlobStorageIntegrationSettings() {
               BlobStorageExportMode.FROM_CUSTOM_DATE ||
               state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
               state.data?.exportStartDate && (
-                <p className="text-sm text-primary">
+                <p className="text-primary text-sm">
                   Export start date:{" "}
                   {new Date(state.data.exportStartDate).toLocaleDateString()}
                 </p>
@@ -398,7 +398,7 @@ const BlobStorageIntegrationSettingsForm = ({
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    className="ml-4 mt-1"
+                    className="mt-1 ml-4"
                   />
                 </FormControl>
                 <FormDescription>
@@ -598,7 +598,7 @@ const BlobStorageIntegrationSettingsForm = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Info className="text-muted-foreground h-3.5 w-3.5" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -607,7 +607,7 @@ const BlobStorageIntegrationSettingsForm = ({
                       {EXPORT_SOURCE_OPTIONS.map((option) => (
                         <div key={option.value} className="space-y-0.5">
                           <div className="font-medium">{option.label}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-muted-foreground text-xs">
                             {option.description}
                           </div>
                         </div>
@@ -617,7 +617,7 @@ const BlobStorageIntegrationSettingsForm = ({
                           href="https://langfuse.com/docs/integrations/export-sources"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:underline"
+                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
                           <ExternalLink className="h-3 w-3" />
@@ -694,7 +694,7 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
-                  className="ml-4 mt-1"
+                  className="mt-1 ml-4"
                 />
               </FormControl>
               <FormMessage />

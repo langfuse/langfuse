@@ -44,7 +44,7 @@ export const PriceBreakdownTooltip = ({
       {Object.keys(prices).length === 0 ? (
         <p>No prices</p>
       ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
-        <div className="grid w-full grid-cols-[2fr,3fr] gap-x-2">
+        <div className="grid w-full grid-cols-[2fr_3fr] gap-x-2">
           {Object.entries(prices).map(([type, price]) => (
             <span key={type}>
               <span
@@ -70,13 +70,13 @@ export const PriceBreakdownTooltip = ({
         <TooltipProvider>
           <Tooltip open={isOpen} onOpenChange={setIsOpen}>
             <TooltipTrigger
-              className="flex cursor-pointer items-center gap-2 pr-[1rem] text-xs"
+              className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
               onClick={() => setIsOpen(!isOpen)}
             >
               <InfoIcon className="h-3 w-3" />
               {Object.keys(prices).length} prices set
             </TooltipTrigger>
-            <TooltipContent className="min-w-[16rem] grow p-4">
+            <TooltipContent className="min-w-64 grow p-4">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                   <span className="font-semibold">Price breakdown</span>

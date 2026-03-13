@@ -66,10 +66,10 @@ export function ChatMessage({
       title={
         showTableView ? "Show formatted view" : "Show passthrough JSON data"
       }
-      className="-mr-2 hover:bg-border"
+      className="hover:bg-border -mr-2"
     >
       {showTableView ? (
-        <ListChevronsDownUp className="h-3 w-3 text-primary" />
+        <ListChevronsDownUp className="text-primary h-3 w-3" />
       ) : (
         <ListChevronsUpDown className="h-3 w-3" />
       )}
@@ -79,7 +79,7 @@ export function ChatMessage({
   // Placeholder message
   if (isPlaceholderMessage(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
             title="Placeholder"
@@ -101,7 +101,7 @@ export function ChatMessage({
   // JSON-only message (non-ChatML object)
   if (isOnlyJsonMessage(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
@@ -114,7 +114,7 @@ export function ChatMessage({
   // User toggled to show passthrough JSON
   if (showTableView) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title}
           json={message.json}
@@ -133,7 +133,7 @@ export function ChatMessage({
     toolCalls.length > 0
   ) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <MarkdownJsonViewHeader
           title={title}
           handleOnValueChange={() => {}}
@@ -176,7 +176,7 @@ export function ChatMessage({
     );
 
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
@@ -225,7 +225,7 @@ export function ChatMessage({
   // Fallback: message with additional data but no content
   if (hasAdditionalData(message)) {
     return (
-      <div className={cn("transition-colors hover:bg-muted")}>
+      <div className={cn("hover:bg-muted transition-colors")}>
         <PrettyJsonView
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message}
