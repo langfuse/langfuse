@@ -29,7 +29,7 @@ export function TimelineBar({
   commentCount,
   scores,
 }: TimelineBarProps) {
-  const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
+  const { startOffset, itemWidth, firstTokenTimeOffset, latency, timeToFirstToken } = metrics;
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
 
@@ -56,11 +56,17 @@ export function TimelineBar({
           {/* First token time bar (waiting period) */}
           <div
             className={cn(
-              "flex h-8 items-center justify-start rounded-l-sm border-r border-gray-400 bg-muted opacity-60",
+              "relative flex h-8 items-center justify-center rounded-l-sm border-r border-gray-400 bg-muted opacity-60",
               itemWidth ? "" : "border border-dashed",
             )}
             style={{ width: `${firstTokenWidth}px` }}
-          />
+          >
+            {timeToFirstToken !== undefined && firstTokenWidth > 40 && (
+              <span className="text-xxs whitespace-nowrap text-muted-foreground">
+                {formatIntervalSeconds(timeToFirstToken)}
+              </span>
+            )}
+          </div>
 
           {/* Completion time bar */}
           <div

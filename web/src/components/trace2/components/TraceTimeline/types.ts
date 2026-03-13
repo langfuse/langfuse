@@ -20,6 +20,8 @@ export interface TimelineMetrics {
   firstTokenTimeOffset?: number;
   /** Duration in seconds */
   latency?: number;
+  /** Time to first token in seconds (for streaming LLMs) */
+  timeToFirstToken?: number;
 }
 
 /**
