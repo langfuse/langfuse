@@ -8,6 +8,9 @@ type SettingsContainerProps = {
   headerProps: Omit<PageHeaderProps, "container">;
 };
 
+const containerLayoutClassName =
+  "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
+
 const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
   return (
     <div
@@ -18,7 +21,8 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
       </header>
       <main
         className={cn(
-          "min-h-screen-with-banner relative flex flex-1 flex-col p-3 lg:container",
+          "min-h-screen-with-banner relative flex flex-1 flex-col p-3",
+          containerLayoutClassName,
         )}
       >
         {children}

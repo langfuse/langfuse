@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
@@ -43,8 +43,8 @@ export const NewDatasetItemFromExistingObject = (props: {
   output: string | null;
   metadata: MetadataDomainClient;
   isCopyItem?: boolean;
-  buttonVariant?: "outline-solid" | "secondary";
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  buttonVariant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"

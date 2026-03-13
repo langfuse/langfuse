@@ -33,6 +33,9 @@ type PageTabsProps = {
   listClassName?: string;
 };
 
+const containerLayoutClassName =
+  "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
+
 export type PageHeaderProps = {
   title: string;
   breadcrumb?: { name: string; href?: string }[];
@@ -81,7 +84,7 @@ const PageHeader = ({
           <div
             className={cn(
               "flex min-h-11 items-center gap-3 px-3 py-2",
-              container && "lg:container",
+              container && containerLayoutClassName,
             )}
           >
             {showSidebarTrigger ? (
@@ -106,7 +109,7 @@ const PageHeader = ({
           <div
             className={cn(
               "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
-              container && "lg:container",
+              container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}

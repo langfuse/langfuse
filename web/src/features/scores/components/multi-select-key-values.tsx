@@ -3,7 +3,7 @@ import { Archive, ChevronDown, Component, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
   DropdownMenu,
@@ -52,7 +52,7 @@ type MultiSelectKeyValuesProps<
   hideClearButton?: boolean;
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
-  variant?: "outline-solid" | "secondary" | "ghost";
+  variant?: ButtonProps["variant"];
   showSelectedValueStrings?: boolean;
 };
 

@@ -1,5 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,
   DropdownMenu,
@@ -27,8 +27,8 @@ export const CreateNewAnnotationQueueItem = ({
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
-  variant?: "outline-solid" | "secondary";
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();

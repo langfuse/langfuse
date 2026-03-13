@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -32,9 +32,9 @@ export function CommentDrawerButton({
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
-  variant?: "secondary" | "outline-solid";
+  variant?: ButtonProps["variant"];
   className?: string;
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  size?: ButtonProps["size"];
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
   isOpen?: boolean;
