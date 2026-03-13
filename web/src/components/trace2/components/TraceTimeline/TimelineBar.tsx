@@ -12,6 +12,12 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { heatMapTextColor } from "@/src/components/trace2/lib/helpers";
 import { isPresent } from "@langfuse/shared";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 export function TimelineBar({
   node,
@@ -29,14 +35,23 @@ export function TimelineBar({
   commentCount,
   scores,
 }: TimelineBarProps) {
-  const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
+  const {
+    startOffset,
+    itemWidth,
+    firstTokenTimeOffset,
+    timeToFirstToken,
+    latency,
+  } = metrics;
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
+  const hasFirstTokenMarker =
+    isPresent(firstTokenTimeOffset) && isPresent(timeToFirstToken);
 
   // Render split bar for streaming LLMs (first token time)
-  if (firstTokenTimeOffset) {
+  if (hasFirstTokenMarker) {
     const firstTokenWidth = firstTokenTimeOffset - startOffset;
     const completionWidth = itemWidth - firstTokenWidth;
+    const firstTokenLabel = `Time to first token: ${formatIntervalSeconds(timeToFirstToken)}`;
 
     return (
       <div
@@ -46,13 +61,27 @@ export function TimelineBar({
       >
         <div
           className={cn(
-            "flex rounded-sm border border-border",
+            "relative flex rounded-sm border border-border",
             isSelected
               ? "ring ring-primary-accent"
               : "group-hover:ring group-hover:ring-tertiary",
           )}
           style={{ marginLeft: `${startOffset}px` }}
         >
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={firstTokenLabel}
+                  className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border border-primary bg-background shadow-sm"
+                  style={{ left: `${firstTokenWidth}px` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent>{firstTokenLabel}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           {/* First token time bar (waiting period) */}
           <div
             className={cn(

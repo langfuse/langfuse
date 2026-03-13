@@ -18,6 +18,8 @@ export type TreeNode = {
   name: string;
   startTime: Date;
   endTime?: Date | null;
+  completionStartTime?: Date | null;
+  timeToFirstToken?: number | null;
   level?: string;
   children: TreeNode[];
   // Token usage
