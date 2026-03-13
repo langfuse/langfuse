@@ -87,6 +87,8 @@ async function handleGetBlobStorageIntegrations(
       exportStartDate: integration.exportStartDate,
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
+      lastError: integration.lastError,
+      lastErrorAt: integration.lastErrorAt,
       createdAt: integration.createdAt,
       updatedAt: integration.updatedAt,
     }),
@@ -189,6 +191,8 @@ async function handleUpsertBlobStorageIntegration(
     exportStartDate: integration.exportStartDate,
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
+    lastError: integration.lastError,
+    lastErrorAt: integration.lastErrorAt,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
   };
