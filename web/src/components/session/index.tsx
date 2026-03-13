@@ -49,11 +49,13 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/ui/switch";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import { useEventMetadataFilterOptions } from "@/src/features/events/hooks/useEventMetadataFilterOptions";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   decodeAndNormalizeFilters,
-  useSidebarFilterState,
+  useSidebarFilterStateWithExpansionState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useFilterExpandedState } from "@/src/features/filters/hooks/useFilterExpandedState";
 import {
   buildSidebarFilterQueryStorageKey,
   readPersistedSidebarFilterQuery,
@@ -649,6 +651,28 @@ export const SessionEventsPage: React.FC<{
   ]);
 
   const sessionEventsTableName = "session-events";
+  const sessionEventsFilterConfig = React.useMemo(() => {
+    return {
+      ...observationEventsFilterConfig,
+      tableName: sessionEventsTableName,
+      columnDefinitions: observationEventsFilterConfig.columnDefinitions,
+      facets: observationEventsFilterConfig.facets
+        .filter(
+          (facet) =>
+            facet.column !== "sessionId" && facet.column !== "environment",
+        )
+        .map((facet) => ({
+          ...facet,
+          // Session detail uses a different query path and should not inherit
+          // events-table mutual exclusion behavior.
+          mutuallyExclusiveWith: undefined,
+        })),
+    };
+  }, [sessionEventsTableName]);
+  const { expandedState, onExpandedChange } = useFilterExpandedState({
+    tableName: sessionEventsFilterConfig.tableName,
+    defaultExpanded: sessionEventsFilterConfig.defaultExpanded,
+  });
   const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
     tableName: sessionEventsTableName,
     contextId: projectId,
@@ -668,38 +692,33 @@ export const SessionEventsPage: React.FC<{
   const timeFiltersForOptions = React.useMemo(() => {
     const allFilters = decodeAndNormalizeFilters(
       filtersQuery,
-      observationEventsFilterConfig.columnDefinitions,
+      sessionEventsFilterConfig.columnDefinitions,
     );
     return allFilters.filter(
       (f) =>
         (f.column === "Start Time" || f.column === "startTime") &&
         f.type === "datetime",
     );
-  }, [filtersQuery]);
+  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
 
-  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
-    projectId,
-    oldFilterState: timeFiltersForOptions,
-  });
-
-  const sessionEventsFilterConfig = React.useMemo(() => {
-    return {
-      ...observationEventsFilterConfig,
-      tableName: sessionEventsTableName,
-      columnDefinitions: observationEventsFilterConfig.columnDefinitions,
-      facets: observationEventsFilterConfig.facets
-        .filter(
-          (facet) =>
-            facet.column !== "sessionId" && facet.column !== "environment",
-        )
-        .map((facet) => ({
-          ...facet,
-          // Session detail uses a different query path and should not inherit
-          // events-table mutual exclusion behavior.
-          mutuallyExclusiveWith: undefined,
-        })),
-    };
-  }, [sessionEventsTableName]);
+  const { filterOptions: baseFilterOptions, isFilterOptionsPending } =
+    useEventsFilterOptions({
+      projectId,
+      oldFilterState: timeFiltersForOptions,
+    });
+  const { metadataOptions, isMetadataOptionsPending } =
+    useEventMetadataFilterOptions({
+      projectId,
+      oldFilterState: timeFiltersForOptions,
+      enabled: expandedState.includes("metadata"),
+    });
+  const filterOptions = React.useMemo(
+    () => ({
+      ...baseFilterOptions,
+      metadata: metadataOptions,
+    }),
+    [baseFilterOptions, metadataOptions],
+  );
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
@@ -769,12 +788,14 @@ export const SessionEventsPage: React.FC<{
     [filterColumns],
   );
 
-  const queryFilter = useSidebarFilterState(
+  const queryFilter = useSidebarFilterStateWithExpansionState(
     sessionEventsFilterConfig,
     filterOptions,
     {
-      loading: isFilterOptionsPending,
+      loading: isFilterOptionsPending || isMetadataOptionsPending,
       sessionFilterContextId: projectId,
+      expandedState,
+      onExpandedChange,
     },
   );
 

@@ -2340,6 +2340,55 @@ export const getEventsGroupedByCalledToolName = async (
 };
 
 /**
+ * Get grouped available metadata keys from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByMetadataKey = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(e.metadata_names)",
+    selectExpression:
+      "arrayJoin(e.metadata_names) as metadataKey, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(e.metadata_names) > 0")
+    // Popular keys make better default suggestions. If we later add
+    // server-side prefix search, we may want lexicographic ordering instead.
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    metadataKey: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */

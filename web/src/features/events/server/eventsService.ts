@@ -26,6 +26,7 @@ import {
   getEventsGroupedByHasParentObservation,
   getEventsGroupedByToolName,
   getEventsGroupedByCalledToolName,
+  getEventsGroupedByMetadataKey,
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
@@ -77,6 +78,83 @@ interface GetObservationsFilterOptionsParams {
   startTimeFilter?: TimeFilter[];
   hasParentObservation?: boolean;
 }
+
+const MAX_METADATA_SUGGESTION_TIMESPAN_MS = 14 * 24 * 60 * 60 * 1000;
+
+type EventsFilterScope = Pick<
+  GetObservationsFilterOptionsParams,
+  "startTimeFilter" | "hasParentObservation"
+>;
+
+const buildScopedEventsFilter = ({
+  startTimeFilter,
+  hasParentObservation,
+}: EventsFilterScope): FilterState => [
+  ...(startTimeFilter ?? []),
+  ...(hasParentObservation !== undefined
+    ? [
+        {
+          column: "hasParentObservation" as const,
+          type: "boolean" as const,
+          operator: "=" as const,
+          value: hasParentObservation,
+        },
+      ]
+    : []),
+];
+
+const mapStartTimeFiltersToTraceTimestampFilters = (
+  startTimeFilter?: TimeFilter[],
+): FilterCondition[] =>
+  startTimeFilter && startTimeFilter.length > 0
+    ? startTimeFilter.map((f) => ({
+        column: "Timestamp" as const,
+        operator: f.operator,
+        value: f.value,
+        type: "datetime" as const,
+      }))
+    : [];
+
+const mapStartTimeFiltersToTraceScoreTimestampFilters = (
+  startTimeFilter?: TimeFilter[],
+): FilterCondition[] =>
+  startTimeFilter && startTimeFilter.length > 0
+    ? startTimeFilter.map((f) => ({
+        column: "timestamp",
+        operator: f.operator,
+        value: f.value,
+        type: "datetime",
+      }))
+    : [];
+
+const capMetadataSuggestionTimeFilters = (
+  startTimeFilter?: TimeFilter[],
+): TimeFilter[] => {
+  const timeFilters = startTimeFilter ?? [];
+  const lowerBound = timeFilters.find((filter) => filter.operator === ">=");
+  const upperBound = timeFilters.find((filter) => filter.operator === "<=");
+  const effectiveUpperBound = upperBound?.value ?? new Date();
+  const minAllowedStartTime = new Date(
+    effectiveUpperBound.getTime() - MAX_METADATA_SUGGESTION_TIMESPAN_MS,
+  );
+
+  if (
+    lowerBound &&
+    lowerBound.value.getTime() >= minAllowedStartTime.getTime()
+  ) {
+    return timeFilters;
+  }
+
+  return [
+    ...timeFilters.filter((filter) => filter.operator !== ">="),
+    {
+      column: lowerBound?.column ?? timeFilters[0]?.column ?? "startTime",
+      operator: ">=",
+      value: minAllowedStartTime,
+      type: "datetime",
+    },
+  ];
+};
 
 /**
  * Get paginated list of events
@@ -206,40 +284,14 @@ export async function getEventFilterOptions(
 ) {
   const { projectId, startTimeFilter, hasParentObservation } = params;
 
-  // Build filter with optional hasParentObservation for scoping filter options
-  const eventsFilter: FilterState = [
-    ...(startTimeFilter ?? []),
-    ...(hasParentObservation !== undefined
-      ? [
-          {
-            column: "hasParentObservation" as const,
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: hasParentObservation,
-          },
-        ]
-      : []),
-  ];
-
-  // Map startTimeFilter to Timestamp column for trace queries
+  const eventsFilter = buildScopedEventsFilter({
+    startTimeFilter,
+    hasParentObservation,
+  });
   const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
-  const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+    mapStartTimeFiltersToTraceTimestampFilters(startTimeFilter);
+  const traceScoreTimestampFilters =
+    mapStartTimeFiltersToTraceScoreTimestampFilters(startTimeFilter);
 
   const [
     numericScoreNames,
@@ -407,6 +459,29 @@ export async function getEventFilterOptions(
       .filter((i) => i.calledToolName !== null)
       .map((i) => ({ value: i.calledToolName as string })),
   };
+}
+
+export async function getEventMetadataKeySuggestions(
+  params: Pick<
+    GetObservationsFilterOptionsParams,
+    "projectId" | "startTimeFilter"
+  >,
+) {
+  // Cap metadata key suggestions to the most recent 14 days to reduce load.
+  const cappedStartTimeFilter = capMetadataSuggestionTimeFilters(
+    params.startTimeFilter,
+  );
+
+  const metadataKeys = await getEventsGroupedByMetadataKey(
+    params.projectId,
+    buildScopedEventsFilter({
+      startTimeFilter: cappedStartTimeFilter,
+    }),
+  );
+
+  return metadataKeys
+    .filter((key) => key.metadataKey !== null)
+    .map((key) => key.metadataKey as string);
 }
 
 interface GetEventBatchIOParams {
