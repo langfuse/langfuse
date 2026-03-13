@@ -12,6 +12,7 @@ import {
   getEventsGroupedByModelId,
   getEventsGroupedByName,
   getEventsGroupedByTraceName,
+  getEventsGroupedByTraceTags,
   getEventsGroupedByPromptName,
   getEventsGroupedByType,
   getEventsGroupedByUserId,
@@ -27,7 +28,6 @@ import {
   getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
-  getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
   getScoresForTraces,
@@ -241,14 +241,6 @@ export async function getEventFilterOptions(
         }))
       : [];
 
-  const getClickhouseTraceTags = async (): Promise<Array<{ tag: string }>> => {
-    const traces = await getTracesGroupedByTags({
-      projectId,
-      filter: traceTimestampFilters,
-    });
-    return traces.map((i) => ({ tag: i.value }));
-  };
-
   const [
     numericScoreNames,
     categoricalScoreNames,
@@ -281,7 +273,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByModel(projectId, eventsFilter),
     getEventsGroupedByName(projectId, eventsFilter),
     getEventsGroupedByPromptName(projectId, eventsFilter),
-    getClickhouseTraceTags(),
+    getEventsGroupedByTraceTags(projectId, eventsFilter),
     getEventsGroupedByTraceName(projectId, eventsFilter),
     getEventsGroupedByModelId(projectId, eventsFilter),
     getEventsGroupedByType(projectId, eventsFilter),

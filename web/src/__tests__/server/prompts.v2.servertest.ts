@@ -1860,6 +1860,37 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body as Prompt;
       expect(body.labels).toContain("production");
       expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return the raw prompt when resolve=false even if a dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent =
+        "Parent: @@@langfusePrompt:name=missing-child-prompt|version=1@@@";
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.prompt).toBe(parentContent);
+      expect(body.resolutionGraph).toBeNull();
     });
   });
 });

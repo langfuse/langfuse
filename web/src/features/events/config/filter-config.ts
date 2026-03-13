@@ -25,7 +25,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "hasParentObservation"],
+  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
 
   facets: [
     {
