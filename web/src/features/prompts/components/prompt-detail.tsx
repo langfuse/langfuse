@@ -340,12 +340,12 @@ export const PromptDetail = ({
       }}
     >
       <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
-        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[focus]:ring-0">
+        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
               placeholder="Search..."
-              className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
+              className="text-muted-foreground h-fit border-none py-0 text-sm font-light focus:ring-0"
             />
 
             <Button
@@ -378,13 +378,13 @@ export const PromptDetail = ({
         </Command>
         <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
-            <div className="grid w-full min-w-0 grid-cols-[auto,auto] items-center justify-between">
-              <div className="flex min-w-0 max-w-full flex-shrink flex-col">
-                <div className="flex min-w-0 max-w-full flex-wrap items-start gap-1">
+            <div className="grid w-full min-w-0 grid-cols-[auto_auto] items-center justify-between">
+              <div className="flex max-w-full min-w-0 shrink flex-col">
+                <div className="flex max-w-full min-w-0 flex-wrap items-start gap-1">
                   <SetPromptVersionLabels
                     title={
                       <div
-                        className="contents !cursor-default"
+                        className="contents cursor-default!"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Badge
@@ -393,7 +393,7 @@ export const PromptDetail = ({
                         >
                           # {prompt.version}
                         </Badge>
-                        <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-medium break-all md:break-normal md:wrap-break-word">
                           {prompt.commitMessage ?? prompt.name}
                         </span>
                       </div>
@@ -466,7 +466,7 @@ export const PromptDetail = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
-                    className="flex flex-col [&>*]:w-full [&>*]:justify-start"
+                    className="flex flex-col *:w-full *:justify-start"
                   >
                     <DropdownMenuItem asChild>
                       <DeletePromptVersion
@@ -485,7 +485,7 @@ export const PromptDetail = ({
             className="min-h-0"
             onValueChange={(value) => setCurrentTab(value)}
           >
-            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList className="max-w-full min-w-0 justify-start overflow-x-auto">
               <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
               <TabsBarTrigger value="config">Config</TabsBarTrigger>
               <TabsBarTrigger value="linked-generations">
@@ -495,7 +495,7 @@ export const PromptDetail = ({
             </TabsBarList>
             <TabsBarContent
               value="linked-generations"
-              className="mb-2 mt-0 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
+              className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
                 <Generations
@@ -587,7 +587,7 @@ export const PromptDetail = ({
               <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
                 {pythonCode && <CodeView content={pythonCode} title="Python" />}
                 {jsCode && <CodeView content={jsCode} title="JS/TS" />}
-                <p className="pl-1 text-xs text-muted-foreground">
+                <p className="text-muted-foreground pl-1 text-xs">
                   See{" "}
                   <a
                     href="https://langfuse.com/docs/prompts"

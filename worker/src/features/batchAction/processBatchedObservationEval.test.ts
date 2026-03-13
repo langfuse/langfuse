@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
 import { type ObservationEvalConfig } from "../evaluation/observationEval";
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -41,6 +41,8 @@ describe("processBatchedObservationEval", () => {
         scoreName: "quality",
         targetObject: EvalTargetObject.EVENT,
         variableMapping: [],
+        status: JobConfigState.ACTIVE,
+        blockedAt: null,
       },
     ];
 

@@ -3,33 +3,14 @@ import {
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
+  getS3MediaStorageClient,
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
-  StorageService,
-  StorageServiceFactory,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { chunk } from "lodash";
-
-let s3MediaStorageClient: StorageService;
-
-const getS3MediaStorageClient = (bucketName: string): StorageService => {
-  if (!s3MediaStorageClient) {
-    s3MediaStorageClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
-    });
-  }
-  return s3MediaStorageClient;
-};
 
 const deleteMediaItemsForTraces = async (
   projectId: string,
