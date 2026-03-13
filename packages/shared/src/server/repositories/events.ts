@@ -74,10 +74,7 @@ import { type EventsObservationPublic } from "../queries/createGenerationsQuery"
 import { UiColumnMappings } from "../../tableDefinitions";
 import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
-import {
-  parseMetadataCHRecordToDomain,
-  unflattenMetadata,
-} from "../utils/metadata_conversion";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 /**
  * Attempt to command the legacy events table.
@@ -2720,9 +2717,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
         ? applyInputOutputRendering(r.output, DEFAULT_RENDERING_PROPS)
         : null,
     metadata:
-      r.metadata !== undefined
-        ? unflattenMetadata(parseMetadataCHRecordToDomain(r.metadata))
-        : {},
+      r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
   }));
 };
 

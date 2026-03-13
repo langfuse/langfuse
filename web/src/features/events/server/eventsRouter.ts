@@ -5,6 +5,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  type JsonNested,
+  type MetadataDomain,
   type Observation,
   type OrderByState,
   normalizeOrderByForTable,
@@ -190,13 +192,18 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          const observations = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
           });
+
+          return observations.map((observation) => ({
+            ...observation,
+            metadata: unflattenMetadataForTrpc(observation.metadata),
+          }));
         },
       );
     }),
@@ -255,7 +262,12 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations,
+            observations: observations.map((observation) => ({
+              ...observation,
+              ...(observation.metadata !== undefined && {
+                metadata: unflattenMetadataForTrpc(observation.metadata),
+              }),
+            })),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };
@@ -393,4 +405,38 @@ export const addAttributesToSpan = ({
 
 export const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
+};
+
+const unflattenMetadataForTrpc = (
+  metadata: MetadataDomain | undefined,
+): MetadataDomain => {
+  if (!metadata) {
+    return {};
+  }
+
+  const result: MetadataDomain = {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    const segments = key.split(".");
+
+    if (segments.length === 1) {
+      result[key] = value;
+      continue;
+    }
+
+    let current: Record<string, JsonNested | undefined> = result;
+
+    for (const segment of segments.slice(0, -1)) {
+      const existing = current[segment];
+      if (existing === undefined || typeof existing !== "object") {
+        current[segment] = {};
+      }
+      current = current[segment] as Record<string, JsonNested | undefined>;
+    }
+
+    const leafKey = segments[segments.length - 1];
+    current[leafKey] = value;
+  }
+
+  return result;
 };

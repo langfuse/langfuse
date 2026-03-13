@@ -448,7 +448,7 @@ function KeyAutocompleteInput({
       {dotPrefix && (
         <span
           ref={measureRef}
-          className="pointer-events-none invisible absolute whitespace-pre text-sm"
+          className="pointer-events-none invisible absolute text-sm whitespace-pre"
           aria-hidden
         >
           {dotPrefix}
@@ -478,7 +478,7 @@ function KeyAutocompleteInput({
       />
       {showSuggestions && (
         <div
-          className="absolute z-50 mt-1 w-fit max-w-full overflow-auto rounded-md border bg-popover p-0.5 shadow-md"
+          className="bg-popover absolute z-50 mt-1 w-fit max-w-full overflow-auto rounded-md border p-0.5 shadow-md"
           style={{
             maxHeight: "6rem",
             left: dotPrefix
@@ -490,7 +490,7 @@ function KeyAutocompleteInput({
             <div
               key={segment}
               className={cn(
-                "cursor-pointer truncate rounded-sm px-2 py-0.5 text-xs hover:bg-accent hover:text-accent-foreground",
+                "hover:bg-accent hover:text-accent-foreground cursor-pointer truncate rounded-sm px-2 py-0.5 text-xs",
                 (i === highlightIndex || dotPrefix + segment === localValue) &&
                   "bg-accent text-accent-foreground",
               )}
