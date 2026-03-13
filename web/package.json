@@ -165,7 +165,7 @@
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "unified": "^11.0.5",
-    "use-query-params": "^2.2.1",
+    "use-query-params": "^2.2.2",
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
