@@ -16,7 +16,6 @@ export class MixpanelIntegrationProcessingQueue {
     }
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

@@ -21,7 +21,6 @@ export class CloudUsageMeteringQueue {
     }
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

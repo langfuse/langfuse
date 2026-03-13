@@ -6,8 +6,9 @@ import { logger } from "../logger";
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
+  enableOfflineQueue: false,
+  socketTimeout: env.REDIS_BLOCKING_SOCKET_TIMEOUT_MS, // 30s zombie connection detection for all connections including BullMQ
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
-  // keyPrefix removed - BullMQ uses its own prefix option
 };
 
 const REDIS_SCAN_COUNT = 1000;
@@ -115,6 +116,9 @@ const createRedisClusterInstance = (
   const tlsOptions = buildTlsOptions();
 
   const clusterOptions: ClusterOptions = {
+    enableOfflineQueue:
+      additionalOptions.enableOfflineQueue ??
+      defaultRedisOptions.enableOfflineQueue, // Forward to top-level ClusterOptions (ignored in redisOptions)
     // Return incoming addresses as-is - required for AWS ElastiCache Certificate resolution
     dnsLookup: (address, callback) => {
       callback(null, address);
@@ -312,6 +316,8 @@ const createRedisClient = () => {
   try {
     return createNewRedisInstance({
       keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
+      commandTimeout: env.REDIS_COMMAND_TIMEOUT,
+      socketTimeout: env.REDIS_REQUEST_SOCKET_TIMEOUT_MS, // Override 30s default with 5s for singleton
     });
   } catch (e) {
     logger.error("Failed to connect to redis", e);

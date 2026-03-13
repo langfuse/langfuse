@@ -18,7 +18,6 @@ export class EvalExecutionQueue {
     if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
@@ -61,7 +60,6 @@ export class SecondaryEvalExecutionQueue {
       return SecondaryEvalExecutionQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

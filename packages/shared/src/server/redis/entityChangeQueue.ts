@@ -18,7 +18,6 @@ export class EntityChangeQueue {
     if (EntityChangeQueue.instance) return EntityChangeQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
