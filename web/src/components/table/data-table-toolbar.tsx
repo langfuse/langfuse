@@ -44,6 +44,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
@@ -51,6 +54,11 @@ import {
   DataTableRefreshButton,
   type RefreshInterval,
 } from "@/src/components/table/data-table-refresh-button";
+import {
+  getSearchButtonLabel,
+  getSearchMode,
+  searchModeToType,
+} from "@/src/components/table/utils/searchUtils";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -74,6 +82,11 @@ interface SearchConfig {
     fullText: string;
   };
   hidePerformanceWarning?: boolean;
+  availableSearchTypes?: {
+    content: boolean;
+    input: boolean;
+    output: boolean;
+  };
 }
 
 interface TableViewControllers {
@@ -125,6 +138,45 @@ interface DataTableToolbarProps<TData, TValue> {
   filterWithAI?: boolean;
   className?: string;
   viewModeToggle?: React.ReactNode;
+}
+
+// Helper function to get the description for DocPopup
+function getSearchDescription(
+  searchType: TracingSearchType[] | undefined,
+  metadataFields: string[] | undefined,
+  hidePerformanceWarning: boolean | undefined,
+): React.ReactNode {
+  const fields = metadataFields?.join(", ") ?? "";
+  const performanceWarning = !hidePerformanceWarning
+    ? " For improved performance, please filter the table down."
+    : "";
+
+  if (!searchType || searchType.includes("id")) {
+    if (searchType?.includes("content")) {
+      return (
+        <p className="text-xs font-normal text-primary">
+          Searches in Input/Output and {fields}.{performanceWarning}
+        </p>
+      );
+    }
+    if (searchType?.includes("input")) {
+      return (
+        <p className="text-xs font-normal text-primary">
+          Searches in Input and {fields}.{performanceWarning}
+        </p>
+      );
+    }
+    if (searchType?.includes("output")) {
+      return (
+        <p className="text-xs font-normal text-primary">
+          Searches in Output and {fields}.{performanceWarning}
+        </p>
+      );
+    }
+  }
+  return (
+    <p className="text-xs font-normal text-primary">Searches in {fields}.</p>
+  );
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -252,31 +304,16 @@ export function DataTableToolbar<TData, TValue>({
                     className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
                     <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? (searchConfig.customDropdownLabels?.fullText ??
-                          "Full Text")
-                        : (searchConfig.customDropdownLabels?.metadata ??
-                          "IDs / Names")}
+                      {getSearchButtonLabel(
+                        searchConfig.searchType,
+                        searchConfig.customDropdownLabels?.metadata,
+                      )}
                       <DocPopup
-                        description={
-                          searchConfig.tableAllowsFullTextSearch &&
-                          (searchConfig.searchType ?? []).includes(
-                            "content",
-                          ) ? (
-                            <p className="text-xs font-normal text-primary">
-                              Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                              {!searchConfig.hidePerformanceWarning &&
-                                " For improved performance, please filter the table down."}
-                            </p>
-                          ) : (
-                            <p className="text-xs font-normal text-primary">
-                              Searches in{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                            </p>
-                          )
-                        }
+                        description={getSearchDescription(
+                          searchConfig.searchType,
+                          searchConfig.metadataSearchFields,
+                          searchConfig.hidePerformanceWarning,
+                        )}
                       />
                     </span>
                     <ChevronDown className="h-4 w-4 opacity-50" />
@@ -284,37 +321,60 @@ export function DataTableToolbar<TData, TValue>({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuRadioGroup
-                    value={
-                      searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? "metadata_fulltext"
-                        : "metadata"
-                    }
+                    value={getSearchMode(searchConfig.searchType)}
                     onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value === "metadata_fulltext"
-                      )
-                        return;
-
-                      const newSearchType =
-                        value === "metadata_fulltext"
-                          ? ["id" as const, "content" as const]
-                          : ["id" as const];
-                      searchConfig.setSearchType?.(newSearchType);
+                      searchConfig.setSearchType?.(searchModeToType(value));
                     }}
                   >
                     <DropdownMenuRadioItem value="metadata">
                       {searchConfig.customDropdownLabels?.metadata ??
                         "IDs / Names"}
                     </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="metadata_fulltext"
-                      disabled={!searchConfig.tableAllowsFullTextSearch}
-                    >
-                      {searchConfig.customDropdownLabels?.fullText ??
-                        "Full Text"}
-                    </DropdownMenuRadioItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger
+                        disabled={!searchConfig.tableAllowsFullTextSearch}
+                      >
+                        <span className="flex items-center gap-2">
+                          {getSearchMode(searchConfig.searchType).startsWith(
+                            "metadata_fulltext",
+                          ) && (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
+                          )}
+                          {searchConfig.customDropdownLabels?.fullText ??
+                            "Full Text"}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuRadioGroup
+                          value={getSearchMode(searchConfig.searchType)}
+                          onValueChange={(value) => {
+                            searchConfig.setSearchType?.(
+                              searchModeToType(value),
+                            );
+                          }}
+                        >
+                          {/* Only show options that are explicitly available */}
+                          {(searchConfig.availableSearchTypes === undefined ||
+                            searchConfig.availableSearchTypes.content) && (
+                            <DropdownMenuRadioItem value="metadata_fulltext">
+                              Input/Output
+                            </DropdownMenuRadioItem>
+                          )}
+                          {(searchConfig.availableSearchTypes === undefined ||
+                            searchConfig.availableSearchTypes.input) && (
+                            <DropdownMenuRadioItem value="metadata_fulltext_input">
+                              Input
+                            </DropdownMenuRadioItem>
+                          )}
+                          {(searchConfig.availableSearchTypes === undefined ||
+                            searchConfig.availableSearchTypes.output) && (
+                            <DropdownMenuRadioItem value="metadata_fulltext_output">
+                              Output
+                            </DropdownMenuRadioItem>
+                          )}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
