@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { readFileSync, existsSync } from "fs";
+import path from "path";
 
 vi.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
@@ -40,7 +42,10 @@ import {
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
+  selectAdapter,
 } from "@langfuse/shared/src/utils/chatml";
+
+import { deepParseJson } from "@langfuse/shared";
 
 describe("ChatML Integration", () => {
   it("should handle OpenAI multimodal format", () => {
@@ -527,3 +532,139 @@ describe("ChatML Integration", () => {
     expect(allMessages).toHaveLength(4);
   });
 });
+
+type FileTestCase = {
+  file: string;
+  expected: string;
+  obsOverride: string[];
+};
+
+describe("ChatML adapter selection tests", () => {
+  it.each([
+    {
+      file: "agno-2025-06-11.json",
+      expected: "generic",
+      skipObservations: [
+        "b38a82eaa62b551e", //matched as openai because the observation name contains "openai" but the input/output are not proper JSON, they are python object repr
+        "ca136de468e156c9", //same
+        "1cffdfa6fe3412e6", //matched as openai because the output contains messages[] and tools[] but that's not openai
+        "6581e147aec6793a", //matched as langraph because the output is vaguely an array but that's not the good format
+      ],
+    },
+    { file: "autogen-2025-06-06.json", expected: "generic" },
+    {
+      file: "beeai-2025-08-01.json",
+      expected: "langgraph",
+      skipObservations: [
+        //❓most are matched by the langraph adapter but it's structurally an openai chat response api input (the trace use gpt)
+        // + some with a totally different format
+        "322299e937be4455",
+        "477d350ab1c6548d",
+        "96cb191e191a9378",
+        "bd2f100ab98514d4",
+        "cb4886242bf214b8",
+      ],
+    },
+    { file: "claude-agent-2025-12-22.json", expected: "generic" },
+    {
+      file: "crewai-2025-07-11.json",
+      expected: "generic",
+      skipObservations: [
+        "231c43964b7e7e63", //❓this is matched by the langraph adapter but it's structurally an openai chat completion input (the trace use gpt)
+      ],
+    },
+    {
+      file: "google-adk-2025-08-28.json",
+      expected: "gemini",
+      skipObservations: [
+        "86cd4912944ddc41", //❓has the scope name openinference.instrumentation.google_adk.
+        /* openinference seems to simply put the args of runner.run_async() as input (ex: new_message). new_message itself has this structure 
+          new_message: {
+              "parts": [{"text": "hi"}],
+              "role": "user"
+          }
+        */
+      ],
+    },
+    {
+      file: "google-gemini-2025-08-01.json",
+      expected: "gemini",
+      skipObservations: [
+        "b7a63ca7e1d083bc", //❓output looks like gemini, but input looks like nothing (single string contents)
+      ],
+    },
+    {
+      file: "koog-2025-08-26.json",
+      expected: "langgraph",
+      skipObservations: [
+        // most are matched by langgraph because the schema is very permissive, but they are closer to openai
+        "33188493784a060d", //❓koog (scope.name = ai.koog) mostly look like the underlying model (openai), but the tool spans are diffrent
+        "66f269083a2fff81", //❓koog (scope.name = ai.koog) mostly look like the underlying model (openai), but the tool spans are diffrent
+      ],
+    },
+    { file: "langchain-deepagent-2025-10-29.json", expected: "langgraph" },
+    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
+    { file: "langgraph-python-2025-08-22.json", expected: "langgraph" },
+    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
+    { file: "llamaindex-2025-06-05.json", expected: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
+    { file: "microsoft-agent-2025-12-17.json", expected: "microsoft-agent" },
+    { file: "openai-agents-2025-09-30.json", expected: "openai" },
+    { file: "pydantic-ai-2025-06-06.json", expected: "pydantic-ai" },
+    {
+      file: "pydantic-ai-tools-2025-12-04.json",
+      expected: "pydantic-ai",
+      skipObservations: [
+        "00d3f40ee8e3b716", //❓scope name is langfuse-sdk, seems to be a tool call span with no framework specific markings
+      ],
+    },
+    { file: "vercel-aisdk-2025-11-17.json", expected: "aisdk" },
+    { file: "vertex-ai-2025-08-01.json", expected: "gemini" },
+  ] as FileTestCase[])(
+    "should select adapter $expected for trace file $file ",
+    ({ file, expected, skipObservations }) => {
+      const fileDir = path.resolve(__dirname, "framework-traces");
+
+      const filePath = path.join(fileDir, file);
+      expect(existsSync(filePath), "File should exist").toBe(true);
+
+      const content = readFileSync(filePath, "utf-8");
+      const observations = JSON.parse(content).observations;
+
+      //check if data has at least one observation with a non undefined input
+      const errorMessage = `File should have at least one observation with input and output`;
+      const hasFilledObs = observations.some((o: any) => o.input && o.output);
+      expect(hasFilledObs, errorMessage).toBe(true);
+
+      //test each observation with an input and/or output
+      for (const obs of observations) {
+        if (skipObservations?.includes(obs.id)) continue;
+        if (obs.input) {
+          const actual = selectAdapter({
+            metadata: tryParseAsJson(obs.metadata ?? obs.input),
+            data: tryParseAsJson(obs.input),
+            observationName: obs.name,
+          });
+          const errorMessage = `Input of observation ${obs.id} should be matched by ${expected}`;
+          expect(actual.id, errorMessage).toBe(expected);
+        }
+        if (obs.output) {
+          const actual = selectAdapter({
+            metadata: tryParseAsJson(obs.metadata ?? obs.output),
+            data: tryParseAsJson(obs.output),
+            observationName: obs.name,
+          });
+          const errorMessage = `Output of observation ${obs.id} should be matched by ${expected}`;
+          expect(actual.id, errorMessage).toBe(expected);
+        }
+      }
+    },
+  );
+});
+
+function tryParseAsJson(data: any) {
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return data;
+  }
+}

@@ -391,6 +391,7 @@ export const openAIAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+        if (scope.name === "pydantic-ai") return false;
       }
 
       // LangChain (type without role)

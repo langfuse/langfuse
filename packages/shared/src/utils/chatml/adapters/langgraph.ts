@@ -299,6 +299,8 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+
+        if (scope.name === "pydantic-ai") return false;
       }
 
       // Check attributes["operation.name"] for AI SDK pattern
