@@ -1,0 +1,46 @@
+diff --git a/dist/utils/gcp-auth.cjs b/dist/utils/gcp-auth.cjs
+index 73060830b7889046eb9ca9fe1b82d3798a38fcdc..c3d84116482fe1eef57f12b3a3445fc0e22585fe 100644
+--- a/dist/utils/gcp-auth.cjs
++++ b/dist/utils/gcp-auth.cjs
+@@ -1,6 +1,10 @@
+ const require_misc = require('./misc.cjs');
+ const require_errors = require('./errors.cjs');
+-let jose = require("jose");
++let jose;
++async function getJose() {
++	if (!jose) jose = await import("jose");
++	return jose;
++}
+ 
+ //#region src/utils/gcp-auth.ts
+ /**
+@@ -59,8 +63,8 @@ function normalizeGCPCredentials(credentials) {
+ * // Use privateKey for signing operations
+ * ```
+ */
+-function getGCPPrivateKey(credentials) {
+-	return (0, jose.importPKCS8)(credentials.private_key, "RS256");
++async function getGCPPrivateKey(credentials) {
++	return (0, (await getJose()).importPKCS8)(credentials.private_key, "RS256");
+ }
+ /**
+ * Generates a custom JWT token for authenticating with Google Cloud services.
+@@ -90,7 +94,8 @@ function getGCPPrivateKey(credentials) {
+ */
+ async function getGCPCustomToken(credentials) {
+ 	const privateKey = await getGCPPrivateKey(credentials);
+-	return await new jose.SignJWT().setIssuer(credentials.client_email).setAudience(credentials.token_uri).setSubject(credentials.client_email).setProtectedHeader({ alg: "RS256" }).setIssuedAt().setExpirationTime("1h").sign(privateKey);
++	const jose_ = await getJose();
++	return await new jose_.SignJWT().setIssuer(credentials.client_email).setAudience(credentials.token_uri).setSubject(credentials.client_email).setProtectedHeader({ alg: "RS256" }).setIssuedAt().setExpirationTime("1h").sign(privateKey);
+ }
+ /**
+ * Retrieves an access token for authenticating with Google Cloud APIs.
+@@ -167,7 +172,7 @@ async function getGCPCredentialsAccessToken(credentials) {
+ 		if (!res.ok) throw await require_errors.AuthError.fromResponse(res);
+ 		const data = await res.json();
+ 		if ("id_token" in data) {
+-			const claims = (0, jose.decodeJwt)(data.id_token);
++			const claims = (0, (await getJose()).decodeJwt)(data.id_token);
+ 			return {
+ 				token: data.id_token,
+ 				expires: claims.exp
