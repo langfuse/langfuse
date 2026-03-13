@@ -54,6 +54,7 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
       description: z.string().trim().min(1),
       options: z.array(EvalCategoricalOptionDefinitionSchema).min(1),
       allowNoMatch: z.boolean().default(false),
+      allowMultipleMatches: z.boolean().default(false),
     }),
   })
   .superRefine((value, ctx) => {
@@ -112,10 +113,11 @@ export type ResolvedEvalOutputDefinition =
       scoreDescription: string;
       options: EvalCategoricalOptionDefinition[];
       allowNoMatch: boolean;
+      allowMultipleMatches: boolean;
     };
 
 export type EvalOutputResult = {
-  score: number | string;
+  score: number | string | string[];
   reasoning: string;
 };
 
@@ -149,6 +151,7 @@ export function resolvePersistedEvalOutputDefinition(
     scoreDescription: outputDefinition.score.description,
     options: outputDefinition.score.options,
     allowNoMatch: outputDefinition.score.allowNoMatch,
+    allowMultipleMatches: outputDefinition.score.allowMultipleMatches,
   };
 }
 
@@ -175,6 +178,7 @@ export function createCategoricalEvalOutputDefinition(params: {
     value: string;
   }>;
   allowNoMatch?: boolean;
+  allowMultipleMatches?: boolean;
 }) {
   return CategoricalEvalOutputDefinitionV2Schema.parse({
     version: 2,
@@ -188,6 +192,7 @@ export function createCategoricalEvalOutputDefinition(params: {
         value: option.value,
       })),
       allowNoMatch: params.allowNoMatch ?? false,
+      allowMultipleMatches: params.allowMultipleMatches ?? false,
     },
   });
 }
@@ -204,9 +209,27 @@ function getResolvedCategoricalScoreValues(
   ];
 }
 
+function getResolvedScoreDescription(
+  resolvedOutputDefinition: ResolvedEvalOutputDefinition,
+) {
+  if (
+    resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+    resolvedOutputDefinition.allowMultipleMatches &&
+    resolvedOutputDefinition.allowNoMatch
+  ) {
+    return `${resolvedOutputDefinition.scoreDescription} If "${EvalNoMatchOptionValue}" is selected, it must be the only value.`;
+  }
+
+  return resolvedOutputDefinition.scoreDescription;
+}
+
 function buildResolvedEvalOutputJsonSchema(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ): Record<string, unknown> {
+  const scoreDescription = getResolvedScoreDescription(
+    resolvedOutputDefinition,
+  );
+
   return {
     type: "object",
     properties: {
@@ -216,14 +239,32 @@ function buildResolvedEvalOutputJsonSchema(
       },
       score:
         resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
-          ? {
-              type: "string",
-              description: resolvedOutputDefinition.scoreDescription,
-              enum: getResolvedCategoricalScoreValues(resolvedOutputDefinition),
-            }
+          ? resolvedOutputDefinition.allowMultipleMatches
+            ? {
+                type: "array",
+                description: scoreDescription,
+                items: {
+                  type: "string",
+                  enum: getResolvedCategoricalScoreValues(
+                    resolvedOutputDefinition,
+                  ),
+                },
+                minItems: 1,
+                maxItems: getResolvedCategoricalScoreValues(
+                  resolvedOutputDefinition,
+                ).length,
+                uniqueItems: true,
+              }
+            : {
+                type: "string",
+                description: scoreDescription,
+                enum: getResolvedCategoricalScoreValues(
+                  resolvedOutputDefinition,
+                ),
+              }
           : {
               type: "number",
-              description: resolvedOutputDefinition.scoreDescription,
+              description: scoreDescription,
             },
     },
     required: ["reasoning", "score"],
@@ -234,6 +275,10 @@ function buildResolvedEvalOutputJsonSchema(
 function buildResolvedEvalOutputResultSchema(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
+  const scoreDescription = getResolvedScoreDescription(
+    resolvedOutputDefinition,
+  );
+
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
     const [firstOption, ...restOptions] = getResolvedCategoricalScoreValues(
       resolvedOutputDefinition,
@@ -245,13 +290,33 @@ function buildResolvedEvalOutputResultSchema(
       );
     }
 
+    const categoricalValueSchema = z.enum([firstOption, ...restOptions]);
+
+    const scoreSchema = resolvedOutputDefinition.allowMultipleMatches
+      ? z
+          .array(categoricalValueSchema)
+          .min(1)
+          .max(restOptions.length + 1)
+          .refine(
+            (values) => new Set(values).size === values.length,
+            "Score values must be unique",
+          )
+          .refine(
+            (values) =>
+              !(
+                resolvedOutputDefinition.allowNoMatch &&
+                values.includes(EvalNoMatchOptionValue) &&
+                values.length > 1
+              ),
+            `"${EvalNoMatchOptionValue}" cannot be combined with other matches`,
+          )
+      : categoricalValueSchema;
+
     return z.object({
       reasoning: z
         .string()
         .describe(resolvedOutputDefinition.reasoningDescription),
-      score: z
-        .enum([firstOption, ...restOptions])
-        .describe(resolvedOutputDefinition.scoreDescription),
+      score: scoreSchema.describe(scoreDescription),
     });
   }
 
@@ -259,7 +324,7 @@ function buildResolvedEvalOutputResultSchema(
     reasoning: z
       .string()
       .describe(resolvedOutputDefinition.reasoningDescription),
-    score: z.number().describe(resolvedOutputDefinition.scoreDescription),
+    score: z.number().describe(scoreDescription),
   });
 }
 

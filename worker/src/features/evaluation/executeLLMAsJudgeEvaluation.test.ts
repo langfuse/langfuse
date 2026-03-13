@@ -125,8 +125,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
   /** Creates a mock for callLLM with a successful response */
-  const mockSuccessfulLLMCall = (score: number | string, reasoning: string) =>
-    vi.fn().mockResolvedValue({ score, reasoning });
+  const mockSuccessfulLLMCall = (
+    score: number | string | string[],
+    reasoning: string,
+  ) => vi.fn().mockResolvedValue({ score, reasoning });
 
   /** Creates standard deps with all mocks for a successful execution flow */
   const createSuccessfulDeps = (
@@ -788,6 +790,60 @@ describe("executeLLMAsJudgeEvaluation", () => {
               comment: "The answer is fully supported by the context.",
               dataType: "CATEGORICAL",
             }),
+          }),
+        }),
+      );
+    });
+
+    it("should persist one score per categorical match", async () => {
+      const uploadScore = vi.fn();
+      const enqueueScoreIngestion = vi.fn();
+      const updateJobExecution = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "partial"],
+          "Both categories apply to the answer.",
+        ),
+        uploadScore,
+        enqueueScoreIngestion,
+        updateJobExecution,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected categories",
+              },
+              score: {
+                description: "Choose all matching categories",
+                options: [{ value: "correct" }, { value: "partial" }],
+                allowMultipleMatches: true,
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledTimes(2);
+      expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
+
+      const firstUploadCall = uploadScore.mock.calls[0][0];
+      const secondUploadCall = uploadScore.mock.calls[1][0];
+
+      expect(firstUploadCall.event.body.value).toBe("correct");
+      expect(secondUploadCall.event.body.value).toBe("partial");
+      expect(firstUploadCall.scoreId).not.toBe(secondUploadCall.scoreId);
+
+      expect(updateJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            jobOutputScoreId: firstUploadCall.scoreId,
           }),
         }),
       );

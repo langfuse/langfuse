@@ -156,6 +156,50 @@ describe("evaluation helpers", () => {
         }).success,
       ).toBe(false);
     });
+
+    it("should validate categorical multi-match responses against allowed values", () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          options: [{ value: "correct" }, { value: "partial" }],
+          allowMultipleMatches: true,
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: ["correct", "partial"],
+          reasoning: "The answer is partly right and partly complete.",
+        }).success,
+      ).toBe(true);
+
+      expect(
+        schema.safeParse({
+          score: ["correct", "correct"],
+          reasoning: "Duplicate categories should be rejected.",
+        }).success,
+      ).toBe(false);
+    });
+
+    it(`should reject "${EvalNoMatchOptionValue}" combined with other multi-match values`, () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          options: [{ value: "correct" }, { value: "partial" }],
+          allowNoMatch: true,
+          allowMultipleMatches: true,
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: [EvalNoMatchOptionValue, "correct"],
+          reasoning: "This should be invalid.",
+        }).success,
+      ).toBe(false);
+    });
   });
 
   describe("buildEvalOutputJsonSchema", () => {
@@ -200,6 +244,32 @@ describe("evaluation helpers", () => {
         properties: {
           score: {
             enum: ["correct", "partial", EvalNoMatchOptionValue],
+          },
+        },
+      });
+    });
+
+    it("should build categorical multi-match JSON schema as an enum array", () => {
+      const schema = buildEvalOutputJsonSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          options: [{ value: "correct" }, { value: "partial" }],
+          allowMultipleMatches: true,
+        }),
+      );
+
+      expect(schema).toMatchObject({
+        properties: {
+          score: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["correct", "partial"],
+            },
+            minItems: 1,
+            maxItems: 2,
+            uniqueItems: true,
           },
         },
       });
@@ -477,6 +547,30 @@ describe("evaluation helpers", () => {
         expect(result.data.score).toBe("correct");
       }
     });
+
+    it("should validate categorical multi-match responses", () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Why",
+          options: [{ value: "correct" }, { value: "incorrect" }],
+          allowMultipleMatches: true,
+        }),
+      );
+
+      const result = validateEvalOutputResult({
+        response: {
+          score: ["correct", "incorrect"],
+          reasoning: "Both labels apply in this synthetic test.",
+        },
+        resultSchema: schema,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.score).toEqual(["correct", "incorrect"]);
+      }
+    });
   });
 
   describe("PersistedEvalOutputDefinitionSchema", () => {
@@ -526,6 +620,19 @@ describe("evaluation helpers", () => {
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
           options: [{ value: "correct" }, { value: "partial" }],
+        }),
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept versioned categorical multi-match schemas", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          options: [{ value: "correct" }, { value: "partial" }],
+          allowMultipleMatches: true,
         }),
       );
 

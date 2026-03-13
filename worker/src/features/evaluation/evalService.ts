@@ -833,8 +833,8 @@ export async function executeLLMAsJudgeEvaluation({
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
-      const scoreId = randomUUID();
-      span.setAttribute("eval.score.id", scoreId);
+      const primaryScoreId = randomUUID();
+      span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
       const executionMetadata = buildEvalExecutionMetadata({
@@ -872,7 +872,7 @@ export async function executeLLMAsJudgeEvaluation({
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
                   ...executionMetadata,
-                  score_id: scoreId,
+                  score_id: primaryScoreId,
                 },
               },
             });
@@ -917,58 +917,88 @@ export async function executeLLMAsJudgeEvaluation({
         `Job ${jobExecutionId} received LLM output: score=${parsedLLMOutput.data.score}`,
       );
 
-      // Build and persist score
-      const eventId = randomUUID();
-      const scoreEvent =
+      const scoreWritePayloads =
         typeof parsedLLMOutput.data.score === "number"
-          ? buildScoreEvent({
-              eventId,
-              scoreId,
-              traceId: job.jobInputTraceId,
-              observationId: job.jobInputObservationId,
-              scoreName: config.scoreName,
-              scoreValue: parsedLLMOutput.data.score,
-              reasoning: parsedLLMOutput.data.reasoning,
-              environment,
-              executionTraceId,
-              metadata: executionMetadata,
-              dataType: "NUMERIC",
-            })
-          : buildScoreEvent({
-              eventId,
-              scoreId,
-              traceId: job.jobInputTraceId,
-              observationId: job.jobInputObservationId,
-              scoreName: config.scoreName,
-              scoreValue: parsedLLMOutput.data.score,
-              reasoning: parsedLLMOutput.data.reasoning,
-              environment,
-              executionTraceId,
-              metadata: executionMetadata,
-              dataType: "CATEGORICAL",
+          ? (() => {
+              const eventId = randomUUID();
+
+              return [
+                {
+                  eventId,
+                  scoreId: primaryScoreId,
+                  event: buildScoreEvent({
+                    eventId,
+                    scoreId: primaryScoreId,
+                    traceId: job.jobInputTraceId,
+                    observationId: job.jobInputObservationId,
+                    scoreName: config.scoreName,
+                    scoreValue: parsedLLMOutput.data.score,
+                    reasoning: parsedLLMOutput.data.reasoning,
+                    environment,
+                    executionTraceId,
+                    metadata: executionMetadata,
+                    dataType: "NUMERIC",
+                  }),
+                },
+              ];
+            })()
+          : (Array.isArray(parsedLLMOutput.data.score)
+              ? parsedLLMOutput.data.score
+              : [parsedLLMOutput.data.score]
+            ).map((scoreValue, index) => {
+              const scoreId = index === 0 ? primaryScoreId : randomUUID();
+              const eventId = randomUUID();
+
+              return {
+                eventId,
+                scoreId,
+                event: buildScoreEvent({
+                  eventId,
+                  scoreId,
+                  traceId: job.jobInputTraceId,
+                  observationId: job.jobInputObservationId,
+                  scoreName: config.scoreName,
+                  scoreValue,
+                  reasoning: parsedLLMOutput.data.reasoning,
+                  environment,
+                  executionTraceId,
+                  metadata: executionMetadata,
+                  dataType: "CATEGORICAL",
+                }),
+              };
             });
+
+      span.setAttribute("eval.score.count", scoreWritePayloads.length);
 
       // Write score to S3 and enqueue for ingestion
       try {
-        await deps.uploadScore({
-          projectId,
-          scoreId,
-          eventId,
-          event: scoreEvent,
-        });
+        await Promise.all(
+          scoreWritePayloads.map(async ({ scoreId, eventId, event }) => {
+            await deps.uploadScore({
+              projectId,
+              scoreId,
+              eventId,
+              event,
+            });
 
-        await deps.enqueueScoreIngestion({
-          projectId,
-          scoreId,
-          eventId,
-        });
+            await deps.enqueueScoreIngestion({
+              projectId,
+              scoreId,
+              eventId,
+            });
+          }),
+        );
       } catch (e) {
         logger.error(`Failed to persist score: ${e}`, e);
         traceException(e);
-        throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
+        throw new Error(
+          `Failed to write score ${primaryScoreId} into IngestionQueue`,
+        );
       }
 
-      logger.debug(`Persisted score ${scoreId} for job ${jobExecutionId}`);
+      logger.debug(
+        `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
+      );
 
       // Update job execution status
       await deps.updateJobExecution({
@@ -977,7 +1007,7 @@ export async function executeLLMAsJudgeEvaluation({
         data: {
           status: JobExecutionStatus.COMPLETED,
           endTime: new Date(),
-          jobOutputScoreId: scoreId,
+          jobOutputScoreId: primaryScoreId,
           executionTraceId,
         },
       });

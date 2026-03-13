@@ -1,8 +1,4 @@
-import {
-  ScoreDataTypeEnum,
-  ScoreSourceEnum,
-  type EvalOutputResult,
-} from "@langfuse/shared";
+import { ScoreDataTypeEnum, ScoreSourceEnum } from "@langfuse/shared";
 import { eventTypes, ScoreEventType } from "@langfuse/shared/src/server";
 
 type BuildScoreEventBase = {
@@ -65,12 +61,4 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
       dataType: ScoreDataTypeEnum.NUMERIC,
     },
   };
-}
-
-export function getScoreDataTypeForOutputResult(
-  score: EvalOutputResult["score"],
-): typeof ScoreDataTypeEnum.NUMERIC | typeof ScoreDataTypeEnum.CATEGORICAL {
-  return typeof score === "number"
-    ? ScoreDataTypeEnum.NUMERIC
-    : ScoreDataTypeEnum.CATEGORICAL;
 }

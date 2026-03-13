@@ -32,6 +32,20 @@ describe("CreateEvalTemplateInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts versioned categorical multi-match output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose all matching categories",
+        reasoningDescription: "Explain the selected categories",
+        options: [{ value: "correct" }, { value: "partial" }],
+        allowMultipleMatches: true,
+      }),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("accepts versioned numeric output definitions", () => {
     const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,

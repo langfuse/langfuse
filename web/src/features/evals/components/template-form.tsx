@@ -144,6 +144,7 @@ const formSchema = z
     reasoningDescription: z.string().min(1, "Enter a reasoning function"),
     categoricalOptions: z.array(categoricalOptionSchema).default([]),
     allowNoMatch: z.boolean().default(false),
+    allowMultipleMatches: z.boolean().default(false),
     referencedEvaluators: z
       .enum(EvalReferencedEvaluators)
       .optional()
@@ -197,6 +198,7 @@ const defaultNumericOutputDefinitionFormValues = {
     "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
   categoricalOptions: [] as Array<{ value: string }>,
   allowNoMatch: false,
+  allowMultipleMatches: false,
 };
 
 const toOutputDefinitionFormValues = (
@@ -217,6 +219,10 @@ const toOutputDefinitionFormValues = (
     allowNoMatch:
       resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
         ? resolvedOutputDefinition.allowNoMatch
+        : false,
+    allowMultipleMatches:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.allowMultipleMatches
         : false,
     categoricalOptions:
       resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
@@ -312,6 +318,7 @@ export const InnerEvalTemplateForm = (props: {
       scoreDescription: outputDefinitionFormValues.scoreDescription,
       categoricalOptions: outputDefinitionFormValues.categoricalOptions,
       allowNoMatch: outputDefinitionFormValues.allowNoMatch,
+      allowMultipleMatches: outputDefinitionFormValues.allowMultipleMatches,
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
@@ -329,6 +336,7 @@ export const InnerEvalTemplateForm = (props: {
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
+  const allowMultipleMatches = form.watch("allowMultipleMatches");
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -391,6 +399,7 @@ export const InnerEvalTemplateForm = (props: {
               value: option.value,
             })),
             allowNoMatch: values.allowNoMatch,
+            allowMultipleMatches: values.allowMultipleMatches,
           })
         : createNumericEvalOutputDefinition({
             scoreDescription: values.scoreDescription,
@@ -666,7 +675,9 @@ export const InnerEvalTemplateForm = (props: {
                 </FormLabel>
                 <FormDescription>
                   {isCategoricalOutput
-                    ? "Define how the LLM should choose exactly one category from the list below."
+                    ? allowMultipleMatches
+                      ? "Define how the LLM should choose one or more categories from the list below."
+                      : "Define how the LLM should choose exactly one category from the list below."
                     : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
                 </FormDescription>
                 <FormControl>
@@ -753,6 +764,28 @@ export const InnerEvalTemplateForm = (props: {
                               {EvalNoMatchOptionValue}
                             </span>{" "}
                             category when none of the listed values apply.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="allowMultipleMatches"
+                    render={({ field }) => (
+                      <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!props.isEditing}
+                          />
+                        </FormControl>
+                        <div className="space-y-0.5 leading-none">
+                          <FormLabel>Allow multiple matches</FormLabel>
+                          <FormDescription>
+                            Lets the model return more than one category. One
+                            score will be created for each selected match.
                           </FormDescription>
                         </div>
                       </FormItem>
