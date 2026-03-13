@@ -21,10 +21,16 @@ import { type SendVerificationRequestParams } from "next-auth/providers/email";
 
 interface ResetPasswordTemplateProps {
   token: string;
+  isSetupMode: boolean;
 }
 
-const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
-  const previewText = "Your Langfuse reset code";
+const ResetPasswordTemplate = ({
+  token,
+  isSetupMode,
+}: ResetPasswordTemplateProps) => {
+  const previewText = isSetupMode
+    ? "Verify your Langfuse email"
+    : "Your Langfuse reset code";
   return (
     <Html>
       <Head />
@@ -42,9 +48,19 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-xl font-normal text-black">
-              Forgot your Langfuse password?
-              <br />
-              It happens to the best of us.
+              {isSetupMode ? (
+                <>
+                  Welcome to Langfuse!
+                  <br />
+                  Verify your email to get started.
+                </>
+              ) : (
+                <>
+                  Forgot your Langfuse password?
+                  <br />
+                  It happens to the best of us.
+                </>
+              )}
             </Heading>
             <Section className="mb-8 mt-8 text-center">
               <Text className="text-center text-sm font-semibold">
@@ -53,8 +69,8 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
               <Heading className="text-3xl mt-2">{token}</Heading>
             </Section>
             <Text className="text-center text-xs leading-6 text-[#666666]">
-              This code is valid for 3 minutes. If you did not request a reset,
-              you can ignore this email.
+              This code is valid for 3 minutes. If you did not request{" "}
+              {isSetupMode ? "this" : "a reset"}, you can ignore this email.
             </Text>
           </Container>
         </Body>
@@ -66,16 +82,30 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
 export async function sendResetPasswordVerificationRequest(
   params: SendVerificationRequestParams,
 ) {
-  const { identifier, token, provider } =
+  const { identifier, token, provider, url } =
     params as SendVerificationRequestParams & { token: string };
   const transport = createTransport(provider.server);
-  const htmlTemplate = await render(<ResetPasswordTemplate token={token} />);
+
+  // Detect if this is a setup-password flow (signup email verification)
+  const isSetupMode = url?.includes("/auth/setup-password") ?? false;
+
+  const htmlTemplate = await render(
+    <ResetPasswordTemplate token={token} isSetupMode={isSetupMode} />,
+  );
+
+  const subject = isSetupMode
+    ? "Verify your Langfuse email"
+    : "Your Langfuse password reset code";
+
+  const textBody = isSetupMode
+    ? `Welcome to Langfuse! Use the following code to verify your email: ${token}\n\nThis code will expire in 3 minutes. If you did not request this, you can ignore this email.`
+    : `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`;
 
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,
-    subject: `Your Langfuse password reset code`,
-    text: `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`,
+    subject,
+    text: textBody,
     html: htmlTemplate,
   });
   const failed = result.rejected.concat(result.pending).filter(Boolean);

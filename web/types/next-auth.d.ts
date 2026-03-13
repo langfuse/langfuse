@@ -55,6 +55,7 @@ declare module "next-auth" {
       }[];
     }[];
     featureFlags: Flags;
+    hasPassword?: boolean;
   }
 }
 
