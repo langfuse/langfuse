@@ -18,3 +18,6 @@ export const getModelNameKey = (windowId: string) =>
 
 export const getModelProviderKey = (windowId: string) =>
   getPrefixedKey("langfuse-llmModelProvider_", windowId);
+
+export const getModelParamsEnabledKey = (windowId: string) =>
+  getPrefixedKey("langfuse-llmModelParamsEnabled_", windowId);
