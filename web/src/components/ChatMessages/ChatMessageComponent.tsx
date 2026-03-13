@@ -263,7 +263,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       }}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "shadow-xs group relative border p-1 transition-shadow duration-200 hover:shadow-sm",
+        "group relative border p-1 shadow-2xs transition-shadow duration-200 hover:shadow-xs",
       )}
     >
       <div className="flex flex-row justify-center">
@@ -277,9 +277,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         <CardContent
           className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
         >
-          <div className="sticky bottom-0 top-0 z-10 flex w-[4rem] flex-shrink-0 flex-col gap-1 bg-background">
+          <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
-              <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
+              <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
                 placeholder
               </span>
             ) : (
@@ -287,7 +287,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 onClick={toggleRole}
                 type="button"
                 variant="ghost"
-                className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-semibold"
               >
                 {capitalize(message.role)}
               </Button>
@@ -309,7 +309,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 >
                   <SelectTrigger
                     title="Select Tool Call ID"
-                    className="h-[25px] w-[96px] border-0 bg-muted text-[9px]"
+                    className="bg-muted h-[25px] w-[96px] border-0 text-[9px]"
                   >
                     <SelectValue placeholder="Select Call ID" />
                   </SelectTrigger>
@@ -351,7 +351,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             type="button"
             size="icon"
             onClick={() => deleteMessage(message.id)}
-            className="h-5 w-5 flex-shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
+            className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
             <MinusCircleIcon size={14} />

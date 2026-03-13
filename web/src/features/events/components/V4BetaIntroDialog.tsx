@@ -27,22 +27,22 @@ export function V4BetaIntroDialog({
             className="w-full rounded-md"
           />
           <ul className="flex flex-col gap-3">
-            <li className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground font-medium">
                 Welcome to a faster Langfuse.
               </span>{" "}
               This is what you can expect:
             </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
                 Everything loads faster.
               </span>{" "}
               We&apos;ve rebuilt the data model around observations rather than
               traces, which means charts, filters, and APIs are dramatically
               faster, especially as your data grows.
             </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
                 Your traces are still here.
               </span>{" "}
               The default view now shows all observations. To see a table with
@@ -53,14 +53,14 @@ export function V4BetaIntroDialog({
               . Tip: save that as an org-wide saved view so your whole team
               starts from the same place.
             </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
                 Saved views are now shared.
               </span>{" "}
               You can create and share views across your organization.
             </li>
           </ul>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-4 text-sm">
             This is currently in beta. Things may look a little different as we
             roll it out.
           </p>
@@ -70,7 +70,7 @@ export function V4BetaIntroDialog({
             href="https://langfuse.com/docs/v4"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium text-primary hover:underline"
+            className="text-primary text-sm font-medium hover:underline"
           >
             Read the v4 docs &rarr;
           </a>

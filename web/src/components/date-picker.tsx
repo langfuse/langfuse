@@ -218,7 +218,7 @@ export function DatePickerWithRange({
             selected={internalDateRange}
             onSelect={onCalendarSelection}
             numberOfMonths={2}
-            className="[&>div:first-child]:block [&>div]:hidden [&>div]:sm:block"
+            className="[&>div]:hidden sm:[&>div]:block [&>div:first-child]:block"
             disabled={disabled}
           />
           <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
@@ -412,7 +412,7 @@ export function TimeRangePicker({
       const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
       return (
         <div className="flex items-center gap-2">
-          <span className="h-5 w-10 rounded bg-muted px-1.5 text-center text-xs leading-5">
+          <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
             {setting?.abbreviation || namedRangeValue}
           </span>
           <span>{setting?.label || namedRangeValue}</span>
@@ -436,7 +436,7 @@ export function TimeRangePicker({
           <Button
             variant="outline"
             className={cn(
-              "w-fit justify-start text-left font-normal hover:bg-accent hover:text-accent-foreground",
+              "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
             )}
           >
@@ -486,13 +486,13 @@ export function TimeRangePicker({
                 return (
                   <div
                     key={presetKey}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                     onClick={() => {
                       onPresetSelection(presetKey);
                       setIsOpen(false);
                     }}
                   >
-                    <span className="h-5 w-10 rounded bg-muted px-1.5 text-center text-xs leading-5">
+                    <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
                       {setting.abbreviation}
                     </span>
                     <span>{setting.label}</span>
@@ -500,12 +500,12 @@ export function TimeRangePicker({
                 );
               })}
               <div
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                 onClick={() => {
                   setTab("calendar");
                 }}
               >
-                <span className="leading flex h-5 w-10 items-center justify-center rounded bg-muted px-1.5 text-center text-xs">
+                <span className="leading bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
                   <CalendarIcon className="h-3 w-3" />
                 </span>
                 <span>Select from calendar</span>
