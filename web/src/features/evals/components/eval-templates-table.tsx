@@ -420,8 +420,8 @@ export default function EvalsTemplateTable({
                     name: `${cloneTemplate.data.name} (project-level)`,
                     prompt: cloneTemplate.data.prompt,
                     vars: cloneTemplate.data.vars,
-                    outputSchema: cloneTemplate.data
-                      .outputSchema as EvalTemplate["outputSchema"],
+                    outputDefinition: cloneTemplate.data
+                      .outputDefinition as EvalTemplate["outputDefinition"],
                     provider: cloneTemplate.data.provider,
                     model: cloneTemplate.data.model,
                     modelParams: cloneTemplate.data.modelParams as any,

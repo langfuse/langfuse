@@ -15,14 +15,15 @@ import {
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  createCategoricalEvalTemplateOutputSchema,
-  createNumericEvalTemplateOutputSchema,
-  EvalTemplateOutputKind,
-  EvalTemplateOutputKindSchema,
-  EvalTemplateOutputSchema,
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  EvalOutputDataTypeSchema,
+  type PersistedEvalOutputDefinition,
+  PersistedEvalOutputDefinitionSchema,
+  ScoreDataTypeEnum,
   extractVariables,
   getIsCharOrUnderscore,
-  normalizeEvalTemplateOutputSchema,
+  resolvePersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
@@ -86,8 +87,8 @@ export const EvalTemplateForm = (props: {
                 name: props.existingEvalTemplate.name,
                 prompt: props.existingEvalTemplate.prompt,
                 vars: props.existingEvalTemplate.vars,
-                outputSchema: props.existingEvalTemplate
-                  .outputSchema as z.infer<typeof EvalTemplateOutputSchema>,
+                outputDefinition: props.existingEvalTemplate
+                  .outputDefinition as PersistedEvalOutputDefinition,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -138,12 +139,10 @@ const formSchema = z
     variables: z.array(
       z.string().min(1, "Variables must have at least one character"),
     ),
-    outputType: EvalTemplateOutputKindSchema.default(
-      EvalTemplateOutputKind.NUMERIC,
-    ),
-    outputScore: z.string().min(1, "Enter a score function"),
-    outputReasoning: z.string().min(1, "Enter a reasoning function"),
-    outputOptions: z.array(categoricalOptionSchema).default([]),
+    scoreDataType: EvalOutputDataTypeSchema.default(ScoreDataTypeEnum.NUMERIC),
+    scoreDescription: z.string().min(1, "Enter a score function"),
+    reasoningDescription: z.string().min(1, "Enter a reasoning function"),
+    categoricalOptions: z.array(categoricalOptionSchema).default([]),
     referencedEvaluators: z
       .enum(EvalReferencedEvaluators)
       .optional()
@@ -151,28 +150,28 @@ const formSchema = z
     shouldUseDefaultModel: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {
-    if (value.outputType !== EvalTemplateOutputKind.CATEGORICAL) {
+    if (value.scoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
       return;
     }
 
-    if (value.outputOptions.length === 0) {
+    if (value.categoricalOptions.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Add at least one category",
-        path: ["outputOptions"],
+        path: ["categoricalOptions"],
       });
       return;
     }
 
     const seenValues = new Set<string>();
 
-    value.outputOptions.forEach((option, index) => {
+    value.categoricalOptions.forEach((option, index) => {
       const normalizedValue = option.value.trim();
       if (seenValues.has(normalizedValue)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Category values must be unique",
-          path: ["outputOptions", index, "value"],
+          path: ["categoricalOptions", index, "value"],
         });
         return;
       }
@@ -181,32 +180,32 @@ const formSchema = z
     });
   });
 
-const defaultNumericOutputValues = {
-  outputType: EvalTemplateOutputKind.NUMERIC,
-  outputReasoning: "One sentence reasoning for the score",
-  outputScore:
+const defaultNumericOutputDefinitionFormValues = {
+  scoreDataType: ScoreDataTypeEnum.NUMERIC,
+  reasoningDescription: "One sentence reasoning for the score",
+  scoreDescription:
     "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
-  outputOptions: [] as Array<{ value: string; description?: string }>,
+  categoricalOptions: [] as Array<{ value: string; description?: string }>,
 };
 
-const getOutputSchemaFormDefaults = (
-  outputSchema?: z.infer<typeof EvalTemplateOutputSchema>,
+const toOutputDefinitionFormValues = (
+  outputDefinition?: PersistedEvalOutputDefinition,
 ) => {
-  if (!outputSchema) {
-    return defaultNumericOutputValues;
+  if (!outputDefinition) {
+    return defaultNumericOutputDefinitionFormValues;
   }
 
-  const normalizedOutputSchema = normalizeEvalTemplateOutputSchema(
-    EvalTemplateOutputSchema.parse(outputSchema),
+  const resolvedOutputDefinition = resolvePersistedEvalOutputDefinition(
+    PersistedEvalOutputDefinitionSchema.parse(outputDefinition),
   );
 
   return {
-    outputType: normalizedOutputSchema.kind,
-    outputReasoning: normalizedOutputSchema.reasoningDescription,
-    outputScore: normalizedOutputSchema.scoreDescription,
-    outputOptions:
-      normalizedOutputSchema.kind === EvalTemplateOutputKind.CATEGORICAL
-        ? normalizedOutputSchema.options.map((option) => ({
+    scoreDataType: resolvedOutputDefinition.dataType,
+    reasoningDescription: resolvedOutputDefinition.reasoningDescription,
+    scoreDescription: resolvedOutputDefinition.scoreDescription,
+    categoricalOptions:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.options.map((option) => ({
             value: option.value,
             description: option.description ?? "",
           }))
@@ -218,7 +217,7 @@ export type EvalTemplateFormPreFill = {
   name: string;
   prompt: string;
   vars: string[];
-  outputSchema: z.infer<typeof EvalTemplateOutputSchema>;
+  outputDefinition: PersistedEvalOutputDefinition;
   selectedModel?: {
     provider: string;
     model: string;
@@ -280,8 +279,8 @@ export const InnerEvalTemplateForm = (props: {
     props.preFilledFormValues?.selectedModel,
   );
 
-  const outputSchemaDefaults = getOutputSchemaFormDefaults(
-    props.preFilledFormValues?.outputSchema,
+  const outputDefinitionFormValues = toOutputDefinitionFormValues(
+    props.preFilledFormValues?.outputDefinition,
   );
 
   // updates the form based on the pre-filled data
@@ -294,27 +293,27 @@ export const InnerEvalTemplateForm = (props: {
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
-      outputType: outputSchemaDefaults.outputType,
-      outputReasoning: outputSchemaDefaults.outputReasoning,
-      outputScore: outputSchemaDefaults.outputScore,
-      outputOptions: outputSchemaDefaults.outputOptions,
+      scoreDataType: outputDefinitionFormValues.scoreDataType,
+      reasoningDescription: outputDefinitionFormValues.reasoningDescription,
+      scoreDescription: outputDefinitionFormValues.scoreDescription,
+      categoricalOptions: outputDefinitionFormValues.categoricalOptions,
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
 
   const {
-    fields: outputOptionFields,
+    fields: categoricalOptionFields,
     append,
     remove,
     replace,
   } = useFieldArray({
     control: form.control,
-    name: "outputOptions",
+    name: "categoricalOptions",
   });
 
   const useDefaultModel = form.watch("shouldUseDefaultModel");
-  const outputType = form.watch("outputType");
-  const isCategoricalOutput = outputType === EvalTemplateOutputKind.CATEGORICAL;
+  const scoreDataType = form.watch("scoreDataType");
+  const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -368,19 +367,19 @@ export const InnerEvalTemplateForm = (props: {
         : "eval_templates:new_form_submit",
     );
 
-    const outputSchema =
-      values.outputType === EvalTemplateOutputKind.CATEGORICAL
-        ? createCategoricalEvalTemplateOutputSchema({
-            scoreDescription: values.outputScore,
-            reasoningDescription: values.outputReasoning,
-            options: values.outputOptions.map((option) => ({
+    const outputDefinition =
+      values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL
+        ? createCategoricalEvalOutputDefinition({
+            scoreDescription: values.scoreDescription,
+            reasoningDescription: values.reasoningDescription,
+            options: values.categoricalOptions.map((option) => ({
               value: option.value,
               description: option.description,
             })),
           })
-        : createNumericEvalTemplateOutputSchema({
-            scoreDescription: values.outputScore,
-            reasoningDescription: values.outputReasoning,
+        : createNumericEvalOutputDefinition({
+            scoreDescription: values.scoreDescription,
+            reasoningDescription: values.reasoningDescription,
           });
 
     const evalTemplate = {
@@ -396,7 +395,7 @@ export const InnerEvalTemplateForm = (props: {
         ? undefined
         : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
-      outputSchema,
+      outputDefinition,
       referencedEvaluators: values.referencedEvaluators,
       sourceTemplateId: props.cloneSourceId ?? undefined,
     };
@@ -580,7 +579,7 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
-            name="outputType"
+            name="scoreDataType"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Score type</FormLabel>
@@ -595,8 +594,8 @@ export const InnerEvalTemplateForm = (props: {
                     field.onChange(value);
 
                     if (
-                      value === EvalTemplateOutputKind.CATEGORICAL &&
-                      (form.getValues("outputOptions") ?? []).length === 0
+                      value === ScoreDataTypeEnum.CATEGORICAL &&
+                      (form.getValues("categoricalOptions") ?? []).length === 0
                     ) {
                       replace([{ value: "", description: "" }]);
                     }
@@ -608,10 +607,10 @@ export const InnerEvalTemplateForm = (props: {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value={EvalTemplateOutputKind.NUMERIC}>
+                    <SelectItem value={ScoreDataTypeEnum.NUMERIC}>
                       Numeric
                     </SelectItem>
-                    <SelectItem value={EvalTemplateOutputKind.CATEGORICAL}>
+                    <SelectItem value={ScoreDataTypeEnum.CATEGORICAL}>
                       Categorical
                     </SelectItem>
                   </SelectContent>
@@ -623,7 +622,7 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
-            name="outputReasoning"
+            name="reasoningDescription"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Score reasoning prompt</FormLabel>
@@ -642,7 +641,7 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
-            name="outputScore"
+            name="scoreDescription"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
@@ -666,7 +665,7 @@ export const InnerEvalTemplateForm = (props: {
           {isCategoricalOutput ? (
             <FormField
               control={form.control}
-              name="outputOptions"
+              name="categoricalOptions"
               render={() => (
                 <FormItem>
                   <div className="flex items-center justify-between gap-4">
@@ -688,14 +687,14 @@ export const InnerEvalTemplateForm = (props: {
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    {outputOptionFields.map((field, index) => (
+                    {categoricalOptionFields.map((field, index) => (
                       <div
                         key={field.id}
                         className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto]"
                       >
                         <FormField
                           control={form.control}
-                          name={`outputOptions.${index}.value`}
+                          name={`categoricalOptions.${index}.value`}
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Value</FormLabel>
@@ -708,7 +707,7 @@ export const InnerEvalTemplateForm = (props: {
                         />
                         <FormField
                           control={form.control}
-                          name={`outputOptions.${index}.description`}
+                          name={`categoricalOptions.${index}.description`}
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Description (optional)</FormLabel>
@@ -733,9 +732,9 @@ export const InnerEvalTemplateForm = (props: {
                       </div>
                     ))}
                   </div>
-                  {form.formState.errors.outputOptions?.message ? (
+                  {form.formState.errors.categoricalOptions?.message ? (
                     <p className="text-sm font-medium text-destructive">
-                      {form.formState.errors.outputOptions.message}
+                      {form.formState.errors.categoricalOptions.message}
                     </p>
                   ) : null}
                   <FormMessage />

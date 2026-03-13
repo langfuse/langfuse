@@ -5,11 +5,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
-  buildEvalTemplateStructuredOutputJsonSchema,
+  buildEvalOutputJsonSchema,
   ChatMessageType,
-  createCategoricalEvalTemplateOutputSchema,
-  createNumericEvalTemplateOutputSchema,
-  type EvalTemplateOutputSchema,
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  type PersistedEvalOutputDefinition,
   LLMAdapter,
   type ModelParams,
 } from "@langfuse/shared";
@@ -59,7 +59,7 @@ const categoricalEvalResponseSchema = z.object({
 type EvalStructuredOutputTestCase = {
   name: string;
   prompt: string;
-  outputSchema: EvalTemplateOutputSchema;
+  outputDefinition: PersistedEvalOutputDefinition;
   responseSchema: z.ZodTypeAny;
   assertParsed?: (data: { score: number | string; reasoning: string }) => void;
 };
@@ -69,7 +69,7 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
     name: "structured output - legacy eval schema",
     prompt:
       "Evaluate whether the answer '2 + 2 = 4' is correct. Return a numeric score from 0 to 100 and explain the score.",
-    outputSchema: {
+    outputDefinition: {
       score:
         "Return a numeric score from 0 to 100, where 100 means the answer is completely correct.",
       reasoning: "Explain briefly why you chose that score.",
@@ -80,7 +80,7 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
     name: "structured output - v2 numeric eval schema",
     prompt:
       "Evaluate whether the answer '2 + 2 = 4' is correct. Return a numeric score from 0 to 100 and explain the score.",
-    outputSchema: createNumericEvalTemplateOutputSchema({
+    outputDefinition: createNumericEvalOutputDefinition({
       scoreDescription:
         "Return a numeric score from 0 to 100, where 100 means the answer is completely correct.",
       reasoningDescription: "Explain briefly why you chose that score.",
@@ -91,7 +91,7 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
     name: "structured output - v2 categorical eval schema",
     prompt:
       "Judge whether the answer '2 + 2 = 5' is correct. Select the best matching category and explain the choice.",
-    outputSchema: createCategoricalEvalTemplateOutputSchema({
+    outputDefinition: createCategoricalEvalOutputDefinition({
       scoreDescription:
         "Select 'correct' when the answer is mathematically accurate, otherwise select 'incorrect'.",
       reasoningDescription: "Explain briefly why you selected that category.",
@@ -135,8 +135,8 @@ function registerEvalStructuredOutputTests(params: {
             },
           ],
           modelParams: params.getModelParams(),
-          structuredOutputSchema: buildEvalTemplateStructuredOutputJsonSchema(
-            testCase.outputSchema,
+          structuredOutputSchema: buildEvalOutputJsonSchema(
+            testCase.outputDefinition,
           ),
           llmConnection: params.getLLMConnection(),
         });

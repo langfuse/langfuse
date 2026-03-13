@@ -5,8 +5,9 @@ import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 import {
-  type EvalTemplateOutputSchema,
   EvalTargetObject,
+  type PersistedEvalOutputDefinition,
+  ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
 /**
@@ -75,7 +76,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
-    outputSchema: EvalTemplateOutputSchema;
+    outputDefinition: PersistedEvalOutputDefinition;
     vars: string[];
     projectId: string;
   } = {
@@ -88,7 +89,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     model: "gpt-4",
     provider: "openai",
     modelParams: {},
-    outputSchema: {
+    outputDefinition: {
       score: "A number between 0 and 1",
       reasoning: "Explain your reasoning",
     },
@@ -298,10 +299,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).rejects.toThrow(UnrecoverableError);
     });
 
-    it("should throw UnrecoverableError if output schema invalid", async () => {
+    it("should throw UnrecoverableError if output definition is invalid", async () => {
       const templateWithBadSchema = {
         ...mockEvalTemplate,
-        outputSchema: { invalidKey: "value" },
+        outputDefinition: { invalidKey: "value" },
       };
 
       await expect(
@@ -483,9 +484,9 @@ describe("executeLLMAsJudgeEvaluation", () => {
           deps,
           template: {
             ...mockEvalTemplate,
-            outputSchema: {
+            outputDefinition: {
               version: 2,
-              kind: "CATEGORICAL",
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
               reasoning: {
                 description: "Explain the selected category",
               },
@@ -776,9 +777,9 @@ describe("executeLLMAsJudgeEvaluation", () => {
           deps,
           template: {
             ...mockEvalTemplate,
-            outputSchema: {
+            outputDefinition: {
               version: 2,
-              kind: "CATEGORICAL",
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
               reasoning: {
                 description: "Explain the selected category",
               },

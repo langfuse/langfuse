@@ -1,24 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  compileEvalPrompt,
-  buildEvalResponseValidationSchema,
-  buildExecutionMetadata,
-  buildEvalMessages,
-  buildScoreEvent,
-  getEnvironmentFromVariables,
-  validateLLMResponse,
-  evalTemplateOutputSchema,
-} from "./evalExecutionUtils";
-import { type ExtractedVariable } from "./evalService";
-import {
-  buildEvalTemplateStructuredOutputJsonSchema,
+  buildEvalOutputResultSchema,
+  buildEvalOutputJsonSchema,
   ChatMessageRole,
-  createCategoricalEvalTemplateOutputSchema,
-  createNumericEvalTemplateOutputSchema,
+  ChatMessageType,
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  PersistedEvalOutputDefinitionSchema,
+  ScoreDataTypeEnum,
+  validateEvalOutputResult,
 } from "@langfuse/shared";
-import { ChatMessageType } from "@langfuse/shared/src/server";
+import { type ExtractedVariable } from "./observationEval/extractObservationVariables";
+import {
+  buildEvalExecutionMetadata,
+  buildEvalMessages,
+  compileEvalPrompt,
+  getEnvironmentFromVariables,
+} from "./evalRuntime";
+import { buildScoreEvent } from "./evalScoreEvent";
 
-describe("evalExecutionUtils", () => {
+describe("evaluation helpers", () => {
   describe("compileEvalPrompt", () => {
     it("should compile template with variables", () => {
       const params = {
@@ -70,10 +71,10 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("buildEvalResponseValidationSchema", () => {
+  describe("buildEvalOutputResultSchema", () => {
     it("should build numeric response schema with descriptions", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "A number between 0 and 1 indicating accuracy",
           reasoningDescription: "Explanation of the score",
         }),
@@ -84,8 +85,8 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should validate correct response", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score between 0 and 1",
           reasoningDescription: "The reasoning",
         }),
@@ -103,8 +104,8 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should reject invalid response - missing score", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score between 0 and 1",
           reasoningDescription: "The reasoning",
         }),
@@ -117,8 +118,8 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should reject invalid response - string score", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score between 0 and 1",
           reasoningDescription: "The reasoning",
         }),
@@ -132,8 +133,8 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should validate categorical responses against allowed values", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createCategoricalEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
           options: [
@@ -159,10 +160,10 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("buildEvalTemplateStructuredOutputJsonSchema", () => {
+  describe("buildEvalOutputJsonSchema", () => {
     it("should build categorical JSON schema with described enum options", () => {
-      const schema = buildEvalTemplateStructuredOutputJsonSchema(
-        createCategoricalEvalTemplateOutputSchema({
+      const schema = buildEvalOutputJsonSchema(
+        createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
           options: [
@@ -202,7 +203,7 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("buildExecutionMetadata", () => {
+  describe("buildEvalExecutionMetadata", () => {
     it("should include all provided fields", () => {
       const params = {
         jobExecutionId: "exec-123",
@@ -212,7 +213,7 @@ describe("evalExecutionUtils", () => {
         targetDatasetItemId: "dataset-def",
       };
 
-      const result = buildExecutionMetadata(params);
+      const result = buildEvalExecutionMetadata(params);
 
       expect(result).toEqual({
         job_execution_id: "exec-123",
@@ -232,7 +233,7 @@ describe("evalExecutionUtils", () => {
         targetDatasetItemId: null,
       };
 
-      const result = buildExecutionMetadata(params);
+      const result = buildEvalExecutionMetadata(params);
 
       expect(result).toEqual({
         job_execution_id: "exec-123",
@@ -275,12 +276,12 @@ describe("evalExecutionUtils", () => {
         traceId: "trace-789",
         observationId: null,
         scoreName: "accuracy",
-        score: 0.85,
+        scoreValue: 0.85,
         reasoning: "High accuracy observed",
         environment: "production",
         executionTraceId: "exec-trace-abc",
         metadata: { job_execution_id: "exec-123" },
-        dataType: "NUMERIC" as const,
+        dataType: ScoreDataTypeEnum.NUMERIC,
       };
 
       const result = buildScoreEvent(params);
@@ -307,12 +308,12 @@ describe("evalExecutionUtils", () => {
         traceId: "trace-789",
         observationId: "obs-abc",
         scoreName: "relevance",
-        score: 0.9,
+        scoreValue: 0.9,
         reasoning: "Highly relevant",
         environment: "default",
         executionTraceId: "exec-trace-def",
         metadata: {},
-        dataType: "NUMERIC" as const,
+        dataType: ScoreDataTypeEnum.NUMERIC,
       };
 
       const result = buildScoreEvent(params);
@@ -327,12 +328,12 @@ describe("evalExecutionUtils", () => {
         traceId: "trace-789",
         observationId: null,
         scoreName: "factuality",
-        score: "correct",
+        scoreValue: "correct",
         reasoning: "The answer is fully supported.",
         environment: "production",
         executionTraceId: "exec-trace-abc",
         metadata: { job_execution_id: "exec-123" },
-        dataType: "CATEGORICAL",
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
       });
 
       expect(result.body.value).toBe("correct");
@@ -382,18 +383,18 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("validateLLMResponse", () => {
+  describe("validateEvalOutputResult", () => {
     it("should validate correct response", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score 0-1",
           reasoningDescription: "Why",
         }),
       );
 
-      const result = validateLLMResponse({
+      const result = validateEvalOutputResult({
         response: { score: 0.8, reasoning: "Good" },
-        schema,
+        resultSchema: schema,
       });
 
       expect(result.success).toBe(true);
@@ -404,16 +405,16 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should return error for invalid response", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score 0-1",
           reasoningDescription: "Why",
         }),
       );
 
-      const result = validateLLMResponse({
+      const result = validateEvalOutputResult({
         response: { score: "invalid", reasoning: "Test" },
-        schema,
+        resultSchema: schema,
       });
 
       expect(result.success).toBe(false);
@@ -423,40 +424,40 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should return error for null response", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score 0-1",
           reasoningDescription: "Why",
         }),
       );
 
-      const result = validateLLMResponse({
+      const result = validateEvalOutputResult({
         response: null,
-        schema,
+        resultSchema: schema,
       });
 
       expect(result.success).toBe(false);
     });
 
     it("should return error for missing fields", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createNumericEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createNumericEvalOutputDefinition({
           scoreDescription: "Score 0-1",
           reasoningDescription: "Why",
         }),
       );
 
-      const result = validateLLMResponse({
+      const result = validateEvalOutputResult({
         response: { score: 0.5 },
-        schema,
+        resultSchema: schema,
       });
 
       expect(result.success).toBe(false);
     });
 
     it("should validate categorical responses", () => {
-      const schema = buildEvalResponseValidationSchema(
-        createCategoricalEvalTemplateOutputSchema({
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Why",
           options: [
@@ -466,9 +467,9 @@ describe("evalExecutionUtils", () => {
         }),
       );
 
-      const result = validateLLMResponse({
+      const result = validateEvalOutputResult({
         response: { score: "correct", reasoning: "Supported by the context" },
-        schema,
+        resultSchema: schema,
       });
 
       expect(result.success).toBe(true);
@@ -478,9 +479,9 @@ describe("evalExecutionUtils", () => {
     });
   });
 
-  describe("evalTemplateOutputSchema", () => {
-    it("should validate correct output schema", () => {
-      const result = evalTemplateOutputSchema.safeParse({
+  describe("PersistedEvalOutputDefinitionSchema", () => {
+    it("should validate correct output definition", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
         score: "A number between 0 and 1",
         reasoning: "Explanation of the score",
       });
@@ -489,7 +490,7 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should default missing legacy score to an empty string", () => {
-      const result = evalTemplateOutputSchema.safeParse({
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
         reasoning: "Only reasoning",
       });
 
@@ -500,7 +501,7 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should default missing legacy reasoning to an empty string", () => {
-      const result = evalTemplateOutputSchema.safeParse({
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
         score: "Only score",
       });
 
@@ -511,7 +512,7 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should reject non-string score", () => {
-      const result = evalTemplateOutputSchema.safeParse({
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
         score: 0.5,
         reasoning: "Explanation",
       });
@@ -520,8 +521,8 @@ describe("evalExecutionUtils", () => {
     });
 
     it("should accept versioned categorical schemas", () => {
-      const result = evalTemplateOutputSchema.safeParse(
-        createCategoricalEvalTemplateOutputSchema({
+      const result = PersistedEvalOutputDefinitionSchema.safeParse(
+        createCategoricalEvalOutputDefinition({
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
           options: [

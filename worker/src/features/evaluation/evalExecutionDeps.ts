@@ -10,7 +10,7 @@ import {
   ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { buildEvalMessages } from "./evalExecutionUtils";
+import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 
 /**

@@ -42,7 +42,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  buildEvalTemplateStructuredOutputJsonSchema,
+  compilePersistedEvalOutputDefinition,
   singleFilter,
   variableMappingList,
   evalDatasetFormFilterCols,
@@ -58,6 +58,8 @@ import {
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
+  PersistedEvalOutputDefinitionSchema,
+  validateEvalOutputResult,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
@@ -66,14 +68,11 @@ import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   compileEvalPrompt,
-  buildEvalResponseValidationSchema,
-  buildExecutionMetadata,
   buildEvalMessages,
-  buildScoreEvent,
+  buildEvalExecutionMetadata,
   getEnvironmentFromVariables,
-  evalTemplateOutputSchema,
-  validateLLMResponse,
-} from "./evalExecutionUtils";
+} from "./evalRuntime";
+import { buildScoreEvent } from "./evalScoreEvent";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -781,21 +780,20 @@ export async function executeLLMAsJudgeEvaluation({
         `Compiled prompt for job ${jobExecutionId}: ${prompt.slice(0, 200)}...`,
       );
 
-      // Parse and validate output schema
-      const parsedOutputSchema = evalTemplateOutputSchema.safeParse(
-        template.outputSchema,
-      );
+      // Parse and validate output definition
+      const parsedOutputDefinition =
+        PersistedEvalOutputDefinitionSchema.safeParse(
+          template.outputDefinition,
+        );
 
-      if (!parsedOutputSchema.success) {
+      if (!parsedOutputDefinition.success) {
         throw new UnrecoverableError(
-          "Output schema not found or invalid in evaluation template",
+          "Output definition not found or invalid in evaluation template",
         );
       }
 
-      const evalStructuredOutputSchema =
-        buildEvalTemplateStructuredOutputJsonSchema(parsedOutputSchema.data);
-      const evalResponseSchema = buildEvalResponseValidationSchema(
-        parsedOutputSchema.data,
+      const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
+        parsedOutputDefinition.data,
       );
 
       // Get model configuration
@@ -839,7 +837,7 @@ export async function executeLLMAsJudgeEvaluation({
       span.setAttribute("eval.score.id", scoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
 
-      const executionMetadata = buildExecutionMetadata({
+      const executionMetadata = buildEvalExecutionMetadata({
         jobExecutionId,
         jobConfigurationId: job.jobConfigurationId,
         targetTraceId: job.jobInputTraceId,
@@ -865,7 +863,8 @@ export async function executeLLMAsJudgeEvaluation({
             return await deps.callLLM({
               messages,
               modelConfig: modelConfig.config,
-              structuredOutputSchema: evalStructuredOutputSchema,
+              structuredOutputSchema:
+                compiledOutputDefinition.llmOutputJsonSchema,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,
@@ -903,9 +902,9 @@ export async function executeLLMAsJudgeEvaluation({
         },
       );
 
-      const parsedLLMOutput = validateLLMResponse({
+      const parsedLLMOutput = validateEvalOutputResult({
         response: llmOutput,
-        schema: evalResponseSchema,
+        resultSchema: compiledOutputDefinition.outputResultSchema,
       });
 
       if (!parsedLLMOutput.success) {
@@ -928,7 +927,7 @@ export async function executeLLMAsJudgeEvaluation({
               traceId: job.jobInputTraceId,
               observationId: job.jobInputObservationId,
               scoreName: config.scoreName,
-              score: parsedLLMOutput.data.score,
+              scoreValue: parsedLLMOutput.data.score,
               reasoning: parsedLLMOutput.data.reasoning,
               environment,
               executionTraceId,
@@ -941,7 +940,7 @@ export async function executeLLMAsJudgeEvaluation({
               traceId: job.jobInputTraceId,
               observationId: job.jobInputObservationId,
               scoreName: config.scoreName,
-              score: parsedLLMOutput.data.score,
+              scoreValue: parsedLLMOutput.data.score,
               reasoning: parsedLLMOutput.data.reasoning,
               environment,
               executionTraceId,

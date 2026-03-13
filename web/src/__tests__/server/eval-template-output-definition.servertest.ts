@@ -1,13 +1,13 @@
 /** @jest-environment node */
 
-import { CreateEvalTemplate } from "@/src/features/evals/server/router";
+import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
 import {
-  createCategoricalEvalTemplateOutputSchema,
-  createNumericEvalTemplateOutputSchema,
-  EvalTemplateOutputKind,
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
-describe("CreateEvalTemplate schema", () => {
+describe("CreateEvalTemplateInputSchema", () => {
   const baseInput = {
     name: "Accuracy evaluator",
     projectId: "project-1",
@@ -18,10 +18,10 @@ describe("CreateEvalTemplate schema", () => {
     vars: ["output", "expected_output"],
   };
 
-  it("accepts versioned categorical output schemas", () => {
-    const result = CreateEvalTemplate.safeParse({
+  it("accepts versioned categorical output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,
-      outputSchema: createCategoricalEvalTemplateOutputSchema({
+      outputDefinition: createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose the best matching category",
         reasoningDescription: "Explain the selected category",
         options: [
@@ -34,10 +34,10 @@ describe("CreateEvalTemplate schema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("accepts versioned numeric output schemas", () => {
-    const result = CreateEvalTemplate.safeParse({
+  it("accepts versioned numeric output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,
-      outputSchema: createNumericEvalTemplateOutputSchema({
+      outputDefinition: createNumericEvalOutputDefinition({
         scoreDescription: "Return a score between 0 and 1",
         reasoningDescription: "Explain the assigned score",
       }),
@@ -47,11 +47,11 @@ describe("CreateEvalTemplate schema", () => {
   });
 
   it("rejects duplicate categorical values", () => {
-    const result = CreateEvalTemplate.safeParse({
+    const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,
-      outputSchema: {
+      outputDefinition: {
         version: 2,
-        kind: EvalTemplateOutputKind.CATEGORICAL,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
         reasoning: {
           description: "Explain the selected category",
         },

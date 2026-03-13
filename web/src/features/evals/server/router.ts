@@ -7,7 +7,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  buildEvalTemplateStructuredOutputJsonSchema,
+  compilePersistedEvalOutputDefinition,
   ZodModelConfig,
   type OrderByState,
   singleFilter,
@@ -23,7 +23,7 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
-  EvalTemplateOutputSchema,
+  PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -94,13 +94,13 @@ const ConfigWithTemplateSchema = z.object({
       model: z.string().nullable(),
       modelParams: jsonSchema.nullable(),
       vars: z.array(z.string()),
-      outputSchema: jsonSchema,
+      outputDefinition: jsonSchema,
       version: z.number(),
     })
     .nullish(),
 });
 
-type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
+type EvalJobConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 
 /**
  * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
@@ -111,7 +111,7 @@ type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 const filterAndValidateDbEvaluatorList = (
   evaluators: JobConfiguration[],
   onParseError?: (error: z.ZodError) => void,
-): ConfigWithTemplate[] =>
+): EvalJobConfigWithTemplate[] =>
   evaluators.reduce((acc, ts) => {
     const result = ConfigWithTemplateSchema.safeParse(ts);
     if (result.success) {
@@ -121,9 +121,9 @@ const filterAndValidateDbEvaluatorList = (
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as ConfigWithTemplate[]);
+  }, [] as EvalJobConfigWithTemplate[]);
 
-export const CreateEvalTemplate = z.object({
+export const CreateEvalTemplateInputSchema = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
@@ -131,7 +131,7 @@ export const CreateEvalTemplate = z.object({
   model: z.string().nullish(),
   modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
-  outputSchema: EvalTemplateOutputSchema,
+  outputDefinition: PersistedEvalOutputDefinitionSchema,
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .enum(EvalReferencedEvaluators)
@@ -193,7 +193,7 @@ const fetchJobExecutionsByStatus = async ({
   });
 };
 
-const validateEvalTemplateActivation = async ({
+const validateEvalTemplateCanRun = async ({
   prisma,
   projectId,
   evalTemplateId,
@@ -231,8 +231,11 @@ const validateEvalTemplateActivation = async ({
   }
 
   try {
-    const parsedOutputSchema = EvalTemplateOutputSchema.parse(
-      template.outputSchema,
+    const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
+      template.outputDefinition,
+    );
+    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
+      parsedOutputDefinition,
     );
 
     await testModelCall({
@@ -240,8 +243,7 @@ const validateEvalTemplateActivation = async ({
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema:
-        buildEvalTemplateStructuredOutputJsonSchema(parsedOutputSchema),
+      structuredOutputSchema: compiledOutputDefinition.llmOutputJsonSchema,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -852,7 +854,7 @@ export const evalRouter = createTRPCRouter({
       return { id: job.id };
     }),
   createTemplate: protectedProjectProcedure
-    .input(CreateEvalTemplate)
+    .input(CreateEvalTemplateInputSchema)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -881,9 +883,9 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
-          structuredOutputSchema: buildEvalTemplateStructuredOutputJsonSchema(
-            input.outputSchema,
-          ),
+          structuredOutputSchema: compilePersistedEvalOutputDefinition(
+            input.outputDefinition,
+          ).llmOutputJsonSchema,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -938,7 +940,7 @@ export const evalRouter = createTRPCRouter({
             model: input.model,
             modelParams: input.modelParams ?? undefined,
             vars: input.vars,
-            outputSchema: input.outputSchema,
+            outputDefinition: input.outputDefinition,
           },
         });
 
@@ -1080,7 +1082,7 @@ export const evalRouter = createTRPCRouter({
           newStatus === JobConfigState.ACTIVE &&
           filteredEvaluators.length > 0
         ) {
-          await validateEvalTemplateActivation({
+          await validateEvalTemplateCanRun({
             prisma: ctx.prisma,
             projectId,
             evalTemplateId,
@@ -1207,7 +1209,7 @@ export const evalRouter = createTRPCRouter({
           });
         }
 
-        await validateEvalTemplateActivation({
+        await validateEvalTemplateCanRun({
           prisma: ctx.prisma,
           projectId,
           evalTemplateId: existingJob.evalTemplateId,

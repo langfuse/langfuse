@@ -1,5 +1,4 @@
 import z from "zod/v4";
-import { ScoreDataTypeEnum } from "../../domain/scores";
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -165,78 +164,6 @@ export const availableDatasetEvalVariables = [
   },
   ...availableTraceEvalVariables,
 ];
-
-export const EvalTemplateOutputKind = {
-  NUMERIC: ScoreDataTypeEnum.NUMERIC,
-  CATEGORICAL: ScoreDataTypeEnum.CATEGORICAL,
-} as const;
-
-export const EvalTemplateOutputKindSchema = z.enum(
-  Object.values(EvalTemplateOutputKind),
-);
-export type EvalTemplateOutputKind =
-  (typeof EvalTemplateOutputKind)[keyof typeof EvalTemplateOutputKind];
-
-// Legacy evaluator templates stored score/reasoning prompts directly as strings.
-// Keep this permissive so older rows can still be parsed and normalized.
-const EvalTemplateLegacyOutputSchema = z.object({
-  reasoning: z.string().default(""),
-  score: z.string().default(""),
-});
-
-const EvalTemplateOutputFieldSchema = z.object({
-  description: z.string().trim().min(1),
-});
-
-export const EvalTemplateCategoricalOptionSchema = z.object({
-  value: z.string().trim().min(1),
-  description: z.string().trim().min(1).optional(),
-});
-export type EvalTemplateCategoricalOption = z.infer<
-  typeof EvalTemplateCategoricalOptionSchema
->;
-
-export const VersionedNumericEvalTemplateOutputSchema = z.object({
-  version: z.literal(2),
-  kind: z.literal(EvalTemplateOutputKind.NUMERIC),
-  reasoning: EvalTemplateOutputFieldSchema,
-  score: EvalTemplateOutputFieldSchema,
-});
-
-export const VersionedCategoricalEvalTemplateOutputSchema = z
-  .object({
-    version: z.literal(2),
-    kind: z.literal(EvalTemplateOutputKind.CATEGORICAL),
-    reasoning: EvalTemplateOutputFieldSchema,
-    score: z.object({
-      description: z.string().trim().min(1),
-      options: z.array(EvalTemplateCategoricalOptionSchema).min(1),
-    }),
-  })
-  .superRefine((value, ctx) => {
-    const seenValues = new Set<string>();
-
-    value.score.options.forEach((option, index) => {
-      const normalizedValue = option.value.trim();
-      if (seenValues.has(normalizedValue)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Category values must be unique",
-          path: ["score", "options", index, "value"],
-        });
-        return;
-      }
-
-      seenValues.add(normalizedValue);
-    });
-  });
-
-export const EvalTemplateOutputSchema = z.union([
-  EvalTemplateLegacyOutputSchema,
-  VersionedNumericEvalTemplateOutputSchema,
-  VersionedCategoricalEvalTemplateOutputSchema,
-]);
-export type EvalTemplateOutputSchema = z.infer<typeof EvalTemplateOutputSchema>;
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 
