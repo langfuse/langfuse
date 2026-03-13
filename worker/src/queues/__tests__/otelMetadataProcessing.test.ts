@@ -121,16 +121,13 @@ async function processAndCreateEvent(
   );
 
   console.log("metadata_names:", JSON.stringify(eventRecord.metadata_names));
-  console.log(
-    "metadata_raw_values:",
-    JSON.stringify(eventRecord.metadata_raw_values),
-  );
+  console.log("metadata_values:", JSON.stringify(eventRecord.metadata_values));
   console.log("metadata:", JSON.stringify(eventRecord.metadata));
 
   const nameToValue = Object.fromEntries(
     eventRecord.metadata_names.map((name, i) => [
       name,
-      eventRecord.metadata_raw_values[i],
+      eventRecord.metadata_values[i],
     ]),
   );
 
