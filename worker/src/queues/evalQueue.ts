@@ -126,7 +126,6 @@ export const evalJobExecutorQueueProcessorBuilder = (
     env.LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS?.split(
       ",",
     ) ?? [];
-
   return async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
     try {
       logger.info("Executing Evaluation Execution Job", job.data);
