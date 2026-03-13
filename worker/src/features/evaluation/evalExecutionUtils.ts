@@ -5,6 +5,7 @@ import {
   EvalTemplateOutputKind,
   EvalTemplateOutputSchema as SharedEvalTemplateOutputSchema,
   normalizeEvalTemplateOutputSchema,
+  ScoreDataTypeEnum,
   ScoreSourceEnum,
 } from "@langfuse/shared";
 import {
@@ -171,7 +172,7 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
       body: {
         ...bodyBase,
         value: params.score,
-        dataType: "CATEGORICAL",
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
       },
     };
   }
@@ -183,7 +184,7 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
     body: {
       ...bodyBase,
       value: params.score,
-      dataType: "NUMERIC",
+      dataType: ScoreDataTypeEnum.NUMERIC,
     },
   };
 }

@@ -488,20 +488,26 @@ describe("evalExecutionUtils", () => {
       expect(result.success).toBe(true);
     });
 
-    it("should reject schema missing score", () => {
+    it("should default missing legacy score to an empty string", () => {
       const result = evalTemplateOutputSchema.safeParse({
         reasoning: "Only reasoning",
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.score).toBe("");
+      }
     });
 
-    it("should reject schema missing reasoning", () => {
+    it("should default missing legacy reasoning to an empty string", () => {
       const result = evalTemplateOutputSchema.safeParse({
         score: "Only score",
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.reasoning).toBe("");
+      }
     });
 
     it("should reject non-string score", () => {

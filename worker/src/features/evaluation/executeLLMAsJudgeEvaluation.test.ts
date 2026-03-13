@@ -485,7 +485,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
             ...mockEvalTemplate,
             outputSchema: {
               version: 2,
-              kind: "categorical",
+              kind: "CATEGORICAL",
               reasoning: {
                 description: "Explain the selected category",
               },
@@ -778,7 +778,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
             ...mockEvalTemplate,
             outputSchema: {
               version: 2,
-              kind: "categorical",
+              kind: "CATEGORICAL",
               reasoning: {
                 description: "Explain the selected category",
               },

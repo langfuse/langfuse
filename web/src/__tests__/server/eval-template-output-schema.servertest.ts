@@ -4,6 +4,7 @@ import { CreateEvalTemplate } from "@/src/features/evals/server/router";
 import {
   createCategoricalEvalTemplateOutputSchema,
   createNumericEvalTemplateOutputSchema,
+  EvalTemplateOutputKind,
 } from "@langfuse/shared";
 
 describe("CreateEvalTemplate schema", () => {
@@ -50,7 +51,7 @@ describe("CreateEvalTemplate schema", () => {
       ...baseInput,
       outputSchema: {
         version: 2,
-        kind: "categorical",
+        kind: EvalTemplateOutputKind.CATEGORICAL,
         reasoning: {
           description: "Explain the selected category",
         },

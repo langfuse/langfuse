@@ -1,4 +1,11 @@
 import { JSONPath } from "jsonpath-plus";
+import {
+  type EvalTemplateCategoricalOption,
+  type EvalTemplateOutputSchema,
+  EvalTemplateOutputKind,
+  VersionedCategoricalEvalTemplateOutputSchema,
+  VersionedNumericEvalTemplateOutputSchema,
+} from "./types";
 
 /**
  * Parses an unknown value to a string representation
@@ -98,5 +105,129 @@ export function extractValueFromObject(
   return {
     value: parseUnknownToString(jsonSelectedColumn),
     error,
+  };
+}
+
+export type NormalizedEvalTemplateOutputSchema =
+  | {
+      version: 2;
+      kind: typeof EvalTemplateOutputKind.NUMERIC;
+      reasoningDescription: string;
+      scoreDescription: string;
+    }
+  | {
+      version: 2;
+      kind: typeof EvalTemplateOutputKind.CATEGORICAL;
+      reasoningDescription: string;
+      scoreDescription: string;
+      options: EvalTemplateCategoricalOption[];
+    };
+
+// Normalize the persisted evaluator output definition so web and worker code can
+// operate on one stable shape regardless of whether the template is legacy or v2.
+export function normalizeEvalTemplateOutputSchema(
+  outputSchema: EvalTemplateOutputSchema,
+): NormalizedEvalTemplateOutputSchema {
+  if (!("version" in outputSchema)) {
+    return {
+      version: 2,
+      kind: EvalTemplateOutputKind.NUMERIC,
+      reasoningDescription: outputSchema.reasoning,
+      scoreDescription: outputSchema.score,
+    };
+  }
+
+  if (outputSchema.kind === EvalTemplateOutputKind.NUMERIC) {
+    return {
+      version: 2,
+      kind: EvalTemplateOutputKind.NUMERIC,
+      reasoningDescription: outputSchema.reasoning.description,
+      scoreDescription: outputSchema.score.description,
+    };
+  }
+
+  return {
+    version: 2,
+    kind: EvalTemplateOutputKind.CATEGORICAL,
+    reasoningDescription: outputSchema.reasoning.description,
+    scoreDescription: outputSchema.score.description,
+    options: outputSchema.score.options,
+  };
+}
+
+export function createNumericEvalTemplateOutputSchema(params: {
+  reasoningDescription: string;
+  scoreDescription: string;
+}) {
+  return VersionedNumericEvalTemplateOutputSchema.parse({
+    version: 2,
+    kind: EvalTemplateOutputKind.NUMERIC,
+    reasoning: {
+      description: params.reasoningDescription,
+    },
+    score: {
+      description: params.scoreDescription,
+    },
+  });
+}
+
+export function createCategoricalEvalTemplateOutputSchema(params: {
+  reasoningDescription: string;
+  scoreDescription: string;
+  options: Array<{
+    value: string;
+    description?: string | null;
+  }>;
+}) {
+  return VersionedCategoricalEvalTemplateOutputSchema.parse({
+    version: 2,
+    kind: EvalTemplateOutputKind.CATEGORICAL,
+    reasoning: {
+      description: params.reasoningDescription,
+    },
+    score: {
+      description: params.scoreDescription,
+      options: params.options.map((option) => ({
+        value: option.value,
+        ...(option.description?.trim()
+          ? { description: option.description.trim() }
+          : {}),
+      })),
+    },
+  });
+}
+
+export function buildEvalTemplateStructuredOutputJsonSchema(
+  outputSchema: EvalTemplateOutputSchema,
+): Record<string, unknown> {
+  const normalizedSchema = normalizeEvalTemplateOutputSchema(outputSchema);
+
+  return {
+    type: "object",
+    properties: {
+      reasoning: {
+        type: "string",
+        description: normalizedSchema.reasoningDescription,
+      },
+      score:
+        normalizedSchema.kind === EvalTemplateOutputKind.CATEGORICAL
+          ? {
+              type: "string",
+              description: normalizedSchema.scoreDescription,
+              oneOf: normalizedSchema.options.map((option) => ({
+                const: option.value,
+                title: option.value,
+                ...(option.description
+                  ? { description: option.description }
+                  : {}),
+              })),
+            }
+          : {
+              type: "number",
+              description: normalizedSchema.scoreDescription,
+            },
+    },
+    required: ["reasoning", "score"],
+    additionalProperties: false,
   };
 }

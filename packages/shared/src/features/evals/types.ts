@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { ScoreDataTypeEnum } from "../../domain/scores";
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -166,8 +167,8 @@ export const availableDatasetEvalVariables = [
 ];
 
 export const EvalTemplateOutputKind = {
-  NUMERIC: "numeric",
-  CATEGORICAL: "categorical",
+  NUMERIC: ScoreDataTypeEnum.NUMERIC,
+  CATEGORICAL: ScoreDataTypeEnum.CATEGORICAL,
 } as const;
 
 export const EvalTemplateOutputKindSchema = z.enum(
@@ -176,9 +177,11 @@ export const EvalTemplateOutputKindSchema = z.enum(
 export type EvalTemplateOutputKind =
   (typeof EvalTemplateOutputKind)[keyof typeof EvalTemplateOutputKind];
 
+// Legacy evaluator templates stored score/reasoning prompts directly as strings.
+// Keep this permissive so older rows can still be parsed and normalized.
 const EvalTemplateLegacyOutputSchema = z.object({
-  reasoning: z.string().trim().min(1),
-  score: z.string().trim().min(1),
+  reasoning: z.string().default(""),
+  score: z.string().default(""),
 });
 
 const EvalTemplateOutputFieldSchema = z.object({
@@ -234,128 +237,6 @@ export const EvalTemplateOutputSchema = z.union([
   VersionedCategoricalEvalTemplateOutputSchema,
 ]);
 export type EvalTemplateOutputSchema = z.infer<typeof EvalTemplateOutputSchema>;
-
-export type NormalizedEvalTemplateOutputSchema =
-  | {
-      version: 2;
-      kind: "numeric";
-      reasoningDescription: string;
-      scoreDescription: string;
-    }
-  | {
-      version: 2;
-      kind: "categorical";
-      reasoningDescription: string;
-      scoreDescription: string;
-      options: EvalTemplateCategoricalOption[];
-    };
-
-export function normalizeEvalTemplateOutputSchema(
-  outputSchema: EvalTemplateOutputSchema,
-): NormalizedEvalTemplateOutputSchema {
-  if (!("version" in outputSchema)) {
-    return {
-      version: 2,
-      kind: EvalTemplateOutputKind.NUMERIC,
-      reasoningDescription: outputSchema.reasoning,
-      scoreDescription: outputSchema.score,
-    };
-  }
-
-  if (outputSchema.kind === EvalTemplateOutputKind.NUMERIC) {
-    return {
-      version: 2,
-      kind: EvalTemplateOutputKind.NUMERIC,
-      reasoningDescription: outputSchema.reasoning.description,
-      scoreDescription: outputSchema.score.description,
-    };
-  }
-
-  return {
-    version: 2,
-    kind: EvalTemplateOutputKind.CATEGORICAL,
-    reasoningDescription: outputSchema.reasoning.description,
-    scoreDescription: outputSchema.score.description,
-    options: outputSchema.score.options,
-  };
-}
-
-export function createNumericEvalTemplateOutputSchema(params: {
-  reasoningDescription: string;
-  scoreDescription: string;
-}) {
-  return VersionedNumericEvalTemplateOutputSchema.parse({
-    version: 2,
-    kind: EvalTemplateOutputKind.NUMERIC,
-    reasoning: {
-      description: params.reasoningDescription,
-    },
-    score: {
-      description: params.scoreDescription,
-    },
-  });
-}
-
-export function createCategoricalEvalTemplateOutputSchema(params: {
-  reasoningDescription: string;
-  scoreDescription: string;
-  options: Array<{
-    value: string;
-    description?: string | null;
-  }>;
-}) {
-  return VersionedCategoricalEvalTemplateOutputSchema.parse({
-    version: 2,
-    kind: EvalTemplateOutputKind.CATEGORICAL,
-    reasoning: {
-      description: params.reasoningDescription,
-    },
-    score: {
-      description: params.scoreDescription,
-      options: params.options.map((option) => ({
-        value: option.value,
-        ...(option.description?.trim()
-          ? { description: option.description.trim() }
-          : {}),
-      })),
-    },
-  });
-}
-
-export function buildEvalTemplateStructuredOutputJsonSchema(
-  outputSchema: EvalTemplateOutputSchema,
-): Record<string, unknown> {
-  const normalizedSchema = normalizeEvalTemplateOutputSchema(outputSchema);
-
-  return {
-    type: "object",
-    properties: {
-      reasoning: {
-        type: "string",
-        description: normalizedSchema.reasoningDescription,
-      },
-      score:
-        normalizedSchema.kind === EvalTemplateOutputKind.CATEGORICAL
-          ? {
-              type: "string",
-              description: normalizedSchema.scoreDescription,
-              oneOf: normalizedSchema.options.map((option) => ({
-                const: option.value,
-                title: option.value,
-                ...(option.description
-                  ? { description: option.description }
-                  : {}),
-              })),
-            }
-          : {
-              type: "number",
-              description: normalizedSchema.scoreDescription,
-            },
-    },
-    required: ["reasoning", "score"],
-    additionalProperties: false,
-  };
-}
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 
