@@ -30,7 +30,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
+  type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
+import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -71,12 +74,27 @@ export default function BlobStorageIntegrationSettings() {
     },
   );
 
-  const status =
-    state.isInitialLoading || !hasAccess
+  const syncStatus =
+    state.isInitialLoading || !hasAccess || !state.data
       ? undefined
-      : state.data?.enabled
-        ? "active"
-        : "inactive";
+      : deriveSyncStatus({
+          enabled: state.data.enabled,
+          lastError: state.data.lastError,
+          lastSyncAt: state.data.lastSyncAt
+            ? new Date(state.data.lastSyncAt)
+            : null,
+          nextSyncAt: state.data.nextSyncAt
+            ? new Date(state.data.nextSyncAt)
+            : null,
+        });
+
+  const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
+    up_to_date: "active",
+    queued: "queued",
+    idle: "inactive",
+    disabled: "disabled",
+    error: "error",
+  };
 
   return (
     <ContainerPage
@@ -85,7 +103,11 @@ export default function BlobStorageIntegrationSettings() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsLeft: (
+          <>
+            {syncStatus && <StatusBadge type={syncStatusToBadge[syncStatus]} />}
+          </>
+        ),
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link
@@ -112,9 +134,76 @@ export default function BlobStorageIntegrationSettings() {
           reach out to your project admin or owner.
         </p>
       )}
+      {state.data && (
+        <>
+          <Header title="Status" />
+          {state.data.lastError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Last export failed</AlertTitle>
+              <AlertDescription>
+                {state.data.lastError}
+                {state.data.lastErrorAt && (
+                  <>
+                    <br />
+                    <span className="text-xs opacity-70">
+                      {new Date(state.data.lastErrorAt).toLocaleString()}
+                    </span>
+                  </>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          <Card className="p-3">
+            <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
+              <span className="text-muted-foreground">Data exported up to</span>
+              <span>
+                {state.data.lastSyncAt
+                  ? new Date(state.data.lastSyncAt).toLocaleString()
+                  : "Never (pending)"}
+              </span>
+              {state.data.nextSyncAt && (
+                <>
+                  <span className="text-muted-foreground">
+                    Next export scheduled
+                  </span>
+                  <span>
+                    {new Date(state.data.nextSyncAt).toLocaleString()}
+                  </span>
+                </>
+              )}
+              <span className="text-muted-foreground">Export mode</span>
+              <span>
+                {state.data.exportMode === BlobStorageExportMode.FULL_HISTORY
+                  ? "Full history"
+                  : state.data.exportMode === BlobStorageExportMode.FROM_TODAY
+                    ? "From setup date"
+                    : state.data.exportMode ===
+                        BlobStorageExportMode.FROM_CUSTOM_DATE
+                      ? "From custom date"
+                      : "Unknown"}
+              </span>
+              {(state.data.exportMode ===
+                BlobStorageExportMode.FROM_CUSTOM_DATE ||
+                state.data.exportMode === BlobStorageExportMode.FROM_TODAY) &&
+                state.data.exportStartDate && (
+                  <>
+                    <span className="text-muted-foreground">
+                      Export start date
+                    </span>
+                    <span>
+                      {new Date(
+                        state.data.exportStartDate,
+                      ).toLocaleDateString()}
+                    </span>
+                  </>
+                )}
+            </div>
+          </Card>
+        </>
+      )}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
             <BlobStorageIntegrationSettingsForm
               state={state.data || undefined}
@@ -122,39 +211,6 @@ export default function BlobStorageIntegrationSettings() {
               isLoading={state.isLoading}
             />
           </Card>
-        </>
-      )}
-      {state.data?.enabled && (
-        <>
-          <Header title="Status" className="mt-8" />
-          <div className="space-y-2">
-            <p className="text-primary text-sm">
-              Data last exported:{" "}
-              {state.data?.lastSyncAt
-                ? new Date(state.data.lastSyncAt).toLocaleString()
-                : "Never (pending)"}
-            </p>
-            <p className="text-primary text-sm">
-              Export mode:{" "}
-              {state.data?.exportMode === BlobStorageExportMode.FULL_HISTORY
-                ? "Full history"
-                : state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
-                  ? "From setup date"
-                  : state.data?.exportMode ===
-                      BlobStorageExportMode.FROM_CUSTOM_DATE
-                    ? "From custom date"
-                    : "Unknown"}
-            </p>
-            {(state.data?.exportMode ===
-              BlobStorageExportMode.FROM_CUSTOM_DATE ||
-              state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
-              state.data?.exportStartDate && (
-                <p className="text-primary text-sm">
-                  Export start date:{" "}
-                  {new Date(state.data.exportStartDate).toLocaleDateString()}
-                </p>
-              )}
-          </div>
         </>
       )}
     </ContainerPage>
