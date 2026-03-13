@@ -54,7 +54,7 @@ export const GenerationOutput = () => {
 
   const copyButton =
     output || outputToolCalls.length ? (
-      <div className="absolute right-3 top-2 flex space-x-1 opacity-50">
+      <div className="absolute top-2 right-3 flex space-x-1 opacity-50">
         <Button
           size="icon"
           variant={isJson ? "default" : "secondary"}
@@ -76,7 +76,7 @@ export const GenerationOutput = () => {
         </Button>
 
         <Button
-          className="flex items-center gap-1 whitespace-nowrap p-0 px-1"
+          className="flex items-center gap-1 p-0 px-1 whitespace-nowrap"
           variant="secondary"
           onClick={!isAdded ? handleAddAssistantMessage : undefined}
           title="Add as assistant message"
@@ -91,10 +91,10 @@ export const GenerationOutput = () => {
   return (
     <div className="relative h-full">
       <div
-        className="h-full overflow-auto rounded-lg bg-muted"
+        className="bg-muted h-full overflow-auto rounded-lg"
         ref={scrollAreaRef}
       >
-        <div className="sticky top-0 z-10 bg-muted p-3">
+        <div className="bg-muted sticky top-0 z-10 p-3">
           <div className="flex w-full items-center">
             <p className="flex-1 text-xs font-semibold">Output</p>
             {copyButton}
@@ -106,7 +106,7 @@ export const GenerationOutput = () => {
               <ThinkingBlock content={outputReasoning} />
             </div>
           )}
-          <pre className="whitespace-break-spaces break-words text-xs">
+          <pre className="text-xs wrap-break-word whitespace-break-spaces">
             {isJson ? outputJson : output}
           </pre>
           {outputToolCalls.length > 0

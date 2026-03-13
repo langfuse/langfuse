@@ -87,7 +87,7 @@ export default function NewEvaluatorPage() {
                   className={cn(
                     stepInt !== 0
                       ? "text-muted-foreground"
-                      : "font-semibold text-foreground",
+                      : "text-foreground font-semibold",
                   )}
                 >
                   0. Set up default model
@@ -107,7 +107,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 stepInt !== 1
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-foreground font-semibold",
               )}
             >
               1. Select Evaluator
@@ -120,7 +120,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 stepInt !== 2
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-foreground font-semibold",
               )}
             >
               <div className="flex flex-row">

@@ -48,7 +48,7 @@ const TraceRow = React.memo(
     return (
       <Card className="border-border shadow-none">
         <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]">
-          <div className="overflow-hidden py-4 pl-4 pr-4">
+          <div className="overflow-hidden py-4 pr-4 pl-4">
             <SessionIO
               traceId={trace.id}
               projectId={projectId}
@@ -56,12 +56,12 @@ const TraceRow = React.memo(
               showCorrections={showCorrections}
             />
           </div>
-          <div className="hidden bg-border md:block"></div>
-          <div className="flex flex-col border-t py-4 pl-4 pr-4 md:border-0">
+          <div className="bg-border hidden md:block"></div>
+          <div className="flex flex-col border-t py-4 pr-4 pl-4 md:border-0">
             <div className="mb-4 flex flex-col gap-2">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
-                className="flex items-start gap-2 rounded-lg border p-2 transition-colors hover:bg-accent"
+                className="hover:bg-accent flex items-start gap-2 rounded-lg border p-2 transition-colors"
                 onClick={(e) => {
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
@@ -74,7 +74,7 @@ const TraceRow = React.memo(
                   <span className="text-xs font-medium">
                     {trace.name} ({trace.id})&nbsp;↗
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {trace.timestamp.toLocaleString()}
                   </span>
                 </div>

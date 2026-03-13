@@ -137,7 +137,7 @@ export function BillingInvoiceTable() {
           status === "paid"
             ? "secondary"
             : status === "open"
-              ? "outline"
+              ? "outline-solid"
               : "default";
         return <Badge variant={variant as any}>{status}</Badge>;
       },

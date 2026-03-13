@@ -52,7 +52,7 @@ export function EventsViewModeToggle({
             className="flex flex-col items-start"
           >
             <span>{label}</span>
-            <span className="text-xs text-muted-foreground">{description}</span>
+            <span className="text-muted-foreground text-xs">{description}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

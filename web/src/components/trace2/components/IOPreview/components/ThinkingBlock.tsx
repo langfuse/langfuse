@@ -20,13 +20,13 @@ export function ThinkingBlock({
     <div className="my-2 px-1">
       <button
         type="button"
-        className="flex w-full cursor-pointer items-start gap-1 text-left text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 flex-shrink-0 transition-transform",
+            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -37,7 +37,7 @@ export function ThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="ml-4 mt-1 whitespace-pre-wrap text-sm italic text-muted-foreground">
+        <div className="text-muted-foreground mt-1 ml-4 text-sm whitespace-pre-wrap italic">
           {content}
         </div>
       )}
@@ -61,13 +61,13 @@ export function RedactedThinkingBlock({
     <div className="my-2 px-1">
       <button
         type="button"
-        className="flex w-full cursor-pointer items-start gap-1 text-left text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 flex-shrink-0 transition-transform",
+            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -78,7 +78,7 @@ export function RedactedThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="ml-4 mt-1 break-all rounded bg-muted/50 p-2 font-mono text-xs text-muted-foreground">
+        <div className="bg-muted/50 text-muted-foreground mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
           {data}
         </div>
       )}

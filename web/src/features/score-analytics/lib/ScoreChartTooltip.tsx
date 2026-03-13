@@ -115,10 +115,10 @@ export function ScoreChartTooltip({
   }
 
   return (
-    <div className="rounded-md border border-border bg-background opacity-100 shadow-lg">
+    <div className="border-border bg-background rounded-md border opacity-100 shadow-lg">
       {/* Header with timestamp/label */}
-      <div className={cn("border-b border-border px-3 py-1.5")}>
-        <p className={cn("text-sm font-medium text-muted-foreground")}>
+      <div className={cn("border-border border-b px-3 py-1.5")}>
+        <p className={cn("text-muted-foreground text-sm font-medium")}>
           {formattedLabel}
         </p>
       </div>
@@ -137,18 +137,18 @@ export function ScoreChartTooltip({
             >
               {/* Color indicator */}
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
                   backgroundColor: entry.color ?? "hsl(var(--primary))",
                 }}
               />
 
               {/* Series label from config */}
-              <span className="flex-1 text-sm text-muted-foreground">
+              <span className="text-muted-foreground flex-1 text-sm">
                 {seriesLabel?.toString() ?? ""}
               </span>
               {/* Formatted value */}
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-foreground text-sm font-medium">
                 {valueFormatter(Number(entry.value ?? 0))}
               </span>
             </div>
