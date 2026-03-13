@@ -19,6 +19,8 @@ import {
   createNumericEvalOutputDefinition,
   EvalOutputDataTypeSchema,
   EvalNoMatchOptionValue,
+  getMinimumCategoricalOptionsCount,
+  getMinimumCategoricalOptionsMessage,
   type PersistedEvalOutputDefinition,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
@@ -156,13 +158,15 @@ const formSchema = z
       return;
     }
 
-    if (value.categoricalOptions.length === 0) {
+    if (
+      value.categoricalOptions.length <
+      getMinimumCategoricalOptionsCount(value.allowNoMatch)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Add at least one category",
+        message: getMinimumCategoricalOptionsMessage(value.allowNoMatch),
         path: ["categoricalOptions"],
       });
-      return;
     }
 
     const seenValues = new Set<string>();
@@ -336,7 +340,10 @@ export const InnerEvalTemplateForm = (props: {
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
+  const allowNoMatch = form.watch("allowNoMatch");
   const allowMultipleMatches = form.watch("allowMultipleMatches");
+  const minimumCategoricalOptions =
+    getMinimumCategoricalOptionsCount(allowNoMatch);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -621,7 +628,16 @@ export const InnerEvalTemplateForm = (props: {
                       value === ScoreDataTypeEnum.CATEGORICAL &&
                       (form.getValues("categoricalOptions") ?? []).length === 0
                     ) {
-                      replace([{ value: "" }]);
+                      replace(
+                        Array.from(
+                          {
+                            length: getMinimumCategoricalOptionsCount(
+                              form.getValues("allowNoMatch"),
+                            ),
+                          },
+                          () => ({ value: "" }),
+                        ),
+                      );
                     }
                   }}
                 >
@@ -694,22 +710,16 @@ export const InnerEvalTemplateForm = (props: {
               name="categoricalOptions"
               render={() => (
                 <FormItem>
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <FormLabel>Categories</FormLabel>
-                      <FormDescription>
-                        Add the allowed category values the model may return.
-                      </FormDescription>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={!props.isEditing}
-                      onClick={() => append({ value: "" })}
-                    >
-                      <PlusIcon className="mr-1.5 h-4 w-4" />
-                      Add category
-                    </Button>
+                  <div>
+                    <FormLabel>Categories</FormLabel>
+                    <FormDescription>
+                      Add the allowed category values the model may return.
+                      Provide at least {minimumCategoricalOptions}{" "}
+                      {minimumCategoricalOptions === 1
+                        ? "category"
+                        : "categories"}
+                      .
+                    </FormDescription>
                   </div>
                   <div className="space-y-3">
                     {categoricalOptionFields.map((field, index) => (
@@ -744,6 +754,16 @@ export const InnerEvalTemplateForm = (props: {
                       </div>
                     ))}
                   </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-3"
+                    disabled={!props.isEditing}
+                    onClick={() => append({ value: "" })}
+                  >
+                    <PlusIcon className="mr-1.5 h-4 w-4" />
+                    Add category
+                  </Button>
                   <FormField
                     control={form.control}
                     name="allowNoMatch"

@@ -96,4 +96,43 @@ describe("CreateEvalTemplateInputSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects categorical outputs with fewer than two categories when no-match is disabled", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          options: [{ value: "correct" }],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects categorical outputs without categories even when no-match is enabled", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          allowNoMatch: true,
+          options: [],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

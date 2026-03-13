@@ -23,6 +23,15 @@ const EvalOutputFieldDefinitionSchema = z.object({
 
 export const EvalNoMatchOptionValue = "No match";
 
+export function getMinimumCategoricalOptionsCount(allowNoMatch: boolean) {
+  return allowNoMatch ? 1 : 2;
+}
+
+export function getMinimumCategoricalOptionsMessage(allowNoMatch: boolean) {
+  const minimumCount = getMinimumCategoricalOptionsCount(allowNoMatch);
+  return `Add at least ${minimumCount} ${minimumCount === 1 ? "category" : "categories"}`;
+}
+
 const EvalLegacyCategoricalOptionDefinitionSchema = z.object({
   value: z.string().trim().min(1),
   description: z.string().trim().min(1).optional(),
@@ -52,12 +61,24 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     reasoning: EvalOutputFieldDefinitionSchema,
     score: z.object({
       description: z.string().trim().min(1),
-      options: z.array(EvalCategoricalOptionDefinitionSchema).min(1),
+      options: z.array(EvalCategoricalOptionDefinitionSchema),
       allowNoMatch: z.boolean().default(false),
       allowMultipleMatches: z.boolean().default(false),
     }),
   })
   .superRefine((value, ctx) => {
+    const minimumOptionCount = getMinimumCategoricalOptionsCount(
+      value.score.allowNoMatch,
+    );
+
+    if (value.score.options.length < minimumOptionCount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: getMinimumCategoricalOptionsMessage(value.score.allowNoMatch),
+        path: ["score", "options"],
+      });
+    }
+
     const seenValues = new Set<string>();
 
     value.score.options.forEach((option, index) => {

@@ -638,5 +638,38 @@ describe("evaluation helpers", () => {
 
       expect(result.success).toBe(true);
     });
+
+    it("should reject categorical schemas with fewer than two categories when no-match is disabled", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          options: [{ value: "correct" }],
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject categorical schemas without categories even when no-match is enabled", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          allowNoMatch: true,
+          options: [],
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
   });
 });
