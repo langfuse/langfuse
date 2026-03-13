@@ -1,7 +1,10 @@
 "use client";
 
+import { useCallback } from "react";
 import * as ResizablePrimitive from "react-resizable-panels";
 
+// TODO: UI component shouldn't import storage
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 
 function ResizablePanelGroup({
@@ -49,10 +52,38 @@ function ResizableHandle({
   );
 }
 
+function usePersistentPanelSize({
+  storageKey,
+  panelId,
+  defaultSize,
+}: {
+  storageKey: string;
+  panelId: string;
+  defaultSize: number;
+}) {
+  const [panelSize, setPanelSize] = useSessionStorage<number>(
+    storageKey,
+    defaultSize,
+  );
+
+  const onLayoutChanged = useCallback(
+    (layout: ResizablePrimitive.Layout) => {
+      const nextPanelSize = layout[panelId];
+      if (nextPanelSize != null) {
+        setPanelSize(nextPanelSize);
+      }
+    },
+    [panelId, setPanelSize],
+  );
+
+  return { panelSize, onLayoutChanged };
+}
+
 const usePanelRef = ResizablePrimitive.usePanelRef;
 const useDefaultLayout = ResizablePrimitive.useDefaultLayout;
 
 export {
+  usePersistentPanelSize,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
