@@ -11,14 +11,14 @@ type SettingsContainerProps = {
 const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
   return (
     <div
-      className={cn("relative flex min-h-screen-with-banner flex-1 flex-col")}
+      className={cn("min-h-screen-with-banner relative flex flex-1 flex-col")}
     >
       <header className="sticky top-0 z-50 w-full">
         <PageHeader {...headerProps} container />
       </header>
       <main
         className={cn(
-          "relative flex min-h-screen-with-banner flex-1 flex-col p-3 lg:container",
+          "min-h-screen-with-banner relative flex flex-1 flex-col p-3 lg:container",
         )}
       >
         {children}

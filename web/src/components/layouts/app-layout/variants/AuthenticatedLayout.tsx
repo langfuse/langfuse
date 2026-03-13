@@ -142,7 +142,7 @@ export function AuthenticatedLayout({
             <PaymentBanner />
             <V4BetaEnabledBanner />
             <V4BetaPromoBanner />
-            <div className="flex min-h-0 flex-1 pt-banner-offset">
+            <div className="pt-banner-offset flex min-h-0 flex-1">
               <AppSidebar
                 navItems={navigation.mainNavigation}
                 secondaryNavItems={navigation.secondaryNavigation}

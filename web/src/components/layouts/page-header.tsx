@@ -70,7 +70,7 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "sticky top-banner-offset z-30 w-full border-b bg-background shadow-sm",
+        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
         className,
       ])}
       id="page-header"
@@ -110,7 +110,7 @@ const PageHeader = ({
             )}
           >
             {/* Left side content */}
-            <div className="flex flex-grow flex-wrap items-center md:flex-grow-0">
+            <div className="flex grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
@@ -118,13 +118,13 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg font-semibold leading-7">
+                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
                     {titleTooltip ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span
-                              className="cursor-help break-words"
+                              className="cursor-help wrap-break-word"
                               data-testid="page-header-title"
                             >
                               {title}
@@ -147,7 +147,7 @@ const PageHeader = ({
                       </TooltipProvider>
                     ) : (
                       <span
-                        className="break-words"
+                        className="wrap-break-word"
                         title={title}
                         data-testid="page-header-title"
                       >
@@ -180,7 +180,7 @@ const PageHeader = ({
             </div>
 
             {/* Right side content */}
-            <div className="ml-auto flex flex-grow flex-wrap items-center justify-end gap-1">
+            <div className="ml-auto flex grow flex-wrap items-center justify-end gap-1">
               {actionButtonsRight}
             </div>
           </div>
@@ -201,7 +201,7 @@ const PageHeader = ({
                       query: tab.querySelector?.(router.query),
                     }}
                     className={cn(
-                      "inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                       tab.value === tabsProps.activeTab
                         ? "border-primary-accent bg-transparent shadow-none"
                         : "",

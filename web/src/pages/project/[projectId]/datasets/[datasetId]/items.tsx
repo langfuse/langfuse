@@ -110,7 +110,7 @@ function DatasetItemsView() {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 <DropdownMenuItem asChild>
                   <DatasetActionButton
                     mode="update"
@@ -162,7 +162,7 @@ function DatasetItemsView() {
       {showOnboarding ? (
         <DatasetItemsOnboarding projectId={projectId} datasetId={datasetId} />
       ) : (
-        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
           <div className="flex h-full flex-col overflow-hidden">
             {isViewingOldVersion && selectedVersion && (
               <DatasetVersionWarningBanner

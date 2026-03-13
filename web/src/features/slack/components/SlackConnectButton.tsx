@@ -14,7 +14,7 @@ interface SlackConnectButtonProps {
   /** Whether the button should be disabled */
   disabled?: boolean;
   /** Button variant */
-  variant?: "default" | "outline" | "ghost" | "secondary";
+  variant?: "default" | "outline-solid" | "ghost" | "secondary";
   /** Button size */
   size?: "default" | "sm" | "lg";
   /** Custom button text */

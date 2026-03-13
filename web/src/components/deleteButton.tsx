@@ -29,7 +29,7 @@ export type DeleteButtonProps = {
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
-  variant?: "outline" | "ghost";
+  variant?: "outline-solid" | "ghost";
   scope: NonNullable<DeleteButtonProps["scope"]>;
   invalidateFunc: NonNullable<DeleteButtonProps["invalidateFunc"]>;
   captureDeleteOpen: (
@@ -93,7 +93,7 @@ export function DeleteButton({
     <Popover key={itemId ?? "delete-action"}>
       <PopoverTrigger asChild>
         <Button
-          variant={variant ?? (icon ? "outline" : "ghost")}
+          variant={variant ?? (icon ? "outline-solid" : "ghost")}
           size={icon ? "icon" : "default"}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {

@@ -32,7 +32,7 @@ export function CommentDrawerButton({
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
-  variant?: "secondary" | "outline";
+  variant?: "secondary" | "outline-solid";
   className?: string;
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
   pendingSelection?: SelectionData | null;
@@ -114,8 +114,8 @@ export function CommentDrawerButton({
         <MessageCircleOff
           className={
             size === "sm"
-              ? "h-3.5 w-3.5 text-muted-foreground"
-              : "h-4 w-4 text-muted-foreground"
+              ? "text-muted-foreground h-3.5 w-3.5"
+              : "text-muted-foreground h-4 w-4"
           }
         />
       </Button>
@@ -166,7 +166,7 @@ export function CommentDrawerButton({
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
               <span>Add comment</span>
-              <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
@@ -182,7 +182,7 @@ export function CommentDrawerButton({
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
         <div
-          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
             // Auto-focus drawer content when it opens (only once)
@@ -192,7 +192,7 @@ export function CommentDrawerButton({
             }
           }}
         >
-          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
+          <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>

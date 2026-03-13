@@ -89,7 +89,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
     queueId?: string;
     environment?: string;
   };
-  buttonVariant?: "secondary" | "outline";
+  buttonVariant?: "secondary" | "outline-solid";
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

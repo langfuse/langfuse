@@ -1,6 +1,36 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@config "../../tailwind.config.ts";
+
+@theme inline {
+  @keyframes rainbow {
+    0% {
+      background-position: 0%;
+    }
+
+    100% {
+      background-position: 200%;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 @layer base {
   :root {
@@ -230,35 +260,25 @@
   }
 }
 
-/* Custom styles for react-grid-layout resize handle */
-.react-resizable-handle {
-  position: absolute;
-  bottom: 5px !important;
-  right: 5px !important;
-  background-image: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: hsl(var(--muted-foreground));
-}
+@layer utilities {
+  /* Custom styles for react-grid-layout resize handle */
+  .react-resizable-handle {
+    position: absolute;
+    bottom: 5px !important;
+    right: 5px !important;
+    background-image: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+  }
 
-.react-resizable-handle::after {
-  content: "";
-  width: 10px !important;
-  height: 10px !important;
-  border-right: 2px solid currentColor !important;
-  border-bottom: 2px solid currentColor !important;
-}
-
-@theme inline {
-  @keyframes rainbow {
-    0% {
-      background-position: 0%;
-    }
-
-    100% {
-      background-position: 200%;
-    }
+  .react-resizable-handle::after {
+    content: "";
+    width: 10px !important;
+    height: 10px !important;
+    border-right: 2px solid currentColor !important;
+    border-bottom: 2px solid currentColor !important;
   }
 }
 

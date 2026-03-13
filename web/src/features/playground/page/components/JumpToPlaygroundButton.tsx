@@ -65,7 +65,7 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  variant?: "outline" | "secondary";
+  variant?: "outline-solid" | "secondary";
   className?: string;
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 };

@@ -43,7 +43,7 @@ export const BillingUsageChart = () => {
       <Card className="p-3">
         {usage.data !== undefined ? (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {usage.data.billingPeriod
                 ? `Consumed ${usageType} in current billing period (updated about once every 60 minutes)`
                 : `Consumed ${usageType} / last 30d`}
@@ -60,7 +60,7 @@ export const BillingUsageChart = () => {
                   </span>
                 </div>
                 <div
-                  className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
+                  className="bg-muted mt-3 h-2 w-full overflow-hidden rounded-full"
                   role="progressbar"
                   aria-valuenow={Math.min(
                     (usage.data.usageCount / hobbyPlanLimit) * 100,
@@ -70,7 +70,7 @@ export const BillingUsageChart = () => {
                   aria-valuemax={100}
                 >
                   <div
-                    className="h-full rounded-full bg-primary transition-all"
+                    className="bg-primary h-full rounded-full transition-all"
                     style={{
                       width: `${Math.min(
                         (usage.data.usageCount / hobbyPlanLimit) * 100,
@@ -83,7 +83,7 @@ export const BillingUsageChart = () => {
             )}
           </>
         ) : (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             Loading (might take a moment) ...
           </span>
         )}
