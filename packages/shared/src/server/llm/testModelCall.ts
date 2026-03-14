@@ -3,6 +3,7 @@ import {
   ChatMessageRole,
   ChatMessageType,
   LLMApiKeySchema,
+  LLMJSONSchema,
   type ModelConfig,
 } from "./types";
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
@@ -13,11 +14,13 @@ export const testModelCall = async ({
   model,
   apiKey,
   modelConfig,
+  structuredOutputSchema,
 }: {
   provider: string;
   model: string;
   apiKey: z.infer<typeof LLMApiKeySchema>;
   modelConfig?: ModelConfig | null;
+  structuredOutputSchema?: LLMJSONSchema;
 }) => {
   await fetchLLMCompletion({
     streaming: false,
@@ -36,9 +39,11 @@ export const testModelCall = async ({
       adapter: apiKey.adapter,
       ...modelConfig,
     },
-    structuredOutputSchema: zodV3.object({
-      score: zodV3.string(),
-      reasoning: zodV3.string(),
-    }),
+    structuredOutputSchema:
+      structuredOutputSchema ??
+      zodV3.object({
+        score: zodV3.string(),
+        reasoning: zodV3.string(),
+      }),
   });
 };

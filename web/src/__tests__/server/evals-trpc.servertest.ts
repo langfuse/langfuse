@@ -613,7 +613,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },
@@ -649,7 +649,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },
@@ -750,7 +750,7 @@ describe("evals trpc", () => {
   //         model: "test-model",
   //         modelParams: {},
   //         vars: [],
-  //         outputSchema: {
+  //         outputDefinition: {
   //           score: "test-score",
   //           reasoning: "test-reasoning",
   //         },

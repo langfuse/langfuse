@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
@@ -14,15 +14,25 @@ import {
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { extractVariables, getIsCharOrUnderscore } from "@langfuse/shared";
+import {
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  EvalOutputDataTypeSchema,
+  EvalNoMatchOptionValue,
+  getCategoricalOptionRuleViolations,
+  getMinimumCategoricalOptionsCount,
+  getMinimumCategoricalOptionsMessage,
+  type PersistedEvalOutputDefinition,
+  PersistedEvalOutputDefinitionSchema,
+  ScoreDataTypeEnum,
+  extractVariables,
+  getIsCharOrUnderscore,
+  resolvePersistedEvalOutputDefinition,
+} from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import {
-  OutputSchema,
-  type ModelParams,
-  ZodModelConfig,
-} from "@langfuse/shared";
+import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -36,8 +46,15 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, PlusIcon, Trash } from "lucide-react";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
@@ -74,10 +91,8 @@ export const EvalTemplateForm = (props: {
                 name: props.existingEvalTemplate.name,
                 prompt: props.existingEvalTemplate.prompt,
                 vars: props.existingEvalTemplate.vars,
-                outputSchema: props.existingEvalTemplate.outputSchema as {
-                  score: string;
-                  reasoning: string;
-                },
+                outputDefinition: props.existingEvalTemplate
+                  .outputDefinition as PersistedEvalOutputDefinition,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,
@@ -102,43 +117,125 @@ const selectedModelSchema = z.object({
   modelParams: ZodModelConfig,
 });
 
-const formSchema = z.object({
-  name: z.string().min(1, "Enter a name"),
-  prompt: z
-    .string()
-    .min(1, "Enter a prompt")
-    .refine((val) => {
-      const variables = extractVariables(val);
-      const matches = variables.map((variable) => {
-        // check regex here
-        if (variable.match(/^[A-Za-z_]+$/)) {
-          return true;
-        }
-        return false;
-      });
-      return !matches.includes(false);
-    }, "Variables must only contain letters and underscores (_)"),
-
-  variables: z.array(
-    z.string().min(1, "Variables must have at least one character"),
-  ),
-  outputScore: z.string().min(1, "Enter a score function"),
-  outputReasoning: z.string().min(1, "Enter a reasoning function"),
-  referencedEvaluators: z
-    .enum(EvalReferencedEvaluators)
-    .optional()
-    .default(EvalReferencedEvaluators.PERSIST),
-  shouldUseDefaultModel: z.boolean().default(true),
+const categoricalOptionSchema = z.object({
+  value: z.string().trim().min(1, "Enter a category value"),
 });
+
+const formSchema = z
+  .object({
+    name: z.string().min(1, "Enter a name"),
+    prompt: z
+      .string()
+      .min(1, "Enter a prompt")
+      .refine((val) => {
+        const variables = extractVariables(val);
+        const matches = variables.map((variable) => {
+          // check regex here
+          if (variable.match(/^[A-Za-z_]+$/)) {
+            return true;
+          }
+          return false;
+        });
+        return !matches.includes(false);
+      }, "Variables must only contain letters and underscores (_)"),
+
+    variables: z.array(
+      z.string().min(1, "Variables must have at least one character"),
+    ),
+    scoreDataType: EvalOutputDataTypeSchema.default(ScoreDataTypeEnum.NUMERIC),
+    scoreDescription: z.string().min(1, "Enter a score function"),
+    reasoningDescription: z.string().min(1, "Enter a reasoning function"),
+    categoricalOptions: z.array(categoricalOptionSchema).default([]),
+    allowNoMatch: z.boolean().default(false),
+    allowMultipleMatches: z.boolean().default(false),
+    referencedEvaluators: z
+      .enum(EvalReferencedEvaluators)
+      .optional()
+      .default(EvalReferencedEvaluators.PERSIST),
+    shouldUseDefaultModel: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
+      return;
+    }
+
+    getCategoricalOptionRuleViolations({
+      options: value.categoricalOptions,
+      allowNoMatch: value.allowNoMatch,
+    }).forEach((violation) => {
+      switch (violation.type) {
+        case "minimum_count":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: getMinimumCategoricalOptionsMessage(value.allowNoMatch),
+            path: ["categoricalOptions"],
+          });
+          return;
+        case "reserved_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
+            path: ["categoricalOptions", violation.index, "value"],
+          });
+          return;
+        case "duplicate_value":
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Category values must be unique",
+            path: ["categoricalOptions", violation.index, "value"],
+          });
+          return;
+      }
+    });
+  });
+
+const defaultNumericOutputDefinitionFormValues = {
+  scoreDataType: ScoreDataTypeEnum.NUMERIC,
+  reasoningDescription: "One sentence reasoning for the score",
+  scoreDescription:
+    "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
+  categoricalOptions: [] as Array<{ value: string }>,
+  allowNoMatch: false,
+  allowMultipleMatches: false,
+};
+
+const toOutputDefinitionFormValues = (
+  outputDefinition?: PersistedEvalOutputDefinition,
+) => {
+  if (!outputDefinition) {
+    return defaultNumericOutputDefinitionFormValues;
+  }
+
+  const resolvedOutputDefinition = resolvePersistedEvalOutputDefinition(
+    PersistedEvalOutputDefinitionSchema.parse(outputDefinition),
+  );
+
+  return {
+    scoreDataType: resolvedOutputDefinition.dataType,
+    reasoningDescription: resolvedOutputDefinition.reasoningDescription,
+    scoreDescription: resolvedOutputDefinition.scoreDescription,
+    allowNoMatch:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.allowNoMatch
+        : false,
+    allowMultipleMatches:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.allowMultipleMatches
+        : false,
+    categoricalOptions:
+      resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
+        ? resolvedOutputDefinition.options.map((option) => ({
+            value: option.value,
+          }))
+        : [],
+  };
+};
 
 export type EvalTemplateFormPreFill = {
   name: string;
   prompt: string;
   vars: string[];
-  outputSchema: {
-    score: string;
-    reasoning: string;
-  };
+  outputDefinition: PersistedEvalOutputDefinition;
   selectedModel?: {
     provider: string;
     model: string;
@@ -200,6 +297,10 @@ export const InnerEvalTemplateForm = (props: {
     props.preFilledFormValues?.selectedModel,
   );
 
+  const outputDefinitionFormValues = toOutputDefinitionFormValues(
+    props.preFilledFormValues?.outputDefinition,
+  );
+
   // updates the form based on the pre-filled data
   // either form update or from langfuse-generated template
   const form = useForm({
@@ -210,17 +311,33 @@ export const InnerEvalTemplateForm = (props: {
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
-      outputReasoning: props.preFilledFormValues
-        ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).reasoning
-        : "One sentence reasoning for the score",
-      outputScore: props.preFilledFormValues
-        ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
-        : "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
+      scoreDataType: outputDefinitionFormValues.scoreDataType,
+      reasoningDescription: outputDefinitionFormValues.reasoningDescription,
+      scoreDescription: outputDefinitionFormValues.scoreDescription,
+      categoricalOptions: outputDefinitionFormValues.categoricalOptions,
+      allowNoMatch: outputDefinitionFormValues.allowNoMatch,
+      allowMultipleMatches: outputDefinitionFormValues.allowMultipleMatches,
       shouldUseDefaultModel: isExistingUsingDefault,
     },
   });
 
+  const {
+    fields: categoricalOptionFields,
+    append,
+    remove,
+    replace,
+  } = useFieldArray({
+    control: form.control,
+    name: "categoricalOptions",
+  });
+
   const useDefaultModel = form.watch("shouldUseDefaultModel");
+  const scoreDataType = form.watch("scoreDataType");
+  const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
+  const allowNoMatch = form.watch("allowNoMatch");
+  const allowMultipleMatches = form.watch("allowMultipleMatches");
+  const minimumCategoricalOptions =
+    getMinimumCategoricalOptionsCount(allowNoMatch);
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -274,6 +391,22 @@ export const InnerEvalTemplateForm = (props: {
         : "eval_templates:new_form_submit",
     );
 
+    const outputDefinition =
+      values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL
+        ? createCategoricalEvalOutputDefinition({
+            scoreDescription: values.scoreDescription,
+            reasoningDescription: values.reasoningDescription,
+            options: values.categoricalOptions.map((option) => ({
+              value: option.value,
+            })),
+            allowNoMatch: values.allowNoMatch,
+            allowMultipleMatches: values.allowMultipleMatches,
+          })
+        : createNumericEvalOutputDefinition({
+            scoreDescription: values.scoreDescription,
+            reasoningDescription: values.reasoningDescription,
+          });
+
     const evalTemplate = {
       name: values.name,
       projectId: props.projectId,
@@ -287,10 +420,7 @@ export const InnerEvalTemplateForm = (props: {
         ? undefined
         : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
-      outputSchema: {
-        score: values.outputScore,
-        reasoning: values.outputReasoning,
-      },
+      outputDefinition,
       referencedEvaluators: values.referencedEvaluators,
       sourceTemplateId: props.cloneSourceId ?? undefined,
     };
@@ -474,7 +604,59 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
-            name="outputReasoning"
+            name="scoreDataType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Score type</FormLabel>
+                <FormDescription>
+                  Choose whether the evaluator should return a numeric score or
+                  one of a fixed set of categories.
+                </FormDescription>
+                <Select
+                  value={field.value}
+                  disabled={!props.isEditing}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+
+                    if (
+                      value === ScoreDataTypeEnum.CATEGORICAL &&
+                      (form.getValues("categoricalOptions") ?? []).length === 0
+                    ) {
+                      replace(
+                        Array.from(
+                          {
+                            length: getMinimumCategoricalOptionsCount(
+                              form.getValues("allowNoMatch"),
+                            ),
+                          },
+                          () => ({ value: "" }),
+                        ),
+                      );
+                    }
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a score type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={ScoreDataTypeEnum.NUMERIC}>
+                      Numeric
+                    </SelectItem>
+                    <SelectItem value={ScoreDataTypeEnum.CATEGORICAL}>
+                      Categorical
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="reasoningDescription"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Score reasoning prompt</FormLabel>
@@ -493,13 +675,20 @@ export const InnerEvalTemplateForm = (props: {
 
           <FormField
             control={form.control}
-            name="outputScore"
+            name="scoreDescription"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Score range prompt</FormLabel>
+                <FormLabel>
+                  {isCategoricalOutput
+                    ? "Category selection prompt"
+                    : "Score output prompt"}
+                </FormLabel>
                 <FormDescription>
-                  Define how the LLM should return the evaluation score in
-                  natural language. Needs to yield a numeric value.
+                  {isCategoricalOutput
+                    ? allowMultipleMatches
+                      ? "Define how the LLM should choose one or more categories from the list below."
+                      : "Define how the LLM should choose exactly one category from the list below."
+                    : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} />
@@ -508,6 +697,124 @@ export const InnerEvalTemplateForm = (props: {
               </FormItem>
             )}
           />
+
+          {isCategoricalOutput ? (
+            <FormField
+              control={form.control}
+              name="categoricalOptions"
+              render={() => (
+                <FormItem>
+                  <div>
+                    <FormLabel>Categories</FormLabel>
+                    <FormDescription>
+                      Add the allowed category values the model may return.
+                      Provide at least {minimumCategoricalOptions}{" "}
+                      {minimumCategoricalOptions === 1
+                        ? "category"
+                        : "categories"}
+                      .
+                    </FormDescription>
+                  </div>
+                  <div className="space-y-3">
+                    {categoricalOptionFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
+                      >
+                        <FormField
+                          control={form.control}
+                          name={`categoricalOptions.${index}.value`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Value</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!props.isEditing}
+                            onClick={() => remove(index)}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-3"
+                    disabled={!props.isEditing}
+                    onClick={() => append({ value: "" })}
+                  >
+                    <PlusIcon className="mr-1.5 h-4 w-4" />
+                    Add category
+                  </Button>
+                  <FormField
+                    control={form.control}
+                    name="allowNoMatch"
+                    render={({ field }) => (
+                      <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!props.isEditing}
+                          />
+                        </FormControl>
+                        <div className="space-y-0.5 leading-none">
+                          <FormLabel>Allow &quot;No match&quot;</FormLabel>
+                          <FormDescription>
+                            Adds a built-in{" "}
+                            <span className="font-mono">
+                              {EvalNoMatchOptionValue}
+                            </span>{" "}
+                            category when none of the listed values apply.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="allowMultipleMatches"
+                    render={({ field }) => (
+                      <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!props.isEditing}
+                          />
+                        </FormControl>
+                        <div className="space-y-0.5 leading-none">
+                          <FormLabel>Allow multiple matches</FormLabel>
+                          <FormDescription>
+                            Lets the model return more than one category. One
+                            score will be created for each selected match.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  {form.formState.errors.categoricalOptions?.message ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {form.formState.errors.categoricalOptions.message}
+                    </p>
+                  ) : null}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
         </CardContent>
       </Card>
     </>

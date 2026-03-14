@@ -1,0 +1,138 @@
+/** @jest-environment node */
+
+import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
+import {
+  createCategoricalEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+  EvalNoMatchOptionValue,
+  ScoreDataTypeEnum,
+} from "@langfuse/shared";
+
+describe("CreateEvalTemplateInputSchema", () => {
+  const baseInput = {
+    name: "Accuracy evaluator",
+    projectId: "project-1",
+    prompt: "Judge {{output}} against {{expected_output}}",
+    provider: null,
+    model: null,
+    modelParams: null,
+    vars: ["output", "expected_output"],
+  };
+
+  it("accepts versioned categorical output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose the best matching category",
+        reasoningDescription: "Explain the selected category",
+        options: [{ value: "correct" }, { value: "partial" }],
+      }),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts versioned categorical multi-match output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose all matching categories",
+        reasoningDescription: "Explain the selected categories",
+        options: [{ value: "correct" }, { value: "partial" }],
+        allowMultipleMatches: true,
+      }),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts versioned numeric output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: createNumericEvalOutputDefinition({
+        scoreDescription: "Return a score between 0 and 1",
+        reasoningDescription: "Explain the assigned score",
+      }),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate categorical values", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          options: [{ value: "correct" }, { value: "correct" }],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it(`rejects "${EvalNoMatchOptionValue}" as a manual category when the built-in option is enabled`, () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          allowNoMatch: true,
+          options: [{ value: EvalNoMatchOptionValue }],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects categorical outputs with fewer than two categories when no-match is disabled", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          options: [{ value: "correct" }],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects categorical outputs without categories even when no-match is enabled", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          allowNoMatch: true,
+          options: [],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+});

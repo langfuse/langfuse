@@ -10,7 +10,7 @@ import {
   ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { buildEvalScoreSchema, buildEvalMessages } from "./evalExecutionUtils";
+import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 
 /**
@@ -41,7 +41,7 @@ export type ModelConfigResult =
 export interface LLMCallParams {
   messages: ReturnType<typeof buildEvalMessages>;
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
-  structuredOutputSchema: ReturnType<typeof buildEvalScoreSchema>;
+  structuredOutputSchema: Record<string, unknown>;
   traceSinkParams: {
     targetProjectId: string;
     traceId: string;

@@ -2931,7 +2931,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           prompt: "Please evaluate: {{input}}",
           version: 1,
           vars: ["input"],
-          outputSchema: {
+          outputDefinition: {
             score: "score",
             reasoning: "reasoning",
           },
