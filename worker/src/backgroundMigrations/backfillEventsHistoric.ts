@@ -229,7 +229,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const requiredTables = [
       "observations_pid_tid_sorting",
       "traces_pid_tid_sorting",
-      "events",
+      "events_full",
       "backfill_chunks",
     ];
 
@@ -432,7 +432,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         : `o.metadata`;
 
     return `
-      INSERT INTO events (
+      INSERT INTO events_full (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
         name, type, environment, version, release, tags, public, bookmarked,
         trace_name, user_id, session_id, level, status_message, completion_start_time,
@@ -441,7 +441,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
         input, output, metadata,
 
-        metadata_names, metadata_raw_values, source,
+        metadata_names, metadata_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
       )
       SELECT
@@ -483,7 +483,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         coalesce(o.output, '') AS output,
         CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
         mapKeys(${metadataExpr}) AS metadata_names,
-        mapValues(${metadataExpr}) AS metadata_raw_values,
+        mapValues(${metadataExpr}) AS metadata_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
         '' AS blob_storage_file_path,
         0 AS event_bytes,
@@ -642,17 +642,17 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       };
     }
 
-    // Check if ClickHouse events table exists
+    // Check if ClickHouse events_full table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    if (!tableNames.some((r) => r.name === "events")) {
+    if (!tableNames.some((r) => r.name === "events_full")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse events table does not exist. Retrying in 10s...`,
+          `ClickHouse events_full table does not exist. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -661,7 +661,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 
       return {
         valid: false,
-        invalidReason: "ClickHouse events table does not exist",
+        invalidReason: "ClickHouse events_full table does not exist",
       };
     }
 

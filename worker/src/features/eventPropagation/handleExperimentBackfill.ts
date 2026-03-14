@@ -476,7 +476,7 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events table using IngestionService.writeEventRecord().
+ * Write enriched spans to the events_full table using IngestionService.writeEventRecord().
  * Converts EnrichedSpan to EventInput format.
  */
 export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
@@ -583,7 +583,7 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events table via IngestionService`,
+    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table via IngestionService`,
   );
 }
 
@@ -882,7 +882,7 @@ async function processExperimentBackfill(
       }
     }
 
-    // Write enriched spans to events table
+    // Write enriched spans to events_full table
     if (allEnrichedSpans.length > 0) {
       await writeEnrichedSpans(allEnrichedSpans);
     }
