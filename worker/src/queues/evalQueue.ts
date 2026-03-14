@@ -268,15 +268,6 @@ export const evalJobExecutorQueueProcessorBuilder = (
   };
 };
 
-/**
- * Processor for observation-level LLM-as-a-judge evaluation jobs.
- * This handles evals triggered during OTEL ingestion for single observations.
- */
-export const llmAsJudgeExecutionQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>,
-) =>
-  llmAsJudgeExecutionQueueProcessorBuilder(QueueName.LLMAsJudgeExecution)(job);
-
 export const llmAsJudgeExecutionQueueProcessorBuilder =
   (queueName: string): Processor =>
   async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
