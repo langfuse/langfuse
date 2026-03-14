@@ -66,14 +66,18 @@ export default async function handler(
     }
 
     if (req.method === "GET") {
-      const queues: string[] = Object.values(QueueName);
-      queues.push(...IngestionQueue.getShardNames());
-      queues.push(...SecondaryIngestionQueue.getShardNames());
-      queues.push(...EvalExecutionQueue.getShardNames());
-      queues.push(...SecondaryEvalExecutionQueue.getShardNames());
-      queues.push(...LLMAsJudgeExecutionQueue.getShardNames());
-      queues.push(...TraceUpsertQueue.getShardNames());
-      queues.push(...OtelIngestionQueue.getShardNames());
+      const queues = Array.from(
+        new Set([
+          ...Object.values(QueueName),
+          ...IngestionQueue.getShardNames(),
+          ...SecondaryIngestionQueue.getShardNames(),
+          ...EvalExecutionQueue.getShardNames(),
+          ...SecondaryEvalExecutionQueue.getShardNames(),
+          ...LLMAsJudgeExecutionQueue.getShardNames(),
+          ...TraceUpsertQueue.getShardNames(),
+          ...OtelIngestionQueue.getShardNames(),
+        ]),
+      );
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
           try {
