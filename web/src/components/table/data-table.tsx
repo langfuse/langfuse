@@ -360,7 +360,7 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex select-none items-center">
+                          <div className="flex items-center select-none">
                             <span className="truncate">
                               {flexRender(
                                 header.column.columnDef.header,
@@ -388,7 +388,7 @@ export function DataTable<TData extends object, TValue>({
                               onMouseDown={header.getResizeHandler()}
                               onTouchStart={header.getResizeHandler()}
                               className={cn(
-                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
                                   "bg-primary-accent opacity-100",
                               )}
@@ -438,7 +438,7 @@ export function DataTable<TData extends object, TValue>({
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
-            "sticky bottom-0 z-10 flex w-full justify-end border-t bg-background py-2 pr-2 font-medium",
+            "bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium",
           )}
         >
           <DataTablePagination
