@@ -88,6 +88,20 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     internal: 't."tags"',
     options: [], // to be filled in at runtime
   },
+  {
+    name: "Input",
+    id: "input",
+    type: "string",
+    internal: "t.input",
+    nullable: true,
+  },
+  {
+    name: "Output",
+    id: "output",
+    type: "string",
+    internal: "t.output",
+    nullable: true,
+  },
 ];
 export const tracesTableCols: ColumnDefinition[] = [
   ...tracesOnlyCols,
