@@ -175,7 +175,9 @@ export const ingestionQueueProcessorBuilder = (
         const parsedFile = JSON.parse(file);
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
       } else {
-        eventFiles = await s3Client.listFiles(s3Prefix);
+        eventFiles = (await s3Client.listFiles(s3Prefix)).filter(
+          (f) => !f.file.endsWith("/"),
+        );
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
