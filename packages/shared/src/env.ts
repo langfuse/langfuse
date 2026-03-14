@@ -162,6 +162,21 @@ const EnvSchema = z.object({
     .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
+  LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OCI_AUTH_TYPE: z
+    .enum([
+      "workload_identity",
+      "instance_principal",
+      "resource_principal",
+      "oci_profile",
+      "session_token",
+    ])
+    .optional(),
+  OCI_CONFIG_FILE: z.string().optional(),
+  OCI_CONFIG_PROFILE: z.string().optional(),
+  NODE_EXTRA_CA_CERTS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
