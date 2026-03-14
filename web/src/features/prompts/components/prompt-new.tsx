@@ -62,7 +62,7 @@ export const NewPrompt = () => {
       }}
     >
       {initialPrompt ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Prompts are immutable in Langfuse. To update a prompt, create a new
           version.
         </p>

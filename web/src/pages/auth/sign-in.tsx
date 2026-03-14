@@ -233,9 +233,9 @@ export function SSOButtons({
       <div>
         {showSeparator ? (
           action === "sign in" ? (
-            <div className="my-6 border-t border-border"></div>
+            <div className="border-border my-6 border-t"></div>
           ) : (
-            <div className="my-6 text-center text-xs text-muted-foreground">
+            <div className="text-muted-foreground my-6 text-center text-xs">
               or {action} with
             </div>
           )
@@ -724,18 +724,18 @@ export default function SignIn({
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Sign in to your account
           </h2>
         </div>
 
         {isLangfuseCloud && (
-          <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+          <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
-              className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
+              className="text-primary-accent hover:text-hover-primary-accent cursor-pointer text-xs font-medium whitespace-nowrap"
             >
               (contact us)
             </a>
@@ -744,7 +744,7 @@ export default function SignIn({
 
         <CloudRegionSwitch />
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
@@ -792,7 +792,7 @@ export default function SignIn({
                               Password{" "}
                               <Link
                                 href="/auth/reset-password"
-                                className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                                className="text-primary-accent hover:text-hover-primary-accent ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
                               >
@@ -830,7 +830,7 @@ export default function SignIn({
                 </Form>
                 <div
                   className={cn(
-                    "mt-1 text-center text-xs text-muted-foreground",
+                    "text-muted-foreground mt-1 text-center text-xs",
                     hasMultipleAuthMethods &&
                       lastUsedAuthMethod === "credentials"
                       ? "block"
@@ -842,7 +842,7 @@ export default function SignIn({
               </div>
             )}
             {credentialsFormError ? (
-              <div className="text-center text-sm font-medium text-destructive">
+              <div className="text-destructive text-center text-sm font-medium">
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
@@ -860,11 +860,11 @@ export default function SignIn({
           {!signUpDisabled &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
-            <p className="mt-10 text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-10 text-center text-sm">
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-                className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
+                className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
               >
                 Sign up
               </Link>

@@ -100,7 +100,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
                   align="start"
                 >
                   <InputCommand>
@@ -147,10 +147,10 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="font-medium leading-none">
+                      <h4 className="leading-none font-medium">
                         Expected Dataset Structure
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-muted-foreground text-sm">
                         Based on prompt {selectedPromptName} v
                         {selectedPromptVersion}
                       </p>
@@ -228,9 +228,9 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
       {selectedDatasetId && (
         <>
           {validationResult?.isValid === false && (
-            <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-dark-yellow bg-light-yellow relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
+                <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
                   <Info className="h-4 w-4" />
                 </CardTitle>
@@ -241,9 +241,9 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
             </Card>
           )}
           {validationResult?.isValid === true && (
-            <Card className="relative overflow-hidden rounded-md border-dark-green bg-light-green shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-dark-green bg-light-green relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="flex items-center justify-between text-sm text-dark-green">
+                <CardTitle className="text-dark-green flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
                   <CircleCheck className="h-4 w-4" />
                 </CardTitle>

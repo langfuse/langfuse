@@ -115,13 +115,13 @@ export const BreakdownTooltip = ({
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
               {Array.isArray(details) && details.length > 0 && (
-                <span className="text-xs italic text-muted-foreground">
+                <span className="text-muted-foreground text-xs italic">
                   Aggregate across {details.length}{" "}
                   {details.length === 1 ? "generation" : "generations"}
                 </span>
               )}
               {pricingTierName && (
-                <div className="flex justify-between text-xs text-muted-foreground">
+                <div className="text-muted-foreground flex justify-between text-xs">
                   <span>Pricing Tier:</span>
                   <span className="font-mono">{pricingTierName}</span>
                 </div>
@@ -152,7 +152,7 @@ export const BreakdownTooltip = ({
             />
 
             {/* Total */}
-            <div className="flex justify-between border-b-4 border-t border-double py-1">
+            <div className="flex justify-between border-t border-b-4 border-double py-1">
               <span className="text-xs font-semibold">
                 {isCost ? "Total cost" : "Total usage"}
               </span>
@@ -199,7 +199,7 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
       {filteredEntries.map(([key, value]) => (
         <div
           key={key}
-          className="flex justify-between text-xs text-muted-foreground"
+          className="text-muted-foreground flex justify-between text-xs"
         >
           <span className="mr-4">{key}</span>
           <span className="font-mono">{formatValue(value ?? 0)}</span>
@@ -244,7 +244,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
       {otherEntries.map(([key, value]) => (
         <div
           key={key}
-          className="flex justify-between text-xs text-muted-foreground"
+          className="text-muted-foreground flex justify-between text-xs"
         >
           <span className="mr-4">{key}</span>
           <span className="font-mono">{formatValue(value ?? 0)}</span>
