@@ -418,6 +418,12 @@ const EnvSchema = z.object({
     .positive()
     .default(2),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
+  // How to finalize processed pending_deletions rows:
+  // - "soft": keep row and mark isDeleted=true (legacy behavior)
+  // - "hard": remove row via deleteMany (prevents table growth)
+  LANGFUSE_PENDING_DELETIONS_COMPLETION_MODE: z
+    .enum(["soft", "hard"])
+    .default("soft"),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
     .positive()
