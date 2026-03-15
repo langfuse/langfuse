@@ -3657,6 +3657,122 @@
     ]
   },
   {
+    "id": "bee3c111-fe6f-4641-8775-73ea33b29fca",
+    "modelName": "gpt-5.4",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "bee3c111-fe6f-4641-8775-73ea33b29fca_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "68d32054-8748-4d25-9f64-d78d483601bd",
+    "modelName": "gpt-5.4-pro",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "68d32054-8748-4d25-9f64-d78d483601bd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 30e-6,
+          "output": 180e-6,
+          "output_reasoning_tokens": 180e-6,
+          "output_reasoning": 180e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "22dfc7e1-1fe1-4286-b1af-928635e7ecb9",
+    "modelName": "gpt-5.4-2026-03-05",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-2026-03-05)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "22dfc7e1-1fe1-4286-b1af-928635e7ecb9_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "d8873413-05ab-4374-8223-e8c9005c4a0e",
+    "modelName": "gpt-5.4-pro-2026-03-05",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro-2026-03-05)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "d8873413-05ab-4374-8223-e8c9005c4a0e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 30e-6,
+          "output": 180e-6,
+          "output_reasoning_tokens": 180e-6,
+          "output_reasoning": 180e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmjfoeykl000004l8ffzra8c7",
     "modelName": "gemini-3-flash-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-flash-preview)$",

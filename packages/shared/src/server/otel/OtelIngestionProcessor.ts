@@ -1267,13 +1267,17 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, and llm.output_messages.* keys
+    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
+    // and metadata blob keys (already extracted into top-level metadata by extractMetadata())
     Object.keys(attributes).forEach((key) => {
       if (
         key.startsWith("gen_ai.prompt") ||
         key.startsWith("gen_ai.completion") ||
         key.startsWith("llm.input_messages") ||
-        key.startsWith("llm.output_messages")
+        key.startsWith("llm.output_messages") ||
+        key.startsWith("langfuse.trace.metadata") ||
+        key.startsWith("langfuse.observation.metadata") ||
+        key.startsWith("ai.telemetry.metadata")
       ) {
         delete rawFilteredAttributes[key];
       }
