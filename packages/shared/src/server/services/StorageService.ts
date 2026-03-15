@@ -799,7 +799,9 @@ class GoogleCloudStorageService implements StorageService {
       }
     } else {
       // Use default authentication (environment variables or instance metadata)
-      this.storage = new Storage();
+      this.storage = new Storage({
+        universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN || "googleapis.com",
+      });
     }
 
     this.bucket = this.storage.bucket(params.bucketName);
