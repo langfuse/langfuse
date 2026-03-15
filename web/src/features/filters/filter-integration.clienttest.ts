@@ -28,6 +28,7 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -575,6 +576,24 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[1]?.value).toBe("a");
   });
 
+  it("should drop filters for columns missing in active table definitions", () => {
+    const urlFilter =
+      "environment;stringOptions;;any of;production,trace_scores_v4_only;number;;>=;0.8";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      traceFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]).toEqual({
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    });
+  });
+
   it("should handle backend column remapping from URL", () => {
     // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
     const urlFilter = "tags;arrayOptions;;any of;tag1";
@@ -727,11 +746,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
 });
 
 describe("Implicit Environment Defaults (sidebar only)", () => {
-  const hiddenEnvironments = [
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ];
+  const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
     "production",
     "staging",

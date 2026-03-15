@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
 type AppliedDimensionType = {
   table: string;
@@ -323,6 +324,7 @@ export class QueryBuilder {
       clickhouseSelect: string;
       queryPrefix: string;
       type: string;
+      emptyEqualsNull?: boolean;
     }> = [];
 
     for (const filter of filters) {
@@ -346,9 +348,18 @@ export class QueryBuilder {
       let queryPrefix: string = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
+      let emptyEqualsNull: boolean | undefined;
 
       if (dimension) {
-        clickhouseSelect = dimension.sql;
+        // Dimension with nullIf(col, ''): use raw column with emptyEqualsNull
+        // flag for index-friendly filtering while preserving '' ≡ NULL semantic.
+        const nullIfMatch = NULL_IF_EMPTY_RE.exec(dimension.sql);
+        if (nullIfMatch) {
+          clickhouseSelect = nullIfMatch[1];
+          emptyEqualsNull = true;
+        } else {
+          clickhouseSelect = dimension.sql;
+        }
         type = "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
@@ -390,6 +401,7 @@ export class QueryBuilder {
         clickhouseSelect,
         queryPrefix,
         type,
+        emptyEqualsNull,
       });
     }
 

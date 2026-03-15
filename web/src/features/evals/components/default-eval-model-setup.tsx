@@ -125,7 +125,7 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
           <DialogContent className="px-3 py-10">
             <ModelParameters
               customHeader={
-                <p className="font-medium leading-none">
+                <p className="leading-none font-medium">
                   Default model configuration
                 </p>
               }
@@ -139,7 +139,7 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
               }}
               formDisabled={!hasWriteAccess}
             />
-            <div className="my-2 text-xs text-muted-foreground">
+            <div className="text-muted-foreground my-2 text-xs">
               Select a model which supports function calling.
             </div>
             <div className="flex flex-col gap-2">

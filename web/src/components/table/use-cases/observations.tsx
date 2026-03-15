@@ -77,6 +77,8 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
   type RefreshInterval,
   REFRESH_INTERVALS,
@@ -1425,18 +1427,18 @@ export default function ObservationsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+                    const observationUrl = buildTraceDetailPath({
+                      projectId,
+                      traceId,
+                      observationId,
+                      timestamp,
+                    });
 
-                    const params = new URLSearchParams();
-                    params.set("observation", observationId);
-                    if (timestamp) {
-                      params.set("timestamp", timestamp.toISOString());
-                    }
-
-                    observationUrl += `?${params.toString()}`;
-
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-                    window.open(fullUrl, "_blank");
+                    window.open(
+                      getSafeRedirectPath(observationUrl),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }
                 // For normal clicks, let the data-table handle opening the peek view

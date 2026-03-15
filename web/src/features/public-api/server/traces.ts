@@ -12,7 +12,11 @@ import {
   tracesTableUiColumnDefinitions,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import { AGGREGATABLE_SCORE_TYPES, type OrderByState } from "@langfuse/shared";
+import {
+  AGGREGATABLE_SCORE_TYPES,
+  type OrderByState,
+  tracesTableCols,
+} from "@langfuse/shared";
 import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
@@ -77,6 +81,7 @@ async function buildTracesBaseQuery(
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
+    tracesTableCols,
   );
   const appliedFilter = filter.apply();
 
@@ -388,6 +393,7 @@ export const getTracesCountForPublicApi = async ({
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
+    tracesTableCols,
   );
   const appliedFilter = filter.apply();
 

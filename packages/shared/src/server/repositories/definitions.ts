@@ -115,6 +115,8 @@ export const eventsObservationRecordReadSchema =
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     trace_name: z.string().nullish(),
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
   });
 export type EventsObservationRecordReadType = z.infer<
   typeof eventsObservationRecordReadSchema

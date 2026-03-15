@@ -11,7 +11,7 @@ export const MAX_CELL_DISPLAY_CHARS = 2000;
 const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
-const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
+const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
@@ -222,7 +222,7 @@ export const ValueCell = memo(
         case "null":
           return {
             content: (
-              <span className="italic text-gray-500 dark:text-gray-400">
+              <span className="text-gray-500 italic dark:text-gray-400">
                 null
               </span>
             ),
@@ -296,7 +296,7 @@ export const ValueCell = memo(
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-0 top-0 h-5 w-5 border bg-background/80 p-0.5 opacity-0 shadow-sm transition-opacity duration-200 hover:bg-background group-hover:opacity-100"
+          className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
           onClick={handleCopy}
           title="Copy value"
           aria-label="Copy cell value"
