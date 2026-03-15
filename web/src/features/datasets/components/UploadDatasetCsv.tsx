@@ -82,7 +82,7 @@ export const UploadDatasetCsv = ({
             accept={{ "text/csv": [".csv"] }}
             maxFiles={1}
             maxSize={MAX_FILE_SIZE_BYTES}
-            className="border-dashed bg-secondary/50"
+            className="bg-secondary/50 border-dashed"
           >
             <DropzoneEmptyState />
           </Dropzone>

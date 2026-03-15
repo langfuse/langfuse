@@ -90,7 +90,7 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex gap-2 whitespace-pre-wrap break-words text-xs",
+          "io-message-content flex gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
@@ -106,7 +106,7 @@ export function JSONView(props: {
           <Skeleton className="h-3 w-3/4" />
         ) : promptReferenceProjectId && typeof parsedJson === "string" ? (
           <code
-            className="whitespace-pre-wrap break-words"
+            className="wrap-break-word whitespace-pre-wrap"
             dir="auto"
             style={{ unicodeBidi: "plaintext" }}
           >
@@ -146,7 +146,7 @@ export function JSONView(props: {
       </div>
       {props.media && props.media.length > 0 && (
         <>
-          <div className="my-1 px-0 py-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
@@ -184,7 +184,7 @@ export function JSONView(props: {
                 variant="ghost"
                 size="icon-xs"
                 onClick={handleToggleCollapse}
-                className="-mr-2 hover:bg-border"
+                className="hover:bg-border -mr-2"
                 title={isCollapsed ? "Expand all" : "Collapse all"}
               >
                 {isCollapsed ? (
@@ -248,7 +248,7 @@ export function CodeView(props: {
     >
       <>
         {props.title ? (
-          <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1">
+          <div className="my-1 flex shrink-0 items-center justify-between pl-1">
             <div className="text-sm font-medium">{props.title}</div>
             <Button
               variant="ghost"
@@ -276,7 +276,7 @@ export function CodeView(props: {
             variant="secondary"
             size="icon-xs"
             onClick={handleCopy}
-            className="absolute right-2 top-2 z-10"
+            className="absolute top-2 right-2 z-10"
           >
             {isCopied ? (
               <Check className="h-3 w-3" />
@@ -287,7 +287,7 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs",
+            "relative flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}

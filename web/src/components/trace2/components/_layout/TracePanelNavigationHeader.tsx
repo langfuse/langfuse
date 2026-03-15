@@ -6,7 +6,7 @@
  * - Render toolbar buttons (expand/collapse, settings, download, timeline)
  * - Manage search input state via SearchContext
  *
- * This component has a fixed height and uses flex-shrink-0 to maintain size.
+ * This component has a fixed height and uses shrink-0 to maintain size.
  */
 
 import { useSearch } from "../../contexts/SearchContext";
@@ -105,8 +105,8 @@ function TracePanelNavigationHeaderExpanded({
   const isTimelineView = viewMode === "timeline";
 
   return (
-    <Command className="mt-1 flex h-auto flex-shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      <div className="flex flex-row justify-between pl-1 pr-2">
+    <Command className="mt-1 flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
+      <div className="flex flex-row justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
         <div className="flex flex-row items-center p-0.5">
           <TracePanelNavigationButton
