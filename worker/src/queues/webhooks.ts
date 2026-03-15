@@ -10,7 +10,13 @@ import {
   isGitHubDispatchAction,
   type AutomationDomain,
   type ActionDomainWithSecrets,
+  type PagerDutyActionConfig,
+  type MicrosoftTeamsActionConfig,
+  type JiraActionConfig,
 } from "@langfuse/shared";
+import { buildPagerDutyPayload } from "../features/pagerduty/pagerdutyPayloadBuilder";
+import { buildTeamsAdaptiveCard } from "../features/teams/teamsAdaptiveCardBuilder";
+import { buildJiraIssuePayload } from "../features/jira/jiraIssueBuilder";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -82,6 +88,20 @@ export const executeWebhook = async (
       });
     } else if (automation.action.type === "GITHUB_DISPATCH") {
       await executeGitHubDispatchAction({
+        input,
+        automation,
+        skipValidation: options?.skipValidation,
+      });
+    } else if (automation.action.type === "PAGERDUTY") {
+      await executePagerDutyAction({ input, automation });
+    } else if (automation.action.type === "MICROSOFT_TEAMS") {
+      await executeMicrosoftTeamsAction({
+        input,
+        automation,
+        skipValidation: options?.skipValidation,
+      });
+    } else if (automation.action.type === "JIRA") {
+      await executeJiraAction({
         input,
         automation,
         skipValidation: options?.skipValidation,
@@ -349,21 +369,19 @@ async function executeWebhookAction({
   }
 
   const webhookConfig = actionConfig.config;
-  const webhookUser = input.payload.user
-    ? {
-        name: input.payload.user.name,
-        email: input.payload.user.email,
-      }
+
+  const promptPayload = input.payload;
+  const webhookUser = promptPayload.user
+    ? { name: promptPayload.user.name, email: promptPayload.user.email }
     : undefined;
 
-  // Validate and prepare webhook payload
   const validatedPayload = PromptWebhookOutboundSchema.safeParse({
     id: input.executionId,
     timestamp: new Date(),
-    type: input.payload.type,
+    type: promptPayload.type,
     apiVersion: "v1",
-    action: input.payload.action,
-    prompt: input.payload.prompt,
+    action: promptPayload.action,
+    prompt: promptPayload.prompt,
     user: webhookUser,
   });
 
@@ -373,7 +391,6 @@ async function executeWebhookAction({
     );
   }
 
-  // Prepare webhook payload with prompt always last
   const { prompt, user, ...otherFields } = validatedPayload.data;
   const webhookPayload = JSON.stringify({
     ...otherFields,
@@ -455,41 +472,42 @@ async function executeGitHubDispatchAction({
   }
 
   const githubConfig = actionConfig.config;
-  const webhookUser = input.payload.user
-    ? {
-        name: input.payload.user.name,
-        email: input.payload.user.email,
-      }
-    : undefined;
-
-  // Validate and prepare Langfuse payload
-  const validatedPayload = PromptWebhookOutboundSchema.safeParse({
-    id: input.executionId,
-    timestamp: new Date(),
-    type: input.payload.type,
-    apiVersion: "v1",
-    action: input.payload.action,
-    prompt: input.payload.prompt,
-    user: webhookUser,
-  });
-
-  if (!validatedPayload.success) {
-    throw new InternalServerError(
-      `Invalid webhook payload: ${validatedPayload.error.message}`,
-    );
-  }
 
   // Use configured event_type (required field)
   const eventType = githubConfig.eventType;
 
-  // Transform to GitHub dispatch format
-  const { prompt, user, ...otherFields } = validatedPayload.data;
+  const ghPromptPayload = input.payload;
+  const ghWebhookUser = ghPromptPayload.user
+    ? { name: ghPromptPayload.user.name, email: ghPromptPayload.user.email }
+    : undefined;
+
+  const ghValidatedPayload = PromptWebhookOutboundSchema.safeParse({
+    id: input.executionId,
+    timestamp: new Date(),
+    type: ghPromptPayload.type,
+    apiVersion: "v1",
+    action: ghPromptPayload.action,
+    prompt: ghPromptPayload.prompt,
+    user: ghWebhookUser,
+  });
+
+  if (!ghValidatedPayload.success) {
+    throw new InternalServerError(
+      `Invalid webhook payload: ${ghValidatedPayload.error.message}`,
+    );
+  }
+
+  const {
+    prompt: ghPrompt,
+    user: ghUser,
+    ...ghOtherFields
+  } = ghValidatedPayload.data;
   const githubPayload = JSON.stringify({
     event_type: eventType,
     client_payload: {
-      ...otherFields,
-      ...(user ? { user } : {}),
-      prompt,
+      ...ghOtherFields,
+      ...(ghUser ? { user: ghUser } : {}),
+      prompt: ghPrompt,
     },
   });
 
@@ -676,4 +694,148 @@ async function executeSlackAction({
       `Slack action failed for action ${automation.action.id} in project ${projectId}`,
     );
   }
+}
+
+async function executePagerDutyAction({
+  input,
+  automation,
+}: {
+  input: WebhookInput;
+  automation: AutomationDomain;
+}) {
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  const actionConfig = await getActionByIdWithSecrets({
+    projectId,
+    actionId: automation.action.id,
+  });
+
+  if (!actionConfig) {
+    throw new InternalServerError("Action config not found");
+  }
+
+  const pdConfig = actionConfig.config as PagerDutyActionConfig;
+  if (actionConfig.type !== "PAGERDUTY" || !pdConfig.integrationKey) {
+    throw new InternalServerError(
+      "Action config is not a valid PagerDuty configuration",
+    );
+  }
+
+  const pdPayload = buildPagerDutyPayload({
+    config: pdConfig,
+    input,
+    automation,
+  });
+
+  await executeHttpAction({
+    url: "https://events.pagerduty.com/v2/enqueue",
+    payload: JSON.stringify(pdPayload),
+    headers: { "Content-Type": "application/json" },
+    projectId,
+    automation,
+    executionId,
+    executionStart,
+    actionConfig,
+  });
+}
+
+async function executeMicrosoftTeamsAction({
+  input,
+  automation,
+  skipValidation,
+}: {
+  input: WebhookInput;
+  automation: AutomationDomain;
+  skipValidation?: boolean;
+}) {
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  const actionConfig = await getActionByIdWithSecrets({
+    projectId,
+    actionId: automation.action.id,
+  });
+
+  if (!actionConfig) {
+    throw new InternalServerError("Action config not found");
+  }
+
+  const teamsConfig = actionConfig.config as MicrosoftTeamsActionConfig;
+  if (actionConfig.type !== "MICROSOFT_TEAMS" || !teamsConfig.webhookUrl) {
+    throw new InternalServerError(
+      "Action config is not a valid Microsoft Teams configuration",
+    );
+  }
+
+  const cardPayload = buildTeamsAdaptiveCard(input);
+
+  await executeHttpAction({
+    url: teamsConfig.webhookUrl,
+    payload: JSON.stringify(cardPayload),
+    headers: { "Content-Type": "application/json" },
+    projectId,
+    skipValidation,
+    automation,
+    executionId,
+    executionStart,
+    actionConfig,
+  });
+}
+
+async function executeJiraAction({
+  input,
+  automation,
+  skipValidation,
+}: {
+  input: WebhookInput;
+  automation: AutomationDomain;
+  skipValidation?: boolean;
+}) {
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  const actionConfig = await getActionByIdWithSecrets({
+    projectId,
+    actionId: automation.action.id,
+  });
+
+  if (!actionConfig) {
+    throw new InternalServerError("Action config not found");
+  }
+
+  const jiraConfig = actionConfig.config as JiraActionConfig;
+  if (
+    actionConfig.type !== "JIRA" ||
+    !jiraConfig.apiToken ||
+    !jiraConfig.jiraBaseUrl
+  ) {
+    throw new InternalServerError(
+      "Action config is not a valid Jira configuration",
+    );
+  }
+
+  const {
+    payload: jiraPayload,
+    authHeader,
+    url,
+  } = buildJiraIssuePayload({
+    config: jiraConfig,
+    input,
+  });
+
+  await executeHttpAction({
+    url,
+    payload: JSON.stringify(jiraPayload),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: authHeader,
+    },
+    projectId,
+    skipValidation,
+    automation,
+    executionId,
+    executionStart,
+    actionConfig,
+  });
 }
