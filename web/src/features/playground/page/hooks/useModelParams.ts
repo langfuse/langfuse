@@ -306,5 +306,20 @@ function getDefaultAdapterParams(
         maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
+
+    // Docs: https://platform.minimaxi.com/document/ChatCompletion%20v2
+    case LLMAdapter.MiniMax:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0.5, enabled: false },
+        maxTemperature: { value: 1, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
+        top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
+        providerOptions: { value: {}, enabled: false },
+      };
   }
 }
