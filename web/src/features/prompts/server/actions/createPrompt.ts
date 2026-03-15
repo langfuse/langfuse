@@ -37,6 +37,16 @@ type DuplicatePromptParams = {
   user?: { id: string; name: string | null; email: string | null };
 };
 
+type DuplicateFolderParams = {
+  projectId: string;
+  sourcePath: string;
+  targetPath: string;
+  isSingleVersion: boolean;
+  createdBy: string;
+  prisma: PrismaClient;
+  user?: { id: string; name: string | null; email: string | null };
+};
+
 const extractChatVariableAndPlaceholderNames = (
   chatPrompt: Array<any>,
 ): { variables: string[]; placeholders: string[] } => {
@@ -345,4 +355,150 @@ export const duplicatePrompt = async ({
   );
 
   return createdPrompt;
+};
+
+export const duplicateFolder = async ({
+  projectId,
+  sourcePath,
+  targetPath,
+  isSingleVersion,
+  createdBy,
+  prisma,
+  user,
+}: DuplicateFolderParams) => {
+  const existingTargetPrompt = await prisma.prompt.findFirst({
+    where: {
+      projectId,
+      name: { startsWith: `${targetPath}/` },
+    },
+  });
+
+  if (existingTargetPrompt) {
+    throw new InvalidRequestError(
+      `Prompts already exist under the target path "${targetPath}/". Please choose a different target path.`,
+    );
+  }
+
+  // Find all prompts under the source folder, including nested subfolders
+  const sourcePrompts = await prisma.prompt.findMany({
+    where: {
+      projectId,
+      name: { startsWith: `${sourcePath}/` },
+    },
+    include: {
+      PromptDependency: {
+        select: {
+          childName: true,
+          childLabel: true,
+          childVersion: true,
+        },
+      },
+    },
+    orderBy: [{ name: "asc" }, { version: "asc" }],
+  });
+
+  if (sourcePrompts.length === 0) {
+    throw new InvalidRequestError(
+      `No prompts found under the source path "${sourcePath}/".`,
+    );
+  }
+
+  // Group by name: each unique prompt name may have multiple versions
+  const promptsByName = new Map<string, (typeof sourcePrompts)[number][]>();
+  for (const prompt of sourcePrompts) {
+    const existing = promptsByName.get(prompt.name) ?? [];
+    existing.push(prompt);
+    promptsByName.set(prompt.name, existing);
+  }
+
+  const oldToNewIdMap: Record<string, string> = {};
+  const allPromptsToCreate: Array<{
+    id: string;
+    name: string;
+    version: number;
+    labels: string[];
+    type: string;
+    prompt: ReturnType<typeof PromptContentSchema.parse>;
+    config: ReturnType<typeof jsonSchema.parse>;
+    tags: string[];
+    projectId: string;
+    createdBy: string;
+    commitMessage: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    isActive: boolean;
+  }> = [];
+
+  for (const [originalName, versions] of promptsByName) {
+    const newName = `${targetPath}${originalName.slice(sourcePath.length)}`;
+
+    const promptsToCopy = isSingleVersion
+      ? [versions.reduce((a, b) => (a.version > b.version ? a : b))]
+      : versions;
+
+    for (const prompt of promptsToCopy) {
+      const newPromptId = uuidv4();
+      oldToNewIdMap[prompt.id] = newPromptId;
+
+      allPromptsToCreate.push({
+        id: newPromptId,
+        name: newName,
+        version: isSingleVersion ? 1 : prompt.version,
+        labels: isSingleVersion
+          ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+          : prompt.labels,
+        type: prompt.type,
+        prompt: PromptContentSchema.parse(prompt.prompt),
+        config: jsonSchema.parse(prompt.config),
+        tags: prompt.tags,
+        projectId,
+        createdBy,
+        commitMessage: prompt.commitMessage,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isActive: true,
+      });
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.prompt.createMany({
+      data: allPromptsToCreate,
+    });
+
+    await tx.promptDependency.createMany({
+      data: sourcePrompts
+        .filter((prompt) => oldToNewIdMap[prompt.id] !== undefined)
+        .flatMap((prompt) =>
+          prompt.PromptDependency.map((dep) => ({
+            projectId,
+            parentId: oldToNewIdMap[prompt.id],
+            childName: dep.childName,
+            childVersion: dep.childVersion,
+            childLabel: dep.childLabel,
+          })),
+        ),
+    });
+  });
+
+  const promptService = new PromptService(prisma, redis);
+
+  await promptService.invalidateCache({ projectId });
+
+  await Promise.all(
+    allPromptsToCreate.map(async (prompt) =>
+      promptChangeEventSourcing(
+        await promptService.resolvePrompt(prompt),
+        "created",
+        user,
+      ),
+    ),
+  );
+
+  return {
+    copiedPromptNames: [...promptsByName.keys()].map(
+      (originalName) => `${targetPath}${originalName.slice(sourcePath.length)}`,
+    ),
+    copiedCount: allPromptsToCreate.length,
+  };
 };

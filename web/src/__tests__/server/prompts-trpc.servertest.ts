@@ -1387,4 +1387,341 @@ describe("prompts trpc", () => {
       expect(folderSearchResults.prompts.length).toBeGreaterThan(0);
     });
   });
+
+  describe("prompts.duplicateFolder", () => {
+    it("should duplicate all prompts from source folder to target folder (latest only)", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-test-${v4().slice(0, 8)}`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/source/promptA`,
+            version: 1,
+            type: "text",
+            prompt: "version 1 of A",
+            createdBy: "test-user",
+            labels: ["production"],
+            tags: ["tagA"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/source/promptA`,
+            version: 2,
+            type: "text",
+            prompt: "version 2 of A",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: ["tagA"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/source/promptB`,
+            version: 1,
+            type: "chat",
+            prompt: [
+              { role: "system", content: "You are a helpful assistant." },
+            ],
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: ["tagB"],
+          },
+        ],
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: `${folderPrefix}/source`,
+        targetPath: `${folderPrefix}/target`,
+        isSingleVersion: true,
+      });
+
+      expect(result.copiedCount).toBe(2);
+      expect(result.copiedPromptNames).toContain(
+        `${folderPrefix}/target/promptA`,
+      );
+      expect(result.copiedPromptNames).toContain(
+        `${folderPrefix}/target/promptB`,
+      );
+
+      const copiedA = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: `${folderPrefix}/target/promptA`,
+        },
+      });
+      expect(copiedA).toHaveLength(1);
+      expect(copiedA[0].version).toBe(1);
+      expect(copiedA[0].prompt).toBe("version 2 of A");
+      expect(copiedA[0].tags).toEqual(["tagA"]);
+
+      const copiedB = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: `${folderPrefix}/target/promptB`,
+        },
+      });
+      expect(copiedB).toHaveLength(1);
+      expect(copiedB[0].type).toBe("chat");
+    });
+
+    it("should trigger webhook automations for each copied prompt version", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-webhook-${v4().slice(0, 8)}`;
+
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: "ACTIVE",
+        },
+      });
+
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/prompt-duplicate-folder-webhook",
+            headers: { "Content-Type": "application/json" },
+            apiVersion: { prompt: "v1" },
+          },
+        },
+      });
+
+      await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Prompt Folder Duplicate Automation",
+        },
+      });
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/promptA`,
+            version: 1,
+            type: "text",
+            prompt: "A",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/promptB`,
+            version: 1,
+            type: "text",
+            prompt: "B",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+        ],
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: `${folderPrefix}/src`,
+        targetPath: `${folderPrefix}/dst`,
+        isSingleVersion: true,
+      });
+
+      expect(result.copiedCount).toBe(2);
+
+      await waitForExpect(async () => {
+        const executions = await prisma.automationExecution.findMany({
+          where: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+          },
+        });
+
+        expect(executions).toHaveLength(2);
+        expect(executions.every((e) => e.status === "PENDING")).toBe(true);
+      });
+    });
+
+    it("should duplicate all versions when isSingleVersion is false", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-allver-${v4().slice(0, 8)}`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/myPrompt`,
+            version: 1,
+            type: "text",
+            prompt: "v1",
+            createdBy: "test-user",
+            labels: [],
+            tags: [],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/myPrompt`,
+            version: 2,
+            type: "text",
+            prompt: "v2",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+        ],
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: `${folderPrefix}/src`,
+        targetPath: `${folderPrefix}/dst`,
+        isSingleVersion: false,
+      });
+
+      expect(result.copiedCount).toBe(2);
+
+      const copiedVersions = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: `${folderPrefix}/dst/myPrompt`,
+        },
+        orderBy: { version: "asc" },
+      });
+      expect(copiedVersions).toHaveLength(2);
+      expect(copiedVersions[0].version).toBe(1);
+      expect(copiedVersions[0].prompt).toBe("v1");
+      expect(copiedVersions[1].version).toBe(2);
+      expect(copiedVersions[1].prompt).toBe("v2");
+    });
+
+    it("should reject when target path already has prompts", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-conflict-${v4().slice(0, 8)}`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/prompt1`,
+            version: 1,
+            type: "text",
+            prompt: "source",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/dst/existing`,
+            version: 1,
+            type: "text",
+            prompt: "already here",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+        ],
+      });
+
+      await expect(
+        caller.prompts.duplicateFolder({
+          projectId: project.id,
+          sourcePath: `${folderPrefix}/src`,
+          targetPath: `${folderPrefix}/dst`,
+          isSingleVersion: true,
+        }),
+      ).rejects.toThrow(/already exist/i);
+    });
+
+    it("should reject when source folder is empty", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.duplicateFolder({
+          projectId: project.id,
+          sourcePath: `nonexistent-folder-${v4().slice(0, 8)}`,
+          targetPath: "whatever",
+          isSingleVersion: true,
+        }),
+      ).rejects.toThrow(/no prompts found/i);
+    });
+
+    it("should duplicate nested subfolder structure", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-nested-${v4().slice(0, 8)}`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/sub1/deep`,
+            version: 1,
+            type: "text",
+            prompt: "deep prompt",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderPrefix}/src/sub2/another`,
+            version: 1,
+            type: "text",
+            prompt: "another prompt",
+            createdBy: "test-user",
+            labels: ["latest"],
+            tags: [],
+          },
+        ],
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: `${folderPrefix}/src`,
+        targetPath: `${folderPrefix}/dst`,
+        isSingleVersion: true,
+      });
+
+      expect(result.copiedCount).toBe(2);
+
+      const deepCopy = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: `${folderPrefix}/dst/sub1/deep`,
+        },
+      });
+      expect(deepCopy).not.toBeNull();
+      expect(deepCopy?.prompt).toBe("deep prompt");
+
+      const anotherCopy = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: `${folderPrefix}/dst/sub2/another`,
+        },
+      });
+      expect(anotherCopy).not.toBeNull();
+      expect(anotherCopy?.prompt).toBe("another prompt");
+    });
+  });
 });
