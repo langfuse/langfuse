@@ -7,6 +7,7 @@ import { createExperimentJobClickhouse } from "../features/experiments/experimen
 import {
   createDatasetItem,
   createOrgProjectAndApiKey,
+  fetchLLMCompletion,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -470,6 +471,120 @@ describe("create experiment jobs with placeholders", () => {
 
     // Just verify it doesn't throw and returns success
     expect(result).toEqual({ success: true });
+  });
+});
+
+describe("dataset item metadata in trace sink params", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const setupExperiment = async (itemMetadata: unknown) => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const promptId = randomUUID();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId,
+        name: "Test Prompt",
+        prompt: "Hello {{name}}",
+        type: "text",
+        version: 1,
+        createdBy: "test-user",
+      },
+    });
+    await prisma.dataset.create({
+      data: { id: datasetId, projectId, name: "Test Dataset" },
+    });
+    await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        name: "Test Run",
+        projectId,
+        datasetId,
+        metadata: {
+          prompt_id: promptId,
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          model_params: { temperature: 0 },
+        },
+      },
+    });
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+      metadata: itemMetadata,
+    });
+    await prisma.llmApiKeys.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "test-key",
+        secretKey: encrypt("test-key"),
+      },
+    });
+
+    return { projectId, datasetId, runId };
+  };
+
+  test("includes dataset item object metadata in traceSinkParams", async () => {
+    const { projectId, datasetId, runId } = await setupExperiment({
+      customer_id: "123",
+      variant: "A",
+    });
+
+    await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    const call = vi.mocked(fetchLLMCompletion).mock.calls[0][0];
+    expect(call.traceSinkParams?.metadata).toMatchObject({
+      customer_id: "123",
+      variant: "A",
+      dataset_id: datasetId,
+      dataset_item_id: expect.any(String),
+    });
+  });
+
+  test("hardcoded keys are not overwritten by dataset item metadata", async () => {
+    const { projectId, datasetId, runId } = await setupExperiment({
+      dataset_id: "should-not-overwrite",
+      dataset_item_id: "should-not-overwrite",
+      custom_key: "custom_value",
+    });
+
+    await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    const call = vi.mocked(fetchLLMCompletion).mock.calls[0][0];
+    expect(call.traceSinkParams?.metadata).toMatchObject({
+      dataset_id: datasetId,
+      dataset_item_id: expect.any(String),
+      custom_key: "custom_value",
+    });
+    expect(call.traceSinkParams?.metadata?.dataset_id).toBe(datasetId);
+  });
+
+  test("includes no extra keys when dataset item has null metadata", async () => {
+    const { projectId, datasetId, runId } = await setupExperiment(null);
+
+    await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    const call = vi.mocked(fetchLLMCompletion).mock.calls[0][0];
+    expect(call.traceSinkParams?.metadata).toMatchObject({
+      dataset_id: datasetId,
+      dataset_item_id: expect.any(String),
+    });
+    expect(Object.keys(call.traceSinkParams?.metadata ?? {})).toHaveLength(5); // 5 hardcoded keys
   });
 });
 
