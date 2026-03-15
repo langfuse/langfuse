@@ -8,6 +8,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants";
 import { nanoid } from "nanoid";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   MessageTypeSchema,
@@ -17,6 +18,12 @@ import {
 } from "../formConstants";
 
 import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events/supportRequestMetadataEvent";
+import {
+  createPylonIssue,
+  buildPylonIssueBodyHtml,
+  buildPylonMetadataString,
+  mapSeverityToPylonPriority,
+} from "../pylon/pylonClient";
 
 import {
   initPlain,
@@ -46,8 +53,10 @@ const CreateSupportThreadInput = z.object({
   projectId: z.string().optional(),
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
-  /** IDs of attachments already uploaded via prepareAttachmentUploads */
+  /** IDs of attachments already uploaded via prepareAttachmentUploads (Plain) */
   attachmentIds: z.array(z.string()).optional(),
+  /** URLs of attachments already uploaded to Pylon */
+  pylonAttachmentUrls: z.array(z.string().url()).optional(),
 });
 
 const PrepareAttachmentUploadsInput = z.object({
@@ -311,6 +320,48 @@ export const plainRouter = createTRPCRouter({
         attachmentIds: input.attachmentIds ?? [],
         impersonate: false,
       });
+
+      // (6) Dual-write: create issue in Pylon (best-effort, blocking)
+      // TEMPORARY: only route clickhouse.com and langfuse.com to Pylon for testing
+      const emailDomain = email.split("@")[1]?.toLowerCase();
+      const pylonTestDomains = ["clickhouse.com", "langfuse.com"];
+      if (env.PYLON_API_KEY && pylonTestDomains.includes(emailDomain ?? "")) {
+        try {
+          const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
+          const pylonBodyHtml = buildPylonIssueBodyHtml({
+            message: input.message,
+            requesterEmail: email,
+          });
+          const pylonMetadata = buildPylonMetadataString({
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            cloudRegion: currentSupportRequestContext.region,
+            version: VERSION,
+            browserMetadata: input.browserMetadata,
+          });
+          await createPylonIssue({
+            apiKey: env.PYLON_API_KEY,
+            title: pylonTitle,
+            bodyHtml: pylonBodyHtml,
+            requesterEmail: email,
+            requesterName: fullName,
+            tags: ["Langfuse"],
+            priority: mapSeverityToPylonPriority(input.severity),
+            attachmentUrls: input.pylonAttachmentUrls,
+            customFields: [
+              ...(input.url ? [{ slug: "url", value: input.url }] : []),
+              { slug: "question_type", value: input.messageType },
+              { slug: "topic", value: input.topic },
+              ...(input.integrationType
+                ? [{ slug: "integration_type", value: input.integrationType }]
+                : []),
+              { slug: "metadata", value: pylonMetadata },
+            ],
+          });
+        } catch (e) {
+          logger.error("Pylon issue creation failed (best-effort)", e);
+        }
+      }
 
       return {
         threadId,
