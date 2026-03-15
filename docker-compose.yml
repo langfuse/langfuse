@@ -132,7 +132,7 @@ services:
     restart: always
     # CHANGEME: row below to secure redis password
     command: >
-      --requirepass ${REDIS_AUTH:-myredissecret}
+      --requirepass ${REDIS_AUTH:-myredissecret} #CHANGEME
       --maxmemory-policy noeviction
     ports:
       - 127.0.0.1:6379:6379
