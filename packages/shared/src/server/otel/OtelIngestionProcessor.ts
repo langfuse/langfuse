@@ -190,7 +190,9 @@ export class OtelIngestionProcessor {
     ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
 
     // Add queue job
-    const queue = OtelIngestionQueue.getInstance({});
+    const queue = OtelIngestionQueue.getInstance({
+      shardingKey: `${this.projectId}-${fileKey}`,
+    });
     return queue
       ? queue.add(QueueJobs.OtelIngestionJob, {
           id: randomUUID(),
