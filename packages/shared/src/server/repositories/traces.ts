@@ -1369,11 +1369,12 @@ export const getTracesForBlobStorageExport = function (
       bookmarked as bookmarked,
       tags,
       input as input,
-      output as output
+      output as output,
+      created_at
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
-    AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND created_at >= {minTimestamp: DateTime64(3)}
+    AND created_at <= {maxTimestamp: DateTime64(3)}
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({

@@ -1838,11 +1838,12 @@ export const getScoresForBlobStorageExport = function (
       source,
       comment,
       data_type,
-      string_value
+      string_value,
+      created_at
     FROM scores FINAL
     WHERE project_id = {projectId: String}
-    AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND created_at >= {minTimestamp: DateTime64(3)}
+    AND created_at <= {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 
