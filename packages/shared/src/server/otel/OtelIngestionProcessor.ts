@@ -955,7 +955,7 @@ export class OtelIngestionProcessor {
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
         ? mappedObservationType.toLowerCase()
-        : ObservationType.SPAN;
+        : ObservationType.SPAN.toLowerCase();
 
     const isKnownObservationType =
       observationType &&
@@ -1938,7 +1938,7 @@ export class OtelIngestionProcessor {
     if (
       !(
         [ObservationType.GENERATION, ObservationType.EMBEDDING] as string[]
-      ).includes(observationType)
+      ).includes(observationType.toUpperCase())
     )
       return {};
 

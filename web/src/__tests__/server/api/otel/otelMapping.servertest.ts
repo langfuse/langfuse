@@ -1227,6 +1227,149 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    describe("usage detail extraction", () => {
+      const createSingleSpanResource = ({
+        attributes,
+        scope,
+        spanName,
+      }: {
+        attributes: Array<Record<string, unknown>>;
+        scope?: Record<string, unknown>;
+        spanName: string;
+      }) => ({
+        scopeSpans: [
+          {
+            ...(scope ? { scope } : {}),
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: spanName,
+                attributes,
+                status: {},
+              },
+            ],
+          },
+        ],
+      });
+
+      it.each([
+        {
+          observationType: "generation",
+          expectedEventType: "generation-create",
+          usageDetails: { input: 123, output: 45, total: 168 },
+        },
+        {
+          observationType: "embedding",
+          expectedEventType: "embedding-create",
+          usageDetails: { input: 512, total: 512 },
+        },
+      ])(
+        "should preserve explicit usage details on lowercased $observationType events",
+        async ({ observationType, expectedEventType, usageDetails }) => {
+          const events = await convertOtelSpanToIngestionEvent(
+            createSingleSpanResource({
+              spanName: `test-${observationType}`,
+              attributes: [
+                {
+                  key: "langfuse.observation.type",
+                  value: { stringValue: observationType },
+                },
+                {
+                  key: "langfuse.observation.usage_details",
+                  value: { stringValue: JSON.stringify(usageDetails) },
+                },
+              ],
+            }),
+            new Set(),
+          );
+
+          const observationEvent = events.find(
+            (event) => event.type === expectedEventType,
+          );
+
+          expect(observationEvent).toBeDefined();
+          expect(observationEvent?.body.usageDetails).toEqual(usageDetails);
+        },
+      );
+
+      it.each([
+        {
+          operationName: "chat",
+          expectedEventType: "generation-create",
+          expectedUsageDetails: { input: 11, output: 7, total: 18 },
+        },
+        {
+          operationName: "embeddings",
+          expectedEventType: "embedding-create",
+          expectedUsageDetails: { input: 256, output: 0, total: 256 },
+        },
+      ])(
+        "should infer token usage on lowercased ai-scope $operationName events",
+        async ({ operationName, expectedEventType, expectedUsageDetails }) => {
+          const events = await convertOtelSpanToIngestionEvent(
+            createSingleSpanResource({
+              scope: { name: "ai" },
+              spanName: `test-${operationName}`,
+              attributes: [
+                {
+                  key: "gen_ai.operation.name",
+                  value: { stringValue: operationName },
+                },
+                {
+                  key: "ai.model.id",
+                  value: { stringValue: "test-model" },
+                },
+                {
+                  key: "gen_ai.usage.input_tokens",
+                  value: {
+                    intValue: {
+                      low: expectedUsageDetails.input,
+                      high: 0,
+                      unsigned: false,
+                    },
+                  },
+                },
+                ...("output" in expectedUsageDetails
+                  ? [
+                      {
+                        key: "gen_ai.usage.output_tokens",
+                        value: {
+                          intValue: {
+                            low: expectedUsageDetails.output,
+                            high: 0,
+                            unsigned: false,
+                          },
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  key: "ai.usage.tokens",
+                  value: {
+                    intValue: {
+                      low: expectedUsageDetails.total,
+                      high: 0,
+                      unsigned: false,
+                    },
+                  },
+                },
+              ],
+            }),
+            new Set(),
+          );
+
+          const observationEvent = events.find(
+            (event) => event.type === expectedEventType,
+          );
+
+          expect(observationEvent).toBeDefined();
+          expect(observationEvent?.body.usageDetails).toEqual(
+            expectedUsageDetails,
+          );
+        },
+      );
+    });
+
     it("should map Pydantic AI tool call to TOOL observation type via gen_ai.tool.* attributes", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
 
@@ -1848,7 +1991,7 @@ describe("OTel Resource Span Mapping", () => {
       ).toBe(false);
     });
 
-    it("should trust OpenInference over model detection but keep model attributes", async () => {
+    it("should trust OpenInference over model detection, keep model attributes, and ignore usage details", async () => {
       const resourceSpan = {
         scopeSpans: [
           {
@@ -1893,12 +2036,12 @@ describe("OTel Resource Span Mapping", () => {
         langfuseEvents.some((event) => event.type === "generation-create"),
       ).toBe(false);
 
-      // Should still extract model and usage info
+      // Should still extract model info without usage details
       const retrieverEvent = langfuseEvents.find(
         (event) => event.type === "retriever-create",
       );
       expect(retrieverEvent?.body.model).toBe("text-embedding-ada-002");
-      expect(retrieverEvent?.body.usageDetails.input).toBe(50);
+      expect(retrieverEvent?.body.usageDetails).toEqual({});
     });
 
     it("should map tool-call spans with empty model-related attributes to span-create (not generation-create)", async () => {
