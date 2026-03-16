@@ -181,7 +181,7 @@ async function main() {
 
     //write trace+observations in file
     const yyyyMMdd = new Date(trace.timestamp).toISOString().slice(0, 10);
-    const fileName = `${traceToDownload.fileNamePrefix}-${yyyyMMdd}.json`;
+    const fileName = `${traceToDownload.fileNamePrefix}-${yyyyMMdd}.trace.json`;
     const content = JSON.stringify({ trace, observations }, null, 2) + "\n";
     fs.writeFileSync(path.join(__dirname, fileName), content, "utf8");
 

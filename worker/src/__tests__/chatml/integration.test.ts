@@ -1,40 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, readdirSync } from "fs";
 import path from "path";
-
-vi.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
-
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
 
 import {
   normalizeInput,
@@ -42,7 +8,7 @@ import {
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-  selectAdapter,
+  ChatMlArraySchema,
 } from "@langfuse/shared/src/utils/chatml";
 
 import { deepParseJson } from "@langfuse/shared";
@@ -533,138 +499,122 @@ describe("ChatML Integration", () => {
   });
 });
 
-type FileTestCase = {
-  file: string;
-  expected: string;
-  skipObservations?: string[];
-};
+const tracesDir = path.resolve(__dirname, "framework-traces");
+const traceFiles = readdirSync(tracesDir).filter((f) =>
+  f.endsWith(".trace.json"),
+);
+// use this to update the expected mapping result when chaning/fixing the mapping logic
+const updateExpectedFilesOnFailure = false;
 
-describe("ChatML adapter selection tests", () => {
-  it.each([
-    {
-      file: "agno-2025-06-11.json",
-      expected: "generic",
-      skipObservations: [
-        "b38a82eaa62b551e", //matched as openai because the observation name contains "openai" but the input/output are not proper JSON, they are python object repr
-        "ca136de468e156c9", //same
-        "1cffdfa6fe3412e6", //matched as openai because the output contains messages[] and tools[] but that's not openai
-        "6581e147aec6793a", //matched as langraph because the output is vaguely an array but that's not the good format
-      ],
-    },
-    { file: "autogen-2025-06-06.json", expected: "generic" },
-    {
-      file: "beeai-2025-08-01.json",
-      expected: "langgraph",
-      skipObservations: [
-        //❓most are matched by the langraph adapter but it's structurally an openai chat response api input (the trace use gpt)
-        // + some with a totally different format
-        "322299e937be4455",
-        "477d350ab1c6548d",
-        "96cb191e191a9378",
-        "bd2f100ab98514d4",
-        "cb4886242bf214b8",
-      ],
-    },
-    { file: "claude-agent-2025-12-22.json", expected: "generic" },
-    {
-      file: "crewai-2025-07-11.json",
-      expected: "generic",
-      skipObservations: [
-        "231c43964b7e7e63", //❓this is matched by the langraph adapter but it's structurally an openai chat completion input (the trace use gpt)
-      ],
-    },
-    {
-      file: "google-adk-2025-08-28.json",
-      expected: "gemini",
-      skipObservations: [
-        "86cd4912944ddc41", //❓has the scope name openinference.instrumentation.google_adk.
-        /* openinference seems to simply put the args of runner.run_async() as input (ex: new_message). new_message itself has this structure 
-          new_message: {
-              "parts": [{"text": "hi"}],
-              "role": "user"
-          }
-        */
-      ],
-    },
-    {
-      file: "google-gemini-2025-08-01.json",
-      expected: "gemini",
-      skipObservations: [
-        "b7a63ca7e1d083bc", //❓output looks like gemini, but input looks like nothing (single string contents)
-      ],
-    },
-    {
-      file: "koog-2025-08-26.json",
-      expected: "langgraph",
-      skipObservations: [
-        // most are matched by langgraph because the schema is very permissive, but they are closer to openai
-        "33188493784a060d", //❓koog (scope.name = ai.koog) mostly look like the underlying model (openai), but the tool spans are diffrent
-        "66f269083a2fff81", //❓koog (scope.name = ai.koog) mostly look like the underlying model (openai), but the tool spans are diffrent
-      ],
-    },
-    { file: "langchain-deepagent-2025-10-29.json", expected: "langgraph" },
-    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
-    { file: "langgraph-python-2025-08-22.json", expected: "langgraph" },
-    { file: "langgraph-js-2025-10-30.json", expected: "langgraph" },
-    { file: "llamaindex-2025-06-05.json", expected: "openai" }, //despite being called "llama", this has nothing to do with the llama models and uses gpt
-    { file: "microsoft-agent-2025-12-17.json", expected: "microsoft-agent" },
-    { file: "openai-agents-2025-09-30.json", expected: "openai" },
-    { file: "pydantic-ai-2025-06-06.json", expected: "pydantic-ai" },
-    {
-      file: "pydantic-ai-tools-2025-12-04.json",
-      expected: "pydantic-ai",
-      skipObservations: [
-        "00d3f40ee8e3b716", //❓scope name is langfuse-sdk, seems to be a tool call span with no framework specific markings
-      ],
-    },
-    { file: "vercel-aisdk-2025-11-17.json", expected: "aisdk" },
-    { file: "vertex-ai-2025-08-01.json", expected: "gemini" },
-  ] as FileTestCase[])(
-    "should select adapter $expected for trace file $file ",
-    ({ file, expected, skipObservations }) => {
+describe("ChatML adaption tests against real observations", () => {
+  it.each(traceFiles)(
+    "should adapt observations from trace file %s ",
+    (traceFile: string) => {
+      //load trace file
       const fileDir = path.resolve(__dirname, "framework-traces");
+      const traceFilePath = path.join(fileDir, traceFile);
+      const traceContent = readFileSync(traceFilePath, "utf-8");
+      const observations = JSON.parse(traceContent).observations;
 
-      const filePath = path.join(fileDir, file);
-      expect(existsSync(filePath), "File should exist").toBe(true);
+      //load expected file
+      const expectedFile = traceFile.replace(/\.trace\.json$/, ".chatml.json");
+      const expectedFilePath = path.join(fileDir, expectedFile);
 
-      const content = readFileSync(filePath, "utf-8");
-      const observations = JSON.parse(content).observations;
+      let errorMessage = `File ${expectedFilePath} should exist`;
+      expect(existsSync(expectedFilePath), errorMessage).toBe(true);
+      const expectedContent = readFileSync(expectedFilePath, "utf-8");
+      const expected = JSON.parse(expectedContent) as Record<
+        string,
+        {
+          input?: ReturnType<typeof ChatMlArraySchema.safeParse>;
+          output?: ReturnType<typeof ChatMlArraySchema.safeParse>;
+        }
+      >;
 
       //check if data has at least one observation with a non undefined input
-      const errorMessage = `File should have at least one observation with input and output`;
+      errorMessage = `File should have at least one observation with input and output`;
       const hasFilledObs = observations.some((o: any) => o.input && o.output);
       expect(hasFilledObs, errorMessage).toBe(true);
 
       //test each observation with an input and/or output
       for (const obs of observations) {
-        if (skipObservations?.includes(obs.id)) continue;
         if (obs.input) {
-          const actual = selectAdapter({
-            metadata: tryParseAsJson(obs.metadata ?? obs.input),
-            data: tryParseAsJson(obs.input),
+          const expectedInput = expected[obs.id]?.input;
+          errorMessage = `Observation ${obs.id} should have an expected input`;
+          expect(expectedInput, errorMessage).not.toBeUndefined();
+
+          const inResult = normalizeInput(deepParseJson(obs.input), {
+            metadata: deepParseJson(obs.metadata),
             observationName: obs.name,
           });
-          const errorMessage = `Input of observation ${obs.id} should be matched by ${expected}`;
-          expect(actual.id, errorMessage).toBe(expected);
+          const normalizedInResult = JSON.parse(JSON.stringify(inResult));
+          errorMessage = `Observation ${obs.id}'s input should be mapped as expected`;
+          try {
+            expect(normalizedInResult, errorMessage).toEqual(expectedInput);
+          } catch (err) {
+            if (updateExpectedFilesOnFailure)
+              writeToExpectedFile(
+                expectedFile,
+                obs.id,
+                "input",
+                normalizedInResult,
+              );
+            else throw err;
+          }
+          expect(normalizedInResult, errorMessage).toEqual(expectedInput);
         }
         if (obs.output) {
-          const actual = selectAdapter({
-            metadata: tryParseAsJson(obs.metadata ?? obs.output),
-            data: tryParseAsJson(obs.output),
+          const expectedOutput = expected[obs.id]?.output;
+          errorMessage = `Observation ${obs.id} should have an expected output`;
+          expect(expectedOutput, errorMessage).not.toBeUndefined();
+
+          const outResult = normalizeOutput(deepParseJson(obs.output), {
+            metadata: deepParseJson(obs.metadata),
             observationName: obs.name,
           });
-          const errorMessage = `Output of observation ${obs.id} should be matched by ${expected}`;
-          expect(actual.id, errorMessage).toBe(expected);
+          const normalizedOutResult = JSON.parse(JSON.stringify(outResult));
+          errorMessage = `Observation ${obs.id}'s output should be mapped as expected`;
+          try {
+            expect(normalizedOutResult, errorMessage).toEqual(expectedOutput);
+          } catch (err) {
+            if (updateExpectedFilesOnFailure)
+              writeToExpectedFile(
+                expectedFile,
+                obs.id,
+                "output",
+                normalizedOutResult,
+              );
+            else throw err;
+          }
         }
       }
     },
   );
 });
 
-function tryParseAsJson(data: any) {
-  try {
-    return JSON.parse(data);
-  } catch (e) {
-    return data;
+/**
+ * Helper function to write normalized input/output to expected file for a given observation ID and type (input/output).
+ */
+function writeToExpectedFile(
+  expectedFileName: string,
+  observationId: string,
+  type: "input" | "output",
+  data: any,
+) {
+  const fileDir = path.resolve(__dirname, "framework-traces");
+  const expectedFilePath = path.join(fileDir, expectedFileName);
+
+  let expected: Record<string, any> = {};
+  if (existsSync(expectedFilePath)) {
+    const expectedContent = readFileSync(expectedFilePath, "utf-8");
+    expected = JSON.parse(expectedContent);
+  } else {
+    //create empty file
+    writeFileSync(expectedFilePath, JSON.stringify({}, null, 2), "utf-8");
   }
+
+  expected[observationId] = expected[observationId] || {};
+  expected[observationId][type] = data;
+
+  writeFileSync(expectedFilePath, JSON.stringify(expected, null, 2), "utf-8");
 }
