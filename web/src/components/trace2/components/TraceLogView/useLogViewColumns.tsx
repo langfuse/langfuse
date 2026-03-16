@@ -52,7 +52,7 @@ export function useLogViewColumns({
         width: "w-12",
         align: "right" as const,
         render: (item) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {item.node.depth >= 0 ? `L${item.node.depth}` : "-"}
           </span>
         ),
@@ -63,7 +63,7 @@ export function useLogViewColumns({
         width: showMilliseconds ? "w-20" : "w-12",
         align: "right" as const,
         render: (item) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {formatRelativeTime(
               item.node.startTimeSinceTrace,
               showMilliseconds,
@@ -77,7 +77,7 @@ export function useLogViewColumns({
         width: "w-16",
         align: "right" as const,
         render: (item) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {formatDuration(item.node.startTime, item.node.endTime)}
           </span>
         ),

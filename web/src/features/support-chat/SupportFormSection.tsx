@@ -320,7 +320,7 @@ export function SupportFormSection({
       <div className="flex items-center gap-2 text-base font-semibold">
         E-Mail a Support Engineer
       </div>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Details speed things up. The clearer your request, the quicker you get
         the answer you need.
       </p>
@@ -346,7 +346,9 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={field.value === v ? "default" : "outline"}
+                        variant={
+                          field.value === v ? "default" : "outline-solid"
+                        }
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
@@ -407,7 +409,7 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                        <div className="text-muted-foreground mb-2 text-xs font-medium">
                           Product Features
                         </div>
                         {TopicGroups["Product Features"].map((t) => (
@@ -417,7 +419,7 @@ export function SupportFormSection({
                         ))}
                       </div>
                       <div className="border-t p-2">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                        <div className="text-muted-foreground mb-2 text-xs font-medium">
                           Operations
                         </div>
                         {TopicGroups.Operations.map((t) => (
@@ -469,7 +471,7 @@ export function SupportFormSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Message</FormLabel>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   We will email you at your account address. Replies may take up
                   to one business day.
                 </div>
@@ -534,7 +536,7 @@ export function SupportFormSection({
 
                 {files && files.length > 0 && (
                   <div className="p-0 text-left text-sm font-medium">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 text-xs font-medium">
                       Attached files
                     </div>
                     {files?.map((file) => (
@@ -597,7 +599,7 @@ export function SupportFormSection({
           </div>
 
           {isSubmittingLocal && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               This can take a few seconds — hang tight while we submit your
               request.
             </div>

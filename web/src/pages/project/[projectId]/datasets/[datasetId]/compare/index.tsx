@@ -187,7 +187,7 @@ function DatasetCompareInternal() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
           <DatasetCompareRunsTable
             key={runIds?.join(",") ?? "empty"}
@@ -210,7 +210,7 @@ function DatasetCompareInternal() {
               <AnnotationPanel projectId={projectId} />
             ) : (
               <div className="flex items-center justify-center p-4">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   Loading annotation data...
                 </span>
               </div>

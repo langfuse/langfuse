@@ -42,7 +42,7 @@ export const DeleteModelButton = ({
           variant="outline"
           title="Delete model"
           disabled={!hasAccess}
-          className="flex items-center border-light-red"
+          className="border-light-red flex items-center"
         >
           <span className="text-dark-red">Delete</span>
         </Button>

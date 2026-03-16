@@ -49,7 +49,7 @@ export function MentionAutocomplete({
 
   return (
     <div
-      className="absolute bottom-full left-0 right-0 z-50 mb-1"
+      className="absolute right-0 bottom-full left-0 z-50 mb-1"
       role="region"
       aria-label="User mention suggestions"
     >
@@ -97,12 +97,12 @@ export function MentionAutocomplete({
                           {user.name ? user.name[0] : user.email?.[0] || "U"}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 overflow-hidden text-foreground">
+                      <div className="text-foreground flex-1 overflow-hidden">
                         <div className="truncate font-medium">
                           {user.name || "Unknown"}
                         </div>
                         {user.email && (
-                          <div className="truncate text-xs text-muted-foreground">
+                          <div className="text-muted-foreground truncate text-xs">
                             {user.email}
                           </div>
                         )}
@@ -113,7 +113,7 @@ export function MentionAutocomplete({
               </CommandGroup>
               {remainingCount > 0 && (
                 <div
-                  className="border-t px-2 py-2 text-xs text-muted-foreground"
+                  className="text-muted-foreground border-t px-2 py-2 text-xs"
                   role="status"
                   aria-live="polite"
                 >
