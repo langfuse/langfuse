@@ -115,7 +115,7 @@ export async function getDatasetRunItemsSinceLastRun(
   const query = `
     WITH prefiltered_events as (
       select distinct project_id, trace_id
-      from events
+      from events_core
       where start_time > {lastRun: DateTime64(3)} - interval 1 day
       and project_id in (
         select distinct project_id
@@ -159,7 +159,6 @@ export async function getDatasetRunItemsSinceLastRun(
       feature: "experiment-backfill",
       operation_name: "getDatasetRunItemsSinceLastRun",
     },
-    allowLegacyEventsRead: true,
   });
 
   logger.info(

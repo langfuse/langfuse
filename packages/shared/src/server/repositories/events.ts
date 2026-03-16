@@ -76,21 +76,6 @@ import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-/**
- * Attempt to command the legacy events table.
- * Skips if env toggle is off; swallows errors if the table no longer exists.
- */
-async function commandLegacyEventsTable(
-  opts: Parameters<typeof commandClickhouse>[0],
-): Promise<void> {
-  if (env.LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS !== "true") return;
-  try {
-    await commandClickhouse(opts);
-  } catch (e) {
-    logger.warn("Legacy events table command failed (table may not exist)", e);
-  }
-}
-
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
@@ -1505,7 +1490,6 @@ export const updateEvents = async (
   await Promise.all([
     commandClickhouse(updateOpts("events_full")),
     commandClickhouse(updateOpts("events_core")),
-    commandLegacyEventsTable(updateOpts("events")),
   ]);
 };
 
@@ -2412,7 +2396,6 @@ export const deleteEventsByTraceIds = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 };
 
@@ -2464,7 +2447,6 @@ export const deleteEventsByProjectId = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;
@@ -2579,7 +2561,6 @@ export const deleteEventsOlderThanDays = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;
