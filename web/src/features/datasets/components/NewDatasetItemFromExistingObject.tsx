@@ -152,7 +152,7 @@ export const NewDatasetItemFromExistingObject = (props: {
           {hasAccess ? (
             <PlusIcon
               className={cn(
-                "mr-1.5 -ml-0.5",
+                "-ml-0.5 mr-1.5",
                 buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
               )}
               aria-hidden="true"

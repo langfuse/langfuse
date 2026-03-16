@@ -347,7 +347,7 @@ function CommandMenuComponent({
     >
       <CommandInput
         placeholder="Type a command or search..."
-        className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+        className="focus:outline-hidden border-none focus:border-none focus:ring-0 focus:ring-transparent"
         onValueChange={debouncedSearchChange}
       />
       <CommandList>

@@ -107,7 +107,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         open={isCreateTemplateOpen}
         onOpenChange={setIsCreateTemplateOpen}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+        <DialogContent className="max-w-(--breakpoint-md) max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create new evaluator</DialogTitle>
           </DialogHeader>

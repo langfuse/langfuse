@@ -173,7 +173,7 @@ const DatasetAggregateCellContent = ({
         )}
       >
         <div className="@container w-full min-w-0 overflow-hidden">
-          <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[500px]:grid-cols-2">
+          <div className="@[500px]:grid-cols-2 grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto">
             {mergedScoreColumns.length > 0 ? (
               mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow
@@ -210,7 +210,7 @@ const DatasetAggregateCellContent = ({
                 />
               ) : (
                 <Badge variant="tertiary" size="sm" className="font-normal">
-                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
+                  <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>

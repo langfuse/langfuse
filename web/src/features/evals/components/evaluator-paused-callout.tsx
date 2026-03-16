@@ -101,7 +101,7 @@ export function EvaluatorPausedCallout({
         <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-foreground text-base leading-5 font-medium">
+          <h3 className="text-foreground text-base font-medium leading-5">
             Evaluator paused
           </h3>
 

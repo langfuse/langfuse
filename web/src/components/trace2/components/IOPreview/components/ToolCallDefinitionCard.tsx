@@ -90,7 +90,7 @@ export function ToolCallDefinitionCard({
                   className={cn(
                     "text-xs font-medium",
                     isCalled &&
-                      "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+                      "bg-light-green text-dark-green hover:bg-light-green select-none border-transparent",
                   )}
                 >
                   {statusText}
@@ -109,7 +109,7 @@ export function ToolCallDefinitionCard({
             {isExpanded && (
               <div className="border-border bg-muted/30 relative border-t px-4 py-3">
                 {/* View toggle tabs - positioned top right */}
-                <div className="absolute top-1 right-4">
+                <div className="absolute right-4 top-1">
                   <Tabs
                     className="h-fit py-0.5"
                     value={currentView}

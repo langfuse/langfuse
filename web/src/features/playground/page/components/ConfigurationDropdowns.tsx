@@ -75,7 +75,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-80 max-w-[calc(100vw-1rem)] min-w-0 overflow-hidden p-4"
+            className="w-80 min-w-0 max-w-[calc(100vw-1rem)] overflow-hidden p-4"
             align="start"
             style={toolsPopoverWidth ? { width: toolsPopoverWidth } : undefined}
           >

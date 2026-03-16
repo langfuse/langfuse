@@ -278,7 +278,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                         <Textarea
                           {...field}
                           placeholder="Add description..."
-                          className="text-xs focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                          className="focus:outline-hidden text-xs focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                         />
                       </FormControl>
                       <FormMessage />
@@ -378,7 +378,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                               </div>
                             </Button>
                           </CollapsibleTrigger>
-                          <CollapsibleContent className="border-border/20 border-t px-3 pt-1 pb-3">
+                          <CollapsibleContent className="border-border/20 border-t px-3 pb-3 pt-1">
                             {hasQueueAssignmentsReadAccess && (
                               <>
                                 <FormControl>

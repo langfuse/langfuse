@@ -446,7 +446,7 @@ const FilterAccordionContent = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>) => (
   <AccordionPrimitive.Content className="overflow-hidden text-sm" {...props}>
-    <div className={cn("pt-1 pb-2", className)}>{children}</div>
+    <div className={cn("pb-2 pt-1", className)}>{children}</div>
   </AccordionPrimitive.Content>
 );
 
@@ -757,7 +757,7 @@ export function CategoricalFacet({
                 {hasMoreOptions && (
                   <div className="mb-2 px-2">
                     <div className="relative">
-                      <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                      <Search className="text-muted-foreground absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
                       <Input
                         placeholder="Filter values"
                         value={searchQuery}
@@ -1327,11 +1327,11 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
     <div className="@container mb-2 flex flex-wrap items-center gap-1.5 px-4">
       <span className="text-muted-foreground/80 text-[10px]">Mode:</span>
-      <div className="border-input/50 bg-background flex flex-1 flex-col rounded border text-[10px] @[7.5rem]:min-w-[140px] @[7.5rem]:flex-row">
+      <div className="border-input/50 bg-background @[7.5rem]:min-w-[140px] @[7.5rem]:flex-row flex flex-1 flex-col rounded border text-[10px]">
         <button
           onClick={() => onModeChange("select")}
           className={cn(
-            "flex-1 rounded-t px-3 py-0.5 transition-colors @[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none",
+            "@[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none flex-1 rounded-t px-3 py-0.5 transition-colors",
             mode === "select"
               ? "bg-accent text-accent-foreground font-medium"
               : "text-muted-foreground hover:text-foreground",
@@ -1339,11 +1339,11 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         >
           SELECT
         </button>
-        <div className="bg-border/50 h-px @[7.5rem]:h-auto @[7.5rem]:w-px" />
+        <div className="bg-border/50 @[7.5rem]:h-auto @[7.5rem]:w-px h-px" />
         <button
           onClick={() => onModeChange("text")}
           className={cn(
-            "flex-1 rounded-b px-3 py-0.5 transition-colors @[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none",
+            "@[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none flex-1 rounded-b px-3 py-0.5 transition-colors",
             mode === "text"
               ? "bg-accent text-accent-foreground font-medium"
               : "text-muted-foreground hover:text-foreground",

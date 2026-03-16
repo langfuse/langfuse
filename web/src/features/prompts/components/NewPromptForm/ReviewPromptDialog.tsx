@@ -83,7 +83,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
         </DialogHeader>
 
         <DialogBody>
-          <div className="max-h-[80vh] max-w-(--breakpoint-xl) space-y-6 overflow-y-auto">
+          <div className="max-w-(--breakpoint-xl) max-h-[80vh] space-y-6 overflow-y-auto">
             <div className="space-y-6">
               <div className="space-y-4">
                 <div>

@@ -21,7 +21,7 @@ export function MobileDrawer({ children }: PropsWithChildren) {
       <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
         <DrawerContent
           id="support-drawer"
-          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
+          className="min-h-screen-with-banner inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)]"
           size="full"
         >
           <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">

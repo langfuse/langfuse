@@ -152,7 +152,7 @@ export const BreakdownTooltip = ({
             />
 
             {/* Total */}
-            <div className="flex justify-between border-t border-b-4 border-double py-1">
+            <div className="flex justify-between border-b-4 border-t border-double py-1">
               <span className="text-xs font-semibold">
                 {isCost ? "Total cost" : "Total usage"}
               </span>

@@ -130,7 +130,7 @@ export const EvalTemplateDetail = () => {
               </SidePanelTitle>
             </SidePanelHeader>
             <SidePanelContent>
-              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+              <Command className="focus:outline-hidden focus-visible:outline-hidden data-focus:ring-0 flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                 <div className="flex flex-col overflow-y-auto">
                   {allTemplates.data.templates.map((template, index) => (
                     <div

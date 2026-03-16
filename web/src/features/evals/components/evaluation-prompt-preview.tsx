@@ -93,7 +93,7 @@ const ColoredPromptView = ({
   return (
     <div className={cn("flex flex-col", className)}>
       <div className="relative flex flex-col gap-2">
-        <pre className="flex-1 p-3 font-mono text-xs wrap-break-word whitespace-pre-wrap">
+        <pre className="wrap-break-word flex-1 whitespace-pre-wrap p-3 font-mono text-xs">
           {fragments.map((fragment, idx) => (
             <Fragment key={idx}>
               {fragment.type === "text" ? (

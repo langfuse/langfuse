@@ -121,7 +121,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         >
           <Settings2 size={14} />
           {modelSettingsUsed && (
-            <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
+            <div className="bg-primary absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
@@ -225,7 +225,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     };
 
     return (
-      <div className="flex flex-col space-y-2 pt-2 pr-1 pb-1">
+      <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 space-y-1">
             <Select
@@ -279,7 +279,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   // Vertical layout (default) - existing behavior
   return (
     <div
-      className={cn("flex flex-col", !isEmbedded && "space-y-2 pt-2 pr-1 pb-1")}
+      className={cn("flex flex-col", !isEmbedded && "space-y-2 pb-1 pr-1 pt-2")}
     >
       {!isEmbedded ? (
         <div className="flex items-center justify-between">

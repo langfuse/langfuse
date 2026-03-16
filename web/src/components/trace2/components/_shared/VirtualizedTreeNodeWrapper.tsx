@@ -81,7 +81,7 @@ export function VirtualizedTreeNodeWrapper({
             {Array.from({ length: depth - 1 }, (_, i) => (
               <div key={i} className="relative w-5">
                 {treeLines[i] && (
-                  <div className="bg-border absolute top-0 bottom-0 left-3 w-px" />
+                  <div className="bg-border absolute bottom-0 left-3 top-0 w-px" />
                 )}
               </div>
             ))}
@@ -95,16 +95,16 @@ export function VirtualizedTreeNodeWrapper({
               {/* Vertical bar connecting upwards */}
               <div
                 className={cn(
-                  "bg-border absolute top-0 left-3 w-px",
+                  "bg-border absolute left-3 top-0 w-px",
                   isLastSibling ? "h-3" : "bottom-3",
                 )}
               />
               {/* Vertical bar connecting downwards if not last sibling */}
               {!isLastSibling && (
-                <div className="bg-border absolute top-3 bottom-0 left-3 w-px" />
+                <div className="bg-border absolute bottom-0 left-3 top-3 w-px" />
               )}
               {/* Horizontal bar connecting to icon */}
-              <div className="bg-border absolute top-3 left-3 h-px w-2" />
+              <div className="bg-border absolute left-3 top-3 h-px w-2" />
             </>
           </div>
         )}
@@ -116,11 +116,11 @@ export function VirtualizedTreeNodeWrapper({
           </div>
           {/* Vertical bar downwards if there are expanded children */}
           {hasChildren && !isCollapsed && (
-            <div className="bg-border absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border absolute bottom-0 left-1/2 top-3 w-px" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && (
-            <div className="bg-border absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border absolute bottom-0 left-1/2 top-3 w-px" />
           )}
         </div>
 

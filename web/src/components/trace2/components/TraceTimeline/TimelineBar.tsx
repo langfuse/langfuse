@@ -73,7 +73,7 @@ export function TimelineBar({
             <div className="text-muted-foreground -ml-8 flex flex-row items-center justify-start gap-2 text-xs">
               <span className="text-xxs text-primary">First token</span>
               <ItemBadge type={node.type} isSmall />
-              <span className="text-primary text-sm font-medium whitespace-nowrap">
+              <span className="text-primary whitespace-nowrap text-sm font-medium">
                 {node.name}
               </span>
               {showComments && commentCount ? (
@@ -147,7 +147,7 @@ export function TimelineBar({
             )}
           >
             <ItemBadge type={node.type} isSmall />
-            <span className="text-primary text-sm font-medium whitespace-nowrap">
+            <span className="text-primary whitespace-nowrap text-sm font-medium">
               {node.name}
             </span>
             {showComments && commentCount ? (

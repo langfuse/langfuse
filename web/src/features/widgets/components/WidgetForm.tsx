@@ -1932,7 +1932,7 @@ export function WidgetForm({
                 showSpinner={chartLoadingState.showSpinner}
                 showHintImmediately={chartLoadingState.showHintImmediately}
                 hintText={chartLoadingState.hintText}
-                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                className="bg-background/80 backdrop-blur-xs absolute inset-0 z-20"
                 hintClassName="max-w-sm px-4"
               />
             </div>

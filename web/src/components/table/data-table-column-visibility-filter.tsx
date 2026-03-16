@@ -111,7 +111,7 @@ function ColumnVisibilityListItem<TData, TValue>({
       className={cn(
         "flex w-full items-center justify-between rounded-md p-2",
         isDragging ? "opacity-80" : "opacity-100",
-        "group hover:bg-muted/50 transition-colors",
+        "hover:bg-muted/50 group transition-colors",
       )}
       style={{
         transform: transform
@@ -203,7 +203,7 @@ function GroupVisibilityHeader<TData, TValue>({
           className={cn(
             "bg-muted/30 flex w-full items-center justify-between gap-2 rounded-md p-2",
             isDragging ? "opacity-80" : "opacity-100",
-            "group hover:bg-muted cursor-pointer",
+            "hover:bg-muted group cursor-pointer",
           )}
           style={{
             transform: transform
@@ -259,7 +259,7 @@ function GroupVisibilityHeader<TData, TValue>({
           </div>
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-1 pl-4">{children}</CollapsibleContent>
+      <CollapsibleContent className="pl-4 pt-1">{children}</CollapsibleContent>
     </Collapsible>
   );
 }

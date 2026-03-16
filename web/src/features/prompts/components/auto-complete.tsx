@@ -105,7 +105,7 @@ export const AutoComplete = ({
       </div>
       <div className="relative mt-1">
         {isOpen ? (
-          <div className="bg-background animate-in fade-in-0 zoom-in-95 absolute top-0 z-10 w-full rounded-xl outline-hidden">
+          <div className="bg-background animate-in fade-in-0 zoom-in-95 outline-hidden absolute top-0 z-10 w-full rounded-xl">
             <InputCommandList className="ring-border rounded-lg ring-1">
               {options.length > 0 ? (
                 <InputCommandGroup>

@@ -106,7 +106,7 @@ function TracePanelNavigationHeaderExpanded({
 
   return (
     <Command className="mt-1 flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      <div className="flex flex-row justify-between pr-2 pl-1">
+      <div className="flex flex-row justify-between pl-1 pr-2">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
         <div className="flex flex-row items-center p-0.5">
           <TracePanelNavigationButton

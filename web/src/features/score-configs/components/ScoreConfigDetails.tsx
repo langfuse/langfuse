@@ -8,7 +8,7 @@ export function ScoreConfigDetails({ config }: { config: ScoreConfigDomain }) {
   const isNameTruncated = name.length > 20;
 
   return (
-    <div className="bg-background p-2 text-xs font-light text-wrap">
+    <div className="bg-background text-wrap p-2 text-xs font-light">
       {!!description && <p>{`Description: ${description}`}</p>}
       {isNumericDataType(dataType) &&
       (isPresent(minValue) || isPresent(maxValue)) ? (

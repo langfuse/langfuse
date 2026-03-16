@@ -68,7 +68,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                 <div
                   key={automation.id}
                   className={cn(
-                    "group hover:bg-background/50 relative rounded-lg border p-3 transition-colors",
+                    "hover:bg-background/50 group relative rounded-lg border p-3 transition-colors",
                     isSelected
                       ? "border-primary bg-primary/5"
                       : "border-border bg-background/20",
@@ -81,7 +81,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                     <div className="space-y-2">
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="truncate text-sm leading-tight font-medium">
+                        <h4 className="truncate text-sm font-medium leading-tight">
                           {automation.name}
                         </h4>
                         {automation.trigger.status === JobConfigState.ACTIVE ? (

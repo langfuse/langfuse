@@ -449,7 +449,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       onMouseLeave={() => setIsHovering(false)}
     >
       {isHovering && (
-        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+        <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
           <Button
             onClick={handleZoomIn}
             variant="ghost"

@@ -320,7 +320,7 @@ function IOPreviewJSONInner({
   // Wait for parsing to complete before rendering to avoid flicker
   if (isParsing) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+      <div className="flex min-h-0 flex-1 flex-col border-b border-t">
         <div className="flex h-full items-center justify-center">
           <div className="text-muted-foreground text-sm">Parsing data...</div>
         </div>
@@ -355,7 +355,7 @@ function IOPreviewJSONInner({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-b">
+    <div className="flex min-h-0 flex-1 flex-col border-b border-t">
       {/* Inline comment bubble - shows when text is selected */}
       {enableInlineComments && (
         <InlineCommentBubble onAddComment={handleAddComment} />
@@ -388,7 +388,7 @@ function IOPreviewJSONInner({
 
         {/* Match counter - inline text (only when searching) */}
         {searchQuery && (
-          <span className="text-muted-foreground text-xs whitespace-nowrap">
+          <span className="text-muted-foreground whitespace-nowrap text-xs">
             {searchMatchCount > 0
               ? `${currentMatchIndex + 1} of ${searchMatchCount}`
               : "No matches"}

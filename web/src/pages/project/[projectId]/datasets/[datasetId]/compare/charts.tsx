@@ -216,7 +216,7 @@ export default function DatasetCompare() {
                     return (
                       <div
                         key={key}
-                        className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
+                        className="flex min-h-[200px] min-w-0 max-w-full flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -248,7 +248,7 @@ export default function DatasetCompare() {
                   return (
                     <div
                       key={key}
-                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
+                      className="flex min-h-[200px] min-w-0 max-w-full flex-col gap-2"
                     >
                       <span className="shrink-0 text-sm font-medium">
                         {title}

@@ -37,7 +37,7 @@ export default function TableLink({
       prefetch={false}
       onClick={handleClick}
     >
-      <span className="inline-block max-w-full overflow-hidden text-nowrap text-ellipsis">
+      <span className="inline-block max-w-full overflow-hidden text-ellipsis text-nowrap">
         {icon ? <span className="inline-block">{icon}</span> : value}
       </span>
     </Link>

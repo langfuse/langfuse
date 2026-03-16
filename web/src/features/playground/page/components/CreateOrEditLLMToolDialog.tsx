@@ -155,7 +155,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
         {children}
       </DialogTrigger>
       <DialogContent
-        className="flex flex-col sm:min-w-128 md:min-w-160"
+        className="sm:min-w-128 md:min-w-160 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
@@ -246,7 +246,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                             variant="outline"
                             size="sm"
                             onClick={prettifyJson}
-                            className="absolute top-3 right-3 text-xs"
+                            className="absolute right-3 top-3 text-xs"
                           >
                             Prettify
                           </Button>

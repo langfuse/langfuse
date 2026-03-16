@@ -93,7 +93,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
             size="sm"
             onClick={prettifyJson}
             disabled={disabled}
-            className="absolute top-3 right-3 text-xs"
+            className="absolute right-3 top-3 text-xs"
           >
             Prettify
           </Button>

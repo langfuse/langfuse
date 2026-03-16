@@ -218,7 +218,7 @@ export function DatePickerWithRange({
             selected={internalDateRange}
             onSelect={onCalendarSelection}
             numberOfMonths={2}
-            className="[&>div]:hidden sm:[&>div]:block [&>div:first-child]:block"
+            className="[&>div:first-child]:block [&>div]:hidden sm:[&>div]:block"
             disabled={disabled}
           />
           <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">

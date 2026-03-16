@@ -55,7 +55,7 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
               {project.role === "VIEWER" ? (
                 <span
                   className={cn(
-                    "self-center rounded-sm border px-1 py-0.5 text-xs break-keep whitespace-nowrap",
+                    "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
                     currentProjectId === project.id
                       ? "border-primary text-primary"
                       : "border-border text-muted-foreground group-hover:border-primary group-hover:text-primary",

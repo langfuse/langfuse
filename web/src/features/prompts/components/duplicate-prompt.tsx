@@ -140,7 +140,7 @@ const DuplicatePromptForm: React.FC<{
                     defaultValue={field.value}
                     className="flex flex-col space-y-1"
                   >
-                    <FormItem className="flex items-center space-y-0 space-x-3">
+                    <FormItem className="flex items-center space-x-3 space-y-0">
                       <FormControl>
                         <RadioGroupItem value={CopySettings.SINGLE_VERSION} />
                       </FormControl>
@@ -148,7 +148,7 @@ const DuplicatePromptForm: React.FC<{
                         Copy only version {promptVersion}
                       </FormLabel>
                     </FormItem>
-                    <FormItem className="flex items-center space-y-0 space-x-3">
+                    <FormItem className="flex items-center space-x-3 space-y-0">
                       <FormControl>
                         <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
                       </FormControl>

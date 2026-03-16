@@ -150,7 +150,7 @@ export const ScoreRow = ({
                 value={
                   <span
                     title={aggregate.comment}
-                    className="line-clamp-10 max-h-[240px] overflow-hidden wrap-break-word"
+                    className="line-clamp-10 wrap-break-word max-h-[240px] overflow-hidden"
                     style={{
                       textAlign: "justify",
                       textAlignLast: "right",
@@ -180,7 +180,7 @@ export const ScoreRow = ({
                         })()}
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent className="w-[400px] text-xs wrap-break-word">
+                    <TooltipContent className="wrap-break-word w-[400px] text-xs">
                       {metadata && Object.keys(metadata).length > 0 ? (
                         <JSONView
                           codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
