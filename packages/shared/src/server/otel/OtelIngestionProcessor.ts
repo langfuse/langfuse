@@ -1289,10 +1289,6 @@ export class OtelIngestionProcessor {
       ]),
     );
 
-    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
-    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
-    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
-
     // Langfuse
     input =
       domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
@@ -1608,7 +1604,11 @@ export class OtelIngestionProcessor {
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1619,6 +1619,77 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  private appendOtelToolDefinitionsToInput(
+    input: unknown,
+    attributes: Record<string, unknown>,
+  ): unknown {
+    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
+
+    if (!toolDefinitions || input == null) {
+      return input;
+    }
+
+    const mergeToolDefinitions = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        return { messages: value, tools: toolDefinitions };
+      }
+
+      if (typeof value !== "object" || value == null) {
+        return null;
+      }
+
+      const inputObject = value as Record<string, unknown>;
+
+      if (inputObject.tools != null) {
+        return inputObject;
+      }
+
+      return {
+        ...inputObject,
+        tools: toolDefinitions,
+      };
+    };
+
+    if (typeof input === "string") {
+      try {
+        const parsedInput = JSON.parse(input);
+        const mergedInput = mergeToolDefinitions(parsedInput);
+        return mergedInput == null ? input : JSON.stringify(mergedInput);
+      } catch {
+        return input;
+      }
+    }
+
+    return mergeToolDefinitions(input) ?? input;
+  }
+
+  private extractOtelToolDefinitions(
+    attributes: Record<string, unknown>,
+  ): unknown[] | null {
+    const parseJsonString = (value: unknown): unknown => {
+      if (typeof value !== "string") {
+        return value;
+      }
+
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const modelRequestParameters = parseJsonString(
+      attributes["model_request_parameters"],
+    ) as Record<string, unknown> | null;
+
+    const toolDefinitions = parseJsonString(
+      attributes["gen_ai.tool.definitions"] ??
+        modelRequestParameters?.function_tools,
+    );
+
+    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
   }
 
   private extractEnvironment(
