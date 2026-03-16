@@ -2,24 +2,29 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
-jest.mock("@langfuse/shared/src/server", () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-  QueueJobs: {
-    IngestionJob: "ingestion-job",
-    OtelIngestionJob: "otel-ingestion-job",
-  },
-  SecondaryIngestionQueue: {
-    getInstance: jest.fn(),
-  },
-  OtelIngestionQueue: {
-    getInstance: jest.fn(),
-  },
-}));
+jest.mock("@langfuse/shared/src/server", () => {
+  const { eventTypes } = jest.requireActual("@langfuse/shared/src/server");
+
+  return {
+    eventTypes,
+    logger: {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    },
+    QueueJobs: {
+      IngestionJob: "ingestion-job",
+      OtelIngestionJob: "otel-ingestion-job",
+    },
+    SecondaryIngestionQueue: {
+      getInstance: jest.fn(),
+    },
+    OtelIngestionQueue: {
+      getInstance: jest.fn(),
+    },
+  };
+});
 
 import handler from "../../pages/api/admin/ingestion-replay";
 import { AdminApiAuthService } from "../../ee/features/admin-api/server/adminApiAuth";

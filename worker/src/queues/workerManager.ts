@@ -23,35 +23,6 @@ import {
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
-  private static attachRedisConnectionErrorListener(
-    worker: Worker,
-    propertyName: "connection" | "blockingConnection",
-    queueName: QueueName,
-  ): void {
-    const connection = Reflect.get(worker as object, propertyName) as
-      | {
-          on?: (event: "error", listener: (error: Error) => void) => unknown;
-        }
-      | undefined;
-
-    connection?.on?.("error", (error: Error) => {
-      WorkerManager.handleRedisConnectionError(queueName, error);
-    });
-  }
-
-  private static handleRedisConnectionError(
-    queueName: QueueName,
-    error: Error,
-  ): void {
-    if (error.message.includes("Connection is closed")) {
-      logger.warn(`${queueName} redis connection closed`);
-      return;
-    }
-
-    logger.error(`${queueName} redis connection errored`, error);
-    traceException(error);
-  }
-
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
@@ -134,19 +105,9 @@ export class WorkerManager {
   }
 
   public static async closeWorkers(): Promise<void> {
-    const workers = Object.values(WorkerManager.workers);
-    const closeResults = await Promise.allSettled(
-      workers.map((worker) => worker.close()),
+    await Promise.all(
+      Object.values(WorkerManager.workers).map((worker) => worker.close()),
     );
-
-    WorkerManager.workers = {};
-
-    closeResults.forEach((result) => {
-      if (result.status === "rejected") {
-        logger.error("Failed to close worker", result.reason);
-      }
-    });
-
     logger.info("All workers have been closed.");
   }
 
@@ -201,16 +162,5 @@ export class WorkerManager {
       traceException(failedReason);
       recordIncrement(convertQueueNameToMetricName(queueName) + ".error");
     });
-
-    WorkerManager.attachRedisConnectionErrorListener(
-      worker,
-      "connection",
-      queueName,
-    );
-    WorkerManager.attachRedisConnectionErrorListener(
-      worker,
-      "blockingConnection",
-      queueName,
-    );
   }
 }

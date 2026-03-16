@@ -2,6 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
+  eventTypes,
   logger,
   QueueJobs,
   SecondaryIngestionQueue,
@@ -24,29 +25,23 @@ type OtelReplayJob = TQueueJobTypes[QueueName.OtelIngestionQueue];
 type StandardReplayEventType =
   TQueueJobTypes[QueueName.IngestionSecondaryQueue]["payload"]["data"]["type"];
 
-const standardReplayTypeMap = {
-  trace: "trace-create",
-  score: "score-create",
-  event: "event-create",
-  span: "span-create",
-  generation: "generation-create",
-  agent: "agent-create",
-  tool: "tool-create",
-  chain: "chain-create",
-  retriever: "retriever-create",
-  evaluator: "evaluator-create",
-  embedding: "embedding-create",
-  guardrail: "guardrail-create",
-  "dataset-run-item": "dataset-run-item-create",
-  observation: "observation-create",
-} as const satisfies Record<string, StandardReplayEventType>;
+const standardReplayEventTypes = new Set<StandardReplayEventType>(
+  Object.values(eventTypes).filter((type): type is StandardReplayEventType =>
+    type.endsWith("-create"),
+  ),
+);
 
-type StandardReplayTypeSegment = keyof typeof standardReplayTypeMap;
-
-const isStandardReplayTypeSegment = (
+const getStandardReplayEventType = (
   value: string,
-): value is StandardReplayTypeSegment =>
-  Object.prototype.hasOwnProperty.call(standardReplayTypeMap, value);
+): StandardReplayEventType | null => {
+  const replayEventType = `${value}-create`;
+
+  return standardReplayEventTypes.has(
+    replayEventType as StandardReplayEventType,
+  )
+    ? (replayEventType as StandardReplayEventType)
+    : null;
+};
 
 const enqueueStandardJobs = async (jobs: StandardReplayJob[]) => {
   const jobsByQueue = new Map<
@@ -169,8 +164,9 @@ export default async function handler(
       const standardMatch = key.match(STANDARD_KEY_REGEX);
       if (standardMatch) {
         const [, projectId, type, eventBodyId, eventId] = standardMatch;
+        const replayEventType = getStandardReplayEventType(type!);
 
-        if (!isStandardReplayTypeSegment(type)) {
+        if (!replayEventType) {
           skipped++;
           errors.push(`Unsupported replay type: ${type}`);
           continue;
@@ -181,7 +177,7 @@ export default async function handler(
           id: randomUUID(),
           payload: {
             data: {
-              type: standardReplayTypeMap[type],
+              type: replayEventType,
               eventBodyId: eventBodyId!,
               fileKey: eventId!,
             },
