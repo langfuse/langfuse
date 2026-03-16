@@ -7,6 +7,7 @@ import {
   SecondaryIngestionQueue,
   OtelIngestionQueue,
 } from "@langfuse/shared/src/server";
+import type { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 const IngestionReplayBody = z.object({
@@ -16,6 +17,84 @@ const IngestionReplayBody = z.object({
 const OTEL_KEY_REGEX =
   /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.json$/;
 const STANDARD_KEY_REGEX = /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/;
+
+type StandardReplayJob = {
+  name: QueueJobs.IngestionJob;
+  data: TQueueJobTypes[QueueName.IngestionSecondaryQueue];
+};
+
+type OtelReplayJob = {
+  name: QueueJobs.OtelIngestionJob;
+  data: TQueueJobTypes[QueueName.OtelIngestionQueue];
+};
+
+const enqueueStandardJobs = async (jobs: StandardReplayJob[]) => {
+  const jobsByQueue = new Map<
+    string,
+    {
+      queue: NonNullable<
+        ReturnType<typeof SecondaryIngestionQueue.getInstance>
+      >;
+      jobs: StandardReplayJob[];
+    }
+  >();
+
+  for (const job of jobs) {
+    const shardingKey = `${job.data.payload.authCheck.scope.projectId}-${job.data.payload.data.eventBodyId}`;
+    const queue = SecondaryIngestionQueue.getInstance({ shardingKey });
+
+    if (!queue) {
+      throw new Error("Failed to get SecondaryIngestionQueue");
+    }
+
+    const existing = jobsByQueue.get(queue.name);
+
+    if (existing) {
+      existing.jobs.push(job);
+    } else {
+      jobsByQueue.set(queue.name, { queue, jobs: [job] });
+    }
+  }
+
+  await Promise.all(
+    Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
+      queue.addBulk(jobs),
+    ),
+  );
+};
+
+const enqueueOtelJobs = async (jobs: OtelReplayJob[]) => {
+  const jobsByQueue = new Map<
+    string,
+    {
+      queue: NonNullable<ReturnType<typeof OtelIngestionQueue.getInstance>>;
+      jobs: OtelReplayJob[];
+    }
+  >();
+
+  for (const job of jobs) {
+    const shardingKey = `${job.data.payload.authCheck.scope.projectId}-${job.data.payload.data.fileKey}`;
+    const queue = OtelIngestionQueue.getInstance({ shardingKey });
+
+    if (!queue) {
+      throw new Error("Failed to get OtelIngestionQueue");
+    }
+
+    const existing = jobsByQueue.get(queue.name);
+
+    if (existing) {
+      existing.jobs.push(job);
+    } else {
+      jobsByQueue.set(queue.name, { queue, jobs: [job] });
+    }
+  }
+
+  await Promise.all(
+    Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
+      queue.addBulk(jobs),
+    ),
+  );
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,37 +120,9 @@ export default async function handler(
       return;
     }
 
-    const standardJobs: Array<{
-      name: QueueJobs.IngestionJob;
-      data: {
-        timestamp: Date;
-        id: string;
-        payload: {
-          data: { type: any; eventBodyId: string; fileKey: string };
-          authCheck: {
-            validKey: true;
-            scope: { projectId: string };
-          };
-        };
-        name: QueueJobs.IngestionJob;
-      };
-    }> = [];
+    const standardJobs: StandardReplayJob[] = [];
 
-    const otelJobs: Array<{
-      name: QueueJobs.OtelIngestionJob;
-      data: {
-        timestamp: Date;
-        id: string;
-        payload: {
-          data: { fileKey: string };
-          authCheck: {
-            validKey: true;
-            scope: { projectId: string; accessLevel: "project" };
-          };
-        };
-        name: QueueJobs.OtelIngestionJob;
-      };
-    }> = [];
+    const otelJobs: OtelReplayJob[] = [];
 
     let skipped = 0;
     const errors: string[] = [];
@@ -128,19 +179,11 @@ export default async function handler(
     }
 
     if (standardJobs.length > 0) {
-      const queue = SecondaryIngestionQueue.getInstance();
-      if (!queue) {
-        throw new Error("Failed to get SecondaryIngestionQueue");
-      }
-      await queue.addBulk(standardJobs);
+      await enqueueStandardJobs(standardJobs);
     }
 
     if (otelJobs.length > 0) {
-      const queue = OtelIngestionQueue.getInstance({});
-      if (!queue) {
-        throw new Error("Failed to get OtelIngestionQueue");
-      }
-      await queue.addBulk(otelJobs);
+      await enqueueOtelJobs(otelJobs);
     }
 
     const queued = standardJobs.length + otelJobs.length;
