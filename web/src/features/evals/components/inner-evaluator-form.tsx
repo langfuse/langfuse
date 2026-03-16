@@ -51,6 +51,7 @@ import {
   type LangfuseObject,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
+import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { EvalTargetObject } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
@@ -355,8 +356,19 @@ export const InnerEvaluatorForm = (props: {
     },
   }) as UseFormReturn<EvalFormType>;
 
+  const currentMapping = form.watch("mapping") ?? [];
+  const syncStatus = useVariableMappingSync({
+    templateVars: props.evalTemplate?.vars,
+    currentMapping: currentMapping,
+  });
+
   useEffect(() => {
-    if (props.evalTemplate && form.getValues("mapping").length === 0) {
+    if (!props.evalTemplate) return;
+
+    const mapping = form.getValues("mapping");
+
+    if (mapping.length === 0) {
+      // Initialize mapping for new evaluators
       const target = form.getValues("target");
       form.setValue(
         "mapping",
@@ -369,8 +381,38 @@ export const InnerEvaluatorForm = (props: {
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);
+    } else if (
+      props.existingEvaluator &&
+      !props.disabled &&
+      !syncStatus.inSync
+    ) {
+      // Reconcile mapping when edit mode is enabled
+      const target = form.getValues("target");
+
+      // Keep mappings for unchanged variables
+      const preservedMappings = mapping.filter((m) =>
+        syncStatus.unchanged.includes(m.templateVariable),
+      );
+
+      // Add mappings for new variables
+      const newMappings = syncStatus.added.map((varName) => ({
+        templateVariable: varName,
+        langfuseObject: isLegacyEvalTarget(target)
+          ? ("trace" as const)
+          : undefined,
+        ...inferDefaultMapping(varName),
+      }));
+
+      // Combine and update form
+      form.setValue("mapping", [...preservedMappings, ...newMappings]);
     }
-  }, [form, props.evalTemplate]);
+  }, [
+    form,
+    props.evalTemplate,
+    props.disabled,
+    props.existingEvaluator,
+    syncStatus,
+  ]);
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
