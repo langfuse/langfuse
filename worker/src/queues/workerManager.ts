@@ -23,6 +23,22 @@ import {
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
+  private static attachRedisConnectionErrorListener(
+    worker: Worker,
+    propertyName: "connection" | "blockingConnection",
+    queueName: QueueName,
+  ): void {
+    const connection = Reflect.get(worker as object, propertyName) as
+      | {
+          on?: (event: "error", listener: (error: Error) => void) => unknown;
+        }
+      | undefined;
+
+    connection?.on?.("error", (error: Error) => {
+      WorkerManager.handleRedisConnectionError(queueName, error);
+    });
+  }
+
   private static handleRedisConnectionError(
     queueName: QueueName,
     error: Error,
@@ -186,12 +202,15 @@ export class WorkerManager {
       recordIncrement(convertQueueNameToMetricName(queueName) + ".error");
     });
 
-    worker.connection.on("error", (error: Error) => {
-      WorkerManager.handleRedisConnectionError(queueName, error);
-    });
-
-    worker.blockingConnection.on("error", (error: Error) => {
-      WorkerManager.handleRedisConnectionError(queueName, error);
-    });
+    WorkerManager.attachRedisConnectionErrorListener(
+      worker,
+      "connection",
+      queueName,
+    );
+    WorkerManager.attachRedisConnectionErrorListener(
+      worker,
+      "blockingConnection",
+      queueName,
+    );
   }
 }
