@@ -6,7 +6,12 @@ import { type Observation } from "@langfuse/shared";
 export const AggUsageBadge = (props: {
   observations: ObservationReturnType[];
   rightIcon?: React.ReactNode;
-  variant?: "default" | "secondary" | "destructive" | "outline" | "tertiary";
+  variant?:
+    | "default"
+    | "secondary"
+    | "destructive"
+    | "outline-solid"
+    | "tertiary";
 }) => {
   const usage = {
     inputUsage: props.observations
@@ -41,7 +46,12 @@ export const TokenUsageBadge = (
   ) & {
     inline?: boolean;
     rightIcon?: React.ReactNode;
-    variant?: "default" | "secondary" | "destructive" | "outline" | "tertiary";
+    variant?:
+      | "default"
+      | "secondary"
+      | "destructive"
+      | "outline-solid"
+      | "tertiary";
   },
 ) => {
   const usage =
@@ -71,7 +81,7 @@ export const TokenUsageBadge = (
     );
 
   return (
-    <Badge variant={props.variant ?? "outline"}>
+    <Badge variant={props.variant ?? "outline-solid"}>
       <span className="flex items-center gap-1">
         {content}
         {props.rightIcon}
