@@ -1,7 +1,7 @@
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 
-type LangfuseObservationType = keyof typeof ObservationType;
+export type LangfuseObservationType = keyof typeof ObservationType;
 
 interface ObservationTypeMapper {
   readonly name: string;
