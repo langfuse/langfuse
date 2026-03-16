@@ -1251,6 +1251,8 @@ export class OtelIngestionProcessor {
       // Pydantic AI agent/root span
       "final_result",
       "pydantic_ai.all_messages",
+      // OpenTelemetry system instructions
+      "gen_ai.system_instructions",
       // Pydantic and Pipecat
       "input",
       "output",
@@ -1542,6 +1544,12 @@ export class OtelIngestionProcessor {
     if (instrumentationScopeName === "pydantic-ai") {
       input = attributes["pydantic_ai.all_messages"] ?? null;
       output = attributes["final_result"] ?? null;
+      if (input && attributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          attributes["gen_ai.system_instructions"],
+        );
+      }
       if (input || output) {
         return { input, output, filteredAttributes };
       }
@@ -1609,6 +1617,12 @@ export class OtelIngestionProcessor {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
+    if (input && attributes["gen_ai.system_instructions"]) {
+      input = this.prependSystemInstructions(
+        input,
+        attributes["gen_ai.system_instructions"],
+      );
+    }
     if (input || output) {
       return { input, output, filteredAttributes };
     }
@@ -1621,6 +1635,53 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  /**
+   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
+   * consistent with how gen_ai.system.message events are mapped.
+   * No-ops if messages already contain a system message.
+   */
+  private prependSystemInstructions(
+    input: unknown,
+    systemInstructions: unknown,
+  ): unknown {
+    try {
+      const messages = typeof input === "string" ? JSON.parse(input) : input;
+      if (!Array.isArray(messages)) return input;
+
+      const hasSystemMessage = messages.some(
+        (msg: Record<string, unknown>) => msg?.role === "system",
+      );
+      if (hasSystemMessage) return input;
+
+      let content: string;
+      try {
+        const parsed =
+          typeof systemInstructions === "string"
+            ? JSON.parse(systemInstructions)
+            : systemInstructions;
+        if (Array.isArray(parsed)) {
+          content = parsed
+            .map((p: Record<string, unknown>) =>
+              typeof p === "object" && p?.content
+                ? String(p.content)
+                : String(p),
+            )
+            .join("\n");
+        } else {
+          content = String(parsed);
+        }
+      } catch {
+        content = String(systemInstructions);
+      }
+
+      const systemMessage = { role: "system", content };
+      const merged = [systemMessage, ...messages];
+      return typeof input === "string" ? JSON.stringify(merged) : merged;
+    } catch {
+      return input;
+    }
   }
 
   private extractEnvironment(
