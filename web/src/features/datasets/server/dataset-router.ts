@@ -73,6 +73,18 @@ import {
 } from "@/src/features/datasets/server/actions/createDataset";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { v4 } from "uuid";
+import {
+  encrypt,
+  generateWebhookSecret,
+  createSignatureHeader,
+  decrypt,
+} from "@langfuse/shared/encryption";
+import {
+  encryptSecretHeaders,
+  createDisplayHeaders,
+  decryptSecretHeaders,
+} from "@langfuse/shared/src/server";
+import { WebhookDefaultHeaders } from "@langfuse/shared";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -1636,6 +1648,15 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        requestHeaders: z
+          .record(
+            z.string().max(256),
+            z.object({ secret: z.boolean(), value: z.string().max(4096) }),
+          )
+          .optional()
+          .refine((h) => !h || Object.keys(h).length <= 20, {
+            message: "Maximum 20 custom headers allowed",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1661,11 +1682,88 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      try {
+        await validateWebhookURL(input.url);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
+
+      // Generate webhook secret if not already set
+      const isNewSetup = !dataset.remoteExperimentSecretKey;
+      let newUnencryptedSecret: string | undefined;
+
+      let encryptedSecretKey = dataset.remoteExperimentSecretKey;
+      let displaySecretKey = dataset.remoteExperimentDisplaySecretKey;
+
+      if (isNewSetup) {
+        const { secretKey, displaySecretKey: dsk } = generateWebhookSecret();
+        newUnencryptedSecret = secretKey;
+        encryptedSecretKey = encrypt(secretKey);
+        displaySecretKey = dsk;
+      }
+
+      // Validate custom header names against reserved headers
+      const reservedHeaders = new Set([
+        ...Object.keys(WebhookDefaultHeaders).map((h) => h.toLowerCase()),
+        "x-langfuse-signature",
+      ]);
+      const inputHeaders = input.requestHeaders ?? {};
+      for (const key of Object.keys(inputHeaders)) {
+        if (reservedHeaders.has(key.toLowerCase())) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Header "${key}" is reserved and cannot be set as a custom header.`,
+          });
+        }
+      }
+      const existingHeaders =
+        (dataset.remoteExperimentHeaders as Record<
+          string,
+          { secret: boolean; value: string }
+        >) ?? {};
+
+      // Merge: preserve existing encrypted values for secret headers where value is empty
+      const existingDisplayHeaders =
+        (dataset.remoteExperimentDisplayHeaders as Record<
+          string,
+          { secret: boolean; value: string }
+        >) ?? {};
+      const finalHeaders: Record<string, { secret: boolean; value: string }> =
+        {};
+      const preservedDisplayHeaders: Record<
+        string,
+        { secret: boolean; value: string }
+      > = {};
+      for (const [key, headerObj] of Object.entries(inputHeaders)) {
+        const existing = existingHeaders[key];
+        if (headerObj.value.trim() === "" && existing) {
+          finalHeaders[key] = existing;
+          // Preserve existing display header for unchanged secret values
+          if (existingDisplayHeaders[key]) {
+            preservedDisplayHeaders[key] = existingDisplayHeaders[key];
+          }
+        } else if (headerObj.value.trim() !== "") {
+          finalHeaders[key] = headerObj;
+        }
+      }
+
+      const encryptedHeaders = encryptSecretHeaders(finalHeaders);
+      const newDisplayHeaders = createDisplayHeaders(finalHeaders);
+      // For preserved headers, use existing display values instead of re-masking encrypted text
+      const displayHeaders = { ...newDisplayHeaders, ...preservedDisplayHeaders };
+
       const updatedDataset = await updateDataset({
         input: {
           id: input.datasetId,
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentSecretKey: encryptedSecretKey,
+          remoteExperimentDisplaySecretKey: displaySecretKey,
+          remoteExperimentHeaders: encryptedHeaders,
+          remoteExperimentDisplayHeaders: displayHeaders,
         },
         projectId: input.projectId,
       });
@@ -1678,7 +1776,10 @@ export const datasetRouter = createTRPCRouter({
         after: updatedDataset,
       });
 
-      return updatedDataset;
+      return {
+        ...updatedDataset,
+        webhookSecret: newUnencryptedSecret,
+      };
     }),
   getRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
@@ -1690,6 +1791,8 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentDisplaySecretKey: true,
+          remoteExperimentDisplayHeaders: true,
         },
       });
 
@@ -1698,6 +1801,11 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
+        displayHeaders: dataset.remoteExperimentDisplayHeaders as Record<
+          string,
+          { secret: boolean; value: string }
+        > | null,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1727,6 +1835,8 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentSecretKey: true,
+          remoteExperimentHeaders: true,
         },
       });
 
@@ -1754,17 +1864,54 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
+        const webhookPayload = JSON.stringify({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          datasetName: dataset.name,
+          payload: input.payload ?? dataset.remoteExperimentPayload,
+        });
+
+        const requestHeaders: Record<string, string> = {};
+
+        // Add decrypted custom headers
+        if (dataset.remoteExperimentHeaders) {
+          const decryptedHeaders = decryptSecretHeaders(
+            dataset.remoteExperimentHeaders as Record<
+              string,
+              { secret: boolean; value: string }
+            >,
+          );
+          for (const [key, value] of Object.entries(decryptedHeaders)) {
+            requestHeaders[key] = value.value;
+          }
+        }
+
+        // Add default headers
+        for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
+          requestHeaders[key] = value;
+        }
+
+        // Add webhook signature
+        if (dataset.remoteExperimentSecretKey) {
+          try {
+            const decryptedSecret = decrypt(dataset.remoteExperimentSecretKey);
+            const signature = createSignatureHeader(
+              webhookPayload,
+              decryptedSecret,
+            );
+            requestHeaders["x-langfuse-signature"] = signature;
+          } catch (error) {
+            logger.error(
+              "Failed to generate webhook signature for remote experiment",
+              error,
+            );
+          }
+        }
+
         const response = await fetch(dataset.remoteExperimentUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            datasetName: dataset.name,
-            payload: input.payload ?? dataset.remoteExperimentPayload,
-          }),
+          headers: requestHeaders,
+          body: webhookPayload,
           signal: AbortSignal.timeout(20000), // 20 second timeout
         });
 
@@ -1825,6 +1972,10 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          remoteExperimentSecretKey: null,
+          remoteExperimentDisplaySecretKey: null,
+          remoteExperimentHeaders: null,
+          remoteExperimentDisplayHeaders: null,
         },
         projectId: input.projectId,
       });
@@ -1838,6 +1989,60 @@ export const datasetRouter = createTRPCRouter({
       });
 
       return updatedDataset;
+    }),
+  regenerateRemoteExperimentSecret: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
+        generateWebhookSecret();
+
+      await updateDataset({
+        input: {
+          id: input.datasetId,
+          remoteExperimentSecretKey: encrypt(newSecretKey),
+          remoteExperimentDisplaySecretKey: newDisplaySecretKey,
+        },
+        projectId: input.projectId,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: dataset.id,
+        action: "update",
+      });
+
+      return {
+        displaySecretKey: newDisplaySecretKey,
+        webhookSecret: newSecretKey,
+      };
     }),
 
   validateDatasetSchema: protectedProjectProcedure
