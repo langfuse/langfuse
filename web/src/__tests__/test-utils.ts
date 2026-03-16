@@ -1,6 +1,10 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  EvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
+  SecondaryEvalExecutionQueue,
+  SecondaryIngestionQueue,
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
@@ -85,6 +89,11 @@ export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
     ...IngestionQueue.getShardNames(),
+    ...SecondaryIngestionQueue.getShardNames(),
+    ...EvalExecutionQueue.getShardNames(),
+    ...SecondaryEvalExecutionQueue.getShardNames(),
+    ...LLMAsJudgeExecutionQueue.getShardNames(),
+    ...OtelIngestionQueue.getShardNames(),
     ...TraceUpsertQueue.getShardNames(),
   );
 
@@ -103,18 +112,34 @@ export const getQueues = () => {
     .map((queueName) =>
       queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.TraceUpsert)
-          ? TraceUpsertQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.OtelIngestionQueue)
-            ? OtelIngestionQueue.getInstance({ shardName: queueName })
-            : getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              ),
+        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
+          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.EvaluationExecution)
+            ? EvalExecutionQueue.getInstance({ shardName: queueName })
+            : queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)
+              ? SecondaryEvalExecutionQueue.getInstance({
+                  shardName: queueName,
+                })
+              : queueName.startsWith(QueueName.LLMAsJudgeExecution)
+                ? LLMAsJudgeExecutionQueue.getInstance({
+                    shardName: queueName,
+                  })
+                : queueName.startsWith(QueueName.TraceUpsert)
+                  ? TraceUpsertQueue.getInstance({ shardName: queueName })
+                  : queueName.startsWith(QueueName.OtelIngestionQueue)
+                    ? OtelIngestionQueue.getInstance({ shardName: queueName })
+                    : getQueue(
+                        queueName as Exclude<
+                          QueueName,
+                          | QueueName.IngestionQueue
+                          | QueueName.IngestionSecondaryQueue
+                          | QueueName.EvaluationExecution
+                          | QueueName.EvaluationExecutionSecondaryQueue
+                          | QueueName.LLMAsJudgeExecution
+                          | QueueName.TraceUpsert
+                          | QueueName.OtelIngestionQueue
+                        >,
+                      ),
     );
 };
 
