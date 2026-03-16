@@ -18,15 +18,8 @@ const OTEL_KEY_REGEX =
   /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.json$/;
 const STANDARD_KEY_REGEX = /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/;
 
-type StandardReplayJob = {
-  name: QueueJobs.IngestionJob;
-  data: TQueueJobTypes[QueueName.IngestionSecondaryQueue];
-};
-
-type OtelReplayJob = {
-  name: QueueJobs.OtelIngestionJob;
-  data: TQueueJobTypes[QueueName.OtelIngestionQueue];
-};
+type StandardReplayJob = TQueueJobTypes[QueueName.IngestionSecondaryQueue];
+type OtelReplayJob = TQueueJobTypes[QueueName.OtelIngestionQueue];
 
 type StandardReplayEventType =
   TQueueJobTypes[QueueName.IngestionSecondaryQueue]["payload"]["data"]["type"];
@@ -67,7 +60,7 @@ const enqueueStandardJobs = async (jobs: StandardReplayJob[]) => {
   >();
 
   for (const job of jobs) {
-    const shardingKey = `${job.data.payload.authCheck.scope.projectId}-${job.data.payload.data.eventBodyId}`;
+    const shardingKey = `${job.payload.authCheck.scope.projectId}-${job.payload.data.eventBodyId}`;
     const queue = SecondaryIngestionQueue.getInstance({ shardingKey });
 
     if (!queue) {
@@ -85,7 +78,7 @@ const enqueueStandardJobs = async (jobs: StandardReplayJob[]) => {
 
   await Promise.all(
     Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
-      queue.addBulk(jobs),
+      queue.addBulk(jobs.map((job) => ({ name: job.name, data: job }))),
     ),
   );
 };
@@ -100,7 +93,7 @@ const enqueueOtelJobs = async (jobs: OtelReplayJob[]) => {
   >();
 
   for (const job of jobs) {
-    const shardingKey = `${job.data.payload.authCheck.scope.projectId}-${job.data.payload.data.fileKey}`;
+    const shardingKey = `${job.payload.authCheck.scope.projectId}-${job.payload.data.fileKey}`;
     const queue = OtelIngestionQueue.getInstance({ shardingKey });
 
     if (!queue) {
@@ -118,7 +111,7 @@ const enqueueOtelJobs = async (jobs: OtelReplayJob[]) => {
 
   await Promise.all(
     Array.from(jobsByQueue.values()).map(({ queue, jobs }) =>
-      queue.addBulk(jobs),
+      queue.addBulk(jobs.map((job) => ({ name: job.name, data: job }))),
     ),
   );
 };
@@ -159,19 +152,16 @@ export default async function handler(
       if (otelMatch) {
         const [, projectId] = otelMatch;
         otelJobs.push({
-          name: QueueJobs.OtelIngestionJob,
-          data: {
-            timestamp: new Date(),
-            id: randomUUID(),
-            payload: {
-              data: { fileKey: key },
-              authCheck: {
-                validKey: true,
-                scope: { projectId: projectId!, accessLevel: "project" },
-              },
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload: {
+            data: { fileKey: key },
+            authCheck: {
+              validKey: true,
+              scope: { projectId: projectId!, accessLevel: "project" },
             },
-            name: QueueJobs.OtelIngestionJob,
           },
+          name: QueueJobs.OtelIngestionJob,
         });
         continue;
       }
@@ -187,23 +177,20 @@ export default async function handler(
         }
 
         standardJobs.push({
-          name: QueueJobs.IngestionJob,
-          data: {
-            timestamp: new Date(),
-            id: randomUUID(),
-            payload: {
-              data: {
-                type: standardReplayTypeMap[type],
-                eventBodyId: eventBodyId!,
-                fileKey: eventId!,
-              },
-              authCheck: {
-                validKey: true,
-                scope: { projectId: projectId! },
-              },
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload: {
+            data: {
+              type: standardReplayTypeMap[type],
+              eventBodyId: eventBodyId!,
+              fileKey: eventId!,
             },
-            name: QueueJobs.IngestionJob,
+            authCheck: {
+              validKey: true,
+              scope: { projectId: projectId! },
+            },
           },
+          name: QueueJobs.IngestionJob,
         });
         continue;
       }
