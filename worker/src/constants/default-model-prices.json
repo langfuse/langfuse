@@ -3851,19 +3851,11 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.5e-6,
           "input_text": 0.5e-6,
-          "prompt_token_count": 0.5e-6,
           "input_audio": 3e-6,
-          "input_audio_tokens": 3e-6,
-          "input_video_tokens": 3e-6,
           "input_image": 3e-6,
-          "input_image_tokens": 3e-6,
-          "output": 2e-6,
           "output_text": 2e-6,
-          "response_token_count": 2e-6,
-          "output_audio": 12e-6,
-          "output_audio_tokens": 12e-6
+          "output_audio": 12e-6
         }
       }
     ]
