@@ -99,14 +99,14 @@ export function SearchBar({
           value={query}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="focus:outline-hidden min-w-0 flex-1 border-none bg-transparent text-sm focus:ring-0"
+          className="min-w-0 flex-1 border-none bg-transparent text-sm focus:ring-0 focus:outline-hidden"
           aria-label="Search JSON"
         />
 
         {/* Match counter */}
         {showControls && (
           <span
-            className="text-muted-foreground min-w-[70px] whitespace-nowrap text-right text-xs"
+            className="text-muted-foreground min-w-[70px] text-right text-xs whitespace-nowrap"
             aria-live="polite"
           >
             {hasMatches

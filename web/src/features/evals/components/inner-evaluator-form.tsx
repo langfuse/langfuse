@@ -175,14 +175,14 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
+          <span className="text-sm leading-none font-medium">
             Preview sample matched traces
           </span>
           <FormDescription>
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -226,7 +226,7 @@ const ObservationsPreview = memo(
             Sample over the last 24 hours that match filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {isBetaEnabled ? (
               <EventsTable
@@ -828,7 +828,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -853,7 +853,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}

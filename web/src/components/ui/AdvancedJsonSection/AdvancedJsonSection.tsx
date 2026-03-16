@@ -273,7 +273,7 @@ export function AdvancedJsonSection({
 
   return (
     <div
-      className={`flex flex-col border-b border-t ${effectiveCollapsed ? "" : virtualized !== false ? "min-h-0 overflow-hidden" : ""} ${className || ""}`}
+      className={`flex flex-col border-t border-b ${effectiveCollapsed ? "" : virtualized !== false ? "min-h-0 overflow-hidden" : ""} ${className || ""}`}
       style={{
         backgroundColor: headerBackgroundColor || backgroundColor,
       }}
@@ -327,7 +327,7 @@ export function AdvancedJsonSection({
                     />
                     {searchQuery && (
                       <span
-                        className="text-muted-foreground pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs"
+                        className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap"
                         aria-live="polite"
                       >
                         {searchMatches.length > 0

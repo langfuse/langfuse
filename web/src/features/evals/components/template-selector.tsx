@@ -179,7 +179,7 @@ export const TemplateSelector = ({
             />
             <div
               tabIndex={0}
-              className="focus:outline-hidden overflow-y-auto"
+              className="overflow-y-auto focus:outline-hidden"
               style={{ maxHeight: "300px" }}
               onWheel={(e) => {
                 // Prevent the wheel event from being captured by parent elements
@@ -233,7 +233,7 @@ export const TemplateSelector = ({
                                 <TooltipTrigger asChild>
                                   <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                                 </TooltipTrigger>
-                                <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                                <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                   <p>Requires project-level evaluation model</p>
                                   <Link
                                     href={`/project/${projectId}/evals/default-model`}
@@ -325,7 +325,7 @@ export const TemplateSelector = ({
                               <TooltipTrigger asChild>
                                 <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                               </TooltipTrigger>
-                              <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                              <TooltipContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                                 <p>Requires project-level evaluation model</p>
                                 <Link
                                   href={`/project/${projectId}/evals/default-model`}

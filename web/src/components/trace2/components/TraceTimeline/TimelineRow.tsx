@@ -42,7 +42,7 @@ export function TimelineRow({
               style={{ width: `${TREE_INDENTATION}px` }}
             >
               {treeLines[i] && (
-                <div className="bg-border absolute bottom-0 left-1.5 top-0 w-px" />
+                <div className="bg-border absolute top-0 bottom-0 left-1.5 w-px" />
               )}
             </div>
           ))}
@@ -58,12 +58,12 @@ export function TimelineRow({
           {/* Vertical line up */}
           <div
             className={cn(
-              "bg-border absolute left-1.5 top-0 w-px",
+              "bg-border absolute top-0 left-1.5 w-px",
               isLastSibling ? "h-3" : "bottom-0",
             )}
           />
           {/* Horizontal line to content */}
-          <div className="bg-border absolute left-1.5 top-3 h-px w-2" />
+          <div className="bg-border absolute top-3 left-1.5 h-px w-2" />
         </div>
       )}
 

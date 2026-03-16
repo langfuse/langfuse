@@ -83,7 +83,7 @@ const StaticHeader: React.FC<{
 }> = ({ label, className }) => {
   return (
     <TableHead className={cn("p-1", className)}>
-      <div className="flex select-none items-center">
+      <div className="flex items-center select-none">
         <span className="truncate">{label}</span>
       </div>
     </TableHead>
@@ -115,12 +115,12 @@ const SortableHeader: React.FC<{
 
   return (
     <TableHead
-      className={cn("group/header cursor-pointer select-none p-1", className)}
+      className={cn("group/header cursor-pointer p-1 select-none", className)}
       onClick={handleClick}
     >
       <div
         className={cn(
-          "flex select-none items-center",
+          "flex items-center select-none",
           rightAlign ? "justify-end" : "justify-start",
         )}
       >
@@ -139,7 +139,7 @@ const SortableHeader: React.FC<{
         )}
 
         {/* Visual indicator that appears on hover - matches traces table behavior */}
-        <div className="bg-secondary pointer-events-none absolute right-0 top-0 h-full w-1.5 touch-none select-none opacity-0 group-hover/header:opacity-100" />
+        <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
     </TableHead>
   );
@@ -383,7 +383,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       {isLoading && (
         <ChartLoadingState
           isLoading={isLoading}
-          className="bg-background/80 backdrop-blur-xs absolute inset-0 z-10"
+          className="bg-background/80 absolute inset-0 z-10 backdrop-blur-xs"
           hintClassName="max-w-sm px-4"
         />
       )}

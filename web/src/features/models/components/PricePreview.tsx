@@ -48,7 +48,7 @@ export function PricePreview({
                   key={usageType}
                   className="text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 rounded px-1 py-0.5 text-xs"
                 >
-                  <span className="break-all font-medium">{usageType}</span>
+                  <span className="font-medium break-all">{usageType}</span>
                   <span className="text-right font-mono">
                     $
                     {new Decimal(price).toFixed(

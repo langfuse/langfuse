@@ -77,7 +77,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
         <DialogBody>
           <p className="text-muted-foreground text-sm">
             This action permanently deletes the folder{" "}
-            <code className="bg-muted relative break-all rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+            <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold break-all">
               {folderPath}
             </code>{" "}
             and <b>all prompts inside it recursively</b>. This cannot be undone.

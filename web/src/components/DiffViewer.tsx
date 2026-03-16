@@ -173,7 +173,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       <div className="grid grid-cols-2">
         <div
           className={cn(
-            "wrap-break-word whitespace-pre-wrap border-r px-4 py-1 font-mono text-xs",
+            "border-r px-4 py-1 font-mono text-xs wrap-break-word whitespace-pre-wrap",
             typeClasses[leftLine.type],
           )}
         >
@@ -181,7 +181,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
         </div>
         <div
           className={cn(
-            "wrap-break-word whitespace-pre-wrap px-4 py-1 font-mono text-xs",
+            "px-4 py-1 font-mono text-xs wrap-break-word whitespace-pre-wrap",
             typeClasses[rightLine.type],
           )}
         >
@@ -200,7 +200,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       <Card>
         <CardContent className="p-0">
           <div className="grid grid-cols-2">
-            <div className="bg-muted flex flex-row gap-1 border-b border-r px-4 py-2 text-xs font-semibold">
+            <div className="bg-muted flex flex-row gap-1 border-r border-b px-4 py-2 text-xs font-semibold">
               {oldLabel}
               {oldSubLabel && (
                 <div

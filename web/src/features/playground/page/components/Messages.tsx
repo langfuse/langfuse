@@ -22,7 +22,7 @@ import {
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
-    <div className="flex h-full flex-col space-y-4 pr-4 pt-2">
+    <div className="flex h-full flex-col space-y-4 pt-2 pr-4">
       <ResizablePanelGroup orientation="vertical">
         <ResizablePanel minSize="10%">
           <ChatMessages {...props} />
@@ -66,7 +66,7 @@ const SubmitButton = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="focus:outline-hidden h-8 w-8 focus:ring-0 focus-visible:ring-0"
+            className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
             <Settings className="h-4 w-4" />

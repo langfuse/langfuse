@@ -221,7 +221,7 @@ export function PromptSelectionDialog({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-2 top-2 bg-opacity-70"
+                  className="bg-opacity-70 absolute top-2 right-2"
                   onClick={copySelectedTag}
                 >
                   <CopyIcon className="h-4 w-4" />

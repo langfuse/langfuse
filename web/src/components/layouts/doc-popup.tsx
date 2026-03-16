@@ -57,7 +57,7 @@ export default function DocPopup({
         <HoverCardContent>
           <div
             className={cn(
-              "text-primary whitespace-break-spaces text-xs font-normal sm:pl-0",
+              "text-primary text-xs font-normal whitespace-break-spaces sm:pl-0",
               className,
             )}
           >
@@ -81,7 +81,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
         <div>{triggerContent}</div>
       </HoverCardTrigger>
       <HoverCardContent>
-        <div className="text-primary whitespace-break-spaces text-xs font-normal sm:pl-0">
+        <div className="text-primary text-xs font-normal whitespace-break-spaces sm:pl-0">
           {description}
         </div>
       </HoverCardContent>

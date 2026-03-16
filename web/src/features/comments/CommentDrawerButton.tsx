@@ -166,7 +166,7 @@ export function CommentDrawerButton({
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
               <span>Add comment</span>
-              <span className="bg-primary/50 text-primary-foreground shadow-xs flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs">
+              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
@@ -182,7 +182,7 @@ export function CommentDrawerButton({
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
         <div
-          className="focus:outline-hidden focus-visible:outline-hidden mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus-visible:ring-0 md:max-h-full"
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
             // Auto-focus drawer content when it opens (only once)

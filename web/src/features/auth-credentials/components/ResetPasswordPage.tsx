@@ -116,7 +116,7 @@ export function ResetPasswordPage({
           <Link href="/">
             <LangfuseIcon className="mx-auto" />
           </Link>
-          <h2 className="text-primary mt-4 text-center text-2xl font-bold leading-9 tracking-tight">
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Reset your password
           </h2>
           {session.status !== "authenticated" && (
@@ -155,7 +155,7 @@ export function ResetPasswordPage({
                           />
                           {emailVerified.verified && (
                             <span title="Email verified">
-                              <ShieldCheck className="text-muted-green absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 transform" />
+                              <ShieldCheck className="text-muted-green absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform" />
                             </span>
                           )}
                         </div>

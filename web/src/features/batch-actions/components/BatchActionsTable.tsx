@@ -171,7 +171,7 @@ export function BatchActionsTable(props: { projectId: string }) {
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
-                <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">
+                <pre className="max-h-60 overflow-auto text-xs whitespace-pre-wrap">
                   {log}
                 </pre>
               </TooltipContent>

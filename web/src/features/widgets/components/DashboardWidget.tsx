@@ -369,7 +369,7 @@ export function DashboardWidget({
             showSpinner={false}
             showHintImmediately={true}
             hintText={queryValidation.reason}
-            className="bg-background/80 backdrop-blur-xs absolute inset-0 z-20"
+            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
             hintClassName="max-w-sm px-4"
           />
         ) : (
@@ -407,7 +407,7 @@ export function DashboardWidget({
               showSpinner={chartLoadingState.showSpinner}
               showHintImmediately={chartLoadingState.showHintImmediately}
               hintText={chartLoadingState.hintText}
-              className="bg-background/80 backdrop-blur-xs absolute inset-0 z-20"
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
               hintClassName="max-w-sm px-4"
             />
           </>

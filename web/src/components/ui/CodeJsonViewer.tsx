@@ -90,7 +90,7 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content wrap-break-word flex gap-2 whitespace-pre-wrap text-xs",
+          "io-message-content flex gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
@@ -276,7 +276,7 @@ export function CodeView(props: {
             variant="secondary"
             size="icon-xs"
             onClick={handleCopy}
-            className="absolute right-2 top-2 z-10"
+            className="absolute top-2 right-2 z-10"
           >
             {isCopied ? (
               <Check className="h-3 w-3" />
@@ -287,7 +287,7 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "wrap-break-word relative flex-1 whitespace-pre-wrap px-4 py-3 font-mono text-xs",
+            "relative flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}

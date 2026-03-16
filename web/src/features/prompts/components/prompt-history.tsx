@@ -137,7 +137,7 @@ const PromptHistoryTraceNode = (props: {
               {prompt.commitMessage && (
                 <div className="flex flex-1 flex-nowrap gap-2">
                   <span
-                    className="text-muted-foreground min-w-0 max-w-full truncate text-xs"
+                    className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
                     title={prompt.commitMessage}
                   >
                     {prompt.commitMessage}

@@ -12,7 +12,7 @@ export function DatasetAnalytics(props: {
   const capture = usePostHogClientCapture();
   return (
     <MultiSelectKeyValues
-      className="focus:ring-0! focus:ring-offset-0! max-w-fit"
+      className="max-w-fit focus:ring-0! focus:ring-offset-0!"
       placeholder="Search..."
       title="Charts"
       variant="outline"

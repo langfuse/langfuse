@@ -195,17 +195,17 @@ export const TracePreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="@container flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="@2xl:grid-cols-[auto_auto] @2xl:justify-between mt-2 grid w-full grid-cols-1 items-start gap-2 px-2">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
             </div>
-            <span className="md:wrap-break-word mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
               {trace.name}
             </span>
             <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <div className="@2xl:mr-1 @2xl:justify-end flex h-full flex-wrap content-start items-start justify-start gap-0.5">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
@@ -260,15 +260,15 @@ export const TracePreview = ({
           </div>
         </div>
         <div className="grid w-full min-w-0 items-center justify-between px-2">
-          <div className="flex min-w-0 max-w-full shrink flex-col">
-            <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
+          <div className="flex max-w-full min-w-0 shrink flex-col">
+            <div className="mb-1 flex max-w-full min-w-0 flex-wrap items-center gap-1">
               <LocalIsoDate
                 date={trace.timestamp}
                 accuracy="millisecond"
                 className="text-sm"
               />
             </div>
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+            <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {trace.sessionId ? (
                 <Link
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
@@ -578,7 +578,7 @@ export const TracePreview = ({
           {showScoresTab && (
             <TabsBarContent
               value="scores"
-              className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
+              className="mt-0 mr-4 mb-2 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
             >
               <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3 md:flex-1">
                 <ScoresTable

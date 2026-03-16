@@ -259,7 +259,7 @@ function GroupVisibilityHeader<TData, TValue>({
           </div>
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pl-4 pt-1">{children}</CollapsibleContent>
+      <CollapsibleContent className="pt-1 pl-4">{children}</CollapsibleContent>
     </Collapsible>
   );
 }

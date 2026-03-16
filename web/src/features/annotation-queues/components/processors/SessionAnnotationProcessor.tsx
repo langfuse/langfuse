@@ -70,7 +70,7 @@ export const SessionAnnotationProcessor: React.FC<
             <div className="mt-1.5">
               <ItemBadge type="SESSION" isSmall />
             </div>
-            <span className="md:wrap-break-word mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
               {item.objectId}
             </span>
             <CopyIdsPopover
@@ -85,9 +85,9 @@ export const SessionAnnotationProcessor: React.FC<
             </div>
           )}
         </div>
-        <div className="mb-4 mt-2 grid w-full min-w-0 items-center justify-between px-4">
-          <div className="flex min-w-0 max-w-full shrink flex-col">
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+        <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
+          <div className="flex max-w-full min-w-0 shrink flex-col">
+            <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data.environment && (
                 <Badge variant="tertiary">Env: {data.environment}</Badge>
               )}

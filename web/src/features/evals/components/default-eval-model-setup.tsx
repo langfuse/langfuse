@@ -125,7 +125,7 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
           <DialogContent className="px-3 py-10">
             <ModelParameters
               customHeader={
-                <p className="font-medium leading-none">
+                <p className="leading-none font-medium">
                   Default model configuration
                 </p>
               }
