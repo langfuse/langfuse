@@ -28,6 +28,33 @@ type OtelReplayJob = {
   data: TQueueJobTypes[QueueName.OtelIngestionQueue];
 };
 
+type StandardReplayEventType =
+  TQueueJobTypes[QueueName.IngestionSecondaryQueue]["payload"]["data"]["type"];
+
+const standardReplayTypeMap = {
+  trace: "trace-create",
+  score: "score-create",
+  event: "event-create",
+  span: "span-create",
+  generation: "generation-create",
+  agent: "agent-create",
+  tool: "tool-create",
+  chain: "chain-create",
+  retriever: "retriever-create",
+  evaluator: "evaluator-create",
+  embedding: "embedding-create",
+  guardrail: "guardrail-create",
+  "dataset-run-item": "dataset-run-item-create",
+  observation: "observation-create",
+} as const satisfies Record<string, StandardReplayEventType>;
+
+type StandardReplayTypeSegment = keyof typeof standardReplayTypeMap;
+
+const isStandardReplayTypeSegment = (
+  value: string,
+): value is StandardReplayTypeSegment =>
+  Object.prototype.hasOwnProperty.call(standardReplayTypeMap, value);
+
 const enqueueStandardJobs = async (jobs: StandardReplayJob[]) => {
   const jobsByQueue = new Map<
     string,
@@ -152,6 +179,13 @@ export default async function handler(
       const standardMatch = key.match(STANDARD_KEY_REGEX);
       if (standardMatch) {
         const [, projectId, type, eventBodyId, eventId] = standardMatch;
+
+        if (!isStandardReplayTypeSegment(type)) {
+          skipped++;
+          errors.push(`Unsupported replay type: ${type}`);
+          continue;
+        }
+
         standardJobs.push({
           name: QueueJobs.IngestionJob,
           data: {
@@ -159,7 +193,7 @@ export default async function handler(
             id: randomUUID(),
             payload: {
               data: {
-                type: `${type}-create`,
+                type: standardReplayTypeMap[type],
                 eventBodyId: eventBodyId!,
                 fileKey: eventId!,
               },

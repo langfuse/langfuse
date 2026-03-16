@@ -121,6 +121,7 @@ describe("/api/admin/ingestion-replay", () => {
         data: expect.objectContaining({
           payload: expect.objectContaining({
             data: expect.objectContaining({
+              type: "trace-create",
               eventBodyId: "event-body-1",
             }),
             authCheck: expect.objectContaining({
@@ -157,5 +158,25 @@ describe("/api/admin/ingestion-replay", () => {
         name: QueueJobs.OtelIngestionJob,
       }),
     ]);
+  });
+
+  it("skips unsupported standard replay types", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      body: {
+        keys: ["project-1/sdk-log/event-body-1/file-a.json"],
+      },
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      queued: 0,
+      skipped: 1,
+      errors: ["Unsupported replay type: sdk-log"],
+    });
+    expect(SecondaryIngestionQueue.getInstance).not.toHaveBeenCalled();
+    expect(OtelIngestionQueue.getInstance).not.toHaveBeenCalled();
   });
 });
