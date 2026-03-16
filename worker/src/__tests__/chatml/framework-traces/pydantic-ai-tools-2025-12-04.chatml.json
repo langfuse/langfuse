@@ -608,6 +608,93 @@
         {
           "role": "assistant",
           "content": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)",
+          "tools": [
+            {
+              "name": "get_pun_suggestion",
+              "description": "Get a pun-style joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_dad_joke_suggestion",
+              "description": "Get a dad joke style suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_one_liner_suggestion",
+              "description": "Get a one-liner joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_car_joke_suggestion",
+              "description": "Get a car-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_tree_joke_suggestion",
+              "description": "Get a tree-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            }
+          ],
           "json": {
             "finish_reason": "stop"
           }
@@ -634,6 +721,7 @@
       "data": [
         {
           "role": "assistant",
+          "content": "",
           "tool_calls": [
             {
               "id": "call_ZuzwalMMtvv9BC6xlVe3fiBP",
@@ -1418,6 +1506,93 @@
         {
           "role": "assistant",
           "content": "Why do programmers hate nature?  \nIt has too many bugs!",
+          "tools": [
+            {
+              "name": "get_pun_suggestion",
+              "description": "Get a pun-style joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_dad_joke_suggestion",
+              "description": "Get a dad joke style suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_one_liner_suggestion",
+              "description": "Get a one-liner joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_car_joke_suggestion",
+              "description": "Get a car-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_tree_joke_suggestion",
+              "description": "Get a tree-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            }
+          ],
           "json": {
             "finish_reason": "stop"
           }
@@ -1618,6 +1793,94 @@
       "data": [
         {
           "role": "assistant",
+          "content": "",
+          "tools": [
+            {
+              "name": "get_pun_suggestion",
+              "description": "Get a pun-style joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_dad_joke_suggestion",
+              "description": "Get a dad joke style suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_one_liner_suggestion",
+              "description": "Get a one-liner joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_car_joke_suggestion",
+              "description": "Get a car-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            },
+            {
+              "name": "get_tree_joke_suggestion",
+              "description": "Get a tree-themed joke suggestion for the given topic.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "topic": {
+                    "description": "The topic for the joke",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "topic"
+                ],
+                "type": "object"
+              }
+            }
+          ],
           "tool_calls": [
             {
               "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
