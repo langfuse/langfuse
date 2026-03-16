@@ -64,11 +64,16 @@ import {
   TablePeekView,
 } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  addPrefixToScoreKeys,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
@@ -154,6 +159,7 @@ export type EventsTableRow = {
 
   // Scores
   scores: ScoreAggregate;
+  traceScores: ScoreAggregate;
 };
 
 export type EventsTableProps = {
@@ -460,6 +466,14 @@ export default function ObservationsEventsTable({
       projectId,
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
+    });
+  const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
+    useScoreColumns<EventsTableRow>({
+      scoreColumnKey: "traceScores",
+      projectId,
+      filter: scoreFilters.forTraces(),
+      fromTimestamp: dateRange?.from,
+      prefix: "Trace",
     });
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
@@ -1028,6 +1042,17 @@ export default function ObservationsEventsTable({
       columns: scoreColumns,
     },
     {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isTraceColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: traceScoreColumns,
+    },
+    {
       accessorKey: "endTime",
       id: "endTime",
       header: getEventsColumnName("endTime"),
@@ -1160,6 +1185,10 @@ export default function ObservationsEventsTable({
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
               scores: observation.scores ?? {},
+              traceScores: addPrefixToScoreKeys(
+                observation.traceScores ?? {},
+                "Trace",
+              ),
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {
@@ -1409,18 +1438,18 @@ export default function ObservationsEventsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+                    const observationUrl = buildTraceDetailPath({
+                      projectId,
+                      traceId,
+                      observationId,
+                      timestamp,
+                    });
 
-                    const params = new URLSearchParams();
-                    params.set("observation", observationId);
-                    if (timestamp) {
-                      params.set("timestamp", timestamp.toISOString());
-                    }
-
-                    observationUrl += `?${params.toString()}`;
-
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-                    window.open(fullUrl, "_blank");
+                    window.open(
+                      getSafeRedirectPath(observationUrl),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }
                 // For normal clicks, let the data-table handle opening the peek view

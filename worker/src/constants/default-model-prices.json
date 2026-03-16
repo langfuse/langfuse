@@ -2797,7 +2797,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2807,6 +2807,7 @@
         "conditions": [],
         "prices": {
           "input": 3e-7,
+          "input_text": 3e-7,
           "input_modality_1": 3e-7,
           "prompt_token_count": 3e-7,
           "promptTokenCount": 3e-7,
@@ -2829,7 +2830,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2839,6 +2840,7 @@
         "conditions": [],
         "prices": {
           "input": 1e-7,
+          "input_text": 1e-7,
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
@@ -3243,7 +3245,7 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
@@ -3273,7 +3275,7 @@
   {
     "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
     "modelName": "claude-sonnet-4-6",
-    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-6-v1(:0)?|claude-sonnet-4-6)$",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
@@ -3329,7 +3331,7 @@
   {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
     "updatedAt": "2026-03-04T00:00:00.000Z",
     "tokenizerConfig": null,
@@ -3361,7 +3363,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-03-04T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3371,6 +3373,7 @@
         "conditions": [],
         "prices": {
           "input": 1.25e-6,
+          "input_text": 1.25e-6,
           "input_modality_1": 1.25e-6,
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
@@ -3400,6 +3403,7 @@
         ],
         "prices": {
           "input": 2.5e-6,
+          "input_text": 2.5e-6,
           "input_modality_1": 2.5e-6,
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
@@ -3648,6 +3652,122 @@
           "output": 168e-6,
           "output_reasoning_tokens": 168e-6,
           "output_reasoning": 168e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "bee3c111-fe6f-4641-8775-73ea33b29fca",
+    "modelName": "gpt-5.4",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "bee3c111-fe6f-4641-8775-73ea33b29fca_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "68d32054-8748-4d25-9f64-d78d483601bd",
+    "modelName": "gpt-5.4-pro",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "68d32054-8748-4d25-9f64-d78d483601bd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 30e-6,
+          "output": 180e-6,
+          "output_reasoning_tokens": 180e-6,
+          "output_reasoning": 180e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "22dfc7e1-1fe1-4286-b1af-928635e7ecb9",
+    "modelName": "gpt-5.4-2026-03-05",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-2026-03-05)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "22dfc7e1-1fe1-4286-b1af-928635e7ecb9_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "d8873413-05ab-4374-8223-e8c9005c4a0e",
+    "modelName": "gpt-5.4-pro-2026-03-05",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro-2026-03-05)$",
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "d8873413-05ab-4374-8223-e8c9005c4a0e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 30e-6,
+          "output": 180e-6,
+          "output_reasoning_tokens": 180e-6,
+          "output_reasoning": 180e-6
         }
       }
     ]

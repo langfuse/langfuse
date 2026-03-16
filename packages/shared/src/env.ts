@@ -7,6 +7,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.string().url().optional(),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
@@ -17,6 +20,8 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
+  // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_TLS_CA_PATH: z.string().optional(),

@@ -103,7 +103,7 @@ export function CategoricalScoreChart(props: {
     return (
       <NoDataOrLoading
         isLoading={scores.isLoading}
-        className="min-h-[9rem] flex-1"
+        className="min-h-36 flex-1"
       />
     );
   }

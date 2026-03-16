@@ -1,11 +1,11 @@
 import {
+  getDeletedProjects,
   logger,
   queryClickhouse,
   commandClickhouse,
   traceException,
   recordIncrement,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 
 export const BATCH_DELETION_TABLES = [
   "traces",
@@ -91,7 +91,9 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
     // Step 1: Query PG for deleted projects (no lock needed)
     let deletedProjects: Array<{ id: string }>;
     try {
-      deletedProjects = await this.getDeletedProjects();
+      deletedProjects = await getDeletedProjects(
+        env.LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT,
+      );
     } catch (error) {
       logger.error(`${this.instanceName}: Failed to query deleted projects`, {
         error,
@@ -192,16 +194,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         },
       )) ?? env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS
     );
-  }
-
-  private async getDeletedProjects(): Promise<Array<{ id: string }>> {
-    return prisma.project.findMany({
-      select: { id: true },
-      where: {
-        deletedAt: { not: null },
-      },
-      take: env.LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT,
-    });
   }
 
   private async getProjectCounts(
