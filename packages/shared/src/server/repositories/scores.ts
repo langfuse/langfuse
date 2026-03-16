@@ -460,6 +460,7 @@ export const getScoresForExperimentItems = async (
   >({
     query,
     params: {
+      projectId,
       ...eventsSubquery.params,
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
