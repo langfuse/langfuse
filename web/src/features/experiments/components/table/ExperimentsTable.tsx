@@ -313,7 +313,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
               >
                 <Badge
                   variant="secondary"
-                  className="cursor-pointer hover:bg-secondary/80"
+                  className="hover:bg-secondary/80 cursor-pointer"
                 >
                   {name}
                 </Badge>
