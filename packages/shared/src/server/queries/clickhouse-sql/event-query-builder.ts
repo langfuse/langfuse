@@ -144,6 +144,8 @@ const FIELD_SETS = {
     "costDetails",
     "level",
     "environment",
+    "bookmarked",
+    "public",
     "statusMessage",
     "version",
     "parentObservationId",

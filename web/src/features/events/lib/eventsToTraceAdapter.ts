@@ -62,8 +62,8 @@ export function adaptEventsToTraceFormat(params: {
     output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
     metadata: JSON.stringify(root?.metadata ?? {}),
     tags: [], // Events have tags on each observation, not trace-level
-    bookmarked: false,
-    public: false,
+    bookmarked: root?.bookmarked ?? false,
+    public: root?.public ?? false,
     release: earliest.version ?? null,
     version: earliest.version ?? null,
     userId: earliest.userId ?? null,

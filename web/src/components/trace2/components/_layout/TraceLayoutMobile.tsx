@@ -63,7 +63,7 @@ TraceLayoutMobile.NavigationPanel = function Navigation({
   const { isNavigationExpanded, setIsNavigationExpanded } = useLayoutContext();
 
   return (
-    <div className="flex flex-shrink-0 flex-col border-b">
+    <div className="flex shrink-0 flex-col border-b">
       {/* Accordion Header */}
       <Button
         variant="ghost"

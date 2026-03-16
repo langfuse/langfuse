@@ -52,14 +52,14 @@ export function MetricCard({
       case "blue":
         return "secondary";
       case "yellow":
-        return "outline";
+        return "outline-solid";
       case "orange":
-        return "outline";
+        return "outline-solid";
       case "red":
         return "destructive";
       case "gray":
       default:
-        return "outline";
+        return "outline-solid";
     }
   };
 
@@ -67,12 +67,12 @@ export function MetricCard({
     <div className="flex flex-col gap-0.5">
       {/* Label with optional help icon */}
       <div className="flex items-center gap-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-muted-foreground text-xs">{label}</p>
         {helpText && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                <HelpCircle className="text-muted-foreground h-3 w-3" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs">
                 <p className="text-xs">{helpText}</p>
@@ -86,7 +86,7 @@ export function MetricCard({
       <div className="flex items-center gap-2">
         {isNA ? (
           // Muted styling for N/A values - use em dash and reduced opacity
-          <span className="text-sm text-muted-foreground/50">—</span>
+          <span className="text-muted-foreground/50 text-sm">—</span>
         ) : (
           // Normal styling for actual values
           <p

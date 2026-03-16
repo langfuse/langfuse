@@ -156,6 +156,12 @@ export const transformDbToApiObservation = (
     toolCalls,
 
     toolCallNames,
+
+    // Exclude publish/bookmark flags from V1 public observations API.
+    // V2 observations already exposes these on the events-based contract.
+    bookmarked,
+
+    public: _public,
     ...rest
   } = observation as EventsObservation & ObservationPriceFields;
 

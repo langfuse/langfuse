@@ -13,6 +13,8 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  batchProjectMediaCleaner,
+  batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
 } from "../app";
 
@@ -36,6 +38,12 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+
+  // Stop batch project media cleaner
+  batchProjectMediaCleaner?.stop();
+
+  // Stop batch project blob cleaner
+  batchProjectBlobCleaner?.stop();
 
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();

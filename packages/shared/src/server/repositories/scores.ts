@@ -49,6 +49,7 @@ import {
   eventsExperimentTraceIds,
   eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
+import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -720,6 +721,7 @@ export const getScoresGroupedByNameSourceType = async ({
     ...createFilterFromFilterState(
       filter,
       scoresColumnsTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
 
@@ -1148,7 +1150,11 @@ const getScoresUiGeneric = async <T>(props: {
     tracesPrefix: "t",
   });
   scoresFilter.push(
-    ...createFilterFromFilterState(filter, scoresTableUiColumnDefinitions),
+    ...createFilterFromFilterState(
+      filter,
+      scoresTableUiColumnDefinitions,
+      scoresTableCols,
+    ),
   );
   const scoresFilterRes = scoresFilter.apply();
 
@@ -1267,6 +1273,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     ...createFilterFromFilterState(
       filter,
       scoresTableUiColumnDefinitionsFromEvents,
+      scoresTableCols,
     ),
   );
 
@@ -1307,6 +1314,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         createFilterFromFilterState(
           traceFilterState,
           scoresTraceFilterEventsMapping,
+          scoresTableCols,
         ),
       );
       const cteTraceFilterRes = cteTraceFilters.apply();
@@ -1491,6 +1499,7 @@ export const getScoreNames = async (
     createFilterFromFilterState(
       timestampFilter,
       scoresTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
   const timestampFilterRes = chFilter.apply();
@@ -1542,6 +1551,7 @@ export const getScoreStringValues = async (
     createFilterFromFilterState(
       timestampFilter,
       scoresTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
   const timestampFilterRes = chFilter.apply();

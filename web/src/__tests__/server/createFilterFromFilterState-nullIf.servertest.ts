@@ -1,39 +1,31 @@
 import { createFilterFromFilterState } from "@langfuse/shared/src/server";
 
 /**
- * Unit tests for the parentObservationId null-filter special case in
- * createFilterFromFilterState (factory.ts).
+ * Unit tests for the emptyEqualsNull flag on filter classes, passed through
+ * createFilterFromFilterState via UiColumnMapping.
  *
  * events_core stores parent_span_id as a non-nullable String — root events
- * have ''. The view layer may wrap this with nullIf(col, '') so the UI sees
- * NULL instead. The factory must detect the wrapper and emit IS NULL / IS NOT
- * NULL (not = '' / != '') when nullIf is present.
+ * have ''. When emptyEqualsNull is set, NullFilter treats '' and NULL as
+ * equivalent.
  */
-describe("createFilterFromFilterState parentObservationId on events tables", () => {
+describe("createFilterFromFilterState with emptyEqualsNull", () => {
   const baseMapping = {
     uiTableName: "parentObservationId",
     uiTableId: "parentObservationId",
     type: "string",
   };
 
-  // Column mapping that mirrors eventsObservationsView (nullIf wrapper present)
-  const withNullIf = {
+  // Column mapping with emptyEqualsNull (used by v2 query engine for nullIf dimensions)
+  const withEmptyEqualsNull = {
     ...baseMapping,
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "nullIf(events_observations.parent_span_id, '')",
+    clickhouseSelect: "events_observations.parent_span_id",
     queryPrefix: "",
+    emptyEqualsNull: true,
   };
 
-  // Column mapping without nullIf (raw column, e.g. eventsTracesView)
-  const withoutNullIf = {
-    ...baseMapping,
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "events_traces.parent_span_id",
-    queryPrefix: "",
-  };
-
-  // Non-events table — should fall through to standard NullFilter
-  const nonEvents = {
+  // Column mapping without emptyEqualsNull — standard NullFilter behavior
+  const withoutFlag = {
     ...baseMapping,
     clickhouseTableName: "observations",
     clickhouseSelect: "observations.parent_observation_id",
@@ -43,44 +35,41 @@ describe("createFilterFromFilterState parentObservationId on events tables", () 
   it.each<{
     desc: string;
     operator: "is null" | "is not null";
-    mapping: typeof withNullIf;
+    mapping: typeof withEmptyEqualsNull;
     expected: string;
   }>([
     {
-      desc: "nullIf + is null → IS NULL",
+      desc: "emptyEqualsNull + is null → match '' and NULL",
       operator: "is null",
-      mapping: withNullIf,
-      expected: "nullIf(events_observations.parent_span_id, '') IS NULL",
+      mapping: withEmptyEqualsNull,
+      expected:
+        "(events_observations.parent_span_id = '' OR events_observations.parent_span_id IS NULL)",
     },
     {
-      desc: "nullIf + is not null → IS NOT NULL",
+      desc: "emptyEqualsNull + is not null → exclude '' and NULL",
       operator: "is not null",
-      mapping: withNullIf,
-      expected: "nullIf(events_observations.parent_span_id, '') IS NOT NULL",
+      mapping: withEmptyEqualsNull,
+      expected:
+        "(events_observations.parent_span_id != '' AND events_observations.parent_span_id IS NOT NULL)",
     },
     {
-      desc: "raw column + is null → = ''",
+      desc: "emptyEqualsNull + queryPrefix + is null",
       operator: "is null",
-      mapping: withoutNullIf,
-      expected: "events_traces.parent_span_id = ''",
+      mapping: { ...withEmptyEqualsNull, queryPrefix: "eo" },
+      expected:
+        "(eo.events_observations.parent_span_id = '' OR eo.events_observations.parent_span_id IS NULL)",
     },
     {
-      desc: "raw column + is not null → != ''",
-      operator: "is not null",
-      mapping: withoutNullIf,
-      expected: "events_traces.parent_span_id != ''",
-    },
-    {
-      desc: "raw column + queryPrefix",
+      desc: "no flag → standard NullFilter",
       operator: "is null",
-      mapping: { ...withoutNullIf, queryPrefix: "eo" },
-      expected: "eo.events_traces.parent_span_id = ''",
-    },
-    {
-      desc: "non-events table falls through to standard NullFilter",
-      operator: "is null",
-      mapping: nonEvents,
+      mapping: withoutFlag,
       expected: "observations.parent_observation_id is null",
+    },
+    {
+      desc: "no flag + is not null → standard NullFilter",
+      operator: "is not null",
+      mapping: withoutFlag,
+      expected: "observations.parent_observation_id is not null",
     },
   ])("$desc", ({ operator, mapping, expected }) => {
     const filter = {
