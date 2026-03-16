@@ -46,6 +46,9 @@ import { Switch } from "@/src/components/ui/switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 
 export const VariableMappingCard = ({
   projectId,
@@ -73,6 +76,11 @@ export const VariableMappingCard = ({
   const { fields } = useFieldArray({
     control: form.control,
     name: "mapping",
+  });
+
+  const syncStatus = useVariableMappingSync({
+    templateVars: evalTemplate?.vars,
+    currentMapping: fields,
   });
 
   const { namesByObject, isLoading, previewData } = useEvalConfigMappingData(
@@ -214,6 +222,19 @@ export const VariableMappingCard = ({
                     !shouldWrapVariables && "lg:w-1/3",
                   )}
                 >
+                  {disabled && !syncStatus.inSync && (
+                    <Alert className="text-sm" variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle className="text-base">
+                        Variable mapping is out of sync
+                      </AlertTitle>
+                      <AlertDescription>
+                        The template has {syncStatus.added.length} new
+                        variable(s) and {syncStatus.removed.length} removed
+                        variable(s). Toggle Edit Mode to update the mapping.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)
                     ? fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>
