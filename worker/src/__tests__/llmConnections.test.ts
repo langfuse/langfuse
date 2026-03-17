@@ -1185,13 +1185,21 @@ describe("LLM Connection Tests", () => {
       ["https://proxy.example/v1", "proxy.example"],
       ["https://proxy.example/v1beta", "proxy.example"],
 
-      // Strips version + remainder that ChatGoogle appends
+      // Strips version + ChatGoogle-appended suffixes (models/, publishers/, projects/)
       ["https://proxy.example/v1beta/models", "proxy.example"],
       ["https://proxy.example/v1/models/gemini-pro:generate", "proxy.example"],
       [
         "https://proxy.example/v1beta/publishers/google/models/gemini",
         "proxy.example",
       ],
+      [
+        "https://proxy.example/v1/projects/my-proj/locations/us/publishers/google/models/gemini",
+        "proxy.example",
+      ],
+
+      // Preserves custom proxy routes under /v1 that are NOT ChatGoogle suffixes
+      ["https://proxy.example/v1/gateway", "proxy.example/v1/gateway"],
+      ["https://proxy.example/v1beta/custom", "proxy.example/v1beta/custom"],
 
       // Preserves path prefix before the version segment
       ["https://proxy.example/proxy/v1", "proxy.example/proxy"],
@@ -1206,6 +1214,17 @@ describe("LLM Connection Tests", () => {
 
       // Includes port when present
       ["https://proxy.example:8080/v1beta", "proxy.example:8080"],
+
+      // Preserves basic-auth credentials
+      ["https://user:pass@proxy.internal/v1", "user:pass@proxy.internal"],
+      [
+        "https://user:pass@proxy.internal:8080/v1beta/models",
+        "user:pass@proxy.internal:8080",
+      ],
+      [
+        "https://user:pass@proxy.internal/custom-path",
+        "user:pass@proxy.internal/custom-path",
+      ],
 
       // Falls back to raw string on invalid URL
       ["not-a-url", "not-a-url"],

@@ -626,15 +626,25 @@ function extractCompletionWithReasoning(
  * Extracts hostname (+ optional port/path) from a full URL for use as ChatGoogle endpoint.
  * ChatGoogle builds URLs as: https://${endpoint}/${apiVersion}/models/${model}:${method}
  * where apiVersion is "v1beta" (GAI) or "v1" (GCP).
- * We strip these trailing segments to avoid doubled paths like .../v1/v1beta/models/...
+ * We strip only the exact suffixes ChatGoogle appends (version + models/publishers/projects)
+ * to avoid doubled paths, while preserving custom proxy routes like /v1/gateway.
+ * Basic-auth credentials in the URL are preserved.
  */
 export function baseUrlToEndpoint(baseUrl: string): string {
   try {
     const url = new URL(baseUrl);
+    const auth =
+      url.username && url.password
+        ? `${url.username}:${url.password}@`
+        : url.username
+          ? `${url.username}@`
+          : "";
     const path = url.pathname
       .replace(/\/+$/, "")
-      .replace(/\/(v1beta|v1)(\/.*)?$/, "");
-    return path && path !== "" ? `${url.host}${path}` : url.host;
+      .replace(/\/(v1beta|v1)(\/(models|publishers|projects)(\/.*)?)?$/, "");
+    return path && path !== ""
+      ? `${auth}${url.host}${path}`
+      : `${auth}${url.host}`;
   } catch {
     return baseUrl;
   }
