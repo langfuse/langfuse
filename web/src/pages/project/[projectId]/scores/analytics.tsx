@@ -216,44 +216,44 @@ export default function ScoresAnalyticsV2Page() {
         {/* Content Section */}
         <div className="max-h-full overflow-y-scroll p-4 pt-6">
           {hasError ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
-              <BarChart3 className="h-12 w-12 text-destructive" />
+            <div className="bg-destructive/10 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+              <BarChart3 className="text-destructive h-12 w-12" />
               <div className="text-center">
                 <h3 className="text-lg font-semibold">Error Loading Scores</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="text-muted-foreground mt-2 text-sm">
                   Failed to load score data. Please try refreshing the page.
                 </p>
               </div>
             </div>
           ) : hasNoScores ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
-              <BarChart3 className="h-12 w-12 text-muted-foreground" />
+            <div className="bg-muted/20 flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+              <BarChart3 className="text-muted-foreground h-12 w-12" />
               <div className="text-center">
                 <h3 className="text-lg font-semibold">No Scores Available</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="text-muted-foreground mt-2 text-sm">
                   Create scores by adding evaluations to your traces and
                   observations.
                 </p>
               </div>
             </div>
           ) : hasNoSelection ? (
-            <div className="flex flex-col items-center justify-center gap-6 rounded-lg border bg-muted/20 p-12">
-              <BarChart3 className="h-16 w-16 text-muted-foreground" />
+            <div className="bg-muted/20 flex flex-col items-center justify-center gap-6 rounded-lg border p-12">
+              <BarChart3 className="text-muted-foreground h-16 w-16" />
               <div className="max-w-2xl text-center">
                 <h3 className="text-2xl font-semibold">Select a Score</h3>
-                <p className="mt-3 text-base text-muted-foreground">
+                <p className="text-muted-foreground mt-3 text-base">
                   Choose one or two scores from the dropdowns above to view
                   analytics
                 </p>
-                <div className="mt-6 space-y-3 text-sm text-muted-foreground">
-                  <div className="rounded-lg bg-background/50 p-4">
-                    <p className="mb-1 font-semibold text-foreground">
+                <div className="text-muted-foreground mt-6 space-y-3 text-sm">
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <p className="text-foreground mb-1 font-semibold">
                       Single score selected:
                     </p>
                     <p>View distribution and trends over time</p>
                   </div>
-                  <div className="rounded-lg bg-background/50 p-4">
-                    <p className="mb-1 font-semibold text-foreground">
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <p className="text-foreground mb-1 font-semibold">
                       Two scores selected:
                     </p>
                     <p>
@@ -270,8 +270,8 @@ export default function ScoresAnalyticsV2Page() {
             </ScoreAnalyticsProvider>
           ) : (
             <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
+              <Loader2 className="text-muted-foreground h-12 w-12 animate-spin" />
+              <p className="text-muted-foreground text-sm">
                 Loading analytics data...
               </p>
             </div>

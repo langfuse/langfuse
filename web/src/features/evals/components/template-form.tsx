@@ -498,7 +498,7 @@ export const InnerEvalTemplateForm = (props: {
               )}
             />
           </div>
-          <div className="lg:col-span-0 col-span-1 row-span-1"></div>
+          <div className="col-span-1 row-span-1 lg:col-span-0"></div>
         </>
       ) : undefined}
 
@@ -510,7 +510,7 @@ export const InnerEvalTemplateForm = (props: {
             control={form.control}
             name="shouldUseDefaultModel"
             render={({ field }) => (
-              <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
+              <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
@@ -535,7 +535,7 @@ export const InnerEvalTemplateForm = (props: {
           {/* Only show model parameters if using custom model */}
           {!useDefaultModel &&
             (!props.isEditing && !isCustomModelValid ? (
-              <div className="mt-2 flex items-center space-x-1 text-sm text-destructive">
+              <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
                 <AlertCircle className="h-4 w-4" />
                 <p>
                   This evaluator is configured to use{" "}
@@ -546,7 +546,7 @@ export const InnerEvalTemplateForm = (props: {
             ) : (
               <ModelParameters
                 customHeader={
-                  <p className="text-sm font-medium leading-none">
+                  <p className="text-sm leading-none font-medium">
                     Custom model configuration
                   </p>
                 }

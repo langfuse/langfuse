@@ -375,7 +375,7 @@ export default function EvalsTemplateTable({
           if (!open) setEditTemplateId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit evaluator</DialogTitle>
           </DialogHeader>
@@ -405,7 +405,7 @@ export default function EvalsTemplateTable({
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Clone evaluator</DialogTitle>
           </DialogHeader>

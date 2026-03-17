@@ -68,7 +68,7 @@ export function DetailHeaderActionsMenu({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label="Options"
-          className="mt-0.5 flex-shrink-0"
+          className="mt-0.5 shrink-0"
           size="icon-xs"
           title="Options"
           variant="ghost"
@@ -114,7 +114,7 @@ export function DetailHeaderActionsMenu({
             onSelect={() => handleCopy(item.id)}
           >
             {copiedId === item.id ? (
-              <CheckIcon className="mr-2 h-4 w-4 text-muted-green" />
+              <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
             ) : (
               <CopyIcon className="mr-2 h-4 w-4" />
             )}

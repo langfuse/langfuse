@@ -162,7 +162,7 @@ export const EditDatasetItemDialog = ({
           >
             <DialogBody>
               {formError ? (
-                <p className="mb-4 text-destructive">
+                <p className="text-destructive mb-4">
                   <span className="font-bold">Error:</span> {formError}
                 </p>
               ) : null}
