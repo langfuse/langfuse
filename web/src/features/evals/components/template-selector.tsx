@@ -37,6 +37,7 @@ import {
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { env } from "@/src/env.mjs";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -376,7 +377,7 @@ export const TemplateSelector = ({
                     onSelect={() => {
                       if (disabled) return;
                       window.open(
-                        `/project/${projectId}/evals/templates/new`,
+                        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/templates/new`,
                         "_blank",
                       );
                     }}
@@ -389,7 +390,7 @@ export const TemplateSelector = ({
                       onSelect={() => {
                         if (disabled) return;
                         window.open(
-                          `/project/${projectId}/evals/default-model`,
+                          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/evals/default-model`,
                           "_blank",
                         );
                       }}
