@@ -13,6 +13,10 @@ import { env } from "../../env";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 
+type StructuredOutputSchema = NonNullable<
+  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
+>;
+
 /**
  * Result of fetching model configuration.
  */
@@ -41,7 +45,7 @@ export type ModelConfigResult =
 export interface LLMCallParams {
   messages: ReturnType<typeof buildEvalMessages>;
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
-  structuredOutputSchema: Record<string, unknown>;
+  structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {
     targetProjectId: string;
     traceId: string;

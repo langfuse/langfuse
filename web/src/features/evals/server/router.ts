@@ -220,7 +220,7 @@ const validateEvalTemplateCanRun = async ({
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.llmOutputJsonSchema,
+      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -843,7 +843,7 @@ export const evalRouter = createTRPCRouter({
           modelConfig: input.modelParams,
           structuredOutputSchema: compilePersistedEvalOutputDefinition(
             input.outputDefinition,
-          ).llmOutputJsonSchema,
+          ).outputResultSchema,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";

@@ -327,8 +327,6 @@ export function compilePersistedEvalOutputDefinition(
   return {
     outputDefinition,
     resolvedOutputDefinition,
-    llmOutputJsonSchema:
-      buildEvalOutputJsonSchemaFromResultSchema(outputResultSchema),
     outputResultSchema,
   };
 }

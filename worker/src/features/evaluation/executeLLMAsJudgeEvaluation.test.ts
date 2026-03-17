@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
+import z from "zod/v4";
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -465,16 +466,15 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
       await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
-      expect(callLLM).toHaveBeenCalledWith(
-        expect.objectContaining({
-          structuredOutputSchema: expect.objectContaining({
-            properties: expect.objectContaining({
-              reasoning: expect.any(Object),
-              score: expect.any(Object),
-            }),
-          }),
-        }),
-      );
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 0.8,
+          reasoning: "Good response",
+        }).success,
+      ).toBe(true);
     });
 
     it("should pass categorical structured output schema to LLM", async () => {
@@ -501,17 +501,21 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
 
-      expect(callLLM).toHaveBeenCalledWith(
-        expect.objectContaining({
-          structuredOutputSchema: expect.objectContaining({
-            properties: expect.objectContaining({
-              score: expect.objectContaining({
-                enum: ["correct", "partial"],
-              }),
-            }),
-          }),
-        }),
-      );
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "correct",
+          reasoning: "Fully supported",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "incorrect",
+          reasoning: "Not part of the allowed categories",
+        }).success,
+      ).toBe(false);
     });
 
     it("should pass model config to LLM", async () => {

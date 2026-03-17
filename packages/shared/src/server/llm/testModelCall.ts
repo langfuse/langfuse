@@ -1,13 +1,15 @@
-import { z as zodV3 } from "zod/v3";
 import {
   ChatMessageRole,
   ChatMessageType,
   LLMApiKeySchema,
-  LLMJSONSchema,
   type ModelConfig,
 } from "./types";
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
 import z from "zod/v4";
+
+type StructuredOutputSchema = NonNullable<
+  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
+>;
 
 export const testModelCall = async ({
   provider,
@@ -20,7 +22,7 @@ export const testModelCall = async ({
   model: string;
   apiKey: z.infer<typeof LLMApiKeySchema>;
   modelConfig?: ModelConfig | null;
-  structuredOutputSchema?: LLMJSONSchema;
+  structuredOutputSchema?: StructuredOutputSchema;
 }) => {
   await fetchLLMCompletion({
     streaming: false,
@@ -41,9 +43,9 @@ export const testModelCall = async ({
     },
     structuredOutputSchema:
       structuredOutputSchema ??
-      zodV3.object({
-        score: zodV3.string(),
-        reasoning: zodV3.string(),
+      z.object({
+        score: z.string(),
+        reasoning: z.string(),
       }),
   });
 };

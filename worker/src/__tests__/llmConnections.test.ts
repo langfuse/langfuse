@@ -5,7 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
-  buildEvalOutputJsonSchema,
+  buildEvalOutputResultSchema,
   ChatMessageType,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
@@ -126,7 +126,7 @@ function registerEvalStructuredOutputTests(params: {
             },
           ],
           modelParams: params.getModelParams(),
-          structuredOutputSchema: buildEvalOutputJsonSchema(
+          structuredOutputSchema: buildEvalOutputResultSchema(
             testCase.outputDefinition,
           ),
           llmConnection: params.getLLMConnection(),

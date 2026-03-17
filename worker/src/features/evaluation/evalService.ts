@@ -995,7 +995,7 @@ export async function executeLLMAsJudgeEvaluation({
               messages,
               modelConfig: modelConfig.config,
               structuredOutputSchema:
-                compiledOutputDefinition.llmOutputJsonSchema,
+                compiledOutputDefinition.outputResultSchema,
               traceSinkParams: {
                 targetProjectId: projectId,
                 traceId: executionTraceId,
