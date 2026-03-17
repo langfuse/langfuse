@@ -405,7 +405,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .int()
-    .default(1),
+    .default(10),
 
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
