@@ -494,7 +494,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
               },
               score: {
                 description: "Choose the best matching category",
-                options: [{ value: "correct" }, { value: "partial" }],
+                categories: ["correct", "partial"],
               },
             },
           },
@@ -775,7 +775,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
               },
               score: {
                 description: "Choose the best matching category",
-                options: [{ value: "correct" }, { value: "partial" }],
+                categories: ["correct", "partial"],
               },
             },
           },
@@ -822,8 +822,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
               },
               score: {
                 description: "Choose all matching categories",
-                options: [{ value: "correct" }, { value: "partial" }],
-                allowMultipleMatches: true,
+                categories: ["correct", "partial"],
+                shouldAllowMultipleMatches: true,
               },
             },
           },

@@ -21,57 +21,38 @@ const EvalOutputFieldDefinitionSchema = z.object({
   description: z.string().trim().min(1),
 });
 
-export const EvalNoMatchOptionValue = "No match";
+export const MinimumCategoricalCategoryCount = 2;
 
-export function getMinimumCategoricalOptionsCount(allowNoMatch: boolean) {
-  return allowNoMatch ? 1 : 2;
+export function getMinimumCategoricalCategoriesMessage() {
+  return `Add at least ${MinimumCategoricalCategoryCount} categories`;
 }
 
-export function getMinimumCategoricalOptionsMessage(allowNoMatch: boolean) {
-  const minimumCount = getMinimumCategoricalOptionsCount(allowNoMatch);
-  return `Add at least ${minimumCount} ${minimumCount === 1 ? "category" : "categories"}`;
-}
-
-export type CategoricalOptionRuleViolation =
+export type CategoricalCategoryRuleViolation =
   | {
       type: "minimum_count";
       minimumCount: number;
-    }
-  | {
-      type: "reserved_value";
-      index: number;
     }
   | {
       type: "duplicate_value";
       index: number;
     };
 
-export function getCategoricalOptionRuleViolations(params: {
-  options: Array<{ value: string }>;
-  allowNoMatch: boolean;
+export function getCategoricalCategoryRuleViolations(params: {
+  categories: string[];
 }) {
-  const violations: CategoricalOptionRuleViolation[] = [];
-  const minimumCount = getMinimumCategoricalOptionsCount(params.allowNoMatch);
+  const violations: CategoricalCategoryRuleViolation[] = [];
 
-  if (params.options.length < minimumCount) {
+  if (params.categories.length < MinimumCategoricalCategoryCount) {
     violations.push({
       type: "minimum_count",
-      minimumCount,
+      minimumCount: MinimumCategoricalCategoryCount,
     });
   }
 
   const seenValues = new Set<string>();
 
-  params.options.forEach((option, index) => {
-    const normalizedValue = option.value.trim();
-
-    if (params.allowNoMatch && normalizedValue === EvalNoMatchOptionValue) {
-      violations.push({
-        type: "reserved_value",
-        index,
-      });
-      return;
-    }
+  params.categories.forEach((category, index) => {
+    const normalizedValue = category.trim();
 
     if (seenValues.has(normalizedValue)) {
       violations.push({
@@ -87,17 +68,7 @@ export function getCategoricalOptionRuleViolations(params: {
   return violations;
 }
 
-const EvalLegacyCategoricalOptionDefinitionSchema = z.object({
-  value: z.string().trim().min(1),
-  description: z.string().trim().min(1).optional(),
-});
-export const EvalCategoricalOptionDefinitionSchema =
-  EvalLegacyCategoricalOptionDefinitionSchema.transform(({ value }) => ({
-    value,
-  }));
-export type EvalCategoricalOptionDefinition = z.infer<
-  typeof EvalCategoricalOptionDefinitionSchema
->;
+const EvalCategoricalCategorySchema = z.string().trim().min(1);
 
 export const NumericEvalOutputDefinitionV2Schema = z.object({
   version: z.literal(2),
@@ -116,38 +87,27 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     reasoning: EvalOutputFieldDefinitionSchema,
     score: z.object({
       description: z.string().trim().min(1),
-      options: z.array(EvalCategoricalOptionDefinitionSchema),
-      allowNoMatch: z.boolean().default(false),
-      allowMultipleMatches: z.boolean().default(false),
+      categories: z.array(EvalCategoricalCategorySchema),
+      shouldAllowMultipleMatches: z.boolean().default(false),
     }),
   })
   .superRefine((value, ctx) => {
-    getCategoricalOptionRuleViolations({
-      options: value.score.options,
-      allowNoMatch: value.score.allowNoMatch,
+    getCategoricalCategoryRuleViolations({
+      categories: value.score.categories,
     }).forEach((violation) => {
       switch (violation.type) {
         case "minimum_count":
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: getMinimumCategoricalOptionsMessage(
-              value.score.allowNoMatch,
-            ),
-            path: ["score", "options"],
-          });
-          return;
-        case "reserved_value":
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `"${EvalNoMatchOptionValue}" is reserved for the built-in option`,
-            path: ["score", "options", violation.index, "value"],
+            message: getMinimumCategoricalCategoriesMessage(),
+            path: ["score", "categories"],
           });
           return;
         case "duplicate_value":
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Category values must be unique",
-            path: ["score", "options", violation.index, "value"],
+            message: "Categories must be unique",
+            path: ["score", "categories", violation.index],
           });
           return;
       }
@@ -178,9 +138,8 @@ export type ResolvedEvalOutputDefinition =
       dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
       reasoningDescription: string;
       scoreDescription: string;
-      options: EvalCategoricalOptionDefinition[];
-      allowNoMatch: boolean;
-      allowMultipleMatches: boolean;
+      categories: string[];
+      shouldAllowMultipleMatches: boolean;
     };
 
 type RawEvalOutputResult = {
@@ -228,9 +187,9 @@ export function resolvePersistedEvalOutputDefinition(
     dataType: ScoreDataTypeEnum.CATEGORICAL,
     reasoningDescription: outputDefinition.reasoning.description,
     scoreDescription: outputDefinition.score.description,
-    options: outputDefinition.score.options,
-    allowNoMatch: outputDefinition.score.allowNoMatch,
-    allowMultipleMatches: outputDefinition.score.allowMultipleMatches,
+    categories: outputDefinition.score.categories,
+    shouldAllowMultipleMatches:
+      outputDefinition.score.shouldAllowMultipleMatches,
   };
 }
 
@@ -253,11 +212,8 @@ export function createNumericEvalOutputDefinition(params: {
 export function createCategoricalEvalOutputDefinition(params: {
   reasoningDescription: string;
   scoreDescription: string;
-  options: Array<{
-    value: string;
-  }>;
-  allowNoMatch?: boolean;
-  allowMultipleMatches?: boolean;
+  categories: string[];
+  shouldAllowMultipleMatches?: boolean;
 }) {
   return CategoricalEvalOutputDefinitionV2Schema.parse({
     version: 2,
@@ -267,135 +223,50 @@ export function createCategoricalEvalOutputDefinition(params: {
     },
     score: {
       description: params.scoreDescription,
-      options: params.options.map((option) => ({
-        value: option.value,
-      })),
-      allowNoMatch: params.allowNoMatch ?? false,
-      allowMultipleMatches: params.allowMultipleMatches ?? false,
+      categories: params.categories,
+      shouldAllowMultipleMatches: params.shouldAllowMultipleMatches ?? false,
     },
   });
-}
-
-function getResolvedCategoricalScoreValues(
-  resolvedOutputDefinition: Extract<
-    ResolvedEvalOutputDefinition,
-    { dataType: typeof ScoreDataTypeEnum.CATEGORICAL }
-  >,
-) {
-  return [
-    ...resolvedOutputDefinition.options.map((option) => option.value),
-    ...(resolvedOutputDefinition.allowNoMatch ? [EvalNoMatchOptionValue] : []),
-  ];
-}
-
-function getResolvedScoreDescription(
-  resolvedOutputDefinition: ResolvedEvalOutputDefinition,
-) {
-  if (
-    resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL &&
-    resolvedOutputDefinition.allowMultipleMatches &&
-    resolvedOutputDefinition.allowNoMatch
-  ) {
-    return `${resolvedOutputDefinition.scoreDescription} If "${EvalNoMatchOptionValue}" is selected, it must be the only value.`;
-  }
-
-  return resolvedOutputDefinition.scoreDescription;
-}
-
-function buildResolvedEvalOutputJsonSchema(
-  resolvedOutputDefinition: ResolvedEvalOutputDefinition,
-): Record<string, unknown> {
-  const scoreDescription = getResolvedScoreDescription(
-    resolvedOutputDefinition,
-  );
-
-  return {
-    type: "object",
-    properties: {
-      reasoning: {
-        type: "string",
-        description: resolvedOutputDefinition.reasoningDescription,
-      },
-      score:
-        resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL
-          ? resolvedOutputDefinition.allowMultipleMatches
-            ? {
-                type: "array",
-                description: scoreDescription,
-                items: {
-                  type: "string",
-                  enum: getResolvedCategoricalScoreValues(
-                    resolvedOutputDefinition,
-                  ),
-                },
-                minItems: 1,
-                maxItems: getResolvedCategoricalScoreValues(
-                  resolvedOutputDefinition,
-                ).length,
-                uniqueItems: true,
-              }
-            : {
-                type: "string",
-                description: scoreDescription,
-                enum: getResolvedCategoricalScoreValues(
-                  resolvedOutputDefinition,
-                ),
-              }
-          : {
-              type: "number",
-              description: scoreDescription,
-            },
-    },
-    required: ["reasoning", "score"],
-    additionalProperties: false,
-  };
 }
 
 function buildResolvedEvalOutputResultSchema(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
-  const scoreDescription = getResolvedScoreDescription(
-    resolvedOutputDefinition,
-  );
-
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
-    const [firstOption, ...restOptions] = getResolvedCategoricalScoreValues(
-      resolvedOutputDefinition,
-    );
+    const [firstCategory, ...remainingCategories] =
+      resolvedOutputDefinition.categories;
 
-    if (!firstOption) {
+    if (!firstCategory) {
       throw new Error(
-        "Categorical eval output definition requires at least one option",
+        "Categorical eval output definition requires at least one category",
       );
     }
 
-    const categoricalValueSchema = z.enum([firstOption, ...restOptions]);
+    const categoricalValueSchema = z.enum([
+      firstCategory,
+      ...remainingCategories,
+    ]);
 
-    const scoreSchema = resolvedOutputDefinition.allowMultipleMatches
+    const scoreSchema = resolvedOutputDefinition.shouldAllowMultipleMatches
       ? z
           .array(categoricalValueSchema)
           .min(1)
-          .max(restOptions.length + 1)
-          .refine(
-            (values) => new Set(values).size === values.length,
-            "Score values must be unique",
-          )
-          .refine(
-            (values) =>
-              !(
-                resolvedOutputDefinition.allowNoMatch &&
-                values.includes(EvalNoMatchOptionValue) &&
-                values.length > 1
-              ),
-            `"${EvalNoMatchOptionValue}" cannot be combined with other matches`,
-          )
+          .max(remainingCategories.length + 1)
+          .superRefine((categories, ctx) => {
+            if (new Set(categories).size !== categories.length) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Score categories must be unique",
+              });
+            }
+          })
       : categoricalValueSchema;
 
     return z.object({
       reasoning: z
         .string()
         .describe(resolvedOutputDefinition.reasoningDescription),
-      score: scoreSchema.describe(scoreDescription),
+      score: scoreSchema.describe(resolvedOutputDefinition.scoreDescription),
     });
   }
 
@@ -403,15 +274,32 @@ function buildResolvedEvalOutputResultSchema(
     reasoning: z
       .string()
       .describe(resolvedOutputDefinition.reasoningDescription),
-    score: z.number().describe(scoreDescription),
+    score: z.number().describe(resolvedOutputDefinition.scoreDescription),
   });
+}
+
+function buildEvalOutputJsonSchemaFromResultSchema(
+  outputResultSchema: ReturnType<typeof buildResolvedEvalOutputResultSchema>,
+): Record<string, unknown> {
+  const outputJsonSchema = z.toJSONSchema(outputResultSchema, {
+    target: "draft-7",
+    unrepresentable: "any",
+  });
+
+  if (!outputJsonSchema) {
+    throw new Error("Failed to convert eval output schema to JSON Schema");
+  }
+
+  return outputJsonSchema as Record<string, unknown>;
 }
 
 export function buildEvalOutputJsonSchema(
   outputDefinition: PersistedEvalOutputDefinition,
 ): Record<string, unknown> {
-  return buildResolvedEvalOutputJsonSchema(
-    resolvePersistedEvalOutputDefinition(outputDefinition),
+  return buildEvalOutputJsonSchemaFromResultSchema(
+    buildResolvedEvalOutputResultSchema(
+      resolvePersistedEvalOutputDefinition(outputDefinition),
+    ),
   );
 }
 
@@ -432,16 +320,16 @@ export function compilePersistedEvalOutputDefinition(
 ) {
   const resolvedOutputDefinition =
     resolvePersistedEvalOutputDefinition(outputDefinition);
+  const outputResultSchema = buildResolvedEvalOutputResultSchema(
+    resolvedOutputDefinition,
+  );
 
   return {
     outputDefinition,
     resolvedOutputDefinition,
-    llmOutputJsonSchema: buildResolvedEvalOutputJsonSchema(
-      resolvedOutputDefinition,
-    ),
-    outputResultSchema: buildResolvedEvalOutputResultSchema(
-      resolvedOutputDefinition,
-    ),
+    llmOutputJsonSchema:
+      buildEvalOutputJsonSchemaFromResultSchema(outputResultSchema),
+    outputResultSchema,
   };
 }
 

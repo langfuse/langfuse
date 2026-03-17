@@ -4,7 +4,6 @@ import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/route
 import {
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
-  EvalNoMatchOptionValue,
   ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
@@ -25,7 +24,7 @@ describe("CreateEvalTemplateInputSchema", () => {
       outputDefinition: createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose the best matching category",
         reasoningDescription: "Explain the selected category",
-        options: [{ value: "correct" }, { value: "partial" }],
+        categories: ["correct", "partial"],
       }),
     });
 
@@ -38,8 +37,8 @@ describe("CreateEvalTemplateInputSchema", () => {
       outputDefinition: createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose all matching categories",
         reasoningDescription: "Explain the selected categories",
-        options: [{ value: "correct" }, { value: "partial" }],
-        allowMultipleMatches: true,
+        categories: ["correct", "partial"],
+        shouldAllowMultipleMatches: true,
       }),
     });
 
@@ -58,7 +57,7 @@ describe("CreateEvalTemplateInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects duplicate categorical values", () => {
+  it("rejects duplicate categories", () => {
     const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,
       outputDefinition: {
@@ -69,7 +68,7 @@ describe("CreateEvalTemplateInputSchema", () => {
         },
         score: {
           description: "Choose the best matching category",
-          options: [{ value: "correct" }, { value: "correct" }],
+          categories: ["correct", "correct"],
         },
       },
     });
@@ -77,7 +76,7 @@ describe("CreateEvalTemplateInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it(`rejects "${EvalNoMatchOptionValue}" as a manual category when the built-in option is enabled`, () => {
+  it("rejects categorical outputs with fewer than two categories", () => {
     const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,
       outputDefinition: {
@@ -88,47 +87,7 @@ describe("CreateEvalTemplateInputSchema", () => {
         },
         score: {
           description: "Choose the best matching category",
-          allowNoMatch: true,
-          options: [{ value: EvalNoMatchOptionValue }],
-        },
-      },
-    });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects categorical outputs with fewer than two categories when no-match is disabled", () => {
-    const result = CreateEvalTemplateInputSchema.safeParse({
-      ...baseInput,
-      outputDefinition: {
-        version: 2,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-        reasoning: {
-          description: "Explain the selected category",
-        },
-        score: {
-          description: "Choose the best matching category",
-          options: [{ value: "correct" }],
-        },
-      },
-    });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects categorical outputs without categories even when no-match is enabled", () => {
-    const result = CreateEvalTemplateInputSchema.safeParse({
-      ...baseInput,
-      outputDefinition: {
-        version: 2,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-        reasoning: {
-          description: "Explain the selected category",
-        },
-        score: {
-          description: "Choose the best matching category",
-          allowNoMatch: true,
-          options: [],
+          categories: ["correct"],
         },
       },
     });
