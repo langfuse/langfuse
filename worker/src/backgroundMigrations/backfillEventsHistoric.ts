@@ -439,8 +439,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
         provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
-        input, output, metadata,
-
+        input, output,
         metadata_names, metadata_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
       )
@@ -481,7 +480,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
         mapKeys(${metadataExpr}) AS metadata_names,
         mapValues(${metadataExpr}) AS metadata_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,

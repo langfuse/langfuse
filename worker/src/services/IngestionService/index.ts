@@ -345,9 +345,6 @@ export class IngestionService {
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
 
-    // Stringify metadata for the JSON column (Record<string, string>)
-    const metadata = convertRecordValuesToString(eventData.metadata ?? {});
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -420,7 +417,6 @@ export class IngestionService {
       output: eventData.output,
 
       // Metadata
-      metadata,
       metadata_names: metadataNames,
       metadata_values: metadataValues,
 

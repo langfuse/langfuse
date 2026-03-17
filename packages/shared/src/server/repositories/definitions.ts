@@ -687,7 +687,6 @@ export const eventRecordBaseSchema = z.object({
   output: z.string().nullish(),
 
   // Metadata
-  metadata: z.record(z.string(), z.string()),
   metadata_names: z.array(z.string()).default([]),
   metadata_values: z.array(z.string()).default([]),
 

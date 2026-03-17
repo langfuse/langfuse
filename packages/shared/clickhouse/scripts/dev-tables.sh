@@ -505,7 +505,6 @@ clickhouse client \
   --database="${CLICKHOUSE_DB}" \
   --multiquery <<EOF
   SET type_json_skip_duplicated_paths = 1;
-  TRUNCATE events;
   TRUNCATE events_core;
   TRUNCATE events_full;
 
@@ -513,13 +512,13 @@ clickhouse client \
   -- and re-inserts them with experiment metadata via handleExperimentBackfill.
   -- For dev seeding, we include all traces directly to ensure events_core and
   -- traces/observations tables have matching row counts for dashboard testing.
-  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+  INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
                       tool_definitions, tool_calls, tool_call_names, input,
-                      output, metadata, metadata_names, metadata_raw_values,
+                      output, metadata_names, metadata_values,
                       source, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT o.project_id,
@@ -562,9 +561,8 @@ clickhouse client \
          o.tool_call_names,
          coalesce(o.input, '')                                                           AS input,
          coalesce(o.output, '')                                                          AS output,
-         CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
          mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map())))                     AS metadata_names,
-         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_raw_values,
+         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_values,
          multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
@@ -575,16 +573,17 @@ clickhouse client \
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
   WHERE (o.is_deleted = 0);
+
   -- Backfill events from traces table as well
   -- Traces are converted to synthetic observations with id = 't-' + trace_id
   -- (matching convertTraceToStagingObservation in the ingestion pipeline)
-  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
+  INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
                       model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
                       tool_definitions, tool_calls, tool_call_names,
                       input, output,
-                      metadata, metadata_names, metadata_raw_values,
+                      metadata_names, metadata_values,
                       source, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT t.project_id,
@@ -616,9 +615,8 @@ clickhouse client \
          [],
          coalesce(t.input, '')                                                           AS input,
          coalesce(t.output, '')                                                          AS output,
-         CAST(t.metadata, 'JSON(max_dynamic_paths=0)'),
          mapKeys(t.metadata)                                                             AS metadata_names,
-         mapValues(t.metadata)                                                           AS metadata_raw_values,
+         mapValues(t.metadata)                                                           AS metadata_values,
          multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
