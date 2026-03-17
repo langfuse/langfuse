@@ -101,8 +101,7 @@
       "qs": "6.14.1"
     },
     "patchedDependencies": {
-      "next-auth@4.24.13": "patches/next-auth@4.24.13.patch",
-      "@langchain/google@0.1.5": "patches/@langchain__google@0.1.5.patch"
+      "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"
     }
   }
 }
