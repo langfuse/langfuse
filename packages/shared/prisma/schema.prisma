@@ -1130,6 +1130,9 @@ model BlobStorageIntegration {
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
 
+  // Notification tracking
+  lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 

@@ -53,7 +53,15 @@ const sdk = new NodeSDK({
       },
     }),
     new ExpressInstrumentation(),
-    new PrismaInstrumentation(),
+    new PrismaInstrumentation({
+      ignoreSpanTypes: [
+        "prisma:client:serialize",
+        "prisma:engine:query",
+        "prisma:engine:connection",
+        "prisma:engine:serialize",
+        "prisma:engine:response_json_serialization",
+      ],
+    }),
     new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
