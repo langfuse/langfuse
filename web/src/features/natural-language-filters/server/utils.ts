@@ -50,12 +50,14 @@ export function getLangfuseClient(
   publicKey: string,
   secretKey: string,
   baseUrl?: string,
+  enabled?: boolean,
 ): Langfuse {
   if (!langfuseClient) {
     langfuseClient = new Langfuse({
       publicKey,
       secretKey,
       baseUrl,
+      enabled: enabled ?? true,
     });
   }
   return langfuseClient;
