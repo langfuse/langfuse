@@ -274,7 +274,7 @@ export function TraceDetailView({
                           sideOffset={8}
                         >
                           <p className="font-medium">JSON view unavailable</p>
-                          <p className="mt-1 text-muted-foreground">
+                          <p className="text-muted-foreground mt-1">
                             Disabled for traces with{" "}
                             {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
                             observations to maintain performance.
@@ -297,7 +297,7 @@ export function TraceDetailView({
                         checked={jsonBetaEnabled}
                         onCheckedChange={handleBetaToggle}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Beta
                       </span>
                     </div>
@@ -323,12 +323,12 @@ export function TraceDetailView({
             {trace.tags.length > 0 && (
               <>
                 <div
-                  className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                  className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "shrink-0" : ""}`}
                 >
                   Tags
                 </div>
                 <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
                 >
                   <TagList selectedTags={trace.tags} isLoading={false} />
                 </div>

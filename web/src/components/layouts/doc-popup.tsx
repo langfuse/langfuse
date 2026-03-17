@@ -38,7 +38,7 @@ export default function DocPopup({
         asChild
       >
         <div
-          className="inline-block whitespace-nowrap text-muted-foreground sm:pl-0"
+          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
           onClick={(e) => {
             if (!href) return;
             e.preventDefault();
@@ -57,7 +57,7 @@ export default function DocPopup({
         <HoverCardContent>
           <div
             className={cn(
-              "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
+              "text-primary text-xs font-normal whitespace-break-spaces sm:pl-0",
               className,
             )}
           >
@@ -81,7 +81,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
         <div>{triggerContent}</div>
       </HoverCardTrigger>
       <HoverCardContent>
-        <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
+        <div className="text-primary text-xs font-normal whitespace-break-spaces sm:pl-0">
           {description}
         </div>
       </HoverCardContent>

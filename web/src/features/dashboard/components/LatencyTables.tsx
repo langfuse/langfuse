@@ -162,7 +162,7 @@ export const LatencyTables = ({
                 triggerContent={
                   item.type ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
                         {String(item.type)}
                       </span>
                       <span>{truncate(item.name as string)}</span>
@@ -180,22 +180,22 @@ export const LatencyTables = ({
             </div>,
             <RightAlignedCell key={`${i}-p50`}>
               {item.p50_latency
-                ? formatIntervalSeconds(Number(item.p50_latency) / 1000, 3)
+                ? formatIntervalSeconds(Number(item.p50_latency) / 1000, 2)
                 : "-"}
             </RightAlignedCell>,
             <RightAlignedCell key={`${i}-p90`}>
               {item.p90_latency
-                ? formatIntervalSeconds(Number(item.p90_latency) / 1000, 3)
+                ? formatIntervalSeconds(Number(item.p90_latency) / 1000, 2)
                 : "-"}
             </RightAlignedCell>,
             <RightAlignedCell key={`${i}-p95`}>
               {item.p95_latency
-                ? formatIntervalSeconds(Number(item.p95_latency) / 1000, 3)
+                ? formatIntervalSeconds(Number(item.p95_latency) / 1000, 2)
                 : "-"}
             </RightAlignedCell>,
             <RightAlignedCell key={`${i}-p99`}>
               {item.p99_latency
-                ? formatIntervalSeconds(Number(item.p99_latency) / 1000, 3)
+                ? formatIntervalSeconds(Number(item.p99_latency) / 1000, 2)
                 : "-"}
             </RightAlignedCell>,
           ])
