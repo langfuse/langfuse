@@ -264,6 +264,9 @@ export class OtelIngestionProcessor {
                     endTimeUnixNano: span.endTimeUnixNano,
                   });
 
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
@@ -274,17 +277,18 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
-                // Extract input/output (filteredAttributes not needed as metadata.attributes is commented out)
-                // Add filteredAttributes in case spanAttributes are included in the metadata block.
-                const { input, output } = this.extractInputAndOutput({
-                  events: span?.events ?? [],
-                  attributes: spanAttributes,
-                  instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                });
+                const { input, output, filteredAttributes } =
+                  this.extractInputAndOutput({
+                    events: span?.events ?? [],
+                    attributes: spanAttributes,
+                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                  });
 
                 // Construct metadata object with the specified structure
                 const metadata = {
-                  // attributes: filteredAttributes,
+                  ...(isLangfuseSDKSpans
+                    ? {}
+                    : { attributes: filteredAttributes }),
                   resourceAttributes: resourceAttributes,
                   scopeAttributes: scopeAttributes,
                   ...spanMetadata,
