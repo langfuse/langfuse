@@ -10,6 +10,10 @@ service:
       docs: |
         Get metrics from the Langfuse project using a query object. V2 endpoint with optimized performance.
 
+        Availability: This v2 endpoint first shipped in `v3.137.0`.
+        Self-hosted instances returned `501` (5xx) when v2 APIs were disabled from `v3.143.0` through `v3.158.0`.
+        Starting in `v3.159.0`, disabled v2 APIs on self-hosted return `404` instead.
+
         ## V2 Differences
         - Supports `observations`, `scores-numeric`, and `scores-categorical` views only (traces view not supported)
         - Direct access to tags and release fields on observations

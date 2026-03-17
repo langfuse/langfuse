@@ -9,6 +9,10 @@ service:
       docs: |
         Get a list of observations with cursor-based pagination and flexible field selection.
 
+        Availability: This v2 endpoint first shipped in `v3.133.0`.
+        Self-hosted instances returned `501` (5xx) when v2 APIs were disabled from `v3.143.0` through `v3.158.0`.
+        Starting in `v3.159.0`, disabled v2 APIs on self-hosted return `404` instead.
+
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
         The cursor is returned in the response metadata and should be passed in subsequent requests
