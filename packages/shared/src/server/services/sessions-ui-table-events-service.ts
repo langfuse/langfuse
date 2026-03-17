@@ -18,6 +18,7 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
 import { sessionCols } from "../tableMappings/mapSessionTable";
+import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 
 type SessionEventsBaseReturnType = {
@@ -169,7 +170,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     props;
 
   const sessionFilters = new FilterList(
-    createFilterFromFilterState(filter, sessionCols),
+    createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
   );
   const sessionsFilterRes = sessionFilters.apply();
 

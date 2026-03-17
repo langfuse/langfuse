@@ -171,7 +171,7 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col gap-2 overflow-hidden px-3 py-2">
           <div className="flex w-full justify-end">
             <DatasetAnalytics
@@ -216,7 +216,7 @@ export default function DatasetCompare() {
                     return (
                       <div
                         key={key}
-                        className="flex min-h-[200px] min-w-0 max-w-full flex-col gap-2"
+                        className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
                         <span className="shrink-0 text-sm font-medium">
                           {title}
@@ -248,7 +248,7 @@ export default function DatasetCompare() {
                   return (
                     <div
                       key={key}
-                      className="flex min-h-[200px] min-w-0 max-w-full flex-col gap-2"
+                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
                       <span className="shrink-0 text-sm font-medium">
                         {title}
@@ -272,7 +272,7 @@ export default function DatasetCompare() {
             ) : isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <span className="-mt-2 text-sm text-muted-foreground">
+              <span className="text-muted-foreground -mt-2 text-sm">
                 {Boolean(chartDataMap?.size)
                   ? "All charts hidden. Enable them in the Charts dropdown."
                   : "Select more than one run to generate charts."}
@@ -292,7 +292,7 @@ export default function DatasetCompare() {
             <div className="w-full space-y-4">
               <div>
                 <SubHeaderLabel title="Description" />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   {dataset.data?.description ?? "No description"}
                 </span>
               </div>

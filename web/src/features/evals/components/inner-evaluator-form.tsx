@@ -51,6 +51,7 @@ import {
   type LangfuseObject,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
+import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { EvalTargetObject } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { Suspense, lazy } from "react";
@@ -174,14 +175,14 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
+          <span className="text-sm leading-none font-medium">
             Preview sample matched traces
           </span>
           <FormDescription>
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -225,7 +226,7 @@ const ObservationsPreview = memo(
             Sample over the last 24 hours that match filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {isBetaEnabled ? (
               <EventsTable
@@ -355,8 +356,19 @@ export const InnerEvaluatorForm = (props: {
     },
   }) as UseFormReturn<EvalFormType>;
 
+  const currentMapping = form.watch("mapping") ?? [];
+  const syncStatus = useVariableMappingSync({
+    templateVars: props.evalTemplate?.vars,
+    currentMapping: currentMapping,
+  });
+
   useEffect(() => {
-    if (props.evalTemplate && form.getValues("mapping").length === 0) {
+    if (!props.evalTemplate) return;
+
+    const mapping = form.getValues("mapping");
+
+    if (mapping.length === 0) {
+      // Initialize mapping for new evaluators
       const target = form.getValues("target");
       form.setValue(
         "mapping",
@@ -369,8 +381,38 @@ export const InnerEvaluatorForm = (props: {
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);
+    } else if (
+      props.existingEvaluator &&
+      !props.disabled &&
+      !syncStatus.inSync
+    ) {
+      // Reconcile mapping when edit mode is enabled
+      const target = form.getValues("target");
+
+      // Keep mappings for unchanged variables
+      const preservedMappings = mapping.filter((m) =>
+        syncStatus.unchanged.includes(m.templateVariable),
+      );
+
+      // Add mappings for new variables
+      const newMappings = syncStatus.added.map((varName) => ({
+        templateVariable: varName,
+        langfuseObject: isLegacyEvalTarget(target)
+          ? ("trace" as const)
+          : undefined,
+        ...inferDefaultMapping(varName),
+      }));
+
+      // Combine and update form
+      form.setValue("mapping", [...preservedMappings, ...newMappings]);
     }
-  }, [form, props.evalTemplate]);
+  }, [
+    form,
+    props.evalTemplate,
+    props.disabled,
+    props.existingEvaluator,
+    syncStatus,
+  ]);
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
@@ -621,7 +663,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="size-3 text-muted-foreground" />
+                            <InfoIcon className="text-muted-foreground size-3" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -662,7 +704,7 @@ export const InnerEvaluatorForm = (props: {
                               <Badge
                                 variant="secondary"
                                 size="sm"
-                                className="border border-border font-normal"
+                                className="border-border border font-normal"
                               >
                                 Legacy
                               </Badge>
@@ -742,7 +784,7 @@ export const InnerEvaluatorForm = (props: {
                         <Badge
                           variant="secondary"
                           size="sm"
-                          className="border border-border font-normal"
+                          className="border-border border font-normal"
                         >
                           Legacy
                         </Badge>
@@ -786,7 +828,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -811,7 +853,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}
@@ -821,7 +863,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="size-3 text-muted-foreground" />
+                                      <InfoIcon className="text-muted-foreground size-3" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -887,9 +929,17 @@ export const InnerEvaluatorForm = (props: {
                           </FormControl>
                         </FormItem>
                         {!field.value && isEventTarget(target) && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             This evaluator can still be used for batched
-                            evaluation of historic observations.
+                            evaluation of historic observations.{" "}
+                            <a
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-dark-blue hover:opacity-80"
+                            >
+                              Read the docs
+                            </a>
                           </p>
                         )}
                       </div>
@@ -942,7 +992,7 @@ export const InnerEvaluatorForm = (props: {
                         <FormControl>
                           <div className="max-w-[500px]">
                             {props.disabled && !hasFilters ? (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-muted-foreground text-xs">
                                 All {getTargetDisplayName(target)} will be
                                 evaluated
                               </p>
@@ -986,7 +1036,7 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="align-center flex max-w-[500px] gap-1">
-                            <AlertTriangle className="h-4 w-4 text-dark-yellow" />
+                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
                             <AlertDescription className="text-dark-yellow">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.

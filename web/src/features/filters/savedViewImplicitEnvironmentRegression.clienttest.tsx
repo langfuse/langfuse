@@ -8,6 +8,7 @@ import {
 import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 
@@ -127,11 +128,7 @@ jest.mock("use-query-params", () => {
   };
 });
 
-const HIDDEN_ENVIRONMENTS = [
-  "langfuse-prompt-experiment",
-  "langfuse-evaluation",
-  "sdk-experiment",
-];
+const HIDDEN_ENVIRONMENTS = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
 
 const TEST_FILTER_CONFIG: FilterConfig = {
   tableName: "traces",
@@ -166,13 +163,7 @@ const TEST_FILTER_CONFIG: FilterConfig = {
 };
 
 const TEST_OPTIONS = {
-  environment: [
-    "production",
-    "staging",
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ],
+  environment: ["production", "staging", ...HIDDEN_ENVIRONMENTS],
   name: ["checkout", "search"],
 };
 

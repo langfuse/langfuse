@@ -888,7 +888,7 @@ export default function ScoresTable({
                   <span>No scores found.</span>
                   <a
                     href="https://langfuse.com/faq/all/what-are-scores"
-                    className="pointer-events-auto italic text-primary underline"
+                    className="text-primary pointer-events-auto italic underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >

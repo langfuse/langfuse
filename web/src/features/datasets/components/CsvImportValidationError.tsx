@@ -27,7 +27,7 @@ export const CsvImportValidationError: React.FC<
             ? `${errorCount}+ items failed validation. Showing first ${errorCount} errors.`
             : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           The CSV data does not match the required schema for this dataset. Fix
           the errors in your CSV file and try importing again.
         </p>
@@ -48,14 +48,14 @@ export const CsvImportValidationError: React.FC<
         </Button>
 
         {isExpanded && (
-          <div className="mt-3 max-h-[400px] space-y-3 overflow-y-auto rounded-md border border-destructive/20 bg-destructive/5 p-3">
+          <div className="border-destructive/20 bg-destructive/5 mt-3 max-h-[400px] space-y-3 overflow-y-auto rounded-md border p-3">
             {errors.map((error, idx) => (
               <div
                 key={`${error.itemIndex}-${error.field}`}
-                className="space-y-1 border-b border-destructive/10 pb-3 last:border-0 last:pb-0"
+                className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="text-muted-foreground font-mono text-xs">
                     #{idx + 1}
                   </span>
                   <span className="text-sm font-medium">
@@ -68,7 +68,7 @@ export const CsvImportValidationError: React.FC<
                   {error.errors.map((err, errIdx) => (
                     <li key={errIdx} className="text-destructive">
                       {err.path !== "/" && (
-                        <span className="font-mono text-xs text-muted-foreground">
+                        <span className="text-muted-foreground font-mono text-xs">
                           {err.path}:{" "}
                         </span>
                       )}
@@ -80,7 +80,7 @@ export const CsvImportValidationError: React.FC<
             ))}
 
             {hasMoreThan10 && (
-              <p className="pt-2 text-xs text-muted-foreground">
+              <p className="text-muted-foreground pt-2 text-xs">
                 Fix these errors to see if there are additional validation
                 issues.
               </p>

@@ -74,7 +74,7 @@ const MAX_CELL_DISPLAY_CHARS = 2000;
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
-const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
+const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
@@ -117,7 +117,7 @@ function getContainerClasses(
   title: string | undefined,
   scrollable: boolean | undefined,
   codeClassName: string | undefined,
-  baseClasses = "whitespace-pre-wrap break-words p-3 text-xs",
+  baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
 ) {
   return cn(
     baseClasses,
@@ -389,7 +389,7 @@ const JsonTableRowComponent = memo(
         className={cn(
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
-            ? "sticky z-10 bg-background shadow-sm"
+            ? "bg-background sticky z-10 shadow-xs"
             : "",
         )}
         style={
@@ -401,7 +401,7 @@ const JsonTableRowComponent = memo(
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className="whitespace-normal px-2 py-1 align-top"
+            className="px-2 py-1 align-top whitespace-normal"
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -496,9 +496,9 @@ function JsonPrettyTable({
             : null;
 
         const content = (
-          <div className="flex items-start break-words">
+          <div className="flex items-start wrap-break-word">
             <div
-              className="flex flex-shrink-0 items-center justify-end"
+              className="flex shrink-0 items-center justify-end"
               style={{ width: `${indentationWidth}px` }}
             >
               {row.original.hasChildren && (
@@ -551,7 +551,7 @@ function JsonPrettyTable({
           }
 
           return (
-            <div className="sticky z-[5] py-1" style={{ top: topPosition }}>
+            <div className="sticky z-5 py-1" style={{ top: topPosition }}>
               {content}
             </div>
           );
@@ -751,7 +751,6 @@ export function PrettyJsonView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
-  projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
@@ -1192,7 +1191,7 @@ export function PrettyJsonView(props: {
               <Skeleton className="h-3 w-1/2" />
               <Skeleton className="h-3 w-2/3" />
               {props.isParsing && (
-                <div className="mt-2 text-xs text-muted-foreground">
+                <div className="text-muted-foreground mt-2 text-xs">
                   Parsing in background...
                 </div>
               )}
@@ -1232,7 +1231,7 @@ export function PrettyJsonView(props: {
                 props.title,
                 props.scrollable,
                 props.codeClassName,
-                "flex whitespace-pre-wrap break-words text-xs",
+                "flex text-xs wrap-break-word whitespace-pre-wrap",
               )}
             >
               {props.isLoading ? (
@@ -1274,7 +1273,6 @@ export function PrettyJsonView(props: {
               collapseStringsAfterLength={props.collapseStringsAfterLength}
               media={props.media}
               scrollable={props.scrollable}
-              projectIdForPromptButtons={props.projectIdForPromptButtons}
               externalJsonCollapsed={jsonIsCollapsed}
               onToggleCollapse={handleJsonToggleCollapse}
             />
@@ -1283,7 +1281,7 @@ export function PrettyJsonView(props: {
       )}
       {props.media && props.media.length > 0 && isPrettyView && (
         <>
-          <div className="my-1 px-2 py-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
@@ -1322,7 +1320,7 @@ export function PrettyJsonView(props: {
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => expandAllRef.current?.()}
-                  className="-mr-2 hover:bg-border"
+                  className="hover:bg-border -mr-2"
                   title={
                     allRowsExpanded ? "Collapse all rows" : "Expand all rows"
                   }
@@ -1339,7 +1337,7 @@ export function PrettyJsonView(props: {
                   variant="ghost"
                   size="icon-xs"
                   onClick={handleJsonToggleCollapse}
-                  className="-mr-2 hover:bg-border"
+                  className="hover:bg-border -mr-2"
                   title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
                 >
                   {jsonIsCollapsed ? (

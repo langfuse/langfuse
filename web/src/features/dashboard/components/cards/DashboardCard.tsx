@@ -46,7 +46,7 @@ export const DashboardCard = ({
         </div>
         {headerChildren}
         {isLoading ? (
-          <div className="absolute right-5 top-5">
+          <div className="absolute top-5 right-5">
             <Loader className="h-5 w-5 animate-spin" />
           </div>
         ) : null}

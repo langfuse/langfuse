@@ -129,7 +129,7 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap border-2 bg-background px-1",
+        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 px-1 whitespace-nowrap",
         isSmall && "h-4",
       )}
     >

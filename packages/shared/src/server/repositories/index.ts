@@ -20,3 +20,4 @@ export * from "./dataset-items-columns";
 export * from "./dataset-items";
 export * from "./comments";
 export * from "./experiments";
+export * from "./job-executions";
