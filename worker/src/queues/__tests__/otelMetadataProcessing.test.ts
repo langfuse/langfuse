@@ -156,10 +156,12 @@ describe("OTel metadata processing", () => {
       );
 
       expect(nameToValue["resourceAttributes.service.name"]).toBe("svc-a");
-      expect(nameToValue["scopeAttributes.public_key"]).toBe("pk-test");
+      expect(nameToValue["scope.name"]).toBe("langfuse-sdk");
+      expect(nameToValue["scope.version"]).toBe("4.0.0");
+      expect(nameToValue["scope.attributes.public_key"]).toBe("pk-test");
       expect(nameToValue["env"]).toBe("prod");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
-      expect(nameToValue["scopeAttributes"]).toBeUndefined();
+      expect(nameToValue["scope"]).toBeUndefined();
     });
 
     it("flattens resource/scope attrs to dot-notation (SDK v3.8)", async () => {
@@ -175,10 +177,12 @@ describe("OTel metadata processing", () => {
       );
 
       expect(nameToValue["resourceAttributes.service.name"]).toBe("svc-b");
-      expect(nameToValue["scopeAttributes.public_key"]).toBe("pk-legacy");
+      expect(nameToValue["scope.name"]).toBe("langfuse-sdk");
+      expect(nameToValue["scope.version"]).toBe("3.8.1");
+      expect(nameToValue["scope.attributes.public_key"]).toBe("pk-legacy");
       expect(nameToValue["topic"]).toBe("test");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
-      expect(nameToValue["scopeAttributes"]).toBeUndefined();
+      expect(nameToValue["scope"]).toBeUndefined();
     });
   });
 
@@ -200,8 +204,12 @@ describe("OTel metadata processing", () => {
       expect(meta.resourceAttributes).toBe(
         JSON.stringify({ "service.name": "svc-a" }),
       );
-      expect(meta.scopeAttributes).toBe(
-        JSON.stringify({ public_key: "pk-test" }),
+      expect(meta.scope).toBe(
+        JSON.stringify({
+          name: "langfuse-sdk",
+          version: "4.0.0",
+          attributes: { public_key: "pk-test" },
+        }),
       );
       expect(meta.env).toBe("prod");
     });

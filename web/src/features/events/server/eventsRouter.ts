@@ -5,6 +5,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  type JsonNested,
+  type MetadataDomain,
   type Observation,
   type OrderByState,
   normalizeOrderByForTable,
@@ -17,6 +19,7 @@ import {
   getEventCount,
   getEventFilterOptions,
   getEventBatchIO,
+  getEventMetadataKeySuggestions,
 } from "./eventsService";
 import {
   instrumentAsync,
@@ -48,6 +51,11 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+});
+
+const GetEventMetadataKeySuggestionsInput = GetEventFilterOptionsInput.omit({
+  hasParentObservation: true,
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -142,13 +150,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-        hasParentObservation: zodSchema.boolean().optional(),
-      }),
-    )
+    .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
       return instrumentAsync(
         {
@@ -165,6 +167,22 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
+  metadataKeySuggestions: protectedProjectProcedure
+    .input(GetEventMetadataKeySuggestionsInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        {
+          name: "get-event-metadata-key-suggestions-trpc",
+        },
+        async (span) => {
+          addAttributesToSpan({ span, input, orderBy: undefined });
+          return getEventMetadataKeySuggestions({
+            projectId: input.projectId,
+            startTimeFilter: input.startTimeFilter,
+          });
+        },
+      );
+    }),
   batchIO: protectedProjectProcedure
     .input(BatchIOInput)
     .query(async ({ input, ctx }) => {
@@ -174,13 +192,18 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          const observations = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
           });
+
+          return observations.map((observation) => ({
+            ...observation,
+            metadata: unflattenMetadataForTrpc(observation.metadata),
+          }));
         },
       );
     }),
@@ -239,7 +262,12 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations,
+            observations: observations.map((observation) => ({
+              ...observation,
+              ...(observation.metadata !== undefined && {
+                metadata: unflattenMetadataForTrpc(observation.metadata),
+              }),
+            })),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };
@@ -377,4 +405,142 @@ export const addAttributesToSpan = ({
 
 export const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
+};
+
+const CONFLICTS_KEY = "__langfuse_conflicts";
+
+const isMetadataObject = (
+  value: JsonNested | undefined,
+): value is Record<string, JsonNested | undefined> =>
+  value !== null &&
+  value !== undefined &&
+  typeof value === "object" &&
+  !Array.isArray(value);
+
+const cloneJsonNested = (
+  value: JsonNested | undefined,
+): JsonNested | undefined => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneJsonNested(item) as JsonNested);
+  }
+
+  if (isMetadataObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        cloneJsonNested(nestedValue),
+      ]),
+    );
+  }
+
+  return value;
+};
+
+const setMetadataConflict = (
+  conflicts: Record<string, JsonNested | undefined>,
+  path: string,
+  value: JsonNested | undefined,
+) => {
+  conflicts[path] = cloneJsonNested(value);
+};
+
+const mergeMetadataObjectIntoTree = (
+  target: Record<string, JsonNested | undefined>,
+  source: Record<string, JsonNested | undefined>,
+  basePath: string,
+  conflicts: Record<string, JsonNested | undefined>,
+) => {
+  for (const [key, value] of Object.entries(source)) {
+    const nextPath = `${basePath}.${key}`;
+    const existing = target[key];
+
+    if (existing === undefined) {
+      target[key] = cloneJsonNested(value);
+      continue;
+    }
+
+    if (isMetadataObject(existing) && isMetadataObject(value)) {
+      mergeMetadataObjectIntoTree(existing, value, nextPath, conflicts);
+      continue;
+    }
+
+    setMetadataConflict(conflicts, nextPath, value);
+  }
+};
+
+export const unflattenMetadataForTrpc = (
+  metadata: MetadataDomain | undefined,
+): MetadataDomain => {
+  if (!metadata) {
+    return {};
+  }
+
+  const result: MetadataDomain = {};
+  const conflicts: Record<string, JsonNested | undefined> = {};
+  const entries = Object.entries(metadata).sort(
+    ([leftKey], [rightKey]) =>
+      leftKey.split(".").length - rightKey.split(".").length ||
+      leftKey.localeCompare(rightKey),
+  );
+
+  for (const [key, value] of entries) {
+    if (key === CONFLICTS_KEY) {
+      setMetadataConflict(conflicts, key, value);
+      continue;
+    }
+
+    const segments = key.split(".");
+
+    if (segments.length === 1) {
+      const existing = result[key];
+
+      if (existing === undefined) {
+        result[key] = cloneJsonNested(value);
+      } else if (isMetadataObject(existing) && isMetadataObject(value)) {
+        mergeMetadataObjectIntoTree(existing, value, key, conflicts);
+      } else {
+        setMetadataConflict(conflicts, key, value);
+      }
+
+      continue;
+    }
+
+    let current: Record<string, JsonNested | undefined> = result;
+
+    for (let index = 0; index < segments.length - 1; index++) {
+      const segment = segments[index];
+      const currentPath = segments.slice(0, index + 1).join(".");
+      const existing = current[segment];
+
+      if (existing === undefined) {
+        current[segment] = {};
+      } else if (!isMetadataObject(existing)) {
+        setMetadataConflict(conflicts, currentPath, existing);
+        current[segment] = {};
+      }
+
+      current = current[segment] as Record<string, JsonNested | undefined>;
+    }
+
+    const leafKey = segments[segments.length - 1];
+    const existing = current[leafKey];
+
+    if (existing === undefined) {
+      current[leafKey] = cloneJsonNested(value);
+    } else if (isMetadataObject(existing) && isMetadataObject(value)) {
+      mergeMetadataObjectIntoTree(existing, value, key, conflicts);
+    } else {
+      setMetadataConflict(conflicts, key, value);
+    }
+  }
+
+  if (Object.keys(conflicts).length > 0) {
+    result[CONFLICTS_KEY] = conflicts;
+  }
+
+  return result;
 };

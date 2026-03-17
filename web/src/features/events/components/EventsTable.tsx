@@ -8,7 +8,8 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterStateWithExpansionState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useFilterExpandedState } from "@/src/features/filters/hooks/useFilterExpandedState";
 import {
   getEventsColumnName,
   observationEventsFilterConfig,
@@ -71,6 +72,7 @@ import {
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import { useEventMetadataFilterOptions } from "@/src/features/events/hooks/useEventMetadataFilterOptions";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
@@ -311,6 +313,7 @@ export default function ObservationsEventsTable({
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
+      utils.events.metadataKeySuggestions.invalidate(),
     ]);
   }, [utils]);
 
@@ -347,19 +350,42 @@ export default function ObservationsEventsTable({
 
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
-  // Fetch filter options
-  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
-    projectId,
-    oldFilterState,
+  const { expandedState, onExpandedChange } = useFilterExpandedState({
+    tableName: observationEventsFilterConfig.tableName,
+    defaultExpanded: observationEventsFilterConfig.defaultExpanded,
   });
 
-  const queryFilter = useSidebarFilterState(
+  const { filterOptions: baseFilterOptions, isFilterOptionsPending } =
+    useEventsFilterOptions({
+      projectId,
+      oldFilterState,
+    });
+  const { metadataOptions, isMetadataOptionsPending } =
+    useEventMetadataFilterOptions({
+      projectId,
+      oldFilterState,
+      enabled: !hideControls && expandedState.includes("metadata"),
+    });
+
+  const filterOptions = useMemo(
+    () => ({
+      ...baseFilterOptions,
+      metadata: metadataOptions,
+    }),
+    [baseFilterOptions, metadataOptions],
+  );
+
+  const isFilterLoading = isFilterOptionsPending || isMetadataOptionsPending;
+
+  const queryFilter = useSidebarFilterStateWithExpansionState(
     observationEventsFilterConfig,
     filterOptions,
     {
-      loading: isFilterOptionsPending,
+      loading: isFilterLoading,
       disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
       sessionFilterContextId: projectId,
+      expandedState,
+      onExpandedChange,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
