@@ -730,7 +730,8 @@ maybeDescribe("events table batch actions", () => {
       trace_id: traceId,
       input: eventInput,
       output: eventOutput,
-      metadata: eventMetadata,
+      metadata_names: Object.keys(eventMetadata),
+      metadata_values: Object.values(eventMetadata),
     });
 
     await createEventsCh([event]);
