@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import {
   fetchLLMCompletion,
+  baseUrlToEndpoint,
   type CompletionWithReasoning,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -1176,5 +1177,40 @@ describe("LLM Connection Tests", () => {
       expect(typeof completion).toBe("object");
       expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
+  });
+
+  describe("baseUrlToEndpoint", () => {
+    test.each([
+      // Strips version-only paths
+      ["https://proxy.example/v1", "proxy.example"],
+      ["https://proxy.example/v1beta", "proxy.example"],
+
+      // Strips version + remainder that ChatGoogle appends
+      ["https://proxy.example/v1beta/models", "proxy.example"],
+      ["https://proxy.example/v1/models/gemini-pro:generate", "proxy.example"],
+      [
+        "https://proxy.example/v1beta/publishers/google/models/gemini",
+        "proxy.example",
+      ],
+
+      // Preserves path prefix before the version segment
+      ["https://proxy.example/proxy/v1", "proxy.example/proxy"],
+      ["https://proxy.example/proxy/v1beta/models", "proxy.example/proxy"],
+
+      // Preserves non-version paths
+      ["https://proxy.example/custom-path", "proxy.example/custom-path"],
+
+      // Host-only URLs
+      ["https://proxy.example", "proxy.example"],
+      ["https://proxy.example/", "proxy.example"],
+
+      // Includes port when present
+      ["https://proxy.example:8080/v1beta", "proxy.example:8080"],
+
+      // Falls back to raw string on invalid URL
+      ["not-a-url", "not-a-url"],
+    ])("%s -> %s", (input, expected) => {
+      expect(baseUrlToEndpoint(input)).toBe(expected);
+    });
   });
 });

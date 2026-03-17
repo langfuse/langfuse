@@ -624,13 +624,16 @@ function extractCompletionWithReasoning(
 
 /**
  * Extracts hostname (+ optional port/path) from a full URL for use as ChatGoogle endpoint.
- * The new @langchain/google package builds URLs as: https://${endpoint}/${apiVersion}/models/${model}:${method}
- * So we need to extract just the host (+ any path prefix) from a full URL.
+ * ChatGoogle builds URLs as: https://${endpoint}/${apiVersion}/models/${model}:${method}
+ * where apiVersion is "v1beta" (GAI) or "v1" (GCP).
+ * We strip these trailing segments to avoid doubled paths like .../v1/v1beta/models/...
  */
-function baseUrlToEndpoint(baseUrl: string): string {
+export function baseUrlToEndpoint(baseUrl: string): string {
   try {
     const url = new URL(baseUrl);
-    const path = url.pathname.replace(/\/+$/, "");
+    const path = url.pathname
+      .replace(/\/+$/, "")
+      .replace(/\/(v1beta|v1)(\/.*)?$/, "");
     return path && path !== "" ? `${url.host}${path}` : url.host;
   } catch {
     return baseUrl;
