@@ -17,7 +17,7 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-    .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+    .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
     .optional(),
 
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -159,6 +159,11 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS: z.coerce
+    .number()
+    .positive()
+    .default(24),
 
   // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
   LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
@@ -336,6 +341,12 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
+
+  // Batch Project Media Cleaner configuration (S3/PostgreSQL)
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(5000), // Media items per chunk
 
   // Batch Data Retention Cleaner configuration (ClickHouse)
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED: z

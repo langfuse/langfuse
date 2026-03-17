@@ -93,7 +93,7 @@ export default function Dataset() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
           <DatasetRunItemsByRunTable
             projectId={projectId}
@@ -119,7 +119,7 @@ export default function Dataset() {
                     <span className="text-sm font-medium">Dataset Version</span>
                     <Link
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
-                      className="text-sm text-accent-dark-blue hover:text-primary-accent/60"
+                      className="text-accent-dark-blue hover:text-primary-accent/60 text-sm"
                     >
                       <LocalIsoDate date={run.data.datasetVersion} />
                     </Link>
@@ -140,7 +140,7 @@ export default function Dataset() {
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
-                  <div className="mt-1 px-1 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
                 )}

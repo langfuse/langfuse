@@ -43,6 +43,8 @@ langfuse/
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
 - Dev worker only: `pnpm run dev:worker`
+- Codex environment bootstrap: `bash scripts/codex/setup.sh`
+- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
@@ -76,7 +78,8 @@ Minimum verification matrix:
 - When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
-- Follow Conventional Commits.
+- Commit messages and PR titles must follow Conventional Commits: `type(scope): description` or `type: description`.
+- PR titles are validated by `.github/workflows/validate-pr-title.yml`.
 - Include AGENTS.md updates in the same PR when guidance materially changes.
 - In PR descriptions, list impacted packages and executed verification commands.
 

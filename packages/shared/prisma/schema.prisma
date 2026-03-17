@@ -944,8 +944,8 @@ model EvalTemplate {
   @@map("eval_templates")
 }
 
-// We currently assume in the evalRouter that _all_ job_executions are for EVAL job_configs.
-// If we ever extend this, we need to adjust the filter condition there. ref.: fetchJobExecutionsByStatus.
+// We currently assume in evaluator execution-count queries that _all_ job_executions are for EVAL job_configs.
+// If we ever extend this, we need to adjust the filter condition there. ref.: getEvaluatorExecutionStatusCounts.
 enum JobType {
   EVAL
 }
@@ -953,6 +953,15 @@ enum JobType {
 enum JobConfigState {
   ACTIVE
   INACTIVE
+}
+
+enum EvaluatorBlockReason {
+  LLM_CONNECTION_AUTH_INVALID
+  LLM_CONNECTION_MISSING
+  DEFAULT_EVAL_MODEL_MISSING
+  EVAL_MODEL_CONFIG_INVALID
+  EVAL_MODEL_UNAVAILABLE
+  PROVIDER_ACCOUNT_NOT_READY
 }
 
 model JobConfiguration {
@@ -963,10 +972,13 @@ model JobConfiguration {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  jobType        JobType        @map("job_type")
-  status         JobConfigState @default(ACTIVE)
-  evalTemplateId String?        @map("eval_template_id")
-  evalTemplate   EvalTemplate?  @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
+  jobType        JobType               @map("job_type")
+  status         JobConfigState        @default(ACTIVE)
+  blockedAt      DateTime?             @map("blocked_at")
+  blockReason    EvaluatorBlockReason? @map("block_reason")
+  blockMessage   String?               @map("block_message")
+  evalTemplateId String?               @map("eval_template_id")
+  evalTemplate   EvalTemplate?         @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
   scoreName       String         @map("score_name")
   filter          Json
@@ -1065,27 +1077,27 @@ model SsoConfig {
 }
 
 model PosthogIntegration {
-  projectId              String                            @id @map("project_id")
-  project                Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedPosthogApiKey String                            @map("encrypted_posthog_api_key")
-  posthogHostName        String                            @map("posthog_host_name")
-  lastSyncAt             DateTime?                         @map("last_sync_at")
+  projectId              String                           @id @map("project_id")
+  project                Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedPosthogApiKey String                           @map("encrypted_posthog_api_key")
+  posthogHostName        String                           @map("posthog_host_name")
+  lastSyncAt             DateTime?                        @map("last_sync_at")
   enabled                Boolean
-  createdAt              DateTime                          @default(now()) @map("created_at")
-  exportSource           AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
+  createdAt              DateTime                         @default(now()) @map("created_at")
+  exportSource           AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("posthog_integrations")
 }
 
 model MixpanelIntegration {
-  projectId                     String                            @id @map("project_id")
-  project                       Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedMixpanelProjectToken String                            @map("encrypted_mixpanel_project_token")
-  mixpanelRegion                String                            @map("mixpanel_region")
-  lastSyncAt                    DateTime?                         @map("last_sync_at")
+  projectId                     String                           @id @map("project_id")
+  project                       Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedMixpanelProjectToken String                           @map("encrypted_mixpanel_project_token")
+  mixpanelRegion                String                           @map("mixpanel_region")
+  lastSyncAt                    DateTime?                        @map("last_sync_at")
   enabled                       Boolean
-  createdAt                     DateTime                          @default(now()) @map("created_at")
-  exportSource                  AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
+  createdAt                     DateTime                         @default(now()) @map("created_at")
+  exportSource                  AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("mixpanel_integrations")
 }
@@ -1105,14 +1117,21 @@ model BlobStorageIntegration {
   forcePathStyle  Boolean                    @map("force_path_style")
 
   // Integration Config
-  nextSyncAt      DateTime?                         @map("next_sync_at")
-  lastSyncAt      DateTime?                         @map("last_sync_at")
+  nextSyncAt      DateTime?                        @map("next_sync_at")
+  lastSyncAt      DateTime?                        @map("last_sync_at")
   enabled         Boolean
-  exportFrequency String                            @map("export_frequency")
-  fileType        BlobStorageIntegrationFileType    @default(CSV) @map("file_type")
-  exportMode      BlobStorageExportMode             @default(FULL_HISTORY) @map("export_mode")
-  exportStartDate DateTime?                         @map("export_start_date")
-  exportSource    AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
+  exportFrequency String                           @map("export_frequency")
+  fileType        BlobStorageIntegrationFileType   @default(CSV) @map("file_type")
+  exportMode      BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
+  exportStartDate DateTime?                        @map("export_start_date")
+  exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+
+  // Error tracking
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+
+  // Notification tracking
+  lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

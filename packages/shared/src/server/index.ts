@@ -8,6 +8,7 @@ export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
+export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
@@ -93,6 +94,7 @@ export * from "./instrumentation";
 export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
+export * from "./queries/clickhouse-sql/orderby-factory";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
@@ -107,6 +109,8 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
+export * from "./services/blockEvaluatorConfigs";
+export * from "./services/getProjectAdminEmails";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
@@ -114,6 +118,7 @@ export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
+export * from "./media-deletion";
 export * from "./s3";
 
 // dataset run items

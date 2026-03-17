@@ -57,7 +57,7 @@ export function ChartLoadingState({
       aria-live="polite"
       aria-label={spinnerLabel}
       className={cn(
-        "flex flex-col items-center justify-center gap-2 text-muted-foreground",
+        "text-muted-foreground flex flex-col items-center justify-center gap-2",
         className,
       )}
     >
@@ -71,7 +71,7 @@ export function ChartLoadingState({
       {shouldShowHint ? (
         <p
           className={cn(
-            "max-w-xs text-center text-xs duration-300 animate-in fade-in-0",
+            "animate-in fade-in-0 max-w-xs text-center text-xs duration-300",
             hintClassName,
           )}
         >

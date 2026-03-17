@@ -277,8 +277,8 @@ const Integrations = (props: { projectId: string }) => {
       <div className="space-y-6">
         <Card className="p-3">
           {}
-          <PostHogLogo className="mb-4 w-40 text-foreground" />
-          <p className="mb-4 text-sm text-primary">
+          <PostHogLogo className="text-foreground mb-4 w-40" />
+          <p className="text-primary mb-4 text-sm">
             We have teamed up with PostHog (OSS product analytics) to make
             Langfuse Events/Metrics available in your Posthog Dashboards.
           </p>
@@ -302,8 +302,8 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <MixpanelLogo className="mb-4 w-20 text-foreground" />
-          <p className="mb-4 text-sm text-primary">
+          <MixpanelLogo className="text-foreground mb-4 w-20" />
+          <p className="text-primary mb-4 text-sm">
             Integrate with Mixpanel to sync your Langfuse traces, generations,
             and scores for advanced product analytics and insights.
           </p>
@@ -328,7 +328,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <span className="font-semibold">Blob Storage</span>
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
             own storage for data analysis or backup purposes.
@@ -355,10 +355,10 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <Slack className="h-5 w-5 text-foreground" />
+            <Slack className="text-foreground h-5 w-5" />
             <span className="font-semibold">Slack</span>
           </div>
-          <p className="mb-4 text-sm text-primary">
+          <p className="text-primary mb-4 text-sm">
             Connect a Slack workspace and create channel automations to receive
             Langfuse alerts natively in Slack.
           </p>

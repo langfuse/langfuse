@@ -174,6 +174,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "e.prompt_name",
   },
   {
+    uiTableName: "Prompt Version",
+    uiTableId: "promptVersion",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.prompt_version",
+  },
+  {
     uiTableName: "Input",
     uiTableId: "input",
     clickhouseTableName: "events_proto",
@@ -232,6 +238,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "parentObservationId",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."parent_span_id"',
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Experiment Dataset ID",

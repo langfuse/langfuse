@@ -11,6 +11,7 @@ import {
   filterAndValidateDbScoreList,
   type FilterState,
   type OrderByState,
+  normalizeOrderByForTable,
   orderBy,
   paginationZod,
   type PrismaClient,
@@ -184,10 +185,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const sessions = await getSessionsTable({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
       });
@@ -243,10 +248,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const sessions = await getSessionsTableFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
       });
@@ -301,10 +310,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const count = await getSessionsTableCount({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: 0,
         limit: 1,
       });
@@ -331,10 +344,14 @@ export const sessionRouter = createTRPCRouter({
         input.projectId,
         filterState,
       );
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "createdAt",
+      });
       const count = await getSessionsTableCountFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         page: 0,
         limit: 1,
       });

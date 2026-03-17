@@ -7,6 +7,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.string().url().optional(),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number() // .env files convert numbers to strings, therefore we have to enforce them to be numbers
@@ -86,7 +89,23 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(15_000),
   LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
+  LANGFUSE_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),

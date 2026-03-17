@@ -776,7 +776,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/tags"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -816,7 +816,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/metadata"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -874,7 +874,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/sessions"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -908,7 +908,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/users"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -984,7 +984,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/releases-and-versioning"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -1012,7 +1012,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/releases-and-versioning"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -1250,6 +1250,7 @@ export default function TracesTable({
       filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
+    disabled: hideControls,
   });
 
   const rows = useMemo(() => {

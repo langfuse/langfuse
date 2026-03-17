@@ -189,7 +189,9 @@ export class OtelIngestionProcessor {
     ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
 
     // Add queue job
-    const queue = OtelIngestionQueue.getInstance({});
+    const queue = OtelIngestionQueue.getInstance({
+      shardingKey: `${this.projectId}-${fileKey}`,
+    });
     return queue
       ? queue.add(QueueJobs.OtelIngestionJob, {
           id: randomUUID(),
@@ -262,6 +264,9 @@ export class OtelIngestionProcessor {
                     endTimeUnixNano: span.endTimeUnixNano,
                   });
 
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
@@ -272,17 +277,18 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
-                // Extract input/output (filteredAttributes not needed as metadata.attributes is commented out)
-                // Add filteredAttributes in case spanAttributes are included in the metadata block.
-                const { input, output } = this.extractInputAndOutput({
-                  events: span?.events ?? [],
-                  attributes: spanAttributes,
-                  instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                });
+                const { input, output, filteredAttributes } =
+                  this.extractInputAndOutput({
+                    events: span?.events ?? [],
+                    attributes: spanAttributes,
+                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                  });
 
                 // Construct metadata object with the specified structure
                 const metadata = {
-                  // attributes: filteredAttributes,
+                  ...(isLangfuseSDKSpans
+                    ? {}
+                    : { attributes: filteredAttributes }),
                   resourceAttributes: resourceAttributes,
                   scopeAttributes: scopeAttributes,
                   ...spanMetadata,
@@ -1249,6 +1255,8 @@ export class OtelIngestionProcessor {
       // Pydantic AI agent/root span
       "final_result",
       "pydantic_ai.all_messages",
+      // OpenTelemetry system instructions
+      "gen_ai.system_instructions",
       // Pydantic and Pipecat
       "input",
       "output",
@@ -1264,13 +1272,17 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, and llm.output_messages.* keys
+    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
+    // and metadata blob keys (already extracted into top-level metadata by extractMetadata())
     Object.keys(attributes).forEach((key) => {
       if (
         key.startsWith("gen_ai.prompt") ||
         key.startsWith("gen_ai.completion") ||
         key.startsWith("llm.input_messages") ||
-        key.startsWith("llm.output_messages")
+        key.startsWith("llm.output_messages") ||
+        key.startsWith("langfuse.trace.metadata") ||
+        key.startsWith("langfuse.observation.metadata") ||
+        key.startsWith("ai.telemetry.metadata")
       ) {
         delete rawFilteredAttributes[key];
       }
@@ -1536,6 +1548,12 @@ export class OtelIngestionProcessor {
     if (instrumentationScopeName === "pydantic-ai") {
       input = attributes["pydantic_ai.all_messages"] ?? null;
       output = attributes["final_result"] ?? null;
+      if (input && attributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          attributes["gen_ai.system_instructions"],
+        );
+      }
       if (input || output) {
         return { input, output, filteredAttributes };
       }
@@ -1603,6 +1621,12 @@ export class OtelIngestionProcessor {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
+    if (input && attributes["gen_ai.system_instructions"]) {
+      input = this.prependSystemInstructions(
+        input,
+        attributes["gen_ai.system_instructions"],
+      );
+    }
     if (input || output) {
       return { input, output, filteredAttributes };
     }
@@ -1615,6 +1639,53 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  /**
+   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
+   * consistent with how gen_ai.system.message events are mapped.
+   * No-ops if messages already contain a system message.
+   */
+  private prependSystemInstructions(
+    input: unknown,
+    systemInstructions: unknown,
+  ): unknown {
+    try {
+      const messages = typeof input === "string" ? JSON.parse(input) : input;
+      if (!Array.isArray(messages)) return input;
+
+      const hasSystemMessage = messages.some(
+        (msg: Record<string, unknown>) => msg?.role === "system",
+      );
+      if (hasSystemMessage) return input;
+
+      let content: string;
+      try {
+        const parsed =
+          typeof systemInstructions === "string"
+            ? JSON.parse(systemInstructions)
+            : systemInstructions;
+        if (Array.isArray(parsed)) {
+          content = parsed
+            .map((p: Record<string, unknown>) =>
+              typeof p === "object" && p?.content
+                ? String(p.content)
+                : String(p),
+            )
+            .join("\n");
+        } else {
+          content = String(parsed);
+        }
+      } catch {
+        content = String(systemInstructions);
+      }
+
+      const systemMessage = { role: "system", content };
+      const merged = [systemMessage, ...messages];
+      return typeof input === "string" ? JSON.stringify(merged) : merged;
+    } catch {
+      return input;
+    }
   }
 
   private extractEnvironment(

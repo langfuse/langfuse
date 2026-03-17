@@ -65,6 +65,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             case "US":
             case "EU":
             case "HIPAA":
+            case "JP":
               return "prod";
             case "STAGING":
               return "staging";
@@ -77,6 +78,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
           env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
           env.LANGFUSE_AI_FEATURES_HOST,
+          false,
         );
 
         const promptResponse = await client.getPrompt(

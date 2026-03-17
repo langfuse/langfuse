@@ -1,5 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,
   DropdownMenu,
@@ -27,8 +27,8 @@ export const CreateNewAnnotationQueueItem = ({
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
-  variant?: "outline" | "secondary";
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
@@ -124,8 +124,8 @@ export const CreateNewAnnotationQueueItem = ({
         >
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
-              <ChevronDown className="h-3 w-3 text-secondary-foreground" />
-              <span className="absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm bg-slate-600 px-0.5 text-[8px] font-medium text-white shadow-sm">
+              <ChevronDown className="text-secondary-foreground h-3 w-3" />
+              <span className="absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm bg-slate-600 px-0.5 text-[8px] font-medium text-white shadow-xs">
                 {queues.data?.totalCount > 99 ? "99+" : queues.data?.totalCount}
               </span>
             </span>
