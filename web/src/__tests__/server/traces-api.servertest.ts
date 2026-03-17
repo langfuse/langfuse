@@ -128,7 +128,8 @@ const createTraceWithObservations = async (
       user_id: trace.user_id ?? null,
       input: trace.input ?? null,
       output: trace.output ?? null,
-      metadata: trace.metadata ?? {},
+      metadata_names: Object.keys(trace.metadata ?? {}) ?? [],
+      metadata_values: Object.values(trace.metadata ?? {}) ?? [],
       cost_details: {
         total: 0, // Root trace event has no cost
       },
