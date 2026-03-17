@@ -1,9 +1,11 @@
 import {
+  BatchExportFileFormat,
   FilterCondition,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  observationsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -29,7 +31,8 @@ import {
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import type { Model, Price } from "@prisma/client";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const DEFAULT_BATCH_SIZE = 1000;
+const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
 
 type ModelWithPrice = Model & { Price: Price[] };
 
@@ -81,6 +84,7 @@ export const getObservationStream = async (props: {
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  fileFormat?: BatchExportFileFormat;
 }): Promise<Readable> => {
   const {
     projectId,
@@ -90,6 +94,9 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  const isCsv = props.fileFormat === BatchExportFileFormat.CSV;
+  const batchSize = isCsv ? DEFAULT_BATCH_SIZE : REDUCED_BATCH_SIZE;
 
   // Check if we should skip deduplication for OTEL projects
   const skipDedup = await shouldSkipObservationsFinal(projectId);
@@ -158,6 +165,7 @@ export const getObservationStream = async (props: {
         },
       ],
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -176,11 +184,16 @@ export const getObservationStream = async (props: {
             tuple(name, avg_value, data_type, string_value),
             data_type IN ('NUMERIC', 'BOOLEAN')
           ) AS scores_avg,
-          -- For categorical scores, use name:value format for improved query performance
+          -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
             data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
+          ) AS score_categories,
+          -- tuple encoding for accurate output parsing (names may contain colons)
+          groupArrayIf(
+            tuple(name, string_value),
+            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          ) AS score_categories_tuples
         FROM (
           SELECT
             trace_id,
@@ -245,7 +258,8 @@ export const getObservationStream = async (props: {
         t.timestamp as traceTimestamp,
         t.user_id as userId,
         s.scores_avg as scores_avg,
-        s.score_categories as score_categories
+        s.score_categories as score_categories,
+        s.score_categories_tuples as score_categories_tuples
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
@@ -266,6 +280,7 @@ export const getObservationStream = async (props: {
           }[]
         | undefined;
       score_categories: string[] | undefined;
+      score_categories_tuples: [string, string | null][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -307,6 +322,7 @@ export const getObservationStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -330,17 +346,14 @@ export const getObservationStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          stringValue: valueParts.join(":"),
-        };
-      },
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat) => ({
+        name: cat[0],
+        value: null,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =
@@ -354,7 +367,7 @@ export const getObservationStream = async (props: {
         {
           ...convertObservation(bufferedRow, {
             truncated: false,
-            shouldJsonParse: true,
+            shouldJsonParse: props.fileFormat !== BatchExportFileFormat.CSV,
           }),
           traceName: bufferedRow.traceName,
           traceTags: bufferedRow.traceTags,
@@ -386,7 +399,7 @@ export const getObservationStream = async (props: {
         observationIds.push(row.id);
 
         // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
+        if (rowBuffer.length >= batchSize) {
           // Fetch comments for this batch
           const commentsByObservation = await fetchCommentsForExport(
             projectId,

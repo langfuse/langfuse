@@ -1,5 +1,7 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -54,6 +56,7 @@ export default function DashboardDetail() {
   };
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
+  const { isBetaEnabled } = useV4Beta();
 
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
@@ -195,22 +198,11 @@ export default function DashboardDetail() {
     ],
   );
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+  const { nameOptions, tagsOptions } = useDashboardFilterOptions({
+    projectId,
+    isBetaEnabled,
+    timeRange,
+  });
 
   const environmentOptionsState = useEnvironmentFilterOptionsCache({
     projectId,
@@ -221,9 +213,6 @@ export default function DashboardDetail() {
       value,
     }),
   );
-  const nameOptions = traceFilterOptions.data?.name || [];
-  const tagsOptions = traceFilterOptions.data?.tags || [];
-
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
     {

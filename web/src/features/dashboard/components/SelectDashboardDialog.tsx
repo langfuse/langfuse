@@ -75,11 +75,11 @@ export function SelectDashboardDialog({
             {dashboards.isLoading ? (
               <div className="py-8 text-center">Loading dashboards...</div>
             ) : dashboards.isError ? (
-              <div className="py-8 text-center text-destructive">
+              <div className="text-destructive py-8 text-center">
                 Error: {dashboards.error.message}
               </div>
             ) : dashboards.data?.dashboards.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
+              <div className="text-muted-foreground py-8 text-center">
                 No dashboards found.
               </div>
             ) : (
@@ -98,7 +98,7 @@ export function SelectDashboardDialog({
                       <TableRow
                         key={d.id}
                         onClick={() => setSelectedDashboardId(d.id)}
-                        className={`cursor-pointer hover:bg-muted ${
+                        className={`hover:bg-muted cursor-pointer ${
                           selectedDashboardId === d.id ? "bg-muted" : ""
                         }`}
                       >

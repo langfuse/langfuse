@@ -54,7 +54,11 @@ import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import {
+  buildSidebarFilterQueryStorageKey,
+  readPersistedSidebarFilterQuery,
+} from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
@@ -171,7 +175,7 @@ export function SessionUsers({
                     <Link
                       key={userId}
                       href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                      className="block hover:bg-accent"
+                      className="hover:bg-accent block"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -193,7 +197,7 @@ export function SessionUsers({
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   Page {page + 1} of{" "}
                   {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
                 </span>
@@ -462,7 +466,7 @@ export const SessionPage: React.FC<{
                 onCheckedChange={setShowCorrections}
                 className="scale-75"
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 Show corrections
               </span>
             </div>
@@ -471,7 +475,7 @@ export const SessionPage: React.FC<{
       }}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="sticky top-0 z-40 flex flex-wrap gap-2 border-b bg-background p-4">
+        <div className="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4">
           {session.data?.users?.length ? (
             <SessionUsers projectId={projectId} users={session.data.users} />
           ) : null}
@@ -644,8 +648,23 @@ export const SessionEventsPage: React.FC<{
     detailPagelists.traces,
   ]);
 
-  // Decode time filters from URL for scoping filter options
-  const [filtersQuery] = useQueryParam("filter", withDefault(StringParam, ""));
+  const sessionEventsTableName = "session-events";
+  const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
+    tableName: sessionEventsTableName,
+    contextId: projectId,
+  });
+  const [urlFiltersQuery] = useQueryParam("filter", StringParam);
+  const filtersQuery = React.useMemo(
+    () =>
+      urlFiltersQuery ??
+      readPersistedSidebarFilterQuery({
+        storageKey: sessionFilterStorageKey,
+        contextId: projectId,
+      }),
+    [urlFiltersQuery, sessionFilterStorageKey, projectId],
+  );
+
+  // Decode time filters from URL/session filter state for scoping filter options
   const timeFiltersForOptions = React.useMemo(() => {
     const allFilters = decodeAndNormalizeFilters(
       filtersQuery,
@@ -666,7 +685,7 @@ export const SessionEventsPage: React.FC<{
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
-      tableName: "session-events",
+      tableName: sessionEventsTableName,
       columnDefinitions: observationEventsFilterConfig.columnDefinitions,
       facets: observationEventsFilterConfig.facets
         .filter(
@@ -680,7 +699,7 @@ export const SessionEventsPage: React.FC<{
           mutuallyExclusiveWith: undefined,
         })),
     };
-  }, []);
+  }, [sessionEventsTableName]);
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
@@ -753,8 +772,10 @@ export const SessionEventsPage: React.FC<{
   const queryFilter = useSidebarFilterState(
     sessionEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
+    {
+      loading: isFilterOptionsPending,
+      sessionFilterContextId: projectId,
+    },
   );
 
   const visibleFilterState = React.useMemo(
@@ -936,7 +957,7 @@ export const SessionEventsPage: React.FC<{
                 onCheckedChange={setShowCorrections}
                 className="scale-75"
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 Show corrections
               </span>
             </div>
@@ -945,7 +966,7 @@ export const SessionEventsPage: React.FC<{
       }}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background p-4">
+        <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
           {/* Saved Views */}
           <TableViewPresetsDrawer
             viewConfig={{
@@ -1109,7 +1130,7 @@ export const SessionIO = ({
           showCorrections={showCorrections}
         />
       ) : (
-        <div className="p-2 text-xs text-muted-foreground">
+        <div className="text-muted-foreground p-2 text-xs">
           This trace has no input or output.
         </div>
       )}

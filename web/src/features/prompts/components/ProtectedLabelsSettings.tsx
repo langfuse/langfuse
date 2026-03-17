@@ -110,7 +110,7 @@ export default function ProtectedLabelsSettings({
     <div>
       <Header title="Protected Prompt Labels" />
       <Card className="mb-4 p-3">
-        <p className="mb-4 text-sm text-primary">
+        <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
           labels from prompts.

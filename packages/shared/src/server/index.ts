@@ -1,4 +1,6 @@
 export * from "./services/StorageService";
+export * from "./services/BufferedStreamUploader";
+export * from "./services/S3ChunkedUploadStrategy";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
@@ -91,6 +93,7 @@ export * from "./instrumentation";
 export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
+export * from "./queries/clickhouse-sql/orderby-factory";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
@@ -105,6 +108,7 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
+export * from "./services/blockEvaluatorConfigs";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
@@ -112,6 +116,7 @@ export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
+export * from "./media-deletion";
 export * from "./s3";
 
 // dataset run items

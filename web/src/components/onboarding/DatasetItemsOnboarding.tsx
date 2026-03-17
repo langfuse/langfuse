@@ -44,10 +44,10 @@ const DatasetItemEntryPointRow = ({
       role="button"
       tabIndex={0}
       className={cn(
-        "flex h-20 items-center gap-4 rounded-lg border border-border p-4 transition-colors",
+        "border-border flex h-20 items-center gap-4 rounded-lg border p-4 transition-colors",
         disabled
           ? "bg-muted text-muted-foreground opacity-60"
-          : "cursor-pointer bg-card hover:bg-accent/50",
+          : "bg-card hover:bg-accent/50 cursor-pointer",
       )}
       onClick={!disabled ? onClick : undefined}
       title={
@@ -60,7 +60,7 @@ const DatasetItemEntryPointRow = ({
       <div className="flex flex-1 flex-col gap-1">
         <h3 className="font-semibold">{title}</h3>
         <div className="flex items-center gap-1">
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-muted-foreground text-sm">{description}</p>
           {docPopup && (
             <DocPopup description={docPopup.description} href={docPopup.href} />
           )}

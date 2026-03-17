@@ -47,6 +47,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          interval="preserveStartEnd"
+          minTickGap={24}
         />
         <YAxis
           type="number"

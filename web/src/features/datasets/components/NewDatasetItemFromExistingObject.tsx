@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
@@ -43,8 +43,8 @@ export const NewDatasetItemFromExistingObject = (props: {
   output: string | null;
   metadata: MetadataDomainClient;
   isCopyItem?: boolean;
-  buttonVariant?: "outline" | "secondary";
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  buttonVariant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"
@@ -152,7 +152,7 @@ export const NewDatasetItemFromExistingObject = (props: {
           {hasAccess ? (
             <PlusIcon
               className={cn(
-                "-ml-0.5 mr-1.5",
+                "mr-1.5 -ml-0.5",
                 buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
               )}
               aria-hidden="true"
