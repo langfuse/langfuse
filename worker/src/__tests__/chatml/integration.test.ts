@@ -503,7 +503,7 @@ const tracesDir = path.resolve(__dirname, "framework-traces");
 const traceFiles = readdirSync(tracesDir).filter((f) =>
   f.endsWith(".trace.json"),
 );
-// use this to update the expected mapping result when chaning/fixing the mapping logic
+// use this to update the expected mapping result when changing/fixing the mapping logic
 const updateExpectedFilesOnFailure = false;
 
 describe("ChatML adaption tests against real observations", () => {
