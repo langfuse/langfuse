@@ -589,8 +589,17 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         });
 
         if (hasAnyContent) {
-          // Window has content - let it execute and show any validation errors
-          handleSubmit(true).catch((err) => console.error(err));
+          // Read streaming preference from localStorage (same key as SubmitButton in Messages.tsx)
+          const streamingPref = localStorage.getItem(
+            "langfuse-playground-streaming",
+          );
+          const streaming =
+            streamingPref !== null
+              ? JSON.parse(streamingPref)
+              : env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT ===
+                "true";
+
+          handleSubmit(streaming).catch((err) => console.error(err));
         }
         // If no content, skip silently
       }
