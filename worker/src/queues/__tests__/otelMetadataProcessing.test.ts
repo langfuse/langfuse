@@ -122,7 +122,6 @@ async function processAndCreateEvent(
 
   console.log("metadata_names:", JSON.stringify(eventRecord.metadata_names));
   console.log("metadata_values:", JSON.stringify(eventRecord.metadata_values));
-  console.log("metadata:", JSON.stringify(eventRecord.metadata));
 
   const nameToValue = Object.fromEntries(
     eventRecord.metadata_names.map((name, i) => [
@@ -183,7 +182,7 @@ describe("OTel metadata processing", () => {
 
   describe("json column", () => {
     it("stringifies nested objects in metadata JSON column", async () => {
-      const { eventRecord } = await processAndCreateEvent(
+      const { nameToValue: meta } = await processAndCreateEvent(
         buildOtelSpan({
           scopeVersion: "4.0.0",
           resourceAttrKey: "service.name",
@@ -195,7 +194,6 @@ describe("OTel metadata processing", () => {
       );
 
       // metadata JSON column stores stringified values (Record<string, string>)
-      const meta = eventRecord.metadata;
       expect(meta.resourceAttributes).toBe(
         JSON.stringify({ "service.name": "svc-a" }),
       );
