@@ -76,6 +76,44 @@ describe("CreateEvalTemplateInputSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects duplicate categories after trimming whitespace", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          categories: ["correct", " correct "],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects blank categorical entries", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: {
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          categories: ["correct", "   "],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("rejects categorical outputs with fewer than two categories", () => {
     const result = CreateEvalTemplateInputSchema.safeParse({
       ...baseInput,

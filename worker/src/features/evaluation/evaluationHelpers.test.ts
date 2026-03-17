@@ -157,6 +157,23 @@ describe("evaluation helpers", () => {
       ).toBe(false);
     });
 
+    it("should reject categorical arrays when only a single match is allowed", () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          categories: ["correct", "partial"],
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: ["correct", "partial"],
+          reasoning: "This should fail because only one category is allowed.",
+        }).success,
+      ).toBe(false);
+    });
+
     it("should validate categorical multi-match responses against allowed values", () => {
       const schema = buildEvalOutputResultSchema(
         createCategoricalEvalOutputDefinition({
@@ -196,6 +213,42 @@ describe("evaluation helpers", () => {
         schema.safeParse({
           score: ["correct", "correct"],
           reasoning: "This should be invalid.",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("should reject categorical scalars when multiple matches are required to be returned as an array", () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          categories: ["correct", "partial"],
+          shouldAllowMultipleMatches: true,
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: "correct",
+          reasoning: "This should fail because multi-match uses an array.",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("should reject empty categorical multi-match arrays", () => {
+      const schema = buildEvalOutputResultSchema(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose all matching categories",
+          reasoningDescription: "Explain the selected categories",
+          categories: ["correct", "partial"],
+          shouldAllowMultipleMatches: true,
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: [],
+          reasoning: "At least one category is required.",
         }).success,
       ).toBe(false);
     });
@@ -554,6 +607,42 @@ describe("evaluation helpers", () => {
         });
       }
     });
+
+    it("should reject categorical responses with categories outside the allowed set", () => {
+      const outputDefinition = createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose the best matching category",
+        reasoningDescription: "Why",
+        categories: ["correct", "incorrect"],
+      });
+
+      const result = validateEvalOutputResult({
+        response: { score: "partial", reasoning: "Not an allowed category" },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject categorical multi-match responses with duplicate categories", () => {
+      const outputDefinition = createCategoricalEvalOutputDefinition({
+        scoreDescription: "Choose all matching categories",
+        reasoningDescription: "Why",
+        categories: ["correct", "incorrect"],
+        shouldAllowMultipleMatches: true,
+      });
+
+      const result = validateEvalOutputResult({
+        response: {
+          score: ["correct", "correct"],
+          reasoning: "Duplicates should be rejected.",
+        },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("PersistedEvalOutputDefinitionSchema", () => {
@@ -620,6 +709,57 @@ describe("evaluation helpers", () => {
       );
 
       expect(result.success).toBe(true);
+    });
+
+    it("should default missing categorical multi-match flag to false", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          categories: ["correct", "partial"],
+        },
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.score.shouldAllowMultipleMatches).toBe(false);
+      }
+    });
+
+    it("should reject categorical schemas with duplicate categories after trimming whitespace", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          categories: ["correct", " correct "],
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject categorical schemas with blank categories", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        reasoning: {
+          description: "Explain the selected category",
+        },
+        score: {
+          description: "Choose the best matching category",
+          categories: ["correct", "   "],
+        },
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("should reject categorical schemas with fewer than two categories", () => {

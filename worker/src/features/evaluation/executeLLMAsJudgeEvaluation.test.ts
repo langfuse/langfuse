@@ -518,6 +518,57 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).toBe(false);
     });
 
+    it("should pass categorical multi-match structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall(
+        ["correct", "partial"],
+        "Both categories apply.",
+      );
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected categories",
+              },
+              score: {
+                description: "Choose all matching categories",
+                categories: ["correct", "partial"],
+                shouldAllowMultipleMatches: true,
+              },
+            },
+          },
+        }),
+      );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: ["correct", "partial"],
+          reasoning: "Both categories apply.",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "correct",
+          reasoning: "Single values should be rejected for multi-match.",
+        }).success,
+      ).toBe(false);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: ["correct", "correct"],
+          reasoning: "Duplicates should be rejected.",
+        }).success,
+      ).toBe(false);
+    });
+
     it("should pass model config to LLM", async () => {
       const customModelConfig = {
         provider: "anthropic",
@@ -799,6 +850,68 @@ describe("executeLLMAsJudgeEvaluation", () => {
       );
     });
 
+    it("should fail categorical evals when the model returns a category outside the allowed set", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "incorrect",
+          "This category is not configured on the evaluator.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected category",
+                },
+                score: {
+                  description: "Choose the best matching category",
+                  categories: ["correct", "partial"],
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should fail categorical evals when the model returns multiple matches for a single-match evaluator", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "partial"],
+          "This should fail because only one match is allowed.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected category",
+                },
+                score: {
+                  description: "Choose the best matching category",
+                  categories: ["correct", "partial"],
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
     it("should persist one score per categorical match", async () => {
       const uploadScore = vi.fn();
       const enqueueScoreIngestion = vi.fn();
@@ -842,7 +955,19 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
       expect(firstUploadCall.event.body.value).toBe("correct");
       expect(secondUploadCall.event.body.value).toBe("partial");
+      expect(firstUploadCall.event.body.comment).toBe(
+        "Both categories apply to the answer.",
+      );
+      expect(secondUploadCall.event.body.comment).toBe(
+        "Both categories apply to the answer.",
+      );
       expect(firstUploadCall.scoreId).not.toBe(secondUploadCall.scoreId);
+      expect(firstUploadCall.event.body.executionTraceId).toBe(
+        secondUploadCall.event.body.executionTraceId,
+      );
+      expect(firstUploadCall.event.body.metadata).toEqual(
+        secondUploadCall.event.body.metadata,
+      );
 
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -851,6 +976,70 @@ describe("executeLLMAsJudgeEvaluation", () => {
           }),
         }),
       );
+    });
+
+    it("should fail multi-match categorical evals when the model returns a scalar", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "correct",
+          "This should fail because multi-match expects an array.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected categories",
+                },
+                score: {
+                  description: "Choose all matching categories",
+                  categories: ["correct", "partial"],
+                  shouldAllowMultipleMatches: true,
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should fail multi-match categorical evals when the model returns duplicate matches", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "correct"],
+          "This should fail because duplicates are not allowed.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected categories",
+                },
+                score: {
+                  description: "Choose all matching categories",
+                  categories: ["correct", "partial"],
+                  shouldAllowMultipleMatches: true,
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
     });
   });
 
