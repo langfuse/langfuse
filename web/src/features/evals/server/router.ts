@@ -170,30 +170,6 @@ const UpdateEvalJobSchema = z.object({
   timeScope: TimeScopeSchema.optional(),
 });
 
-const fetchJobExecutionsByStatus = async ({
-  prisma,
-  projectId,
-  configIds,
-}: {
-  prisma: PrismaClient;
-  projectId: string;
-  configIds: string[];
-}) => {
-  return prisma.jobExecution.groupBy({
-    where: {
-      // jobConfiguration: {
-      //   projectId: projectId,
-      //   jobType: "EVAL",
-      //   id: { in: configIds },
-      // },
-      jobConfigurationId: { in: configIds },
-      projectId: projectId,
-    },
-    by: ["status", "jobConfigurationId"],
-    _count: true,
-  });
-};
-
 const validateEvalTemplateCanRun = async ({
   prisma,
   projectId,

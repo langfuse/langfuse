@@ -25,6 +25,18 @@ export type BuildScoreEventParams = BuildScoreEventBase &
       }
   );
 
+function createScoreEventEnvelope(params: {
+  eventId: string;
+  body: ScoreEventType["body"];
+}): ScoreEventType {
+  return {
+    id: params.eventId,
+    timestamp: new Date().toISOString(),
+    type: eventTypes.SCORE_CREATE,
+    body: params.body,
+  };
+}
+
 export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
   const bodyBase = {
     id: params.scoreId,
@@ -39,26 +51,22 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
   };
 
   if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
-    return {
-      id: params.eventId,
-      timestamp: new Date().toISOString(),
-      type: eventTypes.SCORE_CREATE,
+    return createScoreEventEnvelope({
+      eventId: params.eventId,
       body: {
         ...bodyBase,
         value: params.scoreValue,
         dataType: ScoreDataTypeEnum.CATEGORICAL,
       },
-    };
+    });
   }
 
-  return {
-    id: params.eventId,
-    timestamp: new Date().toISOString(),
-    type: eventTypes.SCORE_CREATE,
+  return createScoreEventEnvelope({
+    eventId: params.eventId,
     body: {
       ...bodyBase,
       value: params.scoreValue,
       dataType: ScoreDataTypeEnum.NUMERIC,
     },
-  };
+  });
 }

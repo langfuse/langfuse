@@ -53,6 +53,7 @@ import {
   TraceDomain,
   Observation,
   DatasetItem,
+  type EvalOutputResult,
   EvalTargetObject,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
@@ -79,6 +80,118 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+
+type EvalScoreWritePayload = {
+  eventId: string;
+  scoreId: string;
+  event: ReturnType<typeof buildScoreEvent>;
+};
+
+const buildNumericEvalScoreWritePayload = (params: {
+  primaryScoreId: string;
+  traceId: string | null;
+  observationId: string | null;
+  scoreName: string;
+  score: number;
+  reasoning: string;
+  environment: string;
+  executionTraceId: string;
+  metadata: Record<string, string>;
+}): EvalScoreWritePayload => {
+  const eventId = randomUUID();
+
+  return {
+    eventId,
+    scoreId: params.primaryScoreId,
+    event: buildScoreEvent({
+      eventId,
+      scoreId: params.primaryScoreId,
+      traceId: params.traceId,
+      observationId: params.observationId,
+      scoreName: params.scoreName,
+      scoreValue: params.score,
+      reasoning: params.reasoning,
+      environment: params.environment,
+      executionTraceId: params.executionTraceId,
+      metadata: params.metadata,
+      dataType: ScoreDataTypeEnum.NUMERIC,
+    }),
+  };
+};
+
+const buildCategoricalEvalScoreWritePayloads = (params: {
+  primaryScoreId: string;
+  traceId: string | null;
+  observationId: string | null;
+  scoreName: string;
+  matches: string[];
+  reasoning: string;
+  environment: string;
+  executionTraceId: string;
+  metadata: Record<string, string>;
+}): EvalScoreWritePayload[] => {
+  return params.matches.map((scoreValue, index) => {
+    const scoreId = index === 0 ? params.primaryScoreId : randomUUID();
+    const eventId = randomUUID();
+
+    return {
+      eventId,
+      scoreId,
+      event: buildScoreEvent({
+        eventId,
+        scoreId,
+        traceId: params.traceId,
+        observationId: params.observationId,
+        scoreName: params.scoreName,
+        scoreValue,
+        reasoning: params.reasoning,
+        environment: params.environment,
+        executionTraceId: params.executionTraceId,
+        metadata: params.metadata,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+      }),
+    };
+  });
+};
+
+const buildEvalScoreWritePayloads = (params: {
+  outputResult: EvalOutputResult;
+  primaryScoreId: string;
+  traceId: string | null;
+  observationId: string | null;
+  scoreName: string;
+  environment: string;
+  executionTraceId: string;
+  metadata: Record<string, string>;
+}): EvalScoreWritePayload[] => {
+  if (params.outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return [
+      buildNumericEvalScoreWritePayload({
+        primaryScoreId: params.primaryScoreId,
+        traceId: params.traceId,
+        observationId: params.observationId,
+        scoreName: params.scoreName,
+        score: params.outputResult.score,
+        reasoning: params.outputResult.reasoning,
+        environment: params.environment,
+        executionTraceId: params.executionTraceId,
+        metadata: params.metadata,
+      }),
+    ];
+  }
+
+  return buildCategoricalEvalScoreWritePayloads({
+    primaryScoreId: params.primaryScoreId,
+    traceId: params.traceId,
+    observationId: params.observationId,
+    scoreName: params.scoreName,
+    matches: params.outputResult.matches,
+    reasoning: params.outputResult.reasoning,
+    environment: params.environment,
+    executionTraceId: params.executionTraceId,
+    metadata: params.metadata,
+  });
+};
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -797,6 +910,14 @@ export async function executeLLMAsJudgeEvaluation({
         parsedOutputDefinition.data,
       );
 
+      span.setAttribute("eval.job_configuration.id", config.id);
+      span.setAttribute("eval.template.version", template.version);
+      span.setAttribute("eval.score.name", config.scoreName);
+      span.setAttribute(
+        "eval.score.data_type",
+        compiledOutputDefinition.resolvedOutputDefinition.dataType,
+      );
+
       // Get model configuration
       const modelConfig = await deps.fetchModelConfig({
         projectId,
@@ -850,6 +971,14 @@ export async function executeLLMAsJudgeEvaluation({
       const llmOutput = await instrumentAsync(
         { name: "eval.call-llm" },
         async (llmSpan) => {
+          llmSpan.setAttribute("eval.job_configuration.id", config.id);
+          llmSpan.setAttribute("eval.template.id", template.id);
+          llmSpan.setAttribute("eval.template.version", template.version);
+          llmSpan.setAttribute("eval.score.name", config.scoreName);
+          llmSpan.setAttribute(
+            "eval.score.data_type",
+            compiledOutputDefinition.resolvedOutputDefinition.dataType,
+          );
           llmSpan.setAttribute(
             "eval.model.provider",
             modelConfig.config.provider,
@@ -922,53 +1051,16 @@ export async function executeLLMAsJudgeEvaluation({
         }`,
       );
 
-      const scoreWritePayloads =
-        parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
-          ? (() => {
-              const eventId = randomUUID();
-
-              return [
-                {
-                  eventId,
-                  scoreId: primaryScoreId,
-                  event: buildScoreEvent({
-                    eventId,
-                    scoreId: primaryScoreId,
-                    traceId: job.jobInputTraceId,
-                    observationId: job.jobInputObservationId,
-                    scoreName: config.scoreName,
-                    scoreValue: parsedLLMOutput.data.score,
-                    reasoning: parsedLLMOutput.data.reasoning,
-                    environment,
-                    executionTraceId,
-                    metadata: executionMetadata,
-                    dataType: "NUMERIC",
-                  }),
-                },
-              ];
-            })()
-          : parsedLLMOutput.data.matches.map((scoreValue, index) => {
-              const scoreId = index === 0 ? primaryScoreId : randomUUID();
-              const eventId = randomUUID();
-
-              return {
-                eventId,
-                scoreId,
-                event: buildScoreEvent({
-                  eventId,
-                  scoreId,
-                  traceId: job.jobInputTraceId,
-                  observationId: job.jobInputObservationId,
-                  scoreName: config.scoreName,
-                  scoreValue,
-                  reasoning: parsedLLMOutput.data.reasoning,
-                  environment,
-                  executionTraceId,
-                  metadata: executionMetadata,
-                  dataType: "CATEGORICAL",
-                }),
-              };
-            });
+      const scoreWritePayloads = buildEvalScoreWritePayloads({
+        outputResult: parsedLLMOutput.data,
+        primaryScoreId,
+        traceId: job.jobInputTraceId,
+        observationId: job.jobInputObservationId,
+        scoreName: config.scoreName,
+        environment,
+        executionTraceId,
+        metadata: executionMetadata,
+      });
 
       span.setAttribute("eval.score.count", scoreWritePayloads.length);
 
