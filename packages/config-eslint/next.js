@@ -21,6 +21,7 @@ export default tseslint.config(
       "**/node_modules/",
       "**/dist/",
       "**/.next/",
+      "**/.next-check/",
       "**/coverage/",
       "eslint.config.mjs",
     ],
