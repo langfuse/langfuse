@@ -380,6 +380,7 @@ export type BlobStorageIntegration = {
   export_source: Generated<AnalyticsIntegrationExportSource>;
   last_error: string | null;
   last_error_at: Timestamp | null;
+  last_failure_notification_sent_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
