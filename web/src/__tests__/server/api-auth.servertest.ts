@@ -2,6 +2,7 @@ import {
   OrgEnrichedApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
+  generateKeySet,
 } from "@langfuse/shared/src/server";
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
@@ -851,14 +852,17 @@ describe("Authenticate API calls", () => {
   });
 
   describe("API key format", () => {
-    it("generated public and secret keys never contain a colon", () => {
+    it("generated public and secret keys never contain a colon (30 iterations)", async () => {
       // Keys are built as `pk-lf-<uuid>` / `sk-lf-<uuid>`.
       // UUIDs only use hex digits (0-9, a-f) and hyphens, so colons are
       // structurally impossible – but we assert it explicitly so any future
       // change to the generation logic gets caught before it can break
       // Basic-Auth header parsing (which splits on ':').
-      expect(testApiKey.publicKey).not.toContain(":");
-      expect(testApiKey.secretKey).not.toContain(":");
+      for (let i = 0; i < 30; i++) {
+        const { pk, sk } = await generateKeySet();
+        expect(pk).not.toContain(":");
+        expect(sk).not.toContain(":");
+      }
     });
   });
 });
