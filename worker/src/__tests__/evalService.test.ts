@@ -3070,6 +3070,19 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: projectId,
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
       await evaluate({
         event: {
           projectId,
