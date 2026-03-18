@@ -1,8 +1,57 @@
+# Docker files
 Dockerfile
 .dockerignore
+docker-compose*.yml
+docker-bake.hcl
+
+# Dependencies (will be installed in container)
 node_modules
-npm-debug.log
-README.md
-**/.next
-.git
 **/node_modules
+
+# Build outputs (will be rebuilt in container)
+**/.next
+**/dist
+**/.turbo
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Test and coverage
+**/coverage
+**/playwright-report
+**/test-results
+
+# Environment files (security)
+.env
+.env.*
+!.env.example
+!.env.dev.example
+
+# IDE and editor
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Documentation (not needed for build)
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+fern/
+
+# Development files
+.devcontainer
+.github
+scripts/
+**/*.md
