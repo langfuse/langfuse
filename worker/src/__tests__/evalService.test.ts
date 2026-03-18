@@ -3009,10 +3009,14 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   describe("legacy eval output definition backward compatibility", () => {
     test("executes a legacy numeric outputDefinition template", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      openAIServer.respondWithDefault();
       const traceId = randomUUID();
       const jobExecutionId = randomUUID();
       const templateId = randomUUID();
+
+      vi.mocked(fetchLLMCompletion).mockResolvedValueOnce({
+        score: 0,
+        reasoning: "The response is safe and not toxic.",
+      });
 
       await upsertTrace({
         id: traceId,
