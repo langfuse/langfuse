@@ -3,6 +3,307 @@ export function isValidDateString(dateString: string): boolean {
 }
 
 /**
+ * OTEL GenAI Semantic Convention Part Types
+ * https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-input-messages.json
+ */
+interface OtelTextPart {
+  type: "text";
+  content: string;
+}
+
+interface OtelToolCallRequestPart {
+  type: "tool_call";
+  id?: string | null;
+  name: string;
+  arguments?: unknown;
+}
+
+interface OtelToolCallResponsePart {
+  type: "tool_call_response";
+  id?: string | null;
+  response: unknown;
+}
+
+interface OtelReasoningPart {
+  type: "reasoning";
+  content: string;
+}
+
+interface OtelBlobPart {
+  type: "blob";
+  mime_type?: string | null;
+  modality: "image" | "video" | "audio" | string;
+  content: string; // base64
+}
+
+interface OtelUriPart {
+  type: "uri";
+  mime_type?: string | null;
+  modality: "image" | "video" | "audio" | string;
+  uri: string;
+}
+
+interface OtelFilePart {
+  type: "file";
+  mime_type?: string | null;
+  modality: "image" | "video" | "audio" | string;
+  file_id: string;
+}
+
+type OtelKnownPart =
+  | OtelTextPart
+  | OtelToolCallRequestPart
+  | OtelToolCallResponsePart
+  | OtelReasoningPart
+  | OtelBlobPart
+  | OtelUriPart
+  | OtelFilePart;
+
+interface OtelGenericPart {
+  type: string;
+  [key: string]: unknown;
+}
+
+type OtelPart = OtelKnownPart | OtelGenericPart;
+
+interface OtelChatMessage {
+  role: string;
+  parts: OtelPart[];
+  name?: string | null;
+  [key: string]: unknown;
+}
+
+interface ChatMlToolCall {
+  id?: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface ChatMlMessage {
+  role: string;
+  name?: string;
+  content?: string | ChatMlContentPart[] | null;
+  tool_calls?: ChatMlToolCall[];
+  tool_call_id?: string;
+  [key: string]: unknown;
+}
+
+interface ChatMlContentPart {
+  type: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Converts a single OTEL part to ChatML content part format.
+ */
+function convertPartToContentPart(part: OtelPart): ChatMlContentPart | null {
+  if (!isKnownPart(part)) {
+    return { ...part };
+  }
+
+  switch (part.type) {
+    case "text":
+      return { type: "text", text: part.content };
+    case "reasoning":
+      return { type: "reasoning", content: part.content };
+    case "blob":
+      return {
+        type: "image_url",
+        image_url: {
+          url: `data:${part.mime_type ?? "application/octet-stream"};base64,${part.content}`,
+        },
+      };
+    case "uri":
+      if (
+        part.modality === "image" ||
+        (typeof part.mime_type === "string" &&
+          part.mime_type.startsWith("image/")) ||
+        /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(part.uri)
+      ) {
+        return {
+          type: "image_url",
+          image_url: { url: part.uri },
+        };
+      }
+      return { type: "uri", uri: part.uri, mime_type: part.mime_type };
+    case "file":
+      return {
+        type: "file",
+        file_id: part.file_id,
+        mime_type: part.mime_type,
+      };
+    case "tool_call":
+    case "tool_call_response":
+      return null;
+  }
+}
+
+function isKnownPart(part: OtelPart): part is OtelKnownPart {
+  return [
+    "text",
+    "reasoning",
+    "blob",
+    "uri",
+    "file",
+    "tool_call",
+    "tool_call_response",
+  ].includes(part.type);
+}
+
+function isToolCallPart(part: OtelPart): part is OtelToolCallRequestPart {
+  return part.type === "tool_call" && "name" in part;
+}
+
+function isToolCallResponsePart(
+  part: OtelPart,
+): part is OtelToolCallResponsePart {
+  return part.type === "tool_call_response" && "response" in part;
+}
+
+/**
+ * Converts an OTEL ChatMessage to ChatML format.
+ * Handles:
+ * - Text parts → content string or content array
+ * - Tool call parts → tool_calls array
+ * - Tool call response parts → tool role message
+ * - Media parts (blob, uri, file) → content array with appropriate format
+ */
+function convertOtelMessageToChatMl(message: OtelChatMessage): ChatMlMessage {
+  const { role, parts, name, ...rest } = message;
+
+  const result: ChatMlMessage = {
+    role: role === "model" ? "assistant" : role,
+    ...rest,
+  };
+
+  if (name) {
+    result.name = name;
+  }
+
+  const toolCalls: ChatMlToolCall[] = [];
+  const contentParts: ChatMlContentPart[] = [];
+  let toolCallResponseId: string | undefined;
+  let toolCallResponseContent: unknown;
+
+  for (const part of parts) {
+    if (isToolCallPart(part)) {
+      const toolCall: ChatMlToolCall = {
+        type: "function",
+        function: {
+          name: part.name,
+          arguments:
+            typeof part.arguments === "string"
+              ? part.arguments
+              : JSON.stringify(part.arguments ?? {}),
+        },
+      };
+      if (part.id) {
+        toolCall.id = part.id;
+      }
+      toolCalls.push(toolCall);
+    } else if (isToolCallResponsePart(part)) {
+      toolCallResponseId = part.id ?? undefined;
+      toolCallResponseContent = part.response;
+    } else {
+      const contentPart = convertPartToContentPart(part);
+      if (contentPart) {
+        contentParts.push(contentPart);
+      }
+    }
+  }
+
+  if (toolCallResponseId !== undefined || toolCallResponseContent) {
+    if (toolCallResponseId) {
+      result.tool_call_id = toolCallResponseId;
+    }
+    result.content =
+      typeof toolCallResponseContent === "string"
+        ? toolCallResponseContent
+        : JSON.stringify(toolCallResponseContent);
+  } else if (contentParts.length === 0) {
+    result.content = null;
+  } else if (
+    contentParts.length === 1 &&
+    contentParts[0].type === "text" &&
+    "text" in contentParts[0]
+  ) {
+    result.content = contentParts[0].text as string;
+  } else {
+    result.content = contentParts;
+  }
+
+  if (toolCalls.length > 0) {
+    result.tool_calls = toolCalls;
+  }
+
+  return result;
+}
+
+/**
+ * Parses OTEL gen_ai.input.messages or gen_ai.output.messages attribute.
+ * Converts from OTEL GenAI semantic convention format to OpenAI-like ChatML format
+ * for proper rendering in the Langfuse UI.
+ *
+ * OTEL format: Array of {role, parts: [{type, ...}], name?}
+ * ChatML format: Array of {role, content, tool_calls?, tool_call_id?, name?}
+ *
+ * @param value - The raw attribute value (string or already parsed)
+ * @returns Parsed and converted messages array, or original value if parsing fails
+ */
+export function parseOtelGenAiMessages(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  let parsed: unknown;
+
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  } else {
+    parsed = value;
+  }
+
+  if (!Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  const isOtelFormat = parsed.some(
+    (msg) =>
+      msg &&
+      typeof msg === "object" &&
+      "parts" in msg &&
+      Array.isArray(msg.parts),
+  );
+
+  if (!isOtelFormat) {
+    return parsed;
+  }
+
+  try {
+    return parsed.map((msg) => {
+      if (
+        msg &&
+        typeof msg === "object" &&
+        "parts" in msg &&
+        Array.isArray(msg.parts)
+      ) {
+        return convertOtelMessageToChatMl(msg as OtelChatMessage);
+      }
+      return msg;
+    });
+  } catch {
+    return parsed;
+  }
+}
+
+/**
  * Flattens a nested JSON object into path-based names and string values.
  * For example: {foo: {bar: "baz", num: 42}} becomes:
  * - names: ["foo.bar", "foo.num"]
