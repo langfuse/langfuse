@@ -5,7 +5,10 @@
  * NOTE: The dual-write path (otel-dual-write) uses mapKeys() in SQL which doesn't flatten.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { OtelIngestionProcessor } from "@langfuse/shared/src/server";
+import {
+  metadataArraysToRecord,
+  OtelIngestionProcessor,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
@@ -121,17 +124,11 @@ async function processAndCreateEvent(
   );
 
   console.log("metadata_names:", JSON.stringify(eventRecord.metadata_names));
-  console.log(
-    "metadata_raw_values:",
-    JSON.stringify(eventRecord.metadata_raw_values),
-  );
-  console.log("metadata:", JSON.stringify(eventRecord.metadata));
+  console.log("metadata_values:", JSON.stringify(eventRecord.metadata_values));
 
-  const nameToValue = Object.fromEntries(
-    eventRecord.metadata_names.map((name, i) => [
-      name,
-      eventRecord.metadata_raw_values[i],
-    ]),
+  const nameToValue = metadataArraysToRecord(
+    eventRecord.metadata_names,
+    eventRecord.metadata_values,
   );
 
   return { eventRecord, nameToValue };
@@ -155,11 +152,13 @@ describe("OTel metadata processing", () => {
         }),
       );
 
+      console.log("nameToValue:", JSON.stringify(nameToValue));
+
       expect(nameToValue["resourceAttributes.service.name"]).toBe("svc-a");
-      expect(nameToValue["scopeAttributes.public_key"]).toBe("pk-test");
+      expect(nameToValue["scope.attributes.public_key"]).toBe("pk-test");
       expect(nameToValue["env"]).toBe("prod");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
-      expect(nameToValue["scopeAttributes"]).toBeUndefined();
+      expect(nameToValue["scope.attributes"]).toBeUndefined();
     });
 
     it("flattens resource/scope attrs to dot-notation (SDK v3.8)", async () => {
@@ -175,35 +174,10 @@ describe("OTel metadata processing", () => {
       );
 
       expect(nameToValue["resourceAttributes.service.name"]).toBe("svc-b");
-      expect(nameToValue["scopeAttributes.public_key"]).toBe("pk-legacy");
+      expect(nameToValue["scope.attributes.public_key"]).toBe("pk-legacy");
       expect(nameToValue["topic"]).toBe("test");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
-      expect(nameToValue["scopeAttributes"]).toBeUndefined();
-    });
-  });
-
-  describe("json column", () => {
-    it("stringifies nested objects in metadata JSON column", async () => {
-      const { eventRecord } = await processAndCreateEvent(
-        buildOtelSpan({
-          scopeVersion: "4.0.0",
-          resourceAttrKey: "service.name",
-          resourceAttrValue: "svc-a",
-          scopeAttrKey: "public_key",
-          scopeAttrValue: "pk-test",
-          metadataAttrs: [{ key: "env", value: { stringValue: "prod" } }],
-        }),
-      );
-
-      // metadata JSON column stores stringified values (Record<string, string>)
-      const meta = eventRecord.metadata;
-      expect(meta.resourceAttributes).toBe(
-        JSON.stringify({ "service.name": "svc-a" }),
-      );
-      expect(meta.scopeAttributes).toBe(
-        JSON.stringify({ public_key: "pk-test" }),
-      );
-      expect(meta.env).toBe("prod");
+      expect(nameToValue["scope.attributes"]).toBeUndefined();
     });
   });
 });

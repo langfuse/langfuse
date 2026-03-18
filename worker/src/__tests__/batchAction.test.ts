@@ -611,14 +611,16 @@ maybeDescribe("events table batch actions", () => {
       trace_id: traceId,
       input: eventInput1,
       output: eventOutput1,
-      metadata: { source: "test" },
+      metadata_names: ["source"],
+      metadata_values: ["test"],
     });
     const event2 = createEvent({
       project_id: projectId,
       trace_id: traceId,
       input: eventInput2,
       output: eventOutput2,
-      metadata: { source: "test" },
+      metadata_names: ["source"],
+      metadata_values: ["test"],
     });
 
     await createEventsCh([event1, event2]);
@@ -728,7 +730,8 @@ maybeDescribe("events table batch actions", () => {
       trace_id: traceId,
       input: eventInput,
       output: eventOutput,
-      metadata: eventMetadata,
+      metadata_names: Object.keys(eventMetadata),
+      metadata_values: Object.values(eventMetadata),
     });
 
     await createEventsCh([event]);
