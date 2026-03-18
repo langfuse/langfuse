@@ -160,6 +160,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
+  LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS: z.coerce
+    .number()
+    .positive()
+    .default(24),
+
   // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
   LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
     .string()
