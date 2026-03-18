@@ -64,6 +64,17 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 
+/**
+ * Parse a value to a UInt16-compatible number (0–65535).
+ * Returns undefined if the value is nullish or not a valid UInt16 integer.
+ */
+function parseUInt16(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined;
+  const num = parseInt(value, 10);
+  if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
+  return num;
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -385,7 +396,7 @@ export class IngestionService {
       // Prompt
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
-      prompt_version: eventData.promptVersion,
+      prompt_version: parseUInt16(eventData.promptVersion),
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
