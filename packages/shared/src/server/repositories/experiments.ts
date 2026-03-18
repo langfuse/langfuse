@@ -1,9 +1,11 @@
+import { env } from "../../env";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   CTEQueryBuilder,
   CTEWithSchema,
+  EventsAggQueryBuilder,
   EventsQueryBuilder,
   FilterList,
   StringOptionsFilter,
@@ -13,6 +15,8 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoresCTE,
+  eventsExperimentItemRoots,
+  eventsExperimentItemsByIds,
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsTracesAggregation,
@@ -378,23 +382,33 @@ const getExperimentsFromEventsGeneric = async <T>(
  * Return type for experiment item rows from ClickHouse.
  */
 export type ExperimentItemEventsDataReturnType = {
-  id: string; // span_id
-  trace_id: string;
-  input: string | null;
-  output: string | null;
-  start_time: string;
-  level: string;
-
+  item_id: string;
   experiment_id: string;
-  experiment_name: string;
-  experiment_dataset_id: string;
+  level: string;
+  start_time: string;
+  observation_id: string;
+  trace_id: string;
+  experiment_root_id: string;
+};
 
-  experiment_item_id: string;
-  experiment_item_root_span_id: string;
-  experiment_item_version: string | null;
-  experiment_item_expected_output: string | null;
-  experiment_item_metadata: Record<string, string>;
-  metadata: Record<string, string>;
+/**
+ * Data for a single experiment within an item.
+ */
+export type ExperimentItemData = {
+  experimentId: string;
+  level: string;
+  startTime: Date;
+  observationId: string;
+  traceId: string;
+  experimentRootId: string;
+};
+
+/**
+ * Grouped experiment item with data from all experiments.
+ */
+export type GroupedExperimentItem = {
+  itemId: string;
+  experiments: ExperimentItemData[];
 };
 
 /**
@@ -408,40 +422,58 @@ export type ExperimentItemMetricsReturnType = {
 };
 
 /**
- * Get experiment items count for pagination.
- * Counts only the root spans for each experiment item (where span_id = experiment_item_root_span_id).
+ * Get experiment items count for pagination with intersection filtering.
+ * Counts items that match the intersection criteria across experiments.
  */
 export const getExperimentItemsCountFromEvents = async (props: {
   projectId: string;
-  experimentId: string;
-  filter: FilterState;
-}) => {
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      props.filter,
-      experimentItemsTableNativeUiColumnDefinitions,
-    ),
-  );
+  baseExperimentId: string;
+  compExperimentIds: string[];
+  filterByExperiment: {
+    experimentId: string;
+    filters: FilterState;
+  }[];
+}): Promise<number> => {
+  const { projectId, baseExperimentId, compExperimentIds, filterByExperiment } =
+    props;
 
-  const { query, params } = new EventsQueryBuilder({
-    projectId: props.projectId,
-  })
-    .selectRaw("count(*) as count")
-    .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_id = {experimentId: String}", {
-      experimentId: props.experimentId,
-    })
-    .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .applyFilters(eventsFilter)
-    .buildWithParams();
+  // Build filter conditions (reuse the same logic as getExperimentItemsFromEvents)
+  const { orConditions, filterParams } = buildExperimentFilterConditions({
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+  });
+
+  // numExperiments = number of OR conditions (base + comparison experiments with filters)
+  const numExperiments = orConditions.length;
+
+  const queryBuilder = eventsExperimentItemRoots({ projectId });
+
+  const countQuery = `
+    SELECT count() as count
+    FROM (
+      SELECT e.experiment_item_id as item_id
+      FROM events_core e
+      WHERE e.project_id = {projectId: String}
+        AND e.experiment_item_id != ''
+        AND e.span_id = e.experiment_item_root_span_id
+        AND (${orConditions.join("\n          OR ")})
+      GROUP BY e.experiment_item_id
+      HAVING uniq(e.experiment_id) = {numExperiments: UInt32}
+    )
+  `;
 
   const rows = await queryClickhouse<{ count: string }>({
-    query,
-    params,
+    query: countQuery,
+    params: {
+      projectId,
+      ...filterParams,
+      numExperiments,
+    },
     tags: {
       feature: "experiments",
       type: "experiment-items-count",
-      projectId: props.projectId,
+      projectId,
     },
   });
 
@@ -449,76 +481,336 @@ export const getExperimentItemsCountFromEvents = async (props: {
 };
 
 /**
- * Get experiment items for a single experiment.
- * Returns only the root span for each experiment item (where span_id = experiment_item_root_span_id).
+ * Build filter conditions for the intersection query.
+ * Returns OR conditions and params for each experiment that needs filtering.
+ */
+const buildExperimentFilterConditions = (params: {
+  baseExperimentId: string;
+  compExperimentIds: string[];
+  filterByExperiment: { experimentId: string; filters: FilterState }[];
+}): { orConditions: string[]; filterParams: Record<string, unknown> } => {
+  const { baseExperimentId, compExperimentIds, filterByExperiment } = params;
+
+  // Map experimentId -> filters for quick lookup
+  const filtersByExperiment = new Map(
+    filterByExperiment.map((f) => [f.experimentId, f.filters]),
+  );
+
+  const orConditions: string[] = [];
+  const filterParams: Record<string, unknown> = {};
+  let conditionIndex = 0;
+
+  // 1. Base experiment - ALWAYS included
+  const baseParamName = `expId_${conditionIndex++}`;
+  filterParams[baseParamName] = baseExperimentId;
+
+  const baseFilters = filtersByExperiment.get(baseExperimentId);
+  if (baseFilters && baseFilters.length > 0) {
+    const filterList = new FilterList(
+      createFilterFromFilterState(
+        baseFilters,
+        experimentItemsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const filterResult = filterList.apply();
+    const filterSql = filterResult.query.trim().replace(/^AND\s+/i, "");
+    // Merge filter params directly - they already have unique random suffixes
+    Object.assign(filterParams, filterResult.params || {});
+    orConditions.push(
+      `(e.experiment_id = {${baseParamName}: String} AND ${filterSql})`,
+    );
+  } else {
+    orConditions.push(`e.experiment_id = {${baseParamName}: String}`);
+  }
+
+  // 2. Comparison experiments - ONLY if they have filters
+  for (const compId of compExperimentIds) {
+    const compFilters = filtersByExperiment.get(compId);
+    if (compFilters && compFilters.length > 0) {
+      const paramName = `expId_${conditionIndex++}`;
+      filterParams[paramName] = compId;
+
+      const filterList = new FilterList(
+        createFilterFromFilterState(
+          compFilters,
+          experimentItemsTableNativeUiColumnDefinitions,
+        ),
+      );
+      const filterResult = filterList.apply();
+      const filterSql = filterResult.query.trim().replace(/^AND\s+/i, "");
+      // Merge filter params directly - they already have unique random suffixes
+      Object.assign(filterParams, filterResult.params || {});
+      orConditions.push(
+        `(e.experiment_id = {${paramName}: String} AND ${filterSql})`,
+      );
+    }
+    // If no filters for this comparison experiment, don't add an OR condition
+  }
+
+  return { orConditions, filterParams };
+};
+
+/**
+ * Get experiment items with intersection filtering across experiments.
+ * Returns items grouped by item_id with data from ALL experiments.
+ *
+ * Query 1: Get filtered item_ids using intersection logic
+ * Query 2: Fetch data for those items across ALL experiments
  */
 export const getExperimentItemsFromEvents = async (props: {
   projectId: string;
-  experimentId: string;
-  filter: FilterState;
+  baseExperimentId: string;
+  compExperimentIds: string[];
+  filterByExperiment: {
+    experimentId: string;
+    filters: FilterState;
+  }[];
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
-}) => {
-  const { projectId, experimentId, filter, orderBy, limit, offset } = props;
+}): Promise<GroupedExperimentItem[]> => {
+  const {
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    limit,
+    offset,
+  } = props;
 
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      filter,
-      experimentItemsTableNativeUiColumnDefinitions,
-    ),
-  );
+  // All experiments (for the second query)
+  const allExperimentIds = [baseExperimentId, ...compExperimentIds];
 
-  const orderByEntries = orderByToEntries(
-    [orderBy ?? null],
-    experimentItemsTableNativeUiColumnDefinitions,
-  );
+  // Build filter conditions
+  const { orConditions, filterParams } = buildExperimentFilterConditions({
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+  });
 
-  const builder = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("experimentItems")
-    .whereRaw("e.experiment_item_id != ''")
-    .whereRaw("e.experiment_id = {experimentId: String}", { experimentId })
+  // numExperiments = number of OR conditions (base + comparison experiments with filters)
+  const numExperiments = orConditions.length;
+
+  // ========== QUERY 1: Get filtered item_ids ==========
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_item_id",
+    selectExpression: "e.experiment_item_id as item_id",
+  })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .applyFilters(eventsFilter)
-    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries));
+    .orderBy("e.start_time desc, e.experiment_item_id desc")
+    .limit(limit ?? 50, offset ?? 0);
 
-  if (limit !== undefined && offset !== undefined) {
-    builder.limit(limit, limit * offset);
-  }
+  // const queryBuilderIds = eventsExperimentItemRoots({ projectId })
+  //   .groupByRaw("e.experiment_item_id")
+  //   .orderBy("e.start_time desc, e.experiment_item_id desc");
+  // apply filters or conditions
+  // group by experiment_item_id
+  // having uniq(experiment_id) = numExperiments
+  // order by start_time desc, experiment_item_id desc (due to repetitions)
+  // limit limit offset offset
 
-  const { query, params } = builder.buildWithParams();
+  const itemIdsQuery = `
+    WHERE (${orConditions.join("\n        OR ")})
+    HAVING uniq(e.experiment_id) = {numExperiments: UInt32}
+  `;
 
-  const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
-    query,
-    params,
+  const itemIdsResult = await queryClickhouse<{ item_id: string }>({
+    query: itemIdsQuery,
+    params: {
+      projectId,
+      ...filterParams,
+      numExperiments,
+      limit: limit ?? 50,
+      offset: offset ?? 0,
+    },
     tags: {
       feature: "experiments",
-      type: "experiment-items-list",
+      type: "experiment-items-filter",
       projectId,
     },
   });
 
-  console.log("rows", rows);
+  const itemIds = itemIdsResult.map((r) => r.item_id);
 
-  return rows.map((row) => ({
-    id: row.experiment_item_id,
-    observationId: row.id, // span_id
-    traceId: row.trace_id,
-    input: row.input,
-    output: row.output,
-    expectedOutput: row.experiment_item_expected_output,
-    level: row.level,
-    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-    experimentId: row.experiment_id,
-    experimentName: row.experiment_name,
-    datasetId: row.experiment_dataset_id,
-    rootSpanId: row.experiment_item_root_span_id,
-    datasetItemVersion: row.experiment_item_version
-      ? parseClickhouseUTCDateTimeFormat(row.experiment_item_version)
-      : null,
-    itemMetadata: row.experiment_item_metadata || {},
-    eventMetadata: row.metadata || {},
+  if (itemIds.length === 0) {
+    return [];
+  }
+
+  // ========== QUERY 2: Fetch data for ALL experiments ==========
+  const queryBuilderData = eventsExperimentItemsByIds({
+    projectId,
+    experimentItemIds: itemIds,
+    experimentIds: allExperimentIds,
+  }).selectRaw(
+    "e.experiment_item_id as item_id",
+    "e.experiment_id as experiment_id",
+    "e.level as level",
+    "e.start_time as start_time",
+    "e.span_id as observation_id",
+    "e.trace_id as trace_id",
+    "e.span_id as observation_id",
+  );
+
+  const { query: dataQuery, params: dataParams } =
+    queryBuilderData.buildWithParams();
+
+  const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
+    query: dataQuery,
+    params: dataParams,
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-data",
+      projectId,
+    },
+  });
+
+  // Group by item_id, preserving pagination order
+  const itemMap = new Map<string, ExperimentItemData[]>();
+  for (const row of rows) {
+    const data: ExperimentItemData = {
+      experimentId: row.experiment_id,
+      level: row.level,
+      startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+      observationId: row.observation_id,
+      traceId: row.trace_id,
+      experimentRootId: row.experiment_root_id,
+    };
+    if (!itemMap.has(row.item_id)) {
+      itemMap.set(row.item_id, []);
+    }
+    itemMap.get(row.item_id)!.push(data);
+  }
+
+  // Return in pagination order from itemIds
+  return itemIds.map((itemId) => ({
+    itemId,
+    experiments: itemMap.get(itemId) ?? [],
   }));
+};
+
+// ============================================================================
+// Batch IO Queries
+// ============================================================================
+
+const IO_TRUNCATE_LENGTH = 1000;
+
+/**
+ * Output data for a single experiment.
+ */
+export type ExperimentOutputData = {
+  experimentId: string;
+  output: string | null;
+};
+
+/**
+ * Batch IO data for an experiment item.
+ */
+export type ExperimentItemBatchIO = {
+  itemId: string;
+  input: string | null; // From base experiment only
+  expectedOutput: string | null; // From base experiment only
+  outputs: ExperimentOutputData[]; // From ALL experiments
+};
+
+/**
+ * Get batch IO data for experiment items.
+ * Returns input/expectedOutput from base experiment, and output from all experiments.
+ * All text fields are truncated to IO_TRUNCATE_LENGTH characters.
+ */
+export const getExperimentItemsBatchIO = async (props: {
+  projectId: string;
+  itemIds: string[];
+  baseExperimentId: string;
+  compExperimentIds: string[];
+}): Promise<ExperimentItemBatchIO[]> => {
+  const { projectId, itemIds, baseExperimentId, compExperimentIds } = props;
+
+  if (itemIds.length === 0) {
+    return [];
+  }
+
+  const allExperimentIds = [baseExperimentId, ...compExperimentIds];
+
+  const queryBuilder = eventsExperimentItemsByIds({
+    projectId,
+    experimentIds: allExperimentIds,
+    experimentItemIds: itemIds,
+  })
+    .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
+    .selectRaw(
+      "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
+      "e.experiment_item_id as item_id",
+      "e.experiment_id as experiment_id",
+    );
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const rows = await queryClickhouse<{
+    item_id: string;
+    experiment_id: string;
+    input: string | null;
+    output: string | null;
+    expected_output: string | null;
+  }>({
+    query,
+    params: {
+      ...params,
+      truncateLength: IO_TRUNCATE_LENGTH,
+    },
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-batch-io",
+      projectId,
+    },
+  });
+
+  // Group by item_id
+  // Extract input/expectedOutput from base experiment row
+  // Collect outputs from all rows
+  const itemMap = new Map<
+    string,
+    {
+      input: string | null;
+      expectedOutput: string | null;
+      outputs: ExperimentOutputData[];
+    }
+  >();
+
+  for (const row of rows) {
+    if (!itemMap.has(row.item_id)) {
+      itemMap.set(row.item_id, {
+        input: null,
+        expectedOutput: null,
+        outputs: [],
+      });
+    }
+
+    const item = itemMap.get(row.item_id)!;
+
+    // Extract input and expectedOutput from base experiment
+    if (row.experiment_id === baseExperimentId) {
+      item.input = row.input;
+      item.expectedOutput = row.expected_output;
+    }
+
+    // Collect output from all experiments
+    item.outputs.push({
+      experimentId: row.experiment_id,
+      output: row.output,
+    });
+  }
+
+  // Return in the same order as itemIds
+  return itemIds.map((itemId) => {
+    const item = itemMap.get(itemId);
+    return {
+      itemId,
+      input: item?.input ?? null,
+      expectedOutput: item?.expectedOutput ?? null,
+      outputs: item?.outputs ?? [],
+    };
+  });
 };
 
 /**

@@ -78,10 +78,10 @@ export function ExperimentComparisonSelector({
             type="button"
             onClick={onToggle}
             disabled={!isSelected && isMaxReached}
-            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex h-4 w-4 items-center justify-center">
-              {isSelected && <Check className="h-4 w-4 text-primary" />}
+              {isSelected && <Check className="text-primary h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{item.name}</p>
@@ -100,7 +100,7 @@ export function ExperimentComparisonSelector({
                 e.stopPropagation();
                 onRemove();
               }}
-              className="ml-0.5 rounded-full hover:bg-muted"
+              className="hover:bg-muted ml-0.5 rounded-full"
             >
               <X className="h-3 w-3" />
             </button>
@@ -108,7 +108,7 @@ export function ExperimentComparisonSelector({
         )}
       />
       {selectedIds.length > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {selectedIds.length} of {maxSelections} comparisons selected
         </p>
       )}

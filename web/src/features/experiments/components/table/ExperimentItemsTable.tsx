@@ -13,13 +13,16 @@ import {
   experimentItemsFilterConfig,
 } from "../../config/experiment-items-filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
-import { usdFormatter } from "@/src/utils/numbers";
+import {
+  type FilterState,
+  type FilterCondition,
+  TableViewPresetTableName,
+} from "@langfuse/shared";
+import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import Link from "next/link";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
@@ -29,21 +32,109 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
   type ExperimentItemsTableProps,
+  type ExperimentItemData,
+  type ExperimentOutputData,
 } from "./types";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   type DataTablePeekViewProps,
   TablePeekView,
 } from "@/src/components/table/peek";
 import TableLink from "@/src/components/table/table-link";
+import { cn } from "@/src/utils/tailwind";
+
+// Font color palette for experiment rows within a cell
+const EXPERIMENT_TEXT_COLORS = [
+  "text-dark-gray", // Base experiment - default color
+  "text-dark-green", // Comparison 1
+  "text-dark-blue", // Comparison 2
+  "text-dark-yellow", // Comparison 3
+  "text-purple-700", // Comparison 4
+  "text-pink-700", // Comparison 5
+];
+
+/**
+ * Get the text color class for an experiment based on its index in the allExperimentIds array.
+ */
+const getExperimentTextColor = (
+  experimentId: string,
+  allExperimentIds: string[],
+): string => {
+  const index = allExperimentIds.indexOf(experimentId);
+  return EXPERIMENT_TEXT_COLORS[index % EXPERIMENT_TEXT_COLORS.length];
+};
+
+/**
+ * Cell component that renders stacked values for each experiment.
+ */
+const StackedExperimentCell = ({
+  experiments,
+  allExperimentIds,
+  renderValue,
+  className,
+}: {
+  experiments: ExperimentItemData[];
+  allExperimentIds: string[];
+  renderValue: (exp: ExperimentItemData) => React.ReactNode;
+  className?: string;
+}) => {
+  return (
+    <div className={cn("flex flex-col gap-0.5", className)}>
+      {experiments.map((exp) => (
+        <div
+          key={exp.experimentId}
+          className={cn(
+            "px-1 py-0.5",
+            getExperimentTextColor(exp.experimentId, allExperimentIds),
+          )}
+        >
+          {renderValue(exp)}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Cell component that renders stacked output values for each experiment.
+ */
+const StackedOutputCell = ({
+  outputs,
+  allExperimentIds,
+  singleLine,
+}: {
+  outputs: ExperimentOutputData[];
+  allExperimentIds: string[];
+  singleLine: boolean;
+}) => {
+  return (
+    <div className="flex flex-col">
+      {outputs.map((out) => (
+        <div
+          key={out.experimentId}
+          className={cn(
+            "",
+            getExperimentTextColor(out.experimentId, allExperimentIds),
+          )}
+        >
+          {out.output ? (
+            <MemoizedIOTableCell
+              isLoading={false}
+              data={out.output}
+              singleLine={true}
+            />
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 /**
  * ExperimentItemsTable displays items within a single experiment.
@@ -59,6 +150,7 @@ export default function ExperimentItemsTable({
   projectId,
   experimentId,
   hideControls = false,
+  availableExperiments = [],
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -80,12 +172,9 @@ export default function ExperimentItemsTable({
     order: "DESC",
   });
 
-  const queryFilter = useSidebarFilterState(
-    experimentItemsFilterConfig,
-    {},
-    projectId,
-    hideControls,
-  );
+  // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
+  // This is the single source of truth for filters
+  const queryFilter = useSidebarFilterState(experimentItemsFilterConfig, {});
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -96,30 +185,150 @@ export default function ExperimentItemsTable({
     [],
   );
 
+  // Get filters for API call
   const combinedFilterState = queryFilter.filterState;
 
+  // Per-experiment filter targeting state (maps filter index to experiment ID)
+  // Default: all filters target the baseline experiment
+  const [filterTargets, setFilterTargets] = useState<Record<number, string>>(
+    {},
+  );
+
+  // Build filter list for pills display
+  // Group filters by their target experiment (defaults to baseline)
+  const filtersByExperiment = useMemo(() => {
+    const filterState = queryFilter.filterState;
+    if (filterState.length === 0) return [];
+
+    // Group filters by target experiment
+    const grouped: Record<string, FilterState> = {};
+    filterState.forEach((filter, index) => {
+      const targetExp = filterTargets[index] ?? experimentId;
+      if (!grouped[targetExp]) {
+        grouped[targetExp] = [];
+      }
+      grouped[targetExp].push(filter);
+    });
+
+    // Convert to array format expected by ExperimentFilterPills
+    return Object.entries(grouped).map(([runId, filters]) => ({
+      runId,
+      filters,
+    }));
+  }, [queryFilter.filterState, filterTargets, experimentId]);
+
+  // Handler for changing filter target experiment
+  const handleFilterTargetChange = useCallback(
+    (
+      _fromExperimentId: string,
+      toExperimentId: string,
+      _filter: FilterCondition,
+      filterIndex: number,
+    ) => {
+      // Find the original filter index in queryFilter.filterState
+      // We need to map from the grouped index back to the original index
+      const filterState = queryFilterRef.current.filterState;
+
+      // Count filters up to the current group to find original index
+      let originalIndex = 0;
+      let currentGroupIndex = 0;
+      const currentTarget = filterTargets[originalIndex] ?? experimentId;
+
+      for (let i = 0; i < filterState.length; i++) {
+        const target = filterTargets[i] ?? experimentId;
+        if (target === _fromExperimentId) {
+          if (currentGroupIndex === filterIndex) {
+            originalIndex = i;
+            break;
+          }
+          currentGroupIndex++;
+        }
+      }
+
+      // Update the target for this filter
+      setFilterTargets((prev) => ({
+        ...prev,
+        [originalIndex]: toExperimentId,
+      }));
+    },
+    [filterTargets, experimentId],
+  );
+
+  // Handler for removing a filter via pill
+  const handleFilterRemove = useCallback(
+    (experimentIdToRemoveFrom: string, filterIndex: number) => {
+      const filterState = queryFilterRef.current.filterState;
+
+      // Find the original filter index
+      let originalIndex = 0;
+      let currentGroupIndex = 0;
+
+      for (let i = 0; i < filterState.length; i++) {
+        const target = filterTargets[i] ?? experimentId;
+        if (target === experimentIdToRemoveFrom) {
+          if (currentGroupIndex === filterIndex) {
+            originalIndex = i;
+            break;
+          }
+          currentGroupIndex++;
+        }
+      }
+
+      // Remove the filter from queryFilter
+      const newFilters = filterState.filter((_, idx) => idx !== originalIndex);
+      queryFilterRef.current.setFilterState(newFilters);
+
+      // Clean up the filter targets (shift indices down)
+      setFilterTargets((prev) => {
+        const newTargets: Record<number, string> = {};
+        Object.entries(prev).forEach(([key, value]) => {
+          const idx = parseInt(key);
+          if (idx < originalIndex) {
+            newTargets[idx] = value;
+          } else if (idx > originalIndex) {
+            newTargets[idx - 1] = value;
+          }
+          // Skip the removed index
+        });
+        return newTargets;
+      });
+    },
+    [filterTargets, experimentId],
+  );
+
   // Use the custom hook for experiment items data fetching
-  const { items, totalCount, dataUpdatedAt } = useExperimentItemsTableData({
-    projectId,
-    experimentId,
-    filterState: combinedFilterState,
-    orderByState,
-    paginationState,
-  });
+  const { items, totalCount, dataUpdatedAt, ioLoading } =
+    useExperimentItemsTableData({
+      projectId,
+      baseExperimentId: experimentId,
+      compExperimentIds: availableExperiments
+        .filter((exp) => exp.id !== experimentId)
+        .map((exp) => exp.id),
+      filterByExperiment: filtersByExperiment.map((filter) => ({
+        experimentId: filter.runId,
+        filters: filter.filters,
+      })),
+      orderByState,
+      paginationState,
+    });
 
   useEffect(() => {
     if (items.status === "success") {
+      // Use the first experiment's data for detail page navigation
       setDetailPageList(
         "experiment-items",
-        items?.rows?.map((item) => ({
-          id: item?.id,
-          params: {
-            traceId: item?.traceId || "",
-            ...(item?.startTime
-              ? { timestamp: item?.startTime.toISOString() }
-              : {}),
-          },
-        })) ?? [],
+        items?.rows?.map((item: ExperimentItemsTableRow) => {
+          const firstExp = item.experiments[0];
+          return {
+            id: item.itemId,
+            params: {
+              traceId: firstExp?.traceId || "",
+              ...(firstExp?.startTime
+                ? { timestamp: firstExp.startTime.toISOString() }
+                : {}),
+            },
+          };
+        }) ?? [],
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,110 +342,144 @@ export default function ExperimentItemsTable({
     },
   );
 
+  // All experiment IDs for color coding (base first, then comparisons)
+  const allExperimentIds = useMemo(() => {
+    return [
+      experimentId,
+      ...availableExperiments
+        .filter((exp) => exp.id !== experimentId)
+        .map((exp) => exp.id),
+    ];
+  }, [experimentId, availableExperiments]);
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     {
-      accessorKey: "id",
-      id: "id",
-      header: getExperimentItemsColumnName("id"),
+      accessorKey: "itemId",
+      id: "itemId",
+      header: "Item ID",
       size: 150,
-      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
-        const experimentItemId = row.original.id;
-        const experimentDatasetId = row.original.datasetId;
-        const version = row.original.datasetItemVersion;
-        return experimentDatasetId ? (
-          <TableLink
-            path={`/project/${projectId}/datasets/${encodeURIComponent(experimentDatasetId)}/items/${encodeURIComponent(experimentItemId)}${version ? `?version=${encodeURIComponent(version.toISOString())}` : ""}`}
-            value={experimentItemId}
+        const itemId = row.original.itemId;
+        return <TableIdOrName value={itemId} />;
+      },
+    },
+    {
+      accessorKey: "experiments",
+      id: "traceId",
+      header: "Trace ID",
+      size: 180,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => (
+              <TableLink
+                path={`/project/${projectId}/traces/${encodeURIComponent(exp.traceId)}`}
+                value={exp.traceId}
+              />
+            )}
           />
-        ) : (
-          <TableIdOrName value={experimentItemId} />
         );
       },
     },
     {
-      accessorKey: "startTime",
+      accessorKey: "experiments",
+      id: "observationId",
+      header: "Observation ID",
+      size: 180,
+      defaultHidden: true,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "experiments",
       id: "startTime",
       header: getExperimentItemsColumnName("startTime"),
-      size: 150,
+      size: 180,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+          />
+        );
       },
     },
     {
-      accessorKey: "level",
+      accessorKey: "experiments",
       id: "level",
       header: getExperimentItemsColumnName("level"),
-      size: 100,
+      size: 120,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: string = row.getValue("level");
-        return <span>{value}</span>;
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => <span>{exp.level}</span>}
+          />
+        );
       },
     },
     {
-      accessorKey: "latencyMs",
-      id: "latencyMs",
-      header: getExperimentItemsColumnName("latencyMs"),
-      size: 100,
+      accessorKey: "experiments",
+      id: "experimentId",
+      header: "Experiment",
+      size: 150,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined | null = row.getValue("latencyMs");
-        if (value === undefined || value === null) return "-";
-        // latencyMs is in milliseconds, convert to seconds for display
-        return <span>{formatIntervalSeconds(value / 1000)}</span>;
-      },
-    },
-    {
-      accessorKey: "totalCost",
-      id: "totalCost",
-      header: getExperimentItemsColumnName("totalCost"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined | null = row.getValue("totalCost");
-        if (value === undefined || value === null) return "-";
-        return <span>{usdFormatter(value)}</span>;
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => {
+              const expOption = availableExperiments.find(
+                (e) => e.id === exp.experimentId,
+              );
+              return (
+                <span className="truncate text-xs">
+                  {expOption?.name ?? exp.experimentId.slice(0, 8)}
+                </span>
+              );
+            }}
+          />
+        );
       },
     },
     {
       accessorKey: "input",
-      header: "Input",
       id: "input",
+      header: "Input",
       size: 300,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: string | undefined = row.getValue("input");
-        return value ? (
+        return (
           <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
+            isLoading={ioLoading}
+            data={row.original.input ?? null}
             singleLine={rowHeight === "s"}
           />
-        ) : null;
-      },
-    },
-    {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("output");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-            className="bg-accent-light-green"
-          />
-        ) : null;
+        );
       },
     },
     {
@@ -246,37 +489,39 @@ export default function ExperimentItemsTable({
       size: 300,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: string | undefined = row.getValue("expectedOutput");
-        return value ? (
+        return (
           <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
+            isLoading={ioLoading}
+            data={row.original.expectedOutput ?? null}
             singleLine={rowHeight === "s"}
-            className="bg-accent-light-blue"
           />
-        ) : null;
+        );
       },
     },
     {
-      accessorKey: "eventMetadata",
-      id: "eventMetadata",
-      header: getExperimentItemsColumnName("eventMetadata"),
+      accessorKey: "outputs",
+      id: "output",
+      header: "Output",
       size: 300,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("eventMetadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
-      accessorKey: "itemMetadata",
-      id: "itemMetadata",
-      header: getExperimentItemsColumnName("itemMetadata"),
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("itemMetadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+        const outputs = row.original.outputs ?? [];
+        if (ioLoading) {
+          return (
+            <MemoizedIOTableCell
+              isLoading={true}
+              data={null}
+              singleLine={rowHeight === "s"}
+            />
+          );
+        }
+        return (
+          <StackedOutputCell
+            outputs={outputs}
+            allExperimentIds={allExperimentIds}
+            singleLine={rowHeight === "s"}
+          />
+        );
       },
     },
   ];
@@ -295,10 +540,14 @@ export default function ExperimentItemsTable({
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     paramsToMirrorPeekValue: ["observation"],
-    extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => ({
-      traceId: row.traceId || "",
-      timestamp: row.startTime?.toISOString() || "",
-    }),
+    extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
+      // Use the first experiment's data for peek navigation
+      const firstExp = row.experiments[0];
+      return {
+        traceId: firstExp?.traceId || "",
+        timestamp: firstExp?.startTime?.toISOString() || "",
+      };
+    },
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       pathParam: "traceId",
@@ -364,13 +613,27 @@ export default function ExperimentItemsTable({
               setSelectAll,
               selectedRowIds:
                 Object.keys(selectedRows).filter((itemId) =>
-                  items.rows?.map((item) => item.id).includes(itemId),
+                  items.rows
+                    ?.map((item: ExperimentItemsTableRow) => item.itemId)
+                    .includes(itemId),
                 ) ?? [],
               setRowSelection: setSelectedRows,
               totalCount,
               pageSize: paginationState.limit,
               pageIndex: paginationState.page - 1,
             }}
+          />
+        )}
+
+        {/* Filter Pills with Experiment Targeting */}
+        {filtersByExperiment.length > 0 && availableExperiments.length > 0 && (
+          <ExperimentFilterPills
+            projectId={projectId}
+            filtersByExperiment={filtersByExperiment}
+            availableExperiments={availableExperiments}
+            onFilterTargetChange={handleFilterTargetChange}
+            onFilterRemove={handleFilterRemove}
+            className="border-b"
           />
         )}
 

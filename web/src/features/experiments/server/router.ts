@@ -9,10 +9,10 @@ import {
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
-  getExperimentMetricsFromEvents,
-  getExperimentItemsFromEvents,
+  getExperimentItemsBatchIO,
   getExperimentItemsCountFromEvents,
-  getExperimentItemMetricsFromEvents,
+  getExperimentItemsFromEvents,
+  getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
   getScoresForExperiments,
@@ -489,8 +489,16 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        experimentId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        baseExperimentId: z.string(),
+        compExperimentIds: z.array(z.string()),
+        filterByExperiment: z
+          .array(
+            z.object({
+              experimentId: z.string(),
+              filters: z.array(singleFilter),
+            }),
+          )
+          .nullish(),
         orderBy: orderBy,
         ...paginationZod,
       }),
@@ -504,9 +512,10 @@ export const experimentsRouter = createTRPCRouter({
 
       const items = await getExperimentItemsFromEvents({
         projectId: input.projectId,
-        experimentId: input.experimentId,
-        filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        baseExperimentId: input.baseExperimentId,
+        compExperimentIds: input.compExperimentIds,
+        filterByExperiment: input.filterByExperiment ?? [],
+        orderBy: null,
         offset: input.page,
         limit: input.limit,
       });
@@ -514,14 +523,23 @@ export const experimentsRouter = createTRPCRouter({
       return {
         data: items,
       };
+      // return [];
     }),
 
   itemsCount: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        experimentId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        baseExperimentId: z.string(),
+        compExperimentIds: z.array(z.string()),
+        filterByExperiment: z
+          .array(
+            z.object({
+              experimentId: z.string(),
+              filters: z.array(singleFilter),
+            }),
+          )
+          .nullish(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -529,25 +547,31 @@ export const experimentsRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "promptExperiments:read",
-      });
-
-      const count = await getExperimentItemsCountFromEvents({
-        projectId: input.projectId,
-        experimentId: input.experimentId,
-        filter: input.filter ?? [],
       });
 
       return {
-        count: count,
+        count: 50,
       };
+
+      // const count = await getExperimentItemsCountFromEvents({
+      //   projectId: input.projectId,
+      //   baseExperimentId: input.baseExperimentId,
+      //   compExperimentIds: input.compExperimentIds,
+      //   filterByExperiment: input.filterByExperiment ?? [],
+      // });
+
+      // return {
+      //   count,
+      // };
     }),
 
-  itemMetrics: protectedProjectProcedure
+  batchIO: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        experimentId: z.string(),
-        experimentItemIds: z.array(z.string()),
+        itemIds: z.array(z.string()),
+        baseExperimentId: z.string(),
+        compExperimentIds: z.array(z.string()),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -557,16 +581,45 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
-      if (input.experimentItemIds.length === 0) {
+      if (input.itemIds.length === 0) {
         return [];
       }
 
-      const metrics = await getExperimentItemMetricsFromEvents({
+      const batchIO = await getExperimentItemsBatchIO({
         projectId: input.projectId,
-        experimentId: input.experimentId,
-        experimentItemIds: input.experimentItemIds,
+        itemIds: input.itemIds,
+        baseExperimentId: input.baseExperimentId,
+        compExperimentIds: input.compExperimentIds,
       });
 
-      return metrics;
+      return batchIO;
     }),
+
+  // itemMetrics: protectedProjectProcedure
+  //   .input(
+  //     z.object({
+  //       projectId: z.string(),
+  //       experimentId: z.string(),
+  //       experimentItemIds: z.array(z.string()),
+  //     }),
+  //   )
+  //   .query(async ({ input, ctx }) => {
+  //     throwIfNoProjectAccess({
+  //       session: ctx.session,
+  //       projectId: input.projectId,
+  //       scope: "promptExperiments:read",
+  //     });
+
+  //     if (input.experimentItemIds.length === 0) {
+  //       return [];
+  //     }
+
+  //     const metrics = await getExperimentItemMetricsFromEvents({
+  //       projectId: input.projectId,
+  //       experimentId: input.experimentId,
+  //       experimentItemIds: input.experimentItemIds,
+  //     });
+
+  //     return metrics;
+  //   }),
 });

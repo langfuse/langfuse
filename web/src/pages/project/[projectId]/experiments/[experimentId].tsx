@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Button } from "@/src/components/ui/button";
-import { Columns3, MoreVertical } from "lucide-react";
-import Link from "next/link";
+import { MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,6 +75,34 @@ export default function ExperimentDetail() {
     },
   );
 
+  // Build the list of available experiments for filter targeting
+  // This includes the baseline (current experiment) + any comparison experiments
+  const availableExperimentsForTable = useMemo(() => {
+    const result: { id: string; name: string }[] = [];
+
+    // Add baseline experiment
+    if (experiment) {
+      result.push({
+        id: experiment.id,
+        name: experiment.name,
+      });
+    }
+
+    // Add comparison experiments from the available list
+    // (matched by IDs in comparisonIds)
+    for (const compId of comparisonIds) {
+      const compExp = availableExperiments.find((exp) => exp.id === compId);
+      if (compExp) {
+        result.push(compExp);
+      } else {
+        // If not found in available list, create a placeholder with ID as name
+        result.push({ id: compId, name: compId });
+      }
+    }
+
+    return result;
+  }, [experiment, comparisonIds, availableExperiments]);
+
   return (
     <Page
       headerProps={{
@@ -95,17 +122,6 @@ export default function ExperimentDetail() {
               open={isOverviewOpen}
               onOpenChange={setIsOverviewOpen}
             />
-            <Link
-              href={{
-                pathname: `/project/${projectId}/datasets/${experiment.datasetId}/compare`,
-                query: { runs: [experimentId] },
-              }}
-            >
-              <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
-                <span>Compare</span>
-              </Button>
-            </Link>
             <DetailPageNav
               currentId={experimentId}
               path={(entry) => `/project/${projectId}/experiments/${entry.id}`}
@@ -141,6 +157,7 @@ export default function ExperimentDetail() {
               projectId={projectId}
               experimentId={experimentId}
               datasetId={experiment.datasetId}
+              availableExperiments={availableExperimentsForTable}
             />
           }
           overviewContent={

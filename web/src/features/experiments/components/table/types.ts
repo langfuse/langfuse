@@ -33,36 +33,48 @@ export type ExperimentsTableProps = {
 };
 
 /**
- * Row type for the experiment items table.
- * Represents a single item within an experiment (one trace execution).
+ * Data for a single experiment within an item row.
  */
-export type ExperimentItemsTableRow = {
-  // Identity fields
-  id: string; // experiment_item_id
+export type ExperimentItemData = {
+  experimentId: string;
+  level: string;
+  startTime: Date;
   observationId: string;
   traceId: string;
-  level: string;
+  experimentRootId: string;
+};
 
-  // Time fields
-  startTime: Date;
-
-  // I/O data
-  input?: string | null;
-  output?: string | null;
-  expectedOutput?: string | null;
-
-  // Metrics - from separate query
-  totalCost?: number | null;
-  latencyMs?: number | null;
-
-  // Metadata
+/**
+ * Output data for a single experiment.
+ */
+export type ExperimentOutputData = {
   experimentId: string;
-  experimentName: string;
-  datasetId: string;
-  rootSpanId: string;
-  datasetItemVersion: Date | null;
-  itemMetadata: Record<string, string>;
-  eventMetadata: Record<string, string>;
+  output: string | null;
+};
+
+/**
+ * Row type for the experiment items table.
+ * Each row represents one item_id with data from multiple experiments.
+ */
+export type ExperimentItemsTableRow = {
+  // Identity field - the dataset item ID
+  itemId: string;
+
+  // Data from each experiment for this item
+  experiments: ExperimentItemData[];
+
+  // IO data (from batchIO query)
+  input?: string | null; // From base experiment only
+  expectedOutput?: string | null; // From base experiment only
+  outputs?: ExperimentOutputData[]; // From ALL experiments
+};
+
+/**
+ * Available experiment option for filter targeting.
+ */
+export type ExperimentOption = {
+  id: string;
+  name: string;
 };
 
 /**
@@ -73,4 +85,6 @@ export type ExperimentItemsTableProps = {
   experimentId: string;
   datasetId: string;
   hideControls?: boolean;
+  /** Available experiments for filter targeting (baseline + comparisons) */
+  availableExperiments?: ExperimentOption[];
 };

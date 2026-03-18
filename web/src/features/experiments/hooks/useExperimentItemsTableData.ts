@@ -1,42 +1,19 @@
 import { useMemo } from "react";
-import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-
-/**
- * Core data for an experiment item (from items query)
- */
-type ExperimentItemCoreData = {
-  id: string; // experiment_item_id - used for joining
-  observationId: string;
-  traceId: string;
-  input: string | null;
-  output: string | null;
-  expectedOutput: string | null;
-  level: string;
-  startTime: Date;
-  experimentId: string;
-  experimentName: string;
-  datasetId: string;
-  rootSpanId: string;
-  datasetItemVersion: Date | null;
-  itemMetadata: Record<string, string>;
-  eventMetadata: Record<string, string>;
-};
-
-/**
- * Metrics data for an experiment item (from itemMetrics query)
- */
-type ExperimentItemMetricsData = {
-  id: string; // experiment_item_id - used for joining
-  totalCost: number | null;
-  latencyMs: number | null;
-};
+import {
+  type ExperimentItemsTableRow,
+  type ExperimentOutputData,
+} from "../components/table/types";
 
 type UseExperimentItemsTableDataParams = {
   projectId: string;
-  experimentId: string;
-  filterState: FilterState;
+  baseExperimentId: string;
+  compExperimentIds: string[];
+  filterByExperiment: {
+    experimentId: string;
+    filters: FilterState;
+  }[];
   paginationState: {
     page: number;
     limit: number;
@@ -56,8 +33,9 @@ type UseExperimentItemsTableDataParams = {
  */
 export function useExperimentItemsTableData({
   projectId,
-  experimentId,
-  filterState,
+  baseExperimentId,
+  compExperimentIds,
+  filterByExperiment,
   paginationState,
   orderByState,
 }: UseExperimentItemsTableDataParams) {
@@ -65,25 +43,28 @@ export function useExperimentItemsTableData({
   const getCountPayload = useMemo(
     () => ({
       projectId,
-      experimentId,
-      filter: filterState,
+      baseExperimentId,
+      compExperimentIds,
+      filterByExperiment,
     }),
-    [projectId, experimentId, filterState],
+    [projectId, baseExperimentId, compExperimentIds, filterByExperiment],
   );
 
   const getAllPayload = useMemo(
     () => ({
       projectId,
-      experimentId,
-      filter: filterState,
+      baseExperimentId,
+      compExperimentIds,
+      filterByExperiment,
       page: paginationState.page - 1, // Backend uses 0-indexed pages
       limit: paginationState.limit,
       orderBy: orderByState,
     }),
     [
       projectId,
-      experimentId,
-      filterState,
+      baseExperimentId,
+      compExperimentIds,
+      filterByExperiment,
       paginationState.page,
       paginationState.limit,
       orderByState,
@@ -95,26 +76,26 @@ export function useExperimentItemsTableData({
     refetchOnWindowFocus: true,
   });
 
-  // Build metrics payload based on items data
-  const metricsPayload = useMemo(() => {
-    const data = itemsQuery.data?.data as ExperimentItemCoreData[] | undefined;
-    if (!data || data.length === 0) {
-      return null;
-    }
+  // // Build metrics payload based on items data
+  // const metricsPayload = useMemo(() => {
+  //   const data = itemsQuery.data?.data as ExperimentItemCoreData[] | undefined;
+  //   if (!data || data.length === 0) {
+  //     return null;
+  //   }
 
-    return {
-      projectId,
-      experimentId,
-      experimentItemIds: data.map((item) => item.id),
-    };
-  }, [itemsQuery.data?.data, projectId, experimentId]);
+  //   return {
+  //     projectId,
+  //     experimentId,
+  //     experimentItemIds: data.map((item) => item.id),
+  //   };
+  // }, [itemsQuery.data?.data, projectId, experimentId]);
 
-  // Fetch metrics for visible items
-  const metricsQuery = api.experiments.itemMetrics.useQuery(metricsPayload!, {
-    enabled: itemsQuery.isSuccess && metricsPayload !== null,
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
+  // // Fetch metrics for visible items
+  // const metricsQuery = api.experiments.itemMetrics.useQuery(metricsPayload!, {
+  //   enabled: itemsQuery.isSuccess && metricsPayload !== null,
+  //   refetchOnWindowFocus: false,
+  //   staleTime: 0,
+  // });
 
   // Fetch total count
   const totalCountQuery = api.experiments.itemsCount.useQuery(getCountPayload, {
@@ -123,8 +104,29 @@ export function useExperimentItemsTableData({
 
   const totalCount = totalCountQuery.data?.count ?? null;
 
-  // Memoize joined data to prevent infinite re-renders
-  // Handle loading, error, and success states
+  // Build batchIO payload based on items data
+  const batchIOPayload = useMemo(() => {
+    const data = itemsQuery.data?.data;
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    return {
+      projectId,
+      itemIds: data.map((item) => item.itemId),
+      baseExperimentId,
+      compExperimentIds,
+    };
+  }, [itemsQuery.data?.data, projectId, baseExperimentId, compExperimentIds]);
+
+  // Fetch IO data for visible items
+  const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
+    enabled: itemsQuery.isSuccess && batchIOPayload !== null,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+
+  // Merge items with IO data
   const joinedData = useMemo(() => {
     if (itemsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
@@ -134,19 +136,51 @@ export function useExperimentItemsTableData({
       return { status: "error" as const, rows: undefined };
     }
 
-    // Success case - join the data
-    return joinTableCoreAndMetrics<
-      ExperimentItemCoreData,
-      ExperimentItemMetricsData
-    >(
-      itemsQuery.data?.data as ExperimentItemCoreData[] | undefined,
-      metricsQuery.data as ExperimentItemMetricsData[] | undefined,
-    );
+    const items = itemsQuery.data?.data;
+    if (!items) {
+      return {
+        status: "success" as const,
+        rows: [] as ExperimentItemsTableRow[],
+      };
+    }
+
+    // Create a map of itemId -> IO data for fast lookup
+    const ioMap = new Map<
+      string,
+      {
+        input: string | null;
+        expectedOutput: string | null;
+        outputs: ExperimentOutputData[];
+      }
+    >();
+
+    if (batchIOQuery.data) {
+      for (const io of batchIOQuery.data) {
+        ioMap.set(io.itemId, {
+          input: io.input,
+          expectedOutput: io.expectedOutput,
+          outputs: io.outputs,
+        });
+      }
+    }
+
+    // Merge items with IO data
+    const mergedRows: ExperimentItemsTableRow[] = items.map((item) => {
+      const io = ioMap.get(item.itemId);
+      return {
+        ...item,
+        input: io?.input ?? null,
+        expectedOutput: io?.expectedOutput ?? null,
+        outputs: io?.outputs ?? [],
+      };
+    });
+
+    return { status: "success" as const, rows: mergedRows };
   }, [
     itemsQuery.isLoading,
     itemsQuery.isError,
     itemsQuery.data?.data,
-    metricsQuery.data,
+    batchIOQuery.data,
   ]);
 
   const dataUpdatedAt = itemsQuery.dataUpdatedAt;
@@ -155,6 +189,6 @@ export function useExperimentItemsTableData({
     items: joinedData,
     dataUpdatedAt,
     totalCount,
-    metricsLoading: metricsQuery.isLoading,
+    ioLoading: batchIOQuery.isLoading,
   };
 }

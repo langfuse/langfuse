@@ -62,14 +62,14 @@ export function ExperimentOverviewPanel({
       <div className="space-y-3 text-sm">
         {/* Name */}
         <div>
-          <div className="text-xs text-muted-foreground">Name</div>
+          <div className="text-muted-foreground text-xs">Name</div>
           <div className="font-medium">{experiment.name}</div>
         </div>
 
         {/* Description */}
         {experiment.description && (
           <div>
-            <div className="text-xs text-muted-foreground">Description</div>
+            <div className="text-muted-foreground text-xs">Description</div>
             <div className="break-words">{displayDescription}</div>
             {isLongDescription && (
               <Button
@@ -86,7 +86,7 @@ export function ExperimentOverviewPanel({
 
         {/* Dataset */}
         <div>
-          <div className="text-xs text-muted-foreground">Dataset</div>
+          <div className="text-muted-foreground text-xs">Dataset</div>
           <Link
             href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
             className="text-primary hover:underline"
@@ -98,14 +98,14 @@ export function ExperimentOverviewPanel({
         {/* Prompt */}
         {promptName && (
           <div>
-            <div className="text-xs text-muted-foreground">Prompt</div>
+            <div className="text-muted-foreground text-xs">Prompt</div>
             <Link
               href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}${promptVersion !== null ? `?version=${promptVersion}` : ""}`}
               className="text-primary hover:underline"
             >
               {promptName}
               {promptVersion !== null && (
-                <span className="ml-1 text-muted-foreground">
+                <span className="text-muted-foreground ml-1">
                   (v{promptVersion})
                 </span>
               )}
@@ -116,7 +116,7 @@ export function ExperimentOverviewPanel({
         {/* Model Configuration */}
         {(provider || model) && (
           <div>
-            <div className="text-xs text-muted-foreground">Model</div>
+            <div className="text-muted-foreground text-xs">Model</div>
             <div>
               {provider && model ? `${provider}/${model}` : provider || model}
             </div>
@@ -125,7 +125,7 @@ export function ExperimentOverviewPanel({
 
         {/* Start Time */}
         <div>
-          <div className="text-xs text-muted-foreground">Start Time</div>
+          <div className="text-muted-foreground text-xs">Start Time</div>
           <LocalIsoDate date={experiment.startTime} />
         </div>
       </div>

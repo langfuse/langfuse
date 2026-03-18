@@ -114,11 +114,11 @@ export const experimentItemsFilterConfig: FilterConfig = {
   columnDefinitions: experimentItemsTableCols,
 
   facets: [
-    // {
-    //   type: "stringKeyValue" as const,
-    //   column: "itemMetadata",
-    //   label: getExperimentItemsColumnName("itemMetadata"),
-    // },
+    {
+      type: "stringKeyValue" as const,
+      column: "itemMetadata",
+      label: getExperimentItemsColumnName("itemMetadata"),
+    },
     {
       type: "stringKeyValue" as const,
       column: "eventMetadata",
