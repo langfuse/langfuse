@@ -3834,5 +3834,30 @@
         }
       }
     ]
+  },
+  {
+    "id": "029e6695-ff24-47f0-b37b-7285fb2e5785",
+    "modelName": "gemini-live-2.5-flash-native-audio",
+    "matchPattern": "(?i)^(google\/)?(gemini-live-2.5-flash-native-audio)$",
+    "createdAt": "2026-03-16T00:00:00.000Z",
+    "updatedAt": "2026-03-16T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "029e6695-ff24-47f0-b37b-7285fb2e5785_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input_text": 0.5e-6,
+          "input_audio": 3e-6,
+          "input_image": 3e-6,
+          "output_text": 2e-6,
+          "output_audio": 12e-6
+        }
+      }
+    ]
   }
 ]
