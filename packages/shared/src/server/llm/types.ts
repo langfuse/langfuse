@@ -482,6 +482,8 @@ export type VertexAIModel = (typeof vertexAIModels)[number];
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const minimaxModels = [
+  "MiniMax-M2.7",
+  "MiniMax-M2.7-highspeed",
   "MiniMax-M2.5",
   "MiniMax-M2.5-highspeed",
 ] as const;
