@@ -30,6 +30,22 @@ export type BuildScoreEventParams = BuildScoreEventBase &
       }
   );
 
+type BuildScoreWritePayloadParams =
+  | Omit<
+      Extract<
+        BuildScoreEventParams,
+        { dataType: typeof ScoreDataTypeEnum.NUMERIC }
+      >,
+      "eventId"
+    >
+  | Omit<
+      Extract<
+        BuildScoreEventParams,
+        { dataType: typeof ScoreDataTypeEnum.CATEGORICAL }
+      >,
+      "eventId"
+    >;
+
 function createScoreEventEnvelope(params: {
   eventId: string;
   body: ScoreEventType["body"];
@@ -83,9 +99,22 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
 }
 
 function buildScoreWritePayload(
-  params: Omit<BuildScoreEventParams, "eventId">,
+  params: BuildScoreWritePayloadParams,
 ): EvalScoreWritePayload {
   const eventId = randomUUID();
+
+  if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
+    return {
+      eventId,
+      scoreId: params.scoreId,
+      event: buildScoreEvent({
+        ...params,
+        eventId,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        scoreValue: params.scoreValue,
+      }),
+    };
+  }
 
   return {
     eventId,
@@ -93,6 +122,8 @@ function buildScoreWritePayload(
     event: buildScoreEvent({
       ...params,
       eventId,
+      dataType: ScoreDataTypeEnum.NUMERIC,
+      scoreValue: params.scoreValue,
     }),
   };
 }
