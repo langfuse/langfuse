@@ -851,6 +851,15 @@ describe("Authenticate API calls", () => {
   });
 
   describe("Basic auth header parsing", () => {
+    it("authenticates a standard key (no colon in secret)", async () => {
+      const result = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(result.validKey).toBe(true);
+    });
+
     it("rejects a header whose decoded value contains no colon", async () => {
       // base64("nocolon") — no colon separator at all
       const malformed = `Basic ${btoa("nocolon")}`;
