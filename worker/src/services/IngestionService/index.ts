@@ -345,9 +345,6 @@ export class IngestionService {
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
 
-    // Stringify metadata for the JSON column (Record<string, string>)
-    const metadata = convertRecordValuesToString(eventData.metadata ?? {});
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -420,9 +417,8 @@ export class IngestionService {
       output: eventData.output,
 
       // Metadata
-      metadata,
       metadata_names: metadataNames,
-      metadata_raw_values: metadataValues,
+      metadata_values: metadataValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -465,13 +461,14 @@ export class IngestionService {
   }
 
   /**
-   * Writes an event record directly to the events table.
+   * Writes an event record directly to the events_full table.
+   * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
   }
 
   private async processDatasetRunItemEventList(params: {
