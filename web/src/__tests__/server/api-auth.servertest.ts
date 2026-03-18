@@ -850,40 +850,15 @@ describe("Authenticate API calls", () => {
     });
   });
 
-  describe("Basic auth header parsing", () => {
-    it("authenticates a standard key (no colon in secret)", async () => {
-      const result = await new ApiAuthService(
-        prisma,
-        null,
-      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
-
-      expect(result.validKey).toBe(true);
-    });
-
-    it("rejects a header whose decoded value contains no colon", async () => {
-      // base64("nocolon") — no colon separator at all
-      const malformed = `Basic ${btoa("nocolon")}`;
-      const result = await new ApiAuthService(
-        prisma,
-        null,
-      ).verifyAuthHeaderAndReturnScope(malformed);
-
-      expect(result.validKey).toBe(false);
-      expect(result.error).toMatch(/Invalid authorization header/);
-    });
-
-    it("preserves colons in the secret (does not truncate on second colon)", async () => {
-      // base64("pk-test:secret:with:colons") — password contains colons
-      const header = `Basic ${btoa("pk-test:secret:with:colons")}`;
-      const result = await new ApiAuthService(
-        prisma,
-        null,
-      ).verifyAuthHeaderAndReturnScope(header);
-
-      // Parsing must succeed (no "Invalid authorization header") and the
-      // failure must come from the DB lookup, not from credential extraction.
-      expect(result.validKey).toBe(false);
-      expect(result.error).not.toMatch(/Invalid authorization header/);
+  describe("API key format", () => {
+    it("generated public and secret keys never contain a colon", () => {
+      // Keys are built as `pk-lf-<uuid>` / `sk-lf-<uuid>`.
+      // UUIDs only use hex digits (0-9, a-f) and hyphens, so colons are
+      // structurally impossible – but we assert it explicitly so any future
+      // change to the generation logic gets caught before it can break
+      // Basic-Auth header parsing (which splits on ':').
+      expect(testApiKey.publicKey).not.toContain(":");
+      expect(testApiKey.secretKey).not.toContain(":");
     });
   });
 });

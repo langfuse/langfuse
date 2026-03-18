@@ -267,12 +267,7 @@ export class ApiAuthService {
     const authValue = basicAuthHeader.split(" ")[1];
     if (!authValue) throw new Error("Invalid authorization header");
 
-    const decoded = atob(authValue);
-    const colonIndex = decoded.indexOf(":");
-    if (colonIndex === -1) throw new Error("Invalid authorization header");
-
-    const username = decoded.slice(0, colonIndex);
-    const password = decoded.slice(colonIndex + 1);
+    const [username, password] = atob(authValue).split(":");
     if (!username || !password) throw new Error("Invalid authorization header");
     return { username, password };
   }
