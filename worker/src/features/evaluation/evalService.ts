@@ -53,7 +53,6 @@ import {
   TraceDomain,
   Observation,
   DatasetItem,
-  type EvalOutputResult,
   EvalTargetObject,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
@@ -74,124 +73,12 @@ import {
   buildEvalExecutionMetadata,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
-import { buildScoreEvent } from "./evalScoreEvent";
+import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
-
-type EvalScoreWritePayload = {
-  eventId: string;
-  scoreId: string;
-  event: ReturnType<typeof buildScoreEvent>;
-};
-
-const buildNumericEvalScoreWritePayload = (params: {
-  primaryScoreId: string;
-  traceId: string | null;
-  observationId: string | null;
-  scoreName: string;
-  score: number;
-  reasoning: string;
-  environment: string;
-  executionTraceId: string;
-  metadata: Record<string, string>;
-}): EvalScoreWritePayload => {
-  const eventId = randomUUID();
-
-  return {
-    eventId,
-    scoreId: params.primaryScoreId,
-    event: buildScoreEvent({
-      eventId,
-      scoreId: params.primaryScoreId,
-      traceId: params.traceId,
-      observationId: params.observationId,
-      scoreName: params.scoreName,
-      scoreValue: params.score,
-      reasoning: params.reasoning,
-      environment: params.environment,
-      executionTraceId: params.executionTraceId,
-      metadata: params.metadata,
-      dataType: ScoreDataTypeEnum.NUMERIC,
-    }),
-  };
-};
-
-const buildCategoricalEvalScoreWritePayloads = (params: {
-  primaryScoreId: string;
-  traceId: string | null;
-  observationId: string | null;
-  scoreName: string;
-  matches: string[];
-  reasoning: string;
-  environment: string;
-  executionTraceId: string;
-  metadata: Record<string, string>;
-}): EvalScoreWritePayload[] => {
-  return params.matches.map((scoreValue, index) => {
-    const scoreId = index === 0 ? params.primaryScoreId : randomUUID();
-    const eventId = randomUUID();
-
-    return {
-      eventId,
-      scoreId,
-      event: buildScoreEvent({
-        eventId,
-        scoreId,
-        traceId: params.traceId,
-        observationId: params.observationId,
-        scoreName: params.scoreName,
-        scoreValue,
-        reasoning: params.reasoning,
-        environment: params.environment,
-        executionTraceId: params.executionTraceId,
-        metadata: params.metadata,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-      }),
-    };
-  });
-};
-
-const buildEvalScoreWritePayloads = (params: {
-  outputResult: EvalOutputResult;
-  primaryScoreId: string;
-  traceId: string | null;
-  observationId: string | null;
-  scoreName: string;
-  environment: string;
-  executionTraceId: string;
-  metadata: Record<string, string>;
-}): EvalScoreWritePayload[] => {
-  if (params.outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
-    return [
-      buildNumericEvalScoreWritePayload({
-        primaryScoreId: params.primaryScoreId,
-        traceId: params.traceId,
-        observationId: params.observationId,
-        scoreName: params.scoreName,
-        score: params.outputResult.score,
-        reasoning: params.outputResult.reasoning,
-        environment: params.environment,
-        executionTraceId: params.executionTraceId,
-        metadata: params.metadata,
-      }),
-    ];
-  }
-
-  return buildCategoricalEvalScoreWritePayloads({
-    primaryScoreId: params.primaryScoreId,
-    traceId: params.traceId,
-    observationId: params.observationId,
-    scoreName: params.scoreName,
-    matches: params.outputResult.matches,
-    reasoning: params.outputResult.reasoning,
-    environment: params.environment,
-    executionTraceId: params.executionTraceId,
-    metadata: params.metadata,
-  });
-};
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).

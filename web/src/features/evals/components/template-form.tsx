@@ -157,9 +157,9 @@ const formSchema = z
       return;
     }
 
-    getCategoricalCategoryRuleViolations({
-      categories: value.categories.map((category) => category.value),
-    }).forEach((violation) => {
+    getCategoricalCategoryRuleViolations(
+      value.categories.map((category) => category.value),
+    ).forEach((violation) => {
       switch (violation.type) {
         case "minimum_count":
           ctx.addIssue({

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   compilePersistedEvalOutputDefinition,
   buildEvalOutputResultSchema,
-  buildEvalOutputJsonSchema,
   ChatMessageRole,
   ChatMessageType,
   createCategoricalEvalOutputDefinition,
@@ -18,7 +17,7 @@ import {
   compileEvalPrompt,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
-import { buildScoreEvent } from "./evalScoreEvent";
+import { buildEvalScoreWritePayloads, buildScoreEvent } from "./evalScoreEvent";
 
 describe("evaluation helpers", () => {
   describe("compileEvalPrompt", () => {
@@ -254,60 +253,6 @@ describe("evaluation helpers", () => {
     });
   });
 
-  describe("buildEvalOutputJsonSchema", () => {
-    it("should build categorical JSON schema with a simple enum", () => {
-      const schema = buildEvalOutputJsonSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose the best matching category",
-          reasoningDescription: "Explain the selected category",
-          categories: ["correct", "partial"],
-        }),
-      );
-
-      expect(schema).toMatchObject({
-        type: "object",
-        required: ["reasoning", "score"],
-        additionalProperties: false,
-        properties: {
-          reasoning: {
-            type: "string",
-            description: "Explain the selected category",
-          },
-          score: {
-            type: "string",
-            description: "Choose the best matching category",
-            enum: ["correct", "partial"],
-          },
-        },
-      });
-    });
-
-    it("should build categorical multi-match JSON schema as an enum array", () => {
-      const schema = buildEvalOutputJsonSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose all matching categories",
-          reasoningDescription: "Explain the selected categories",
-          categories: ["correct", "partial"],
-          shouldAllowMultipleMatches: true,
-        }),
-      );
-
-      expect(schema).toMatchObject({
-        properties: {
-          score: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: ["correct", "partial"],
-            },
-            minItems: 1,
-            maxItems: 2,
-          },
-        },
-      });
-    });
-  });
-
   describe("buildEvalExecutionMetadata", () => {
     it("should include all provided fields", () => {
       const params = {
@@ -443,6 +388,68 @@ describe("evaluation helpers", () => {
 
       expect(result.body.value).toBe("correct");
       expect(result.body.dataType).toBe("CATEGORICAL");
+    });
+  });
+
+  describe("buildEvalScoreWritePayloads", () => {
+    it("should build a single numeric score payload", () => {
+      const result = buildEvalScoreWritePayloads({
+        outputResult: {
+          dataType: ScoreDataTypeEnum.NUMERIC,
+          score: 0.85,
+          reasoning: "High accuracy observed",
+        },
+        primaryScoreId: "score-123",
+        traceId: "trace-456",
+        observationId: null,
+        scoreName: "accuracy",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        metadata: { job_execution_id: "job-1" },
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        eventId: expect.any(String),
+        scoreId: "score-123",
+        event: expect.objectContaining({
+          body: expect.objectContaining({
+            value: 0.85,
+            dataType: ScoreDataTypeEnum.NUMERIC,
+          }),
+        }),
+      });
+    });
+
+    it("should build one categorical payload per match while preserving shared metadata", () => {
+      const result = buildEvalScoreWritePayloads({
+        outputResult: {
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          matches: ["correct", "partial"],
+          reasoning: "Both categories apply",
+        },
+        primaryScoreId: "score-123",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        scoreName: "accuracy",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        metadata: { job_execution_id: "job-1" },
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0].scoreId).toBe("score-123");
+      expect(result[1].scoreId).not.toBe("score-123");
+      expect(result[0].event.body.value).toBe("correct");
+      expect(result[1].event.body.value).toBe("partial");
+      expect(result[0].event.body.comment).toBe("Both categories apply");
+      expect(result[1].event.body.comment).toBe("Both categories apply");
+      expect(result[0].event.body.metadata).toEqual({
+        job_execution_id: "job-1",
+      });
+      expect(result[1].event.body.metadata).toEqual({
+        job_execution_id: "job-1",
+      });
     });
   });
 

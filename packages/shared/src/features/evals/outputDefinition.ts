@@ -37,12 +37,10 @@ export type CategoricalCategoryRuleViolation =
       index: number;
     };
 
-export function getCategoricalCategoryRuleViolations(params: {
-  categories: string[];
-}) {
+export function getCategoricalCategoryRuleViolations(categories: string[]) {
   const violations: CategoricalCategoryRuleViolation[] = [];
 
-  if (params.categories.length < MinimumCategoricalCategoryCount) {
+  if (categories.length < MinimumCategoricalCategoryCount) {
     violations.push({
       type: "minimum_count",
       minimumCount: MinimumCategoricalCategoryCount,
@@ -51,7 +49,7 @@ export function getCategoricalCategoryRuleViolations(params: {
 
   const seenValues = new Set<string>();
 
-  params.categories.forEach((category, index) => {
+  categories.forEach((category, index) => {
     const normalizedValue = category.trim();
 
     if (seenValues.has(normalizedValue)) {
@@ -92,26 +90,26 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     }),
   })
   .superRefine((value, ctx) => {
-    getCategoricalCategoryRuleViolations({
-      categories: value.score.categories,
-    }).forEach((violation) => {
-      switch (violation.type) {
-        case "minimum_count":
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: getMinimumCategoricalCategoriesMessage(),
-            path: ["score", "categories"],
-          });
-          return;
-        case "duplicate_value":
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Categories must be unique",
-            path: ["score", "categories", violation.index],
-          });
-          return;
-      }
-    });
+    getCategoricalCategoryRuleViolations(value.score.categories).forEach(
+      (violation) => {
+        switch (violation.type) {
+          case "minimum_count":
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: getMinimumCategoricalCategoriesMessage(),
+              path: ["score", "categories"],
+            });
+            return;
+          case "duplicate_value":
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Categories must be unique",
+              path: ["score", "categories", violation.index],
+            });
+            return;
+        }
+      },
+    );
   });
 export type CategoricalEvalOutputDefinitionV2 = z.infer<
   typeof CategoricalEvalOutputDefinitionV2Schema
@@ -128,13 +126,11 @@ export type PersistedEvalOutputDefinition = z.infer<
 
 export type ResolvedEvalOutputDefinition =
   | {
-      version: 2;
       dataType: typeof ScoreDataTypeEnum.NUMERIC;
       reasoningDescription: string;
       scoreDescription: string;
     }
   | {
-      version: 2;
       dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
       reasoningDescription: string;
       scoreDescription: string;
@@ -166,7 +162,6 @@ export function resolvePersistedEvalOutputDefinition(
 ): ResolvedEvalOutputDefinition {
   if (!("version" in outputDefinition)) {
     return {
-      version: 2,
       dataType: ScoreDataTypeEnum.NUMERIC,
       reasoningDescription: outputDefinition.reasoning,
       scoreDescription: outputDefinition.score,
@@ -175,7 +170,6 @@ export function resolvePersistedEvalOutputDefinition(
 
   if (outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
     return {
-      version: 2,
       dataType: ScoreDataTypeEnum.NUMERIC,
       reasoningDescription: outputDefinition.reasoning.description,
       scoreDescription: outputDefinition.score.description,
@@ -183,7 +177,6 @@ export function resolvePersistedEvalOutputDefinition(
   }
 
   return {
-    version: 2,
     dataType: ScoreDataTypeEnum.CATEGORICAL,
     reasoningDescription: outputDefinition.reasoning.description,
     scoreDescription: outputDefinition.score.description,
@@ -229,7 +222,7 @@ export function createCategoricalEvalOutputDefinition(params: {
   });
 }
 
-function buildResolvedEvalOutputResultSchema(
+function buildResultSchemaForResolvedOutputDefinition(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
@@ -278,35 +271,10 @@ function buildResolvedEvalOutputResultSchema(
   });
 }
 
-function buildEvalOutputJsonSchemaFromResultSchema(
-  outputResultSchema: ReturnType<typeof buildResolvedEvalOutputResultSchema>,
-): Record<string, unknown> {
-  const outputJsonSchema = z.toJSONSchema(outputResultSchema, {
-    target: "draft-7",
-    unrepresentable: "any",
-  });
-
-  if (!outputJsonSchema) {
-    throw new Error("Failed to convert eval output schema to JSON Schema");
-  }
-
-  return outputJsonSchema as Record<string, unknown>;
-}
-
-export function buildEvalOutputJsonSchema(
-  outputDefinition: PersistedEvalOutputDefinition,
-): Record<string, unknown> {
-  return buildEvalOutputJsonSchemaFromResultSchema(
-    buildResolvedEvalOutputResultSchema(
-      resolvePersistedEvalOutputDefinition(outputDefinition),
-    ),
-  );
-}
-
 export function buildEvalOutputResultSchema(
   outputDefinition: PersistedEvalOutputDefinition,
 ) {
-  return buildResolvedEvalOutputResultSchema(
+  return buildResultSchemaForResolvedOutputDefinition(
     resolvePersistedEvalOutputDefinition(outputDefinition),
   );
 }
@@ -320,35 +288,34 @@ export function compilePersistedEvalOutputDefinition(
 ) {
   const resolvedOutputDefinition =
     resolvePersistedEvalOutputDefinition(outputDefinition);
-  const outputResultSchema = buildResolvedEvalOutputResultSchema(
+  const outputResultSchema = buildResultSchemaForResolvedOutputDefinition(
     resolvedOutputDefinition,
   );
 
   return {
-    outputDefinition,
     resolvedOutputDefinition,
     outputResultSchema,
   };
 }
 
-function normalizeValidatedEvalOutputResult(params: {
-  result: RawEvalOutputResult;
-  resolvedOutputDefinition: ResolvedEvalOutputDefinition;
-}): EvalOutputResult {
-  if (params.resolvedOutputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
+function normalizeValidatedEvalOutputResult(
+  result: RawEvalOutputResult,
+  resolvedOutputDefinition: ResolvedEvalOutputDefinition,
+): EvalOutputResult {
+  if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
     return {
       dataType: ScoreDataTypeEnum.NUMERIC,
-      score: params.result.score as number,
-      reasoning: params.result.reasoning,
+      score: result.score as number,
+      reasoning: result.reasoning,
     };
   }
 
   return {
     dataType: ScoreDataTypeEnum.CATEGORICAL,
-    matches: Array.isArray(params.result.score)
-      ? params.result.score
-      : [params.result.score as string],
-    reasoning: params.result.reasoning,
+    matches: Array.isArray(result.score)
+      ? result.score
+      : [result.score as string],
+    reasoning: result.reasoning,
   };
 }
 
@@ -365,11 +332,10 @@ export function validateEvalOutputResult(params: {
   if (result.success) {
     return {
       success: true,
-      data: normalizeValidatedEvalOutputResult({
-        result: result.data as RawEvalOutputResult,
-        resolvedOutputDefinition:
-          params.compiledOutputDefinition.resolvedOutputDefinition,
-      }),
+      data: normalizeValidatedEvalOutputResult(
+        result.data as RawEvalOutputResult,
+        params.compiledOutputDefinition.resolvedOutputDefinition,
+      ),
     };
   }
 
