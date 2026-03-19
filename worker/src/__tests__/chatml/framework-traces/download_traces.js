@@ -105,6 +105,12 @@ const TRACES_TO_DOWNLOAD = [
     projectId: "cmjjlsmpf01q5ad083m5ud2p5",
     baseUrl: "https://us.cloud.langfuse.com",
   },
+  {
+    //from https://github.com/langfuse/langfuse/issues/12550
+    fileNamePrefix: "csharp-agent-with-gemini",
+    traceId: "933dba1e9783f89d5d8bb032f041a2de",
+    projectId: "cml84ntcb01hgad07c302ud72",
+  },
 ];
 
 async function fetchTrpJsonObject(url) {
