@@ -501,6 +501,7 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
+            outputDefinition: unknown;
           }>
         >`
         WITH latest_templates AS (
@@ -513,6 +514,7 @@ export const evalRouter = createTRPCRouter({
             et.partner,
             et.version,
             et.created_at,
+            et.output_schema,
             (
               SELECT COUNT(jc.id)
               FROM job_configurations jc
@@ -541,6 +543,7 @@ export const evalRouter = createTRPCRouter({
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",
+          output_schema as "outputDefinition",
           COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates

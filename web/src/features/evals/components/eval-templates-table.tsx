@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type CustomHeights } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -35,10 +36,13 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Badge } from "@/src/components/ui/badge";
+import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
 import { type EvalTemplate } from "@langfuse/shared";
 
 export type EvalsTemplateRow = {
   name: string;
+  resultType: string;
   maintainer: string;
   latestCreatedAt?: Date;
   latestVersion?: number;
@@ -47,6 +51,15 @@ export type EvalsTemplateRow = {
   actions?: string;
   provider?: string;
   model?: string;
+};
+
+const getMaintainerLabel = (maintainer: string) =>
+  maintainer.replace(/ maintained$/, "");
+
+const templateTableRowHeights: CustomHeights = {
+  s: "h-8",
+  m: "h-8",
+  l: "h-8",
 };
 
 export default function EvalsTemplateTable({
@@ -165,29 +178,53 @@ export default function EvalsTemplateTable({
         return name ? <TableIdOrName value={name} /> : undefined;
       },
     }),
+    columnHelper.accessor("resultType", {
+      id: "resultType",
+      header: "Score Result Type",
+      size: 120,
+      cell: (row) => {
+        const resultType = row.getValue();
+
+        return (
+          <Badge
+            className="w-fit self-start"
+            variant={
+              resultType === "Categorical" ? "secondary" : "outline-solid"
+            }
+          >
+            {resultType}
+          </Badge>
+        );
+      },
+    }),
     columnHelper.accessor("maintainer", {
       id: "maintainer",
       header: "Maintainer",
       size: 150,
       cell: (row) => {
         return (
-          <div className="flex justify-center">
+          <div className="flex items-center gap-2">
             <MaintainerTooltip maintainer={row.getValue()} />
+            <span className="text-muted-foreground">
+              {getMaintainerLabel(row.getValue())}
+            </span>
           </div>
         );
       },
     }),
     columnHelper.accessor("latestCreatedAt", {
-      header: "Last Edit",
+      header: "Last Edited",
       id: "latestCreatedAt",
+      size: 80,
       cell: (row) => {
         return row.getValue()?.toLocaleDateString();
       },
     }),
     columnHelper.accessor("usageCount", {
-      header: "Usage count",
+      header: "Usage Count",
       id: "usageCount",
       enableHiding: true,
+      size: 80,
       cell: (row) => {
         const count = row.getValue();
         return !!count ? count : null;
@@ -197,6 +234,7 @@ export default function EvalsTemplateTable({
       header: "Latest Version",
       id: "latestVersion",
       enableHiding: true,
+      size: 80,
       cell: (row) => {
         return row.getValue();
       },
@@ -314,6 +352,7 @@ export default function EvalsTemplateTable({
   ): EvalsTemplateRow => {
     return {
       name: template.name,
+      resultType: getTemplateResultType(template.outputDefinition),
       maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
       latestVersion: template.version,
@@ -326,48 +365,54 @@ export default function EvalsTemplateTable({
 
   return (
     <>
-      <DataTableToolbar
-        columns={columns}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        searchConfig={{
-          metadataSearchFields: ["Name"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: false,
-          setSearchType: undefined,
-          searchType: undefined,
-        }}
-      />
-      <DataTable
-        tableName={"evalTemplates"}
-        columns={columns}
-        peekView={peekConfig}
-        data={
-          templates.isLoading
-            ? { isLoading: true, isError: false }
-            : templates.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: templates.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(templates.data, "templates", []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
+      <div className="flex h-full w-full flex-col">
+        <DataTableToolbar
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          searchConfig={{
+            metadataSearchFields: ["Name"],
+            updateQuery: setSearchQuery,
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: false,
+            setSearchType: undefined,
+            searchType: undefined,
+          }}
+        />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <DataTable
+            tableName={"evalTemplates"}
+            columns={columns}
+            peekView={peekConfig}
+            rowHeight="m"
+            customRowHeights={templateTableRowHeights}
+            data={
+              templates.isLoading
+                ? { isLoading: true, isError: false }
+                : templates.isError
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: templates.error.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: safeExtract(templates.data, "templates", []).map(
+                        (t) => convertToTableRow(t),
+                      ),
+                    }
+            }
+            pagination={{
+              totalCount,
+              onChange: setPaginationState,
+              state: paginationState,
+            }}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+          />
+        </div>
+      </div>
       <TablePeekView peekView={peekConfig} />
       <Dialog
         open={!!editTemplateId && template.isSuccess}
