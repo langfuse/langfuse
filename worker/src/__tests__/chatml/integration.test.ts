@@ -520,8 +520,13 @@ describe("ChatML adaption tests against real observations", () => {
       const expectedFile = traceFile.replace(/\.trace\.json$/, ".chatml.json");
       const expectedFilePath = path.join(fileDir, expectedFile);
 
+      //in update mode, create the chatML file is needed
+      if (updateExpectedFilesOnFailure && !existsSync(expectedFilePath)) {
+        writeFileSync(expectedFilePath, JSON.stringify({}, null, 2), "utf-8");
+      }
       let errorMessage = `File ${expectedFilePath} should exist`;
       expect(existsSync(expectedFilePath), errorMessage).toBe(true);
+
       const expectedContent = readFileSync(expectedFilePath, "utf-8");
       const expected = JSON.parse(expectedContent) as Record<
         string,
@@ -540,8 +545,10 @@ describe("ChatML adaption tests against real observations", () => {
       for (const obs of observations) {
         if (obs.input) {
           const expectedInput = expected[obs.id]?.input;
-          errorMessage = `Observation ${obs.id} should have an expected input`;
-          expect(expectedInput, errorMessage).not.toBeUndefined();
+          if (!updateExpectedFilesOnFailure) {
+            errorMessage = `Observation ${obs.id} should have an expected input`;
+            expect(expectedInput, errorMessage).not.toBeUndefined();
+          }
 
           const inResult = normalizeInput(deepParseJson(obs.input), {
             metadata: deepParseJson(obs.metadata),
@@ -561,12 +568,13 @@ describe("ChatML adaption tests against real observations", () => {
               );
             else throw err;
           }
-          expect(normalizedInResult, errorMessage).toEqual(expectedInput);
         }
         if (obs.output) {
           const expectedOutput = expected[obs.id]?.output;
-          errorMessage = `Observation ${obs.id} should have an expected output`;
-          expect(expectedOutput, errorMessage).not.toBeUndefined();
+          if (!updateExpectedFilesOnFailure) {
+            errorMessage = `Observation ${obs.id} should have an expected output`;
+            expect(expectedOutput, errorMessage).not.toBeUndefined();
+          }
 
           const outResult = normalizeOutput(deepParseJson(obs.output), {
             metadata: deepParseJson(obs.metadata),

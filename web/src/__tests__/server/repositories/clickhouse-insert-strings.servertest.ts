@@ -15,6 +15,11 @@ const maybeIt = (name: string, testFn: () => Promise<void>): void => {
 };
 
 describe("ClickHouse insert string edge cases", () => {
+  it("should pass", () => {
+    // Apparently each jest file needs at least one executed test and cannot have everything skipped
+    expect(true).toBe(true);
+  });
+
   describe("prompt_version type mismatch (UInt16 column vs string value)", () => {
     maybeIt("should handle prompt_version as null", async () => {
       const event = createEvent({
