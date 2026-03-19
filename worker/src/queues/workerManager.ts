@@ -7,8 +7,12 @@ import {
   logger,
   QueueName,
   IngestionQueue,
+  SecondaryIngestionQueue,
   TraceUpsertQueue,
   OtelIngestionQueue,
+  EvalExecutionQueue,
+  SecondaryEvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -37,18 +41,36 @@ export class WorkerManager {
       const result = await processor(job);
       const queue = queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.TraceUpsert)
-          ? TraceUpsertQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.OtelIngestionQueue)
-            ? OtelIngestionQueue.getInstance({ shardName: queueName })
-            : getQueue(
-                queueName as Exclude<
-                  QueueName,
-                  | QueueName.IngestionQueue
-                  | QueueName.TraceUpsert
-                  | QueueName.OtelIngestionQueue
-                >,
-              );
+        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
+          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.TraceUpsert)
+            ? TraceUpsertQueue.getInstance({ shardName: queueName })
+            : queueName.startsWith(QueueName.OtelIngestionQueue)
+              ? OtelIngestionQueue.getInstance({ shardName: queueName })
+              : queueName.startsWith(QueueName.EvaluationExecution)
+                ? EvalExecutionQueue.getInstance({ shardName: queueName })
+                : queueName.startsWith(
+                      QueueName.EvaluationExecutionSecondaryQueue,
+                    )
+                  ? SecondaryEvalExecutionQueue.getInstance({
+                      shardName: queueName,
+                    })
+                  : queueName.startsWith(QueueName.LLMAsJudgeExecution)
+                    ? LLMAsJudgeExecutionQueue.getInstance({
+                        shardName: queueName,
+                      })
+                    : getQueue(
+                        queueName as Exclude<
+                          QueueName,
+                          | QueueName.IngestionQueue
+                          | QueueName.IngestionSecondaryQueue
+                          | QueueName.EvaluationExecution
+                          | QueueName.EvaluationExecutionSecondaryQueue
+                          | QueueName.LLMAsJudgeExecution
+                          | QueueName.TraceUpsert
+                          | QueueName.OtelIngestionQueue
+                        >,
+                      );
       Promise.allSettled([
         // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
         // or "prioritized" or "waiting-children") that count provides

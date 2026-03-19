@@ -1714,6 +1714,266 @@ describe("OTel Resource Span Mapping", () => {
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
     });
 
+    it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
+      const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
+
+      const allMessages = [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              content:
+                "What are the main benefits of using async programming in Python?",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content: "Async programming in Python offers several benefits.",
+            },
+          ],
+          finish_reason: "stop",
+        },
+      ];
+
+      const systemInstructions = [
+        {
+          type: "text",
+          content:
+            "You are a helpful assistant. Answer questions concisely and clearly.",
+        },
+      ];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf5", "hex"),
+                name: "instructions_agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "agent_name",
+                    value: { stringValue: "instructions_agent" },
+                  },
+                  {
+                    key: "gen_ai.agent.name",
+                    value: { stringValue: "instructions_agent" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "instructions_agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: {
+                      stringValue:
+                        "Async programming in Python offers several benefits.",
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { stringValue: "37" },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { stringValue: "248" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const traceEvent = events.find((e) => e.type === "trace-create");
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(traceEvent).toBeDefined();
+      expect(observationEvent).toBeDefined();
+
+      const expectedMessages = [
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant. Answer questions concisely and clearly.",
+        },
+        ...allMessages,
+      ];
+
+      expect(observationEvent?.body.input).toBe(
+        JSON.stringify(expectedMessages),
+      );
+      expect(observationEvent?.body.output).toBe(
+        "Async programming in Python offers several benefits.",
+      );
+
+      // Verify gen_ai.system_instructions is NOT duplicated in metadata
+      const metadataAttributes =
+        observationEvent?.body.metadata?.attributes ?? {};
+      expect(metadataAttributes).not.toHaveProperty(
+        "gen_ai.system_instructions",
+      );
+      expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
+      expect(metadataAttributes).not.toHaveProperty("final_result");
+    });
+
+    it("should not duplicate system instructions when pydantic_ai.all_messages already has a system message", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const allMessages = [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              content: "Existing system prompt.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      const systemInstructions = [
+        {
+          type: "text",
+          content: "You are a helpful assistant.",
+        },
+      ];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf6", "hex"),
+                name: "agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: { stringValue: "result" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+      expect(observationEvent).toBeDefined();
+
+      // Should NOT prepend system_instructions since all_messages already has a system message
+      expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [

@@ -125,7 +125,7 @@ function MappedColumnBadge({
     <div
       ref={setNodeRef}
       className={cn(
-        "group bg-accent-dark-blue text-muted flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-medium active:cursor-grabbing",
+        "bg-accent-dark-blue text-muted group flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-medium active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
       {...attributes}
