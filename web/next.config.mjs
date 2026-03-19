@@ -69,8 +69,10 @@ const nextConfig = {
       "@langfuse/shared": "./packages/shared/src",
     },
   },
+  logging: {
+    browserToTerminal: true,
+  },
   experimental: {
-    browserDebugInfoInTerminal: true, // Logs browser logs to terminal
     // TODO: enable with new next version! 15.6
     // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
     // turbopackPersistentCaching: true,
