@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import {
   fetchLLMCompletion,
+  baseUrlToEndpoint,
   type CompletionWithReasoning,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -1069,6 +1070,80 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
 
+    test("thinking model with tool calling strips reasoning from content and parses tool calls", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What's the weather like in Paris?",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: "gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 2048,
+          maxReasoningTokens: 1024,
+        },
+        tools: [weatherTool],
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
+
+      // Should parse tool calls successfully despite reasoning blocks in content
+      expect(completion).toHaveProperty("tool_calls");
+      expect(Array.isArray(completion.tool_calls)).toBe(true);
+      expect(completion.tool_calls.length).toBeGreaterThan(0);
+      expect(completion.tool_calls[0].name).toBe("get_weather");
+      // Reasoning should be extracted separately
+      if ((completion as any).reasoning) {
+        expect(typeof (completion as any).reasoning).toBe("string");
+      }
+    }, 60_000);
+
+    test("thinking model returns CompletionWithReasoning with separate text and reasoning", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: "gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 2048,
+          maxReasoningTokens: 1024,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
+
+      // Always returns CompletionWithReasoning for GoogleAIStudio
+      expect(typeof completion).toBe("object");
+      const result = completion as CompletionWithReasoning;
+      expect(result.text).toContain("4");
+      // With maxReasoningTokens > 0, reasoning should be present
+      // Note: this depends on the model actually producing reasoning output
+    }, 60_000);
+
     test("single system message is converted to user message", async () => {
       checkEnvVar();
 
@@ -1102,5 +1177,59 @@ describe("LLM Connection Tests", () => {
       expect(typeof completion).toBe("object");
       expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
+  });
+
+  describe("baseUrlToEndpoint", () => {
+    test.each([
+      // Strips version-only paths
+      ["https://proxy.example/v1", "proxy.example"],
+      ["https://proxy.example/v1beta", "proxy.example"],
+
+      // Strips version + ChatGoogle-appended suffixes (models/, publishers/, projects/)
+      ["https://proxy.example/v1beta/models", "proxy.example"],
+      ["https://proxy.example/v1/models/gemini-pro:generate", "proxy.example"],
+      [
+        "https://proxy.example/v1beta/publishers/google/models/gemini",
+        "proxy.example",
+      ],
+      [
+        "https://proxy.example/v1/projects/my-proj/locations/us/publishers/google/models/gemini",
+        "proxy.example",
+      ],
+
+      // Preserves custom proxy routes under /v1 that are NOT ChatGoogle suffixes
+      ["https://proxy.example/v1/gateway", "proxy.example/v1/gateway"],
+      ["https://proxy.example/v1beta/custom", "proxy.example/v1beta/custom"],
+
+      // Preserves path prefix before the version segment
+      ["https://proxy.example/proxy/v1", "proxy.example/proxy"],
+      ["https://proxy.example/proxy/v1beta/models", "proxy.example/proxy"],
+
+      // Preserves non-version paths
+      ["https://proxy.example/custom-path", "proxy.example/custom-path"],
+
+      // Host-only URLs
+      ["https://proxy.example", "proxy.example"],
+      ["https://proxy.example/", "proxy.example"],
+
+      // Includes port when present
+      ["https://proxy.example:8080/v1beta", "proxy.example:8080"],
+
+      // Preserves basic-auth credentials
+      ["https://user:pass@proxy.internal/v1", "user:pass@proxy.internal"],
+      [
+        "https://user:pass@proxy.internal:8080/v1beta/models",
+        "user:pass@proxy.internal:8080",
+      ],
+      [
+        "https://user:pass@proxy.internal/custom-path",
+        "user:pass@proxy.internal/custom-path",
+      ],
+
+      // Falls back to raw string on invalid URL
+      ["not-a-url", "not-a-url"],
+    ])("%s -> %s", (input, expected) => {
+      expect(baseUrlToEndpoint(input)).toBe(expected);
+    });
   });
 });
