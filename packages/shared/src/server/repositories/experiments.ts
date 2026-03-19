@@ -17,6 +17,7 @@ import {
   eventsExperimentItemsByIds,
   eventsExperiments,
   eventsExperimentsAggregation,
+  eventsScoresAggregation,
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
@@ -448,7 +449,11 @@ export const getExperimentItemsCountFromEvents = async (
   } = props;
 
   // Build filter conditions
-  const { where, having } = buildExperimentQualificationCondition({
+  const {
+    where,
+    having,
+    hasScoreFilters: scoreJoinRequired,
+  } = buildExperimentQualificationCondition({
     baseExperimentId,
     compExperimentIds,
     filterByExperiment,
@@ -460,6 +465,12 @@ export const getExperimentItemsCountFromEvents = async (
     groupByColumn: "e.experiment_item_id",
     selectExpression: "e.experiment_item_id as item_id",
   })
+    .when(scoreJoinRequired, (b) =>
+      b.withCTE("scores_agg", eventsScoresAggregation({ projectId })),
+    )
+    .when(scoreJoinRequired, (b) =>
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    )
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
     .where(where)
     .when(having !== null, (b) => b.having(having!))
@@ -552,6 +563,7 @@ const buildExperimentQualificationCondition = (
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
+  hasScoreFilters: boolean;
 } => {
   const { baseExperimentId, compExperimentIds, filterByExperiment, config } =
     params;
@@ -570,6 +582,10 @@ const buildExperimentQualificationCondition = (
     return hasFilters;
   });
 
+  const hasScoreFilters = filterByExperiment.some((f) =>
+    f.filters.some((filter) => filter.column.includes("scores")),
+  );
+
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
     ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
@@ -587,15 +603,16 @@ const buildExperimentQualificationCondition = (
     having: isBaselineEnforced
       ? {
           query: `
-          uniqIf(e.experiment_id, e.experiment_id = {baseExperimentId: String}) = 1
-          AND uniqIf(e.experiment_id, e.experiment_id != {baseExperimentId: String}) >= 1
+          countIf(e.experiment_id = {baseExperimentId: String}) > 0
+          AND countIf(e.experiment_id != {baseExperimentId: String}) > 0
         `,
           params: {
-            requiredExperimentCount: requireBaselinePresence ? 2 : 1,
+            baseExperimentId,
           },
         }
       : null,
     orderBy: `ORDER BY e.experiment_item_id ASC`,
+    hasScoreFilters,
   };
 };
 
@@ -624,7 +641,12 @@ export const getExperimentItemsFromEvents = async (
   } = props;
 
   // Build filter conditions
-  const { where, having, orderBy } = buildExperimentQualificationCondition({
+  const {
+    where,
+    having,
+    orderBy,
+    hasScoreFilters: scoreJoinRequired,
+  } = buildExperimentQualificationCondition({
     baseExperimentId,
     compExperimentIds,
     filterByExperiment,
@@ -638,6 +660,12 @@ export const getExperimentItemsFromEvents = async (
     selectExpression:
       "e.experiment_item_id as item_id, e.start_time as start_time",
   })
+    .when(scoreJoinRequired, (b) =>
+      b.withCTE("scores_agg", eventsScoresAggregation({ projectId })),
+    )
+    .when(scoreJoinRequired, (b) =>
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    )
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
     .where(where)
     .when(having !== null, (b) => b.having(having!))

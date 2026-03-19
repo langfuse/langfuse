@@ -46,6 +46,9 @@ import {
 } from "@/src/components/table/peek";
 import TableLink from "@/src/components/table/table-link";
 import { cn } from "@/src/utils/tailwind";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 // Font color palette for experiment rows within a cell
 const EXPERIMENT_TEXT_COLORS = [
@@ -142,9 +145,9 @@ const StackedOutputCell = ({
  *
  * Features:
  * - Peek view for traces
- * - Score columns (TODO: add)
+ * - Score columns
  * - I/O cells for input/output/expected output
- * - Sidebar filters for scores (TODO: add) and metadata
+ * - Sidebar filters for scores and metadata
  */
 export default function ExperimentItemsTable({
   projectId,
@@ -352,6 +355,53 @@ export default function ExperimentItemsTable({
     ];
   }, [experimentId, availableExperiments]);
 
+  // Get available score columns for observations
+  const { scoreColumns, isLoading: isScoreColumnsLoading } =
+    useScoreColumns<ExperimentItemData>({
+      scoreColumnKey: "scores",
+      projectId,
+      filter: scoreFilters.forObservations(),
+    });
+
+  // Create custom score columns that render stacked values
+  const experimentScoreColumns: LangfuseColumnDef<ExperimentItemsTableRow>[] =
+    useMemo(() => {
+      return scoreColumns.map((scoreCol) => ({
+        ...scoreCol,
+        // Override the cell renderer to show stacked scores for each experiment
+        cell: ({ row }: { row: any }) => {
+          const experiments = row.original.experiments as ExperimentItemData[];
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              renderValue={(exp) => {
+                const scoresData = exp.scores ?? {};
+                const scoreKey = scoreCol.id?.toString() || "";
+                const value = scoresData[scoreKey];
+
+                if (!value)
+                  return <span className="text-muted-foreground">-</span>;
+
+                // Render using the original score column's cell renderer
+                // but with a mock row that has the score data in the expected format
+                const mockRow = {
+                  getValue: (key: string) =>
+                    key === "scores" ? scoresData : undefined,
+                  original: exp,
+                } as any;
+
+                return scoreCol.cell?.({
+                  row: mockRow,
+                  getValue: mockRow.getValue,
+                } as any);
+              }}
+            />
+          );
+        },
+      }));
+    }, [scoreColumns, allExperimentIds]);
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     {
@@ -523,6 +573,19 @@ export default function ExperimentItemsTable({
           />
         );
       },
+    },
+    {
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: experimentScoreColumns,
     },
   ];
 

@@ -21,6 +21,8 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
+  getScoresForObservations,
+  traceException,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -39,6 +41,8 @@ import {
   orderBy,
   paginationZod,
   timeFilter,
+  AGGREGATABLE_SCORE_TYPES,
+  filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -520,10 +524,56 @@ export const experimentsRouter = createTRPCRouter({
         limit: input.limit,
       });
 
+      // simple flat map to get all observation ids
+      const observationIds = items.flatMap((item) =>
+        item.experiments.map((i) => i.observationId),
+      );
+
+      const scores = await getScoresForObservations({
+        projectId: input.projectId,
+        observationIds,
+        excludeMetadata: true,
+        includeHasMetadata: true,
+      });
+
+      const validatedScores = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
+
+      const scoresByObservationId = new Map<
+        string,
+        Array<(typeof validatedScores)[number]>
+      >();
+      for (const score of validatedScores) {
+        if (!score.observationId) continue;
+        const existingScores = scoresByObservationId.get(score.observationId);
+        if (existingScores) {
+          existingScores.push(score);
+        } else {
+          scoresByObservationId.set(score.observationId, [score]);
+        }
+      }
+
       return {
-        data: items,
+        data: items.map(({ itemId, experiments }) => ({
+          itemId,
+          experiments: experiments.map(
+            ({ observationId, traceId, experimentId, level, startTime }) => ({
+              observationId,
+              traceId,
+              experimentId,
+              level,
+              startTime,
+              scores: aggregateScores(
+                scoresByObservationId.get(observationId) ?? [],
+              ),
+            }),
+          ),
+        })),
       };
-      // return [];
     }),
 
   itemsCount: protectedProjectProcedure
