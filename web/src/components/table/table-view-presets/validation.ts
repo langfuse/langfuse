@@ -52,12 +52,8 @@ export function validateFilters(
   );
 
   // Validate that columns exist (remove invalid ones)
+  // After normalization, filter.column is always a canonical ID
   return normalized.filter((filter) => {
-    return filterColumnDefinition.some(
-      (def) =>
-        def.id === filter.column ||
-        def.name === filter.column ||
-        def.aliases?.includes(filter.column),
-    );
+    return filterColumnDefinition.some((def) => def.id === filter.column);
   });
 }

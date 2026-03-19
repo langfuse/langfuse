@@ -348,10 +348,14 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
-  const backendFilterState = transformFiltersForBackend(
-    filterState,
-    TRACE_COLUMN_TO_BACKEND_KEY,
-    traceFilterConfig.columnDefinitions,
+  const backendFilterState = useMemo(
+    () =>
+      transformFiltersForBackend(
+        filterState,
+        TRACE_COLUMN_TO_BACKEND_KEY,
+        traceFilterConfig.columnDefinitions,
+      ),
+    [filterState],
   );
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
