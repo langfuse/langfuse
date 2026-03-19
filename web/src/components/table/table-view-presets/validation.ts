@@ -54,7 +54,10 @@ export function validateFilters(
   // Validate that columns exist (remove invalid ones)
   return normalized.filter((filter) => {
     return filterColumnDefinition.some(
-      (def) => def.id === filter.column || def.name === filter.column,
+      (def) =>
+        def.id === filter.column ||
+        def.name === filter.column ||
+        def.aliases?.includes(filter.column),
     );
   });
 }

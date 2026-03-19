@@ -73,7 +73,11 @@ import {
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import {
+  traceFilterConfig,
+  TRACE_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/traces-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -291,7 +295,7 @@ export default function TracesTable({
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
-      name:
+      traceName:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
@@ -344,6 +348,12 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
+  const backendFilterState = transformFiltersForBackend(
+    filterState,
+    TRACE_COLUMN_TO_BACKEND_KEY,
+    traceFilterConfig.columnDefinitions,
+  );
+
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -355,7 +365,7 @@ export default function TracesTable({
 
   const tracesAllCountFilter = {
     projectId,
-    filter: filterState,
+    filter: backendFilterState,
     searchQuery: searchQuery,
     searchType: searchType,
     page: 0,
@@ -385,7 +395,7 @@ export default function TracesTable({
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
-      filter: filterState,
+      filter: backendFilterState,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
     },
     {
@@ -483,7 +493,7 @@ export default function TracesTable({
       projectId,
       traceIds: selectedTraceIds,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
         searchQuery: searchQuery || undefined,
         searchType,
@@ -511,7 +521,7 @@ export default function TracesTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
     });
@@ -601,12 +611,12 @@ export default function TracesTable({
     {
       accessorKey: "name",
       header: "Name",
-      id: "name",
+      id: "traceName",
       size: 150,
       enableHiding: true,
       enableSorting,
       cell: ({ row }) => {
-        const value: TracesTableRow["name"] = row.getValue("name");
+        const value: TracesTableRow["name"] = row.getValue("traceName");
         return value ?? undefined;
       },
     },
@@ -1321,7 +1331,7 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            columnsWithCustomSelect={["name", "tags"]}
+            columnsWithCustomSelect={["traceName", "tags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>
                 traces.data?.traces.map((t) => t.id).includes(traceId),
@@ -1336,7 +1346,7 @@ export default function TracesTable({
               <BatchExportTableButton
                 {...{
                   projectId,
-                  filterState,
+                  filterState: backendFilterState,
                   orderByState,
                   searchQuery,
                   searchType,

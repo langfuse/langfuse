@@ -16,11 +16,12 @@ export const tracesOnlyCols: ColumnDefinition[] = [
   { name: "ID", id: "id", type: "string", internal: "t.id" },
   {
     name: "Name",
-    id: "name",
+    id: "traceName",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
     nullable: true,
+    aliases: ["name"],
   },
   {
     name: "Environment",
@@ -215,7 +216,7 @@ export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
-  name?: Array<SingleValueOption>;
+  traceName?: Array<SingleValueOption>;
   tags?: Array<SingleValueOption>;
   environment?: Array<SingleValueOption>;
 };
@@ -244,8 +245,8 @@ export function tracesTableColsWithOptions(
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);
     }
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
+    if (col.id === "traceName") {
+      return formatColumnOptions(col, options?.traceName ?? []);
     }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);

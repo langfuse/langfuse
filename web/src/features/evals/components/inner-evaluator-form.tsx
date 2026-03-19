@@ -1000,10 +1000,7 @@ export const InnerEvaluatorForm = (props: {
                               <InlineFilterBuilder
                                 key={target}
                                 columnIdentifier={
-                                  isDatasetTarget(target) ||
-                                  isTraceTarget(target)
-                                    ? "name"
-                                    : "id"
+                                  isDatasetTarget(target) ? "name" : "id"
                                 }
                                 columns={getFilterColumns()}
                                 filterState={field.value ?? []}
@@ -1026,9 +1023,11 @@ export const InnerEvaluatorForm = (props: {
                                 }}
                                 disabled={props.disabled}
                                 columnsWithCustomSelect={
-                                  isEventTarget(target) || isTraceTarget(target)
-                                    ? ["tags", "name"]
-                                    : undefined
+                                  isTraceTarget(target)
+                                    ? ["tags", "traceName"]
+                                    : isEventTarget(target)
+                                      ? ["tags", "name"]
+                                      : undefined
                                 }
                               />
                             )}

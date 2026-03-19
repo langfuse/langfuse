@@ -30,6 +30,7 @@ export type ColumnDefinition =
       type: "number" | "string" | "datetime" | "boolean" | "null";
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -37,6 +38,7 @@ export type ColumnDefinition =
       type: "positionInTrace";
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -45,6 +47,7 @@ export type ColumnDefinition =
       options: Array<SingleValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -53,6 +56,7 @@ export type ColumnDefinition =
       options: Array<SingleValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -61,6 +65,7 @@ export type ColumnDefinition =
       internal: string;
       keyOptions?: Array<string>;
       nullable?: boolean;
+      aliases?: string[];
     }
   | {
       name: string;
@@ -69,6 +74,7 @@ export type ColumnDefinition =
       options: Array<MultiValueOption>;
       internal: string;
       nullable?: boolean;
+      aliases?: string[];
     };
 
 export const tableNames = [
