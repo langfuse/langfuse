@@ -348,6 +348,71 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("Search Query Tests", () => {
+    it("should not throw ambiguous column error when searchQuery is combined with score filter", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // searchQuery triggers a LEFT JOIN with traces CTE (which has a "name" column),
+      // and the score filter triggers a LEFT JOIN with scores_agg (which also has "name").
+      // With unqualified "name" in the search WHERE clause, ClickHouse raises
+      // "ambiguous identifier 'name'" because 3 tables define it: e, t, and s.
+      const scoreFilter: FilterCondition = {
+        type: "numberObject" as const,
+        column: "scores_avg",
+        operator: ">" as const,
+        key: "Clinical Risk",
+        value: 0,
+      };
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [scoreFilter],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should not throw ambiguous column error when searchQuery triggers traces JOIN", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // searchQuery alone triggers a LEFT JOIN with traces CTE which also has a "name" column.
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   maybe("Filter Tests", () => {
     describe("Timestamp Filters", () => {
       it("should filter observations by start time with >= operator", async () => {
