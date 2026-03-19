@@ -682,7 +682,13 @@ export default function SignIn({
 
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
-        const { providerId } = await res.json();
+        const data = (await res.json().catch(() => null)) as {
+          providerId?: string;
+        } | null;
+        if (!data?.providerId) {
+          throw new Error("Invalid response from SSO check");
+        }
+        const providerId = data.providerId;
         capture("sign_in:button_click", { provider: "sso_auto" });
 
         // Store the SSO provider as the last used auth method

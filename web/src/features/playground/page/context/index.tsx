@@ -737,10 +737,10 @@ async function getChatCompletionWithTools(
     },
   );
 
-  const responseData = await result.json();
+  const responseData = await result.json().catch(() => null);
 
   if (!result.ok) {
-    throw new Error(`Completion failed: ${responseData.message}`);
+    throw new Error(`Completion failed: ${responseData?.message ?? "Unknown error"}`);
   }
 
   const parsed = ToolCallResponseSchema.safeParse(responseData);
@@ -783,8 +783,10 @@ async function getChatCompletionWithStructuredOutput(
   );
 
   if (!result.ok) {
-    const responseData = await result.json();
-    throw new Error(`Completion failed: ${responseData.message}`);
+    const errorData = (await result.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(`Completion failed: ${errorData?.message ?? "Unknown error"}`);
   }
 
   const responseData = await result.text();
@@ -831,9 +833,11 @@ async function* getChatCompletionStream(
   );
 
   if (!result.ok) {
-    const errorData = await result.json();
+    const errorData = (await result.json().catch(() => null)) as {
+      message?: string;
+    } | null;
 
-    throw new Error(`Completion failed: ${errorData.message}`);
+    throw new Error(`Completion failed: ${errorData?.message ?? "Unknown error"}`);
   }
 
   const reader = result.body?.getReader();
@@ -891,14 +895,19 @@ async function getChatCompletionNonStreaming(
   );
 
   if (!result.ok) {
-    const errorData = await result.json();
-    throw new Error(`Completion failed: ${errorData.message}`);
+    const errorData = (await result.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(`Completion failed: ${errorData?.message ?? "Unknown error"}`);
   }
 
-  const responseData = await result.json();
+  const responseData = (await result.json().catch(() => null)) as {
+    content?: string;
+    reasoning?: string;
+  } | null;
   return {
-    content: responseData.content || "",
-    reasoning: responseData.reasoning,
+    content: responseData?.content || "",
+    reasoning: responseData?.reasoning,
   };
 }
 

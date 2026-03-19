@@ -121,7 +121,13 @@ export default function SignIn({
 
       if (res.ok) {
         // Enterprise SSO found – redirect straight away
-        const { providerId } = await res.json();
+        const data = (await res.json().catch(() => null)) as {
+          providerId?: string;
+        } | null;
+        if (!data?.providerId) {
+          throw new Error("Invalid response from SSO check");
+        }
+        const providerId = data.providerId;
         capture("sign_up:button_click", { provider: "sso_auto" });
 
         // Store the SSO provider as the last used auth method
@@ -167,8 +173,10 @@ export default function SignIn({
       );
 
       if (!res.ok) {
-        const payload = (await res.json()) as { message: string };
-        setFormError(payload.message);
+        const payload = (await res.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        setFormError(payload?.message ?? "An error occurred during sign up.");
         return;
       }
 
