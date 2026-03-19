@@ -1,0 +1,23 @@
+{
+  "8ffb64580a84a3f0": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "json": {
+            "finish_reason": "stop"
+          }
+        }
+      ]
+    }
+  }
+}

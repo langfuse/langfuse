@@ -8,6 +8,7 @@ const path = require("node:path");
  * @property {string} fileNamePrefix
  * @property {string} traceId
  * @property {string} projectId
+ * @property {string} baseUrl
  */
 
 /** @type {TraceToDownload[]} */
@@ -97,6 +98,13 @@ const TRACES_TO_DOWNLOAD = [
     traceId: "0298935e31d66d7de9487cac935d7d99",
     projectId: "cloramnkj0002jz088vzn1ja4",
   },
+  {
+    //from https://github.com/langfuse/langfuse/issues/11307
+    fileNamePrefix: "pydantic-ai-with-gemini",
+    traceId: "f68601af42c4a35e1d5e4699de569c1f",
+    projectId: "cmjjlsmpf01q5ad083m5ud2p5",
+    baseUrl: "https://us.cloud.langfuse.com",
+  },
 ];
 
 async function fetchTrpJsonObject(url) {
@@ -124,7 +132,7 @@ async function fetchTrpJsonObject(url) {
   return trpcJson.result.data.json;
 }
 
-function buildTraceUrl({ traceId, projectId }) {
+function buildTraceUrl({ traceId, projectId, baseUrl }) {
   const input = encodeURIComponent(
     JSON.stringify({
       json: {
@@ -133,10 +141,10 @@ function buildTraceUrl({ traceId, projectId }) {
       },
     }),
   );
-  return `https://cloud.langfuse.com/api/trpc/traces.byIdWithObservationsAndScores?input=${input}`;
+  return `${baseUrl}/api/trpc/traces.byIdWithObservationsAndScores?input=${input}`;
 }
 
-function buildObservationUrl({ observationId, traceId, projectId }) {
+function buildObservationUrl({ observationId, traceId, projectId, baseUrl }) {
   const input = encodeURIComponent(
     JSON.stringify({
       json: {
@@ -146,7 +154,7 @@ function buildObservationUrl({ observationId, traceId, projectId }) {
       },
     }),
   );
-  return `https://cloud.langfuse.com/api/trpc/observations.byId?input=${input}`;
+  return `${baseUrl}/api/trpc/observations.byId?input=${input}`;
 }
 
 //Main
@@ -160,6 +168,7 @@ async function main() {
     const traceUrl = buildTraceUrl({
       traceId: traceToDownload.traceId,
       projectId: traceToDownload.projectId,
+      baseUrl: traceToDownload.baseUrl ?? "https://cloud.langfuse.com",
     });
     const trace = await fetchTrpJsonObject(traceUrl);
 
@@ -180,6 +189,7 @@ async function main() {
           observationId: observation.id,
           traceId: traceToDownload.traceId,
           projectId: traceToDownload.projectId,
+          baseUrl: traceToDownload.baseUrl ?? "https://cloud.langfuse.com",
         });
         return await fetchTrpJsonObject(observationUrl);
       }),
