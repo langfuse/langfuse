@@ -198,10 +198,10 @@ importers:
         version: 6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2)
       '@react-email/components':
         specifier: ^0.5.1
-        version: 0.5.1(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        version: 0.5.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-email/render':
         specifier: ^1.2.1
-        version: 1.2.1(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        version: 1.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@slack/oauth':
         specifier: ^3.0.4
         version: 3.0.4
@@ -249,10 +249,10 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^1.2.15
-        version: 1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62))
+        version: 1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62))
       langfuse-langchain:
         specifier: 3.38.6
-        version: 3.38.6(langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62)))
+        version: 3.38.6(langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62)))
       lodash:
         specifier: ^4.17.23
         version: 4.17.23
@@ -261,7 +261,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=g7rpu2soo4na5splvh6zgnobma)(next@16.2.0(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.3))(react@19.2.3))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+        version: 4.24.13(patch_hash=g7rpu2soo4na5splvh6zgnobma)(next@16.2.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nodemailer:
         specifier: ^7.0.11
         version: 7.0.11
@@ -269,8 +269,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))
       react:
-        specifier: ~19.2.3
-        version: 19.2.3
+        specifier: ~19.2.4
+        version: 19.2.4
       safe-regex2:
         specifier: ^5.0.0
         version: 5.0.0
@@ -309,8 +309,8 @@ importers:
         specifier: ^8.11.10
         version: 8.11.10
       '@types/react':
-        specifier: 19.2.3
-        version: 19.2.3
+        specifier: 19.2.14
+        version: 19.2.14
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8
@@ -6141,9 +6141,6 @@ packages:
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
-  '@types/react@19.2.3':
-    resolution: {integrity: sha512-k5dJVszUiNr1DSe8Cs+knKR6IrqhqdhpUwzqhkS8ecQTSf3THNtbfIp/umqHMpX2bv+9dkx3fwDv/86LcSfvSg==}
-
   '@types/request@2.48.13':
     resolution: {integrity: sha512-FGJ6udDNUCjd19pp0Q3iTiDkwhYup7J8hpMW9c4k53NrccQFFWKRho6hvtPPEhnXWKvukfwAlB6DbDz4yhH5Gg==}
 
@@ -11017,10 +11014,6 @@ packages:
     resolution: {integrity: sha512-8/TFnfx9uedfKEl0fIQhVsKxYtKgxxnrn96Z1BrhTqm4RhrmeGrQIheviCO5+neEzJ0ysBxSzeBJpM2BYaor8w==}
     peerDependencies:
       react: '>=16.8.0'
-
-  react@19.2.3:
-    resolution: {integrity: sha512-Ku/hhYbVjOQnXDZFv2+RibmLFGwFdeeKHFcOTlrt7xplBnya5OGn/hIRDsqDiSUcfORsDC7MPxwork8jBwsIWA==}
-    engines: {node: '>=0.10.0'}
 
   react@19.2.4:
     resolution: {integrity: sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ==}
@@ -16046,15 +16039,15 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@langchain/langgraph-sdk@1.5.5(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@langchain/langgraph-sdk@1.5.5(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       p-queue: 9.1.0
       p-retry: 7.1.1
       uuid: 13.0.0
     optionalDependencies:
       '@langchain/core': 1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))
-      react: 19.2.3
-      react-dom: 19.2.4(react@19.2.3)
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   '@langchain/langgraph@1.1.2(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(zod@3.25.62)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@3.25.62))(zod@3.25.76)':
     dependencies:
@@ -16070,11 +16063,11 @@ snapshots:
       - react
       - react-dom
 
-  '@langchain/langgraph@1.1.2(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62))(zod@3.25.76)':
+  '@langchain/langgraph@1.1.2(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62))(zod@3.25.76)':
     dependencies:
       '@langchain/core': 1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))
-      '@langchain/langgraph-sdk': 1.5.5(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
+      '@langchain/langgraph-sdk': 1.5.5(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@standard-schema/spec': 1.1.0
       uuid: 10.0.0
       zod: 3.25.76
@@ -17871,117 +17864,117 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@react-email/body@0.1.0(react@19.2.3)':
+  '@react-email/body@0.1.0(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/button@0.2.0(react@19.2.3)':
+  '@react-email/button@0.2.0(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/code-block@0.1.0(react@19.2.3)':
+  '@react-email/code-block@0.1.0(react@19.2.4)':
     dependencies:
       prismjs: 1.30.0
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/code-inline@0.0.5(react@19.2.3)':
+  '@react-email/code-inline@0.0.5(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/column@0.0.13(react@19.2.3)':
+  '@react-email/column@0.0.13(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/components@0.5.1(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@react-email/components@0.5.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@react-email/body': 0.1.0(react@19.2.3)
-      '@react-email/button': 0.2.0(react@19.2.3)
-      '@react-email/code-block': 0.1.0(react@19.2.3)
-      '@react-email/code-inline': 0.0.5(react@19.2.3)
-      '@react-email/column': 0.0.13(react@19.2.3)
-      '@react-email/container': 0.0.15(react@19.2.3)
-      '@react-email/font': 0.0.9(react@19.2.3)
-      '@react-email/head': 0.0.12(react@19.2.3)
-      '@react-email/heading': 0.0.15(react@19.2.3)
-      '@react-email/hr': 0.0.11(react@19.2.3)
-      '@react-email/html': 0.0.11(react@19.2.3)
-      '@react-email/img': 0.0.11(react@19.2.3)
-      '@react-email/link': 0.0.12(react@19.2.3)
-      '@react-email/markdown': 0.0.15(react@19.2.3)
-      '@react-email/preview': 0.0.13(react@19.2.3)
-      '@react-email/render': 1.2.1(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
-      '@react-email/row': 0.0.12(react@19.2.3)
-      '@react-email/section': 0.0.16(react@19.2.3)
-      '@react-email/tailwind': 1.2.2(react@19.2.3)
-      '@react-email/text': 0.1.5(react@19.2.3)
-      react: 19.2.3
+      '@react-email/body': 0.1.0(react@19.2.4)
+      '@react-email/button': 0.2.0(react@19.2.4)
+      '@react-email/code-block': 0.1.0(react@19.2.4)
+      '@react-email/code-inline': 0.0.5(react@19.2.4)
+      '@react-email/column': 0.0.13(react@19.2.4)
+      '@react-email/container': 0.0.15(react@19.2.4)
+      '@react-email/font': 0.0.9(react@19.2.4)
+      '@react-email/head': 0.0.12(react@19.2.4)
+      '@react-email/heading': 0.0.15(react@19.2.4)
+      '@react-email/hr': 0.0.11(react@19.2.4)
+      '@react-email/html': 0.0.11(react@19.2.4)
+      '@react-email/img': 0.0.11(react@19.2.4)
+      '@react-email/link': 0.0.12(react@19.2.4)
+      '@react-email/markdown': 0.0.15(react@19.2.4)
+      '@react-email/preview': 0.0.13(react@19.2.4)
+      '@react-email/render': 1.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@react-email/row': 0.0.12(react@19.2.4)
+      '@react-email/section': 0.0.16(react@19.2.4)
+      '@react-email/tailwind': 1.2.2(react@19.2.4)
+      '@react-email/text': 0.1.5(react@19.2.4)
+      react: 19.2.4
     transitivePeerDependencies:
       - react-dom
 
-  '@react-email/container@0.0.15(react@19.2.3)':
+  '@react-email/container@0.0.15(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/font@0.0.9(react@19.2.3)':
+  '@react-email/font@0.0.9(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/head@0.0.12(react@19.2.3)':
+  '@react-email/head@0.0.12(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/heading@0.0.15(react@19.2.3)':
+  '@react-email/heading@0.0.15(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/hr@0.0.11(react@19.2.3)':
+  '@react-email/hr@0.0.11(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/html@0.0.11(react@19.2.3)':
+  '@react-email/html@0.0.11(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/img@0.0.11(react@19.2.3)':
+  '@react-email/img@0.0.11(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/link@0.0.12(react@19.2.3)':
+  '@react-email/link@0.0.12(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/markdown@0.0.15(react@19.2.3)':
+  '@react-email/markdown@0.0.15(react@19.2.4)':
     dependencies:
-      md-to-react-email: 5.0.5(react@19.2.3)
-      react: 19.2.3
+      md-to-react-email: 5.0.5(react@19.2.4)
+      react: 19.2.4
 
-  '@react-email/preview@0.0.13(react@19.2.3)':
+  '@react-email/preview@0.0.13(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/render@1.2.1(react-dom@19.2.4(react@19.2.3))(react@19.2.3)':
+  '@react-email/render@1.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.6.2
-      react: 19.2.3
-      react-dom: 19.2.4(react@19.2.3)
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
       react-promise-suspense: 0.3.4
 
-  '@react-email/row@0.0.12(react@19.2.3)':
+  '@react-email/row@0.0.12(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/section@0.0.16(react@19.2.3)':
+  '@react-email/section@0.0.16(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/tailwind@1.2.2(react@19.2.3)':
+  '@react-email/tailwind@1.2.2(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
-  '@react-email/text@0.1.5(react@19.2.3)':
+  '@react-email/text@0.1.5(react@19.2.4)':
     dependencies:
-      react: 19.2.3
+      react: 19.2.4
 
   '@react-stately/flags@3.1.2':
     dependencies:
@@ -19733,10 +19726,6 @@ snapshots:
       '@types/react': 19.2.14
 
   '@types/react@19.2.14':
-    dependencies:
-      csstype: 3.2.3
-
-  '@types/react@19.2.3':
     dependencies:
       csstype: 3.2.3
 
@@ -23570,10 +23559,10 @@ snapshots:
       - react-dom
       - zod-to-json-schema
 
-  langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62)):
+  langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62)):
     dependencies:
       '@langchain/core': 1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))
-      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62))(zod@3.25.76)
+      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62))(zod@3.25.76)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))
       langsmith: 0.4.12(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))
       uuid: 10.0.0
@@ -23595,9 +23584,9 @@ snapshots:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.38.6(langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62))):
+  langfuse-langchain@3.38.6(langchain@1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62))):
     dependencies:
-      langchain: 1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.3))(react@19.2.3)(zod-to-json-schema@3.23.5(zod@3.25.62))
+      langchain: 1.2.16(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@3.25.62))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.23.5(zod@3.25.62))
       langfuse: 3.38.6
       langfuse-core: 3.38.6
 
@@ -23851,10 +23840,10 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  md-to-react-email@5.0.5(react@19.2.3):
+  md-to-react-email@5.0.5(react@19.2.4):
     dependencies:
       marked: 7.0.4
-      react: 19.2.3
+      react: 19.2.4
 
   mdast-util-find-and-replace@3.0.1:
     dependencies:
@@ -24468,23 +24457,6 @@ snapshots:
     optionalDependencies:
       nodemailer: 7.0.11
 
-  next-auth@4.24.13(patch_hash=g7rpu2soo4na5splvh6zgnobma)(next@16.2.0(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.3))(react@19.2.3))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.3))(react@19.2.3):
-    dependencies:
-      '@babel/runtime': 7.28.4
-      '@panva/hkdf': 1.2.1
-      cookie: 0.7.2
-      jose: 4.15.9
-      next: 16.2.0(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.3))(react@19.2.3)
-      oauth: 0.9.15
-      openid-client: 5.7.1
-      preact: 10.28.2
-      preact-render-to-string: 5.2.6(preact@10.28.2)
-      react: 19.2.3
-      react-dom: 19.2.4(react@19.2.3)
-      uuid: 8.3.2
-    optionalDependencies:
-      nodemailer: 7.0.11
-
   next-query-params@5.1.0(next@16.2.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(use-query-params@2.2.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)):
     dependencies:
       next: 16.2.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -24507,32 +24479,6 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       styled-jsx: 5.1.6(@babel/core@7.28.5)(babel-plugin-macros@3.1.0)(react@19.2.4)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 16.2.0
-      '@next/swc-darwin-x64': 16.2.0
-      '@next/swc-linux-arm64-gnu': 16.2.0
-      '@next/swc-linux-arm64-musl': 16.2.0
-      '@next/swc-linux-x64-gnu': 16.2.0
-      '@next/swc-linux-x64-musl': 16.2.0
-      '@next/swc-win32-arm64-msvc': 16.2.0
-      '@next/swc-win32-x64-msvc': 16.2.0
-      '@opentelemetry/api': 1.9.0
-      '@playwright/test': 1.57.0
-      sharp: 0.34.5
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@16.2.0(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.3))(react@19.2.3):
-    dependencies:
-      '@next/env': 16.2.0
-      '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.9
-      caniuse-lite: 1.0.30001760
-      postcss: 8.4.31
-      react: 19.2.3
-      react-dom: 19.2.4(react@19.2.3)
-      styled-jsx: 5.1.6(react@19.2.3)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.2.0
       '@next/swc-darwin-x64': 16.2.0
@@ -25307,11 +25253,6 @@ snapshots:
       date-fns-jalali: 4.1.0-0
       react: 19.2.4
 
-  react-dom@19.2.4(react@19.2.3):
-    dependencies:
-      react: 19.2.3
-      scheduler: 0.27.0
-
   react-dom@19.2.4(react@19.2.4):
     dependencies:
       react: 19.2.4
@@ -25462,8 +25403,6 @@ snapshots:
   react18-json-view@0.2.8-canary.6(react@19.2.4):
     dependencies:
       react: 19.2.4
-
-  react@19.2.3: {}
 
   react@19.2.4: {}
 
@@ -26280,11 +26219,6 @@ snapshots:
     optionalDependencies:
       '@babel/core': 7.28.5
       babel-plugin-macros: 3.1.0
-
-  styled-jsx@5.1.6(react@19.2.3):
-    dependencies:
-      client-only: 0.0.1
-      react: 19.2.3
 
   stylis@4.2.0: {}
 
