@@ -438,7 +438,7 @@ export function TableViewPresetsDrawer({
                       key={SYSTEM_PRESETS.DEFAULT.id}
                       onSelect={() => handleSetViewId(null)}
                       className={cn(
-                        "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === null && "bg-muted",
                       )}
                       title="Reflects your current table settings without applying any saved custom table views"
@@ -460,7 +460,7 @@ export function TableViewPresetsDrawer({
                       key={preset.id}
                       onSelect={() => handleSelectSystemFilterPreset(preset)}
                       className={cn(
-                        "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === preset.id &&
                           isEqual(
                             normalizeForComparison(currentState.filters),
@@ -502,7 +502,7 @@ export function TableViewPresetsDrawer({
                         key={view.id}
                         onSelect={() => handleSelectView(view)}
                         className={cn(
-                          "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                          "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                           selectedViewId === view.id && "bg-muted",
                         )}
                       >
