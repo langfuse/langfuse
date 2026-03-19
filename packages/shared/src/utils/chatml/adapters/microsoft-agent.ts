@@ -258,6 +258,11 @@ export const microsoftAgentAdapter: ProviderAdapter = {
 
     const scopeName = getNestedProperty(meta, "scope", "name");
     if (scopeName === "agent_framework") return true;
+    if (
+      typeof scopeName === "string" &&
+      scopeName.includes("Microsoft.Extensions.AI")
+    )
+      return true;
     if (scopeName === "pydantic-ai") return false;
 
     const providerName = getNestedProperty(

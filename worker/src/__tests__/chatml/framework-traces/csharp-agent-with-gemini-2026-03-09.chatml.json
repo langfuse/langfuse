@@ -4,13 +4,24 @@
       "success": true,
       "data": [
         {
-          "role": "user"
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
         },
         {
-          "role": "assistant"
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ]
         },
         {
-          "role": "tool"
+          "role": "tool",
+          "content": "{\"response_status\":\"Error\",\"message\":\"ERROR: No data found for dimensions: Campaign and metrics Cost,Displays,Clicks,Ctr,Sales,Cvr.\"}",
+          "tool_call_id": "get_custom_report"
         }
       ]
     },
@@ -19,6 +30,7 @@
       "data": [
         {
           "role": "assistant",
+          "content": "I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\n\n### Parameters\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\n- Attribution model chosen is 30-Day Post Click\n- Currency: EUR\n- Time dimension: Month\n- Dimensions: Campaign\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\n\nPlease let me know if you'd like to try a different date range or different metrics.",
           "json": {
             "finish_reason": "stop"
           }
@@ -31,7 +43,8 @@
       "success": true,
       "data": [
         {
-          "role": "user"
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
         }
       ]
     },
@@ -40,6 +53,14 @@
       "data": [
         {
           "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ],
           "json": {
             "finish_reason": "stop"
           }
@@ -52,16 +73,28 @@
       "success": true,
       "data": [
         {
-          "role": "user"
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
         },
         {
-          "role": "assistant"
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ]
         },
         {
-          "role": "tool"
+          "role": "tool",
+          "content": "{\"response_status\":\"Error\",\"message\":\"ERROR: No data found for dimensions: Campaign and metrics Cost,Displays,Clicks,Ctr,Sales,Cvr.\"}",
+          "tool_call_id": "get_custom_report"
         },
         {
-          "role": "assistant"
+          "role": "assistant",
+          "content": "I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\n\n### Parameters\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\n- Attribution model chosen is 30-Day Post Click\n- Currency: EUR\n- Time dimension: Month\n- Dimensions: Campaign\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\n\nPlease let me know if you'd like to try a different date range or different metrics."
         }
       ]
     },
@@ -70,6 +103,14 @@
       "data": [
         {
           "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "final_result",
+              "name": "final_result",
+              "arguments": "{\"input\":{\"comment\":\"I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\\n\\n### Parameters\\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\\n- Attribution model chosen is 30-Day Post Click\\n- Currency: EUR\\n- Time dimension: Month\\n- Dimensions: Campaign\\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\\n\\nPlease let me know if you'd like to try a different date range or different metrics.\",\"response_status\":\"NoDataFound\",\"follow_up_questions\":[\"Change date range to last month.\",\"Compare CTR across campaigns.\",\"Break down by country.\"]}}",
+              "type": "function"
+            }
+          ],
           "json": {
             "finish_reason": "stop"
           }
