@@ -103,7 +103,7 @@ export default withMiddlewares({
        * RUN ITEM CREATION *
        ********************/
 
-      const createdAt = new Date();
+      const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
 
       const event = {
         id: runItemId,
