@@ -164,6 +164,21 @@ async function main() {
   for (const traceToDownload of TRACES_TO_DOWNLOAD) {
     process.stdout.write(`${traceToDownload.fileNamePrefix}: loading trace `);
 
+    //if trace file already exists, skip downloading to avoid hitting rate limit and also avoid unnecessary downloading
+    const existingFile = fs
+      .readdirSync(__dirname)
+      .find(
+        (f) =>
+          f.startsWith(traceToDownload.fileNamePrefix) &&
+          f.endsWith(".trace.json"),
+      );
+    if (existingFile) {
+      process.stdout.write(
+        `\r${traceToDownload.fileNamePrefix}: trace file ${existingFile} already exists, skipping download\n`,
+      );
+      continue;
+    }
+
     //collect trace and observations
     const traceUrl = buildTraceUrl({
       traceId: traceToDownload.traceId,
