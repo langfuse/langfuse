@@ -68,7 +68,7 @@ export const CopyIdsPopover = ({
           {idItems.map((item) => (
             <div
               key={item.id}
-              className="group hover:bg-muted/50 flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 transition-colors"
+              className="hover:bg-muted/50 group flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 transition-colors"
             >
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-muted-foreground text-xs font-medium">

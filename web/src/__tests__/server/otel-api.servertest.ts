@@ -479,4 +479,89 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       expect(trace!.environment).toBe("production");
     }, 25_000);
   }, 30_000);
+
+  it.each([
+    { input: "langfuse-test", expected: "test" },
+    { input: "langfuse_experiment", expected: "experiment" },
+    { input: "langfuse", expected: "default" },
+    { input: ".invalid!", expected: "default" },
+    {
+      input: "incrediblylongstringwithmorethan40characters",
+      expected: "incrediblylongstringwithmorethan40charac",
+    },
+  ])(
+    "should sanitize invalid environment '$input' to '$expected'",
+    async ({ input, expected }) => {
+      const traceId = randomBytes(16);
+      const spanId = randomBytes(8);
+
+      const payload = {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [
+                {
+                  key: "deployment.environment",
+                  value: { stringValue: input },
+                },
+              ],
+            },
+            scopeSpans: [
+              {
+                scope: {
+                  name: "langfuse-sdk",
+                  version: "2.60.3",
+                  attributes: [
+                    {
+                      key: "public_key",
+                      value: { stringValue: "pk-lf-1234567890" },
+                    },
+                  ],
+                },
+                spans: [
+                  {
+                    traceId,
+                    spanId,
+                    name: "test-span",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466848096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467248096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/otel/v1/traces",
+        payload,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const trace = await getTraceById({
+          projectId,
+          traceId: traceId.toString("hex"),
+        });
+        expect(trace).toBeDefined();
+        expect(trace!.id).toBe(traceId.toString("hex"));
+        expect(trace!.environment).toBe(expected);
+      }, 25_000);
+    },
+    30_000,
+  );
 });

@@ -189,7 +189,9 @@ export class OtelIngestionProcessor {
     ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
 
     // Add queue job
-    const queue = OtelIngestionQueue.getInstance({});
+    const queue = OtelIngestionQueue.getInstance({
+      shardingKey: `${this.projectId}-${fileKey}`,
+    });
     return queue
       ? queue.add(QueueJobs.OtelIngestionJob, {
           id: randomUUID(),
@@ -262,6 +264,9 @@ export class OtelIngestionProcessor {
                     endTimeUnixNano: span.endTimeUnixNano,
                   });
 
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
@@ -272,19 +277,27 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
-                // Extract input/output (filteredAttributes not needed as metadata.attributes is commented out)
-                // Add filteredAttributes in case spanAttributes are included in the metadata block.
-                const { input, output } = this.extractInputAndOutput({
-                  events: span?.events ?? [],
-                  attributes: spanAttributes,
-                  instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                });
+                const { input, output, filteredAttributes } =
+                  this.extractInputAndOutput({
+                    events: span?.events ?? [],
+                    attributes: spanAttributes,
+                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                  });
 
                 // Construct metadata object with the specified structure
+                // Match v3 path: store full scope object (name, version, attributes)
                 const metadata = {
-                  // attributes: filteredAttributes,
+                  ...(isLangfuseSDKSpans
+                    ? {}
+                    : { attributes: filteredAttributes }),
                   resourceAttributes: resourceAttributes,
-                  scopeAttributes: scopeAttributes,
+                  scope: {
+                    ...(scopeSpan.scope || {}),
+                    attributes: scopeAttributes,
+                  },
+                  // Note: top-level user metadata can overwrite `scope` here.
+                  // This preserves the v3 behavior/shape, even though it means
+                  // the instrumentation scope object is not guaranteed to win.
                   ...spanMetadata,
                   ...traceMetadata,
                 };
@@ -1249,6 +1262,8 @@ export class OtelIngestionProcessor {
       // Pydantic AI agent/root span
       "final_result",
       "pydantic_ai.all_messages",
+      // OpenTelemetry system instructions
+      "gen_ai.system_instructions",
       // Pydantic and Pipecat
       "input",
       "output",
@@ -1291,10 +1306,6 @@ export class OtelIngestionProcessor {
         typeof value === "string" ? value : JSON.stringify(value),
       ]),
     );
-
-    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
-    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
-    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
 
     // Langfuse
     input =
@@ -1562,6 +1573,12 @@ export class OtelIngestionProcessor {
     if (instrumentationScopeName === "pydantic-ai") {
       input = attributes["pydantic_ai.all_messages"] ?? null;
       output = attributes["final_result"] ?? null;
+      if (input && attributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          attributes["gen_ai.system_instructions"],
+        );
+      }
       if (input || output) {
         return { input, output, filteredAttributes };
       }
@@ -1629,8 +1646,18 @@ export class OtelIngestionProcessor {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
+    if (input && attributes["gen_ai.system_instructions"]) {
+      input = this.prependSystemInstructions(
+        input,
+        attributes["gen_ai.system_instructions"],
+      );
+    }
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1641,6 +1668,124 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  private appendOtelToolDefinitionsToInput(
+    input: unknown,
+    attributes: Record<string, unknown>,
+  ): unknown {
+    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
+
+    if (!toolDefinitions || input == null) {
+      return input;
+    }
+
+    const mergeToolDefinitions = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        return { messages: value, tools: toolDefinitions };
+      }
+
+      if (typeof value !== "object" || value == null) {
+        return null;
+      }
+
+      const inputObject = value as Record<string, unknown>;
+
+      if (inputObject.tools != null) {
+        return inputObject;
+      }
+
+      return {
+        ...inputObject,
+        tools: toolDefinitions,
+      };
+    };
+
+    if (typeof input === "string") {
+      try {
+        const parsedInput = JSON.parse(input);
+        const mergedInput = mergeToolDefinitions(parsedInput);
+        return mergedInput == null ? input : JSON.stringify(mergedInput);
+      } catch {
+        return input;
+      }
+    }
+
+    return mergeToolDefinitions(input) ?? input;
+  }
+
+  private extractOtelToolDefinitions(
+    attributes: Record<string, unknown>,
+  ): unknown[] | null {
+    const parseJsonString = (value: unknown): unknown => {
+      if (typeof value !== "string") {
+        return value;
+      }
+
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const modelRequestParameters = parseJsonString(
+      attributes["model_request_parameters"],
+    ) as Record<string, unknown> | null;
+
+    const toolDefinitions = parseJsonString(
+      attributes["gen_ai.tool.definitions"] ??
+        modelRequestParameters?.function_tools,
+    );
+
+    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
+  }
+
+  /**
+   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
+   * consistent with how gen_ai.system.message events are mapped.
+   * No-ops if messages already contain a system message.
+   */
+  private prependSystemInstructions(
+    input: unknown,
+    systemInstructions: unknown,
+  ): unknown {
+    try {
+      const messages = typeof input === "string" ? JSON.parse(input) : input;
+      if (!Array.isArray(messages)) return input;
+
+      const hasSystemMessage = messages.some(
+        (msg: Record<string, unknown>) => msg?.role === "system",
+      );
+      if (hasSystemMessage) return input;
+
+      let content: string;
+      try {
+        const parsed =
+          typeof systemInstructions === "string"
+            ? JSON.parse(systemInstructions)
+            : systemInstructions;
+        if (Array.isArray(parsed)) {
+          content = parsed
+            .map((p: Record<string, unknown>) =>
+              typeof p === "object" && p?.content
+                ? String(p.content)
+                : String(p),
+            )
+            .join("\n");
+        } else {
+          content = String(parsed);
+        }
+      } catch {
+        content = String(systemInstructions);
+      }
+
+      const systemMessage = { role: "system", content };
+      const merged = [systemMessage, ...messages];
+      return typeof input === "string" ? JSON.stringify(merged) : merged;
+    } catch {
+      return input;
+    }
   }
 
   private extractEnvironment(
