@@ -51,7 +51,7 @@ export function useEvalConfigFilterOptions({
           })),
           scores_avg: traceFilterOptionsResponse.data.scores_avg,
           score_categories: traceFilterOptionsResponse.data.score_categories,
-          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
+          traceTags: traceFilterOptionsResponse.data.tags?.map((t) => ({
             value: t.value,
           })),
         }

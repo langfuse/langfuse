@@ -301,7 +301,7 @@ export default function TracesTable({
           count: Number(n.count),
         })) ?? undefined,
       // tags don't have counts
-      tags:
+      traceTags:
         traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
@@ -775,7 +775,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "tags",
-      id: "tags",
+      id: "traceTags",
       header: "Tags",
       size: 150,
       headerTooltip: {
@@ -797,7 +797,7 @@ export default function TracesTable({
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("tags");
+        const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags && (
             <div
@@ -1331,7 +1331,7 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            columnsWithCustomSelect={["traceName", "tags"]}
+            columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>
                 traces.data?.traces.map((t) => t.id).includes(traceId),

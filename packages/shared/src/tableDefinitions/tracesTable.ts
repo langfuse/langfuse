@@ -84,10 +84,11 @@ export const tracesOnlyCols: ColumnDefinition[] = [
   },
   {
     name: "Tags",
-    id: "tags",
+    id: "traceTags",
     type: "arrayOptions",
     internal: 't."tags"',
     options: [], // to be filled in at runtime
+    aliases: ["tags"],
   },
 ];
 export const tracesTableCols: ColumnDefinition[] = [
@@ -217,7 +218,7 @@ export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
   traceName?: Array<SingleValueOption>;
-  tags?: Array<SingleValueOption>;
+  traceTags?: Array<SingleValueOption>;
   environment?: Array<SingleValueOption>;
 };
 export type DatasetOptions = {
@@ -248,8 +249,8 @@ export function tracesTableColsWithOptions(
     if (col.id === "traceName") {
       return formatColumnOptions(col, options?.traceName ?? []);
     }
-    if (col.id === "tags") {
-      return formatColumnOptions(col, options?.tags ?? []);
+    if (col.id === "traceTags") {
+      return formatColumnOptions(col, options?.traceTags ?? []);
     }
     if (col.id === "environment") {
       return formatColumnOptions(col, options?.environment ?? []);

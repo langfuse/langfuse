@@ -9,6 +9,7 @@ import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-tr
  */
 export const TRACE_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   traceName: "name",
+  traceTags: "tags",
 };
 
 export const traceFilterConfig: FilterConfig = {
@@ -80,7 +81,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "tags",
+      column: "traceTags",
       label: "Tags",
     },
     {

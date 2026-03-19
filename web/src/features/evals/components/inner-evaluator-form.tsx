@@ -1024,7 +1024,7 @@ export const InnerEvaluatorForm = (props: {
                                 disabled={props.disabled}
                                 columnsWithCustomSelect={
                                   isTraceTarget(target)
-                                    ? ["tags", "traceName"]
+                                    ? ["traceTags", "traceName"]
                                     : isEventTarget(target)
                                       ? ["tags", "name"]
                                       : undefined
