@@ -121,7 +121,7 @@ function FileViewer({
       onClick={openInNewTab}
       aria-label={`Open ${fileName} in new tab`}
       title={fileName}
-      className="group from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
+      className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
     >
       <div className="flex flex-col items-center gap-2">
         {fileType === "image" ? (
