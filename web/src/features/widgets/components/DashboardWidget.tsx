@@ -304,7 +304,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`group bg-background flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
+      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
     >
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>

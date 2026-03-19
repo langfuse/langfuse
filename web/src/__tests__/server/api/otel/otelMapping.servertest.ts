@@ -3746,6 +3746,103 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should map gen_ai.tool.definitions to input.tools for gen_ai.input.messages", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "otel-genai-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.input.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        { role: "user", content: "What is 2 + 2?" },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          type: "function",
+                          name: "calculator",
+                          description: "Do math",
+                          parameters: {
+                            type: "object",
+                            properties: {
+                              expression: { type: "string" },
+                            },
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput.messages).toEqual([
+        { role: "user", content: "What is 2 + 2?" },
+      ]);
+      expect(parsedInput.tools).toEqual([
+        {
+          type: "function",
+          name: "calculator",
+          description: "Do math",
+          parameters: {
+            type: "object",
+            properties: {
+              expression: { type: "string" },
+            },
+          },
+        },
+      ]);
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks

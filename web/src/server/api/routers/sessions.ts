@@ -820,7 +820,7 @@ export const sessionRouter = createTRPCRouter({
         limit,
         offset,
         selectIOAndMetadata: true,
-        renderingProps: { truncated: true, shouldJsonParse: true },
+        renderingProps: { truncated: false, shouldJsonParse: true },
       });
 
       return observations;
