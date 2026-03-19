@@ -301,6 +301,7 @@ export default function EvalLogTable({
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               customRowHeights={evalLogRowHeights}
+              rowHeight={rowHeight}
             />
           </div>
         </ResizableFilterLayout>
