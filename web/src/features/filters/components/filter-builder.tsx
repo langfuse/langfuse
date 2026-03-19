@@ -596,7 +596,10 @@ function FilterBuilderForm({
             <tbody>
               {filterState.map((filter, i) => {
                 const column = columns.find(
-                  (c) => c.id === filter.column || c.name === filter.column,
+                  (c) =>
+                    c.id === filter.column ||
+                    c.name === filter.column ||
+                    c.aliases?.includes(filter.column),
                 );
                 return (
                   <tr key={i}>
