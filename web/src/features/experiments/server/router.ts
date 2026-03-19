@@ -549,20 +549,16 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
+      const count = await getExperimentItemsCountFromEvents({
+        projectId: input.projectId,
+        baseExperimentId: input.baseExperimentId,
+        compExperimentIds: input.compExperimentIds,
+        filterByExperiment: input.filterByExperiment ?? [],
+      });
+
       return {
-        count: 50,
+        count,
       };
-
-      // const count = await getExperimentItemsCountFromEvents({
-      //   projectId: input.projectId,
-      //   baseExperimentId: input.baseExperimentId,
-      //   compExperimentIds: input.compExperimentIds,
-      //   filterByExperiment: input.filterByExperiment ?? [],
-      // });
-
-      // return {
-      //   count,
-      // };
     }),
 
   batchIO: protectedProjectProcedure

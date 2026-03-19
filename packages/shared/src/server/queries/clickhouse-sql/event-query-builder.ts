@@ -1600,6 +1600,12 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     // GROUP BY
     parts.push(`GROUP BY ${this.groupByColumn}`);
 
+    // HAVING
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
+    }
+
     // ORDER BY
     if (this.orderByClause) {
       parts.push(this.orderByClause);
