@@ -1,6 +1,9 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  type CustomHeights,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -34,6 +37,12 @@ export type JobExecutionRow = {
   templateId: string;
   evaluatorId: string;
   error?: string;
+};
+
+const evalLogRowHeights: CustomHeights = {
+  s: "h-8",
+  m: "h-24",
+  l: "h-64",
 };
 
 export default function EvalLogTable({
@@ -74,7 +83,12 @@ export default function EvalLogTable({
       id: "status",
       cell: (row) => {
         const status = row.getValue();
-        return <StatusBadge type={status.toLowerCase()} />;
+        return (
+          <StatusBadge
+            className="w-fit self-start"
+            type={status.toLowerCase()}
+          />
+        );
       },
     }),
     columnHelper.accessor("startTime", {
@@ -286,6 +300,7 @@ export default function EvalLogTable({
               onColumnVisibilityChange={setColumnVisibility}
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
+              customRowHeights={evalLogRowHeights}
             />
           </div>
         </ResizableFilterLayout>

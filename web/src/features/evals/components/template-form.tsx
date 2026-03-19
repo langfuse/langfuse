@@ -38,6 +38,10 @@ import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
+import {
+  getDefaultOutputDefinitionFormValues,
+  shouldReplaceDefaultOutputDefinitionField,
+} from "@/src/features/evals/utils/template-form-defaults";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
@@ -74,7 +78,7 @@ export const EvalTemplateForm = (props: {
   cloneSourceId?: string | null;
 }) => {
   return (
-    <div className="w-full">
+    <div className="max-w-6xl">
       <InnerEvalTemplateForm
         key={props.existingEvalTemplate?.id ?? "new"}
         {...props}
@@ -179,20 +183,11 @@ const formSchema = z
     });
   });
 
-const defaultNumericOutputDefinitionFormValues = {
-  scoreDataType: ScoreDataTypeEnum.NUMERIC,
-  reasoningDescription: "One sentence reasoning for the score",
-  scoreDescription:
-    "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
-  categories: [] as Array<{ value: string }>,
-  shouldAllowMultipleMatches: false,
-};
-
 const toOutputDefinitionFormValues = (
   outputDefinition?: PersistedEvalOutputDefinition,
 ) => {
   if (!outputDefinition) {
-    return defaultNumericOutputDefinitionFormValues;
+    return getDefaultOutputDefinitionFormValues();
   }
 
   const resolvedOutputDefinition = resolvePersistedEvalOutputDefinition(
@@ -320,6 +315,40 @@ export const InnerEvalTemplateForm = (props: {
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
+  const categoriesError = form.formState.errors.categories;
+  const categoriesErrorMessage =
+    typeof categoriesError?.message === "string"
+      ? categoriesError.message
+      : typeof categoriesError?.root?.message === "string"
+        ? categoriesError.root.message
+        : undefined;
+
+  const applyDefaultOutputDefinitionCopy = (params: {
+    scoreDataType:
+      | typeof ScoreDataTypeEnum.NUMERIC
+      | typeof ScoreDataTypeEnum.CATEGORICAL;
+    shouldAllowMultipleMatches: boolean;
+  }) => {
+    const defaults = getDefaultOutputDefinitionFormValues(params);
+
+    if (
+      shouldReplaceDefaultOutputDefinitionField({
+        currentValue: form.getValues("reasoningDescription"),
+        field: "reasoningDescription",
+      })
+    ) {
+      form.setValue("reasoningDescription", defaults.reasoningDescription);
+    }
+
+    if (
+      shouldReplaceDefaultOutputDefinitionField({
+        currentValue: form.getValues("scoreDescription"),
+        field: "scoreDescription",
+      })
+    ) {
+      form.setValue("scoreDescription", defaults.scoreDescription);
+    }
+  };
 
   const extractedVariables = form.watch("prompt")
     ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
@@ -595,10 +624,18 @@ export const InnerEvalTemplateForm = (props: {
                   value={field.value}
                   disabled={!props.isEditing}
                   onValueChange={(value) => {
-                    field.onChange(value);
+                    const nextScoreDataType = value as
+                      | typeof ScoreDataTypeEnum.NUMERIC
+                      | typeof ScoreDataTypeEnum.CATEGORICAL;
+                    const shouldEnableMultipleMatches =
+                      nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL
+                        ? form.getValues("shouldAllowMultipleMatches")
+                        : false;
+
+                    field.onChange(nextScoreDataType);
 
                     if (
-                      value === ScoreDataTypeEnum.CATEGORICAL &&
+                      nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL &&
                       (form.getValues("categories") ?? []).length === 0
                     ) {
                       replace(
@@ -608,6 +645,16 @@ export const InnerEvalTemplateForm = (props: {
                         ),
                       );
                     }
+
+                    if (nextScoreDataType !== ScoreDataTypeEnum.CATEGORICAL) {
+                      form.setValue("shouldAllowMultipleMatches", false);
+                    }
+
+                    applyDefaultOutputDefinitionCopy({
+                      scoreDataType: nextScoreDataType,
+                      shouldAllowMultipleMatches:
+                        shouldEnableMultipleMatches ?? false,
+                    });
                   }}
                 >
                   <FormControl>
@@ -629,6 +676,103 @@ export const InnerEvalTemplateForm = (props: {
             )}
           />
 
+          {isCategoricalOutput ? (
+            <FormField
+              control={form.control}
+              name="categories"
+              render={() => (
+                <FormItem>
+                  <div>
+                    <FormLabel>Categories</FormLabel>
+                    <FormDescription>
+                      Add the allowed category values the model may return.
+                      Categories must be exhaustive. If you need a catch-all
+                      outcome (e.g. &apos;No match&apos;), add it explicitly as
+                      one of the categories.
+                    </FormDescription>
+                  </div>
+                  <div className="space-y-3">
+                    {categoryFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
+                      >
+                        <FormField
+                          control={form.control}
+                          name={`categories.${index}.value`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-muted-foreground text-xs">
+                                Category
+                              </FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!props.isEditing}
+                            onClick={() => remove(index)}
+                          >
+                            <Trash className="text-muted-foreground h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-muted-foreground"
+                    disabled={!props.isEditing}
+                    onClick={() => append({ value: "" })}
+                  >
+                    <PlusIcon className="mr-1.5 h-4 w-4" />
+                    Add category
+                  </Button>
+                  <FormField
+                    control={form.control}
+                    name="shouldAllowMultipleMatches"
+                    render={({ field }) => (
+                      <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked);
+                              applyDefaultOutputDefinitionCopy({
+                                scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
+                                shouldAllowMultipleMatches: Boolean(checked),
+                              });
+                            }}
+                            disabled={!props.isEditing}
+                          />
+                        </FormControl>
+                        <div className="space-y-0.5 leading-none">
+                          <FormLabel>Allow multiple matches</FormLabel>
+                          <FormDescription>
+                            Lets the model return more than one category. One
+                            score will be created for each selected match.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  {categoriesErrorMessage ? (
+                    <p className="text-destructive text-sm font-medium">
+                      {categoriesErrorMessage}
+                    </p>
+                  ) : null}
+                </FormItem>
+              )}
+            />
+          ) : null}
           <FormField
             control={form.control}
             name="reasoningDescription"
@@ -672,96 +816,6 @@ export const InnerEvalTemplateForm = (props: {
               </FormItem>
             )}
           />
-
-          {isCategoricalOutput ? (
-            <FormField
-              control={form.control}
-              name="categories"
-              render={() => (
-                <FormItem>
-                  <div>
-                    <FormLabel>Categories</FormLabel>
-                    <FormDescription>
-                      Add the allowed category values the model may return.
-                      Categories must be exhaustive. If you need a catch-all
-                      outcome, add it explicitly as one of the categories.
-                    </FormDescription>
-                  </div>
-                  <div className="space-y-3">
-                    {categoryFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto]"
-                      >
-                        <FormField
-                          control={form.control}
-                          name={`categories.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Category</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex items-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={!props.isEditing}
-                            onClick={() => remove(index)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="mt-3"
-                    disabled={!props.isEditing}
-                    onClick={() => append({ value: "" })}
-                  >
-                    <PlusIcon className="mr-1.5 h-4 w-4" />
-                    Add category
-                  </Button>
-                  <FormField
-                    control={form.control}
-                    name="shouldAllowMultipleMatches"
-                    render={({ field }) => (
-                      <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={!props.isEditing}
-                          />
-                        </FormControl>
-                        <div className="space-y-0.5 leading-none">
-                          <FormLabel>Allow multiple matches</FormLabel>
-                          <FormDescription>
-                            Lets the model return more than one category. One
-                            score will be created for each selected match.
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  {form.formState.errors.categories?.message ? (
-                    <p className="text-destructive text-sm font-medium">
-                      {form.formState.errors.categories.message}
-                    </p>
-                  ) : null}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ) : null}
         </CardContent>
       </Card>
     </>
@@ -773,7 +827,7 @@ export const InnerEvalTemplateForm = (props: {
         <Button
           type="submit"
           loading={createEvalTemplateMutation.isPending}
-          className="max-w-fit"
+          className="w-full"
         >
           Save
         </Button>

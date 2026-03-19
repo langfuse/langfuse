@@ -186,12 +186,7 @@ export default function EvalsTemplateTable({
         const resultType = row.getValue();
 
         return (
-          <Badge
-            className="w-fit self-start"
-            variant={
-              resultType === "Categorical" ? "secondary" : "outline-solid"
-            }
-          >
+          <Badge className="w-fit self-start" variant="outline-solid">
             {resultType}
           </Badge>
         );
