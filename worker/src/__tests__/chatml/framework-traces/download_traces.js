@@ -167,7 +167,13 @@ async function main() {
     process.stdout.write(
       `\r${traceToDownload.fileNamePrefix}: loading ${trace.observations?.length ?? 0} observations`,
     );
-    trace.observations.sort((a, b) => a.startTime - b.startTime);
+    //stable sort observations: by startTime, then id as tie-breaker
+    trace.observations.sort((a, b) => {
+      if (a.startTime !== b.startTime) {
+        return a.startTime - b.startTime;
+      }
+      return a.id - b.id; // tie-breaker
+    });
     const observations = await Promise.all(
       trace.observations.map(async (observation) => {
         const observationUrl = buildObservationUrl({
