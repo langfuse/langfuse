@@ -661,7 +661,7 @@ export const eventRecordBaseSchema = z.object({
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
-  prompt_version: z.string().nullish(),
+  prompt_version: z.number().nullish(),
 
   // Model
   model_id: z.string().nullish(),
