@@ -7,19 +7,35 @@ import {
 import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
 
 /**
- * Validates if an orderBy state references valid columns
+ * Validates if an orderBy state references valid columns.
+ * Normalizes legacy column IDs (e.g. "name" → "traceName") via aliases.
  */
 export function validateOrderBy(
   orderBy: OrderByState | null,
   columns?: LangfuseColumnDef<any, any>[],
+  filterColumnDefinitions?: ColumnDefinition[],
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
+  // Resolve legacy column IDs via aliases (e.g. "name" → "traceName")
+  let resolvedColumn = orderBy.column;
+  if (filterColumnDefinitions) {
+    const colDef = filterColumnDefinitions.find(
+      (c) =>
+        c.id === orderBy.column ||
+        c.name === orderBy.column ||
+        c.aliases?.includes(orderBy.column),
+    );
+    if (colDef) {
+      resolvedColumn = colDef.id;
+    }
+  }
+
   // Check if the column exists and supports sorting
   const isValid = columns.some(
-    (col) => col.id === orderBy.column && col.enableSorting !== false,
+    (col) => col.id === resolvedColumn && col.enableSorting !== false,
   );
-  return isValid ? orderBy : null;
+  return isValid ? { ...orderBy, column: resolvedColumn } : null;
 }
 
 /**
