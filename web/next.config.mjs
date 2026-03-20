@@ -5,7 +5,6 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-import bundleAnalyzer from "@next/bundle-analyzer";
 
 /**
  * CSP headers
@@ -73,9 +72,7 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
-    // TODO: enable with new next version! 15.6
-    // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
-    // turbopackPersistentCaching: true,
+    turbopackFileSystemCacheForBuild: true,
   },
 
   /**
@@ -242,10 +239,4 @@ const sentryConfig = withSentryConfig(nextConfig, {
   automaticVercelMonitors: false,
 });
 
-// Enable bundle analyzer in analyze mode, otherwise use standard config
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: true, // Open analyzer in browser
-});
-
-export default withBundleAnalyzer(sentryConfig);
+export default sentryConfig;
