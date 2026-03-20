@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { sql } from "kysely";
 import { z } from "zod/v4";
 import {
   JobConfigState,
@@ -58,7 +57,7 @@ import {
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
 } from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -182,34 +181,23 @@ export const createEvalJobs = async ({
   }
 
   // Fetch all configs for a given project. Those may be dataset or trace configs.
-  let configsQuery = kyselyPrisma.$kysely
-    .selectFrom("job_configurations")
-    .selectAll()
-    .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .where(sql.raw("status::text"), "=", "ACTIVE")
-    .where(sql.raw("blocked_at"), "is", null)
-    .where("target_object", "in", [
-      EvalTargetObject.TRACE,
-      EvalTargetObject.DATASET,
-    ]);
-
-  if ("configId" in event) {
-    // if configid is set in the event, we only want to fetch the one config
-    configsQuery = configsQuery.where("id", "=", event.configId);
-  }
-
-  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on configs,
-  // which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
-  if (enforcedJobTimeScope) {
-    configsQuery = configsQuery.where(
-      "time_scope",
-      "@>",
-      sql<string[]>`ARRAY[${enforcedJobTimeScope}]`,
-    );
-  }
-
-  const configs = await configsQuery.execute();
+  const configs = await prisma.jobConfiguration.findMany({
+    where: {
+      jobType: "EVAL",
+      projectId: event.projectId,
+      status: "ACTIVE",
+      blockedAt: null,
+      targetObject: {
+        in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
+      },
+      ...("configId" in event ? { id: event.configId } : {}),
+      // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on configs,
+      // which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
+      ...(enforcedJobTimeScope
+        ? { timeScope: { has: enforcedJobTimeScope } }
+        : {}),
+    },
+  });
 
   if (configs.length === 0) {
     logger.debug(
@@ -299,7 +287,7 @@ export const createEvalJobs = async ({
   // This should increase throughput, but will also put more pressure on ClickHouse.
   // Will keep it as-is for now, but that might be a useful change.
   const datasetConfigs = configs.filter(
-    (c) => c.target_object === EvalTargetObject.DATASET,
+    (c) => c.targetObject === EvalTargetObject.DATASET,
   );
   let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
   if (datasetConfigs.length > 1) {
@@ -343,18 +331,19 @@ export const createEvalJobs = async ({
 
   const allExistingJobs =
     configIds.length > 0
-      ? await kyselyPrisma.$kysely
-          .selectFrom("job_executions")
-          .select([
-            "id",
-            "job_configuration_id",
-            "job_input_dataset_item_id",
-            "job_input_observation_id",
-          ])
-          .where("project_id", "=", event.projectId)
-          .where("job_input_trace_id", "=", event.traceId)
-          .where("job_configuration_id", "in", configIds)
-          .execute()
+      ? await prisma.jobExecution.findMany({
+          select: {
+            id: true,
+            jobConfigurationId: true,
+            jobInputDatasetItemId: true,
+            jobInputObservationId: true,
+          },
+          where: {
+            projectId: event.projectId,
+            jobInputTraceId: event.traceId,
+            jobConfigurationId: { in: configIds },
+          },
+        })
       : [];
 
   logger.debug(
@@ -369,9 +358,9 @@ export const createEvalJobs = async ({
   ) => {
     return allExistingJobs.find(
       (job) =>
-        job.job_configuration_id === configId &&
-        job.job_input_dataset_item_id === datasetItemId &&
-        job.job_input_observation_id === observationId,
+        job.jobConfigurationId === configId &&
+        job.jobInputDatasetItemId === datasetItemId &&
+        job.jobInputObservationId === observationId,
     );
   };
 
@@ -399,7 +388,7 @@ export const createEvalJobs = async ({
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
     const traceFilter =
-      config.target_object === EvalTargetObject.TRACE ? validatedFilter : [];
+      config.targetObject === EvalTargetObject.TRACE ? validatedFilter : [];
     if (cachedTrace && !requiresDatabaseLookup(traceFilter)) {
       // Evaluate filter in memory using the cached trace
       traceExists = InMemoryFilterService.evaluateFilter(
@@ -466,16 +455,14 @@ export const createEvalJobs = async ({
       exists: String(traceExists),
     });
 
-    const isDatasetConfig = config.target_object === EvalTargetObject.DATASET;
+    const isDatasetConfig = config.targetObject === EvalTargetObject.DATASET;
     let datasetItem:
       | { id: string }
       | { id: string; observationId: string | null; validFrom?: Date }
       | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
-        config.target_object === EvalTargetObject.DATASET
-          ? validatedFilter
-          : [],
+        config.targetObject === EvalTargetObject.DATASET ? validatedFilter : [],
         evalDatasetFormFilterCols,
         "dataset_items",
       );
@@ -518,7 +505,7 @@ export const createEvalJobs = async ({
           datasetItem = cachedDatasetItemIds.find((di) =>
             InMemoryFilterService.evaluateFilter(
               di,
-              config.target_object === EvalTargetObject.DATASET
+              config.targetObject === EvalTargetObject.DATASET
                 ? validatedFilter
                 : [],
               mapDatasetRunItemFilterColumn,
@@ -529,7 +516,7 @@ export const createEvalJobs = async ({
             projectId: event.projectId,
             traceId: event.traceId,
             filter:
-              config.target_object === EvalTargetObject.DATASET
+              config.targetObject === EvalTargetObject.DATASET
                 ? validatedFilter
                 : [],
           });
@@ -603,9 +590,9 @@ export const createEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
-      if (parseFloat(config.sampling) !== 1) {
+      if (Number(config.sampling) !== 1) {
         const random = Math.random();
-        if (random > parseFloat(config.sampling)) {
+        if (random > Number(config.sampling)) {
           logger.debug(
             `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
           );
@@ -624,7 +611,7 @@ export const createEvalJobs = async ({
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
           jobInputTraceTimestamp: traceTimestamp,
-          jobTemplateId: config.eval_template_id,
+          jobTemplateId: config.evalTemplateId,
           status: "PENDING",
           startTime: new Date(),
           ...(datasetItem
@@ -1148,23 +1135,16 @@ export async function extractVariablesFromTracingData({
         continue;
       }
 
-      let query = kyselyPrisma.$kysely
-        .selectFrom("dataset_items as d")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        )
-        .where("id", "=", datasetItemId)
-        .where("project_id", "=", projectId);
-
-      // Conditional: exact match if version known, otherwise latest
-      if (datasetItemValidFrom) {
-        query = query.where("valid_from", "=", datasetItemValidFrom);
-      } else {
-        query = query.where("valid_to", "is", null);
-      }
-      const datasetItem = (await query.executeTakeFirst()) as DatasetItem;
+      const datasetItem = await prisma.datasetItem.findFirst({
+        where: {
+          id: datasetItemId,
+          projectId,
+          // Conditional: exact match if version known, otherwise latest
+          ...(datasetItemValidFrom
+            ? { validFrom: datasetItemValidFrom }
+            : { validTo: null }),
+        },
+      });
 
       // user facing errors
       if (!datasetItem) {

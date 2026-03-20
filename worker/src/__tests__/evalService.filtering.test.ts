@@ -3,11 +3,7 @@ import {
   singleFilter,
   EvalTargetObject,
 } from "@langfuse/shared";
-import {
-  JobConfiguration,
-  kyselyPrisma,
-  prisma,
-} from "@langfuse/shared/src/db";
+import { JobConfiguration, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
@@ -53,11 +49,9 @@ type TraceRecordOmitProjectIdAndId = Partial<
 >;
 
 const __getJobs = (projectId: string) =>
-  kyselyPrisma.$kysely
-    .selectFrom("job_executions")
-    .selectAll()
-    .where("project_id", "=", projectId)
-    .execute();
+  prisma.jobExecution.findMany({
+    where: { projectId },
+  });
 
 type JobExecutions = Awaited<ReturnType<typeof __getJobs>>;
 

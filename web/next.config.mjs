@@ -59,7 +59,6 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
-    "kysely",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,

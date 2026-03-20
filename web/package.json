@@ -125,7 +125,6 @@
     "ioredis": "^5.8.2",
     "ip-address": "^9.0.5",
     "json-schema-faker": "^0.5.9",
-    "kysely": "^0.27.4",
     "langchain": "^1.2.15",
     "langfuse": "3.38.4",
     "lodash": "^4.17.23",
