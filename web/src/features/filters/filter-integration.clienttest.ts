@@ -598,8 +598,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     });
   });
 
-  it("should handle backend column remapping from URL", () => {
-    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+  it("should normalize legacy tags filter from URL to the canonical traceTags column", () => {
     const urlFilter = "tags;arrayOptions;;any of;tag1";
 
     const normalized = decodeAndNormalizeFilters(
@@ -607,9 +606,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
       traceFilterConfig.columnDefinitions,
     );
 
-    const result = transformFiltersForBackend(normalized, {
-      tags: "traceTags",
-    });
+    const result = transformFiltersForBackend(normalized, {});
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");

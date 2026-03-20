@@ -73,11 +73,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
-  traceFilterConfig,
-  TRACE_COLUMN_TO_BACKEND_KEY,
-} from "@/src/features/filters/config/traces-config";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -348,16 +344,6 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
-  const backendFilterState = useMemo(
-    () =>
-      transformFiltersForBackend(
-        filterState,
-        TRACE_COLUMN_TO_BACKEND_KEY,
-        traceFilterConfig.columnDefinitions,
-      ),
-    [filterState],
-  );
-
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -369,7 +355,7 @@ export default function TracesTable({
 
   const tracesAllCountFilter = {
     projectId,
-    filter: backendFilterState,
+    filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
     page: 0,
@@ -399,7 +385,7 @@ export default function TracesTable({
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
-      filter: backendFilterState,
+      filter: filterState,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
     },
     {
@@ -497,7 +483,7 @@ export default function TracesTable({
       projectId,
       traceIds: selectedTraceIds,
       query: {
-        filter: backendFilterState,
+        filter: filterState,
         orderBy: orderByState,
         searchQuery: searchQuery || undefined,
         searchType,
@@ -525,7 +511,7 @@ export default function TracesTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: backendFilterState,
+        filter: filterState,
         orderBy: orderByState,
       },
     });
@@ -1350,7 +1336,7 @@ export default function TracesTable({
               <BatchExportTableButton
                 {...{
                   projectId,
-                  filterState: backendFilterState,
+                  filterState,
                   orderByState,
                   searchQuery,
                   searchType,

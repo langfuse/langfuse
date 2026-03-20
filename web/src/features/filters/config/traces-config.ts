@@ -1,16 +1,5 @@
 import { tracesTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-
-/**
- * Maps frontend column IDs to backend-expected column IDs for traces table.
- * The traces column definition uses "traceName" as the column ID (matching v4 events convention),
- * but the backend ClickHouse mapping expects "name" for the traces table.
- */
-export const TRACE_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  traceName: "name",
-  traceTags: "tags",
-};
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
