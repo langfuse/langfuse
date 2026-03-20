@@ -162,7 +162,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           score: "A number between 0 and 1",
           reasoning: "Explanation",
         },
@@ -391,7 +391,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: { score: "0-1", reasoning: "Why" },
+        outputDefinition: { score: "0-1", reasoning: "Why" },
         vars: ["question", "answer"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -491,7 +491,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: { score: "0-1", reasoning: "Why" },
+        outputDefinition: { score: "0-1", reasoning: "Why" },
         vars: ["generated", "expected"],
         createdAt: new Date(),
         updatedAt: new Date(),
