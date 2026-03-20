@@ -9,5 +9,9 @@ RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/
 # Install pnpm globally
 RUN npm install -g pnpm@9.5.0
 
+# Install Clickhouse
+RUN curl https://clickhouse.com/ | sh && \
+    sudo ./clickhouse install
+
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
