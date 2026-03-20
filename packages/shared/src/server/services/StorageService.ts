@@ -1067,8 +1067,8 @@ class OCIObjectStorageService implements StorageService {
 
       case "oci_profile": {
         provider = new common.ConfigFileAuthenticationDetailsProvider(
-          env.OCI_CONFIG_FILE,
-          env.OCI_CONFIG_PROFILE,
+          env.LANGFUSE_OCI_CONFIG_FILE,
+          env.LANGFUSE_OCI_CONFIG_PROFILE,
         );
 
         break;
@@ -1076,8 +1076,8 @@ class OCIObjectStorageService implements StorageService {
 
       case "session_token": {
         provider = new common.SessionAuthDetailProvider(
-          env.OCI_CONFIG_FILE,
-          env.OCI_CONFIG_PROFILE,
+          env.LANGFUSE_OCI_CONFIG_FILE,
+          env.LANGFUSE_OCI_CONFIG_PROFILE,
         );
 
         break;
@@ -1280,6 +1280,20 @@ class OCIObjectStorageService implements StorageService {
       );
       handleStorageError(err, "upload file to OCI Object Storage ");
     }
+  }
+
+  public async uploadFileBuffered({
+    fileName,
+    fileType,
+    data,
+    partSizeBytes,
+  }: UploadFileBuffered): Promise<void> {
+    await this.uploadFile({
+      fileName,
+      fileType,
+      data,
+      partSize: partSizeBytes,
+    });
   }
 
   public async uploadWithSignedUrl({
