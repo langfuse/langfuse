@@ -50,7 +50,6 @@ import {
   variableMapping,
   TraceDomain,
   Observation,
-  DatasetItem,
   EvalTargetObject,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
