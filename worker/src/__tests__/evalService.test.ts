@@ -815,7 +815,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      await prisma.datasetRun.create({
+      await prisma.datasetRuns.create({
         data: {
           id: datasetRunId,
           name: randomUUID(),
@@ -1573,7 +1573,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       });
 
       // Used if ClickHouse reads are disabled.
-      await prisma.datasetRun.create({
+      await prisma.datasetRuns.create({
         data: {
           id: datasetRunId,
           projectId,
@@ -3047,7 +3047,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      await prisma.datasetRun.create({
+      await prisma.datasetRuns.create({
         data: {
           id: datasetRunId,
           name: randomUUID(),

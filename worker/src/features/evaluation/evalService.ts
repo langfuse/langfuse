@@ -1276,12 +1276,18 @@ export async function extractVariablesFromTracingData({
   return results;
 }
 
+const snakeToCamel = (s: string) =>
+  s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+
 export const parseDatabaseRowToString = (
   dbRow: Record<string, unknown>,
 
   mapping: z.infer<typeof variableMapping>,
 ): string => {
-  const selectedColumn = dbRow[mapping.selectedColumnId];
+  // Prisma returns camelCase keys, but selectedColumnId may be snake_case
+  const selectedColumn =
+    dbRow[mapping.selectedColumnId] ??
+    dbRow[snakeToCamel(mapping.selectedColumnId)];
 
   let jsonSelectedColumn;
 
