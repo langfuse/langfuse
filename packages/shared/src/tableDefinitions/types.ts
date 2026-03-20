@@ -47,7 +47,7 @@ export type ColumnDefinition =
       options: Array<SingleValueOption>;
       internal: string;
       nullable?: boolean;
-      aliases?: string[];
+      aliases?: string[]; // Used for backward compatibility with legacy column names, e.g. "traces.name" → "traces.traceName"
     }
   | {
       name: string;
