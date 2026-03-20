@@ -160,7 +160,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 
 ### Code Conventions
 - **Pages Router** (not App Router)
-- Follow conventional commits on main branch
+- Commit messages and PR titles must follow Conventional Commits (`type(scope): description` or `type: description`); PR titles are validated in `.github/workflows/validate-pr-title.yml`
 - Use CSS variables for theming (supports auto dark/light mode)
 - TypeScript throughout
 - Zod v4 for all input validation

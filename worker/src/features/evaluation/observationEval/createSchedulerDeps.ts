@@ -57,7 +57,8 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     },
 
     enqueueEvalJob: async (params) => {
-      const queue = LLMAsJudgeExecutionQueue.getInstance();
+      const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
+      const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
       if (!queue) {
         throw new Error("LLMAsJudgeExecutionQueue is not initialized");
       }

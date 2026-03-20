@@ -76,21 +76,6 @@ import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-/**
- * Attempt to command the legacy events table.
- * Skips if env toggle is off; swallows errors if the table no longer exists.
- */
-async function commandLegacyEventsTable(
-  opts: Parameters<typeof commandClickhouse>[0],
-): Promise<void> {
-  if (env.LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS !== "true") return;
-  try {
-    await commandClickhouse(opts);
-  } catch (e) {
-    logger.warn("Legacy events table command failed (table may not exist)", e);
-  }
-}
-
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
@@ -1505,7 +1490,6 @@ export const updateEvents = async (
   await Promise.all([
     commandClickhouse(updateOpts("events_full")),
     commandClickhouse(updateOpts("events_core")),
-    commandLegacyEventsTable(updateOpts("events")),
   ]);
 };
 
@@ -2412,7 +2396,6 @@ export const deleteEventsByTraceIds = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 };
 
@@ -2464,7 +2447,6 @@ export const deleteEventsByProjectId = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;
@@ -2486,8 +2468,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
       e.name as name,
       e.start_time as start_time,
       e.end_time as end_time,
-      mapFromArrays(e.metadata_names, e.metadata_values)['langgraph_node'] AS node,
-      mapFromArrays(e.metadata_names, e.metadata_values)['langgraph_step'] AS step
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
     FROM events_core e
     WHERE
       e.project_id = {projectId: String}
@@ -2579,7 +2561,6 @@ export const deleteEventsOlderThanDays = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;
@@ -2625,7 +2606,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       e.span_id as id,
       ${inputSelect},
       ${outputSelect},
-      mapFromArrays(e.metadata_names, e.metadata_values) as metadata
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
       AND e.span_id IN {observationIds: Array(String)}
@@ -2966,8 +2947,8 @@ export const getEventsForAnalyticsIntegrations = async function* (
       "e.usage_details['output'] as output_tokens",
       "e.usage_details['total'] as total_tokens",
       // Analytics integration session IDs from metadata (constructed from array columns)
-      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$posthog_session_id'] as posthog_session_id",
-      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$mixpanel_session_id'] as mixpanel_session_id",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$posthog_session_id'] as posthog_session_id",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['$mixpanel_session_id'] as mixpanel_session_id",
     )
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
@@ -3122,9 +3103,9 @@ export const getAvgCostByEvaluatorIds = async (
   const builder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn:
-      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id']",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id']",
     selectExpression: [
-      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id'] as evaluator_id",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id'] as evaluator_id",
       "avg(e.total_cost) as avg_cost",
       "count(*) as execution_count",
     ].join(", "),
@@ -3132,7 +3113,7 @@ export const getAvgCostByEvaluatorIds = async (
     .whereRaw("e.type = 'GENERATION'")
     .whereRaw("has(e.metadata_names, 'job_configuration_id')")
     .whereRaw(
-      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id'] IN ({evaluatorIds: Array(String)})",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id'] IN ({evaluatorIds: Array(String)})",
       { evaluatorIds },
     )
     .whereRaw("e.start_time > today() - 7");
