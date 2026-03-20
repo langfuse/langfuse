@@ -1289,7 +1289,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -1819,7 +1819,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -1908,7 +1908,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -2001,7 +2001,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -2097,7 +2097,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -2169,7 +2169,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -2275,7 +2275,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           model: "gpt-3.5-turbo",
           provider: "openai",
           modelParams: {},
-          outputSchema: {
+          outputDefinition: {
             reasoning: "Please explain your reasoning",
             score: "Please provide a score between 0 and 1",
           },
@@ -3239,18 +3239,17 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      await kyselyPrisma.$kysely
-        .insertInto("llm_api_keys")
-        .values({
+      await prisma.llmApiKeys.create({
+        data: {
           id: randomUUID(),
-          project_id: projectId,
-          secret_key: encrypt(String(OPENAI_API_KEY)),
+          projectId,
+          secretKey: encrypt(String(OPENAI_API_KEY)),
           provider: "openai",
           adapter: LLMAdapter.OpenAI,
-          custom_models: [],
-          display_secret_key: "123456",
-        })
-        .execute();
+          customModels: [],
+          displaySecretKey: "123456",
+        },
+      });
 
       await evaluate({
         event: {
