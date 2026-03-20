@@ -3096,7 +3096,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           prompt: "Please evaluate: {{input}}",
           version: 1,
           vars: ["input"],
-          outputSchema: {
+          outputDefinition: {
             score: "score",
             reasoning: "reasoning",
           },
@@ -3169,6 +3169,108 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       });
       expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
+  });
+
+  describe("legacy eval output definition backward compatibility", () => {
+    test("executes a legacy numeric outputDefinition template", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const jobExecutionId = randomUUID();
+      const templateId = randomUUID();
+
+      vi.mocked(fetchLLMCompletion).mockResolvedValueOnce({
+        score: 0,
+        reasoning: "The response is safe and not toxic.",
+      });
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.evalTemplate.create({
+        data: {
+          id: templateId,
+          name: "legacy-output-definition-template",
+          projectId,
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          version: 1,
+          vars: ["input", "output"],
+          outputDefinition: {
+            score: "Please provide a score between 0 and 1",
+            reasoning: "Please explain your reasoning",
+          },
+        },
+      });
+
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "legacy-score",
+          variableMapping: JSON.parse("[]"),
+          status: "ACTIVE",
+          evalTemplateId: templateId,
+        },
+      });
+
+      await prisma.jobExecution.create({
+        data: {
+          id: jobExecutionId,
+          projectId,
+          jobConfigurationId: jobConfiguration.id,
+          jobInputTraceId: traceId,
+          jobTemplateId: templateId,
+          status: "PENDING",
+          startTime: new Date(),
+        },
+      });
+
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: projectId,
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
+      await evaluate({
+        event: {
+          projectId,
+          jobExecutionId,
+        },
+      });
+
+      const updatedJobExecution = await prisma.jobExecution.findUnique({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+      });
+
+      expect(updatedJobExecution?.status).toBe("COMPLETED");
+      expect(updatedJobExecution?.jobOutputScoreId).toBeTruthy();
+      expect(updatedJobExecution?.executionTraceId).toBeTruthy();
+      expect(updatedJobExecution?.endTime).not.toBeNull();
+    }, 20_000);
   });
 
   describe("internal trace environment filtering", () => {

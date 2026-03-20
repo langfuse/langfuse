@@ -254,7 +254,7 @@ export function createMockEvalTemplate(
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
-    outputSchema: Record<string, string>;
+    outputDefinition: Record<string, string>;
     vars: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -271,7 +271,7 @@ export function createMockEvalTemplate(
     model: overrides.model ?? "gpt-4",
     provider: overrides.provider ?? "openai",
     modelParams: overrides.modelParams ?? {},
-    outputSchema: overrides.outputSchema ?? {
+    outputDefinition: overrides.outputDefinition ?? {
       score: "A number between 0 and 1",
       reasoning: "Explain your reasoning",
     },

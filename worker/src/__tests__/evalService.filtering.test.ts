@@ -121,7 +121,7 @@ const test = baseTest.extend<{
         provider: "openai",
         modelParams: { temperature: 0 },
         vars: [],
-        outputSchema: {
+        outputDefinition: {
           type: "object",
           properties: { score: { type: "number" } },
         },
