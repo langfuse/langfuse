@@ -24,7 +24,7 @@ function DraggableColumn({ column }: { column: CsvColumnPreview }) {
       {...listeners}
       {...attributes}
       className={cn(
-        "group bg-background hover:border-primary hover:bg-accent flex cursor-grab items-center gap-2 rounded-md border p-2 active:cursor-grabbing",
+        "bg-background hover:border-primary hover:bg-accent group flex cursor-grab items-center gap-2 rounded-md border p-2 active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
     >

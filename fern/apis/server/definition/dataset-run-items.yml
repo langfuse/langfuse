@@ -51,6 +51,9 @@ types:
           Specifies the dataset version to use for this experiment run. 
           If provided, the experiment will use dataset items as they existed at or before this timestamp.
           If not provided, uses the latest version of dataset items.
+      createdAt:
+        type: optional<datetime>
+        docs: Optional timestamp to set the createdAt field of the dataset run item. If not provided or null, defaults to current timestamp.
   PaginatedDatasetRunItems:
     properties:
       data: list<commons.DatasetRunItem>

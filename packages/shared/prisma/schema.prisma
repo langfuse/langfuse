@@ -1035,8 +1035,6 @@ model JobExecution {
   executionTraceId String? @map("execution_trace_id")
 
   @@index([projectId, jobConfigurationId, jobInputTraceId])
-  @@index([projectId, status])
-  @@index([projectId, id])
   @@index([projectId, jobOutputScoreId])
   @@map("job_executions")
 }
@@ -1129,6 +1127,9 @@ model BlobStorageIntegration {
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
+
+  // Notification tracking
+  lastFailureNotificationSentAt DateTime? @map("last_failure_notification_sent_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
