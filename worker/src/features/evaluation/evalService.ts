@@ -1134,7 +1134,9 @@ export async function extractVariablesFromTracingData({
         continue;
       }
 
+      const prismaField = snakeToCamel(safeInternalColumn.id);
       const datasetItem = await prisma.datasetItem.findFirst({
+        select: { [prismaField]: true },
         where: {
           id: datasetItemId,
           projectId,
