@@ -375,11 +375,20 @@ export async function updateOrgBillingCycleAnchor(
   });
 }
 
-const DEFAULT_SPEND_ALERT_THRESHOLDS: Partial<Record<Plan, number[]>> = {
-  "cloud:core": [200],
-  "cloud:pro": [1000],
-  "cloud:team": [1000],
-  "cloud:enterprise": [2000],
+type PlanWithoutSpendAlerts =
+  | "oss"
+  | "cloud:hobby"
+  | "self-hosted:pro"
+  | "self-hosted:enterprise";
+
+const DEFAULT_SPEND_ALERT_THRESHOLDS: Record<
+  Exclude<Plan, PlanWithoutSpendAlerts>,
+  number
+> = {
+  "cloud:core": 200,
+  "cloud:pro": 1000,
+  "cloud:team": 1000,
+  "cloud:enterprise": 2000,
 };
 
 export async function createDefaultSpendAlerts({
@@ -389,16 +398,22 @@ export async function createDefaultSpendAlerts({
   orgId: string;
   productId: string;
 }) {
-  const plan = mapStripeProductIdToPlan(productId);
+  const plan = mapStripeProductIdToPlan(productId) as Exclude<
+    Plan,
+    PlanWithoutSpendAlerts
+  >;
   if (!plan) {
-    logger.info(
+    logger.error(
       `[Stripe Webhook] createDefaultSpendAlerts: Unknown product ID ${productId}, skipping`,
     );
     return;
   }
 
-  const thresholds = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
-  if (!thresholds || thresholds.length === 0) {
+  const threshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
+  if (!threshold) {
+    logger.error(
+      `[Stripe Webhook] createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
+    );
     return;
   }
 
@@ -414,30 +429,28 @@ export async function createDefaultSpendAlerts({
     return;
   }
 
-  for (const threshold of thresholds) {
-    const alert = await prisma.cloudSpendAlert.create({
-      data: {
-        orgId,
-        title: `Spend alert ($${threshold})`,
-        threshold,
-      },
-    });
-
-    void auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId,
-      },
+  const alert = await prisma.cloudSpendAlert.create({
+    data: {
       orgId,
-      resourceType: "cloudSpendAlert",
-      resourceId: alert.id,
-      action: "create",
-      after: alert,
-    });
-  }
+      title: `Default Spend alert ($${threshold})`,
+      threshold,
+    },
+  });
+
+  await auditLog({
+    session: {
+      user: { id: "stripe-webhook" },
+      orgId,
+    },
+    orgId,
+    resourceType: "cloudSpendAlert",
+    resourceId: alert.id,
+    action: "create",
+    after: alert,
+  });
 
   logger.info(
-    `[Stripe Webhook] createDefaultSpendAlerts: Created ${thresholds.length} default alert(s) for org ${orgId} on plan ${plan}`,
+    `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
   );
 }
 
