@@ -6,6 +6,7 @@ import {
   ExperimentComparisonSelector,
   type ExperimentOption,
 } from "./ExperimentComparisonSelector";
+import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 
 type ExperimentOverviewPanelProps = {
   projectId: string;
@@ -26,6 +27,9 @@ type ExperimentOverviewPanelProps = {
   onComparisonSearchQueryChange: (query: string) => void;
   availableExperiments: ExperimentOption[];
   isLoadingExperiments?: boolean;
+  // Baseline controls props
+  onBaselineChange: (id: string) => void;
+  onBaselineClear: () => void;
 };
 
 export function ExperimentOverviewPanel({
@@ -37,6 +41,8 @@ export function ExperimentOverviewPanel({
   onComparisonSearchQueryChange,
   availableExperiments,
   isLoadingExperiments = false,
+  onBaselineChange,
+  onBaselineClear,
 }: ExperimentOverviewPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
@@ -128,6 +134,19 @@ export function ExperimentOverviewPanel({
           <div className="text-muted-foreground text-xs">Start Time</div>
           <LocalIsoDate date={experiment.startTime} />
         </div>
+      </div>
+
+      {/* Baseline Controls */}
+      <div className="border-t pt-4">
+        <h4 className="mb-2 text-sm font-medium">Baseline</h4>
+        <ExperimentBaselineControls
+          baselineId={experiment.id}
+          baselineName={experiment.name}
+          availableExperiments={availableExperiments}
+          onBaselineChange={onBaselineChange}
+          onBaselineClear={onBaselineClear}
+          isLoading={isLoadingExperiments}
+        />
       </div>
 
       {/* Comparison Selector */}

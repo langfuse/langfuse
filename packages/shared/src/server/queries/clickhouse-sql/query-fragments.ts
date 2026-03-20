@@ -152,12 +152,16 @@ export const buildScoresAggregationCTE = (
 interface EventsScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
+  hasScoreAggregationFilters?: boolean;
   includeTupleEncoding?: boolean;
 }
 
 /**
  * Scores CTE for events table queries.
  * Aggregates numeric and categorical scores for observations.
+ *
+ * When hasScoreAggregationFilters is true, uses nested subquery structure
+ * with pre-aggregation to enable proper array filtering on scores_avg/score_categories.
  *
  * Returns a query and params object that can be passed directly to withCTE.
  */

@@ -552,14 +552,14 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
                 if (event && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
                   const experimentId = row.id;
-                  const experimentUrl = `/project/${projectId}/experiments/${encodeURIComponent(experimentId)}`;
+                  const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
                   const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
                   window.open(fullUrl, "_blank");
                 }
                 // For normal clicks, navigate to experiment detail page
                 else {
                   void router.push(
-                    `/project/${projectId}/experiments/${encodeURIComponent(row.id)}`,
+                    `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
                   );
                 }
               }}

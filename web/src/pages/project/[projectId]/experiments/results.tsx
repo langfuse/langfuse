@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Button } from "@/src/components/ui/button";
 import { MoreVertical } from "lucide-react";
 import {
@@ -19,21 +18,35 @@ import {
   OverviewPanelToggle,
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useExperimentComparisonState } from "@/src/features/experiments/hooks/useExperimentComparisonState";
+import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 
-export default function ExperimentDetail() {
+export default function ExperimentResults() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const experimentId = router.query.experimentId as string;
+
+  // URL state for experiment results
+  const {
+    baselineId,
+    setBaseline,
+    clearBaseline,
+    comparisonIds,
+    setComparisonIds,
+  } = useExperimentResultsState();
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
     true,
   );
 
-  // URL state for experiment comparison
-  const { comparisonIds, setComparisonIds } = useExperimentComparisonState();
   const [comparisonSearchQuery, setComparisonSearchQuery] = useState("");
+
+  // Redirect to experiments list if no baseline is provided
+  const isLoading = !router.isReady;
+  useEffect(() => {
+    if (!baselineId && !isLoading) {
+      void router.push(`/project/${projectId}/experiments`);
+    }
+  }, [baselineId, projectId, router, isLoading]);
 
   // TODO: Replace with actual query - api.experiments.byDatasetId.useQuery(...)
   // Mock data for testing the comparison selector UI
@@ -68,10 +81,10 @@ export default function ExperimentDetail() {
   const { data: experiment } = api.experiments.byId.useQuery(
     {
       projectId,
-      experimentId,
+      experimentId: baselineId ?? "",
     },
     {
-      enabled: Boolean(projectId && experimentId),
+      enabled: Boolean(projectId && baselineId),
     },
   );
 
@@ -103,10 +116,24 @@ export default function ExperimentDetail() {
     return result;
   }, [experiment, comparisonIds, availableExperiments]);
 
+  // Show loading state while redirecting
+  if (!baselineId) {
+    return (
+      <Page
+        headerProps={{
+          title: "Experiment Results",
+          itemType: "EXPERIMENT",
+        }}
+      >
+        <div className="p-4">Loading...</div>
+      </Page>
+    );
+  }
+
   return (
     <Page
       headerProps={{
-        title: experiment?.name ?? experimentId,
+        title: experiment?.name ?? baselineId,
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
@@ -122,11 +149,7 @@ export default function ExperimentDetail() {
               open={isOverviewOpen}
               onOpenChange={setIsOverviewOpen}
             />
-            <DetailPageNav
-              currentId={experimentId}
-              path={(entry) => `/project/${projectId}/experiments/${entry.id}`}
-              listKey="experiments"
-            />
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -137,7 +160,7 @@ export default function ExperimentDetail() {
                 <DropdownMenuItem asChild>
                   <DeleteDatasetRunButton
                     projectId={projectId}
-                    datasetRunId={experimentId}
+                    datasetRunId={baselineId}
                     datasetId={experiment.datasetId}
                     redirectUrl={`/project/${projectId}/datasets/${experiment.datasetId}`}
                   />
@@ -151,11 +174,11 @@ export default function ExperimentDetail() {
       {experiment?.datasetId ? (
         <OverviewPanelLayout
           open={isOverviewOpen}
-          persistId={`experiment-detail-${experimentId}`}
+          persistId={`experiment-detail-${baselineId}`}
           mainContent={
             <ExperimentItemsTable
               projectId={projectId}
-              experimentId={experimentId}
+              experimentId={baselineId}
               datasetId={experiment.datasetId}
               availableExperiments={availableExperimentsForTable}
             />
@@ -170,6 +193,8 @@ export default function ExperimentDetail() {
               onComparisonSearchQueryChange={setComparisonSearchQuery}
               availableExperiments={availableExperiments}
               isLoadingExperiments={isLoadingExperiments}
+              onBaselineChange={setBaseline}
+              onBaselineClear={clearBaseline}
             />
           }
           defaultMainSize={75}

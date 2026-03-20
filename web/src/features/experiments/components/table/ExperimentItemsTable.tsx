@@ -1,3 +1,4 @@
+import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -49,6 +50,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 
 // Font color palette for experiment rows within a cell
 const EXPERIMENT_TEXT_COLORS = [
@@ -163,6 +165,9 @@ export default function ExperimentItemsTable({
     "experiment-items",
   );
 
+  const { layout, setLayout, itemVisibility, setItemVisibility } =
+    useExperimentResultsState();
+
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
@@ -187,9 +192,6 @@ export default function ExperimentItemsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
-
-  // Get filters for API call
-  const combinedFilterState = queryFilter.filterState;
 
   // Per-experiment filter targeting state (maps filter index to experiment ID)
   // Default: all filters target the baseline experiment
@@ -235,7 +237,6 @@ export default function ExperimentItemsTable({
       // Count filters up to the current group to find original index
       let originalIndex = 0;
       let currentGroupIndex = 0;
-      const currentTarget = filterTargets[originalIndex] ?? experimentId;
 
       for (let i = 0; i < filterState.length; i++) {
         const target = filterTargets[i] ?? experimentId;
@@ -313,6 +314,7 @@ export default function ExperimentItemsTable({
       })),
       orderByState,
       paginationState,
+      itemVisibility,
     });
 
   useEffect(() => {
@@ -355,52 +357,81 @@ export default function ExperimentItemsTable({
     ];
   }, [experimentId, availableExperiments]);
 
-  // Get available score columns for observations
-  const { scoreColumns, isLoading: isScoreColumnsLoading } =
-    useScoreColumns<ExperimentItemData>({
-      scoreColumnKey: "scores",
-      projectId,
-      filter: scoreFilters.forObservations(),
-    });
+  const {
+    scoreColumns: observationScoreColumns,
+    isLoading: isObservationScoreColumnsLoading,
+  } = useScoreColumns<ExperimentItemData>({
+    scoreColumnKey: "observationScores",
+    projectId,
+    filter: scoreFilters.forExperimentItems({
+      experimentIds: allExperimentIds,
+    }),
+  });
 
-  // Create custom score columns that render stacked values
-  const experimentScoreColumns: LangfuseColumnDef<ExperimentItemsTableRow>[] =
-    useMemo(() => {
-      return scoreColumns.map((scoreCol) => ({
-        ...scoreCol,
-        // Override the cell renderer to show stacked scores for each experiment
-        cell: ({ row }: { row: any }) => {
-          const experiments = row.original.experiments as ExperimentItemData[];
-          return (
-            <StackedExperimentCell
-              experiments={experiments}
-              allExperimentIds={allExperimentIds}
-              renderValue={(exp) => {
-                const scoresData = exp.scores ?? {};
-                const scoreKey = scoreCol.id?.toString() || "";
-                const value = scoresData[scoreKey];
+  const {
+    scoreColumns: traceScoreColumns,
+    isLoading: isTraceScoreColumnsLoading,
+  } = useScoreColumns<ExperimentItemData>({
+    scoreColumnKey: "traceScores",
+    projectId,
+    filter: scoreFilters.forExperimentItems({
+      experimentIds: allExperimentIds,
+    }),
+    prefix: "Trace",
+    defaultHidden: true,
+  });
 
-                if (!value)
-                  return <span className="text-muted-foreground">-</span>;
+  const buildExperimentScoreColumns = (
+    scoreColumns: LangfuseColumnDef<ExperimentItemData>[],
+    scoreField: "observationScores" | "traceScores",
+  ): LangfuseColumnDef<ExperimentItemsTableRow>[] =>
+    scoreColumns.map((scoreCol) => ({
+      ...scoreCol,
+      // Override the cell renderer to show stacked scores for each experiment
+      cell: ({ row }: { row: any }) => {
+        const experiments = row.original.experiments;
+        // todo: fix properly
+        const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => {
+              const scoresData = exp[scoreField] ?? {};
+              const value = scoresData[scoreKey];
 
-                // Render using the original score column's cell renderer
-                // but with a mock row that has the score data in the expected format
-                const mockRow = {
-                  getValue: (key: string) =>
-                    key === "scores" ? scoresData : undefined,
-                  original: exp,
-                } as any;
+              if (!value)
+                return <span className="text-muted-foreground">-</span>;
 
-                return scoreCol.cell?.({
-                  row: mockRow,
-                  getValue: mockRow.getValue,
-                } as any);
-              }}
-            />
-          );
-        },
-      }));
-    }, [scoreColumns, allExperimentIds]);
+              const mockRow = {
+                getValue: (key: string) =>
+                  key === scoreField ? scoresData : undefined,
+                original: exp,
+              } as any;
+              const scoreCell = scoreCol.cell;
+
+              return typeof scoreCell === "function"
+                ? scoreCell({
+                    row: mockRow,
+                    getValue: mockRow.getValue,
+                  } as any)
+                : null;
+            }}
+          />
+        );
+      },
+    })) as LangfuseColumnDef<ExperimentItemsTableRow>[];
+
+  const observationExperimentScoreColumns = useMemo(
+    () =>
+      buildExperimentScoreColumns(observationScoreColumns, "observationScores"),
+    [observationScoreColumns, allExperimentIds],
+  );
+
+  const traceExperimentScoreColumns = useMemo(
+    () => buildExperimentScoreColumns(traceScoreColumns, "traceScores"),
+    [traceScoreColumns, allExperimentIds],
+  );
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
@@ -533,23 +564,7 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "expectedOutput",
-      id: "expectedOutput",
-      header: "Expected Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "outputs",
+      accessorKey: "output",
       id: "output",
       header: "Output",
       size: 300,
@@ -575,17 +590,46 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "scores",
-      header: "Scores",
-      id: "scores",
+      accessorKey: "expectedOutput",
+      id: "expectedOutput",
+      header: "Expected Output",
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        return (
+          <MemoizedIOTableCell
+            isLoading={ioLoading}
+            data={row.original.expectedOutput ?? null}
+            singleLine={rowHeight === "s"}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "observationScores",
+      header: "Observation Scores",
+      id: "observationScores",
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isScoreColumnsLoading ? (
+        return isObservationScoreColumnsLoading ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
-      columns: experimentScoreColumns,
+      columns: observationExperimentScoreColumns,
+    },
+    {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isTraceScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: traceExperimentScoreColumns,
     },
   ];
 
@@ -685,6 +729,14 @@ export default function ExperimentItemsTable({
               pageSize: paginationState.limit,
               pageIndex: paginationState.page - 1,
             }}
+            actionButtons={[
+              <ExperimentDisplaySettings
+                layout={layout}
+                onLayoutChange={setLayout}
+                itemVisibility={itemVisibility}
+                onItemVisibilityChange={setItemVisibility}
+              />,
+            ]}
           />
         )}
 

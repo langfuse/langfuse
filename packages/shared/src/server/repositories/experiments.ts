@@ -18,6 +18,7 @@ import {
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsScoresAggregation,
+  eventsTracesScoresAggregation,
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
@@ -428,6 +429,7 @@ type ExperimentItemInput = {
     filters: FilterState;
   }[];
   baseExperimentId?: string;
+  itemVisibility?: "baseline-only" | "all";
   config?: {
     requireBaselinePresence?: boolean;
   };
@@ -440,41 +442,21 @@ type ExperimentItemInput = {
 export const getExperimentItemsCountFromEvents = async (
   props: ExperimentItemInput,
 ): Promise<number> => {
-  const {
-    projectId,
-    baseExperimentId,
-    compExperimentIds,
-    filterByExperiment,
-    config,
-  } = props;
+  const { projectId, itemVisibility = "baseline-only", config } = props;
 
-  // Build filter conditions
-  const {
-    where,
-    having,
-    hasScoreFilters: scoreJoinRequired,
-  } = buildExperimentQualificationCondition({
-    baseExperimentId,
-    compExperimentIds,
-    filterByExperiment,
-    config,
+  // Map itemVisibility to requireBaselinePresence config
+  const effectiveConfig = {
+    ...config,
+    requireBaselinePresence:
+      config?.requireBaselinePresence ??
+      (itemVisibility === "baseline-only" ? true : false),
+  };
+
+  const qualifiedItems = getExperimentItemsFromEventsGeneric({
+    ...props,
+    config: effectiveConfig,
+    select: "count",
   });
-
-  const qualifiedItems = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.experiment_item_id",
-    selectExpression: "e.experiment_item_id as item_id",
-  })
-    .when(scoreJoinRequired, (b) =>
-      b.withCTE("scores_agg", eventsScoresAggregation({ projectId })),
-    )
-    .when(scoreJoinRequired, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .where(where)
-    .when(having !== null, (b) => b.having(having!))
-    .buildWithParams();
 
   const queryBuilder = new CTEQueryBuilder()
     .withCTE("qualified_items", {
@@ -504,13 +486,21 @@ type FilterByExperiment = {
   filters: FilterState;
 };
 
-type BuildQualificationConditionInput = {
+type BuildQualificationPlanInput = {
   compExperimentIds: string[];
   filterByExperiment: FilterByExperiment[];
   baseExperimentId?: string;
   config?: {
     requireBaselinePresence?: boolean;
   };
+};
+
+type QualificationPlan = {
+  where: { query: string; params: Record<string, any> };
+  having: { query: string; params: Record<string, any> } | null;
+  orderBy: string | null;
+  hasScoreFilters: boolean;
+  hasTraceScoreFilters: boolean;
 };
 
 function combineConditions(
@@ -557,14 +547,9 @@ function compileExperimentFilter(params: {
  * Build filter conditions for the qualification query.
  * Returns OR conditions and params for each experiment that needs filtering.
  */
-const buildExperimentQualificationCondition = (
-  params: BuildQualificationConditionInput,
-): {
-  where: { query: string; params: Record<string, any> };
-  having: { query: string; params: Record<string, any> } | null;
-  orderBy: string | null;
-  hasScoreFilters: boolean;
-} => {
+const buildQualificationPlan = (
+  params: BuildQualificationPlanInput,
+): QualificationPlan => {
   const { baseExperimentId, compExperimentIds, filterByExperiment, config } =
     params;
 
@@ -582,8 +567,12 @@ const buildExperimentQualificationCondition = (
     return hasFilters;
   });
 
-  const hasScoreFilters = filterByExperiment.some((f) =>
-    f.filters.some((filter) => filter.column.includes("scores")),
+  const filters = filterByExperiment.flatMap((f) => f.filters);
+  const hasScoreFilters = filters.some((f) =>
+    ["obs_scores_avg", "obs_score_categories"].includes(f.column),
+  );
+  const hasTraceScoreFilters = filters.some((f) =>
+    ["trace_scores_avg", "trace_score_categories"].includes(f.column),
   );
 
   const allExperimentIds = [
@@ -601,19 +590,111 @@ const buildExperimentQualificationCondition = (
   return {
     where: combineConditions(compiledFiltersByExperiment, "OR"),
     having: isBaselineEnforced
-      ? {
-          query: `
+      ? filteredCompExperimentIds.length > 0
+        ? {
+            query: `
           countIf(e.experiment_id = {baseExperimentId: String}) > 0
-          AND countIf(e.experiment_id != {baseExperimentId: String}) > 0
+          AND countIf(e.experiment_id IN ({filteredCompExperimentIds: Array(String)})) > 0
         `,
-          params: {
-            baseExperimentId,
-          },
-        }
+            params: {
+              baseExperimentId,
+              filteredCompExperimentIds,
+            },
+          }
+        : {
+            query: `countIf(e.experiment_id = {baseExperimentId: String}) > 0`,
+            params: {
+              baseExperimentId,
+            },
+          }
       : null,
     orderBy: `ORDER BY e.experiment_item_id ASC`,
     hasScoreFilters,
+    hasTraceScoreFilters,
   };
+};
+
+const getExperimentItemsFromEventsGeneric = (params: {
+  select: "count" | "rows";
+  projectId: string;
+  baseExperimentId?: string;
+  compExperimentIds: string[];
+  filterByExperiment: {
+    experimentId: string;
+    filters: FilterState;
+  }[];
+  config?: {
+    requireBaselinePresence?: boolean;
+  };
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
+  const {
+    select,
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    config,
+    limit,
+    offset,
+  } = params;
+
+  const { where, having, orderBy, hasScoreFilters, hasTraceScoreFilters } =
+    buildQualificationPlan({
+      baseExperimentId,
+      compExperimentIds,
+      filterByExperiment,
+      config,
+    });
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_item_id",
+    selectExpression: "e.experiment_item_id as item_id",
+  })
+    .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .when(hasScoreFilters, (b) =>
+      b.withCTE(
+        "scores_agg",
+        eventsScoresAggregation({
+          projectId,
+          hasScoreAggregationFilters: true,
+        }),
+      ),
+    )
+    .when(hasScoreFilters, (b) =>
+      b.leftJoin(
+        "scores_agg AS s",
+        "ON s.observation_id = e.experiment_item_root_span_id",
+      ),
+    )
+    .when(hasTraceScoreFilters, (b) =>
+      b.withCTE(
+        "trace_scores_agg",
+        eventsTracesScoresAggregation({
+          projectId,
+          hasScoreAggregationFilters: true,
+        }),
+      ),
+    )
+    .when(hasTraceScoreFilters, (b) =>
+      b.leftJoin(
+        "trace_scores_agg AS ts",
+        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
+    )
+    .where(where)
+    .when(having !== null, (b) => b.having(having!));
+
+  if (select === "rows") {
+    queryBuilder
+      .when(orderBy !== null, (b) => b.orderBy(orderBy!))
+      .limit(limit ?? 50, offset ?? 0);
+  }
+
+  return queryBuilder.buildWithParams();
 };
 
 /**
@@ -638,43 +719,30 @@ export const getExperimentItemsFromEvents = async (
     limit,
     offset,
     config,
+    itemVisibility = "baseline-only",
   } = props;
 
-  // Build filter conditions
-  const {
-    where,
-    having,
-    orderBy,
-    hasScoreFilters: scoreJoinRequired,
-  } = buildExperimentQualificationCondition({
-    baseExperimentId,
-    compExperimentIds,
-    filterByExperiment,
-    config,
-  });
+  // Map itemVisibility to requireBaselinePresence config
+  const effectiveConfig = {
+    ...config,
+    requireBaselinePresence:
+      config?.requireBaselinePresence ??
+      (itemVisibility === "baseline-only" ? true : false),
+  };
 
-  // ========== QUERY 1: Get filtered item_ids ==========
-  const queryBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.experiment_item_id, e.start_time",
-    selectExpression:
-      "e.experiment_item_id as item_id, e.start_time as start_time",
-  })
-    .when(scoreJoinRequired, (b) =>
-      b.withCTE("scores_agg", eventsScoresAggregation({ projectId })),
-    )
-    .when(scoreJoinRequired, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .where(where)
-    .when(having !== null, (b) => b.having(having!))
-    .when(orderBy !== null, (b) => b.orderBy(orderBy!))
-    // .orderBy("ORDER BY e.start_time desc, e.experiment_item_id desc")
-    .limit(limit ?? 50, offset ?? 0);
-
+  // ========== QUERY 1: Get filtered item_ids using intersection logic ==========
   const { query: itemIdsQuery, params: itemIdsParams } =
-    queryBuilder.buildWithParams();
+    getExperimentItemsFromEventsGeneric({
+      select: "rows",
+      projectId,
+      baseExperimentId,
+      compExperimentIds,
+      filterByExperiment,
+      config: effectiveConfig,
+      orderBy: props.orderBy,
+      limit,
+      offset,
+    });
 
   const itemIdsResult = await queryClickhouse<{ item_id: string }>({
     query: itemIdsQuery,

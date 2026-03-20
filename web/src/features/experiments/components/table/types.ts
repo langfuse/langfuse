@@ -42,7 +42,8 @@ export type ExperimentItemData = {
   observationId: string;
   traceId: string;
   experimentRootId: string;
-  scores: ScoreAggregate;
+  observationScores: ScoreAggregate;
+  traceScores: ScoreAggregate;
 };
 
 /**

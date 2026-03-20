@@ -22,6 +22,7 @@ import {
   redis,
   ZodModelConfig,
   getScoresForObservations,
+  getScoresForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
 import {
@@ -504,6 +505,10 @@ export const experimentsRouter = createTRPCRouter({
           )
           .nullish(),
         orderBy: orderBy,
+        itemVisibility: z
+          .enum(["baseline-only", "all"])
+          .optional()
+          .default("baseline-only"),
         ...paginationZod,
       }),
     )
@@ -520,24 +525,45 @@ export const experimentsRouter = createTRPCRouter({
         compExperimentIds: input.compExperimentIds,
         filterByExperiment: input.filterByExperiment ?? [],
         orderBy: null,
-        offset: input.page,
+        offset: input.page * input.limit,
         limit: input.limit,
       });
 
-      // simple flat map to get all observation ids
-      const observationIds = items.flatMap((item) =>
-        item.experiments.map((i) => i.observationId),
+      const observationIds = Array.from(
+        new Set(
+          items.flatMap((item) => item.experiments.map((i) => i.observationId)),
+        ),
+      );
+      const traceIds = Array.from(
+        new Set(
+          items.flatMap((item) => item.experiments.map((i) => i.traceId)),
+        ),
       );
 
-      const scores = await getScoresForObservations({
-        projectId: input.projectId,
-        observationIds,
-        excludeMetadata: true,
-        includeHasMetadata: true,
-      });
+      const [observationScores, traceScores] = await Promise.all([
+        getScoresForObservations({
+          projectId: input.projectId,
+          observationIds,
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+        getScoresForTraces({
+          projectId: input.projectId,
+          traceIds,
+          level: "trace",
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+      ]);
 
-      const validatedScores = filterAndValidateDbScoreList({
-        scores,
+      const validatedObservationScores = filterAndValidateDbScoreList({
+        scores: observationScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
+      const validatedTraceScores = filterAndValidateDbScoreList({
+        scores: traceScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
         onParseError: traceException,
@@ -545,15 +571,29 @@ export const experimentsRouter = createTRPCRouter({
 
       const scoresByObservationId = new Map<
         string,
-        Array<(typeof validatedScores)[number]>
+        Array<(typeof validatedObservationScores)[number]>
       >();
-      for (const score of validatedScores) {
+      for (const score of validatedObservationScores) {
         if (!score.observationId) continue;
         const existingScores = scoresByObservationId.get(score.observationId);
         if (existingScores) {
           existingScores.push(score);
         } else {
           scoresByObservationId.set(score.observationId, [score]);
+        }
+      }
+
+      const scoresByTraceId = new Map<
+        string,
+        Array<(typeof validatedTraceScores)[number]>
+      >();
+      for (const score of validatedTraceScores) {
+        if (!score.traceId) continue;
+        const existingScores = scoresByTraceId.get(score.traceId);
+        if (existingScores) {
+          existingScores.push(score);
+        } else {
+          scoresByTraceId.set(score.traceId, [score]);
         }
       }
 
@@ -567,9 +607,10 @@ export const experimentsRouter = createTRPCRouter({
               experimentId,
               level,
               startTime,
-              scores: aggregateScores(
+              observationScores: aggregateScores(
                 scoresByObservationId.get(observationId) ?? [],
               ),
+              traceScores: aggregateScores(scoresByTraceId.get(traceId) ?? []),
             }),
           ),
         })),
