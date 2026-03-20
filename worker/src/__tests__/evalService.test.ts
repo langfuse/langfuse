@@ -2777,6 +2777,255 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       },
       10_000,
     );
+
+    test("extracts variables from a versioned dataset item using datasetItemValidFrom", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+      const validFromV1 = new Date("2024-01-01T00:00:00.000Z");
+      const validFromV2 = new Date("2024-06-01T00:00:00.000Z");
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        environment: "production",
+        input: JSON.stringify({ input: "trace input" }),
+        output: JSON.stringify({ output: "trace output" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: `dataset-versioned-${randomUUID()}`,
+          projectId,
+        },
+      });
+
+      // Create version 1 (superseded) with validTo set
+      await prisma.datasetItem.create({
+        data: {
+          id: datasetItemId,
+          input: { input: "v1 input" },
+          expectedOutput: { expected_output: "v1 expected output" },
+          projectId,
+          datasetId,
+          validFrom: validFromV1,
+          validTo: validFromV2,
+        },
+      });
+
+      // Create version 2 (current) with validTo = null
+      await prisma.datasetItem.create({
+        data: {
+          id: datasetItemId,
+          input: { input: "v2 input" },
+          expectedOutput: { expected_output: "v2 expected output" },
+          projectId,
+          datasetId,
+          validFrom: validFromV2,
+          validTo: null,
+        },
+      });
+
+      const variableMapping = variableMappingList.parse([
+        {
+          langfuseObject: "dataset_item",
+          selectedColumnId: "expected_output",
+          templateVariable: "output",
+        },
+      ]);
+
+      // When datasetItemValidFrom is provided, it should return the exact version
+      const resultV1 = await extractVariablesFromTracingData({
+        projectId,
+        variables: ["output"],
+        traceId,
+        datasetItemId,
+        datasetItemValidFrom: validFromV1,
+        variableMapping,
+      });
+
+      expect(resultV1).toEqual([
+        {
+          value: '{"expected_output":"v1 expected output"}',
+          var: "output",
+        },
+      ]);
+
+      // When datasetItemValidFrom is NOT provided, it should return the latest (validTo = null)
+      const resultLatest = await extractVariablesFromTracingData({
+        projectId,
+        variables: ["output"],
+        traceId,
+        datasetItemId,
+        variableMapping,
+      });
+
+      expect(resultLatest).toEqual([
+        {
+          value: '{"expected_output":"v2 expected output"}',
+          var: "output",
+        },
+      ]);
+    }, 10_000);
+
+    test("extracts variables from a dataset item using jsonSelector", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        environment: "production",
+        input: JSON.stringify({ input: "trace input" }),
+        output: JSON.stringify({ output: "trace output" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: `dataset-json-${randomUUID()}`,
+          projectId,
+        },
+      });
+
+      await prisma.datasetItem.create({
+        data: {
+          id: datasetItemId,
+          input: {
+            messages: [
+              { role: "system", content: "You are a helpful assistant" },
+              { role: "user", content: "Hello world" },
+            ],
+          },
+          expectedOutput: {
+            nested: {
+              score: 0.95,
+              label: "positive",
+            },
+          },
+          projectId,
+          datasetId,
+        },
+      });
+
+      // Test jsonSelector on input - extract nested array element
+      const variableMappingInput = variableMappingList.parse([
+        {
+          langfuseObject: "dataset_item",
+          selectedColumnId: "input",
+          templateVariable: "user_message",
+          jsonSelector: "$.messages[1].content",
+        },
+      ]);
+
+      const resultInput = await extractVariablesFromTracingData({
+        projectId,
+        variables: ["user_message"],
+        traceId,
+        datasetItemId,
+        variableMapping: variableMappingInput,
+      });
+
+      expect(resultInput).toEqual([
+        {
+          value: '["Hello world"]',
+          var: "user_message",
+        },
+      ]);
+
+      // Test jsonSelector on expected_output - extract nested field
+      const variableMappingOutput = variableMappingList.parse([
+        {
+          langfuseObject: "dataset_item",
+          selectedColumnId: "expected_output",
+          templateVariable: "expected_label",
+          jsonSelector: "$.nested.label",
+        },
+      ]);
+
+      const resultOutput = await extractVariablesFromTracingData({
+        projectId,
+        variables: ["expected_label"],
+        traceId,
+        datasetItemId,
+        variableMapping: variableMappingOutput,
+      });
+
+      expect(resultOutput).toEqual([
+        {
+          value: '["positive"]',
+          var: "expected_label",
+        },
+      ]);
+    }, 10_000);
+
+    test("extracts variables from a trace using jsonSelector", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: "a",
+        environment: "production",
+        input: JSON.stringify({
+          messages: [{ role: "user", content: "What is the weather?" }],
+        }),
+        output: JSON.stringify({
+          response: { text: "It is sunny", confidence: 0.9 },
+        }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const variableMapping = variableMappingList.parse([
+        {
+          langfuseObject: "trace",
+          selectedColumnId: "input",
+          templateVariable: "user_input",
+          jsonSelector: "$.messages[0].content",
+        },
+        {
+          langfuseObject: "trace",
+          selectedColumnId: "output",
+          templateVariable: "response_text",
+          jsonSelector: "$.response.text",
+        },
+      ]);
+
+      const result = await extractVariablesFromTracingData({
+        projectId,
+        variables: ["user_input", "response_text"],
+        traceId,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        {
+          value: '["What is the weather?"]',
+          var: "user_input",
+          environment: "production",
+        },
+        {
+          value: '["It is sunny"]',
+          var: "response_text",
+          environment: "production",
+        },
+      ]);
+    }, 10_000);
   });
 
   test("requiresDatabaseLookup correctly identifies complex filters", () => {
