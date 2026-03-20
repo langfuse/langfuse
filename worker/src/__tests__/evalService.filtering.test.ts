@@ -208,7 +208,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1); // Only the production environment trace should have a job
+    expect(jobs[0].jobInputTraceId).toBe(traceId1); // Only the production environment trace should have a job
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -245,7 +245,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1); // Only the important-trace should have a job
+    expect(jobs[0].jobInputTraceId).toBe(traceId1); // Only the important-trace should have a job
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -275,7 +275,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -337,7 +337,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -374,7 +374,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -411,7 +411,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -449,7 +449,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -486,7 +486,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -523,7 +523,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -580,7 +580,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -617,7 +617,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -654,7 +654,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 });
