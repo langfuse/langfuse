@@ -27,8 +27,8 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web -- --turbo",
-    "dev:web-no-turbo": "turbo run dev --filter=web",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
@@ -44,7 +44,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "2.8.16"
+    "turbo": "2.8.20"
   },
   "release-it": {
     "git": {

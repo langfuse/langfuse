@@ -124,7 +124,7 @@
     "@types/node": "^24.3.0",
     "@types/nodemailer": "^7.0.4",
     "@types/pg": "^8.11.10",
-    "@types/react": "19.2.3",
+    "@types/react": "19.2.14",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^8.50.1",
     "eslint": "^9.39.2",
@@ -140,7 +140,7 @@
     "typescript": "^5.7.2"
   },
   "peerDependencies": {
-    "@types/react": "~19.2.3",
-    "react": "~19.2.3"
+    "@types/react": "~19.2.14",
+    "react": "~19.2.4"
   }
 }
