@@ -190,8 +190,8 @@ const EnvSchema = z.object({
       "session_token",
     ])
     .optional(),
-  OCI_CONFIG_FILE: z.string().optional(),
-  OCI_CONFIG_PROFILE: z.string().optional(),
+  LANGFUSE_OCI_CONFIG_FILE: z.string().optional(),
+  LANGFUSE_OCI_CONFIG_PROFILE: z.string().optional(),
   NODE_EXTRA_CA_CERTS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
