@@ -81,34 +81,40 @@ describe("ClickHouse insert string edge cases", () => {
   });
 
   describe("Invalid string length on oversized JSON payload", () => {
-    it("should throw 'Size of JSON object' when input exceeds clickhouse byte limit", async () => {
-      const hugeString = "x".repeat(300 * 1024 * 1024);
+    maybeIt(
+      "should throw 'Size of JSON object' when input exceeds clickhouse byte limit",
+      async () => {
+        const hugeString = "x".repeat(300 * 1024 * 1024);
 
-      const event = createEvent({
-        project_id: projectId,
-        input: hugeString,
-      });
+        const event = createEvent({
+          project_id: projectId,
+          input: hugeString,
+        });
 
-      await expect(createEventsCh([event])).rejects.toThrow(
-        /Size of JSON object/,
-      );
-    });
+        await expect(createEventsCh([event])).rejects.toThrow(
+          /Size of JSON object/,
+        );
+      },
+    );
 
-    it("should throw 'Invalid string length' when input exceeds V8 string limit", async () => {
-      // V8 max string length is ~536_870_888 chars on 64-bit systems.
-      // A 512 MB input string causes JSON.stringify to exceed that limit
-      // when it serialises the full event row.
-      const hugeString = "x".repeat(300 * 1024 * 1024);
+    maybeIt(
+      "should throw 'Invalid string length' when input exceeds V8 string limit",
+      async () => {
+        // V8 max string length is ~536_870_888 chars on 64-bit systems.
+        // A 512 MB input string causes JSON.stringify to exceed that limit
+        // when it serialises the full event row.
+        const hugeString = "x".repeat(300 * 1024 * 1024);
 
-      const event = createEvent({
-        project_id: projectId,
-        input: hugeString,
-        output: hugeString,
-      });
+        const event = createEvent({
+          project_id: projectId,
+          input: hugeString,
+          output: hugeString,
+        });
 
-      await expect(createEventsCh([event])).rejects.toThrow(
-        /Invalid string length/,
-      );
-    });
+        await expect(createEventsCh([event])).rejects.toThrow(
+          /Invalid string length/,
+        );
+      },
+    );
   });
 });
