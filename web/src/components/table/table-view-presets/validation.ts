@@ -17,8 +17,16 @@ export function validateOrderBy(
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
-  // Resolve legacy column IDs via aliases (e.g. "name" → "traceName")
-  let resolvedColumn = orderBy.column;
+  const isSortableColumn = (columnId: string) =>
+    columns.some((col) => col.id === columnId && col.enableSorting !== false);
+
+  // If the column already exists in the active table, keep it.
+  if (isSortableColumn(orderBy.column)) {
+    return orderBy;
+  }
+
+  // Resolve legacy/canonical IDs via filter-layer aliases (e.g. "name" ↔ "traceName")
+  let resolvedColumn: string | null = null;
   if (filterColumnDefinitions) {
     const colDef = filterColumnDefinitions.find(
       (c) =>
@@ -27,15 +35,13 @@ export function validateOrderBy(
         c.aliases?.includes(orderBy.column),
     );
     if (colDef) {
-      resolvedColumn = colDef.id;
+      const candidates = [colDef.id, ...(colDef.aliases ?? [])];
+      resolvedColumn =
+        candidates.find((candidate) => isSortableColumn(candidate)) ?? null;
     }
   }
 
-  // Check if the column exists and supports sorting
-  const isValid = columns.some(
-    (col) => col.id === resolvedColumn && col.enableSorting !== false,
-  );
-  return isValid ? { ...orderBy, column: resolvedColumn } : null;
+  return resolvedColumn ? { ...orderBy, column: resolvedColumn } : null;
 }
 
 /**

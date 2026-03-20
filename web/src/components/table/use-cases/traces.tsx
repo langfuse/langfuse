@@ -601,12 +601,12 @@ export default function TracesTable({
     {
       accessorKey: "name",
       header: "Name",
-      id: "traceName",
+      id: "name",
       size: 150,
       enableHiding: true,
       enableSorting,
       cell: ({ row }) => {
-        const value: TracesTableRow["name"] = row.getValue("traceName");
+        const value: TracesTableRow["name"] = row.getValue("name");
         return value ?? undefined;
       },
     },
@@ -765,7 +765,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "tags",
-      id: "traceTags",
+      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
@@ -787,7 +787,7 @@ export default function TracesTable({
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("traceTags");
+        const traceTags: string[] | undefined = row.getValue("tags");
         return (
           traceTags && (
             <div

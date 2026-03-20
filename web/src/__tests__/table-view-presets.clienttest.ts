@@ -16,6 +16,11 @@ const mockColumns = [
   { id: "age", enableSorting: false, accessorKey: "age" },
 ];
 
+const mockTraceTableColumns = [
+  { id: "name", enableSorting: true, accessorKey: "name" },
+  { id: "status", enableSorting: true, accessorKey: "status" },
+];
+
 const mockFilterDefinitions: ColumnDefinition[] = [
   {
     id: "traceName",
@@ -52,11 +57,11 @@ describe("table view presets validation functions", () => {
     });
 
     it("should normalize legacy orderBy columns via aliases", () => {
-      const orderBy: OrderByState = { column: "name", order: "ASC" };
+      const orderBy: OrderByState = { column: "traceName", order: "ASC" };
       expect(
-        validateOrderBy(orderBy, mockColumns, mockFilterDefinitions),
+        validateOrderBy(orderBy, mockTraceTableColumns, mockFilterDefinitions),
       ).toEqual({
-        column: "traceName",
+        column: "name",
         order: "ASC",
       });
     });
