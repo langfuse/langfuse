@@ -31,6 +31,7 @@ export * from "./server/llm/types";
 
 // evals
 export * from "./features/evals/types";
+export * from "./features/evals/outputDefinition";
 export * from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export * from "./features/evals/evalConfigBlocking";
