@@ -104,7 +104,8 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+  metadata:
+    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
   // Trace-level denormalized fields
   tags: "e.tags as tags",
   release: "e.release as release",
@@ -318,7 +319,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
   // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -857,7 +858,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       // For events_core/events_full, just use mapFromArrays with metadata_values directly
       // The caller should use events_full table if full metadata is needed
       fieldExpressions.push(
-        `mapFromArrays(e.metadata_names, e.metadata_values) as metadata`,
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata`,
       );
     }
 
@@ -1511,7 +1512,7 @@ export function buildEventsFullTableSplitQuery(opts: {
   }
   if (opts.includeMetadata) {
     ioSelectParts.push(
-      "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
   const ioQuery = [

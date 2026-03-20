@@ -165,11 +165,6 @@ export const availableDatasetEvalVariables = [
   ...availableTraceEvalVariables,
 ];
 
-export const OutputSchema = z.object({
-  reasoning: z.string(),
-  score: z.string(),
-});
-
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 
 export const JobTimeScopeZod = z.enum(["NEW", "EXISTING"]);

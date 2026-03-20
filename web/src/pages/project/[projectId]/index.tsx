@@ -249,7 +249,7 @@ export default function Dashboard() {
                     id="date"
                     variant={"outline"}
                     className={
-                      "group text-primary hover:bg-primary-foreground hover:text-primary-accent justify-start gap-x-3 text-left font-semibold"
+                      "text-primary hover:bg-primary-foreground hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold"
                     }
                   >
                     <BarChart2

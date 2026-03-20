@@ -96,22 +96,6 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-/**
- * Guard against reads from the legacy 'events' table.
- * Reads must use events_core or events_full instead.
- * Matches "FROM events" or "JOIN events" as a standalone table name
- * (not events_core, events_full, or CTE aliases like filtered_events).
- */
-const LEGACY_EVENTS_TABLE_PATTERN = /\b(?:from|join)\s+events\b(?!_)/i;
-
-function assertNoLegacyEventsRead(query: string): void {
-  if (LEGACY_EVENTS_TABLE_PATTERN.test(query)) {
-    throw new Error(
-      `Reading from legacy 'events' table is forbidden. Use events_core or events_full. Query: ${query.slice(0, 200)}`,
-    );
-  }
-}
-
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
@@ -225,10 +209,7 @@ export async function* queryClickhouseStream<T>(opts: {
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
-  allowLegacyEventsRead?: boolean;
 }): AsyncGenerator<T> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
-
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
     kind: SpanKind.CLIENT,
@@ -366,10 +347,7 @@ export async function queryClickhouse<T>(opts: {
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
-  allowLegacyEventsRead?: boolean;
 }): Promise<T[]> {
-  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
-
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
