@@ -22,7 +22,7 @@ describe("createDefaultSpendAlerts", () => {
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0].threshold.toNumber()).toBe(200);
-    expect(alerts[0].title).toBe("Spend alert ($200)");
+    expect(alerts[0].title).toBe("Default Spend alert ($200)");
   });
 
   it("creates alerts with correct thresholds for pro plan", async () => {
