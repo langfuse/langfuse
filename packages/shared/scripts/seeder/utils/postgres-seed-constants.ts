@@ -692,7 +692,7 @@ export const SEED_EVALUATOR_TEMPLATES = [
     model: "gpt-3.5-turbo",
     vars: ["input", "output"],
     provider: "openai",
-    outputSchema: {
+    outputDefinition: {
       score: "provide a score between 0 and 1",
       reasoning: "one sentence reasoning for the score",
     },

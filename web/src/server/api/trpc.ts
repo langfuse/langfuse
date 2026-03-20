@@ -45,7 +45,6 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
     session: opts.session,
     headers: opts.headers,
     prisma,
-    DB,
   };
 };
 
@@ -84,7 +83,6 @@ import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
 import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
-import { DB } from "@/src/server/db";
 import {
   getTraceById,
   logger,
