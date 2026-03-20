@@ -259,7 +259,7 @@ describe("select all test suite", () => {
         model: "gpt-3.5-turbo",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
@@ -454,7 +454,7 @@ describe("select all test suite", () => {
         model: "gpt-3.5-turbo",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           reasoning: "Please explain your reasoning",
           score: "Please provide a score between 0 and 1",
         },
