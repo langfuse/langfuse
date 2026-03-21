@@ -42,7 +42,7 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2",
+    "prettier": "^3.8.1",
     "release-it": "^19.0.4",
     "turbo": "2.8.20"
   },
