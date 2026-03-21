@@ -465,7 +465,7 @@ export async function fetchLLMCompletion(
           ? { method: "functionCalling" as const }
           : undefined;
 
-      const structuredOutput = await chatModel
+      const structuredOutput = await (chatModel as ChatOpenAI)
         .withStructuredOutput(
           params.structuredOutputSchema,
           structuredOutputConfig,
