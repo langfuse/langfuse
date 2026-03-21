@@ -821,6 +821,7 @@ export default function ScoresTable({
       filterColumnDefinition: scoreFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
+    disabled: disableUrlPersistence,
   });
 
   return (
@@ -837,11 +838,15 @@ export default function ScoresTable({
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
           setColumnOrder={setColumnOrder}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Scores,
-            projectId,
-            controllers: viewControllers,
-          }}
+          viewConfig={
+            disableUrlPersistence
+              ? undefined
+              : {
+                  tableName: TableViewPresetTableName.Scores,
+                  projectId,
+                  controllers: viewControllers,
+                }
+          }
           actionButtons={[
             Object.keys(selectedRows).filter((scoreId) =>
               scores.data?.scores.map((s) => s.id).includes(scoreId),
