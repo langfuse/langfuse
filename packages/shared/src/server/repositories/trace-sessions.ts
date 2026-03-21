@@ -68,9 +68,7 @@ export const getPublicSessionsFilter = async (
 
   return filter
     ? [
-        ...filter.filter(
-          (f) => f.column !== "⭐️" && f.column !== "bookmarked",
-        ),
+        ...filter.filter((f) => f.column !== "⭐️" && f.column !== "bookmarked"),
         ...additionalBookmarkFilter,
       ]
     : [...additionalBookmarkFilter];
