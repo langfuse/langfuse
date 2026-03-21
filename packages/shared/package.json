@@ -89,7 +89,7 @@
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
     "@slack/oauth": "^3.0.4",
-    "@slack/web-api": "^7.10.0",
+    "@slack/web-api": "^7.15.0",
     "@types/bcryptjs": "^2.4.6",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
