@@ -51,6 +51,17 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   (GitHub mirror:
   [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
 
+## Package-Local Skills
+
+- React composition and component API design:
+  [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
+- React/Next.js performance and rendering best practices:
+  [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+
+Read these package-local skills before substantial frontend refactors when the
+task involves component composition, reusable component APIs, rendering
+performance, bundle size, or React/Next.js performance patterns.
+
 ## Quick Commands
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
