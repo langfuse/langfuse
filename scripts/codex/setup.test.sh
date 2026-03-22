@@ -11,16 +11,15 @@ cleanup() {
 
 trap cleanup EXIT
 
-primary_root="$tmpdir/primary/langfuse"
-worktree_root="$tmpdir/worktrees/feature/langfuse"
+repo_copy="$tmpdir/repo"
 
-mkdir -p "$tmpdir/bin" "$primary_root/.git" "$worktree_root/scripts/codex"
+mkdir -p "$tmpdir/bin" "$repo_copy/scripts/codex"
 
-cp "$repo_root/scripts/codex/setup.sh" "$worktree_root/scripts/codex/setup.sh"
-cp "$repo_root/.env.dev.example" "$worktree_root/.env.dev.example"
-cp "$repo_root/.env.test.example" "$worktree_root/.env.test.example"
+cp "$repo_root/scripts/codex/setup.sh" "$repo_copy/scripts/codex/setup.sh"
+cp "$repo_root/.env.dev.example" "$repo_copy/.env.dev.example"
+cp "$repo_root/.env.test.example" "$repo_copy/.env.test.example"
 
-chmod +x "$worktree_root/scripts/codex/setup.sh"
+chmod +x "$repo_copy/scripts/codex/setup.sh"
 
 cat <<'EOF' > "$tmpdir/bin/corepack"
 #!/usr/bin/env bash
@@ -32,23 +31,7 @@ cat <<'EOF' > "$tmpdir/bin/pnpm"
 exit 0
 EOF
 
-cat <<EOF > "$tmpdir/bin/git"
-#!/usr/bin/env bash
-if [ "\$1" = "rev-parse" ] && [ "\$2" = "--path-format=absolute" ] && [ "\$3" = "--git-common-dir" ]; then
-  printf '%s\n' "$primary_root/.git"
-  exit 0
-fi
-
-echo "unexpected git invocation: \$*" >&2
-exit 1
-EOF
-
-chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm" "$tmpdir/bin/git"
-
-cat <<'EOF' > "$primary_root/.env"
-PRIMARY_ONLY=1
-NEXTAUTH_URL=http://primary.example
-EOF
+chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm"
 
 assert_file_contains() {
   local file_path="$1"
@@ -64,40 +47,37 @@ assert_file_contains() {
 
 run_setup() {
   (
-    cd "$worktree_root"
+    cd "$repo_copy"
     PATH="$tmpdir/bin:$PATH" bash scripts/codex/setup.sh
   )
 }
 
 run_setup
 
-if ! cmp -s "$primary_root/.env" "$worktree_root/.env"; then
-  echo ".env should be copied from the primary worktree when missing"
+if ! cmp -s "$repo_copy/.env.dev.example" "$repo_copy/.env"; then
+  echo ".env should be created from .env.dev.example when missing"
   exit 1
 fi
 
-if ! cmp -s "$worktree_root/.env.test.example" "$worktree_root/.env.test"; then
-  echo ".env.test should fall back to the checked-in example when the primary worktree has no .env.test"
+if ! cmp -s "$repo_copy/.env.test.example" "$repo_copy/.env.test"; then
+  echo ".env.test should be created from .env.test.example when missing"
   exit 1
 fi
 
-cat <<'EOF' > "$primary_root/.env"
-PRIMARY_ONLY=2
-NEXTAUTH_URL=http://changed.example
+cat <<'EOF' > "$repo_copy/.env"
+WORKTREE_ONLY=keep-me
 EOF
-
-printf 'WORKTREE_ONLY=keep-me\n' >> "$worktree_root/.env"
 
 run_setup
 
 assert_file_contains \
-  "$worktree_root/.env" \
-  "PRIMARY_ONLY=1" \
-  "setup.sh should not overwrite an existing worktree .env"
+  "$repo_copy/.env" \
+  "WORKTREE_ONLY=keep-me" \
+  "setup.sh should not overwrite an existing .env"
 
 assert_file_contains \
-  "$worktree_root/.env" \
-  "WORKTREE_ONLY=keep-me" \
-  "setup.sh should preserve worktree-local env changes on rerun"
+  "$repo_copy/.env.test" \
+  'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/langfuse_test"' \
+  "setup.sh should preserve the existing .env.test on rerun"
 
-echo "setup.sh worktree bootstrap regression test passed"
+echo "setup.sh example bootstrap regression test passed"
