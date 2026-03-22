@@ -293,13 +293,19 @@ type ViewNotice = {
   canClear?: boolean;
 };
 
-function EventsViewCompatibilityHarness() {
+function EventsViewCompatibilityHarness({
+  initialColumnOrder = [],
+  initialColumnVisibility = {},
+}: {
+  initialColumnOrder?: string[];
+  initialColumnVisibility?: Record<string, boolean>;
+} = {}) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const [orderBy, setOrderBy] = useState<OrderByState>(null);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnOrder, setColumnOrder] = useState<string[]>(initialColumnOrder);
   const [columnVisibility, setColumnVisibility] = useState<
     Record<string, boolean>
-  >({});
+  >(initialColumnVisibility);
 
   const { isLoading, selectedViewId, handleSetViewId, viewNotice } =
     useTableViewManager({
@@ -494,7 +500,7 @@ describe("Saved view restore with implicit environment defaults", () => {
             {
               column: "tags",
               type: "arrayOptions",
-              operator: "contains",
+              operator: "any of",
               value: ["demo"],
             },
             {
@@ -548,6 +554,61 @@ describe("Saved view restore with implicit environment defaults", () => {
         JSON.stringify("view-compat"),
       );
       expect(showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("deduplicates totalTokens when migrating column order with usage group", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy observations usage view",
+          tableName: TableViewPresetTableName.Observations,
+          columnOrder: ["usage", "tokens", "model"],
+        }),
+      });
+
+      render(<EventsViewCompatibilityHarness />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-column-order").textContent).toBe(
+        '["usage","providedModelName"]',
+      );
+    });
+
+    it("preserves current layout when migrated legacy views store null layout fields", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy observations null layout view",
+          tableName: TableViewPresetTableName.Observations,
+          columnOrder: null,
+          columnVisibility: null,
+        }),
+      });
+
+      render(
+        <EventsViewCompatibilityHarness
+          initialColumnOrder={["name", "usage"]}
+          initialColumnVisibility={{ name: true, totalTokens: false }}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-column-order").textContent).toBe(
+        '["name","usage"]',
+      );
+      expect(screen.getByTestId("events-column-visibility").textContent).toBe(
+        '{"name":true,"totalTokens":false}',
+      );
     });
 
     it("clears compatibility notice when the saved view is cleared", async () => {

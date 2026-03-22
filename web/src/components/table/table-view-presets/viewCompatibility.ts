@@ -14,14 +14,22 @@ export type TableViewNotice = {
   canClear?: boolean;
 };
 
-type TableViewWithSource = TableViewPresetState & {
+export type NullableLayoutTableViewState = Omit<
+  TableViewPresetState,
+  "columnOrder" | "columnVisibility"
+> & {
+  columnOrder?: string[] | null;
+  columnVisibility?: Record<string, boolean> | null;
+};
+
+type TableViewWithSource = NullableLayoutTableViewState & {
   tableName: TableViewPresetTableName;
 };
 
 type CompatibilityResolution =
   | {
       action: "apply";
-      viewState: TableViewPresetState;
+      viewState: NullableLayoutTableViewState;
       notice: TableViewNotice | null;
     }
   | {
@@ -36,6 +44,7 @@ const EVENTS_V4_COLUMN_RENAMES: Record<string, string> = {
   tokens: "totalTokens",
   Tokens: "totalTokens",
 };
+const EVENTS_V4_USAGE_GROUP_COLUMN_ID = "usage";
 
 const migrateColumnId = (
   column: string,
@@ -94,12 +103,33 @@ const migrateColumnOrder = (
     return { columnOrder, changed: false };
   }
 
+  const includesUsageGroup = columnOrder.includes(
+    EVENTS_V4_USAGE_GROUP_COLUMN_ID,
+  );
   let changed = false;
-  const migratedColumnOrder = columnOrder.map((column) => {
+  const seenColumns = new Set<string>();
+  const migratedColumnOrder = columnOrder.reduce<string[]>((acc, column) => {
+    if (column === "tokens" || column === "Tokens") {
+      changed = true;
+
+      if (includesUsageGroup) {
+        return acc;
+      }
+    }
+
     const migrated = migrateColumnId(column);
     changed ||= migrated.changed;
-    return migrated.column;
-  });
+
+    if (seenColumns.has(migrated.column)) {
+      changed = true;
+      return acc;
+    }
+
+    seenColumns.add(migrated.column);
+    acc.push(migrated.column);
+
+    return acc;
+  }, []);
 
   return { columnOrder: migratedColumnOrder, changed };
 };
@@ -131,7 +161,7 @@ const migrateColumnVisibility = (
 
 const migrateObservationsViewToEvents = (
   viewData: TableViewWithSource,
-): { viewState: TableViewPresetState; changed: boolean } => {
+): { viewState: NullableLayoutTableViewState; changed: boolean } => {
   const { orderBy, changed: orderChanged } = migrateOrderBy(viewData.orderBy);
   const { filters, changed: filtersChanged } = migrateFilters(viewData.filters);
   const { columnOrder, changed: columnOrderChanged } = migrateColumnOrder(
@@ -145,8 +175,8 @@ const migrateObservationsViewToEvents = (
       ...viewData,
       orderBy: orderBy ?? null,
       filters: filters ?? [],
-      columnOrder: columnOrder ?? [],
-      columnVisibility: columnVisibility ?? {},
+      columnOrder: columnOrder ?? null,
+      columnVisibility: columnVisibility ?? null,
     },
     changed:
       orderChanged ||

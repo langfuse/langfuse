@@ -3,7 +3,6 @@ import {
   type TableViewPresetTableName,
   type FilterState,
   type OrderByState,
-  type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
@@ -22,6 +21,7 @@ import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import {
   resolveTableViewCompatibility,
   type TableViewCompatibilityMode,
+  type NullableLayoutTableViewState,
   type TableViewNotice,
 } from "../viewCompatibility";
 
@@ -189,7 +189,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: NullableLayoutTableViewState) => {
       // lock table
       setIsLoading(true);
 
