@@ -70,6 +70,7 @@ performance, bundle size, or React/Next.js performance patterns.
 - Server tests: `pnpm --filter web run test --testPathPatterns="<pattern>"`
 - Client tests: `pnpm --filter web run test-client --testPathPatterns="<pattern>"`
 - E2E tests: `pnpm --filter web run test:e2e`
+- Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 
 ## Playbooks
@@ -92,6 +93,14 @@ performance, bundle size, or React/Next.js performance patterns.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
+4. Review the affected user flow in a real browser with the Playwright MCP server before signoff, including a quick functional pass and a visual regression check.
+
+### Agent browser loop
+1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
+2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
+3. Use the workspace `playwright` MCP server from `.mcp.json` or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
+4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
+5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 
 ## Package-Specific Rules
 - Router style is Pages Router-centric; follow existing routing patterns.
