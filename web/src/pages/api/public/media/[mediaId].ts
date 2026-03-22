@@ -123,7 +123,7 @@ export default withMiddlewares({
 
         throw new InternalServerError(
           `Error updating uploadedAt on media ID ${mediaId}` +
-            (e instanceof Error ? e.message : "")
+          (e instanceof Error ? e.message : "")
             ? (e as Error).message
             : "",
         );

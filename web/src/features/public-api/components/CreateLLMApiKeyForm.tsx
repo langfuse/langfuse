@@ -339,7 +339,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
             Add custom model name
           </Button>
         </FormItem>
@@ -392,7 +392,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
             Add Header
           </Button>
         </FormItem>

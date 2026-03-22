@@ -37,7 +37,7 @@ export function ThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="text-muted-foreground mt-1 ml-4 text-sm whitespace-pre-wrap italic">
+        <div className="text-muted-foreground ml-4 mt-1 whitespace-pre-wrap text-sm italic">
           {content}
         </div>
       )}
@@ -78,7 +78,7 @@ export function RedactedThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="bg-muted/50 text-muted-foreground mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
+        <div className="bg-muted/50 text-muted-foreground ml-4 mt-1 break-all rounded p-2 font-mono text-xs">
           {data}
         </div>
       )}

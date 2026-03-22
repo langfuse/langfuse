@@ -526,7 +526,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           if (!open) setEditConfigId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
+        <DialogContent className="max-w-(--breakpoint-xl) max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit configuration</DialogTitle>
           </DialogHeader>

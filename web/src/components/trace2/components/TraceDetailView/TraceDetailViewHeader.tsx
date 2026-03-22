@@ -85,18 +85,18 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">
       {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
+      <div className="@2xl:grid-cols-[auto_auto] @2xl:justify-between grid w-full grid-cols-1 items-start gap-2">
         <div className="flex w-full flex-row items-start gap-1">
           <div className="mt-1.5">
             <ItemBadge type="TRACE" isSmall />
           </div>
-          <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+          <span className="md:wrap-break-word mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal">
             {trace.name || trace.id}
           </span>
           <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
         </div>
         {/* Action buttons */}
-        <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+        <div className="@2xl:mr-1 @2xl:justify-end flex h-full flex-wrap content-start items-start justify-start gap-0.5">
           <NewDatasetItemFromExistingObject
             traceId={trace.id}
             projectId={projectId}

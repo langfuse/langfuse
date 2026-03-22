@@ -75,8 +75,6 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
-      - name: validate skills
-        run: pnpm run skills:check
 
   prettier-check:
     runs-on: ubuntu-latest

@@ -198,7 +198,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {searchConfig && (
-          <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
+          <div className="max-w-120 flex shrink-0 items-stretch md:min-w-96">
             <div
               className={cn(
                 "border-input bg-background flex h-8 flex-1 items-center border pl-2",
@@ -240,7 +240,7 @@ export function DataTableToolbar<TData, TValue>({
                     searchConfig.updateQuery(searchString);
                   }
                 }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
+                className="focus-visible:outline-hidden w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0"
               />
             </div>
             {searchConfig.setSearchType && (
@@ -249,7 +249,7 @@ export function DataTableToolbar<TData, TValue>({
                   <Button
                     variant="outline"
                     size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
                     <span className="flex items-center gap-1 truncate">
                       {searchConfig.tableAllowsFullTextSearch &&
@@ -358,7 +358,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
 
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+        <div className="@6xl:ml-auto flex flex-row flex-wrap gap-2 pr-0.5">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

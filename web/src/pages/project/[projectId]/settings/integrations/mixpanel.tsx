@@ -323,7 +323,7 @@ const MixpanelIntegrationSettingsForm = ({
                   onCheckedChange={() => {
                     field.onChange(!field.value);
                   }}
-                  className="mt-1 ml-4"
+                  className="ml-4 mt-1"
                 />
               </FormControl>
               <FormMessage />

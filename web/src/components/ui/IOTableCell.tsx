@@ -32,7 +32,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto px-2 py-1",
+        "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate px-2 py-1",
         className,
       )}
     >

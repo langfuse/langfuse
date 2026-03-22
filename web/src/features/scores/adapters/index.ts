@@ -10,7 +10,9 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 
-export class DashboardCategoricalScoreAdapter implements TimeseriesDataTransformer {
+export class DashboardCategoricalScoreAdapter
+  implements TimeseriesDataTransformer
+{
   constructor(
     private data: DatabaseRow[],
     private timestamp: string,

@@ -394,7 +394,7 @@ const JsonTableRowComponent = memo(
         className={cn(
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
-            ? "bg-background sticky z-10 shadow-xs"
+            ? "bg-background shadow-xs sticky z-10"
             : "",
         )}
         style={
@@ -406,7 +406,7 @@ const JsonTableRowComponent = memo(
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className="px-2 py-1 align-top whitespace-normal"
+            className="whitespace-normal px-2 py-1 align-top"
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -501,7 +501,7 @@ function JsonPrettyTable({
             : null;
 
         const content = (
-          <div className="flex items-start wrap-break-word">
+          <div className="wrap-break-word flex items-start">
             <div
               className="flex shrink-0 items-center justify-end"
               style={{ width: `${indentationWidth}px` }}
@@ -556,7 +556,7 @@ function JsonPrettyTable({
           }
 
           return (
-            <div className="sticky z-5 py-1" style={{ top: topPosition }}>
+            <div className="z-5 sticky py-1" style={{ top: topPosition }}>
               {content}
             </div>
           );
@@ -1260,7 +1260,7 @@ export function PrettyJsonView(props: {
                 props.title,
                 props.scrollable,
                 props.codeClassName,
-                "flex text-xs wrap-break-word whitespace-pre-wrap",
+                "wrap-break-word flex whitespace-pre-wrap text-xs",
               )}
             >
               {props.isLoading ? (

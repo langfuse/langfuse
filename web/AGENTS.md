@@ -29,6 +29,28 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   - Client tests: `src/**/*.clienttest.ts(x)`
   - E2E: `src/__e2e__/*`
 
+## Shared Package Imports
+
+- Prefer `@langfuse/shared` in frontend-safe web code for shared types, zod
+  schemas, domain contracts, table definitions, prompt/eval/model-pricing
+  helpers, and other cross-runtime utilities.
+- Use `@langfuse/shared/src/server` only from server-only web code such as
+  `src/server/**`, `src/pages/api/**`, and server tests.
+- Use `@langfuse/shared/src/db` only in backend or test code that needs direct
+  Prisma access; never route it into client bundles.
+- Use narrower subpaths such as `@langfuse/shared/src/env` or
+  `@langfuse/shared/encryption` only when that focused surface is the clearest
+  dependency.
+- See `../packages/shared/AGENTS.md` for the full shared export map and what
+  each entrypoint contains.
+- For the higher-level platform topology across web, worker, Postgres,
+  ClickHouse, Redis, and S3, also read the architecture handbook:
+  [langfuse.com/handbook/product-engineering/architecture](https://langfuse.com/handbook/product-engineering/architecture)
+  with source markdown in
+  `../langfuse-docs/content/handbook/product-engineering/architecture.mdx`
+  (GitHub mirror:
+  [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
+
 ## Quick Commands
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
@@ -63,7 +85,6 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 ## Package-Specific Rules
 - Router style is Pages Router-centric; follow existing routing patterns.
 - Keep tests independent; no reliance on test execution order.
-- In `src/__tests__/server`, avoid `pruneDatabase` calls.
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before using `--testPathPatterns`; source files do not always have a matching colocated test file.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
 

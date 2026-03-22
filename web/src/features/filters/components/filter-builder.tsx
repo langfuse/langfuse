@@ -173,13 +173,13 @@ export function PopoverFilterBuilder({
               {filterState.length > 0 && filterState.length < 3 ? (
                 <InlineFilterState
                   filterState={filterState}
-                  className="hidden @6xl:block"
+                  className="@6xl:block hidden"
                 />
               ) : null}
               {filterState.length > 0 ? (
                 <span
                   className={cn(
-                    "bg-input ml-1.5 rounded-sm px-1 text-xs shadow-xs @6xl:hidden",
+                    "bg-input shadow-xs @6xl:hidden ml-1.5 rounded-sm px-1 text-xs",
                     filterState.length > 2 && "@6xl:inline",
                   )}
                 >
@@ -200,7 +200,7 @@ export function PopoverFilterBuilder({
               {filterState.length > 0 && (
                 <span
                   className={cn(
-                    "bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs",
+                    "bg-input shadow-xs absolute -right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs",
                   )}
                 >
                   {filterState.length}
@@ -272,7 +272,7 @@ export function InlineFilterState({
       <span
         key={i}
         className={cn(
-          "bg-input ml-2 rounded-md px-2 py-1 text-xs whitespace-nowrap",
+          "bg-input ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs",
           className,
         )}
       >
@@ -543,7 +543,7 @@ function FilterBuilderForm({
                   if (aiError) setAiError(null); // Clear error when user starts typing
                 }}
                 placeholder="Describe the filters you want to apply..."
-                className="min-h-[80px] min-w-112 resize-none"
+                className="min-w-112 min-h-[80px] resize-none"
                 disabled={createFilterMutation.isPending}
                 onKeyDown={(e) => {
                   if (

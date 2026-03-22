@@ -26,7 +26,7 @@ export const AutomationButton = ({
   ) : (
     <span
       className={
-        "bg-input ml-1.5 inline-flex w-6 items-center justify-center rounded-sm px-1 text-xs shadow-xs @6xl:inline"
+        "bg-input shadow-xs @6xl:inline ml-1.5 inline-flex w-6 items-center justify-center rounded-sm px-1 text-xs"
       }
     >
       {numberOfAutomations.data}

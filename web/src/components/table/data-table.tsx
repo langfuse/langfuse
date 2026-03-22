@@ -360,7 +360,7 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
+                          <div className="flex select-none items-center">
                             <span className="truncate">
                               {flexRender(
                                 header.column.columnDef.header,
@@ -388,7 +388,7 @@ export function DataTable<TData extends object, TValue>({
                               onMouseDown={header.getResizeHandler()}
                               onTouchStart={header.getResizeHandler()}
                               className={cn(
-                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                "bg-secondary absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none opacity-0 group-hover:opacity-100",
                                 header.column.getIsResizing() &&
                                   "bg-primary-accent opacity-100",
                               )}

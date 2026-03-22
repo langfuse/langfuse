@@ -245,7 +245,7 @@ function MarkdownRenderer({
     return (
       <div
         className={cn(
-          "space-y-2 overflow-x-auto text-sm wrap-break-word",
+          "wrap-break-word space-y-2 overflow-x-auto text-sm",
           className,
         )}
       >
@@ -398,14 +398,14 @@ function MarkdownRenderer({
             },
             th({ children }) {
               return (
-                <th className="px-4 py-2 text-left text-xs font-medium tracking-wider uppercase">
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
                   {children}
                 </th>
               );
             },
             td({ children }) {
               return (
-                <td className="px-4 py-2 whitespace-nowrap">{children}</td>
+                <td className="whitespace-nowrap px-4 py-2">{children}</td>
               );
             },
           }}

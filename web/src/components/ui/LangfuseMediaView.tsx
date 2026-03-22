@@ -176,7 +176,7 @@ function FileViewer({
         <div className="flex max-w-3xl items-start gap-2">
           <div className="min-w-0 flex-1">
             {isAudio ? (
-              <div className="max-w-xl min-w-72">{previewContent}</div>
+              <div className="min-w-72 max-w-xl">{previewContent}</div>
             ) : (
               previewContent
             )}
@@ -203,7 +203,7 @@ function FileViewer({
           }
           aria-expanded={isPreviewable ? isExpanded : undefined}
           title={fileName}
-          className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
+          className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 bg-linear-to-br group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border px-2 transition-colors"
         >
           {iconTile}
         </button>

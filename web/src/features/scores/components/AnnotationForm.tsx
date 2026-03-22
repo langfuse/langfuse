@@ -604,7 +604,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               <HoverCardTrigger asChild>
                                 <span
                                   className={cn(
-                                    "decoration-muted-gray line-clamp-2 text-xs font-medium wrap-break-word underline decoration-dashed underline-offset-2",
+                                    "decoration-muted-gray wrap-break-word line-clamp-2 text-xs font-medium underline decoration-dashed underline-offset-2",
                                     config.isArchived
                                       ? "text-foreground/40"
                                       : "",
@@ -620,7 +620,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           ) : (
                             <span
                               className={cn(
-                                "line-clamp-2 text-xs font-medium wrap-break-word",
+                                "wrap-break-word line-clamp-2 text-xs font-medium",
                                 config.isArchived ? "text-foreground/40" : "",
                               )}
                               title={score.name}
@@ -755,7 +755,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                             value={category.label}
                                             disabled
                                             variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
+                                            className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal opacity-50"
                                           >
                                             <span
                                               className="truncate"
@@ -770,7 +770,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                             key={category.value}
                                             value={category.label}
                                             variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
+                                            className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal"
                                           >
                                             <span
                                               className="truncate"

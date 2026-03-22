@@ -54,7 +54,9 @@ interface MigrationArgs {
 // Migration Class
 // ============================================================================
 
-export default class BackfillExperimentsHistoric implements IBackgroundMigration {
+export default class BackfillExperimentsHistoric
+  implements IBackgroundMigration
+{
   private isAborted = false;
 
   // --------------------------------------------------------------------------

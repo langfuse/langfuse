@@ -49,7 +49,7 @@ export function MentionAutocomplete({
 
   return (
     <div
-      className="absolute right-0 bottom-full left-0 z-50 mb-1"
+      className="absolute bottom-full left-0 right-0 z-50 mb-1"
       role="region"
       aria-label="User mention suggestions"
     >

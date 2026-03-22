@@ -328,8 +328,9 @@ describe("processThresholds", () => {
 
       // Need to reload the module to pick up the new env var
       vi.resetModules();
-      const { processThresholds: processThresholdsDisabled } =
-        await import("../ee/usageThresholds/thresholdProcessing");
+      const { processThresholds: processThresholdsDisabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
 
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
@@ -364,8 +365,9 @@ describe("processThresholds", () => {
 
       // Need to reload the module to pick up the new env var
       vi.resetModules();
-      const { processThresholds: processThresholdsDisabled } =
-        await import("../ee/usageThresholds/thresholdProcessing");
+      const { processThresholds: processThresholdsDisabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
 
       const org = createMockOrg({
         cloudCurrentCycleUsage: 250_000,
@@ -397,8 +399,9 @@ describe("processThresholds", () => {
         "true";
 
       vi.resetModules();
-      const { processThresholds: processThresholdsEnabled } =
-        await import("../ee/usageThresholds/thresholdProcessing");
+      const { processThresholds: processThresholdsEnabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
 
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
@@ -429,8 +432,9 @@ describe("processThresholds", () => {
         "true";
 
       vi.resetModules();
-      const { processThresholds: processThresholdsEnabled } =
-        await import("../ee/usageThresholds/thresholdProcessing");
+      const { processThresholds: processThresholdsEnabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
 
       const org = createMockOrg({
         cloudCurrentCycleUsage: 0,

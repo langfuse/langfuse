@@ -147,7 +147,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="leading-none font-medium">
+                      <h4 className="font-medium leading-none">
                         Expected Dataset Structure
                       </h4>
                       <p className="text-muted-foreground text-sm">

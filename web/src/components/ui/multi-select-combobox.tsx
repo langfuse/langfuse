@@ -138,7 +138,7 @@ export function MultiSelectCombobox<T>({
           ref={containerRef}
           className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
         >
-          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+          <Search className="text-muted-foreground absolute left-2 top-2.5 z-10 h-4 w-4" />
           <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
@@ -164,14 +164,14 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="placeholder:text-muted-foreground min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
+              className="placeholder:text-muted-foreground outline-hidden min-w-24 flex-1 border-none bg-transparent text-xs"
             />
           </div>
           {searchQuery && (
             <Button
               variant="ghost"
               size="sm"
-              className="absolute top-1 right-2 h-7 w-7 p-0"
+              className="absolute right-2 top-1 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
               <X className="h-3 w-3" />

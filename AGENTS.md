@@ -5,6 +5,7 @@ evaluating, and debugging AI applications.
 Langfuse monorepo guidance for fast, safe code changes.
 
 ## Maintenance Contract
+
 - `AGENTS.md` is a living document.
 - Update this file in the same PR when monorepo-level architecture, workflows,
   dependency boundaries, mandatory verification commands, or release/security
@@ -21,6 +22,7 @@ Langfuse monorepo guidance for fast, safe code changes.
 - If no material guidance changed, do not edit AGENTS files or shared skills.
 
 ## Project Structure & Module Organization
+
 ```text
 langfuse/
 ├─ web/                     # Next.js app (UI + tRPC + public REST)
@@ -44,8 +46,25 @@ langfuse/
   - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
 - Queue payload schemas and queue-name contracts are owned by
   `packages/shared/src/server/queues.ts`.
+- Shared package import surfaces:
+  - `@langfuse/shared`: client-safe/shared contracts, types, schemas, and
+    reusable utilities
+  - `@langfuse/shared/src/server`: server-only shared services, repositories,
+    queue helpers, logging, ingestion, auth, and runtime helpers
+  - `@langfuse/shared/src/db`: Prisma client singleton plus Prisma types
+  - `@langfuse/shared/src/env`, `@langfuse/shared/encryption`: focused env and
+    encryption helpers
+  - See `packages/shared/AGENTS.md` for the full export map and when to use
+    each entrypoint
+- Architecture handbook:
+  [langfuse.com/handbook/product-engineering/architecture](https://langfuse.com/handbook/product-engineering/architecture)
+  with source markdown in
+  `../langfuse-docs/content/handbook/product-engineering/architecture.mdx`
+  (GitHub mirror:
+  [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4))
 
 ## Build, Test, and Development Commands
+
 - Install deps: `pnpm install`
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
@@ -53,7 +72,6 @@ langfuse/
 - Codex environment bootstrap: `bash scripts/codex/setup.sh`
 - Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Lint all: `pnpm run lint`
-- Shared skill validation: `pnpm run skills:check`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
 - If you have to rebuild all for testing, run: `pnpm run build`
@@ -68,9 +86,9 @@ Minimum verification matrix:
 | `packages/shared/prisma/**` or `packages/shared/clickhouse/**` | `pnpm --filter @langfuse/shared run lint` + `pnpm run db:generate` + targeted web/worker regressions |
 | Public API contract (`web/src/pages/api/public/**`, `web/src/features/public-api/types/**`, `fern/apis/**`) | web lint + targeted server API tests + Fern update/regeneration; never hand-edit `generated/**` |
 | Cross-package refactor (`web` + `worker` + `shared`) | `pnpm run lint` + `pnpm run typecheck` + targeted tests per impacted package |
-| Shared or package-local skill files (`**/.agents/skills/**`) | `pnpm run skills:check` + any skill-specific helper commands documented in the edited skill |
 
 ## Coding Style & Naming Conventions
+
 - Keep changes scoped; avoid unrelated refactors.
 - Prefer package-local implementation details in package AGENTS files.
 - Do not hand-edit generated/build artifacts:
@@ -81,15 +99,16 @@ Minimum verification matrix:
   - `packages/shared/prisma/generated/*`
 
 ## Testing Guidelines
+
 - Keep each test independent and parallel-safe.
 - Implement automated tests for every new feature and for material feature
   behavior changes. If a test is genuinely not feasible, document the reason in
   the PR description.
-- `web/src/__tests__/server`: avoid `pruneDatabase` calls.
 - Client tests contain `....clienttest.ts`
 - When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
+
 - Commit messages and PR titles must follow Conventional Commits:
   `type(scope): description` or `type: description`.
 - Use a lowercase conventional type such as `feat`, `fix`, `docs`, `refactor`,
@@ -100,11 +119,13 @@ Minimum verification matrix:
 - In PR descriptions, list impacted packages and executed verification commands.
 
 ## Docs Linking
+
 - Public API contract changes must update Fern sources in `fern/apis/**` and regenerated outputs; do not hand-edit `generated/**`.
 - Use repo-relative file paths in docs and runbooks.
 - Our docs live in `../langfuse-docs/` which is a different repo. You may always access this.
 
 ## Agent-specific Notes
+
 - Root `AGENTS.md` is monorepo-level only.
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
@@ -120,6 +141,7 @@ Minimum verification matrix:
 - For completed feature branches that need a changelog entry, use [`.claude/agents/changelog-writer.md`](.claude/agents/changelog-writer.md).
 
 ## Release Channel
+
 - Release workflow is managed at root (`pnpm run release`).
 - Langfuse Cloud deployments are triggered by pushes to `production` (`.github/workflows/deploy.yml`).
 - Promote `main` to `production` via `.github/workflows/promote-main-to-production.yml` (manual `workflow_dispatch`).
@@ -127,25 +149,31 @@ Minimum verification matrix:
 - Do not change release/versioning flow without updating this file and impacted package guides.
 
 ## GitHub Search
+
 - use the github cli `gh search issues` to search github.
 
 ## GitHub Issues and Pull Requests
+
 - Placeholder: add issue triage and PR hygiene conventions used by maintainers.
 
 ## Security and Configuration Tips
+
 - Never commit secrets or credentials.
 - Keep examples in `.env*.example` files in sync with required env vars.
 - Follow `SECURITY.md` for vulnerability reporting/handling.
 
 ## Troubleshooting
+
 - Lint/typecheck failures: run `pnpm run lint` and `pnpm run tc`.
 - Schema/client drift: run `pnpm run db:generate`.
 - Local infra issues: run `pnpm run infra:dev:up`; use `pnpm run dx` only when destructive reset is intended.
 
 ## Git Notes
+
 - Do not use destructive git commands (for example `reset --hard`) unless explicitly requested.
 - Do not revert unrelated working-tree changes.
 - Keep commits focused and atomic.
 
 ## Cursor Rules
+
 - Additional folder-specific rules live in `.cursor/rules/`.

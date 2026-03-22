@@ -43,7 +43,9 @@ type HeaderPair = {
   wasSecret: boolean;
 };
 
-export class WebhookActionHandler implements BaseActionHandler<WebhookActionFormData> {
+export class WebhookActionHandler
+  implements BaseActionHandler<WebhookActionFormData>
+{
   actionType = "WEBHOOK" as const;
 
   // Parse existing headers if available

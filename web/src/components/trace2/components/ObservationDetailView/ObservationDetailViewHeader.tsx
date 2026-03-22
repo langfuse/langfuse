@@ -98,12 +98,12 @@ export const ObservationDetailViewHeader = memo(
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
+        <div className="@2xl:grid-cols-[auto_auto] @2xl:justify-between grid w-full grid-cols-1 items-start gap-2">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={observation.type as ObservationType} isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+            <span className="md:wrap-break-word mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal">
               {observation.name || observation.id}
             </span>
             <DetailHeaderActionsMenu
@@ -117,7 +117,7 @@ export const ObservationDetailViewHeader = memo(
             />
           </div>
           {/* Action buttons */}
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+          <div className="@2xl:mr-1 @2xl:justify-end flex h-full flex-wrap content-start items-start justify-start gap-0.5">
             {observationWithIO && (
               <NewDatasetItemFromExistingObject
                 traceId={traceId}

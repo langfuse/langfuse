@@ -57,7 +57,9 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
 // Migration Class
 // ============================================================================
 
-export default class BackfillEventsHistoricFromParts implements IBackgroundMigration {
+export default class BackfillEventsHistoricFromParts
+  implements IBackgroundMigration
+{
   private isAborted = false;
 
   // ============================================================================

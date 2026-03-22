@@ -23,7 +23,9 @@ type GitHubDispatchActionFormData = z.infer<
   typeof GitHubDispatchActionFormSchema
 >;
 
-export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDispatchActionFormData> {
+export class GitHubDispatchActionHandler
+  implements BaseActionHandler<GitHubDispatchActionFormData>
+{
   actionType = "GITHUB_DISPATCH" as const;
 
   getDefaultValues(

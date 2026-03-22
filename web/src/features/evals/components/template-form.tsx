@@ -506,7 +506,7 @@ export const InnerEvalTemplateForm = (props: {
               )}
             />
           </div>
-          <div className="col-span-1 row-span-1 lg:col-span-0"></div>
+          <div className="lg:col-span-0 col-span-1 row-span-1"></div>
         </>
       ) : undefined}
 
@@ -518,7 +518,7 @@ export const InnerEvalTemplateForm = (props: {
             control={form.control}
             name="shouldUseDefaultModel"
             render={({ field }) => (
-              <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+              <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
@@ -554,7 +554,7 @@ export const InnerEvalTemplateForm = (props: {
             ) : (
               <ModelParameters
                 customHeader={
-                  <p className="text-sm leading-none font-medium">
+                  <p className="text-sm font-medium leading-none">
                     Custom model configuration
                   </p>
                 }
@@ -740,7 +740,7 @@ export const InnerEvalTemplateForm = (props: {
                     control={form.control}
                     name="shouldAllowMultipleMatches"
                     render={({ field }) => (
-                      <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+                      <FormItem className="mt-3 flex flex-row items-center space-x-3 space-y-0">
                         <FormControl>
                           <Checkbox
                             checked={field.value}

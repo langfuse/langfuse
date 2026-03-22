@@ -399,7 +399,7 @@ expect(rows).toHaveLength(2);
 - Use unique IDs (`randomUUID()`) to avoid test interference
 - Clean up test data or use unique project IDs
 - Tests must be independent and runnable in any order
-- Never use `pruneDatabase` in tests
+- Prefer scoped cleanup or unique project IDs over global reset helpers
 
 ### 8. Always Filter by projectId for Tenant Isolation
 

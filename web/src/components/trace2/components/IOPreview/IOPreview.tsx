@@ -292,7 +292,7 @@ export function IOPreview({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute top-1.5 right-1.5 h-5 w-5 p-0"
+              className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
               onClick={() => {
                 capture("notification:dismiss_notification", {
                   notification_id: EMPTY_IO_ALERT_ID,

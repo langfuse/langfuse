@@ -465,7 +465,7 @@ export function ObservationDetailView({
         {/* Scores tab content */}
         <TabsBarContent
           value="scores"
-          className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
+          className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
         >
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             <ScoresTable

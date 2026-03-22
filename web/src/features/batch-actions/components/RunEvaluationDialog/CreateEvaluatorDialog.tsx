@@ -46,7 +46,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) pb-0">
+      <DialogContent className="max-w-(--breakpoint-md) max-h-[90vh] pb-0">
         <DialogHeader>
           <DialogTitle>
             Create Evaluator for batched observation runs
@@ -56,7 +56,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="max-h-[72vh] overflow-y-auto pr-1 pb-0">
+        <DialogBody className="max-h-[72vh] overflow-y-auto pb-0 pr-1">
           {!templateId ? (
             <div className="space-y-4 px-1 pb-1">
               <p className="text-muted-foreground text-sm">

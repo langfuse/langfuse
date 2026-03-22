@@ -67,7 +67,7 @@ export function PromptLinkingEditor({
       <Button
         type="button"
         variant="outline"
-        className="absolute right-2 bottom-2 flex items-center gap-1 px-2 py-1"
+        className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1"
         onClick={() => setIsDialogOpen(true)}
       >
         <Plus className="mr-2 h-4 w-4" />

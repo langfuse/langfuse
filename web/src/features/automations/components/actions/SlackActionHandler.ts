@@ -23,7 +23,9 @@ export const SlackActionFormSchema = z.object({
 
 type SlackActionFormData = z.infer<typeof SlackActionFormSchema>;
 
-export class SlackActionHandler implements BaseActionHandler<SlackActionFormData> {
+export class SlackActionHandler
+  implements BaseActionHandler<SlackActionFormData>
+{
   actionType = "SLACK" as const;
 
   getDefaultValues(automation?: AutomationDomain): SlackActionFormData {

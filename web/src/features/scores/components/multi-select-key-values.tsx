@@ -175,7 +175,7 @@ export function MultiSelectKeyValues<
         <Button
           variant={variant}
           className={cn(
-            "ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "ring-offset-background placeholder:text-muted-foreground focus:ring-ring focus:outline-hidden flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -255,7 +255,7 @@ export function MultiSelectKeyValues<
 
             return (
               <DropdownMenuSub key={group.label}>
-                <DropdownMenuSubTrigger className="flex w-full cursor-default items-center select-none">
+                <DropdownMenuSubTrigger className="flex w-full cursor-default select-none items-center">
                   <Component className="mr-2 h-4 w-4 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>

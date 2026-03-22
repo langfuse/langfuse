@@ -74,7 +74,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+          <DialogContent className="max-w-(--breakpoint-md) max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}

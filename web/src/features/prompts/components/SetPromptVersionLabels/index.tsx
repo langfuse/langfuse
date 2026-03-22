@@ -172,7 +172,7 @@ export function SetPromptVersionLabels({
       <PopoverTrigger asChild data-version-trigger="true">
         <div
           className={cn(
-            "flex w-fit max-w-full min-w-0 cursor-pointer flex-wrap gap-1",
+            "flex w-fit min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
             !hasAccess && "cursor-not-allowed",
           )}
         >
@@ -225,7 +225,7 @@ export function SetPromptVersionLabels({
               <InputCommandSeparator />
               <InputCommandGroup heading="Custom labels">
                 {/* Search + create input */}
-                <div className="px-2 pt-1 pb-2">
+                <div className="px-2 pb-2 pt-1">
                   <Input
                     placeholder="Search or create label…"
                     value={searchValue}
@@ -284,7 +284,7 @@ export function SetPromptVersionLabels({
 
                 {/* Filtered label list */}
                 <div
-                  className="max-h-[240px] overflow-x-hidden overflow-y-auto"
+                  className="max-h-[240px] overflow-y-auto overflow-x-hidden"
                   ref={customLabelScrollRef}
                 >
                   {filteredCustomLabels.map((label) => (

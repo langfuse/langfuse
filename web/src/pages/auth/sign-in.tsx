@@ -724,18 +724,18 @@ export default function SignIn({
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+          <h2 className="text-primary mt-4 text-center text-2xl font-bold leading-9 tracking-tight">
             Sign in to your account
           </h2>
         </div>
 
         {isLangfuseCloud && (
-          <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+          <div className="bg-card -mb-4 mt-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
-              className="text-primary-accent hover:text-hover-primary-accent cursor-pointer text-xs font-medium whitespace-nowrap"
+              className="text-primary-accent hover:text-hover-primary-accent cursor-pointer whitespace-nowrap text-xs font-medium"
             >
               (contact us)
             </a>
@@ -864,7 +864,7 @@ export default function SignIn({
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-                className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+                className="text-primary-accent hover:text-hover-primary-accent font-semibold leading-6"
               >
                 Sign up
               </Link>

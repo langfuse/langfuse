@@ -42,7 +42,7 @@ export const DashboardTable = ({
                       <th
                         key={i}
                         scope="col"
-                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap sm:pl-0"
+                        className="text-primary whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-xs font-semibold sm:pl-0"
                       >
                         {header}
                       </th>
@@ -65,7 +65,7 @@ export const DashboardTable = ({
                         {row.map((cell, j) => (
                           <td
                             key={j}
-                            className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
+                            className="text-muted-foreground whitespace-nowrap py-2 pl-3 pr-2 text-xs sm:pl-0"
                           >
                             {cell}
                           </td>

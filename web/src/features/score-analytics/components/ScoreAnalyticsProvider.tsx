@@ -66,7 +66,8 @@ export interface EstimateData {
   mode: "single" | "two";
 }
 
-export interface ScoreAnalyticsContextValue extends UseScoreAnalyticsQueryResult {
+export interface ScoreAnalyticsContextValue
+  extends UseScoreAnalyticsQueryResult {
   colors: ScoreColors;
   params: ScoreAnalyticsQueryParams;
   colorMappings: Record<string, string>;

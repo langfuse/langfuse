@@ -268,7 +268,7 @@ export default function Dataset() {
                 {hasReadAccess && (
                   <DropdownMenuItem asChild>
                     <Link href={`/project/${projectId}/evals?target=dataset`}>
-                      <Bot className="mr-2 ml-1 h-4 w-4" />
+                      <Bot className="ml-1 mr-2 h-4 w-4" />
                       Manage Evaluators
                     </Link>
                   </DropdownMenuItem>
@@ -295,7 +295,7 @@ export default function Dataset() {
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
+          <DialogContent className="max-w-(--breakpoint-md) max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}

@@ -94,7 +94,7 @@ export const StructuredOutputSchemaPopover = () => {
     <Command className="flex flex-col">
       <CommandInput
         placeholder="Search schemas..."
-        className="h-8 border-none py-1 pr-1 pl-6 focus:ring-0 focus:ring-offset-0"
+        className="h-8 border-none py-1 pl-6 pr-1 focus:ring-0 focus:ring-offset-0"
       />
       <CommandList className="max-h-[300px] overflow-y-auto">
         <CommandEmpty>No schemas found.</CommandEmpty>
@@ -268,7 +268,7 @@ export const StructuredOutputSchemaSection = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute top-2 right-3 h-6 w-6 p-0"
+                className="absolute right-3 top-2 h-6 w-6 p-0"
                 aria-label={`Remove schema ${structuredOutputSchema.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -294,7 +294,7 @@ export const StructuredOutputSchemaSection = () => {
                   ) : null}
                 </div>
                 <p
-                  className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
+                  className="text-muted-foreground col-start-2 line-clamp-2 break-words text-xs"
                   title={structuredOutputSchema.description}
                 >
                   {structuredOutputSchema.description}

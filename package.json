@@ -30,7 +30,6 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
-    "skills:check": "node scripts/codex/check-skills.mjs",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "test": "turbo run test",

@@ -471,7 +471,7 @@ describe("batch export test suite", () => {
 1. **Test Isolation**: Each test should be independent and runnable in any order
 2. **Unique IDs**: Use `randomUUID()` or unique project IDs to avoid test interference
 3. **Cleanup**: Always clean up test data in service tests (or use unique project IDs)
-4. **No `pruneDatabase`**: Avoid `pruneDatabase` calls, especially in `__tests__/async/` directory
+4. **Avoid Global Resets**: Prefer scoped cleanup or unique project IDs over global reset helpers
 
 ### By Test Type
 
@@ -499,9 +499,6 @@ const { projectId } = await createOrgProjectAndApiKey();
 
 // ❌ BAD: Shared test data between tests
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-// ❌ BAD: Using pruneDatabase
-await pruneDatabase();
 ```
 
 ---

@@ -84,7 +84,7 @@ export const Dropzone = ({
       <Button
         className={cn(
           "relative h-auto w-full flex-col overflow-hidden p-8",
-          isDragActive && "ring-ring ring-1 outline-hidden",
+          isDragActive && "ring-ring outline-hidden ring-1",
           className,
         )}
         disabled={disabled}
@@ -142,7 +142,7 @@ export const DropzoneContent = ({
             )} and ${src.length - maxLabelItems} more`
           : new Intl.ListFormat("en").format(src.map((file) => file.name))}
       </p>
-      <p className="text-muted-foreground w-full text-xs text-wrap">
+      <p className="text-muted-foreground w-full text-wrap text-xs">
         Drag and drop or click to replace
       </p>
     </div>
@@ -188,14 +188,14 @@ export const DropzoneEmptyState = ({
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-sm font-medium text-wrap">
+      <p className="my-2 w-full truncate text-wrap text-sm font-medium">
         Upload {maxFiles === 1 ? "a file" : "files"}
       </p>
-      <p className="text-muted-foreground w-full truncate text-xs text-wrap">
+      <p className="text-muted-foreground w-full truncate text-wrap text-xs">
         Drag and drop or click to upload
       </p>
       {caption && (
-        <p className="text-muted-foreground text-xs text-wrap">{caption}.</p>
+        <p className="text-muted-foreground text-wrap text-xs">{caption}.</p>
       )}
     </div>
   );

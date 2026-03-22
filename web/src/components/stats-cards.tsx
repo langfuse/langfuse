@@ -6,7 +6,7 @@ interface Statistic {
 export default function StatsCards({ stats }: { stats: Statistic[] }) {
   return (
     <div>
-      <h3 className="text-primary text-base leading-6 font-semibold">
+      <h3 className="text-primary text-base font-semibold leading-6">
         Model configuration
       </h3>
       <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-4">

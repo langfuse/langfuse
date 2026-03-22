@@ -116,7 +116,7 @@ export default function ConfigureRetention() {
                       />
                       {!hasAccess && (
                         <span title="No access">
-                          <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                          <LockIcon className="text-muted absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform" />
                         </span>
                       )}
                     </div>

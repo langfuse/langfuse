@@ -32,7 +32,7 @@ export const LogViewTreeIndent = memo(function LogViewTreeIndent({
       {treeLines.map((hasLine, index) => (
         <div key={index} className="relative w-3">
           {hasLine && (
-            <div className="bg-border absolute top-0 bottom-0 left-1.5 w-px" />
+            <div className="bg-border absolute bottom-0 left-1.5 top-0 w-px" />
           )}
         </div>
       ))}
@@ -40,11 +40,11 @@ export const LogViewTreeIndent = memo(function LogViewTreeIndent({
       <div className="relative w-3">
         <div
           className={cn(
-            "bg-border absolute top-0 left-1.5 w-px",
+            "bg-border absolute left-1.5 top-0 w-px",
             isLastSibling ? "h-1/2" : "h-full",
           )}
         />
-        <div className="bg-border absolute top-1/2 left-1.5 h-px w-1.5" />
+        <div className="bg-border absolute left-1.5 top-1/2 h-px w-1.5" />
       </div>
     </div>
   );
