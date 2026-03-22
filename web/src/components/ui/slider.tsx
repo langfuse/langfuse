@@ -6,8 +6,9 @@ import { Input } from "./input";
 
 import { cn } from "@/src/utils/tailwind";
 
-export interface SliderProps
-  extends React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> {
+export interface SliderProps extends React.ComponentPropsWithoutRef<
+  typeof SliderPrimitive.Root
+> {
   showInput?: boolean;
   displayAsPercentage?: boolean;
   decimalPlaces?: number;
@@ -90,7 +91,7 @@ const Slider = React.forwardRef<
       <div className={cn("flex items-center gap-4", className)}>
         <SliderPrimitive.Root
           ref={ref}
-          className="relative flex w-full touch-none select-none items-center"
+          className="relative flex w-full touch-none items-center select-none"
           {...props}
         >
           <SliderPrimitive.Track className="bg-secondary relative h-2 w-full grow overflow-hidden rounded-full">
@@ -105,7 +106,7 @@ const Slider = React.forwardRef<
             <SliderPrimitive.Thumb
               key={index}
               className={cn(
-                "bg-background ring-offset-background focus-visible:ring-ring focus-visible:outline-hidden block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                "bg-background ring-offset-background focus-visible:ring-ring block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
                 props.disabled ? "border-secondary" : "border-primary",
               )}
             />

@@ -125,7 +125,7 @@ export const CreateNewAnnotationQueueItem = ({
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
               <ChevronDown className="text-secondary-foreground h-3 w-3" />
-              <span className="shadow-xs absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm bg-slate-600 px-0.5 text-[8px] font-medium text-white">
+              <span className="absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm bg-slate-600 px-0.5 text-[8px] font-medium text-white shadow-xs">
                 {queues.data?.totalCount > 99 ? "99+" : queues.data?.totalCount}
               </span>
             </span>

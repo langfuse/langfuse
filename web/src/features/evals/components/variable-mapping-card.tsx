@@ -148,7 +148,7 @@ export const VariableMappingCard = ({
   );
 
   return (
-    <Card className="min-w-0 max-w-full p-4">
+    <Card className="max-w-full min-w-0 p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-lg font-medium">Variable mapping</span>
       </div>

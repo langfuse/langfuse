@@ -110,7 +110,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           <SheetTitle className="mt-0! ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span
-              className="focus:outline-hidden truncate text-sm font-medium"
+              className="truncate text-sm font-medium focus:outline-hidden"
               tabIndex={0}
             >
               {peekView.customTitlePrefix

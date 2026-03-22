@@ -140,7 +140,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring focus:outline-hidden flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -334,7 +334,7 @@ export function MultiSelect({
                       e.stopPropagation();
                     }}
                     placeholder="Enter custom value"
-                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
+                    className="h-6 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
                   />
                 </InputCommandItem>
               </InputCommandGroup>

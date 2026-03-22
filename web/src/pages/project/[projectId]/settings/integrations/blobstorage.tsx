@@ -454,7 +454,7 @@ const BlobStorageIntegrationSettingsForm = ({
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    className="ml-4 mt-1"
+                    className="mt-1 ml-4"
                   />
                 </FormControl>
                 <FormDescription>
@@ -750,7 +750,7 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
-                  className="ml-4 mt-1"
+                  className="mt-1 ml-4"
                 />
               </FormControl>
               <FormMessage />

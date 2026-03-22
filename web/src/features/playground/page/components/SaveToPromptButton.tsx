@@ -99,7 +99,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               <Button
                 variant="outline"
                 className={cn(
-                  "@xl:hidden h-7 gap-1.5 px-2.5 text-xs",
+                  "h-7 gap-1.5 px-2.5 text-xs @xl:hidden",
                   className,
                 )}
               >
@@ -114,7 +114,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           <Button
             variant="outline"
             className={cn(
-              "@xl:flex hidden h-7 gap-1.5 px-2.5 text-xs",
+              "hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex",
               className,
             )}
           >

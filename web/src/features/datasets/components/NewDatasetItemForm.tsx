@@ -353,7 +353,7 @@ export const NewDatasetItemForm = (props: {
                           <Badge
                             key={datasetId}
                             variant="secondary"
-                            className="mb-1 mr-1"
+                            className="mr-1 mb-1"
                           >
                             {dataset?.name || datasetId}
                           </Badge>

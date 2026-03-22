@@ -85,7 +85,7 @@ const ScoreGroupBadge = <
                 <HoverCardTrigger className="inline-block">
                   <MessageCircleMoreIcon className="mb-0.25 size-3!" />
                 </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                   <p className="whitespace-pre-wrap">{s.comment}</p>
                   {"executionTraceId" in s &&
                     s.executionTraceId &&
@@ -107,7 +107,7 @@ const ScoreGroupBadge = <
                 <HoverCardTrigger className="inline-block">
                   <BracesIcon className="mb-0.25 size-3!" />
                 </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0 text-xs">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
                   <JSONView codeClassName="rounded-md!" json={s.metadata} />
                 </HoverCardContent>
               </HoverCard>

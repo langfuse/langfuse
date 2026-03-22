@@ -81,7 +81,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                     <div className="space-y-2">
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="truncate text-sm font-medium leading-tight">
+                        <h4 className="truncate text-sm leading-tight font-medium">
                           {automation.name}
                         </h4>
                         {automation.trigger.status === JobConfigState.ACTIVE ? (

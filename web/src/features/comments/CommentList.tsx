@@ -502,28 +502,28 @@ export function CommentList({
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
               <div className="text-sm font-medium">Comments</div>
               <div className="relative max-w-xs flex-1">
-                <Search className="text-muted-foreground absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
                   ref={searchInputRef}
                   type="text"
                   placeholder="Search comments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7 pl-7 pr-7 text-xs"
+                  className="h-7 pr-7 pl-7 text-xs"
                 />
                 {searchQuery && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
+                    className="absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2"
                     onClick={() => setSearchQuery("")}
                   >
                     <X className="h-3 w-3" />
                   </Button>
                 )}
                 {!searchQuery && (
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute right-1 top-1/2 h-5 -translate-y-1/2 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 sm:inline-flex">
+                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
                     {typeof navigator !== "undefined" &&
                     navigator.platform.toLowerCase().includes("mac") ? (
                       <>
@@ -663,7 +663,7 @@ export function CommentList({
 
                 {/* Actions - absolute positioned */}
                 {session.data?.user?.id === comment.authorUserId && (
-                  <div className="absolute right-2 top-2 opacity-50 transition-opacity hover:opacity-100">
+                  <div className="absolute top-2 right-2 opacity-50 transition-opacity hover:opacity-100">
                     <Button
                       type="button"
                       size="icon-xs"
@@ -695,12 +695,12 @@ export function CommentList({
 
         {hasWriteAccess && (
           <>
-            <div className="text-muted-foreground relative ml-2.5 mr-4 mt-2 flex flex-row items-center justify-between text-xs">
+            <div className="text-muted-foreground relative mt-2 mr-4 ml-2.5 flex flex-row items-center justify-between text-xs">
               <span className="sr-only">New comment</span>
               <span></span>
               <span>Markdown and @-mentions support</span>
             </div>
-            <div className="border-border/60 relative mb-2 ml-2 mr-3 mt-0.5 min-h-[70px] shrink-0 rounded-lg border pt-1">
+            <div className="border-border/60 relative mt-0.5 mr-3 mb-2 ml-2 min-h-[70px] shrink-0 rounded-lg border pt-1">
               {/* Visually hidden header for accessibility */}
 
               <Form {...form}>
@@ -725,7 +725,7 @@ export function CommentList({
                                 }
                               }}
                               onKeyDown={handleKeyDown}
-                              className="focus:outline-hidden max-h-[100px] min-h-9 w-full resize-none overflow-hidden border-none py-2 pr-7 text-xs leading-tight focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                              className="max-h-[100px] min-h-9 w-full resize-none overflow-hidden border-none py-2 pr-7 text-xs leading-tight focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                               style={{
                                 whiteSpace: "pre-wrap",
                                 wordWrap: "break-word",
@@ -778,7 +778,7 @@ export function CommentList({
                           onClick={() => {
                             form.handleSubmit(onSubmit)();
                           }}
-                          className="absolute bottom-1 right-1"
+                          className="absolute right-1 bottom-1"
                         >
                           <ArrowUpToLine className="h-3 w-3" />
                         </Button>
@@ -790,7 +790,7 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100">
+                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
                             <span className="text-xs">⌘</span>Enter
                           </kbd>
                         </div>

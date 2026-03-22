@@ -73,7 +73,7 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background shadow-xs sticky z-30 w-full border-b",
+        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
         className,
       ])}
       id="page-header"
@@ -121,13 +121,13 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg font-semibold leading-7">
+                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
                     {titleTooltip ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span
-                              className="wrap-break-word cursor-help"
+                              className="cursor-help wrap-break-word"
                               data-testid="page-header-title"
                             >
                               {title}
@@ -204,7 +204,7 @@ const PageHeader = ({
                       query: tab.querySelector?.(router.query),
                     }}
                     className={cn(
-                      "hover:bg-muted/50 focus-visible:ring-ring focus-visible:outline-hidden inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-offset-2",
+                      "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                       tab.value === tabsProps.activeTab
                         ? "border-primary-accent bg-transparent shadow-none"
                         : "",

@@ -179,16 +179,16 @@ function PlaygroundWindowContent({
   return (
     <div
       ref={windowContainerRef}
-      className="playground-window bg-background @container shadow-xs flex h-full min-w-0 flex-col rounded-lg border"
+      className="playground-window bg-background @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
     >
       {/* Window Header */}
       <div className="bg-muted/50 relative shrink-0 border-b px-3 py-1">
-        <div className="@xl:pr-96 flex items-center pr-32">
+        <div className="flex items-center pr-32 @xl:pr-96">
           <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
 
-          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+          <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
             <TooltipProvider delayDuration={300}>
               <SaveToPromptButton />
 
@@ -200,7 +200,7 @@ function PlaygroundWindowContent({
                       <Button
                         variant="outline"
                         onClick={handleCopy}
-                        className="@xl:hidden h-7 gap-1.5 px-2.5 text-xs"
+                        className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
                       >
                         <Plus size={14} />
                         <span className="sr-only">New split window</span>
@@ -213,7 +213,7 @@ function PlaygroundWindowContent({
                   <Button
                     variant="outline"
                     onClick={handleCopy}
-                    className="@xl:flex hidden h-7 gap-1.5 px-2.5 text-xs"
+                    className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
                   >
                     <Plus size={14} />
                     <span>New split window</span>

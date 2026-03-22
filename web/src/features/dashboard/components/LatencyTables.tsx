@@ -162,7 +162,7 @@ export const LatencyTables = ({
                 triggerContent={
                   item.type ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">
+                      <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
                         {String(item.type)}
                       </span>
                       <span>{truncate(item.name as string)}</span>

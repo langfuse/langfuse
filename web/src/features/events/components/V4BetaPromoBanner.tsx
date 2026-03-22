@@ -85,7 +85,7 @@ export function V4BetaPromoBanner() {
   return (
     <div
       ref={bannerRef}
-      className="bg-light-blue text-foreground fixed left-0 right-0 z-50 border-b"
+      className="bg-light-blue text-foreground fixed right-0 left-0 z-50 border-b"
       style={{ top: `${topOffset}px` }}
       role="status"
       aria-live="polite"

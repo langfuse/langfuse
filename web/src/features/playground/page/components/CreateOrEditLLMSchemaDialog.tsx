@@ -152,7 +152,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:min-w-128 md:min-w-160 flex flex-col">
+      <DialogContent className="flex flex-col sm:min-w-128 md:min-w-160">
         <DialogHeader>
           <DialogTitle>
             {existingLlmSchema ? "Edit LLM Schema" : "Create LLM Schema"}
@@ -242,7 +242,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                             variant="outline"
                             size="sm"
                             onClick={prettifyJson}
-                            className="absolute right-3 top-3 text-xs"
+                            className="absolute top-3 right-3 text-xs"
                           >
                             Prettify
                           </Button>

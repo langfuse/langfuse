@@ -222,7 +222,7 @@ export const ValueCell = memo(
         case "null":
           return {
             content: (
-              <span className="italic text-gray-500 dark:text-gray-400">
+              <span className="text-gray-500 italic dark:text-gray-400">
                 null
               </span>
             ),
@@ -296,7 +296,7 @@ export const ValueCell = memo(
         <Button
           variant="ghost"
           size="icon"
-          className="bg-background/80 hover:bg-background shadow-xs absolute right-0 top-0 h-5 w-5 border p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
           onClick={handleCopy}
           title="Copy value"
           aria-label="Copy cell value"

@@ -192,7 +192,7 @@ export const AnnotationQueueItemPage: React.FC<{
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
           <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
-          <span className="text-muted-foreground max-w-96 text-wrap text-sm">
+          <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
             unaffected by this action.

@@ -22,7 +22,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <BadgeCheck size={20} className="text-primary-foreground" />
-          <div className="text-primary-foreground m-0 text-sm font-medium leading-tight">
+          <div className="text-primary-foreground m-0 text-sm leading-tight font-medium">
             {title}
           </div>
         </div>

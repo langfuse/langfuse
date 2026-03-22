@@ -20,7 +20,7 @@ export function HeatmapPlaceholder() {
       </div>
 
       {/* Overlay message */}
-      <div className="bg-background/90 shadow-xs relative z-10 rounded-lg px-6 py-4 text-center">
+      <div className="bg-background/90 relative z-10 rounded-lg px-6 py-4 text-center shadow-xs">
         <p className="text-muted-foreground text-sm">
           Select a second score to view comparison heatmap
         </p>

@@ -117,7 +117,7 @@ export function SpendAlertDialog({
         <DialogTitle>
           {alert ? "Edit Spend Alert" : "Create Spend Alert"}
         </DialogTitle>
-        <DialogDescription className="text-muted-foreground pb-2 pt-1 text-sm">
+        <DialogDescription className="text-muted-foreground pt-1 pb-2 text-sm">
           Get notified when your organization&apos;s spending exceeds a limit.
         </DialogDescription>
         <Form {...form}>
