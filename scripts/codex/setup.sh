@@ -26,5 +26,9 @@ ensure_env_file .env.test .env.test.example
 
 pnpm install --frozen-lockfile
 
+# Install Chromium into the default user-level Playwright cache so frontend
+# browser review works on first bootstrap.
+pnpm run playwright:install
+
 # Prisma client generation is needed for typecheck/build tasks in Codex.
 pnpm run db:generate

@@ -69,8 +69,9 @@ langfuse/
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
 - Dev worker only: `pnpm run dev:worker`
-- Codex environment bootstrap: `bash scripts/codex/setup.sh`
+- Codex environment bootstrap: `bash scripts/codex/setup.sh` (installs deps, Playwright Chromium, and Prisma artifacts)
 - Codex environment maintenance: `bash scripts/codex/maintenance.sh`
+- Install repo-local Playwright browsers for agents: `pnpm run playwright:install`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
 - To try running build, always run `pnpm run build:check` and verify that it succeeds. This does not impact running web servers
@@ -167,6 +168,16 @@ Minimum verification matrix:
 - Lint/typecheck failures: run `pnpm run lint` and `pnpm run tc`.
 - Schema/client drift: run `pnpm run db:generate`.
 - Local infra issues: run `pnpm run infra:dev:up`; use `pnpm run dx` only when destructive reset is intended.
+
+## Agent Browser Automation
+- Shared Playwright MCP configs live in `.mcp.json` and `.vscode/mcp.json`.
+- Codex project-scoped MCP config lives in `.codex/config.toml` for trusted-project setups.
+- Install Chromium into the default user-level Playwright cache with `pnpm run playwright:install`.
+- `scripts/codex/setup.sh` runs the Playwright install step for first-time Codex bootstrap.
+- Playwright MCP traces and other browser session artifacts live under `.playwright-mcp/` and are gitignored.
+- For user-visible frontend changes in `web/**`, review the affected flow in a real browser with the Playwright MCP server before signoff. Cover the primary changed path with a quick functional pass and a visual check for obvious regressions.
+- For web flows, start `pnpm run dev:web` (or `pnpm run dev`) before asking an agent to drive the app in a browser.
+- Optional: generate Playwright's planner/generator/healer agent files with `pnpm --filter web exec playwright init-agents --loop=<claude|vscode|copilot|opencode>`.
 
 ## Git Notes
 

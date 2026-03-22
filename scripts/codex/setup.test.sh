@@ -12,6 +12,7 @@ cleanup() {
 trap cleanup EXIT
 
 repo_copy="$tmpdir/repo"
+pnpm_log="$tmpdir/pnpm.log"
 
 mkdir -p "$tmpdir/bin" "$repo_copy/scripts/codex"
 
@@ -26,8 +27,9 @@ cat <<'EOF' > "$tmpdir/bin/corepack"
 exit 0
 EOF
 
-cat <<'EOF' > "$tmpdir/bin/pnpm"
+cat <<EOF > "$tmpdir/bin/pnpm"
 #!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$pnpm_log"
 exit 0
 EOF
 
@@ -79,5 +81,20 @@ assert_file_contains \
   "$repo_copy/.env.test" \
   'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/langfuse_test"' \
   "setup.sh should preserve the existing .env.test on rerun"
+
+assert_file_contains \
+  "$pnpm_log" \
+  "install --frozen-lockfile" \
+  "setup.sh should install workspace dependencies"
+
+assert_file_contains \
+  "$pnpm_log" \
+  "run playwright:install" \
+  "setup.sh should install Playwright browsers for frontend review"
+
+assert_file_contains \
+  "$pnpm_log" \
+  "run db:generate" \
+  "setup.sh should generate Prisma artifacts"
 
 echo "setup.sh example bootstrap regression test passed"
