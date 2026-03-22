@@ -655,6 +655,6 @@ LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().positive().default(3)
 
 **Related Files:**
 
-- [SKILL.md](../SKILL.md) - Main backend development guidelines
+- [../AGENTS.md](../AGENTS.md) - Main backend development guidelines
 - [architecture-overview.md](architecture-overview.md) - System architecture
 - [configuration.md](configuration.md) - Environment variable configuration

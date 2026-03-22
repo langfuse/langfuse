@@ -760,6 +760,6 @@ ctx.trace // TraceRecord (pre-fetched)
 
 **Related Files:**
 
-- [SKILL.md](../SKILL.md) - Main backend development guidelines
+- [../AGENTS.md](../AGENTS.md) - Main backend development guidelines
 - [architecture-overview.md](architecture-overview.md) - System architecture
-- [async-and-errors.md](async-and-errors.md) - Error handling patterns
+- [../AGENTS.md](../AGENTS.md) - Error handling patterns and traceException guidance

@@ -838,7 +838,7 @@ export const upsertScore = async (
 
 **Related Files:**
 
-- [SKILL.md](../SKILL.md) - Main backend development guidelines
+- [../AGENTS.md](../AGENTS.md) - Main backend development guidelines
 - [architecture-overview.md](architecture-overview.md) - System architecture
 - [middleware-guide.md](middleware-guide.md) - Middleware patterns
 - [database-patterns.md](database-patterns.md) - Database access patterns
