@@ -127,7 +127,7 @@ export function OnboardingSurvey() {
         <LangfuseIcon className="h-8 w-8" />
       </div>
 
-      <div className="mt-6 rounded-lg bg-background px-6 py-6 shadow sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
+      <div className="bg-background mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
         <Form {...form}>
           <form
             className="flex h-full flex-col"
@@ -165,7 +165,7 @@ export function OnboardingSurvey() {
                 </Button>
               )}
 
-              <div className="basis-[10rem] px-4">
+              <div className="basis-40 px-4">
                 <SurveyProgress
                   currentStep={state.currentStep}
                   totalSteps={totalSteps}

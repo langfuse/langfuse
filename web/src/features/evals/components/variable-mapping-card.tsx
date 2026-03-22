@@ -46,6 +46,9 @@ import { Switch } from "@/src/components/ui/switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 
 export const VariableMappingCard = ({
   projectId,
@@ -75,6 +78,11 @@ export const VariableMappingCard = ({
     name: "mapping",
   });
 
+  const syncStatus = useVariableMappingSync({
+    templateVars: evalTemplate?.vars,
+    currentMapping: fields,
+  });
+
   const { namesByObject, isLoading, previewData } = useEvalConfigMappingData(
     projectId,
     form,
@@ -95,7 +103,7 @@ export const VariableMappingCard = ({
     <div className="flex items-center gap-2">
       {isTraceOrEventTarget(form.watch("target")) && !disabled && (
         <>
-          <span className="text-xs text-muted-foreground">Preview</span>
+          <span className="text-muted-foreground text-xs">Preview</span>
           <Switch
             checked={showPreview}
             onCheckedChange={setShowPreview}
@@ -140,7 +148,7 @@ export const VariableMappingCard = ({
   );
 
   return (
-    <Card className="min-w-0 max-w-full p-4">
+    <Card className="max-w-full min-w-0 p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-lg font-medium">Variable mapping</span>
       </div>
@@ -171,13 +179,13 @@ export const VariableMappingCard = ({
                       variableMapping={form.watch("mapping")}
                       isLoading={isLoading}
                       className={cn(
-                        "min-h-48 bg-muted/50",
+                        "bg-muted/50 min-h-48",
                         !shouldWrapVariables && "lg:w-2/3",
                       )}
                       controlButtons={mappingControlButtons}
                     />
                   ) : (
-                    <div className="flex max-h-full min-h-48 w-full flex-col gap-1 bg-muted/50 lg:w-2/3">
+                    <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
                       <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
                         <div className="flex flex-row items-center gap-2">
                           Evaluation Prompt Preview
@@ -188,7 +196,7 @@ export const VariableMappingCard = ({
                         </div>
                       </div>
                       <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
-                        <p className="text-center text-sm text-muted-foreground">
+                        <p className="text-muted-foreground text-center text-sm">
                           No trace data found, please adjust filters or switch
                           to not show preview.
                         </p>
@@ -200,7 +208,7 @@ export const VariableMappingCard = ({
                     title={"Evaluation Prompt"}
                     json={evalTemplate.prompt ?? null}
                     className={cn(
-                      "min-h-48 bg-muted/50",
+                      "bg-muted/50 min-h-48",
                       !shouldWrapVariables && "lg:w-2/3",
                     )}
                     codeClassName="flex-1"
@@ -214,6 +222,19 @@ export const VariableMappingCard = ({
                     !shouldWrapVariables && "lg:w-1/3",
                   )}
                 >
+                  {disabled && !syncStatus.inSync && (
+                    <Alert className="text-sm" variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle className="text-base">
+                        Variable mapping is out of sync
+                      </AlertTitle>
+                      <AlertDescription>
+                        The template has {syncStatus.added.length} new
+                        variable(s) and {syncStatus.removed.length} removed
+                        variable(s). Toggle Edit Mode to update the mapping.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)
                     ? fields.map((mappingField, index) => (
                         <Card className="flex flex-col gap-2 p-4" key={index}>

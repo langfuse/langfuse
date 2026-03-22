@@ -44,13 +44,13 @@ function DraggableColumn({
       {...listeners}
       {...attributes}
       className={cn(
-        "cursor-grab rounded-md border p-2 hover:bg-accent active:cursor-grabbing",
+        "hover:bg-accent cursor-grab rounded-md border p-2 active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
     >
       <div className="flex flex-wrap items-center justify-between space-x-1">
         <span className="text-sm">{column.name}</span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground text-xs">
           {column.inferredType}
         </span>
       </div>
@@ -82,7 +82,7 @@ function SchemaKeyDropZone({
       <div className="flex items-center justify-between">
         <span className="font-medium">{schemaKey}</span>
         {mappedColumn && (
-          <span className="text-xs text-muted-foreground">{mappedColumn}</span>
+          <span className="text-muted-foreground text-xs">{mappedColumn}</span>
         )}
       </div>
     </div>
@@ -109,7 +109,7 @@ export function ImportCard({
       ref={setNodeRef}
       className={cn(
         "flex h-full flex-col overflow-hidden",
-        !isSchemaMode && isOver && "ring-2 ring-primary",
+        !isSchemaMode && isOver && "ring-primary ring-2",
         className,
       )}
     >
@@ -136,7 +136,7 @@ export function ImportCard({
           // Freeform mode: show draggable columns
           <>
             {columns.length === 0 && id !== "unmapped" ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
                 Drag columns here
               </div>
             ) : (

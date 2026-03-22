@@ -289,6 +289,36 @@ describe("buildTraceUiData", () => {
       expect(result.roots[0].name).toBe("Generation");
     });
 
+    it("propagates trace.latency to primary root observation node", () => {
+      const trace = createMockTrace({
+        id: "trace-1",
+        rootObservationType: "SPAN",
+        rootObservationId: "root-obs",
+        latency: 2.5,
+      });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root-obs",
+          name: "RootSpan",
+          parentObservationId: null,
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null, // root span without explicit endTime
+        }),
+        createMockObservation({
+          id: "child-obs",
+          parentObservationId: "root-obs",
+          startTime: new Date("2024-01-01T00:00:00.500Z"),
+          endTime: new Date("2024-01-01T00:00:02.500Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      expect(result.roots).toHaveLength(1);
+      expect(result.roots[0].id).toBe("root-obs");
+      expect(result.roots[0].latency).toBe(2.5);
+    });
+
     it("returns empty roots array for events-based trace with no observations", () => {
       const trace = createMockTrace({
         id: "trace-1",

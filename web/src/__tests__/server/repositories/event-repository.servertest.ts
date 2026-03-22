@@ -348,6 +348,71 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("Search Query Tests", () => {
+    it("should not throw ambiguous column error when searchQuery is combined with score filter", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // searchQuery triggers a LEFT JOIN with traces CTE (which has a "name" column),
+      // and the score filter triggers a LEFT JOIN with scores_agg (which also has "name").
+      // With unqualified "name" in the search WHERE clause, ClickHouse raises
+      // "ambiguous identifier 'name'" because 3 tables define it: e, t, and s.
+      const scoreFilter: FilterCondition = {
+        type: "numberObject" as const,
+        column: "scores_avg",
+        operator: ">" as const,
+        key: "Clinical Risk",
+        value: 0,
+      };
+
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [scoreFilter],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should not throw ambiguous column error when searchQuery triggers traces JOIN", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: uniqueProjectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span",
+      });
+
+      await createEventsCh([event]);
+
+      // searchQuery alone triggers a LEFT JOIN with traces CTE which also has a "name" column.
+      const count = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "test",
+      });
+
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   maybe("Filter Tests", () => {
     describe("Timestamp Filters", () => {
       it("should filter observations by start time with >= operator", async () => {
@@ -521,6 +586,83 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(result.length).toBe(1);
         expect(result[0].name).toBe("event-recent-end");
+      });
+    });
+
+    describe("Prompt Filters", () => {
+      it("should filter observations by prompt name and prompt version", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const matchingEventId = randomUUID();
+
+        const events = [
+          createEvent({
+            id: matchingEventId,
+            span_id: matchingEventId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "prompt-match",
+            prompt_name: "chat-parent",
+            prompt_version: 1,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-version",
+            prompt_name: "chat-parent",
+            prompt_version: 2,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "wrong-name",
+            prompt_name: "other-prompt",
+            prompt_version: 1,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "string",
+            column: "Prompt Name",
+            operator: "=",
+            value: "chat-parent",
+          },
+          {
+            type: "number",
+            column: "Prompt Version",
+            operator: "=",
+            value: 1,
+          },
+        ];
+
+        const [observations, count] = await Promise.all([
+          getObservationsWithModelDataFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+            limit: 100,
+            offset: 0,
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter,
+          }),
+        ]);
+
+        expect(count).toBe(1);
+        expect(observations).toHaveLength(1);
+        expect(observations[0]?.id).toBe(matchingEventId);
+        expect(observations[0]?.promptName).toBe("chat-parent");
+        expect(observations[0]?.promptVersion).toBe(1);
       });
     });
 
@@ -896,7 +1038,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md1",
-            metadata: { source: "api-server", region: "us-east" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["api-server", "us-east"],
             start_time: now * 1000,
           }),
           createEvent({
@@ -906,7 +1049,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md2",
-            metadata: { source: "UI", region: "us-east" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-east"],
             start_time: now * 1000,
           }),
           createEvent({
@@ -916,7 +1060,8 @@ describe("Clickhouse Events Repository Test", () => {
             trace_id: traceId,
             type: "SPAN",
             name: "md3",
-            metadata: { source: "UI", region: "us-west" },
+            metadata_names: ["source", "region"],
+            metadata_values: ["UI", "us-west"],
             start_time: now * 1000,
           }),
         ];
@@ -952,6 +1097,125 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(result.length).toBe(1);
         expect(result[0].name).toBe("md1");
+      });
+
+      it("should return the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+
+        // Insert event with duplicate key "foo" in metadata_names.
+        // metadata_names = ["foo", "foo"], metadata_raw_values = ["bar", "baz"]
+        // Expected: reading metadata["foo"] should return "bar" (first occurrence wins).
+        const event = createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "duplicate-metadata-read",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([event]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [idFilter(observationId)],
+          limit: 1000,
+          offset: 0,
+          selectIOAndMetadata: true,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].metadata).toBeDefined();
+        expect((result[0].metadata as Record<string, string>)["foo"]).toBe(
+          "bar",
+        );
+      });
+
+      it("should filter on the first value when metadata_names contains duplicates", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const matchId = randomUUID();
+        const matchEvent = createEvent({
+          id: matchId,
+          span_id: matchId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "dup-filter-match",
+          metadata_names: ["foo", "foo"],
+          metadata_values: ["bar", "baz"],
+          start_time: now * 1000,
+        });
+
+        await createEventsCh([matchEvent]);
+
+        // Filter for foo = "bar" (first value) should match
+        const resultBar = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "bar",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBar.length).toBe(1);
+        expect(resultBar[0].name).toBe("dup-filter-match");
+
+        // Filter for foo = "baz" (second value) should NOT match
+        const resultBaz = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "baz",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(resultBaz.length).toBe(0);
       });
     });
   });
@@ -1757,7 +2021,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-1",
           input: "This is input for observation 1",
           output: "This is output for observation 1",
-          metadata: { key1: "value1", source: "test" },
+          metadata_names: ["key1", "source"],
+          metadata_values: ["value1", "test"],
           start_time: nowMicro,
         }),
         createEvent({
@@ -1769,7 +2034,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-2",
           input: "This is input for observation 2",
           output: "This is output for observation 2",
-          metadata: { key2: "value2", environment: "production" },
+          metadata_names: ["key2", "environment"],
+          metadata_values: ["value2", "production"],
           start_time: nowMicro + 1000,
         }),
         createEvent({
@@ -1781,7 +2047,8 @@ describe("Clickhouse Events Repository Test", () => {
           name: "test-observation-3",
           input: "This is input for observation 3",
           output: "This is output for observation 3",
-          metadata: { key3: "value3" },
+          metadata_names: ["key3"],
+          metadata_values: ["value3"],
           start_time: nowMicro + 2000,
         }),
       ];

@@ -395,7 +395,7 @@ export function TableViewPresetsDrawer({
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
-              <div className="ml-1 rounded-sm bg-input px-1 text-xs">
+              <div className="bg-input ml-1 rounded-sm px-1 text-xs">
                 {TableViewPresetsList?.length ?? 0}
               </div>
             )}
@@ -403,7 +403,7 @@ export function TableViewPresetsDrawer({
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
-            <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-1.5">
+            <DrawerHeader className="bg-background flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
                 Views{" "}
                 <a
@@ -438,16 +438,16 @@ export function TableViewPresetsDrawer({
                       key={SYSTEM_PRESETS.DEFAULT.id}
                       onSelect={() => handleSetViewId(null)}
                       className={cn(
-                        "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === null && "bg-muted",
                       )}
                       title="Reflects your current table settings without applying any saved custom table views"
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-muted-foreground text-sm">
                           {SYSTEM_PRESETS.DEFAULT.name}
                         </span>
-                        <span className="w-fit pl-0 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground w-fit pl-0 text-xs">
                           Your working view
                         </span>
                       </div>
@@ -460,7 +460,7 @@ export function TableViewPresetsDrawer({
                       key={preset.id}
                       onSelect={() => handleSelectSystemFilterPreset(preset)}
                       className={cn(
-                        "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === preset.id &&
                           isEqual(
                             normalizeForComparison(currentState.filters),
@@ -475,7 +475,7 @@ export function TableViewPresetsDrawer({
                           {preset.name}
                         </span>
                         {preset.description && (
-                          <span className="w-fit pl-0 text-xs text-muted-foreground">
+                          <span className="text-muted-foreground w-fit pl-0 text-xs">
                             {preset.description}
                           </span>
                         )}
@@ -502,7 +502,7 @@ export function TableViewPresetsDrawer({
                         key={view.id}
                         onSelect={() => handleSelectView(view)}
                         className={cn(
-                          "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                          "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                           selectedViewId === view.id && "bg-muted",
                         )}
                       >
@@ -524,7 +524,7 @@ export function TableViewPresetsDrawer({
                           </div>
                           {previewText ? (
                             <span
-                              className="truncate text-xs text-muted-foreground"
+                              className="text-muted-foreground truncate text-xs"
                               title={previewText}
                             >
                               {previewText}
@@ -582,7 +582,7 @@ export function TableViewPresetsDrawer({
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                            <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                               <DropdownMenuItem asChild>
                                 <Popover
                                   key={view.id + "-edit"}
@@ -733,7 +733,7 @@ export function TableViewPresetsDrawer({
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                          <div className="flex items-center text-xs text-muted-foreground">
+                          <div className="text-muted-foreground flex items-center text-xs">
                             <Avatar className="h-6 w-6">
                               <AvatarImage
                                 src={view.createdByUser?.image ?? undefined}
@@ -811,7 +811,7 @@ export function TableViewPresetsDrawer({
                   )}
                 />
 
-                <div className="mt-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground mt-4 text-sm">
                   <p>This will save the current:</p>
                   <ul className="mt-2 list-disc pl-5">
                     <li>

@@ -13,7 +13,8 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -87,6 +88,8 @@ async function handleGetBlobStorageIntegrations(
       exportStartDate: integration.exportStartDate,
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
+      lastError: integration.lastError,
+      lastErrorAt: integration.lastErrorAt,
       createdAt: integration.createdAt,
       updatedAt: integration.updatedAt,
     }),
@@ -144,31 +147,32 @@ async function handleUpsertBlobStorageIntegration(
     throw new LangfuseNotFoundError("Project not found");
   }
 
-  // Prepare data for database
-  const dbData = {
-    projectId: validatedData.projectId,
-    type: validatedData.type,
-    bucketName: validatedData.bucketName,
-    endpoint: validatedData.endpoint || null,
-    region: validatedData.region,
-    accessKeyId: validatedData.accessKeyId || null,
-    secretAccessKey: validatedData.secretAccessKey
-      ? encrypt(validatedData.secretAccessKey)
-      : null,
-    prefix: validatedData.prefix,
-    exportFrequency: validatedData.exportFrequency,
-    enabled: validatedData.enabled,
-    forcePathStyle: validatedData.forcePathStyle,
-    fileType: validatedData.fileType,
-    exportMode: validatedData.exportMode,
-    exportStartDate: validatedData.exportStartDate || null,
-  };
+  await auditLog({
+    action: "update",
+    resourceType: "blobStorageIntegration",
+    resourceId: validatedData.projectId,
+    apiKeyId: authCheck.scope.apiKeyId,
+    orgId: authCheck.scope.orgId,
+  });
 
-  // Upsert the integration (create or update)
-  const integration = await prisma.blobStorageIntegration.upsert({
-    where: { projectId: validatedData.projectId },
-    update: dbData,
-    create: dbData,
+  const integration = await upsertBlobStorageIntegration({
+    prisma,
+    projectId: validatedData.projectId,
+    data: {
+      type: validatedData.type,
+      bucketName: validatedData.bucketName,
+      endpoint: validatedData.endpoint || null,
+      region: validatedData.region,
+      accessKeyId: validatedData.accessKeyId || null,
+      secretAccessKey: validatedData.secretAccessKey ?? null,
+      prefix: validatedData.prefix,
+      exportFrequency: validatedData.exportFrequency,
+      enabled: validatedData.enabled,
+      forcePathStyle: validatedData.forcePathStyle,
+      fileType: validatedData.fileType,
+      exportMode: validatedData.exportMode,
+      exportStartDate: validatedData.exportStartDate ?? null,
+    },
   });
 
   // Transform to API response format, exclude secretAccessKey
@@ -189,6 +193,8 @@ async function handleUpsertBlobStorageIntegration(
     exportStartDate: integration.exportStartDate,
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
+    lastError: integration.lastError,
+    lastErrorAt: integration.lastErrorAt,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
   };

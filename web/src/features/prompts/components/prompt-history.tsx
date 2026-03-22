@@ -93,7 +93,7 @@ const PromptHistoryTraceNode = (props: {
                       : props.setCurrentPromptVersion(prompt.version);
                   }}
                   variant="outline"
-                  className="h-6 shrink-0 bg-background/50"
+                  className="bg-background/50 h-6 shrink-0"
                   data-version-trigger="false"
                 >
                   # {prompt.version}
@@ -132,19 +132,19 @@ const PromptHistoryTraceNode = (props: {
             ) : null}
           </div>
 
-          <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
+          <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr_auto]">
             <div className="min-h-7 min-w-0">
               {prompt.commitMessage && (
                 <div className="flex flex-1 flex-nowrap gap-2">
                   <span
-                    className="min-w-0 max-w-full truncate text-xs text-muted-foreground"
+                    className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
                     title={prompt.commitMessage}
                   >
                     {prompt.commitMessage}
                   </span>
                 </div>
               )}
-              <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
                 {prompt.createdAt.toLocaleString()} by{" "}
                 {prompt.creator || prompt.createdBy}
               </div>

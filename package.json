@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.156.0",
+  "version": "3.161.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -27,8 +27,8 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web -- --turbo",
-    "dev:web-no-turbo": "turbo run dev --filter=web",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
     "skills:check": "node scripts/codex/check-skills.mjs",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
@@ -43,9 +43,9 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2",
-    "release-it": "^19.0.4",
-    "turbo": "2.8.13"
+    "prettier": "^3.8.1",
+    "release-it": "^19.2.4",
+    "turbo": "2.8.20"
   },
   "release-it": {
     "git": {

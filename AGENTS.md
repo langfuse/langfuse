@@ -90,11 +90,11 @@ Minimum verification matrix:
 - When you write a test for a bug or similar, write the test that fails first. Check that it fails. Only then fix the bug. Otherwise, the test is not good!
 
 ## Commit & Pull Request Guidelines
-- Follow Conventional Commits.
-- Pull request titles must use Conventional Commits format:
-  `type(scope): short description` or `type: short description`.
+- Commit messages and PR titles must follow Conventional Commits:
+  `type(scope): description` or `type: description`.
 - Use a lowercase conventional type such as `feat`, `fix`, `docs`, `refactor`,
   `chore`, or `test`; keep the description concise and imperative.
+- PR titles are validated by `.github/workflows/validate-pr-title.yml`.
 - Reference: https://www.conventionalcommits.org/en/v1.0.0/
 - Include AGENTS.md updates in the same PR when guidance materially changes.
 - In PR descriptions, list impacted packages and executed verification commands.

@@ -37,6 +37,7 @@ interface UseTableStateProps {
     filterColumnDefinition?: ColumnDefinition[];
   };
   currentFilterState?: FilterState;
+  disabled?: boolean;
 }
 
 /**
@@ -48,6 +49,7 @@ export function useTableViewManager({
   stateUpdaters,
   validationContext = {},
   currentFilterState,
+  disabled = false,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -76,7 +78,7 @@ export function useTableViewManager({
     api.TableViewPresets.getDefault.useQuery(
       { projectId, viewName: tableName },
       {
-        enabled: !!projectId,
+        enabled: !!projectId && !disabled,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       },
     );
@@ -124,6 +126,7 @@ export function useTableViewManager({
   // Single resolve effect: walk priority list and either return early (pending) or initialize.
   // `selectedViewId` (use-query-params state) is the single source of truth for bootstrap/fetch.
   useEffect(() => {
+    if (disabled) return;
     if (isInitialized) return;
     if (!isRouterReady) return;
 
@@ -166,6 +169,7 @@ export function useTableViewManager({
     setIsInitialized(true);
     setIsLoading(false);
   }, [
+    disabled,
     isInitialized,
     isRouterReady,
     selectedViewId,
@@ -267,6 +271,7 @@ export function useTableViewManager({
     { viewId: selectedViewId as string, projectId },
     {
       enabled:
+        !disabled &&
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
@@ -275,6 +280,7 @@ export function useTableViewManager({
   );
 
   useEffect(() => {
+    if (disabled) return;
     if (!isSelectedViewSuccess || !selectedViewData) return;
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
@@ -293,6 +299,7 @@ export function useTableViewManager({
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
+    disabled,
     isSelectedViewSuccess,
     selectedViewData,
     selectedViewId,
@@ -302,6 +309,7 @@ export function useTableViewManager({
   ]);
 
   useEffect(() => {
+    if (disabled) return;
     if (!isSelectedViewError || !selectedViewError) return;
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
@@ -313,7 +321,13 @@ export function useTableViewManager({
     setIsLoading(false);
     handleSetViewId(null);
     showErrorToast("Error applying view", selectedViewError.message, "WARNING");
-  }, [isSelectedViewError, selectedViewError, selectedViewId, handleSetViewId]);
+  }, [
+    disabled,
+    isSelectedViewError,
+    selectedViewError,
+    selectedViewId,
+    handleSetViewId,
+  ]);
 
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
@@ -337,6 +351,16 @@ export function useTableViewManager({
       setIsLoading(false);
     }
   }, [currentFilterState]);
+
+  if (disabled) {
+    return {
+      isLoading: false,
+      applyViewState: () => {},
+      handleSetViewId: () => {},
+      selectedViewId: null,
+      defaultViewScope: null,
+    };
+  }
 
   return {
     isLoading,

@@ -1,4 +1,7 @@
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { useState } from "react";
+import { Button } from "@/src/components/ui/button";
 
 import { ImageOff } from "lucide-react";
 import {
@@ -11,7 +14,13 @@ import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import { File, Image as ImageIcon, Volume2 } from "lucide-react";
+import {
+  ExternalLink,
+  File,
+  Image as ImageIcon,
+  Video,
+  Volume2,
+} from "lucide-react";
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -104,6 +113,8 @@ function FileViewer({
   src?: string;
   contentType: MediaContentType;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (!src) return null;
 
   const mimeType = String(contentType);
@@ -111,35 +122,93 @@ function FileViewer({
   const fileName = src.split("/").pop()?.split("?")[0] || "";
   const fileType = mimeType.split("/")[0];
   const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
+  const isImage = fileType === "image";
+  const isAudio = fileType === "audio";
+  const isVideo = fileType === "video";
+  const isPreviewable = isImage || isAudio || isVideo;
 
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
   };
 
-  return (
-    <button
-      onClick={openInNewTab}
-      aria-label={`Open ${fileName} in new tab`}
-      title={fileName}
-      className="group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-gradient-to-br from-accent-light-green/30 to-muted px-2 transition-colors hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30"
-    >
-      <div className="flex flex-col items-center gap-2">
-        {fileType === "image" ? (
-          <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
-        ) : fileType === "audio" ? (
-          <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
-        ) : (
-          <File className="h-5 w-5 transition-transform group-hover:scale-110" />
-        )}
+  const iconTile = (
+    <div className="flex flex-col items-center gap-2">
+      {isImage ? (
+        <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+      ) : isAudio ? (
+        <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
+      ) : isVideo ? (
+        <Video className="h-5 w-5 transition-transform group-hover:scale-110" />
+      ) : (
+        <File className="h-5 w-5 transition-transform group-hover:scale-110" />
+      )}
 
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-sm font-medium">{fileExtension}</span>
-          <span className="text-xs text-muted-foreground">
-            {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
-          </span>
-        </div>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-sm font-medium">{fileExtension}</span>
+        <span className="text-muted-foreground text-xs">
+          {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
+        </span>
       </div>
-    </button>
+    </div>
+  );
+
+  const previewContent = isImage ? (
+    <ResizableImage
+      src={src}
+      alt={fileName}
+      isDefaultVisible={true}
+      shouldValidateImageSource={false}
+    />
+  ) : isAudio ? (
+    <AudioPlayer src={src} />
+  ) : isVideo ? (
+    <VideoPlayer src={src} />
+  ) : null;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2",
+        isPreviewable && isExpanded ? "basis-full" : "shrink-0",
+      )}
+    >
+      {isPreviewable && isExpanded ? (
+        <div className="flex max-w-3xl items-start gap-2">
+          <div className="min-w-0 flex-1">
+            {isAudio ? (
+              <div className="max-w-xl min-w-72">{previewContent}</div>
+            ) : (
+              previewContent
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={openInNewTab}
+            aria-label={`Open ${fileName} in new tab`}
+            title={`Open ${fileName} in new tab`}
+            className="shrink-0"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <button
+          onClick={() => (isPreviewable ? setIsExpanded(true) : openInNewTab())}
+          aria-label={
+            isPreviewable
+              ? `Show ${fileName} inline`
+              : `Open ${fileName} in new tab`
+          }
+          aria-expanded={isPreviewable ? isExpanded : undefined}
+          title={fileName}
+          className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
+        >
+          {iconTile}
+        </button>
+      )}
+    </div>
   );
 }
 

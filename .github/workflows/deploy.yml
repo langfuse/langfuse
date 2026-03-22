@@ -24,6 +24,7 @@ on:
           - prod-eu
           - prod-us
           - prod-hipaa
+          - prod-jp
         required: true
 
 concurrency:
@@ -81,7 +82,7 @@ jobs:
                 return `["staging"]`
               }
               if (context.ref === "refs/heads/production") {
-                return `["prod-eu", "prod-us", "prod-hipaa"]`
+                return `["prod-eu", "prod-us", "prod-hipaa", "prod-jp"]`
               }
             }
             return "[]"

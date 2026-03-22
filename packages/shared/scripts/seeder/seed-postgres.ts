@@ -314,7 +314,7 @@ async function main() {
           model: evalTemplate.model,
           vars: evalTemplate.vars,
           provider: evalTemplate.provider,
-          outputSchema: evalTemplate.outputSchema,
+          outputDefinition: evalTemplate.outputDefinition,
           modelParams: evalTemplate.modelParams,
         },
         update: {},

@@ -43,6 +43,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
+import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
@@ -615,6 +616,7 @@ export const getScoresGroupedByNameSourceType = async ({
     ...createFilterFromFilterState(
       filter,
       scoresColumnsTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
   const scoresFilterRes = scoresFilter.apply();
@@ -1001,7 +1003,11 @@ const getScoresUiGeneric = async <T>(props: {
     tracesPrefix: "t",
   });
   scoresFilter.push(
-    ...createFilterFromFilterState(filter, scoresTableUiColumnDefinitions),
+    ...createFilterFromFilterState(
+      filter,
+      scoresTableUiColumnDefinitions,
+      scoresTableCols,
+    ),
   );
   const scoresFilterRes = scoresFilter.apply();
 
@@ -1120,6 +1126,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     ...createFilterFromFilterState(
       filter,
       scoresTableUiColumnDefinitionsFromEvents,
+      scoresTableCols,
     ),
   );
 
@@ -1160,6 +1167,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         createFilterFromFilterState(
           traceFilterState,
           scoresTraceFilterEventsMapping,
+          scoresTableCols,
         ),
       );
       const cteTraceFilterRes = cteTraceFilters.apply();
@@ -1344,6 +1352,7 @@ export const getScoreNames = async (
     createFilterFromFilterState(
       timestampFilter,
       scoresTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
   const timestampFilterRes = chFilter.apply();
@@ -1395,6 +1404,7 @@ export const getScoreStringValues = async (
     createFilterFromFilterState(
       timestampFilter,
       scoresTableUiColumnDefinitions,
+      scoresTableCols,
     ),
   );
   const timestampFilterRes = chFilter.apply();
@@ -1714,6 +1724,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: AGGREGATABLE_SCORE_TYPES,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
     },
     tags: {
       feature: "tracing",
