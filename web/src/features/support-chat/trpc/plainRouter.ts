@@ -44,7 +44,7 @@ const CreateSupportThreadInput = z.object({
   url: z.string().url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
-  browserMetadata: z.record(z.any()).optional(),
+  browserMetadata: z.record(z.string(), z.any()).optional(),
   integrationType: z.string().optional(),
   /** IDs of attachments already uploaded via prepareAttachmentUploads */
   attachmentIds: z.array(z.string()).optional(),
