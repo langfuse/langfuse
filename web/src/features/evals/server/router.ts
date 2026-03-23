@@ -18,6 +18,7 @@ import {
   type JobConfiguration,
   JobType,
   Prisma,
+  JobTimeScopeZod,
   TimeScopeSchema,
   JobConfigState,
   EvaluatorBlockReason,
@@ -167,7 +168,7 @@ const UpdateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.enum(EvaluatorStatus).optional(),
-  timeScope: TimeScopeSchema.optional(),
+  timeScope: z.array(JobTimeScopeZod).optional(),
 });
 
 const validateEvalTemplateCanRun = async ({
