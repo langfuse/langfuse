@@ -86,6 +86,7 @@ export function useSSEDashboardQuery(
   const [progress, setProgress] = useState<QueryProgress | null>(null);
   const [status, setStatus] = useState<SSEQueryStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [stateInputKey, setStateInputKey] = useState<string | null>(null);
   const maxPercentRef = useRef(0);
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
@@ -94,7 +95,8 @@ export function useSSEDashboardQuery(
   inputRef.current = input;
 
   const runQuery = useCallback(
-    async (signal: AbortSignal) => {
+    async (runInputKey: string, signal: AbortSignal) => {
+      setStateInputKey(runInputKey);
       setStatus("loading");
       setProgress(null);
       setError(null);
@@ -225,28 +227,37 @@ export function useSSEDashboardQuery(
 
   useEffect(() => {
     if (!enabled) {
-      setStatus("idle");
+      setStatus((current) =>
+        current === "success" || current === "error" ? current : "idle",
+      );
       return;
     }
 
     const abortController = new AbortController();
-    void runQuery(abortController.signal);
+    void runQuery(inputKey, abortController.signal);
 
     return () => {
       abortController.abort();
     };
   }, [enabled, inputKey, runQuery]);
 
+  const hasCurrentState = stateInputKey === inputKey;
+  const shouldHidePreviousRunState = enabled && !hasCurrentState;
+  const isPendingForCurrentRun =
+    enabled &&
+    (status === "idle" || status === "loading" || shouldHidePreviousRunState);
+  const effectiveStatus = isPendingForCurrentRun ? "loading" : status;
+
   return {
-    data,
-    progress,
-    status,
-    isLoading: status === "loading",
-    isSuccess: status === "success",
-    isError: status === "error",
-    error,
+    data: shouldHidePreviousRunState ? undefined : data,
+    progress: shouldHidePreviousRunState ? null : progress,
+    status: effectiveStatus,
+    isLoading: effectiveStatus === "loading",
+    isSuccess: effectiveStatus === "success",
+    isError: effectiveStatus === "error",
+    error: shouldHidePreviousRunState ? null : error,
     // Compatibility with existing scheduler expectations
-    fetchStatus: status === "loading" ? "fetching" : "idle",
-    isPending: status === "idle" || status === "loading",
+    fetchStatus: isPendingForCurrentRun ? "fetching" : "idle",
+    isPending: isPendingForCurrentRun,
   };
 }

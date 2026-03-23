@@ -1,9 +1,12 @@
 /**
  * Tests for the SSE dashboard query hook's parsing and progress logic.
  */
+import { renderHook, waitFor } from "@testing-library/react";
+import { TextDecoder, TextEncoder } from "util";
 import {
   parseSSEBuffer,
   computeMonotonicPercent,
+  useSSEDashboardQuery,
 } from "@/src/hooks/useSSEDashboardQuery";
 
 describe("parseSSEBuffer", () => {
@@ -135,5 +138,190 @@ describe("computeMonotonicPercent", () => {
 
   it("should preserve previous max when current percent is lower", () => {
     expect(computeMonotonicPercent(10, 100, 0.5)).toBe(0.5);
+  });
+});
+
+describe("useSSEDashboardQuery", () => {
+  const originalFetch = global.fetch;
+  const originalTextDecoder = global.TextDecoder;
+
+  const createStreamReader = (chunks: Uint8Array[]) => {
+    let index = 0;
+
+    return {
+      read: jest.fn().mockImplementation(async () => {
+        if (index < chunks.length) {
+          return {
+            done: false,
+            value: chunks[index++],
+          };
+        }
+
+        return {
+          done: true,
+          value: undefined,
+        };
+      }),
+    };
+  };
+
+  const createInput = (fromTimestamp: string, toTimestamp: string) => ({
+    projectId: "project-1",
+    version: "v1" as const,
+    query: {
+      view: "traces" as const,
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" as const }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp,
+      toTimestamp,
+      orderBy: null,
+      chartConfig: { type: "BAR_TIME_SERIES" },
+    },
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    global.TextDecoder = originalTextDecoder;
+    jest.restoreAllMocks();
+  });
+
+  it("preserves successful state when disabled after the stream completes", async () => {
+    const encoder = new TextEncoder();
+
+    global.fetch = jest.fn().mockImplementation(async () => ({
+      ok: true,
+      body: {
+        getReader: () =>
+          createStreamReader([
+            encoder.encode(
+              'event: row\ndata: {"count_count":42}\n\n' +
+                "event: done\ndata: {}\n\n",
+            ),
+          ]),
+      },
+    })) as typeof fetch;
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useSSEDashboardQuery(
+          createInput("2026-03-22T00:00:00.000Z", "2026-03-23T00:00:00.000Z"),
+          {
+            enabled,
+            queryId: "widget-1",
+          },
+        ),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    rerender({ enabled: false });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.isPending).toBe(false);
+    expect(result.current.data).toEqual([{ count_count: 42 }]);
+  });
+
+  it("treats a changed input as pending immediately and hides stale results", async () => {
+    const encoder = new TextEncoder();
+    let releaseSecondResponse: (() => void) | null = null;
+
+    global.fetch = jest
+      .fn()
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () =>
+            createStreamReader([
+              encoder.encode(
+                'event: row\ndata: {"count_count":42}\n\n' +
+                  "event: done\ndata: {}\n\n",
+              ),
+            ]),
+        },
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () => {
+            let released = false;
+            const waitForRelease = new Promise<void>((resolve) => {
+              releaseSecondResponse = () => {
+                released = true;
+                resolve();
+              };
+            });
+
+            return {
+              read: jest.fn().mockImplementation(async () => {
+                if (!released) {
+                  await waitForRelease;
+                }
+
+                return {
+                  done: true,
+                  value: undefined,
+                };
+              }),
+            };
+          },
+        },
+      })) as typeof fetch;
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+
+    const firstInput = createInput(
+      "2026-03-22T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z",
+    );
+    const secondInput = createInput(
+      "2026-03-16T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z",
+    );
+
+    const { result, rerender } = renderHook(
+      ({ input }) =>
+        useSSEDashboardQuery(input, {
+          enabled: true,
+          queryId: "widget-1",
+        }),
+      {
+        initialProps: { input: firstInput },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    rerender({ input: secondInput });
+
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isSuccess).toBe(false);
+    expect(result.current.fetchStatus).toBe("fetching");
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.progress).toBeNull();
+    expect(result.current.error).toBeNull();
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(releaseSecondResponse).not.toBeNull();
+    });
+
+    releaseSecondResponse?.();
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 });
