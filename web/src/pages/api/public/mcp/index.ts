@@ -34,7 +34,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 
 // Bootstrap MCP features - registers all tools at module load time

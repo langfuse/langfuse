@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z

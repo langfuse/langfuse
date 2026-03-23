@@ -7,7 +7,7 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Define the form schema for GitHub dispatch actions
 export const GitHubDispatchActionFormSchema = z.object({
