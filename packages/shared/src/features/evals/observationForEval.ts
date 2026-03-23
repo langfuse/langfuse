@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
 import { ObservationLevel, ObservationType } from "../../domain";

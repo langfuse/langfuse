@@ -1,5 +1,5 @@
-import { type z } from "zod/v4";
-import { z as zodSchema } from "zod/v4";
+import { type z } from "zod";
+import { z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

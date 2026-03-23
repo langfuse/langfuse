@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
 

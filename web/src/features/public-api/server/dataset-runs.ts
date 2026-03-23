@@ -1,7 +1,7 @@
 import { type jsonSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import type z from "zod/v4";
+import type z from "zod";
 
 type Json = z.infer<typeof jsonSchema>;
 

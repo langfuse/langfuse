@@ -13,7 +13,7 @@ import {
   LLMAdapter,
   type ModelParams,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * LLM Connection Integration Tests

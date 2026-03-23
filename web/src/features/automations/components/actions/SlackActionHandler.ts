@@ -8,7 +8,7 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Define the form schema for Slack actions
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning

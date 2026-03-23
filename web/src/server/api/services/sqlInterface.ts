@@ -1,5 +1,5 @@
 import { singleFilter } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export type DatabaseRow = {
   [key: string]: string | number | Date | Record<string, unknown> | null;
