@@ -49,6 +49,9 @@ const sdk = new NodeSDK({
         if (path.startsWith("/_next/static")) {
           path = "/_next/static/*";
         }
+        if (path.endsWith("/index")) {
+          path = path.slice(0, -6);
+        }
         span.updateName(`${req?.method} ${path}`);
         span.setAttribute("http.route", path);
       },
