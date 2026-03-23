@@ -73,6 +73,7 @@ node_modules
 .turbo
 
 web/test-results/*
+.playwright-mcp/*
 
 # local config files
 *.local.*

@@ -44,7 +44,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,

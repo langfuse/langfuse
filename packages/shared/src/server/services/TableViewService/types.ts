@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { orderBy, singleFilter } from "../../..";
 
 export const CreateTableViewPresetsInput = z.object({

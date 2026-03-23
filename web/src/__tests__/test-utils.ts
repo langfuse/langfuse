@@ -13,7 +13,7 @@ import {
   QueueName,
   TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export const ensureTestDatabaseExists = async () => {
   // Only create test database if we're in test environment with test database URL

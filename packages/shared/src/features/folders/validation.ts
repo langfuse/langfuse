@@ -1,4 +1,4 @@
-import { type ZodString } from "zod/v4";
+import { type ZodString } from "zod";
 
 /**
  * Helper function to add path validation to a string schema

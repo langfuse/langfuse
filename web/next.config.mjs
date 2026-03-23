@@ -49,6 +49,8 @@ const reportToHeader = {
 const nextConfig = {
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
+  allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,
@@ -59,7 +61,6 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
-    "kysely",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,

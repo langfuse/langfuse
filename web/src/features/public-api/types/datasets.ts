@@ -13,7 +13,7 @@ import {
   stringDateTime,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
