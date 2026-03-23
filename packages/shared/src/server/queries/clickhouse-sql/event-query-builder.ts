@@ -1442,10 +1442,12 @@ export class CTEQueryBuilder<
    * Add GROUP BY clause
    *
    * @example
-   * builder.groupBy("t.project_id, t.experiment_id")
+   * builder.groupBy("t.project_id", "t.experiment_id")
    */
-  groupBy(clause: string): this {
-    this.groupByClause = clause;
+  groupBy(...columns: Array<AliasedColumns<RegisteredCTEs, Aliases>>): this {
+    if (columns.length > 0) {
+      this.groupByClause = columns.join(", ");
+    }
     return this;
   }
 
