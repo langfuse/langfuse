@@ -13,6 +13,7 @@ import {
   removeObjectKeys,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
+  scoresTableCols,
   type ScoreDomain,
   type FilterState,
 } from "@langfuse/shared";
@@ -432,6 +433,7 @@ const generateScoreFilter = (
     secureScoreFilterOptions,
     filter.advancedFilters,
     scoresTableUiColumnDefinitions,
+    scoresTableCols,
   );
   scoresFilter.push(
     new StringFilter({

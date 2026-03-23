@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -14,6 +14,7 @@ import {
 import {
   orderBy,
   paginationZod,
+  normalizeOrderByForTable,
   singleFilter,
   timeFilter,
   UpdateAnnotationScoreData,
@@ -106,10 +107,14 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiTable({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: input.limit,
         offset: input.page * input.limit,
         excludeMetadata: true,
@@ -184,10 +189,14 @@ export const scoresRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiCount({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: 1,
         offset: 0,
       });
@@ -202,10 +211,14 @@ export const scoresRouter = createTRPCRouter({
   allFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const clickhouseScoreData = await getScoresUiTableFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: input.limit,
         offset: input.page * input.limit,
       });
@@ -263,10 +276,14 @@ export const scoresRouter = createTRPCRouter({
   countAllFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "timestamp",
+      });
       const count = await getScoresUiCountFromEvents({
         projectId: input.projectId,
         filter: input.filter ?? [],
-        orderBy: input.orderBy,
+        orderBy: normalizedOrderBy,
         limit: 1,
         offset: 0,
       });

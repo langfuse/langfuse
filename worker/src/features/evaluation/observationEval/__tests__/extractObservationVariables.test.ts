@@ -334,6 +334,38 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toBe(JSON.stringify(["I am fine, thank you!"]));
     });
 
+    // OTel ingestion stringifies metadata.attributes.* values; ingestion stringifies the whole metadata.attributes object
+    it("should extract names from stringified metadata.attributes.tools array", () => {
+      const observationWithStringifiedTools: ObservationForEval = {
+        ...mockObservation,
+        metadata: {
+          attributes: {
+            tools: JSON.stringify([
+              { name: "get_weather" },
+              { name: "search_web" },
+            ]),
+          },
+        },
+      };
+
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "toolNames",
+          selectedColumnId: "metadata",
+          jsonSelector: "$.attributes.tools[*].name",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: observationWithStringifiedTools,
+        variableMapping,
+      });
+
+      expect(result[0].value).toBe(
+        JSON.stringify(["get_weather", "search_web"]),
+      );
+    });
+
     it("should handle null jsonSelector by returning full value", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {

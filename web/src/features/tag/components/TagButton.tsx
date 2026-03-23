@@ -14,10 +14,10 @@ export const TagButton: React.FC<{
     variant="tertiary"
     size="icon-sm"
     disabled={viewOnly}
-    className={cn(viewOnly && "cursor-default", "w-fit min-w-16 max-w-40")}
+    className={cn(viewOnly && "cursor-default", "w-fit max-w-40 min-w-16")}
     loading={loading}
   >
-    <TagIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
+    <TagIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
     <span
       className={cn(
         "overflow-hidden text-ellipsis whitespace-nowrap",

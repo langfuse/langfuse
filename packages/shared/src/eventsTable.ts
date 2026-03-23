@@ -104,6 +104,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "e.prompt_version",
+    nullable: true,
+  },
+  {
     name: "Model ID",
     id: "modelId",
     type: "stringOptions",
@@ -214,7 +221,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
-    internal: "t.tags",
+    internal: "e.tags",
     options: [], // to be added at runtime
   },
   {

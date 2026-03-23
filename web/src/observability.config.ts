@@ -49,11 +49,22 @@ const sdk = new NodeSDK({
         if (path.startsWith("/_next/static")) {
           path = "/_next/static/*";
         }
+        if (path.endsWith("/index")) {
+          path = path.slice(0, -6);
+        }
         span.updateName(`${req?.method} ${path}`);
         span.setAttribute("http.route", path);
       },
     }),
-    new PrismaInstrumentation(),
+    new PrismaInstrumentation({
+      ignoreSpanTypes: [
+        "prisma:client:serialize",
+        "prisma:engine:query",
+        "prisma:engine:connection",
+        "prisma:engine:serialize",
+        "prisma:engine:response_json_serialization",
+      ],
+    }),
     new AwsInstrumentation(),
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),

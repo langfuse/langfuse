@@ -10,11 +10,12 @@ export const clickhouseSearchCondition = (
 ) => {
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
-  const cols = searchColumns
-    ? searchColumns
-    : [`${prefix}id`, `t.user_id`, `${prefix}name`];
+  const defaultCols = [`${prefix}id`, `t.user_id`, `${prefix}name`];
+  const cols = (searchColumns ?? defaultCols).map((col) =>
+    col.includes(".") ? col : `${prefix}${col}`,
+  );
 
-  // We use a hard-coded prefix for user_id as it only occurs in the trace context.
+  // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [
     !searchType || searchType.includes("id")
       ? cols.map((col) => `${col} ILIKE {searchString: String}`).join(" OR ")

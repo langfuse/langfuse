@@ -27,12 +27,12 @@ export const LogViewTreeIndent = memo(function LogViewTreeIndent({
   if (depth <= 0) return null;
 
   return (
-    <div className="flex flex-shrink-0">
+    <div className="flex shrink-0">
       {/* Vertical lines for each ancestor level */}
       {treeLines.map((hasLine, index) => (
         <div key={index} className="relative w-3">
           {hasLine && (
-            <div className="absolute bottom-0 left-1.5 top-0 w-px bg-border" />
+            <div className="bg-border absolute top-0 bottom-0 left-1.5 w-px" />
           )}
         </div>
       ))}
@@ -40,11 +40,11 @@ export const LogViewTreeIndent = memo(function LogViewTreeIndent({
       <div className="relative w-3">
         <div
           className={cn(
-            "absolute left-1.5 top-0 w-px bg-border",
+            "bg-border absolute top-0 left-1.5 w-px",
             isLastSibling ? "h-1/2" : "h-full",
           )}
         />
-        <div className="absolute left-1.5 top-1/2 h-px w-1.5 bg-border" />
+        <div className="bg-border absolute top-1/2 left-1.5 h-px w-1.5" />
       </div>
     </div>
   );

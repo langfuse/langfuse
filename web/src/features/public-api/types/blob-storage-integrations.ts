@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Enums
@@ -76,6 +76,8 @@ export const BlobStorageIntegrationResponse = z
     exportStartDate: z.coerce.date().nullable(),
     nextSyncAt: z.coerce.date().nullable(),
     lastSyncAt: z.coerce.date().nullable(),
+    lastError: z.string().nullable(),
+    lastErrorAt: z.coerce.date().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
@@ -83,4 +85,29 @@ export const BlobStorageIntegrationResponse = z
 
 export type BlobStorageIntegrationResponseType = z.infer<
   typeof BlobStorageIntegrationResponse
+>;
+
+export const BlobStorageSyncStatus = z.enum([
+  "idle",
+  "queued",
+  "up_to_date",
+  "disabled",
+  "error",
+]);
+
+export const BlobStorageIntegrationStatusResponse = z
+  .object({
+    id: z.string(),
+    projectId: z.string(),
+    syncStatus: BlobStorageSyncStatus,
+    enabled: z.boolean(),
+    lastSyncAt: z.coerce.date().nullable(),
+    nextSyncAt: z.coerce.date().nullable(),
+    lastError: z.string().nullable(),
+    lastErrorAt: z.coerce.date().nullable(),
+  })
+  .strict();
+
+export type BlobStorageIntegrationStatusResponseType = z.infer<
+  typeof BlobStorageIntegrationStatusResponse
 >;

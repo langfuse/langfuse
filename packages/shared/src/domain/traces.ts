@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { jsonSchema, jsonSchemaNullable } from "../utils/zod";
 
 export const MetadataDomain = z.record(

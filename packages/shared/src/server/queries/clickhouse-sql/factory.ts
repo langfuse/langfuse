@@ -1,9 +1,13 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
+import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
-import { UiColumnMappings } from "../../../tableDefinitions";
+import {
+  type ColumnDefinition,
+  type UiColumnMappings,
+} from "../../../tableDefinitions";
 import {
   StringFilter,
   DateTimeFilter,
@@ -25,8 +29,20 @@ export class QueryBuilderError extends Error {
   }
 }
 
-// Matches nullIf(expr, '') wrappers used in dimension SQL for display purposes.
-const NULL_IF_EMPTY_RE = /^nullIf\((.+),\s*''\)$/;
+// Maps each ColumnDefinition.type to the filter types that are structurally compatible
+// at the ClickHouse level. string/stringOptions both operate on String columns,
+// and stringOptions "any of" works on Array columns too.
+const COMPATIBLE_FILTER_TYPES: Record<string, string[]> = {
+  string: ["string", "stringOptions"],
+  stringOptions: ["string", "stringOptions"],
+  arrayOptions: ["arrayOptions", "stringOptions"],
+  datetime: ["datetime"],
+  number: ["number"],
+  boolean: ["boolean"],
+  stringObject: ["stringObject"],
+  numberObject: ["numberObject"],
+  categoryOptions: ["categoryOptions", "stringOptions"],
+};
 
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
@@ -34,6 +50,7 @@ const NULL_IF_EMPTY_RE = /^nullIf\((.+),\s*''\)$/;
 export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ) => {
   const applicableFilters = filter.filter(
     (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
@@ -43,6 +60,18 @@ export const createFilterFromFilterState = (
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
 
+    if (columnDefinitions && frontEndFilter.type !== "null") {
+      const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
+      if (colDef) {
+        const compatible = COMPATIBLE_FILTER_TYPES[colDef.type];
+        if (compatible && !compatible.includes(frontEndFilter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter type '${frontEndFilter.type}' for column '${frontEndFilter.column}'. Expected filter type '${colDef.type}'.`,
+          );
+        }
+      }
+    }
+
     switch (frontEndFilter.type) {
       case "string":
         return new StringFilter({
@@ -51,6 +80,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "datetime":
         return new DateTimeFilter({
@@ -67,6 +97,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "categoryOptions":
         return new CategoryOptionsFilter({
@@ -121,37 +152,12 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       case "null":
-        // Events_* table uses empty string instead of NULL for parent_span_id
-        if (
-          frontEndFilter.column === "parentObservationId" &&
-          column.clickhouseTableName.startsWith("events")
-        ) {
-          const isNull = frontEndFilter.operator === "is null";
-          // When the dimension SQL wraps the column with nullIf(col, ''), the value
-          // is already NULL for empty strings — use a standard IS NULL / IS NOT NULL check.
-          // When there is no nullIf wrapper, the column stores '' directly — use = '' / != ''.
-          const hasNullIf = NULL_IF_EMPTY_RE.test(column.clickhouseSelect);
-          const fieldWithPrefix = column.queryPrefix
-            ? `${column.queryPrefix}.${column.clickhouseSelect}`
-            : column.clickhouseSelect;
-          const query = hasNullIf
-            ? `${fieldWithPrefix} IS ${isNull ? "" : "NOT "}NULL`
-            : `${fieldWithPrefix} ${isNull ? "=" : "!="} ''`;
-
-          return {
-            clickhouseTable: column.clickhouseTableName,
-            field: column.clickhouseSelect,
-            operator: isNull ? ("=" as const) : ("!=" as const),
-            tablePrefix: column.queryPrefix,
-            apply: () => ({ query, params: {} }),
-          };
-        }
-
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       default:
         // eslint-disable-next-line no-case-declarations

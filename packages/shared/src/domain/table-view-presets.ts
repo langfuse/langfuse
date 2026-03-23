@@ -1,6 +1,6 @@
 import { singleFilter } from "../interfaces/filters";
 import { orderBy } from "../interfaces/orderBy";
-import z from "zod/v4";
+import z from "zod";
 
 export enum TableViewPresetTableName {
   Traces = "traces",
@@ -28,3 +28,9 @@ const TableViewPresetDomainSchema = z.object({
 });
 
 export type TableViewPresetDomain = z.infer<typeof TableViewPresetDomainSchema>;
+export type TableViewPresetState = Pick<
+  TableViewPresetDomain,
+  "filters" | "columnOrder" | "columnVisibility" | "orderBy"
+> & {
+  searchQuery?: string | null;
+};

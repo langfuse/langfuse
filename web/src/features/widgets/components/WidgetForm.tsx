@@ -27,7 +27,7 @@ import { WidgetPropertySelectItem } from "@/src/features/widgets/components/Widg
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { views, viewsV2 } from "@/src/features/query/types";
 import { type ViewVersion } from "@/src/features/query";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -567,6 +567,12 @@ export function WidgetForm({
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
+  const observationLevelOptions = [
+    { value: "DEBUG" },
+    { value: "DEFAULT" },
+    { value: "WARNING" },
+    { value: "ERROR" },
+  ];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -647,6 +653,13 @@ export function WidgetForm({
       id: "providedModelName",
       type: "stringOptions",
       options: modelOptions,
+      internal: "internalValue",
+    });
+    filterColumns.push({
+      name: "Level",
+      id: "level",
+      type: "stringOptions",
+      options: observationLevelOptions,
       internal: "internalValue",
     });
   }
@@ -1342,7 +1355,7 @@ export function WidgetForm({
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => removeMetricSlot(index)}
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                  className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -1500,7 +1513,7 @@ export function WidgetForm({
                           </SelectContent>
                         </Select>
                         {selectedChartType === "HISTOGRAM" && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             Aggregation is automatically set to
                             &quot;histogram&quot; for histogram charts
                           </p>
@@ -1573,7 +1586,7 @@ export function WidgetForm({
                     <h4 className="mb-2 text-sm font-semibold">
                       Row Dimensions
                     </h4>
-                    <p className="mb-3 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mb-3 text-xs">
                       Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions
                       for pivot table rows. Each dimension creates groupings
                       with subtotals.
@@ -1651,7 +1664,7 @@ export function WidgetForm({
                     <h4 className="mb-2 text-sm font-semibold">
                       Default Sort Configuration
                     </h4>
-                    <p className="mb-3 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mb-3 text-xs">
                       Configure the default sort order for the pivot table. This
                       will be applied when the widget is first loaded.
                     </p>
@@ -1932,7 +1945,7 @@ export function WidgetForm({
                 showSpinner={chartLoadingState.showSpinner}
                 showHintImmediately={chartLoadingState.showHintImmediately}
                 hintText={chartLoadingState.hintText}
-                className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
                 hintClassName="max-w-sm px-4"
               />
             </div>

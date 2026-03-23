@@ -1,5 +1,5 @@
-import { z } from "zod/v4";
-import type { Prompt } from "../../../prisma/generated/types";
+import { z } from "zod";
+import type { Prompt } from "@prisma/client";
 import { jsonSchema } from "../../utils/zod";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
@@ -92,11 +92,6 @@ export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;
 export const GetPromptSchema = z.object({
   name: z.string().transform((v) => decodeURIComponent(v)),
   version: z.coerce.number().int().nullish(),
-  resolve: z
-    .enum(["true", "false"])
-    .nullish()
-    .default("true")
-    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 export const GetPromptByNameSchema = z.object({
