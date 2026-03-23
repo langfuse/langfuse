@@ -221,7 +221,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
-    internal: "t.tags",
+    internal: "e.tags",
     options: [], // to be added at runtime
   },
   {

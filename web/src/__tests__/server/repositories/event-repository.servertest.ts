@@ -349,7 +349,7 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("Search Query Tests", () => {
-    it("should not throw ambiguous column error when searchQuery is combined with score filter", async () => {
+    it("should not throw when searchQuery is combined with score filter", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
       const spanId = randomUUID();
@@ -365,10 +365,8 @@ describe("Clickhouse Events Repository Test", () => {
 
       await createEventsCh([event]);
 
-      // searchQuery triggers a LEFT JOIN with traces CTE (which has a "name" column),
-      // and the score filter triggers a LEFT JOIN with scores_agg (which also has "name").
-      // With unqualified "name" in the search WHERE clause, ClickHouse raises
-      // "ambiguous identifier 'name'" because 3 tables define it: e, t, and s.
+      // Verify that search columns qualified with e.* prefix do not conflict
+      // with the scores_agg LEFT JOIN when both are present.
       const scoreFilter: FilterCondition = {
         type: "numberObject" as const,
         column: "scores_avg",
@@ -386,7 +384,7 @@ describe("Clickhouse Events Repository Test", () => {
       expect(count).toBeGreaterThanOrEqual(0);
     });
 
-    it("should not throw ambiguous column error when searchQuery triggers traces JOIN", async () => {
+    it("should not throw when searchQuery is provided without filters", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
       const spanId = randomUUID();
@@ -402,7 +400,7 @@ describe("Clickhouse Events Repository Test", () => {
 
       await createEventsCh([event]);
 
-      // searchQuery alone triggers a LEFT JOIN with traces CTE which also has a "name" column.
+      // Verify basic search with qualified e.* columns works without errors.
       const count = await getObservationsCountFromEventsTable({
         projectId: uniqueProjectId,
         filter: [],
