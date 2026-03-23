@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * ClickHouse storage schema for tool definitions.

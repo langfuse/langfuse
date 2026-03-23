@@ -6,7 +6,7 @@ import {
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:[\s\S]*?@@@/g;
 

@@ -112,8 +112,7 @@
     "undici": "^7.24.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
-    "zod": "^3.25.62",
-    "zod-to-json-schema": "^3.23.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

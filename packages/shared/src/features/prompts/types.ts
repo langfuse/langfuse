@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import type { Prompt } from "@prisma/client";
 import { jsonSchema } from "../../utils/zod";
 import {

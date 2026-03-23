@@ -27,7 +27,7 @@ import { WidgetPropertySelectItem } from "@/src/features/widgets/components/Widg
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { views, viewsV2 } from "@/src/features/query/types";
 import { type ViewVersion } from "@/src/features/query";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";

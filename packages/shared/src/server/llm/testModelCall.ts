@@ -5,7 +5,7 @@ import {
   type ModelConfig,
 } from "./types";
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
-import z from "zod/v4";
+import z from "zod";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
