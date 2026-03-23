@@ -7,27 +7,29 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { X, ChevronDown } from "lucide-react";
 import { type ExperimentOption } from "./ExperimentComparisonSelector";
+import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 
 type ExperimentBaselineControlsProps = {
+  projectId: string;
   baselineId: string;
   baselineName?: string;
-  availableExperiments: ExperimentOption[];
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
-  isLoading?: boolean;
 };
 
 export function ExperimentBaselineControls({
+  projectId,
   baselineId,
   baselineName,
-  availableExperiments,
   onBaselineChange,
   onBaselineClear,
-  isLoading = false,
 }: ExperimentBaselineControlsProps) {
+  const { experimentNames, isLoading } = useExperimentNames({
+    projectId,
+  });
   // Filter out current baseline from available options
-  const availableForBaseline = availableExperiments.filter(
-    (exp) => exp.id !== baselineId,
+  const availableForBaseline = experimentNames.filter(
+    (exp) => exp.experimentId !== baselineId,
   );
 
   return (
@@ -45,10 +47,10 @@ export function ExperimentBaselineControls({
           {availableForBaseline.length > 0 ? (
             availableForBaseline.map((exp) => (
               <DropdownMenuItem
-                key={exp.id}
-                onClick={() => onBaselineChange(exp.id)}
+                key={exp.experimentId}
+                onClick={() => onBaselineChange(exp.experimentId)}
               >
-                <span className="truncate">{exp.name}</span>
+                <span className="truncate">{exp.experimentName}</span>
               </DropdownMenuItem>
             ))
           ) : (

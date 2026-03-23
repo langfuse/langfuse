@@ -2,56 +2,65 @@ import { useMemo } from "react";
 import { Check, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
+import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 
 export type ExperimentOption = {
-  id: string;
-  name: string;
+  experimentId: string;
+  experimentName: string;
 };
 
 type ExperimentComparisonSelectorProps = {
+  projectId: string;
   baselineExperimentId: string;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
-  // Search state - managed externally for query flexibility
-  searchQuery: string;
-  onSearchQueryChange: (query: string) => void;
-  // Experiments from query (you provide this)
-  experiments: ExperimentOption[];
   isLoading?: boolean;
   maxSelections?: number;
   disabled?: boolean;
 };
 
 export function ExperimentComparisonSelector({
+  projectId,
   baselineExperimentId,
   selectedIds,
   onSelectedIdsChange,
-  searchQuery,
-  onSearchQueryChange,
-  experiments,
-  isLoading = false,
   maxSelections = 4,
-  disabled = false,
 }: ExperimentComparisonSelectorProps) {
+  const {
+    searchResults,
+    searchQuery,
+    setSearchQuery,
+    isLoading,
+    availableExperimentNames,
+  } = useExperimentSearch({
+    projectId,
+  });
+
   // Filter out baseline experiment from options
-  const searchResults = useMemo(() => {
-    return experiments.filter((exp) => exp.id !== baselineExperimentId);
-  }, [experiments, baselineExperimentId]);
+  const searchResultsExclBaseline = useMemo(() => {
+    return searchResults.filter(
+      (exp) => exp.experimentId !== baselineExperimentId,
+    );
+  }, [baselineExperimentId, searchResults]);
 
   // Map selected IDs to full experiment objects
   const selectedExperiments = useMemo(() => {
     return selectedIds
       .map((id) => {
-        const found = experiments.find((exp) => exp.id === id);
+        const found = availableExperimentNames.find(
+          (exp) => exp.experimentId === id,
+        );
         if (found) return found;
         // If not in current results, create placeholder with ID as name
-        return { id, name: id };
+        return { experimentId: id, experimentName: id };
       })
       .filter((exp): exp is ExperimentOption => exp !== undefined);
-  }, [selectedIds, experiments]);
+  }, [selectedIds, availableExperimentNames]);
 
   const handleItemsChange = (items: ExperimentOption[]) => {
-    const newIds = items.map((item) => item.id).slice(0, maxSelections);
+    const newIds = items
+      .map((item) => item.experimentId)
+      .slice(0, maxSelections);
     onSelectedIdsChange(newIds);
   };
 
@@ -63,16 +72,16 @@ export function ExperimentComparisonSelector({
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
         searchQuery={searchQuery}
-        onSearchChange={onSearchQueryChange}
-        searchResults={searchResults}
+        onSearchChange={setSearchQuery}
+        searchResults={searchResultsExclBaseline}
         isLoading={isLoading}
         placeholder={
           isMaxReached
             ? `Max ${maxSelections} comparisons`
             : "Search experiments..."
         }
-        disabled={disabled || isMaxReached}
-        getItemKey={(item) => item.id}
+        disabled={isMaxReached}
+        getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button
             type="button"
@@ -84,7 +93,9 @@ export function ExperimentComparisonSelector({
               {isSelected && <Check className="text-primary h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{item.name}</p>
+              <p className="truncate text-sm font-medium">
+                {item.experimentName}
+              </p>
             </div>
           </button>
         )}
@@ -93,7 +104,9 @@ export function ExperimentComparisonSelector({
             variant="secondary"
             className="flex items-center gap-1 px-2 py-0.5"
           >
-            <span className="max-w-24 truncate text-xs">{item.name}</span>
+            <span className="max-w-24 truncate text-xs">
+              {item.experimentName}
+            </span>
             <button
               type="button"
               onClick={(e) => {

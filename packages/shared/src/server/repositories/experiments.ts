@@ -988,3 +988,34 @@ export const getExperimentItemMetricsFromEvents = async (props: {
         : null,
   }));
 };
+
+export const getExperimentNamesFromEvents = async (props: {
+  projectId: string;
+}) => {
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId: props.projectId,
+    groupByColumn: "e.experiment_name",
+    selectExpression:
+      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId",
+  })
+    .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    experimentName: string;
+    experimentId: string;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId: props.projectId,
+    },
+  });
+
+  return res;
+};

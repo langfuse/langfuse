@@ -2,10 +2,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  ExperimentComparisonSelector,
-  type ExperimentOption,
-} from "./ExperimentComparisonSelector";
+import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 
 type ExperimentOverviewPanelProps = {
@@ -23,10 +20,6 @@ type ExperimentOverviewPanelProps = {
   // Comparison selector props
   comparisonIds: string[];
   onComparisonIdsChange: (ids: string[]) => void;
-  comparisonSearchQuery: string;
-  onComparisonSearchQueryChange: (query: string) => void;
-  availableExperiments: ExperimentOption[];
-  isLoadingExperiments?: boolean;
   // Baseline controls props
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
@@ -37,10 +30,6 @@ export function ExperimentOverviewPanel({
   experiment,
   comparisonIds,
   onComparisonIdsChange,
-  comparisonSearchQuery,
-  onComparisonSearchQueryChange,
-  availableExperiments,
-  isLoadingExperiments = false,
   onBaselineChange,
   onBaselineClear,
 }: ExperimentOverviewPanelProps) {
@@ -140,12 +129,11 @@ export function ExperimentOverviewPanel({
       <div className="border-t pt-4">
         <h4 className="mb-2 text-sm font-medium">Baseline</h4>
         <ExperimentBaselineControls
+          projectId={projectId}
           baselineId={experiment.id}
           baselineName={experiment.name}
-          availableExperiments={availableExperiments}
           onBaselineChange={onBaselineChange}
           onBaselineClear={onBaselineClear}
-          isLoading={isLoadingExperiments}
         />
       </div>
 
@@ -153,13 +141,10 @@ export function ExperimentOverviewPanel({
       <div className="border-t pt-4">
         <h4 className="mb-2 text-sm font-medium">Compare with</h4>
         <ExperimentComparisonSelector
+          projectId={projectId}
           baselineExperimentId={experiment.id}
           selectedIds={comparisonIds}
           onSelectedIdsChange={onComparisonIdsChange}
-          searchQuery={comparisonSearchQuery}
-          onSearchQueryChange={onComparisonSearchQueryChange}
-          experiments={availableExperiments}
-          isLoading={isLoadingExperiments}
         />
       </div>
     </div>

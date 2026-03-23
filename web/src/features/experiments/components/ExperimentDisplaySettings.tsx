@@ -14,6 +14,7 @@ type ExperimentDisplaySettingsProps = {
   onLayoutChange: (layout: "grid" | "list") => void;
   itemVisibility: "baseline-only" | "all";
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
+  hasComparisons: boolean;
 };
 
 export function ExperimentDisplaySettings({
@@ -21,6 +22,7 @@ export function ExperimentDisplaySettings({
   onLayoutChange,
   itemVisibility,
   onItemVisibilityChange,
+  hasComparisons,
 }: ExperimentDisplaySettingsProps) {
   return (
     <DropdownMenu>
@@ -48,6 +50,7 @@ export function ExperimentDisplaySettings({
         <DropdownMenuLabel>Item Visibility</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => onItemVisibilityChange("baseline-only")}
+          disabled={!hasComparisons}
         >
           {itemVisibility === "baseline-only" && (
             <Check className="mr-2 h-4 w-4" />

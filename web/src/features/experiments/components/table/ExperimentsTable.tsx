@@ -21,7 +21,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { MoreVertical, Columns3 } from "lucide-react";
+import { MoreVertical, Columns3, GitCompareArrows } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
 import {
@@ -158,6 +158,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     isLoading: isTraceItemScoreLoading,
   } = useScoreColumns<ExperimentsTableRow>({
     displayFormat: "aggregate",
+    useRawKey: true,
     scoreColumnKey: "traceItemScores",
     projectId,
     filter:
@@ -177,6 +178,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     isLoading: isObservationItemScoreLoading,
   } = useScoreColumns<ExperimentsTableRow>({
     displayFormat: "aggregate",
+    useRawKey: true,
     scoreColumnKey: "observationItemScores",
     projectId,
     filter:
@@ -193,6 +195,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     scoreColumns: experimentScoreColumns,
     isLoading: isExperimentScoreColumnLoading,
   } = useScoreColumns<ExperimentsTableRow>({
+    useRawKey: true,
     scoreColumnKey: "experimentScores",
     projectId,
     filter:
@@ -406,7 +409,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost">
                 <span className="sr-only [position:relative]">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -458,6 +461,34 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       : [];
   }, [experiments]);
 
+  // Get selected experiment IDs in the order they appear in the table
+  const selectedExperimentIds = useMemo(() => {
+    const selectedIds = Object.keys(selectedRows).filter((id) =>
+      rows.some((row) => row.id === id),
+    );
+    // Sort by table order to ensure first selected = first in table among selected
+    return rows
+      .filter((row) => selectedIds.includes(row.id))
+      .map((row) => row.id);
+  }, [selectedRows, rows]);
+
+  // Handler for comparing selected experiments
+  // First selected becomes baseline, rest become comparisons
+  const handleCompareSelected = useCallback(() => {
+    if (selectedExperimentIds.length === 0) return;
+
+    const [baseline, ...comparisons] = selectedExperimentIds;
+    const params = new URLSearchParams();
+    params.set("baseline", baseline);
+    if (comparisons.length > 0) {
+      params.set("c", comparisons.join(","));
+    }
+
+    void router.push(
+      `/project/${projectId}/experiments/results?${params.toString()}`,
+    );
+  }, [selectedExperimentIds, projectId, router]);
+
   return (
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col">
@@ -492,6 +523,21 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
             pageSize: paginationState.limit,
             pageIndex: paginationState.page - 1,
           }}
+          actionButtons={
+            selectedExperimentIds.length > 0
+              ? [
+                  <Button
+                    key="compare-selected"
+                    variant="outline"
+                    onClick={handleCompareSelected}
+                    className="gap-1"
+                  >
+                    <GitCompareArrows className="h-4 w-4" />
+                    Compare ({selectedExperimentIds.length})
+                  </Button>,
+                ]
+              : undefined
+          }
         />
 
         {/* Content area with sidebar and table */}

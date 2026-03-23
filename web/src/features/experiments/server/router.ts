@@ -24,6 +24,8 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
+  EventsAggQueryBuilder,
+  getExperimentNamesFromEvents,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -44,6 +46,7 @@ import {
   timeFilter,
   AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
+  optionalPaginationZod,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -682,31 +685,23 @@ export const experimentsRouter = createTRPCRouter({
       return batchIO;
     }),
 
-  // itemMetrics: protectedProjectProcedure
-  //   .input(
-  //     z.object({
-  //       projectId: z.string(),
-  //       experimentId: z.string(),
-  //       experimentItemIds: z.array(z.string()),
-  //     }),
-  //   )
-  //   .query(async ({ input, ctx }) => {
-  //     throwIfNoProjectAccess({
-  //       session: ctx.session,
-  //       projectId: input.projectId,
-  //       scope: "promptExperiments:read",
-  //     });
+  byProjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
 
-  //     if (input.experimentItemIds.length === 0) {
-  //       return [];
-  //     }
+      const experiments = await getExperimentNamesFromEvents({
+        projectId: input.projectId,
+      });
 
-  //     const metrics = await getExperimentItemMetricsFromEvents({
-  //       projectId: input.projectId,
-  //       experimentId: input.experimentId,
-  //       experimentItemIds: input.experimentItemIds,
-  //     });
-
-  //     return metrics;
-  //   }),
+      return { experimentNames: experiments };
+    }),
 });

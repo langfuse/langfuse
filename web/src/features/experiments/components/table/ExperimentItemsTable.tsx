@@ -1,5 +1,4 @@
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
-import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -25,9 +24,11 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { type RowSelectionState } from "@tanstack/react-table";
+import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { ExperimentPeekView } from "./ExperimentPeekView";
+import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -39,42 +40,27 @@ import {
   type ExperimentItemsTableProps,
   type ExperimentItemData,
   type ExperimentOutputData,
+  getExperimentColor,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   type DataTablePeekViewProps,
   TablePeekView,
 } from "@/src/components/table/peek";
-import TableLink from "@/src/components/table/table-link";
 import { cn } from "@/src/utils/tailwind";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
+import { ExperimentCompareTable } from "./ExperimentCompareTable";
+import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 
-// Font color palette for experiment rows within a cell
-const EXPERIMENT_TEXT_COLORS = [
-  "text-dark-gray", // Base experiment - default color
-  "text-dark-green", // Comparison 1
-  "text-dark-blue", // Comparison 2
-  "text-dark-yellow", // Comparison 3
-  "text-purple-700", // Comparison 4
-  "text-pink-700", // Comparison 5
-];
-
-/**
- * Get the text color class for an experiment based on its index in the allExperimentIds array.
- */
-const getExperimentTextColor = (
-  experimentId: string,
-  allExperimentIds: string[],
-): string => {
-  const index = allExperimentIds.indexOf(experimentId);
-  return EXPERIMENT_TEXT_COLORS[index % EXPERIMENT_TEXT_COLORS.length];
-};
+const renderExperimentSpecificHeader = (label: string) => (
+  <span className="text-muted-foreground text-xs font-semibold">{label}</span>
+);
 
 /**
  * Cell component that renders stacked values for each experiment.
+ * Uses CSS grid for consistent horizontal alignment across columns.
  */
 const StackedExperimentCell = ({
   experiments,
@@ -87,19 +73,36 @@ const StackedExperimentCell = ({
   renderValue: (exp: ExperimentItemData) => React.ReactNode;
   className?: string;
 }) => {
+  const experimentsById = useMemo(
+    () => new Map(experiments.map((exp) => [exp.experimentId, exp])),
+    [experiments],
+  );
+
   return (
-    <div className={cn("flex flex-col gap-0.5", className)}>
-      {experiments.map((exp) => (
-        <div
-          key={exp.experimentId}
-          className={cn(
-            "px-1 py-0.5",
-            getExperimentTextColor(exp.experimentId, allExperimentIds),
-          )}
-        >
-          {renderValue(exp)}
-        </div>
-      ))}
+    <div
+      className={cn("grid h-full min-h-0", className)}
+      style={{
+        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1)}, minmax(0, 1fr))`,
+      }}
+    >
+      {allExperimentIds.map((experimentId) => {
+        const exp = experimentsById.get(experimentId);
+        return (
+          <div
+            key={experimentId}
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden px-2",
+              getExperimentColor(experimentId, allExperimentIds),
+            )}
+          >
+            {exp ? (
+              renderValue(exp)
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -111,32 +114,54 @@ const StackedOutputCell = ({
   outputs,
   allExperimentIds,
   singleLine,
+  isLoading,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   singleLine: boolean;
+  isLoading: boolean;
 }) => {
+  const outputsByExperimentId = useMemo(
+    () => new Map(outputs.map((out) => [out.experimentId, out])),
+    [outputs],
+  );
+
   return (
-    <div className="flex flex-col">
-      {outputs.map((out) => (
-        <div
-          key={out.experimentId}
-          className={cn(
-            "",
-            getExperimentTextColor(out.experimentId, allExperimentIds),
-          )}
-        >
-          {out.output ? (
-            <MemoizedIOTableCell
-              isLoading={false}
-              data={out.output}
-              singleLine={true}
-            />
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </div>
-      ))}
+    <div
+      className="grid h-full min-h-0 gap-1"
+      style={{
+        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1)}, minmax(0, 1fr))`,
+      }}
+    >
+      {allExperimentIds.map((experimentId) => {
+        const out = outputsByExperimentId.get(experimentId);
+        return (
+          <div
+            key={experimentId}
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden",
+              getExperimentColor(experimentId, allExperimentIds),
+            )}
+          >
+            {isLoading ? (
+              <MemoizedIOTableCell
+                isLoading={true}
+                data={null}
+                singleLine={singleLine}
+              />
+            ) : out?.output ? (
+              <MemoizedIOTableCell
+                isLoading={false}
+                data={out.output}
+                singleLine={singleLine}
+                className="bg-accent-light-green"
+              />
+            ) : (
+              <span className="text-muted-foreground px-2 py-1">-</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -155,20 +180,26 @@ export default function ExperimentItemsTable({
   projectId,
   experimentId,
   hideControls = false,
-  availableExperiments = [],
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+
+  const { comparisonIds, layout, itemVisibility } = useExperimentResultsState();
+  const { experimentNames } = useExperimentNames({ projectId });
+  const selectedExperimentNames = useMemo(() => {
+    return experimentNames.filter(
+      (exp) =>
+        comparisonIds.includes(exp.experimentId) ||
+        exp.experimentId === experimentId,
+    );
+  }, [experimentNames, comparisonIds, experimentId]);
 
   const { selectAll, setSelectAll } = useSelectAll(
     projectId,
     "experiment-items",
   );
 
-  const { layout, setLayout, itemVisibility, setItemVisibility } =
-    useExperimentResultsState();
-
-  const [paginationState, setPaginationState] = usePaginationState(1, 50);
+  const [paginationState, setPaginationState] = usePaginationState(1, 20);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
@@ -305,9 +336,7 @@ export default function ExperimentItemsTable({
     useExperimentItemsTableData({
       projectId,
       baseExperimentId: experimentId,
-      compExperimentIds: availableExperiments
-        .filter((exp) => exp.id !== experimentId)
-        .map((exp) => exp.id),
+      compExperimentIds: comparisonIds,
       filterByExperiment: filtersByExperiment.map((filter) => ({
         experimentId: filter.runId,
         filters: filter.filters,
@@ -349,13 +378,8 @@ export default function ExperimentItemsTable({
 
   // All experiment IDs for color coding (base first, then comparisons)
   const allExperimentIds = useMemo(() => {
-    return [
-      experimentId,
-      ...availableExperiments
-        .filter((exp) => exp.id !== experimentId)
-        .map((exp) => exp.id),
-    ];
-  }, [experimentId, availableExperiments]);
+    return [experimentId, ...comparisonIds];
+  }, [experimentId, comparisonIds]);
 
   const {
     scoreColumns: observationScoreColumns,
@@ -363,6 +387,7 @@ export default function ExperimentItemsTable({
   } = useScoreColumns<ExperimentItemData>({
     scoreColumnKey: "observationScores",
     projectId,
+    useRawKey: true,
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
@@ -374,6 +399,7 @@ export default function ExperimentItemsTable({
   } = useScoreColumns<ExperimentItemData>({
     scoreColumnKey: "traceScores",
     projectId,
+    useRawKey: true,
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
@@ -433,6 +459,22 @@ export default function ExperimentItemsTable({
     [traceScoreColumns, allExperimentIds],
   );
 
+  const observationScoreOrder = useMemo(
+    () =>
+      observationScoreColumns
+        .map((col) => col.accessorKey)
+        .filter((key): key is string => typeof key === "string"),
+    [observationScoreColumns],
+  );
+
+  const traceScoreOrder = useMemo(
+    () =>
+      traceScoreColumns
+        .map((col) => col.accessorKey?.replace(/^Trace-/, ""))
+        .filter((key): key is string => typeof key === "string"),
+    [traceScoreColumns],
+  );
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     {
@@ -447,33 +489,10 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "experiments",
-      id: "traceId",
-      header: "Trace ID",
-      size: 180,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            renderValue={(exp) => (
-              <TableLink
-                path={`/project/${projectId}/traces/${encodeURIComponent(exp.traceId)}`}
-                value={exp.traceId}
-              />
-            )}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "experiments",
+      accessorKey: "observationId",
       id: "observationId",
-      header: "Observation ID",
+      header: () => renderExperimentSpecificHeader("Observation ID"),
       size: 180,
-      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -487,10 +506,14 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "experiments",
+      accessorKey: "startTime",
       id: "startTime",
-      header: getExperimentItemsColumnName("startTime"),
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("startTime"),
+        ),
       size: 180,
+      defaultHidden: true,
       enableHiding: true,
       enableSorting: true,
       cell: ({ row }) => {
@@ -505,10 +528,12 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "experiments",
+      accessorKey: "level",
       id: "level",
-      header: getExperimentItemsColumnName("level"),
+      header: () =>
+        renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
       size: 120,
+      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -522,10 +547,11 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "experiments",
+      accessorKey: "experimentId",
       id: "experimentId",
-      header: "Experiment",
+      header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
+      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -534,12 +560,12 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             renderValue={(exp) => {
-              const expOption = availableExperiments.find(
-                (e) => e.id === exp.experimentId,
+              const expOption = selectedExperimentNames.find(
+                (e) => e.experimentId === exp.experimentId,
               );
               return (
                 <span className="truncate text-xs">
-                  {expOption?.name ?? exp.experimentId.slice(0, 8)}
+                  {expOption?.experimentName ?? exp.experimentId.slice(0, 8)}
                 </span>
               );
             }}
@@ -564,32 +590,6 @@ export default function ExperimentItemsTable({
       },
     },
     {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const outputs = row.original.outputs ?? [];
-        if (ioLoading) {
-          return (
-            <MemoizedIOTableCell
-              isLoading={true}
-              data={null}
-              singleLine={rowHeight === "s"}
-            />
-          );
-        }
-        return (
-          <StackedOutputCell
-            outputs={outputs}
-            allExperimentIds={allExperimentIds}
-            singleLine={rowHeight === "s"}
-          />
-        );
-      },
-    },
-    {
       accessorKey: "expectedOutput",
       id: "expectedOutput",
       header: "Expected Output",
@@ -599,8 +599,27 @@ export default function ExperimentItemsTable({
         return (
           <MemoizedIOTableCell
             isLoading={ioLoading}
-            data={row.original.expectedOutput ?? null}
+            data={row.original.expectedOutput ?? ""}
             singleLine={rowHeight === "s"}
+            className="bg-accent-light-green"
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "output",
+      id: "output",
+      header: "Output",
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const outputs = row.original.outputs ?? [];
+        return (
+          <StackedOutputCell
+            outputs={outputs}
+            allExperimentIds={allExperimentIds}
+            singleLine={rowHeight === "s"}
+            isLoading={ioLoading}
           />
         );
       },
@@ -645,14 +664,27 @@ export default function ExperimentItemsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp", "traceId"],
+    queryParams: [
+      "observation",
+      "display",
+      "timestamp",
+      "traceId",
+      "baselineTraceId",
+      "baselineObservationId",
+    ],
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
       // Use the first experiment's data for peek navigation
       const firstExp = row.experiments[0];
+      // Get baseline experiment's trace/observation for peek view
+      const baselineExp = row.experiments.find(
+        (e) => e.experimentId === experimentId,
+      );
       return {
         traceId: firstExp?.traceId || "",
         timestamp: firstExp?.startTime?.toISOString() || "",
+        baselineTraceId: baselineExp?.traceId || "",
+        baselineObservationId: baselineExp?.observationId || "",
       };
     },
     expandConfig: {
@@ -683,7 +715,7 @@ export default function ExperimentItemsTable({
       itemType: "TRACE",
       customTitlePrefix: "Experiment Item:",
       detailNavigationKey: "experiment-items",
-      children: <PeekViewObservationDetail projectId={projectId} />,
+      children: <ExperimentPeekView projectId={projectId} />,
       ...peekNavigationProps,
     };
   }, [projectId, peekNavigationProps, hideControls]);
@@ -691,6 +723,31 @@ export default function ExperimentItemsTable({
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     return items.status === "success" && items.rows ? items.rows : [];
   }, [items]);
+
+  // TODO: why does this need to be custom?
+  const pagination = useMemo(
+    () => ({
+      totalCount: totalCount ?? null,
+      onChange: ((updater) => {
+        const newState =
+          typeof updater === "function"
+            ? updater({
+                pageIndex: paginationState.page - 1,
+                pageSize: paginationState.limit,
+              })
+            : updater;
+        setPaginationState({
+          page: newState.pageIndex + 1,
+          limit: newState.pageSize,
+        });
+      }) as OnChangeFn<PaginationState>,
+      state: {
+        pageIndex: paginationState.page - 1,
+        pageSize: paginationState.limit,
+      } as PaginationState,
+    }),
+    [paginationState, setPaginationState, totalCount],
+  );
 
   return (
     <DataTableControlsProvider
@@ -729,23 +786,14 @@ export default function ExperimentItemsTable({
               pageSize: paginationState.limit,
               pageIndex: paginationState.page - 1,
             }}
-            actionButtons={[
-              <ExperimentDisplaySettings
-                layout={layout}
-                onLayoutChange={setLayout}
-                itemVisibility={itemVisibility}
-                onItemVisibilityChange={setItemVisibility}
-              />,
-            ]}
           />
         )}
 
         {/* Filter Pills with Experiment Targeting */}
-        {filtersByExperiment.length > 0 && availableExperiments.length > 0 && (
+        {filtersByExperiment.length > 0 && (
           <ExperimentFilterPills
-            projectId={projectId}
+            selectedExperimentNames={selectedExperimentNames}
             filtersByExperiment={filtersByExperiment}
-            availableExperiments={availableExperiments}
             onFilterTargetChange={handleFilterTargetChange}
             onFilterRemove={handleFilterRemove}
             className="border-b"
@@ -757,56 +805,39 @@ export default function ExperimentItemsTable({
           {!hideControls && <DataTableControls queryFilter={queryFilter} />}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              key={`experiment-items-table-${dataUpdatedAt}`}
-              tableName={"experiment-items"}
-              columns={columns}
-              peekView={peekConfig}
-              data={
-                items.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : items.status === "error"
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: "",
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
-              pagination={{
-                totalCount,
-                onChange: (updater) => {
-                  const newState =
-                    typeof updater === "function"
-                      ? updater({
-                          pageIndex: paginationState.page - 1,
-                          pageSize: paginationState.limit,
-                        })
-                      : updater;
-                  setPaginationState({
-                    page: newState.pageIndex + 1,
-                    limit: newState.pageSize,
-                  });
-                },
-                state: {
-                  pageIndex: paginationState.page - 1,
-                  pageSize: paginationState.limit,
-                },
-              }}
-              rowSelection={selectedRows}
-              setRowSelection={setSelectedRows}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibilityState}
-              rowHeight={rowHeight}
-            />
+            {layout === "grid" ? (
+              <ExperimentGridView
+                projectId={projectId}
+                baselineExperimentId={experimentId}
+                comparisonExperimentIds={comparisonIds}
+                rows={rows}
+                isLoading={items.status === "loading" || isViewLoading}
+                rowHeight={rowHeight}
+                pagination={pagination}
+                observationScoreOrder={observationScoreOrder}
+                traceScoreOrder={traceScoreOrder}
+                columnVisibility={columnVisibility}
+              />
+            ) : (
+              <ExperimentCompareTable
+                dataUpdatedAt={dataUpdatedAt}
+                columns={columns}
+                rows={rows}
+                isLoading={items.status === "loading" || isViewLoading}
+                isError={items.status === "error"}
+                pagination={pagination}
+                rowSelection={selectedRows}
+                setRowSelection={setSelectedRows}
+                setOrderBy={setOrderByState}
+                orderBy={orderByState}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibilityState}
+                rowHeight={rowHeight}
+                peekView={peekConfig}
+              />
+            )}
           </div>
         </ResizableFilterLayout>
 

@@ -5,62 +5,25 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { api } from "@/src/utils/api";
 import { ListFilter, ChevronsUpDown, X, Check } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
-export type ExperimentOption = {
-  id: string;
-  name: string;
-};
-
 interface ExperimentFilterPillsProps {
-  projectId: string;
-  // All filters grouped by experiment
   filtersByExperiment: { runId: string; filters: FilterState }[];
-  // Available experiments to target (baseline + comparisons)
-  availableExperiments: ExperimentOption[];
-  // Callback when filter target changes
+  selectedExperimentNames: { experimentId: string; experimentName: string }[];
   onFilterTargetChange: (
     fromExperimentId: string,
     toExperimentId: string,
     filter: FilterCondition,
     filterIndex: number,
   ) => void;
-  // Callback to remove filter
   onFilterRemove: (experimentId: string, filterIndex: number) => void;
   className?: string;
 }
 
 function operatorToText(operator: FilterCondition["operator"]): string {
-  switch (operator) {
-    case "=":
-      return "=";
-    case ">=":
-      return "≥";
-    case "<=":
-      return "≤";
-    case ">":
-      return ">";
-    case "<":
-      return "<";
-    case "any of":
-      return "∈";
-    case "none of":
-      return "∉";
-    case "all of":
-      return "⊇";
-    case "contains":
-      return "contains";
-    case "does not contain":
-      return "!contains";
-    case "starts with":
-      return "starts";
-    case "ends with":
-      return "ends";
-  }
   return String(operator);
 }
 
@@ -103,7 +66,7 @@ interface FilterPillWithTargetProps {
   filterIndex: number;
   experimentId: string;
   experimentName: string;
-  availableExperiments: ExperimentOption[];
+  selectedExperimentNames: { experimentId: string; experimentName: string }[];
   onTargetChange: (toExperimentId: string) => void;
   onRemove: () => void;
 }
@@ -112,7 +75,7 @@ function FilterPillWithTarget({
   filter,
   experimentId,
   experimentName,
-  availableExperiments,
+  selectedExperimentNames,
   onTargetChange,
   onRemove,
 }: FilterPillWithTargetProps) {
@@ -143,27 +106,27 @@ function FilterPillWithTarget({
             Target Experiment
           </div>
           <div className="space-y-0.5">
-            {availableExperiments.map((exp) => (
+            {selectedExperimentNames.map((exp) => (
               <button
-                key={exp.id}
+                key={exp.experimentId}
                 onClick={() => {
-                  if (exp.id !== experimentId) {
-                    onTargetChange(exp.id);
+                  if (exp.experimentId !== experimentId) {
+                    onTargetChange(exp.experimentId);
                   }
                   setOpen(false);
                 }}
                 className={cn(
                   "hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                  exp.id === experimentId && "bg-muted",
+                  exp.experimentId === experimentId && "bg-muted",
                 )}
               >
                 <div className="flex h-4 w-4 items-center justify-center">
-                  {exp.id === experimentId && (
+                  {exp.experimentId === experimentId && (
                     <Check className="text-primary h-3 w-3" />
                   )}
                 </div>
-                <span className="truncate" title={exp.name}>
-                  {exp.name}
+                <span className="truncate" title={exp.experimentName}>
+                  {exp.experimentName}
                 </span>
               </button>
             ))}
@@ -186,18 +149,12 @@ function FilterPillWithTarget({
 }
 
 export function ExperimentFilterPills({
-  projectId,
   filtersByExperiment,
-  availableExperiments,
+  selectedExperimentNames,
   onFilterTargetChange,
   onFilterRemove,
   className,
 }: ExperimentFilterPillsProps) {
-  // Create a map of experiment ID to name for quick lookup
-  const experimentIdToName = useMemo(() => {
-    return new Map(availableExperiments.map((exp) => [exp.id, exp.name]));
-  }, [availableExperiments]);
-
   // Flatten all filters with their associated experiment information
   const allFilters = useMemo(() => {
     return filtersByExperiment.flatMap((expFilter) =>
@@ -206,11 +163,13 @@ export function ExperimentFilterPills({
         filterIndex: index,
         experimentId: expFilter.runId,
         experimentName:
-          experimentIdToName.get(expFilter.runId) ?? expFilter.runId,
+          selectedExperimentNames.find(
+            (exp) => exp.experimentId === expFilter.runId,
+          )?.experimentName ?? expFilter.runId,
         key: `${expFilter.runId}-${index}`,
       })),
     );
-  }, [filtersByExperiment, experimentIdToName]);
+  }, [filtersByExperiment, selectedExperimentNames]);
 
   if (allFilters.length === 0) {
     return null;
@@ -227,7 +186,7 @@ export function ExperimentFilterPills({
           filterIndex={item.filterIndex}
           experimentId={item.experimentId}
           experimentName={item.experimentName}
-          availableExperiments={availableExperiments}
+          selectedExperimentNames={selectedExperimentNames}
           onTargetChange={(toExperimentId) =>
             onFilterTargetChange(
               item.experimentId,
