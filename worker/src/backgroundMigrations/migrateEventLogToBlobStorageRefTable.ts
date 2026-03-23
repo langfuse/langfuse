@@ -18,9 +18,7 @@ type MigrationState = {
 
 const backgroundMigrationId = "c19b91d9-f9a2-468b-8209-95578f970c5b";
 
-export default class MigrateEventLogToBlobStorageRefTable
-  implements IBackgroundMigration
-{
+export default class MigrateEventLogToBlobStorageRefTable implements IBackgroundMigration {
   private isAborted = false;
   private isFinished = false;
 

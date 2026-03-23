@@ -4,7 +4,7 @@ import {
   NumericData,
   ScoreSchemaExclReferencesAndDates,
 } from "../../../../../domain";
-import z from "zod/v4";
+import z from "zod";
 
 const CorrectionData = z.object({
   stringValue: z.string(),
