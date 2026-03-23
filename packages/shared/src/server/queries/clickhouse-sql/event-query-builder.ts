@@ -572,10 +572,18 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
+   * Add a JOIN of the specified kind
+   */
+  private join(kind: "LEFT" | "INNER", table: string, onClause: string): this {
+    this.joins.push(`${kind} JOIN ${table} ${onClause}`);
+    return this;
+  }
+
+  /**
    * Add a LEFT JOIN
    */
   leftJoin(table: string, onClause: string): this {
-    this.joins.push(`LEFT JOIN ${table} ${onClause}`);
+    this.join("LEFT", table, onClause);
     return this;
   }
 
@@ -583,7 +591,7 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    * Add an INNER JOIN
    */
   innerJoin(table: string, onClause: string): this {
-    this.joins.push(`INNER JOIN ${table} ${onClause}`);
+    this.join("INNER", table, onClause);
     return this;
   }
 
@@ -1348,10 +1356,14 @@ export class CTEQueryBuilder<
   }
 
   /**
-   * Join another CTE.
+   * Add a JOIN of the specified kind.
    * Only accepts CTE names that have been registered via withCTE().
    */
-  leftJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+  private join<
+    Name extends keyof RegisteredCTEs & string,
+    Alias extends string,
+  >(
+    kind: "LEFT" | "INNER",
     cteName: Name,
     alias: Alias,
     onClause: string,
@@ -1361,8 +1373,21 @@ export class CTEQueryBuilder<
         `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
       );
     }
-    this.joins.push(`LEFT JOIN ${cteName} ${alias} ${onClause}`);
+    this.joins.push(`${kind} JOIN ${cteName} ${alias} ${onClause}`);
     // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
+   * Join another CTE.
+   * Only accepts CTE names that have been registered via withCTE().
+   */
+  leftJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    this.join("LEFT", cteName, alias, onClause);
     return this as any;
   }
 
@@ -1375,13 +1400,7 @@ export class CTEQueryBuilder<
     alias: Alias,
     onClause: string,
   ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
-    if (!this.cteSchemas.has(cteName)) {
-      throw new Error(
-        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
-      );
-    }
-    this.joins.push(`INNER JOIN ${cteName} ${alias} ${onClause}`);
-    // Type assertion needed because we're changing the type parameter
+    this.join("INNER", cteName, alias, onClause);
     return this as any;
   }
 
