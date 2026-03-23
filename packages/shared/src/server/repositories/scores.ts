@@ -1873,6 +1873,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
+    },
     tags: {
       feature: "tracing",
       type: "score",

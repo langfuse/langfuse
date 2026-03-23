@@ -25,7 +25,7 @@ import {
   type availableDatasetEvalVariables,
   JobConfigState,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import {

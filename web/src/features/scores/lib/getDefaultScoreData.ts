@@ -7,7 +7,7 @@ import {
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { type AnnotationScore } from "@/src/features/scores/types";
 
 const isAnnotationScore = (score: AnnotationScore) =>

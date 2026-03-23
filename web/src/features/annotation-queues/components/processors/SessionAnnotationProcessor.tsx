@@ -107,7 +107,7 @@ export const SessionAnnotationProcessor: React.FC<
             .slice(0, visibleTraces)
             .map((trace: any, index: number) => (
               <Card
-                className="group border-border hover:border-ring mb-2 grid gap-2 p-2 shadow-none"
+                className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
                 key={trace.id}
                 data-trace-index={index}
               >

@@ -76,21 +76,6 @@ import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-/**
- * Attempt to command the legacy events table.
- * Skips if env toggle is off; swallows errors if the table no longer exists.
- */
-async function commandLegacyEventsTable(
-  opts: Parameters<typeof commandClickhouse>[0],
-): Promise<void> {
-  if (env.LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS !== "true") return;
-  try {
-    await commandClickhouse(opts);
-  } catch (e) {
-    logger.warn("Legacy events table command failed (table may not exist)", e);
-  }
-}
-
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
@@ -465,11 +450,6 @@ async function getObservationsFromEventsTableInternal<T>(
     ["span_id", "name", "user_id", "session_id", "trace_id"],
   );
 
-  // Query optimization: joining traces onto observations is expensive.
-  // Only join if search query requires it.
-  // TODO further optimize by checking if specific trace fields are filtered on.
-  const needsTraceJoin = search.query;
-
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
@@ -549,18 +529,6 @@ async function getObservationsFromEventsTableInternal<T>(
           startTimeFrom,
           hasScoreAggregationFilters: true,
         }),
-      ),
-    )
-    .when(Boolean(needsTraceJoin), (b) =>
-      b.withCTE(
-        "traces",
-        eventsTracesAggregation({ projectId, startTimeFrom }).buildWithParams(),
-      ),
-    )
-    .when(Boolean(needsTraceJoin), (b) =>
-      b.leftJoin(
-        "traces t",
-        "ON t.id = e.trace_id AND t.project_id = e.project_id",
       ),
     )
     .when(hasObservationScoresFilter, (b) =>
@@ -1506,7 +1474,6 @@ export const updateEvents = async (
   await Promise.all([
     commandClickhouse(updateOpts("events_full")),
     commandClickhouse(updateOpts("events_core")),
-    commandLegacyEventsTable(updateOpts("events")),
   ]);
 };
 
@@ -2413,7 +2380,6 @@ export const deleteEventsByTraceIds = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 };
 
@@ -2465,7 +2431,6 @@ export const deleteEventsByProjectId = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;
@@ -2580,7 +2545,6 @@ export const deleteEventsOlderThanDays = async (
   await Promise.all([
     commandClickhouse(deleteOpts("events_full")),
     commandClickhouse(deleteOpts("events_core")),
-    commandLegacyEventsTable(deleteOpts("events")),
   ]);
 
   return true;

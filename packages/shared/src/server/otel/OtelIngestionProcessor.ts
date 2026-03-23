@@ -1272,6 +1272,9 @@ export class OtelIngestionProcessor {
       "gen_ai.output.messages",
       "gen_ai.tool.call.arguments",
       "gen_ai.tool.call.result",
+      // Genkit
+      "genkit:input",
+      "genkit:output",
     ];
 
     // Delete simple keys
@@ -1304,10 +1307,6 @@ export class OtelIngestionProcessor {
       ]),
     );
 
-    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
-    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
-    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
-
     // Langfuse
     input =
       domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
@@ -1319,6 +1318,25 @@ export class OtelIngestionProcessor {
         : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
     if (input != null || output != null) {
+      return { input, output, filteredAttributes };
+    }
+
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitInput =
+        this.parseJsonPayload(attributes["genkit:input"]) ??
+        attributes["genkit:input"];
+      const genkitOutput =
+        this.parseJsonPayload(attributes["genkit:output"]) ??
+        attributes["genkit:output"];
+
+      if (genkitInput != null || genkitOutput != null) {
+        // For model spans prefer messages[] as input and message object as output.
+        // For flow/util spans there is no messages/message wrapper, so fall back to the full object
+        input = genkitInput?.messages ?? genkitInput;
+        output = genkitOutput?.message ?? genkitOutput;
+      }
+
       return { input, output, filteredAttributes };
     }
 
@@ -1635,7 +1653,11 @@ export class OtelIngestionProcessor {
       );
     }
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1646,6 +1668,77 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  private appendOtelToolDefinitionsToInput(
+    input: unknown,
+    attributes: Record<string, unknown>,
+  ): unknown {
+    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
+
+    if (!toolDefinitions || input == null) {
+      return input;
+    }
+
+    const mergeToolDefinitions = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        return { messages: value, tools: toolDefinitions };
+      }
+
+      if (typeof value !== "object" || value == null) {
+        return null;
+      }
+
+      const inputObject = value as Record<string, unknown>;
+
+      if (inputObject.tools != null) {
+        return inputObject;
+      }
+
+      return {
+        ...inputObject,
+        tools: toolDefinitions,
+      };
+    };
+
+    if (typeof input === "string") {
+      try {
+        const parsedInput = JSON.parse(input);
+        const mergedInput = mergeToolDefinitions(parsedInput);
+        return mergedInput == null ? input : JSON.stringify(mergedInput);
+      } catch {
+        return input;
+      }
+    }
+
+    return mergeToolDefinitions(input) ?? input;
+  }
+
+  private extractOtelToolDefinitions(
+    attributes: Record<string, unknown>,
+  ): unknown[] | null {
+    const parseJsonString = (value: unknown): unknown => {
+      if (typeof value !== "string") {
+        return value;
+      }
+
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const modelRequestParameters = parseJsonString(
+      attributes["model_request_parameters"],
+    ) as Record<string, unknown> | null;
+
+    const toolDefinitions = parseJsonString(
+      attributes["gen_ai.tool.definitions"] ??
+        modelRequestParameters?.function_tools,
+    );
+
+    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
   }
 
   /**
@@ -1726,6 +1819,11 @@ export class OtelIngestionProcessor {
       return typeof attributes["gen_ai.tool.name"] === "string"
         ? (attributes["gen_ai.tool.name"] as string)
         : JSON.stringify(attributes["gen_ai.tool.name"]);
+    }
+
+    // Genkit
+    if ("genkit:name" in attributes) {
+      return attributes["genkit:name"] as string;
     }
 
     // Logfire message for pydantic AI
@@ -1885,6 +1983,17 @@ export class OtelIngestionProcessor {
       }
     }
 
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitConfig =
+        this.parseJsonPayload(attributes["genkit:input"])?.config ??
+        this.parseJsonPayload(attributes["genkit:output"])?.request?.config;
+
+      if (genkitConfig) {
+        return this.sanitizeModelParams(genkitConfig);
+      }
+    }
+
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
       return {
@@ -1989,6 +2098,12 @@ export class OtelIngestionProcessor {
       "llm.model_name",
       "model",
     ];
+
+    // Genkit: genkit:name is the model identifier only on model-subtype spans
+    if (attributes["genkit:metadata:subtype"] === "model") {
+      modelNameKeys.push("genkit:name");
+    }
+
     for (const key of modelNameKeys) {
       if (attributes[key]) {
         return typeof attributes[key] === "string"
@@ -2011,6 +2126,29 @@ export class OtelIngestionProcessor {
         );
       } catch {
         // Fallthrough
+      }
+    }
+
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitOutput = this.parseJsonPayload(attributes["genkit:output"]);
+      const usage = genkitOutput?.usage as Record<string, number>;
+
+      if (usage) {
+        const {
+          inputTokens: input,
+          thoughtsTokens: thoughts,
+          outputTokens: output,
+          totalTokens: total,
+        } = usage;
+
+        const usageDetails: Record<string, number> = {};
+        if (input) usageDetails.input = input;
+        if (output) usageDetails.output = Math.max(output - (thoughts ?? 0), 0);
+        if (total) usageDetails.total = total;
+        if (thoughts) usageDetails.output_reasoning = thoughts;
+
+        return usageDetails;
       }
     }
 
@@ -2450,6 +2588,23 @@ export class OtelIngestionProcessor {
       // Fallthrough
     }
   }
+
+  /**
+   * Parses a payload (object or JSON string) and returns the object
+   * or `undefined` if invalid.
+   */
+  private parseJsonPayload = (payload: unknown): any => {
+    if (payload && typeof payload === "object") return payload;
+    if (typeof payload === "string") {
+      try {
+        return JSON.parse(payload);
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  };
+
   /**
    * Get a set of trace IDs that have been seen recently (from Redis cache).
    * Returns a Set of trace IDs that should not trigger new trace creation.

@@ -51,8 +51,10 @@ export const env = createEnv({
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
-      required_error:
-        "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
+      error: (issue) =>
+        issue.input === undefined
+          ? "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container"
+          : "Invalid type",
     }),
     // Add newly signed up users to default org(s) and/or project(s) with role
     // Supports comma-separated IDs for multiple orgs/projects (e.g., "org1,org2,org3")

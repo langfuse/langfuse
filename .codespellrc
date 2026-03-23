@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,*.pdf,*.svg,package-lock.json,*.prisma,pnpm-lock.yaml
+skip = .git,*.pdf,*.svg,package-lock.json,*.prisma,pnpm-lock.yaml,./worker/src/__tests__/chatml/framework-traces
 ignore-words-list = afterall,vertx,notIn,alue,allTime
 
