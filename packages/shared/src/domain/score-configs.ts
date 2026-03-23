@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { isPresent } from "../utils/typeChecks";
 
 // Category type, used for categorical and boolean configs

@@ -6,7 +6,7 @@
  * This is the ONLY way to modify existing prompts (labels only).
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
 import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";

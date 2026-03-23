@@ -6,7 +6,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
