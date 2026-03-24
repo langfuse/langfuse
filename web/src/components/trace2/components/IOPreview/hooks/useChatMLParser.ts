@@ -117,7 +117,8 @@ export function useChatMLParser(
       if (toolCallList.length > 0) {
         const messageToolNumbers: number[] = [];
 
-        for (const toolCall of toolCallList) {
+        for (const tc of toolCallList) {
+          const toolCall = tc as Record<string, unknown>;
           const calledToolName =
             toolCall.name && typeof toolCall.name === "string"
               ? toolCall.name
