@@ -21,6 +21,7 @@ function createScoreColumns<T extends Record<string, any>>(
   scoreColumnKey: keyof T & string,
   displayFormat: "smart" | "aggregate",
   prefix?: string,
+  defaultHidden?: boolean,
 ): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     // Apply prefix to both column ID/accessor and header
@@ -34,11 +35,12 @@ function createScoreColumns<T extends Record<string, any>>(
       header,
       id: accessorKey,
       enableHiding: true,
+      defaultHidden,
       size: 150,
       cell: ({ row }) => {
-        // Handle both prefixed and non-prefixed score data access
+        // TODO: validate
         const scoresData: ScoreAggregate = row.getValue(scoreColumnKey) ?? {};
-        const value = scoresData[accessorKey];
+        const value = scoresData[key];
 
         if (!value) return null;
 
@@ -68,6 +70,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   prefix,
   isFilterDataPending = false,
   displayFormat = "smart",
+  defaultHidden,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
@@ -77,6 +80,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   prefix?: string;
   isFilterDataPending?: boolean;
   displayFormat?: "smart" | "aggregate";
+  defaultHidden?: boolean;
 }) {
   const scoreColumnsQuery = api.scores.getScoreColumns.useQuery(
     {
@@ -98,12 +102,14 @@ export function useScoreColumns<T extends Record<string, any>>({
       scoreColumnKey,
       displayFormat,
       prefix,
+      defaultHidden,
     );
   }, [
     scoreColumnsQuery.data?.scoreColumns,
     scoreColumnKey,
     prefix,
     displayFormat,
+    defaultHidden,
   ]);
 
   return {

@@ -9,6 +9,7 @@ export enum TableViewPresetTableName {
   Sessions = "sessions",
   SessionDetail = "session-detail",
   Datasets = "datasets",
+  Experiments = "experiments",
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
