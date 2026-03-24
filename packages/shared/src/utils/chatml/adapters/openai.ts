@@ -224,7 +224,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
           ? {
               thinking: thinkingBlocks.map((b) => ({
                 type: "thinking" as const,
-                content: b.thinking || "",
+                content: String(b.thinking ?? ""),
                 ...(b.signature ? { signature: b.signature } : {}),
               })),
             }
