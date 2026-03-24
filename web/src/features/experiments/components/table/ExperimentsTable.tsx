@@ -150,6 +150,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     scoreColumns: traceItemScoreColumns,
     isLoading: isTraceItemScoreLoading,
   } = useScoreColumns<ExperimentsTableRow>({
+    rawKey: true,
     displayFormat: "aggregate",
     useRawKey: true,
     scoreColumnKey: "traceItemScores",
@@ -170,6 +171,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     scoreColumns: observationItemScoreColumns,
     isLoading: isObservationItemScoreLoading,
   } = useScoreColumns<ExperimentsTableRow>({
+    rawKey: true,
     displayFormat: "aggregate",
     useRawKey: true,
     scoreColumnKey: "observationItemScores",
@@ -197,6 +199,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
             datasetRunIds: experiments.rows.map((e) => e.id),
           })
         : [],
+    rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
   });

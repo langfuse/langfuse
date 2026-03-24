@@ -22,7 +22,7 @@ function createScoreColumns<T extends Record<string, any>>(
   displayFormat: "smart" | "aggregate",
   prefix?: string,
   defaultHidden?: boolean,
-  useRawKey?: boolean,
+  rawKey?: boolean,
 ): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     // Apply prefix to both column ID/accessor and header
@@ -40,7 +40,7 @@ function createScoreColumns<T extends Record<string, any>>(
       size: 150,
       cell: ({ row }) => {
         const scoresData: ScoreAggregate = row.getValue(scoreColumnKey) ?? {};
-        const value = useRawKey ? scoresData[key] : scoresData[accessorKey];
+        const value = rawKey ? scoresData[key] : scoresData[accessorKey];
 
         if (!value) return null;
 
@@ -71,7 +71,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   isFilterDataPending = false,
   displayFormat = "smart",
   defaultHidden,
-  useRawKey = false,
+  rawKey = false,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
@@ -82,7 +82,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   isFilterDataPending?: boolean;
   displayFormat?: "smart" | "aggregate";
   defaultHidden?: boolean;
-  useRawKey?: boolean;
+  rawKey?: boolean;
 }) {
   const scoreColumnsQuery = api.scores.getScoreColumns.useQuery(
     {
@@ -105,7 +105,7 @@ export function useScoreColumns<T extends Record<string, any>>({
       displayFormat,
       prefix,
       defaultHidden,
-      useRawKey,
+      rawKey,
     );
   }, [
     scoreColumnsQuery.data?.scoreColumns,
@@ -113,7 +113,7 @@ export function useScoreColumns<T extends Record<string, any>>({
     prefix,
     displayFormat,
     defaultHidden,
-    useRawKey,
+    rawKey,
   ]);
 
   return {

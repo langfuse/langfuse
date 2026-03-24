@@ -161,7 +161,7 @@ Notes:
 
 1. Install development dependencies:
    - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
 
 2. Fork the repository and clone it locally
 
