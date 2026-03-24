@@ -105,4 +105,15 @@ describe("ChartLoadingState", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.getByText("Reading 1.8B / ~2.9B rows")).toBeInTheDocument();
   });
+
+  test("supports tight layout without rendering the default preview chrome", () => {
+    const { container } = render(
+      <ChartLoadingState isLoading={true} layout="tight" />,
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Loading chart data" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".space-y-3")).not.toBeInTheDocument();
+  });
 });

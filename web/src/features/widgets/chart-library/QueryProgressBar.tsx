@@ -20,7 +20,7 @@ export function QueryProgressBar({
   layout = "default",
 }: QueryProgressBarProps) {
   const hasProgress = progress != null;
-  const percent = hasProgress ? Math.min(progress.percent * 100, 100) : 34;
+  const percent = hasProgress ? Math.min(progress.percent * 100, 100) : 0;
   const compactLayout = layout !== "default";
 
   return (
@@ -36,13 +36,14 @@ export function QueryProgressBar({
           compactLayout ? "h-1.5" : "h-2",
         )}
       >
-        <div
-          className={cn(
-            "bg-primary/60 h-full rounded-full transition-all duration-500 ease-out",
-            !hasProgress && "animate-pulse",
-          )}
-          style={{ width: `${percent}%` }}
-        />
+        {hasProgress ? (
+          <div
+            className="bg-primary/60 h-full rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${percent}%` }}
+          />
+        ) : (
+          <div className="bg-primary/50 h-full w-1/3 rounded-full animate-pulse" />
+        )}
       </div>
       <p
         className={cn(

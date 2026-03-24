@@ -19,7 +19,7 @@ type ChartLoadingStateProps = {
   showSpinner?: boolean;
   showHintImmediately?: boolean;
   progress?: QueryProgress | null;
-  layout?: "default" | "compact";
+  layout?: "default" | "compact" | "tight";
 };
 
 function ChartLoadingPreview() {
@@ -74,7 +74,8 @@ export function ChartLoadingState({
   }
 
   const shouldShowHint = showHintImmediately || showHint;
-  const isCompact = layout === "compact";
+  const isCompact = layout !== "default";
+  const isTight = layout === "tight";
   const statusTitle = showSpinner ? "Loading widget" : "Query needs attention";
 
   return (
@@ -125,14 +126,23 @@ export function ChartLoadingState({
             </div>
 
             <div className={cn("space-y-1", isCompact ? "min-w-0 flex-1" : "")}>
-              <p className="text-foreground text-sm font-medium">
+              <p
+                className={cn(
+                  "text-foreground font-medium",
+                  isTight ? "text-xs" : "text-sm",
+                )}
+              >
                 {statusTitle}
               </p>
               {shouldShowHint ? (
                 <p
                   className={cn(
-                    "animate-in fade-in-0 text-muted-foreground text-xs leading-5 duration-300",
-                    isCompact ? "line-clamp-4" : "line-clamp-3",
+                    "animate-in fade-in-0 text-muted-foreground duration-300",
+                    isTight
+                      ? "text-[11px] leading-4 line-clamp-3"
+                      : isCompact
+                        ? "text-xs leading-4 line-clamp-4"
+                        : "text-xs leading-5 line-clamp-3",
                     hintClassName,
                   )}
                 >

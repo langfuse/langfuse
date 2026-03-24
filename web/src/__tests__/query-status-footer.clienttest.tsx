@@ -57,4 +57,16 @@ describe("QueryStatusFooter", () => {
       screen.getByText("Add filters or reduce range."),
     ).toBeInTheDocument();
   });
+
+  test("shows an indeterminate progress placeholder before query progress arrives", () => {
+    render(<QueryStatusFooter isLoading={true} />);
+
+    const progressbar = screen.getByRole("progressbar", {
+      name: "Query progress",
+    });
+
+    expect(progressbar).toBeInTheDocument();
+    expect(progressbar).not.toHaveAttribute("aria-valuenow");
+    expect(screen.getByText("Reading query progress...")).toBeInTheDocument();
+  });
 });
