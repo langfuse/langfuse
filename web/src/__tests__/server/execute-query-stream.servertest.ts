@@ -94,12 +94,14 @@ describe("execute-query-stream handler", () => {
   function makeSession(overrides?: {
     admin?: boolean;
     projects?: Array<{ id: string }>;
+    v4BetaEnabled?: boolean;
   }) {
     return {
       user: {
         id: "user-1",
         email: "test@example.com",
         admin: overrides?.admin ?? false,
+        v4BetaEnabled: overrides?.v4BetaEnabled ?? true,
         organizations: [
           {
             id: orgId,
@@ -126,6 +128,20 @@ describe("execute-query-stream handler", () => {
       },
     };
   }
+
+  it("should return 400 when v4 beta is disabled", async () => {
+    mockGetServerAuthSession.mockResolvedValue(
+      makeSession({ v4BetaEnabled: false }),
+    );
+    const { req, res } = createPostMocks(makeBody());
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      message: "Streaming is only supported for v4-enabled dashboard queries",
+    });
+  });
 
   // --- Auth tests (mocks are appropriate here) ---
 
