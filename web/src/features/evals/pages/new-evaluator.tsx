@@ -75,7 +75,6 @@ export default function NewEvaluatorPage() {
             href: `/project/${projectId}/evals`,
           },
         ],
-        actionButtonsRight: <ManageDefaultEvalModel projectId={projectId} />,
       }}
     >
       <Breadcrumb className="mb-3">
