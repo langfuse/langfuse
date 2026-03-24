@@ -506,6 +506,10 @@ export const experimentsRouter = createTRPCRouter({
           )
           .nullish(),
         orderBy: orderBy,
+        itemVisibility: z
+          .enum(["baseline-only", "all"])
+          .optional()
+          .default("baseline-only"),
         ...paginationZod,
       }),
     )
@@ -521,9 +525,11 @@ export const experimentsRouter = createTRPCRouter({
         baseExperimentId: input.baseExperimentId,
         compExperimentIds: input.compExperimentIds,
         filterByExperiment: input.filterByExperiment ?? [],
-        orderBy: null,
         offset: input.page * input.limit,
         limit: input.limit,
+        config: {
+          requireBaselinePresence: input.itemVisibility === "baseline-only",
+        },
       });
 
       const observationIds = Array.from(
@@ -638,6 +644,10 @@ export const experimentsRouter = createTRPCRouter({
             }),
           )
           .nullish(),
+        itemVisibility: z
+          .enum(["baseline-only", "all"])
+          .optional()
+          .default("baseline-only"),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -652,6 +662,9 @@ export const experimentsRouter = createTRPCRouter({
         baseExperimentId: input.baseExperimentId,
         compExperimentIds: input.compExperimentIds,
         filterByExperiment: input.filterByExperiment ?? [],
+        config: {
+          requireBaselinePresence: input.itemVisibility === "baseline-only",
+        },
       });
 
       return {

@@ -623,7 +623,6 @@ const getExperimentItemsFromEventsGeneric = (params: {
   config?: {
     requireBaselinePresence?: boolean;
   };
-  orderBy?: OrderByState;
   limit?: number;
   offset?: number;
 }) => {
@@ -662,7 +661,10 @@ const getExperimentItemsFromEventsGeneric = (params: {
       ),
     )
     .when(hasScoreFilters, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+      b.leftJoin(
+        "scores_agg AS s",
+        "ON s.observation_id = e.span_id AND s.project_id = e.project_id",
+      ),
     )
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(
@@ -700,7 +702,6 @@ const getExperimentItemsFromEventsGeneric = (params: {
  */
 export const getExperimentItemsFromEvents = async (
   props: ExperimentItemInput & {
-    orderBy?: OrderByState;
     limit?: number;
     offset?: number;
   },
@@ -724,7 +725,6 @@ export const getExperimentItemsFromEvents = async (
       compExperimentIds,
       filterByExperiment,
       config,
-      orderBy: props.orderBy,
       limit,
       offset,
     });
@@ -765,7 +765,6 @@ export const getExperimentItemsFromEvents = async (
       "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
-      "e.span_id as observation_id",
     )
     // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
     .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
