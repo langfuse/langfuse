@@ -271,8 +271,8 @@ importers:
         specifier: workspace:*
         version: link:../config-typescript
       '@types/lodash':
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: ^4.17.24
+        version: 4.17.24
       '@types/node':
         specifier: ^24.3.0
         version: 24.3.0
@@ -785,8 +785,8 @@ importers:
         specifier: ^29.5.12
         version: 29.5.12
       '@types/lodash':
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: ^4.17.24
+        version: 4.17.24
       '@types/node':
         specifier: 24.3.0
         version: 24.3.0
@@ -975,8 +975,8 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1
       '@types/lodash':
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: ^4.17.24
+        version: 4.17.24
       '@types/node':
         specifier: ^24.3.0
         version: 24.3.0
@@ -5304,8 +5304,8 @@ packages:
   '@types/katex@0.16.7':
     resolution: {integrity: sha512-HMwFiRujE5PjrgwHQ25+bsLJgowjGjm5Z8FVSf0N6PwgJrwxH0QxzHYDcKsTfV3wva0vzrpqMTJS2jXPr5BMEQ==}
 
-  '@types/lodash@4.17.23':
-    resolution: {integrity: sha512-RDvF6wTulMPjrNdCoYRC8gNR880JNGT8uB+REUpC2Ns4pRqQJhGz90wh7rgdXDPpCczF3VGktDuFGVnz8zP7HA==}
+  '@types/lodash@4.17.24':
+    resolution: {integrity: sha512-gIW7lQLZbue7lRSWEFql49QJJWThrTFFeIMJdp3eH4tKoxm1OvEPg02rm4wCCSHS0cL3/Fizimb35b7k8atwsQ==}
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -16617,7 +16617,7 @@ snapshots:
 
   '@types/katex@0.16.7': {}
 
-  '@types/lodash@4.17.23': {}
+  '@types/lodash@4.17.24': {}
 
   '@types/mdast@4.0.4':
     dependencies:
