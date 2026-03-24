@@ -1112,6 +1112,7 @@ model BlobStorageIntegration {
   exportMode      BlobStorageExportMode            @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                        @map("export_start_date")
   exportSource    AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
+  compressed      Boolean                          @default(true) @map("compressed")
 
   // Error tracking
   lastError   String?   @map("last_error")
