@@ -388,7 +388,7 @@ export default function ExperimentItemsTable({
   } = useScoreColumns<ExperimentItemData>({
     scoreColumnKey: "observationScores",
     projectId,
-    useRawKey: true,
+    rawKey: true,
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
@@ -400,7 +400,7 @@ export default function ExperimentItemsTable({
   } = useScoreColumns<ExperimentItemData>({
     scoreColumnKey: "traceScores",
     projectId,
-    useRawKey: true,
+    rawKey: true,
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
