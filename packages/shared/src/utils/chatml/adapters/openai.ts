@@ -166,6 +166,16 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   // Anthropic assistant: flatten tool_use/text/thinking content blocks
   if (Array.isArray(working.content)) {
     const contentArr = working.content as Array<Record<string, unknown>>;
+
+    // Skip classification if no Anthropic-specific blocks present
+    const hasAnthropicBlocks = contentArr.some(
+      (b) =>
+        b &&
+        typeof b === "object" &&
+        (b.type === "tool_use" || b.type === "tool_result"),
+    );
+
+    if (hasAnthropicBlocks) {
     const toolUseBlocks: Array<Record<string, unknown>> = [];
     const textBlocks: Array<Record<string, unknown>> = [];
     const thinkingBlocks: Array<Record<string, unknown>> = [];
@@ -233,6 +243,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
         tool_call_id: first.tool_use_id || "",
         content: stringifyToolResultContent(first.content),
       };
+    }
     }
   }
 
