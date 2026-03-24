@@ -36,7 +36,8 @@ export async function executeQuery(
   const { query: compiledQuery, parameters } = await queryBuilder.build(
     query,
     projectId,
-    enableSingleLevelOptimization,
+    enableSingleLevelOptimization ||
+      env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true",
   );
 
   // Check if the query contains trace table references
