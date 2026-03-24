@@ -778,17 +778,21 @@ export const getExperimentItemsFromEvents = async (
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
-  }).selectRaw(
-    "e.experiment_item_id as item_id",
-    "e.experiment_id as experiment_id",
-    "e.level as level",
-    "e.start_time as start_time",
-    "e.total_cost as total_cost",
-    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
-    "e.span_id as observation_id",
-    "e.trace_id as trace_id",
-    "e.span_id as observation_id",
-  );
+  })
+    .selectRaw(
+      "e.experiment_item_id as item_id",
+      "e.experiment_id as experiment_id",
+      "e.level as level",
+      "e.start_time as start_time",
+      "e.total_cost as total_cost",
+      "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
+      "e.span_id as observation_id",
+      "e.trace_id as trace_id",
+      "e.span_id as observation_id",
+    )
+    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
+    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query: dataQuery, params: dataParams } =
     queryBuilderData.buildWithParams();
