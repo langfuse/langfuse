@@ -1006,6 +1006,120 @@ describe("Clickhouse Experiment Items Repository Test", () => {
     });
   });
 
+  maybe("getExperimentItemsFromEvents - Item Visibility", () => {
+    it("should respect requireBaselinePresence config", async () => {
+      // GIVEN: Two items
+      // - Item 1: exists in BOTH baseline and comparison experiments
+      // - Item 2: exists ONLY in comparison experiment (not in baseline)
+      const baselineExpId = randomUUID();
+      const compExpId = randomUUID();
+      const datasetId = randomUUID();
+
+      const item1Id = randomUUID();
+      const item1BaselineTraceId = randomUUID();
+      const item1BaselineRootId = randomUUID();
+      const item1CompTraceId = randomUUID();
+      const item1CompRootId = randomUUID();
+
+      const item2Id = randomUUID();
+      const item2CompTraceId = randomUUID();
+      const item2CompRootId = randomUUID();
+
+      const now = Date.now() * 1000;
+
+      // Item 1 in baseline
+      const event1Baseline = createExperimentEvent({
+        project_id: projectId,
+        trace_id: item1BaselineTraceId,
+        span_id: item1BaselineRootId,
+        experimentId: baselineExpId,
+        experimentName: "baseline-exp",
+        datasetId: datasetId,
+        itemId: item1Id,
+        experimentItemRootSpanId: item1BaselineRootId,
+        start_time: now,
+      });
+
+      // Item 1 in comparison
+      const event1Comp = createExperimentEvent({
+        project_id: projectId,
+        trace_id: item1CompTraceId,
+        span_id: item1CompRootId,
+        experimentId: compExpId,
+        experimentName: "comp-exp",
+        datasetId: datasetId,
+        itemId: item1Id,
+        experimentItemRootSpanId: item1CompRootId,
+        start_time: now + 1000,
+      });
+
+      // Item 2 ONLY in comparison (not in baseline)
+      const event2Comp = createExperimentEvent({
+        project_id: projectId,
+        trace_id: item2CompTraceId,
+        span_id: item2CompRootId,
+        experimentId: compExpId,
+        experimentName: "comp-exp",
+        datasetId: datasetId,
+        itemId: item2Id,
+        experimentItemRootSpanId: item2CompRootId,
+        start_time: now + 2000,
+      });
+
+      await createEventsCh([event1Baseline, event1Comp, event2Comp]);
+
+      // WHEN: Query with requireBaselinePresence = true
+      const resultWithBaseline = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [compExpId],
+        filterByExperiment: [],
+        config: {
+          requireBaselinePresence: true,
+        },
+        limit: 10,
+        offset: 0,
+      });
+
+      // THEN: Should only return item1 (has baseline)
+      expect(resultWithBaseline).toHaveLength(1);
+      expect(resultWithBaseline[0].itemId).toBe(item1Id);
+      expect(resultWithBaseline[0].experiments).toHaveLength(2); // baseline + comp
+
+      // WHEN: Query with requireBaselinePresence = false
+      const resultWithoutBaseline = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [compExpId],
+        filterByExperiment: [],
+        config: {
+          requireBaselinePresence: false,
+        },
+        limit: 10,
+        offset: 0,
+      });
+
+      // THEN: Should return both items
+      expect(resultWithoutBaseline).toHaveLength(2);
+      const itemIds = resultWithoutBaseline.map((r) => r.itemId);
+      expect(itemIds).toContain(item1Id);
+      expect(itemIds).toContain(item2Id);
+
+      // Item 1 should have 2 experiments (baseline + comp)
+      const item1Result = resultWithoutBaseline.find(
+        (r) => r.itemId === item1Id,
+      );
+      expect(item1Result?.experiments).toHaveLength(2);
+
+      // Item 2 should have 1 experiment (comp only)
+      const item2Result = resultWithoutBaseline.find(
+        (r) => r.itemId === item2Id,
+      );
+      expect(item2Result?.experiments).toHaveLength(1);
+      expect(item2Result?.experiments[0].experimentId).toBe(compExpId);
+    });
+  });
+
   maybe("getExperimentItemsBatchIO", () => {
     it("should fetch IO and truncate to specified length", async () => {
       // GIVEN: Item with long input/output strings
