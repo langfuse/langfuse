@@ -1,0 +1,61 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgK" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#070C14"/>
+      <stop offset="1" stop-color="#0D1626"/>
+    </linearGradient>
+    <linearGradient id="cardK" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1321"/>
+    </linearGradient>
+    <linearGradient id="progressK" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#71DDB2"/>
+      <stop offset="1" stop-color="#DFFFF3"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgK)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option K: Inline Status</text>
+  <text x="64" y="106" fill="#8EA4C6" font-size="19" font-family="Arial, sans-serif">Everything sits right below the widget description. Still very simple, but a bit more visible than the bottom rail.</text>
+
+  <rect x="64" y="156" width="860" height="700" rx="22" fill="url(#cardK)" stroke="#2E476B" stroke-width="2"/>
+  <text x="104" y="222" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="260" fill="#8EA4C6" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <circle cx="118" cy="304" r="10" fill="#0F2036" stroke="#4F8C70"/>
+  <path d="M118 296 A8 8 0 0 1 126 304" stroke="#C8FFE6" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="140" y="309" fill="#ECF4FB" font-size="17" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="280" y="309" fill="#93A8C6" font-size="15" font-family="Arial, sans-serif">Reading 1.779B / ~2.925B rows</text>
+  <text x="852" y="309" text-anchor="end" fill="#ECF4FB" font-size="15" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="104" y="324" width="780" height="8" rx="4" fill="#162232"/>
+  <rect x="104" y="324" width="476" height="8" rx="4" fill="url(#progressK)"/>
+  <text x="104" y="354" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">This query is taking longer than usual.</text>
+
+  <g opacity="0.24">
+    <rect x="120" y="414" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="510" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="606" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="702" width="690" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M120 720 C200 708 282 684 366 624 C452 562 526 490 620 418 C696 360 758 326 810 302" stroke="#2E6E58" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 748 C214 744 296 730 394 688 C486 648 576 610 668 586 C734 568 780 560 810 558" stroke="#223A33" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="366" cy="624" r="6" fill="#CFFFF0"/>
+    <circle cx="620" cy="418" r="6" fill="#CFFFF0"/>
+    <circle cx="810" cy="302" r="6" fill="#CFFFF0"/>
+  </g>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardK)" stroke="#2E476B" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8EA4C6" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <circle cx="1016" cy="324" r="8" fill="#0F2036" stroke="#4F8C70"/>
+  <path d="M1016 317 A7 7 0 0 1 1023 324" stroke="#C8FFE6" stroke-width="2" stroke-linecap="round"/>
+  <text x="1034" y="329" fill="#ECF4FB" font-size="14" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <rect x="996" y="342" width="290" height="6" rx="3" fill="#162232"/>
+  <rect x="996" y="342" width="176" height="6" rx="3" fill="url(#progressK)"/>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Default behavior</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">0s: spinner + progress bar under the title</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">3s: warning line appears beneath it</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Very lightweight and easy to implement</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg width="1280" height="840" viewBox="0 0 1280 840" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgO" x1="0" y1="0" x2="1280" y2="840" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060C15"/>
+      <stop offset="1" stop-color="#0C1627"/>
+    </linearGradient>
+    <linearGradient id="cardO" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1322"/>
+    </linearGradient>
+    <linearGradient id="progressO" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8CCEFF"/>
+      <stop offset="1" stop-color="#DEF2FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="840" fill="url(#bgO)"/>
+  <text x="56" y="68" fill="#E7EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Compact widget behavior</text>
+  <text x="56" y="100" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Same pattern, compressed for a narrow widget. Recommendation stays as the last line.</text>
+
+  <rect x="116" y="176" width="452" height="306" rx="22" fill="url(#cardO)" stroke="#2E476B" stroke-width="2"/>
+  <text x="146" y="224" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="146" y="252" fill="#8EA3C4" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <circle cx="160" cy="306" r="8" fill="#102138" stroke="#5B85AF"/>
+  <path d="M160 299 A7 7 0 0 1 167 306" stroke="#D5EEFF" stroke-width="2" stroke-linecap="round"/>
+  <text x="178" y="311" fill="#EDF4FB" font-size="15" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="536" y="311" text-anchor="end" fill="#EDF4FB" font-size="13" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="146" y="324" width="390" height="6" rx="3" fill="#152132"/>
+  <rect x="146" y="324" width="238" height="6" rx="3" fill="url(#progressO)"/>
+  <text x="146" y="348" fill="#93A8C6" font-size="13" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="146" y="370" fill="#93A8C6" font-size="13" font-family="Arial, sans-serif">Try reducing the time range or adding more filters.</text>
+
+  <rect x="664" y="176" width="560" height="420" rx="22" fill="url(#cardO)" stroke="#2E476B" stroke-width="2"/>
+  <text x="700" y="236" fill="#DCE6F5" font-size="28" font-family="Arial, sans-serif" font-weight="700">Layout rules</text>
+  <text x="700" y="286" fill="#93A8C6" font-size="18" font-family="Arial, sans-serif">1. Always show spinner + “Running query…”</text>
+  <text x="700" y="320" fill="#93A8C6" font-size="18" font-family="Arial, sans-serif">2. Always show progress bar + row count</text>
+  <text x="700" y="354" fill="#93A8C6" font-size="18" font-family="Arial, sans-serif">3. Reserve the final text line from the start</text>
+  <text x="700" y="388" fill="#93A8C6" font-size="18" font-family="Arial, sans-serif">4. Fade in the recommendation after 2-3s</text>
+  <text x="700" y="422" fill="#93A8C6" font-size="18" font-family="Arial, sans-serif">5. Same structure in large and small widgets</text>
+
+  <text x="700" y="492" fill="#E7EEF9" font-size="20" font-family="Arial, sans-serif" font-weight="700">Why this works</text>
+  <text x="700" y="528" fill="#93A8C6" font-size="17" font-family="Arial, sans-serif">Simple by default</text>
+  <text x="700" y="558" fill="#93A8C6" font-size="17" font-family="Arial, sans-serif">No empty state</text>
+  <text x="700" y="588" fill="#93A8C6" font-size="17" font-family="Arial, sans-serif">No cards within cards</text>
+  <text x="700" y="618" fill="#93A8C6" font-size="17" font-family="Arial, sans-serif">No overlap risk</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg width="1280" height="840" viewBox="0 0 1280 840" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgM" x1="0" y1="0" x2="1280" y2="840" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060C15"/>
+      <stop offset="1" stop-color="#0C1627"/>
+    </linearGradient>
+    <linearGradient id="cardM" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1322"/>
+    </linearGradient>
+    <linearGradient id="progressM" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8CCEFF"/>
+      <stop offset="1" stop-color="#DEF2FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="840" fill="url(#bgM)"/>
+  <text x="56" y="68" fill="#E7EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Default loading state</text>
+  <text x="56" y="100" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Always show running status, progress bar, and row count. Reserve the final line for the recommendation, but keep it hidden at first.</text>
+
+  <rect x="56" y="142" width="780" height="624" rx="24" fill="url(#cardM)" stroke="#2E476B" stroke-width="2"/>
+  <text x="92" y="208" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="92" y="246" fill="#8EA3C4" font-size="20" font-family="Arial, sans-serif">Aggregated model cost (observation.totalCost) by trace.name</text>
+
+  <g opacity="0.22">
+    <rect x="108" y="318" width="628" height="1" fill="#617C9C"/>
+    <rect x="108" y="412" width="628" height="1" fill="#617C9C"/>
+    <rect x="108" y="506" width="628" height="1" fill="#617C9C"/>
+    <rect x="108" y="600" width="628" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M108 648 C182 640 256 616 338 564 C430 506 498 448 590 374 C654 324 704 292 736 278" stroke="#3B648D" stroke-width="6" stroke-linecap="round"/>
+    <path d="M108 678 C196 676 274 662 366 624 C458 586 544 550 632 526 C688 512 720 508 736 508" stroke="#243A56" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="338" cy="564" r="6" fill="#BCE7FF"/>
+    <circle cx="590" cy="374" r="6" fill="#BCE7FF"/>
+    <circle cx="736" cy="278" r="6" fill="#BCE7FF"/>
+  </g>
+
+  <circle cx="110" cy="710" r="10" fill="#102138" stroke="#5B85AF"/>
+  <path d="M110 702 A8 8 0 0 1 118 710" stroke="#D5EEFF" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="132" y="716" fill="#EDF4FB" font-size="18" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="728" y="716" text-anchor="end" fill="#EDF4FB" font-size="15" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="132" y="730" width="596" height="8" rx="4" fill="#152132"/>
+  <rect x="132" y="730" width="364" height="8" rx="4" fill="url(#progressM)"/>
+  <text x="132" y="760" fill="#93A8C6" font-size="15" font-family="Arial, sans-serif">Reading 1.779B / ~2.925B rows</text>
+  <text x="132" y="790" fill="#5E7291" font-size="15" font-family="Arial, sans-serif">Recommendation line reserved here</text>
+
+  <rect x="888" y="176" width="332" height="244" rx="22" fill="url(#cardM)" stroke="#2E476B" stroke-width="2"/>
+  <text x="916" y="224" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Tiny widget variant</text>
+  <text x="916" y="252" fill="#8EA3C4" font-size="16" font-family="Arial, sans-serif">Same pattern, tighter spacing</text>
+  <circle cx="930" cy="306" r="8" fill="#102138" stroke="#5B85AF"/>
+  <path d="M930 299 A7 7 0 0 1 937 306" stroke="#D5EEFF" stroke-width="2" stroke-linecap="round"/>
+  <text x="946" y="311" fill="#EDF4FB" font-size="15" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="1194" y="311" text-anchor="end" fill="#EDF4FB" font-size="13" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="916" y="324" width="278" height="6" rx="3" fill="#152132"/>
+  <rect x="916" y="324" width="170" height="6" rx="3" fill="url(#progressM)"/>
+  <text x="916" y="348" fill="#93A8C6" font-size="13" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+
+  <text x="888" y="470" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Behavior</text>
+  <text x="888" y="502" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">0s: spinner + bar + row count</text>
+  <text x="888" y="532" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Recommendation line stays reserved but muted/empty</text>
+</svg>

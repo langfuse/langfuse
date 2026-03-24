@@ -1,0 +1,67 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgC" x1="0" y1="0" x2="1200" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#081019"/>
+      <stop offset="1" stop-color="#13203A"/>
+    </linearGradient>
+    <linearGradient id="cardC" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07101B"/>
+      <stop offset="1" stop-color="#0A1525"/>
+    </linearGradient>
+    <linearGradient id="sheetC" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#111C2D" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#0B1321" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="progressC" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#FFCA7A"/>
+      <stop offset="1" stop-color="#FFE7B8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="860" fill="url(#bgC)"/>
+  <text x="54" y="70" fill="#E6EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option C: Bottom Sheet</text>
+  <text x="54" y="102" fill="#93A6C3" font-size="18" font-family="Arial, sans-serif">The overlay behaves like a light-weight status drawer: the chart skeleton dominates, while the progress and hint sit in a grounded sheet.</text>
+
+  <rect x="54" y="148" width="764" height="648" rx="24" fill="url(#cardC)" stroke="#35507D" stroke-width="2"/>
+  <text x="90" y="214" fill="#D9E3F2" font-size="28" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="90" y="252" fill="#94A6C5" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace name over the selected period</text>
+
+  <g opacity="0.44">
+    <rect x="100" y="322" width="140" height="14" rx="7" fill="#24354E"/>
+    <rect x="100" y="350" width="212" height="14" rx="7" fill="#24354E"/>
+    <rect x="100" y="560" width="110" height="116" rx="18" fill="#203149"/>
+    <rect x="228" y="510" width="110" height="166" rx="18" fill="#314C72"/>
+    <rect x="356" y="456" width="110" height="220" rx="18" fill="#385885"/>
+    <rect x="484" y="532" width="110" height="144" rx="18" fill="#2A4260"/>
+    <rect x="612" y="590" width="110" height="86" rx="18" fill="#22354E"/>
+  </g>
+
+  <rect x="102" y="562" width="668" height="170" rx="28" fill="url(#sheetC)" stroke="#314A72"/>
+  <rect x="390" y="580" width="92" height="8" rx="4" fill="#324866"/>
+  <circle cx="148" cy="634" r="20" fill="#131F30" stroke="#7C6D4A"/>
+  <circle cx="148" cy="634" r="9" fill="#FFD082"/>
+  <text x="182" y="626" fill="#EDF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <text x="182" y="654" fill="#9AB1C8" font-size="16" font-family="Arial, sans-serif">This query is taking longer than usual. Reduce the time range or narrow the filters.</text>
+  <text x="182" y="692" fill="#EDF4FB" font-size="15" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="726" y="692" text-anchor="end" fill="#A8B9CE" font-size="15" font-family="Arial, sans-serif">61%</text>
+  <rect x="182" y="704" width="544" height="10" rx="5" fill="#1A2A3B"/>
+  <rect x="182" y="704" width="332" height="10" rx="5" fill="url(#progressC)"/>
+  <text x="182" y="727" fill="#A8B9CE" font-size="15" font-family="Arial, sans-serif">Reading 1779.3M / ~2924.5M rows</text>
+
+  <rect x="854" y="198" width="292" height="268" rx="22" fill="url(#cardC)" stroke="#35507D" stroke-width="2"/>
+  <text x="882" y="246" fill="#D9E3F2" font-size="20" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="882" y="276" fill="#8FA3C3" font-size="15" font-family="Arial, sans-serif">Shows the count of traces</text>
+
+  <rect x="874" y="344" width="252" height="94" rx="18" fill="url(#sheetC)" stroke="#314A72"/>
+  <circle cx="906" cy="376" r="15" fill="#131F30" stroke="#7C6D4A"/>
+  <circle cx="906" cy="376" r="7" fill="#FFD082"/>
+  <text x="934" y="381" fill="#EDF4FB" font-size="16" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <rect x="906" y="396" width="180" height="8" rx="4" fill="#1A2A3B"/>
+  <rect x="906" y="396" width="109" height="8" rx="4" fill="url(#progressC)"/>
+  <text x="906" y="419" fill="#A8B9CE" font-size="12" font-family="Arial, sans-serif">Reading 1736.4M / ~2924.6M rows</text>
+
+  <text x="854" y="508" fill="#E6EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it helps</text>
+  <text x="854" y="540" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">Feels the most polished and intentional on larger widgets.</text>
+  <text x="854" y="570" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">The status is grounded at the bottom, away from chart titles.</text>
+  <text x="854" y="600" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">It is slightly more UI-heavy than the other two directions.</text>
+</svg>

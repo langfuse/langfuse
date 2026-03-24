@@ -1,0 +1,49 @@
+<svg width="1320" height="760" viewBox="0 0 1320 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgP2" x1="0" y1="0" x2="1320" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060C15"/>
+      <stop offset="1" stop-color="#0C1627"/>
+    </linearGradient>
+    <linearGradient id="cardP2" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1322"/>
+    </linearGradient>
+    <linearGradient id="progressP2" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#A8B7FF"/>
+      <stop offset="1" stop-color="#E4E8FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1320" height="760" fill="url(#bgP2)"/>
+  <text x="56" y="66" fill="#E7EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option P: Height-based fallback</text>
+  <text x="56" y="98" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">If a widget gets too short, shorten the recommendation instead of letting it wrap badly. Same structure, just tighter copy.</text>
+
+  <text x="120" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Normal small widget</text>
+  <text x="734" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Very short widget</text>
+
+  <rect x="120" y="176" width="470" height="430" rx="22" fill="url(#cardP2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="152" y="230" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="152" y="264" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <g opacity="0.12">
+    <rect x="152" y="316" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="380" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="444" width="404" height="1" fill="#617C9C"/>
+  </g>
+  <rect x="152" y="496" width="404" height="84" fill="#091220"/>
+  <rect x="152" y="518" width="404" height="6" rx="3" fill="#152132"/>
+  <rect x="152" y="518" width="246" height="6" rx="3" fill="url(#progressP2)"/>
+  <text x="152" y="546" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="152" y="572" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reduce time range or add filters.</text>
+
+  <rect x="734" y="238" width="470" height="300" rx="22" fill="url(#cardP2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="766" y="286" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Tiny metric widget</text>
+  <text x="766" y="316" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Very little vertical room</text>
+  <rect x="766" y="410" width="404" height="74" fill="#091220"/>
+  <rect x="766" y="428" width="404" height="6" rx="3" fill="#152132"/>
+  <rect x="766" y="428" width="246" height="6" rx="3" fill="url(#progressP2)"/>
+  <text x="766" y="454" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="766" y="476" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Add filters or reduce range.</text>
+
+  <text x="120" y="654" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Recommended rule</text>
+  <text x="120" y="686" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">If height is tight, keep the same layout but switch to shorter recommendation copy instead of clipping.</text>
+</svg>

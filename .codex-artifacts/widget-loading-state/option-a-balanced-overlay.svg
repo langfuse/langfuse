@@ -1,0 +1,78 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgA" x1="0" y1="0" x2="1200" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07101F"/>
+      <stop offset="1" stop-color="#0B1730"/>
+    </linearGradient>
+    <linearGradient id="cardA" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#04101E"/>
+      <stop offset="1" stop-color="#091321"/>
+    </linearGradient>
+    <linearGradient id="overlayA" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0D1728" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#08111E" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="progressA" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#9DB6D8"/>
+      <stop offset="1" stop-color="#D2DDEA"/>
+    </linearGradient>
+    <filter id="glowA" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="860" fill="url(#bgA)"/>
+  <text x="54" y="70" fill="#E6EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option A: Balanced Overlay</text>
+  <text x="54" y="102" fill="#93A6C3" font-size="18" font-family="Arial, sans-serif">Chart skeleton stays visible, progress is integrated into the same overlay, and small widgets switch to a compact stacked layout.</text>
+
+  <rect x="54" y="148" width="764" height="648" rx="24" fill="url(#cardA)" stroke="#35507D" stroke-width="2"/>
+  <text x="90" y="214" fill="#D9E3F2" font-size="28" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="90" y="252" fill="#94A6C5" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace name over the selected period</text>
+
+  <g opacity="0.45">
+    <rect x="104" y="556" width="72" height="120" rx="18" fill="#24344E"/>
+    <rect x="194" y="490" width="72" height="186" rx="18" fill="#2B4160"/>
+    <rect x="284" y="590" width="72" height="86" rx="18" fill="#223049"/>
+    <rect x="374" y="450" width="72" height="226" rx="18" fill="#314C72"/>
+    <rect x="464" y="532" width="72" height="144" rx="18" fill="#29405F"/>
+    <rect x="554" y="474" width="72" height="202" rx="18" fill="#385885"/>
+    <rect x="644" y="610" width="72" height="66" rx="18" fill="#223049"/>
+  </g>
+
+  <circle cx="434" cy="468" r="110" fill="#27446A" opacity="0.26" filter="url(#glowA)"/>
+  <rect x="220" y="388" width="428" height="184" rx="28" fill="url(#overlayA)" stroke="#314A72"/>
+  <circle cx="434" cy="438" r="24" fill="#0E1D31" stroke="#5A7AA5"/>
+  <circle cx="434" cy="438" r="11" fill="#A9BEDB"/>
+  <text x="434" y="492" text-anchor="middle" fill="#ECF2FB" font-size="24" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <text x="434" y="528" text-anchor="middle" fill="#A1B3CE" font-size="17" font-family="Arial, sans-serif">This query is taking longer than usual. Try reducing the time frame</text>
+  <text x="434" y="552" text-anchor="middle" fill="#A1B3CE" font-size="17" font-family="Arial, sans-serif">or adding more filters.</text>
+
+  <rect x="258" y="610" width="352" height="90" rx="20" fill="#0B1524" stroke="#253A59"/>
+  <text x="288" y="642" fill="#E5EDF8" font-size="16" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="574" y="642" text-anchor="end" fill="#A8B7CD" font-size="16" font-family="Arial, sans-serif">61%</text>
+  <rect x="288" y="656" width="292" height="10" rx="5" fill="#1D2B3F"/>
+  <rect x="288" y="656" width="178" height="10" rx="5" fill="url(#progressA)"/>
+  <text x="288" y="690" fill="#A8B7CD" font-size="15" font-family="Arial, sans-serif">Reading 1779.3M / ~2924.5M rows</text>
+
+  <rect x="854" y="198" width="292" height="268" rx="22" fill="url(#cardA)" stroke="#35507D" stroke-width="2"/>
+  <text x="882" y="246" fill="#D9E3F2" font-size="20" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="882" y="276" fill="#8FA3C3" font-size="15" font-family="Arial, sans-serif">Shows the count of traces</text>
+
+  <rect x="882" y="316" width="236" height="104" rx="18" fill="#0B1524" stroke="#2A4266"/>
+  <circle cx="914" cy="348" r="16" fill="#0E1D31" stroke="#5A7AA5"/>
+  <circle cx="914" cy="348" r="7.5" fill="#A9BEDB"/>
+  <text x="942" y="353" fill="#ECF2FB" font-size="17" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <text x="914" y="382" fill="#A3B3C8" font-size="13" font-family="Arial, sans-serif">Try reducing the time frame or filters.</text>
+  <rect x="914" y="395" width="176" height="8" rx="4" fill="#1D2B3F"/>
+  <rect x="914" y="395" width="106" height="8" rx="4" fill="url(#progressA)"/>
+  <text x="914" y="418" fill="#A8B7CD" font-size="12" font-family="Arial, sans-serif">Reading 1736.4M / ~2924.6M rows</text>
+
+  <text x="854" y="508" fill="#E6EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it helps</text>
+  <text x="854" y="540" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">One overlay means no more center-vs-footer collisions.</text>
+  <text x="854" y="570" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">Large tiles still feel rich because the chart skeleton remains visible.</text>
+  <text x="854" y="600" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">Small tiles trim down to only the highest-signal content.</text>
+</svg>

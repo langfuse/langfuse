@@ -1,0 +1,59 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgH" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060B14"/>
+      <stop offset="1" stop-color="#0D1626"/>
+    </linearGradient>
+    <linearGradient id="cardH" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07101D"/>
+      <stop offset="1" stop-color="#0A1321"/>
+    </linearGradient>
+    <linearGradient id="progressH" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#77E0B7"/>
+      <stop offset="1" stop-color="#D9FFF0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgH)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option H: Inline Query Bar</text>
+  <text x="64" y="106" fill="#8FA3C3" font-size="19" font-family="Arial, sans-serif">The loading state becomes a compact inline execution bar under the widget description. Nothing floats on top of the chart.</text>
+
+  <rect x="64" y="152" width="860" height="700" rx="22" fill="url(#cardH)" stroke="#2F486C" stroke-width="2"/>
+  <text x="104" y="220" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="258" fill="#8FA2C2" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <rect x="104" y="290" width="780" height="66" rx="14" fill="#0C1727" stroke="#263C5A"/>
+  <text x="128" y="317" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">QUERY STATUS</text>
+  <text x="128" y="340" fill="#ECF4FB" font-size="17" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="256" y="340" fill="#93A8C6" font-size="15" font-family="Arial, sans-serif">1.779B / 2.925B rows</text>
+  <text x="460" y="340" fill="#93A8C6" font-size="15" font-family="Arial, sans-serif">13.4M rows/s</text>
+  <text x="868" y="340" text-anchor="end" fill="#ECF4FB" font-size="15" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="620" y="332" width="208" height="8" rx="4" fill="#142031"/>
+  <rect x="620" y="332" width="126" height="8" rx="4" fill="url(#progressH)"/>
+
+  <g opacity="0.24">
+    <rect x="120" y="412" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="510" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="608" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="706" width="690" height="1" fill="#627C9D"/>
+  </g>
+  <g opacity="0.44">
+    <path d="M120 728 C200 718 286 690 364 628 C450 560 514 514 612 446 C688 392 756 352 810 324" stroke="#3D6B52" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 700 C198 684 284 656 370 618 C468 574 556 546 644 520 C714 500 772 484 810 474" stroke="#223D33" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="364" cy="628" r="6" fill="#B6FFE1"/>
+    <circle cx="612" cy="446" r="6" fill="#B6FFE1"/>
+    <circle cx="810" cy="324" r="6" fill="#B6FFE1"/>
+  </g>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardH)" stroke="#2F486C" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8FA2C2" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="996" y="314" width="290" height="54" rx="12" fill="#0C1727" stroke="#263C5A"/>
+  <text x="1016" y="346" fill="#ECF4FB" font-size="14" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="1262" y="346" text-anchor="end" fill="#ECF4FB" font-size="14" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it works</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Most practical if we want the lightest implementation.</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">The chart never gets obscured, even while loading.</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Feels like a query status row inside a data tool.</text>
+</svg>

@@ -1,0 +1,61 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgI" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060B14"/>
+      <stop offset="1" stop-color="#0D1626"/>
+    </linearGradient>
+    <linearGradient id="cardI" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07101D"/>
+      <stop offset="1" stop-color="#0A1321"/>
+    </linearGradient>
+    <linearGradient id="progressI" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#A8B4FF"/>
+      <stop offset="1" stop-color="#E1E6FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgI)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option I: Compact Terminal Panel</text>
+  <text x="64" y="106" fill="#8FA3C3" font-size="19" font-family="Arial, sans-serif">A very small terminal-like panel sits inside the chart area. Still simple, but more explicit than a status strip.</text>
+
+  <rect x="64" y="152" width="860" height="700" rx="22" fill="url(#cardI)" stroke="#2F486C" stroke-width="2"/>
+  <text x="104" y="220" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="258" fill="#8FA2C2" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <g opacity="0.24">
+    <rect x="120" y="332" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="430" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="528" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="626" width="690" height="1" fill="#627C9D"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M120 700 C198 684 288 664 378 620 C470 576 552 500 646 438 C714 392 768 358 810 336" stroke="#586ED1" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 730 C224 724 312 706 412 666 C496 632 586 590 674 564 C734 546 782 534 810 530" stroke="#283764" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="378" cy="620" r="6" fill="#D3D9FF"/>
+    <circle cx="646" cy="438" r="6" fill="#D3D9FF"/>
+    <circle cx="810" cy="336" r="6" fill="#D3D9FF"/>
+  </g>
+
+  <rect x="262" y="548" width="462" height="120" rx="16" fill="#0C1727" stroke="#263C5A"/>
+  <circle cx="288" cy="574" r="4" fill="#F87171"/>
+  <circle cx="304" cy="574" r="4" fill="#FBBF24"/>
+  <circle cx="320" cy="574" r="4" fill="#34D399"/>
+  <text x="342" y="578" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">query-runtime</text>
+  <text x="288" y="612" fill="#ECF4FB" font-size="15" font-family="SFMono-Regular, Menlo, Monaco, monospace">&gt; phase: scanning_rows</text>
+  <text x="288" y="638" fill="#93A8C6" font-size="14" font-family="SFMono-Regular, Menlo, Monaco, monospace">&gt; rows: 1.779B / 2.925B   rate: 13.4M/s   progress: 61%</text>
+  <rect x="288" y="650" width="410" height="8" rx="4" fill="#142031"/>
+  <rect x="288" y="650" width="250" height="8" rx="4" fill="url(#progressI)"/>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardI)" stroke="#2F486C" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8FA2C2" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="1020" y="350" width="242" height="68" rx="12" fill="#0C1727" stroke="#263C5A"/>
+  <text x="1036" y="378" fill="#ECF4FB" font-size="13" font-family="SFMono-Regular, Menlo, Monaco, monospace">&gt; scanning_rows 61%</text>
+  <rect x="1036" y="390" width="210" height="6" rx="3" fill="#142031"/>
+  <rect x="1036" y="390" width="128" height="6" rx="3" fill="url(#progressI)"/>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it works</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Still simple, but with more character than a plain strip.</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Monospace details make it feel like a real query tool.</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Works well if we want a subtle console vibe without overdesigning it.</text>
+</svg>

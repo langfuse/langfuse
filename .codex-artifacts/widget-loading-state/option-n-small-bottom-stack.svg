@@ -1,0 +1,63 @@
+<svg width="1320" height="760" viewBox="0 0 1320 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgN2" x1="0" y1="0" x2="1320" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060C15"/>
+      <stop offset="1" stop-color="#0C1627"/>
+    </linearGradient>
+    <linearGradient id="cardN2" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1322"/>
+    </linearGradient>
+    <linearGradient id="progressN2" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8DCCFF"/>
+      <stop offset="1" stop-color="#DEF2FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1320" height="760" fill="url(#bgN2)"/>
+  <text x="56" y="66" fill="#E7EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option N: Reserved Bottom Stack</text>
+  <text x="56" y="98" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Best small-widget pattern: reserve a dedicated bottom status zone. The chart never overlaps it, and the recommendation gets its own line.</text>
+
+  <text x="120" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">0-3s</text>
+  <text x="734" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">After delay</text>
+
+  <rect x="120" y="176" width="470" height="430" rx="22" fill="url(#cardN2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="152" y="230" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="152" y="264" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <g opacity="0.12">
+    <rect x="152" y="316" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="380" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="444" width="404" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.28">
+    <path d="M152 482 C222 470 286 452 344 420 C410 382 470 336 556 290" stroke="#355E86" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <line x1="152" y1="488" x2="556" y2="488" stroke="#22344D" stroke-width="1"/>
+  <rect x="152" y="496" width="404" height="84" rx="0" fill="#091220"/>
+  <rect x="152" y="518" width="404" height="6" rx="3" fill="#152132"/>
+  <rect x="152" y="518" width="246" height="6" rx="3" fill="url(#progressN2)"/>
+  <text x="152" y="546" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="152" y="572" fill="#566A87" font-size="14" font-family="Arial, sans-serif">Recommendation line reserved</text>
+
+  <rect x="734" y="176" width="470" height="430" rx="22" fill="url(#cardN2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="766" y="230" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="766" y="264" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <g opacity="0.12">
+    <rect x="766" y="316" width="404" height="1" fill="#617C9C"/>
+    <rect x="766" y="380" width="404" height="1" fill="#617C9C"/>
+    <rect x="766" y="444" width="404" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.28">
+    <path d="M766 482 C836 470 900 452 958 420 C1024 382 1084 336 1170 290" stroke="#355E86" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <line x1="766" y1="488" x2="1170" y2="488" stroke="#22344D" stroke-width="1"/>
+  <rect x="766" y="496" width="404" height="84" rx="0" fill="#091220"/>
+  <rect x="766" y="518" width="404" height="6" rx="3" fill="#152132"/>
+  <rect x="766" y="518" width="246" height="6" rx="3" fill="url(#progressN2)"/>
+  <text x="766" y="546" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="766" y="572" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reduce time range or add filters.</text>
+
+  <text x="120" y="654" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it works</text>
+  <text x="120" y="686" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">The status area has fixed height, so nothing overlays or jumps.</text>
+  <text x="120" y="716" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">This is the safest small-widget solution.</text>
+</svg>

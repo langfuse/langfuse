@@ -1,0 +1,62 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgJ" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#070C14"/>
+      <stop offset="1" stop-color="#0D1626"/>
+    </linearGradient>
+    <linearGradient id="cardJ" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1321"/>
+    </linearGradient>
+    <linearGradient id="progressJ" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8DCCFF"/>
+      <stop offset="1" stop-color="#DFF3FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgJ)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option J: Bottom Rail</text>
+  <text x="64" y="106" fill="#8EA4C6" font-size="19" font-family="Arial, sans-serif">Simple default: chart stays untouched, status lives in one stable rail at the bottom. Warning text fades in after 3 seconds.</text>
+
+  <rect x="64" y="156" width="860" height="700" rx="22" fill="url(#cardJ)" stroke="#2E476B" stroke-width="2"/>
+  <text x="104" y="222" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="260" fill="#8EA4C6" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <g opacity="0.26">
+    <rect x="120" y="338" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="434" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="530" width="690" height="1" fill="#617C9C"/>
+    <rect x="120" y="626" width="690" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M120 716 C196 706 282 684 362 636 C454 582 536 504 634 430 C706 376 766 338 810 316" stroke="#3C648D" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 744 C214 740 296 726 392 688 C486 650 576 612 668 584 C730 566 778 554 810 548" stroke="#253A56" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="362" cy="636" r="6" fill="#B6E3FF"/>
+    <circle cx="634" cy="430" r="6" fill="#B6E3FF"/>
+    <circle cx="810" cy="316" r="6" fill="#B6E3FF"/>
+  </g>
+
+  <rect x="88" y="730" width="812" height="82" rx="14" fill="#0B1626" stroke="#253A59"/>
+  <circle cx="118" cy="758" r="10" fill="#0F2036" stroke="#5E86AC"/>
+  <path d="M118 750 A8 8 0 0 1 126 758" stroke="#BFE6FF" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="140" y="763" fill="#ECF4FB" font-size="17" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="852" y="763" text-anchor="end" fill="#ECF4FB" font-size="15" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="140" y="778" width="712" height="8" rx="4" fill="#162232"/>
+  <rect x="140" y="778" width="434" height="8" rx="4" fill="url(#progressJ)"/>
+  <text x="140" y="804" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.779B / ~2.925B rows</text>
+  <text x="560" y="804" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">This query is taking longer than usual.</text>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardJ)" stroke="#2E476B" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8EA4C6" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="996" y="378" width="290" height="54" rx="12" fill="#0B1626" stroke="#253A59"/>
+  <circle cx="1018" cy="405" r="8" fill="#0F2036" stroke="#5E86AC"/>
+  <path d="M1018 398 A7 7 0 0 1 1025 405" stroke="#BFE6FF" stroke-width="2" stroke-linecap="round"/>
+  <text x="1036" y="410" fill="#ECF4FB" font-size="14" font-family="Arial, sans-serif" font-weight="700">Running query…</text>
+  <text x="1262" y="410" text-anchor="end" fill="#ECF4FB" font-size="13" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Default behavior</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">0s: spinner + progress only</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">3s: warning text fades in on the same line</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">No overlay and no layout jump</text>
+</svg>

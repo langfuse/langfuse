@@ -1,0 +1,59 @@
+<svg width="1320" height="760" viewBox="0 0 1320 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgO2" x1="0" y1="0" x2="1320" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060C15"/>
+      <stop offset="1" stop-color="#0C1627"/>
+    </linearGradient>
+    <linearGradient id="cardO2" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07111E"/>
+      <stop offset="1" stop-color="#0A1322"/>
+    </linearGradient>
+    <linearGradient id="progressO2" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#74DDB5"/>
+      <stop offset="1" stop-color="#DEFFF2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1320" height="760" fill="url(#bgO2)"/>
+  <text x="56" y="66" fill="#E7EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option O: Inline Header Status</text>
+  <text x="56" y="98" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Push the loading state into the header area. This also avoids overlay, but it compresses the title/subtitle space more aggressively.</text>
+
+  <text x="120" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">0-3s</text>
+  <text x="734" y="150" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">After delay</text>
+
+  <rect x="120" y="176" width="470" height="430" rx="22" fill="url(#cardO2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="152" y="230" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="152" y="264" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="152" y="286" width="404" height="54" rx="12" fill="#0A1423" stroke="#243B59"/>
+  <rect x="170" y="302" width="368" height="6" rx="3" fill="#152132"/>
+  <rect x="170" y="302" width="224" height="6" rx="3" fill="url(#progressO2)"/>
+  <text x="170" y="330" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <g opacity="0.12">
+    <rect x="152" y="386" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="450" width="404" height="1" fill="#617C9C"/>
+    <rect x="152" y="514" width="404" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.28">
+    <path d="M152 534 C226 526 290 506 346 474 C408 438 478 390 556 334" stroke="#2E6E58" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <rect x="734" y="176" width="470" height="430" rx="22" fill="url(#cardO2)" stroke="#2E476B" stroke-width="2"/>
+  <text x="766" y="230" fill="#DCE6F5" font-size="24" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="766" y="264" fill="#8EA3C4" font-size="18" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="766" y="286" width="404" height="80" rx="12" fill="#0A1423" stroke="#243B59"/>
+  <rect x="784" y="302" width="368" height="6" rx="3" fill="#152132"/>
+  <rect x="784" y="302" width="224" height="6" rx="3" fill="url(#progressO2)"/>
+  <text x="784" y="330" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reading 1.736B / ~2.925B rows</text>
+  <text x="784" y="354" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">Reduce time range or add filters.</text>
+  <g opacity="0.12">
+    <rect x="766" y="400" width="404" height="1" fill="#617C9C"/>
+    <rect x="766" y="464" width="404" height="1" fill="#617C9C"/>
+    <rect x="766" y="528" width="404" height="1" fill="#617C9C"/>
+  </g>
+  <g opacity="0.28">
+    <path d="M766 534 C840 526 904 506 960 474 C1022 438 1092 390 1170 334" stroke="#2E6E58" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <text x="120" y="654" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Tradeoff</text>
+  <text x="120" y="686" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Safe and simple, but it steals more room from title/description than the bottom-stack option.</text>
+</svg>

@@ -1,0 +1,79 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgE" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#070C13"/>
+      <stop offset="1" stop-color="#101A29"/>
+    </linearGradient>
+    <linearGradient id="cardE" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07101C"/>
+      <stop offset="1" stop-color="#0B1321"/>
+    </linearGradient>
+    <linearGradient id="dockE" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0E1A2C"/>
+      <stop offset="1" stop-color="#08111D"/>
+    </linearGradient>
+    <linearGradient id="progressE" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#63D7B2"/>
+      <stop offset="1" stop-color="#D8FFF1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgE)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option E: Telemetry Dock</text>
+  <text x="64" y="106" fill="#8FA3C3" font-size="19" font-family="Arial, sans-serif">Keep the chart almost fully visible and reserve a persistent dock for runtime telemetry, similar to the bottom pane in browser/network tools.</text>
+
+  <rect x="64" y="152" width="860" height="700" rx="22" fill="url(#cardE)" stroke="#2E476B" stroke-width="2"/>
+  <text x="104" y="220" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="258" fill="#8FA2C2" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <g opacity="0.28">
+    <rect x="120" y="320" width="110" height="260" rx="18" fill="#22354F"/>
+    <rect x="248" y="382" width="110" height="198" rx="18" fill="#314C73"/>
+    <rect x="376" y="454" width="110" height="126" rx="18" fill="#22354F"/>
+    <rect x="504" y="340" width="110" height="240" rx="18" fill="#395987"/>
+    <rect x="632" y="430" width="110" height="150" rx="18" fill="#29415F"/>
+    <rect x="760" y="286" width="40" height="294" rx="18" fill="#486A99"/>
+  </g>
+
+  <rect x="88" y="648" width="812" height="154" rx="20" fill="url(#dockE)" stroke="#28415E"/>
+  <rect x="88" y="648" width="812" height="34" rx="20" fill="#101A28"/>
+  <text x="116" y="671" fill="#AFC0D6" font-size="13" font-family="SFMono-Regular, Menlo, Monaco, monospace">runtime.telemetry</text>
+  <text x="808" y="671" text-anchor="end" fill="#7E96B6" font-size="12" font-family="SFMono-Regular, Menlo, Monaco, monospace">live</text>
+
+  <rect x="116" y="706" width="180" height="70" rx="14" fill="#0B1320" stroke="#223650"/>
+  <text x="134" y="730" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">STATUS</text>
+  <text x="134" y="756" fill="#ECF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">Executing</text>
+
+  <rect x="316" y="706" width="214" height="70" rx="14" fill="#0B1320" stroke="#223650"/>
+  <text x="334" y="730" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">ROWS READ</text>
+  <text x="334" y="756" fill="#ECF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">1.779B / 2.925B</text>
+
+  <rect x="550" y="706" width="136" height="70" rx="14" fill="#0B1320" stroke="#223650"/>
+  <text x="568" y="730" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">RATE</text>
+  <text x="568" y="756" fill="#ECF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">13.4M/s</text>
+
+  <rect x="706" y="706" width="166" height="70" rx="14" fill="#0B1320" stroke="#223650"/>
+  <text x="724" y="730" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">PROGRESS</text>
+  <text x="724" y="756" fill="#ECF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">61%</text>
+
+  <rect x="116" y="790" width="756" height="8" rx="4" fill="#162232"/>
+  <rect x="116" y="790" width="460" height="8" rx="4" fill="url(#progressE)"/>
+  <text x="116" y="826" fill="#93A8C6" font-size="15" font-family="Arial, sans-serif">Long-running query. Consider narrowing time range or filtering high-cardinality segments.</text>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardE)" stroke="#2E476B" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8FA2C2" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+
+  <rect x="994" y="334" width="294" height="94" rx="16" fill="url(#dockE)" stroke="#28415E"/>
+  <text x="1014" y="358" fill="#7E96B6" font-size="11" font-family="SFMono-Regular, Menlo, Monaco, monospace">runtime.telemetry</text>
+  <text x="1014" y="384" fill="#ECF4FB" font-size="16" font-family="Arial, sans-serif" font-weight="700">Executing</text>
+  <text x="1186" y="384" text-anchor="end" fill="#ECF4FB" font-size="16" font-family="Arial, sans-serif" font-weight="700">61%</text>
+  <rect x="1014" y="398" width="236" height="6" rx="3" fill="#162232"/>
+  <rect x="1014" y="398" width="144" height="6" rx="3" fill="url(#progressE)"/>
+  <text x="1014" y="420" fill="#93A8C6" font-size="12" font-family="Arial, sans-serif">1.736B / 2.925B rows</text>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it feels devtooling-native</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">It mirrors the “output pane” pattern engineers already know.</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">The dock can scale to more telemetry without touching the chart body.</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Best if we want the widget to feel like a mini workbench.</text>
+</svg>

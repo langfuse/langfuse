@@ -1,0 +1,61 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgG" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060B14"/>
+      <stop offset="1" stop-color="#0D1626"/>
+    </linearGradient>
+    <linearGradient id="cardG" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07101D"/>
+      <stop offset="1" stop-color="#0A1321"/>
+    </linearGradient>
+    <linearGradient id="progressG" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#88C9FF"/>
+      <stop offset="1" stop-color="#D9F0FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bgG)"/>
+  <text x="64" y="72" fill="#E7EEF9" font-size="32" font-family="Arial, sans-serif" font-weight="700">Option G: Minimal Status Strip</text>
+  <text x="64" y="106" fill="#8FA3C3" font-size="19" font-family="Arial, sans-serif">Almost no overlay. A single status strip carries the loading state, so the chart body stays readable and the UI stays calm.</text>
+
+  <rect x="64" y="152" width="860" height="700" rx="22" fill="url(#cardG)" stroke="#2F486C" stroke-width="2"/>
+  <text x="104" y="220" fill="#DCE6F5" font-size="30" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="104" y="258" fill="#8FA2C2" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace.name over the selected period</text>
+
+  <g opacity="0.26">
+    <rect x="120" y="332" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="430" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="528" width="690" height="1" fill="#627C9D"/>
+    <rect x="120" y="626" width="690" height="1" fill="#627C9D"/>
+  </g>
+  <g opacity="0.42">
+    <path d="M120 662 C202 638 274 618 360 564 C456 502 526 448 626 404 C696 372 760 350 810 328" stroke="#3A628D" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 690 C216 688 296 670 390 628 C474 592 560 552 648 520 C724 494 772 478 810 466" stroke="#243A57" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="360" cy="564" r="6" fill="#A7D8FF"/>
+    <circle cx="626" cy="404" r="6" fill="#A7D8FF"/>
+    <circle cx="810" cy="328" r="6" fill="#A7D8FF"/>
+  </g>
+
+  <rect x="88" y="748" width="812" height="54" rx="14" fill="#0C1727" stroke="#263C5A"/>
+  <circle cx="118" cy="775" r="4" fill="#88C9FF"/>
+  <text x="132" y="780" fill="#ECF4FB" font-size="16" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="278" y="780" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">1.779B / 2.925B rows</text>
+  <text x="462" y="780" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">13.4M rows/s</text>
+  <text x="582" y="780" fill="#93A8C6" font-size="14" font-family="Arial, sans-serif">24.6s</text>
+  <text x="850" y="780" text-anchor="end" fill="#ECF4FB" font-size="16" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+  <rect x="660" y="770" width="152" height="8" rx="4" fill="#142031"/>
+  <rect x="660" y="770" width="92" height="8" rx="4" fill="url(#progressG)"/>
+
+  <rect x="974" y="210" width="334" height="286" rx="20" fill="url(#cardG)" stroke="#2F486C" stroke-width="2"/>
+  <text x="1002" y="256" fill="#DCE6F5" font-size="22" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="1002" y="284" fill="#8FA2C2" font-size="16" font-family="Arial, sans-serif">Shows the count of traces</text>
+  <rect x="996" y="382" width="290" height="42" rx="12" fill="#0C1727" stroke="#263C5A"/>
+  <circle cx="1018" cy="403" r="4" fill="#88C9FF"/>
+  <text x="1032" y="408" fill="#ECF4FB" font-size="14" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="1262" y="408" text-anchor="end" fill="#ECF4FB" font-size="14" font-family="SFMono-Regular, Menlo, Monaco, monospace">61%</text>
+
+  <text x="974" y="542" fill="#E7EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it works</text>
+  <text x="974" y="574" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Smallest possible loading treatment.</text>
+  <text x="974" y="604" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">No overlap risk because there is only one status surface.</text>
+  <text x="974" y="634" fill="#93A8C6" font-size="16" font-family="Arial, sans-serif">Feels closest to a serious dashboard or query console.</text>
+</svg>

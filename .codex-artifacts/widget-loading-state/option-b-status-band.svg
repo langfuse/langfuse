@@ -1,0 +1,63 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgB" x1="0" y1="0" x2="1200" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111B"/>
+      <stop offset="1" stop-color="#111C31"/>
+    </linearGradient>
+    <linearGradient id="cardB" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#071321"/>
+      <stop offset="1" stop-color="#0B1423"/>
+    </linearGradient>
+    <linearGradient id="bandB" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#0D1A2C"/>
+      <stop offset="1" stop-color="#0A1422"/>
+    </linearGradient>
+    <linearGradient id="progressB" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#8FD1C6"/>
+      <stop offset="1" stop-color="#D5F1EC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="860" fill="url(#bgB)"/>
+  <text x="54" y="70" fill="#E6EEF9" font-size="30" font-family="Arial, sans-serif" font-weight="700">Option B: Status Band</text>
+  <text x="54" y="102" fill="#93A6C3" font-size="18" font-family="Arial, sans-serif">Loading details live in a dedicated bottom band, so the ghost chart above keeps the widget from feeling empty.</text>
+
+  <rect x="54" y="148" width="764" height="648" rx="24" fill="url(#cardB)" stroke="#35507D" stroke-width="2"/>
+  <text x="90" y="214" fill="#D9E3F2" font-size="28" font-family="Arial, sans-serif" font-weight="700">Top 20 Use Cases (Trace) by Cost</text>
+  <text x="90" y="252" fill="#94A6C5" font-size="20" font-family="Arial, sans-serif">Aggregated model cost by trace name over the selected period</text>
+
+  <g opacity="0.7">
+    <path d="M112 600 C182 560 256 540 330 496 C398 456 494 418 566 376 C620 344 690 334 760 296" stroke="#3B6488" stroke-width="8" stroke-linecap="round"/>
+    <path d="M112 636 C202 626 272 604 350 562 C424 522 512 496 582 454 C642 420 706 388 760 362" stroke="#274C6F" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+    <circle cx="330" cy="496" r="8" fill="#90C2D8"/>
+    <circle cx="566" cy="376" r="8" fill="#90C2D8"/>
+    <circle cx="760" cy="296" r="8" fill="#90C2D8"/>
+  </g>
+
+  <rect x="86" y="640" width="700" height="122" rx="24" fill="url(#bandB)" stroke="#2C4B6D"/>
+  <circle cx="130" cy="694" r="20" fill="#0E1D31" stroke="#5E87A3"/>
+  <circle cx="130" cy="694" r="9" fill="#A8E2D8"/>
+  <text x="164" y="686" fill="#EDF4FB" font-size="22" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <text x="164" y="714" fill="#9AB1C8" font-size="16" font-family="Arial, sans-serif">This query is taking longer than usual. Try reducing the time frame or adding more filters.</text>
+  <text x="164" y="744" fill="#E6EEF9" font-size="15" font-family="Arial, sans-serif" font-weight="700">Scanning rows</text>
+  <text x="754" y="744" text-anchor="end" fill="#A8B9CE" font-size="15" font-family="Arial, sans-serif">61%</text>
+  <rect x="164" y="754" width="590" height="10" rx="5" fill="#1A2A3B"/>
+  <rect x="164" y="754" width="360" height="10" rx="5" fill="url(#progressB)"/>
+
+  <rect x="854" y="198" width="292" height="268" rx="22" fill="url(#cardB)" stroke="#35507D" stroke-width="2"/>
+  <text x="882" y="246" fill="#D9E3F2" font-size="20" font-family="Arial, sans-serif" font-weight="700">Total Count Traces</text>
+  <text x="882" y="276" fill="#8FA3C3" font-size="15" font-family="Arial, sans-serif">Shows the count of traces</text>
+
+  <rect x="874" y="330" width="252" height="94" rx="18" fill="url(#bandB)" stroke="#2C4B6D"/>
+  <circle cx="906" cy="362" r="15" fill="#0E1D31" stroke="#5E87A3"/>
+  <circle cx="906" cy="362" r="7" fill="#A8E2D8"/>
+  <text x="934" y="367" fill="#EDF4FB" font-size="16" font-family="Arial, sans-serif" font-weight="700">Loading widget</text>
+  <rect x="906" y="382" width="180" height="8" rx="4" fill="#1A2A3B"/>
+  <rect x="906" y="382" width="110" height="8" rx="4" fill="url(#progressB)"/>
+  <text x="906" y="405" fill="#A8B9CE" font-size="12" font-family="Arial, sans-serif">Reading 1736.4M / ~2924.6M rows</text>
+
+  <text x="854" y="508" fill="#E6EEF9" font-size="18" font-family="Arial, sans-serif" font-weight="700">Why it helps</text>
+  <text x="854" y="540" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">The chart area stays visually stable while loading.</text>
+  <text x="854" y="570" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">The bottom band becomes the single place for status, hint, and progress.</text>
+  <text x="854" y="600" fill="#9AB0CB" font-size="16" font-family="Arial, sans-serif">It feels calmer, but it takes a bit more vertical space.</text>
+</svg>
