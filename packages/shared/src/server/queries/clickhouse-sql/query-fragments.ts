@@ -313,6 +313,7 @@ export const eventsExperimentItemsByIds = (params: {
         ),
     );
 
+
 /**
  * Session-level scores aggregation CTE.
  * Groups scores by (project_id, session_id), computing numeric/boolean averages

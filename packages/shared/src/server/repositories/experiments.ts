@@ -3,13 +3,13 @@ import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
+  FilterList,
+  StringOptionsFilter,
+  orderByToClickhouseSql,
   CTEQueryBuilder,
   CTEWithSchema,
   EventsAggQueryBuilder,
-  FilterList,
   StringFilter,
-  StringOptionsFilter,
-  orderByToClickhouseSql,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -83,7 +83,11 @@ const experimentScoreCTE = (params: {
       "avg(us.avg_value) AS exp_avg",
     )
     .groupBy(
-      "ek.project_id, ek.experiment_id, us.name, us.data_type, us.string_value",
+      "ek.project_id",
+      "ek.experiment_id",
+      "us.name",
+      "us.data_type",
+      "us.string_value",
     )
     .buildWithParams();
 
@@ -106,7 +110,7 @@ const experimentScoreCTE = (params: {
       `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
       `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
     )
-    .groupBy("s.project_id, s.experiment_id")
+    .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
     .buildWithParams();
 };
@@ -185,7 +189,7 @@ export const getExperimentMetricsFromEvents = async (props: {
       "SUM(ta.total_cost) AS total_cost",
       "AVG(ta.latency_milliseconds) AS latency_avg",
     )
-    .groupBy("ta.project_id, ta.experiment_id");
+    .groupBy("ta.project_id", "ta.experiment_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 

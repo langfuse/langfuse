@@ -6,7 +6,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -304,7 +304,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`group bg-background flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
+      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
     >
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>

@@ -104,7 +104,8 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+  metadata:
+    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
   // Trace-level denormalized fields
   tags: "e.tags as tags",
   release: "e.release as release",
@@ -359,7 +360,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
   // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -614,10 +615,26 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
+   * Add a JOIN of the specified kind
+   */
+  private join(kind: "LEFT" | "INNER", table: string, onClause: string): this {
+    this.joins.push(`${kind} JOIN ${table} ${onClause}`);
+    return this;
+  }
+
+  /**
    * Add a LEFT JOIN
    */
   leftJoin(table: string, onClause: string): this {
-    this.joins.push(`LEFT JOIN ${table} ${onClause}`);
+    this.join("LEFT", table, onClause);
+    return this;
+  }
+
+  /**
+   * Add an INNER JOIN
+   */
+  innerJoin(table: string, onClause: string): this {
+    this.join("INNER", table, onClause);
     return this;
   }
 
@@ -959,7 +976,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       // For events_core/events_full, just use mapFromArrays with metadata_values directly
       // The caller should use events_full table if full metadata is needed
       fieldExpressions.push(
-        `mapFromArrays(e.metadata_names, e.metadata_values) as metadata`,
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata`,
       );
     }
 
@@ -1390,10 +1407,14 @@ export class CTEQueryBuilder<
   }
 
   /**
-   * Join another CTE.
+   * Add a JOIN of the specified kind.
    * Only accepts CTE names that have been registered via withCTE().
    */
-  leftJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+  private join<
+    Name extends keyof RegisteredCTEs & string,
+    Alias extends string,
+  >(
+    kind: "LEFT" | "INNER",
     cteName: Name,
     alias: Alias,
     onClause: string,
@@ -1403,8 +1424,21 @@ export class CTEQueryBuilder<
         `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
       );
     }
-    this.joins.push(`LEFT JOIN ${cteName} ${alias} ${onClause}`);
+    this.joins.push(`${kind} JOIN ${cteName} ${alias} ${onClause}`);
     // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
+   * Join another CTE.
+   * Only accepts CTE names that have been registered via withCTE().
+   */
+  leftJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    this.join("LEFT", cteName, alias, onClause);
     return this as any;
   }
 
@@ -1417,13 +1451,7 @@ export class CTEQueryBuilder<
     alias: Alias,
     onClause: string,
   ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
-    if (!this.cteSchemas.has(cteName)) {
-      throw new Error(
-        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
-      );
-    }
-    this.joins.push(`INNER JOIN ${cteName} ${alias} ${onClause}`);
-    // Type assertion needed because we're changing the type parameter
+    this.join("INNER", cteName, alias, onClause);
     return this as any;
   }
 
@@ -1465,10 +1493,12 @@ export class CTEQueryBuilder<
    * Add GROUP BY clause
    *
    * @example
-   * builder.groupBy("t.project_id, t.experiment_id")
+   * builder.groupBy("t.project_id", "t.experiment_id")
    */
-  groupBy(clause: string): this {
-    this.groupByClause = clause;
+  groupBy(...columns: Array<AliasedColumns<RegisteredCTEs, Aliases>>): this {
+    if (columns.length > 0) {
+      this.groupByClause = columns.join(", ");
+    }
     return this;
   }
 
@@ -1799,7 +1829,7 @@ export function buildEventsFullTableSplitQuery(opts: {
   }
   if (opts.includeMetadata) {
     ioSelectParts.push(
-      "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
   const ioQuery = [

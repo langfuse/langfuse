@@ -9,7 +9,7 @@ import {
   validateCategories,
   validateNumericRangeFields,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -17,11 +17,9 @@ import { z } from "zod/v4";
 const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
   const parseResult = z.array(ScoreConfigCategory).safeParse(categories);
   if (!parseResult.success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        "Category must be an array of objects with label value pairs, where labels and values are unique.",
-    } as z.core.$ZodIssueCustom);
+    ctx.addIssue(
+      "Category must be an array of objects with label value pairs, where labels and values are unique.",
+    );
     return;
   }
 

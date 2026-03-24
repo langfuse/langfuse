@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
@@ -820,7 +820,7 @@ export const sessionRouter = createTRPCRouter({
         limit,
         offset,
         selectIOAndMetadata: true,
-        renderingProps: { truncated: true, shouldJsonParse: true },
+        renderingProps: { truncated: false, shouldJsonParse: true },
       });
 
       return observations;
