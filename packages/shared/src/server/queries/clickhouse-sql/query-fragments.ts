@@ -279,15 +279,6 @@ export const eventsExperimentsAggregation = (params: {
     .whereRaw("e.experiment_id != ''");
 };
 
-// todo - maybe remove
-export const eventsExperimentItemRoots = (params: {
-  projectId: string;
-  experimentIds?: string[];
-}): EventsQueryBuilder =>
-  eventsExperiments(params).whereRaw(
-    "e.experiment_item_root_span_id = e.span_id",
-  );
-
 export const eventsExperimentItemsByIds = (params: {
   projectId: string;
   experimentIds?: string[];

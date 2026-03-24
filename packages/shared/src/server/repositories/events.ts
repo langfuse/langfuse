@@ -518,11 +518,7 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(hasObservationScoresFilter, (b) =>
       b.withCTE(
         "scores_agg",
-        eventsScoresAggregation({
-          projectId,
-          startTimeFrom,
-          hasScoreAggregationFilters: true,
-        }),
+        eventsScoresAggregation({ projectId, startTimeFrom }),
       ),
     )
     .when(hasTraceScoresFilter, (b) =>
