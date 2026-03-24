@@ -74,11 +74,21 @@ export function shouldRenderMessage(message: ChatMlMessage): boolean {
 export function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ): unknown[] {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  if (message.tool_calls && Array.isArray(message.tool_calls))
+    return message.tool_calls;
+  if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls))
+    return message.json.tool_calls;
+  // Anthropic: tool calls live inside content array as type: "tool_use" blocks
+  if (Array.isArray(message.content)) {
+    const toolUseBlocks = (message.content as unknown[]).filter(
+      (b): b is Record<string, unknown> =>
+        typeof b === "object" &&
+        b !== null &&
+        (b as Record<string, unknown>).type === "tool_use",
+    );
+    if (toolUseBlocks.length > 0) return toolUseBlocks;
+  }
+  return [];
 }
 
 /**
