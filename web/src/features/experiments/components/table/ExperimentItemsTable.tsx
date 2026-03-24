@@ -185,7 +185,7 @@ export default function ExperimentItemsTable({
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const { comparisonIds, layout, itemVisibility } = useExperimentResultsState();
+  const { comparisonIds, layout } = useExperimentResultsState();
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter(
@@ -344,7 +344,6 @@ export default function ExperimentItemsTable({
       })),
       orderByState,
       paginationState,
-      itemVisibility,
     });
 
   useEffect(() => {

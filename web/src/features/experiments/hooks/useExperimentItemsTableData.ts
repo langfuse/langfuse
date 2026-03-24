@@ -22,7 +22,6 @@ type UseExperimentItemsTableDataParams = {
     column: string;
     order: "ASC" | "DESC";
   } | null;
-  itemVisibility?: "baseline-only" | "all";
 };
 
 /**
@@ -39,7 +38,6 @@ export function useExperimentItemsTableData({
   filterByExperiment,
   paginationState,
   orderByState,
-  itemVisibility = "baseline-only",
 }: UseExperimentItemsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -48,15 +46,8 @@ export function useExperimentItemsTableData({
       baseExperimentId,
       compExperimentIds,
       filterByExperiment,
-      itemVisibility,
     }),
-    [
-      projectId,
-      baseExperimentId,
-      compExperimentIds,
-      filterByExperiment,
-      itemVisibility,
-    ],
+    [projectId, baseExperimentId, compExperimentIds, filterByExperiment],
   );
 
   const getAllPayload = useMemo(
@@ -68,7 +59,6 @@ export function useExperimentItemsTableData({
       page: paginationState.page - 1, // Backend uses 0-indexed pages
       limit: paginationState.limit,
       orderBy: orderByState,
-      itemVisibility,
     }),
     [
       projectId,
@@ -78,7 +68,6 @@ export function useExperimentItemsTableData({
       paginationState.page,
       paginationState.limit,
       orderByState,
-      itemVisibility,
     ],
   );
 

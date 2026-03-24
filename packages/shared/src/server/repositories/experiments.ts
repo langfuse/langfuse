@@ -394,7 +394,6 @@ export type ExperimentItemEventsDataReturnType = {
   latency_ms: number | null;
   observation_id: string;
   trace_id: string;
-  experiment_root_id: string;
 };
 
 /**
@@ -408,7 +407,6 @@ export type ExperimentItemData = {
   latencyMs: number | null;
   observationId: string;
   traceId: string;
-  experimentRootId: string;
 };
 
 /**
@@ -437,7 +435,6 @@ type ExperimentItemInput = {
     filters: FilterState;
   }[];
   baseExperimentId?: string;
-  itemVisibility?: "baseline-only" | "all";
   config?: {
     requireBaselinePresence?: boolean;
   };
@@ -450,19 +447,11 @@ type ExperimentItemInput = {
 export const getExperimentItemsCountFromEvents = async (
   props: ExperimentItemInput,
 ): Promise<number> => {
-  const { projectId, itemVisibility = "baseline-only", config } = props;
-
-  // Map itemVisibility to requireBaselinePresence config
-  const effectiveConfig = {
-    ...config,
-    requireBaselinePresence:
-      config?.requireBaselinePresence ??
-      (itemVisibility === "baseline-only" ? true : false),
-  };
+  const { projectId, config } = props;
 
   const qualifiedItems = getExperimentItemsFromEventsGeneric({
     ...props,
-    config: effectiveConfig,
+    config,
     select: "count",
   });
 
@@ -673,10 +662,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
       ),
     )
     .when(hasScoreFilters, (b) =>
-      b.leftJoin(
-        "scores_agg AS s",
-        "ON s.observation_id = e.experiment_item_root_span_id",
-      ),
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
     )
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(
@@ -727,16 +713,7 @@ export const getExperimentItemsFromEvents = async (
     limit,
     offset,
     config,
-    itemVisibility = "baseline-only",
   } = props;
-
-  // Map itemVisibility to requireBaselinePresence config
-  const effectiveConfig = {
-    ...config,
-    requireBaselinePresence:
-      config?.requireBaselinePresence ??
-      (itemVisibility === "baseline-only" ? true : false),
-  };
 
   // ========== QUERY 1: Get filtered item_ids using intersection logic ==========
   const { query: itemIdsQuery, params: itemIdsParams } =
@@ -746,7 +723,7 @@ export const getExperimentItemsFromEvents = async (
       baseExperimentId,
       compExperimentIds,
       filterByExperiment,
-      config: effectiveConfig,
+      config,
       orderBy: props.orderBy,
       limit,
       offset,
@@ -818,7 +795,6 @@ export const getExperimentItemsFromEvents = async (
       latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
       observationId: row.observation_id,
       traceId: row.trace_id,
-      experimentRootId: row.experiment_root_id,
     };
     if (!itemMap.has(row.item_id)) {
       itemMap.set(row.item_id, []);
@@ -865,7 +841,7 @@ export type ExperimentItemBatchIO = {
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
   itemIds: string[];
-  baseExperimentId: string;
+  baseExperimentId?: string;
   compExperimentIds: string[];
 }): Promise<ExperimentItemBatchIO[]> => {
   const { projectId, itemIds, baseExperimentId, compExperimentIds } = props;
@@ -874,7 +850,10 @@ export const getExperimentItemsBatchIO = async (props: {
     return [];
   }
 
-  const allExperimentIds = [baseExperimentId, ...compExperimentIds];
+  const allExperimentIds = [
+    ...(baseExperimentId ? [baseExperimentId] : []),
+    ...compExperimentIds,
+  ];
 
   const queryBuilder = eventsExperimentsRootSpans({
     projectId,
@@ -886,7 +865,10 @@ export const getExperimentItemsBatchIO = async (props: {
       "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
-    );
+    )
+    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
+    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -955,54 +937,6 @@ export const getExperimentItemsBatchIO = async (props: {
       outputs: item?.outputs ?? [],
     };
   });
-};
-
-/**
- * Get metrics for specific experiment items.
- */
-export const getExperimentItemMetricsFromEvents = async (props: {
-  projectId: string;
-  experimentId: string;
-  experimentItemIds: string[];
-}) => {
-  if (props.experimentItemIds.length === 0) {
-    return [];
-  }
-
-  const tracesBuilder = eventsTracesAggregation({
-    projectId: props.projectId,
-  })
-    .whereRaw("e.experiment_id = {experimentId: String}", {
-      experimentId: props.experimentId,
-    })
-    .whereRaw("e.experiment_item_id IN ({experimentItemIds: Array(String)})", {
-      experimentItemIds: props.experimentItemIds,
-    })
-    .whereRaw("e.is_deleted = 0");
-
-  const { query, params } = tracesBuilder.buildWithParams();
-
-  const rows = await queryClickhouse<ExperimentItemMetricsReturnType>({
-    query,
-    params: {
-      ...params,
-      projectId: props.projectId,
-    },
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-metrics",
-      projectId: props.projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    id: row.experiment_item_id,
-    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-    latencyMs:
-      row.latency_milliseconds !== null
-        ? Number(row.latency_milliseconds)
-        : null,
-  }));
 };
 
 export const getExperimentNamesFromEvents = async (props: {

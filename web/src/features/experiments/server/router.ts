@@ -506,10 +506,6 @@ export const experimentsRouter = createTRPCRouter({
           )
           .nullish(),
         orderBy: orderBy,
-        itemVisibility: z
-          .enum(["baseline-only", "all"])
-          .optional()
-          .default("baseline-only"),
         ...paginationZod,
       }),
     )
@@ -668,7 +664,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         itemIds: z.array(z.string()),
-        baseExperimentId: z.string(),
+        baseExperimentId: z.string().nullish(),
         compExperimentIds: z.array(z.string()),
       }),
     )
@@ -686,7 +682,7 @@ export const experimentsRouter = createTRPCRouter({
       const batchIO = await getExperimentItemsBatchIO({
         projectId: input.projectId,
         itemIds: input.itemIds,
-        baseExperimentId: input.baseExperimentId,
+        baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
       });
 
