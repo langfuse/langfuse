@@ -1025,6 +1025,7 @@ model JobExecution {
 
   @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, jobOutputScoreId])
+  @@index([jobConfigurationId])
   @@map("job_executions")
 }
 
