@@ -42,7 +42,7 @@ export function QueryProgressBar({
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="bg-primary/50 h-full w-1/3 rounded-full animate-pulse" />
+          <div className="bg-primary/50 h-full w-1/3 animate-pulse rounded-full" />
         )}
       </div>
       <p

@@ -139,10 +139,10 @@ export function ChartLoadingState({
                   className={cn(
                     "animate-in fade-in-0 text-muted-foreground duration-300",
                     isTight
-                      ? "text-[11px] leading-4 line-clamp-3"
+                      ? "line-clamp-3 text-[11px] leading-4"
                       : isCompact
-                        ? "text-xs leading-4 line-clamp-4"
-                        : "text-xs leading-5 line-clamp-3",
+                        ? "line-clamp-4 text-xs leading-4"
+                        : "line-clamp-3 text-xs leading-5",
                     hintClassName,
                   )}
                 >
