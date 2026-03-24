@@ -654,6 +654,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     .when(hasScoreFilters, (b) =>
       b.withCTE(
         "scores_agg",
+        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
         eventsScoresAggregation({
           projectId,
           hasScoreAggregationFilters: true,
@@ -669,6 +670,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(
         "trace_scores_agg",
+        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
         eventsTracesScoresAggregation({
           projectId,
           hasScoreAggregationFilters: true,
