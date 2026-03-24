@@ -390,6 +390,8 @@ export type ExperimentItemEventsDataReturnType = {
   experiment_id: string;
   level: string;
   start_time: string;
+  total_cost: number | null;
+  latency_ms: number | null;
   observation_id: string;
   trace_id: string;
   experiment_root_id: string;
@@ -402,6 +404,8 @@ export type ExperimentItemData = {
   experimentId: string;
   level: string;
   startTime: Date;
+  totalCost: number | null;
+  latencyMs: number | null;
   observationId: string;
   traceId: string;
   experimentRootId: string;
@@ -779,6 +783,8 @@ export const getExperimentItemsFromEvents = async (
     "e.experiment_id as experiment_id",
     "e.level as level",
     "e.start_time as start_time",
+    "e.total_cost as total_cost",
+    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
     "e.span_id as observation_id",
     "e.trace_id as trace_id",
     "e.span_id as observation_id",
@@ -804,6 +810,8 @@ export const getExperimentItemsFromEvents = async (
       experimentId: row.experiment_id,
       level: row.level,
       startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
+      totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
+      latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
       observationId: row.observation_id,
       traceId: row.trace_id,
       experimentRootId: row.experiment_root_id,

@@ -61,6 +61,8 @@ export type ExperimentItemData = {
   experimentId: string;
   level: string;
   startTime: Date;
+  totalCost?: number | null;
+  latencyMs?: number | null;
   observationId: string;
   traceId: string;
   observationScores: ScoreAggregate;

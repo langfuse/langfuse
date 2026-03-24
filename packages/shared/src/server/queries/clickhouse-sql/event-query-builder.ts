@@ -639,14 +639,6 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
-   * Add an INNER JOIN
-   */
-  innerJoin(table: string, onClause: string): this {
-    this.joins.push(`INNER JOIN ${table} ${onClause}`);
-    return this;
-  }
-
-  /**
    * Helper to build WITH clause section
    */
   protected buildCTESection(): string {

@@ -10,8 +10,9 @@ import { ResizableDesktopLayout } from "./ResizableDesktopLayout";
 
 // --- Toggle Button ---
 
-interface OverviewPanelToggleProps
-  extends React.ComponentPropsWithoutRef<typeof Button> {
+interface OverviewPanelToggleProps extends React.ComponentPropsWithoutRef<
+  typeof Button
+> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -122,8 +123,10 @@ OverviewPanel.displayName = "OverviewPanel";
 
 // --- Header ---
 
-interface OverviewPanelHeaderProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+interface OverviewPanelHeaderProps extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  "title"
+> {
   title?: React.ReactNode;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
@@ -187,8 +190,10 @@ OverviewPanelField.displayName = "OverviewPanelField";
 
 // --- Section (for grouping fields) ---
 
-interface OverviewPanelSectionProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+interface OverviewPanelSectionProps extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  "title"
+> {
   title?: React.ReactNode;
 }
 

@@ -15,6 +15,7 @@ import {
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
   HoverCardContent,
@@ -35,6 +36,8 @@ type ExperimentGridCellProps = {
   output: unknown;
   level: string;
   startTime: Date;
+  totalCost?: number | null;
+  latencyMs?: number | null;
   observationId: string;
   traceId: string;
   scores: ScoreAggregate;
@@ -57,6 +60,8 @@ type GridCellData = {
   output: unknown;
   level: string;
   startTime: Date;
+  totalCost?: number | null;
+  latencyMs?: number | null;
   observationId: string;
   traceId: string;
   scores: ScoreAggregate;
@@ -282,6 +287,8 @@ export const ExperimentGridCell = ({
   output,
   level,
   startTime,
+  totalCost,
+  latencyMs,
   observationId,
   traceId,
   scores,
@@ -332,6 +339,8 @@ export const ExperimentGridCell = ({
     output,
     level,
     startTime,
+    totalCost,
+    latencyMs,
     observationId,
     traceId,
     scores,
@@ -427,6 +436,31 @@ export const ExperimentGridCell = ({
                 <LocalIsoDate date={data.startTime} className="text-xs" />
               </MetadataItem>
             ),
+          },
+          {
+            accessorKey: "totalCost",
+            cell: ({ data }) => (
+              <MetadataItem label="Total Cost">
+                <span className="text-xs">
+                  {data.totalCost != null ? (
+                    usdFormatter(data.totalCost, 2, 6)
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </span>
+              </MetadataItem>
+            ),
+          },
+          {
+            accessorKey: "latencyMs",
+            cell: ({ data }) =>
+              data.latencyMs != null ? (
+                <MetadataItem label="Latency">
+                  <span className="text-xs">
+                    {latencyFormatter(data.latencyMs)}
+                  </span>
+                </MetadataItem>
+              ) : undefined,
           },
         ],
       },

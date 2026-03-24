@@ -23,6 +23,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -55,7 +56,7 @@ import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 
 const renderExperimentSpecificHeader = (label: string) => (
-  <span className="text-muted-foreground text-xs font-semibold">{label}</span>
+  <span className="text-muted-foreground">{label}</span>
 );
 
 /**
@@ -542,6 +543,60 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             renderValue={(exp) => <span>{exp.level}</span>}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("totalCost"),
+        ),
+      size: 120,
+      defaultHidden: true,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) => (
+              <span>
+                {exp.totalCost != null ? (
+                  usdFormatter(exp.totalCost, 2, 6)
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </span>
+            )}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "latencyMs",
+      id: "latencyMs",
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("latencyMs"),
+        ),
+      size: 120,
+      defaultHidden: true,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            renderValue={(exp) =>
+              exp.latencyMs != null ? (
+                <span>{latencyFormatter(exp.latencyMs)}</span>
+              ) : undefined
+            }
           />
         );
       },

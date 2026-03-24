@@ -60,7 +60,10 @@ export function ExperimentDisplaySettings({
           )}
           Show only items in baseline
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onItemVisibilityChange("all")}>
+        <DropdownMenuItem
+          onClick={() => onItemVisibilityChange("all")}
+          disabled={!hasComparisons}
+        >
           {itemVisibility === "all" && <Check className="mr-2 h-4 w-4" />}
           {itemVisibility !== "all" && <span className="mr-2 h-4 w-4" />}
           Show all items

@@ -604,12 +604,22 @@ export const experimentsRouter = createTRPCRouter({
         data: items.map(({ itemId, experiments }) => ({
           itemId,
           experiments: experiments.map(
-            ({ observationId, traceId, experimentId, level, startTime }) => ({
+            ({
               observationId,
               traceId,
               experimentId,
               level,
               startTime,
+              totalCost,
+              latencyMs,
+            }) => ({
+              observationId,
+              traceId,
+              experimentId,
+              level,
+              startTime,
+              totalCost,
+              latencyMs,
               observationScores: aggregateScores(
                 scoresByObservationId.get(observationId) ?? [],
               ),
