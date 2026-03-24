@@ -103,6 +103,13 @@ export default async function handler(
     });
   }
 
+  if (session.user.v4BetaEnabled !== true) {
+    res.status(400).json({
+      message: "Streaming is only supported for v4-enabled dashboard queries",
+    });
+    return;
+  }
+
   const validation = validateQuery(query, version);
   if (!validation.valid) {
     res.status(400).json({ message: "Invalid query", errors: validation });
