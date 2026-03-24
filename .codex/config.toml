@@ -1,12 +1,7 @@
-[mcp_servers.playwright]
-command = "npx"
-args = [
-  "-y",
-  "@playwright/mcp@latest",
-  "--isolated",
-  "--save-trace",
-  "--output-dir",
-  ".playwright-mcp",
-  "--test-id-attribute",
-  "data-testid",
-]
+sandbox_mode = "workspace-write"
+
+[mcp_servers.datadog-eu]
+url = "https://mcp.datadoghq.eu/api/unstable/mcp-server/mcp?toolsets=core"
+
+[mcp_servers.datadog-us]
+url = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=core"
