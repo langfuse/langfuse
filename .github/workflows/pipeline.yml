@@ -281,7 +281,6 @@ jobs:
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
-          DD_TRACE_ENABLED: "false"
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
           LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
@@ -292,23 +291,13 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
-          OTEL_SDK_DISABLED: "true"
-          OTEL_TRACES_EXPORTER: "none"
       - name: run tests
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
-        env:
-          DD_TRACE_ENABLED: "false"
-          OTEL_SDK_DISABLED: "true"
-          OTEL_TRACES_EXPORTER: "none"
       - name: run test-client
         if: matrix.deploy-mode == '' && matrix.shard == 1
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
-        env:
-          DD_TRACE_ENABLED: "false"
-          OTEL_SDK_DISABLED: "true"
-          OTEL_TRACES_EXPORTER: "none"
 
   tests-worker:
     timeout-minutes: 20
