@@ -11,9 +11,9 @@ import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-
 import {
   envDetector,
   processDetector,
-  resourceFromAttributes,
+  Resource,
 } from "@opentelemetry/resources";
-import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
+import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
 
@@ -23,7 +23,7 @@ dd.init({
 });
 
 const sdk = new NodeSDK({
-  resource: resourceFromAttributes({
+  resource: new Resource({
     "service.name": env.OTEL_SERVICE_NAME,
     "service.version": env.BUILD_ID,
   }),
@@ -72,7 +72,7 @@ const sdk = new NodeSDK({
   resourceDetectors: [
     envDetector,
     processDetector,
-    awsEcsDetector,
+    awsEcsDetectorSync,
     containerDetector,
   ],
   sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),
