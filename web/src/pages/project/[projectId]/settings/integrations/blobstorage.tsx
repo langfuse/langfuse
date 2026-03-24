@@ -259,6 +259,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
   });
@@ -287,6 +288,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

@@ -97,6 +97,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: false,
         exportFrequency: "hourly",
+        compressed: false,
       },
     });
 
@@ -137,6 +138,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportSource: "TRACES_OBSERVATIONS_EVENTS",
           nextSyncAt: twoHoursAgo,
           lastSyncAt: twoHoursAgo,
+          compressed: false,
         },
       });
 
@@ -282,6 +284,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "weekly",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -348,6 +351,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "daily",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -459,6 +463,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportSource: "TRACES_OBSERVATIONS_EVENTS",
             fileType,
             lastSyncAt: oneHourAgo,
+            compressed: false,
           },
         });
 
@@ -563,6 +568,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null, // First export
+            compressed: false,
           },
         });
 
@@ -639,6 +645,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_TODAY" as any,
           exportStartDate: new Date(), // Use current date
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -702,6 +709,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_CUSTOM_DATE" as any,
           exportStartDate: customDate,
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -761,6 +769,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null,
+            compressed: false,
           },
         });
 
@@ -837,6 +846,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: twoDaysAgo, // Start from 2 days ago
+          compressed: false,
         },
       });
 
@@ -894,6 +904,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
