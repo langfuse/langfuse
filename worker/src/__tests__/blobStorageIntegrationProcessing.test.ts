@@ -932,4 +932,172 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       );
     });
   });
+
+  describe("gzip compression", () => {
+    maybeIt(
+      "should produce .csv.gz files when compressed is true",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".csv.gz"))).toBe(
+          true,
+        );
+      },
+    );
+
+    maybeIt(
+      "should produce plain .csv files when compressed is false",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Uncompressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(
+          projectFiles.every(
+            (f) => f.file.endsWith(".csv") && !f.file.endsWith(".csv.gz"),
+          ),
+        ).toBe(true);
+
+        // Verify content is plain text (readable)
+        const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+        if (traceFile) {
+          const content = await s3StorageService.download(traceFile.file);
+          expect(content).toContain(traceId);
+          expect(content).toContain("Uncompressed Trace");
+        }
+      },
+    );
+
+    maybeIt(
+      "should produce .jsonl.gz files when compressed with JSONL format",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "JSONL Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".jsonl.gz"))).toBe(
+          true,
+        );
+      },
+    );
+  });
 });

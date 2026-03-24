@@ -1,4 +1,5 @@
 import { pipeline } from "stream";
+import { createGzip } from "zlib";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -160,6 +161,7 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
+  compressed: boolean;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -187,7 +189,13 @@ const processBlobStorageExport = async (config: {
       .toISOString()
       .replace(/:/g, "-")
       .substring(0, 19);
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${blobStorageProps.extension}`;
+    const extension = config.compressed
+      ? `${blobStorageProps.extension}.gz`
+      : blobStorageProps.extension;
+    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+    const uploadContentType = config.compressed
+      ? "application/gzip"
+      : blobStorageProps.contentType;
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
@@ -225,18 +233,19 @@ const processBlobStorageExport = async (config: {
         throw new Error(`Unsupported table type: ${config.table}`);
     }
 
-    const fileStream = pipeline(
-      dataStream,
-      streamTransformations[config.fileType](),
-      (err) => {
-        if (err) {
-          logger.error(
-            "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
-            err,
-          );
-        }
-      },
-    );
+    const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
+      if (err) {
+        logger.error(
+          "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
+          err,
+        );
+      }
+    };
+
+    const formatTransform = streamTransformations[config.fileType]();
+    const fileStream = config.compressed
+      ? pipeline(dataStream, formatTransform, createGzip(), pipelineCallback)
+      : pipeline(dataStream, formatTransform, pipelineCallback);
 
     // Upload the file to cloud storage
     // For CSV exports, use larger part size to handle big files
@@ -245,7 +254,7 @@ const processBlobStorageExport = async (config: {
 
     await storageService.uploadFileBuffered({
       fileName: filePath,
-      fileType: blobStorageProps.contentType,
+      fileType: uploadContentType,
       data: fileStream,
       partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
     });
@@ -355,6 +364,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
+      compressed: blobStorageIntegration.compressed,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
