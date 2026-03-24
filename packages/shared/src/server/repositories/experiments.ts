@@ -436,6 +436,12 @@ type ExperimentItemInput = {
   }[];
   baseExperimentId?: string;
   config?: {
+    /**
+     * Whether to require the baseline experiment to be present in the results.
+     * If true, the results will only include items that are present in the baseline experiment.
+     * If false, the results will include items that are present in the baseline experiment OR any comparison experiment.
+     * If not provided, defaults to false.
+     */
     requireBaselinePresence?: boolean;
   };
 };
@@ -662,10 +668,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
       ),
     )
     .when(hasScoreFilters, (b) =>
-      b.leftJoin(
-        "scores_agg AS s",
-        "ON s.observation_id = e.span_id AND s.project_id = e.project_id",
-      ),
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
     )
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(
