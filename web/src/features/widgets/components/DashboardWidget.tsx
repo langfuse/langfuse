@@ -6,7 +6,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -20,12 +20,16 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
-import { formatMetricName } from "@/src/features/widgets/utils";
+import {
+  formatMetricName,
+  shouldUseWidgetSSE,
+} from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
 import {
   validateQuery,
   toQueryChartConfig,
@@ -187,6 +191,10 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      useSSE: shouldUseWidgetSSE({
+        isV4BetaEnabled: isBetaEnabled,
+        version: metricsVersion,
+      }),
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
@@ -195,6 +203,7 @@ export function DashboardWidget({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error,
   });
 
   const transformedData = useMemo(() => {
@@ -304,7 +313,7 @@ export function DashboardWidget({
 
   return (
     <div
-      className={`group bg-background flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
+      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
     >
       <div className="flex items-center justify-between">
         <span className="truncate font-medium" title={widget.data.name}>
@@ -410,6 +419,12 @@ export function DashboardWidget({
               className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
               hintClassName="max-w-sm px-4"
             />
+            {queryResult.progress && queryResult.isPending ? (
+              <QueryProgressBar
+                progress={queryResult.progress}
+                className="absolute inset-x-0 bottom-4 z-30"
+              />
+            ) : null}
           </>
         )}
       </div>

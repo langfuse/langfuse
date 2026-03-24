@@ -1011,6 +1011,177 @@ describe("OTel Resource Span Mapping", () => {
       expect(embeddingEvent).toBeDefined();
       expect(embeddingEvent?.body.model).toBe("gemini-embedding-001");
     });
+
+    it("should convert a Genkit OTel span to Langfuse generation-create event", async () => {
+      const genkitInput = JSON.stringify({
+        config: {},
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: "Output should be in JSON format.",
+              },
+            ],
+          },
+        ],
+        output: {
+          contentType: "application/json",
+          format: "json",
+        },
+      });
+
+      const genkitOutput = JSON.stringify({
+        finishReason: "stop",
+        latencyMs: 6270.767958,
+        message: {
+          content: [
+            {
+              text: {
+                confidence_level: 0.95,
+              },
+            },
+          ],
+          role: "model",
+        },
+        request: {
+          config: {},
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Output should be in JSON format.",
+                },
+              ],
+            },
+          ],
+          output: {
+            contentType: "application/json",
+            format: "json",
+          },
+        },
+        usage: {
+          inputCharacters: 10667,
+          inputTokens: 1618,
+          outputCharacters: 25,
+          outputTokens: 337,
+          thoughtsTokens: 320,
+          totalTokens: 1955,
+        },
+      });
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "unknown_service" } },
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "go" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.40.0" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "genkit-tracer", version: "v1" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [
+                    11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154,
+                    165, 176,
+                  ],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8],
+                },
+                name: "genkit-action",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  { key: "genkit:type", value: { stringValue: "action" } },
+                  {
+                    key: "genkit:name",
+                    value: { stringValue: "openai/gpt-5-mini" },
+                  },
+                  {
+                    key: "genkit:metadata:subtype",
+                    value: { stringValue: "model" },
+                  },
+                  { key: "genkit:input", value: { stringValue: genkitInput } },
+                  {
+                    key: "genkit:output",
+                    value: { stringValue: genkitOutput },
+                  },
+                ],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2);
+
+      const generationEvent = parsedEvents.find(
+        (event) => event.type === "generation-create",
+      );
+      expect(generationEvent).toBeDefined();
+      expect(generationEvent?.body.name).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.model).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.input).toEqual([
+        {
+          role: "user",
+          content: [
+            {
+              text: "Output should be in JSON format.",
+            },
+          ],
+        },
+      ]);
+      expect(generationEvent?.body.output).toEqual({
+        content: [
+          {
+            text: {
+              confidence_level: 0.95,
+            },
+          },
+        ],
+        role: "model",
+      });
+      expect(generationEvent?.body.usageDetails).toMatchObject({
+        input: 1618,
+        output_reasoning: 320,
+        output: 17,
+        total: 1955,
+      });
+    });
   });
 
   describe("Property Mapping", () => {
@@ -3744,6 +3915,103 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
         "should_be_preserved",
       );
+    });
+
+    it("should map gen_ai.tool.definitions to input.tools for gen_ai.input.messages", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "otel-genai-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.input.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        { role: "user", content: "What is 2 + 2?" },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          type: "function",
+                          name: "calculator",
+                          description: "Do math",
+                          parameters: {
+                            type: "object",
+                            properties: {
+                              expression: { type: "string" },
+                            },
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput.messages).toEqual([
+        { role: "user", content: "What is 2 + 2?" },
+      ]);
+      expect(parsedInput.tools).toEqual([
+        {
+          type: "function",
+          name: "calculator",
+          description: "Do math",
+          parameters: {
+            type: "object",
+            properties: {
+              expression: { type: "string" },
+            },
+          },
+        },
+      ]);
     });
 
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {

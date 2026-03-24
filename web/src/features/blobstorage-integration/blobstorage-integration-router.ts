@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -91,6 +91,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             exportMode: rest.exportMode,
             exportStartDate: rest.exportStartDate ?? null,
             exportSource: rest.exportSource,
+            compressed: rest.compressed,
           },
         });
       } catch (e) {

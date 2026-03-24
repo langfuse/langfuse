@@ -9,7 +9,7 @@ import {
   type DatasetRunItemDomain,
   AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   type EnrichedDatasetRunItem,
   getLatencyAndTotalCostForObservationsByTraces,

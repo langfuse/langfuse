@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -6,7 +6,6 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DB } from "@/src/server/db";
 import {
   paginationZod,
   singleFilter,
@@ -35,7 +34,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
-  getScoresForDatasetRuns,
+  getScoresForExperiments,
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
@@ -79,7 +78,7 @@ import { v4 } from "uuid";
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
 
 /**
- * Adds a case-insensitive search condition to a Kysely query
+ * Adds a case-insensitive search condition to a query
  * @param searchQuery The search term (optional)
  * @returns The search condition
  */
@@ -374,30 +373,20 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics
-      const query = DB.selectFrom("datasets")
-        .leftJoin("dataset_runs", (join) =>
-          join
-            .onRef("datasets.id", "=", "dataset_runs.dataset_id")
-            .on("dataset_runs.project_id", "=", input.projectId),
-        )
-        .select(({ eb }) => [
-          "datasets.id",
-          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
-          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
-        ])
-        .where("datasets.project_id", "=", input.projectId)
-        .where("datasets.id", "in", input.datasetIds)
-        .groupBy("datasets.id");
-
-      const compiledQuery = query.compile();
-
-      const runsMetrics = await ctx.prisma.$queryRawUnsafe<
+      const runsMetrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
           countDatasetRuns: number;
           lastRunAt: Date | null;
         }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
+      >`
+        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+        FROM datasets d
+        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+        WHERE d.project_id = ${input.projectId}
+        AND d.id IN (${Prisma.join(input.datasetIds)})
+        GROUP BY d.id
+      `;
 
       // Get dataset items count for all datasets
       const itemsCounts = await getDatasetItemsCountGrouped({
@@ -575,7 +564,7 @@ export const datasetRouter = createTRPCRouter({
         runsWithMetricsIds.length > 0
           ? getTraceScoresForDatasetRuns(input.projectId, runsWithMetricsIds)
           : [],
-        getScoresForDatasetRuns({
+        getScoresForExperiments({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,

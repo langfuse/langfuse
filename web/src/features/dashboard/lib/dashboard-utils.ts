@@ -1,4 +1,4 @@
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { type FilterState, type singleFilter } from "@langfuse/shared";
 import { usdFormatter } from "@/src/utils/numbers";
 import {

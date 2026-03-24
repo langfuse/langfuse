@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -33,6 +33,7 @@ export const blobStorageIntegrationFormSchema = z.object({
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+  compressed: z.boolean().default(true),
 });
 
 export type BlobStorageIntegrationFormSchema = z.infer<

@@ -8,7 +8,7 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const observationsRouter = createTRPCRouter({
