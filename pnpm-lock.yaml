@@ -219,8 +219,8 @@ importers:
         specifier: ^3.1.2
         version: 3.1.2
       ioredis:
-        specifier: ^5.8.2
-        version: 5.8.2
+        specifier: ^5.10.1
+        version: 5.10.1
       ipaddr.js:
         specifier: ^2.2.0
         version: 2.2.0
@@ -598,8 +598,8 @@ importers:
         specifier: ^7.0.6
         version: 7.0.6
       ioredis:
-        specifier: ^5.8.2
-        version: 5.8.2
+        specifier: ^5.10.1
+        version: 5.10.1
       ip-address:
         specifier: ^9.0.5
         version: 9.0.5
@@ -929,8 +929,8 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       ioredis:
-        specifier: ^5.8.2
-        version: 5.8.2
+        specifier: ^5.10.1
+        version: 5.10.1
       jsonpath-plus:
         specifier: 10.3.0
         version: 10.3.0
@@ -2446,8 +2446,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@ioredis/commands@1.4.0':
-    resolution: {integrity: sha512-aFT2yemJJo+TZCmieA7qnYGQooOS7QfNmYrzGtsYd3g9j5iDP8AimYYAesf79ohjbLG12XxC4nG5DyEnC88AsQ==}
+  '@ioredis/commands@1.5.1':
+    resolution: {integrity: sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -7788,8 +7788,8 @@ packages:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
 
-  ioredis@5.8.2:
-    resolution: {integrity: sha512-C6uC+kleiIMmjViJINWk80sOQw5lEzse1ZmvD+S/s8p8CWapftSaC+kocGTx6xrbrJ4WmYQGC08ffHLr6ToR6Q==}
+  ioredis@5.10.1:
+    resolution: {integrity: sha512-HuEDBTI70aYdx1v6U97SbNx9F1+svQKBDo30o0b9fw055LMepzpOOd0Ccg9Q6tbqmBSJaMuY0fB7yw9/vjBYCA==}
     engines: {node: '>=12.22.0'}
 
   ip-address@10.1.0:
@@ -10562,6 +10562,10 @@ packages:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
 
+  tapable@2.3.2:
+    resolution: {integrity: sha512-1MOpMXuhGzGL5TTCZFItxCc0AARf1EZFQkGqMm7ERKj8+Hgr5oLvJOVFcC+lRmR8hCe2S3jC4T5D7Vg/d7/fhA==}
+    engines: {node: '>=6'}
+
   teeny-request@9.0.0:
     resolution: {integrity: sha512-resvxdc6Mgb7YEThw6G6bExlXKkv6+YbuzGg9xuXxSgxJF7Ozs+o8Y9+2R3sArdWdW8nOokoQb1yrpFB0pQK2g==}
     engines: {node: '>=14'}
@@ -13300,7 +13304,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.10.4
 
-  '@ioredis/commands@1.4.0': {}
+  '@ioredis/commands@1.5.1': {}
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -17594,7 +17598,7 @@ snapshots:
   bullmq@5.34.10:
     dependencies:
       cron-parser: 4.9.0
-      ioredis: 5.8.2
+      ioredis: 5.10.1
       msgpackr: 1.11.2
       node-abort-controller: 3.1.1
       semver: 7.6.3
@@ -18300,7 +18304,7 @@ snapshots:
   enhanced-resolve@5.20.1:
     dependencies:
       graceful-fs: 4.2.11
-      tapable: 2.3.0
+      tapable: 2.3.2
 
   entities@4.5.0: {}
 
@@ -19525,9 +19529,9 @@ snapshots:
 
   internmap@2.0.3: {}
 
-  ioredis@5.8.2:
+  ioredis@5.10.1:
     dependencies:
-      '@ioredis/commands': 1.4.0
+      '@ioredis/commands': 1.5.1
       cluster-key-slot: 1.1.2
       debug: 4.4.3
       denque: 2.1.0
@@ -22910,6 +22914,8 @@ snapshots:
 
   tapable@2.3.0: {}
 
+  tapable@2.3.2: {}
+
   teeny-request@9.0.0:
     dependencies:
       http-proxy-agent: 5.0.0
@@ -23523,7 +23529,7 @@ snapshots:
       mime-types: 2.1.35
       neo-async: 2.6.2
       schema-utils: 3.3.0
-      tapable: 2.3.0
+      tapable: 2.3.2
       terser-webpack-plugin: 5.4.0(webpack@5.97.1)
       watchpack: 2.5.1
       webpack-sources: 3.3.4
