@@ -13,7 +13,6 @@ import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
 
 // Multi-step setup process
@@ -75,7 +74,6 @@ export default function NewEvaluatorPage() {
             href: `/project/${projectId}/evals`,
           },
         ],
-        actionButtonsRight: <ManageDefaultEvalModel projectId={projectId} />,
       }}
     >
       <Breadcrumb className="mb-3">
