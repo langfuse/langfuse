@@ -2,6 +2,7 @@ import { describe, test, expect } from "vitest";
 import {
   fetchLLMCompletion,
   type CompletionWithReasoning,
+  isLLMCompletionError,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
@@ -13,6 +14,7 @@ import {
   LLMAdapter,
   type ModelParams,
 } from "@langfuse/shared";
+import { backOff } from "exponential-backoff";
 import { z } from "zod";
 
 /**
@@ -109,6 +111,7 @@ function registerEvalStructuredOutputTests(params: {
   getModelParams: () => ModelParams;
   getLLMConnection: () => TestLLMConnection;
   timeoutMs: number;
+  execute?: <T>(operation: () => Promise<T>) => Promise<T>;
 }) {
   evalStructuredOutputTestCases.forEach((testCase) => {
     test(
@@ -116,21 +119,25 @@ function registerEvalStructuredOutputTests(params: {
       async () => {
         params.checkEnv();
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
-          messages: [
-            {
-              role: "user",
-              content: testCase.prompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: params.getModelParams(),
-          structuredOutputSchema: buildEvalOutputResultSchema(
-            testCase.outputDefinition,
-          ),
-          llmConnection: params.getLLMConnection(),
-        });
+        const completion = await (
+          params.execute ?? ((operation) => operation())
+        )(() =>
+          fetchLLMCompletion({
+            streaming: false,
+            messages: [
+              {
+                role: "user",
+                content: testCase.prompt,
+                type: ChatMessageType.PublicAPICreated,
+              },
+            ],
+            modelParams: params.getModelParams(),
+            structuredOutputSchema: buildEvalOutputResultSchema(
+              testCase.outputDefinition,
+            ),
+            llmConnection: params.getLLMConnection(),
+          }),
+        );
 
         const parsed = testCase.responseSchema.safeParse(completion);
         expect(parsed.success).toBe(true);
@@ -141,6 +148,34 @@ function registerEvalStructuredOutputTests(params: {
       },
       params.timeoutMs,
     );
+  });
+}
+
+function isRetryableLLMConnectionError(error: unknown): boolean {
+  if (isLLMCompletionError(error)) {
+    return error.isRetryable;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.name === "ServiceUnavailableException" ||
+    error.message.includes("ServiceUnavailableException") ||
+    error.message.includes("Too many connections")
+  );
+}
+
+async function withRetryableLLMConnectionBackoff<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  return backOff(operation, {
+    jitter: "full",
+    maxDelay: 5_000,
+    numOfAttempts: 4,
+    startingDelay: 1_000,
+    retry: (error) => isRetryableLLMConnectionError(error),
   });
 }
 
@@ -603,76 +638,86 @@ describe("LLM Connection Tests", () => {
       };
     };
 
+    const runBedrockTest = <T>(operation: () => Promise<T>) =>
+      withRetryableLLMConnectionBackoff(operation);
+
     test("simple completion", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runBedrockTest(() =>
+        fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "bedrock",
+            adapter: LLMAdapter.Bedrock,
+            model: MODEL,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "bedrock",
-          adapter: LLMAdapter.Bedrock,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(getApiKey()),
-          config: getConfig(),
-        },
-      });
+          llmConnection: {
+            secretKey: encrypt(getApiKey()),
+            config: getConfig(),
+          },
+        }),
+      );
 
       expect(typeof completion).toBe("string");
       expect(completion).toContain("4");
-    }, 30_000);
+    }, 60_000);
 
     test("streaming completion", async () => {
       checkEnvVars();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      const { chunkCount, fullResponse } = await runBedrockTest(async () => {
+        const stream = await fetchLLMCompletion({
+          streaming: true,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "bedrock",
+            adapter: LLMAdapter.Bedrock,
+            model: MODEL,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "bedrock",
-          adapter: LLMAdapter.Bedrock,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(getApiKey()),
-          config: getConfig(),
-        },
+          llmConnection: {
+            secretKey: encrypt(getApiKey()),
+            config: getConfig(),
+          },
+        });
+
+        const decoder = new TextDecoder();
+        let fullResponse = "";
+        let chunkCount = 0;
+
+        for await (const chunk of stream) {
+          fullResponse += decoder.decode(chunk);
+          chunkCount++;
+        }
+
+        return { chunkCount, fullResponse };
       });
-
-      const decoder = new TextDecoder();
-      let fullResponse = "";
-      let chunkCount = 0;
-
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
-        chunkCount++;
-      }
 
       expect(chunkCount).toBeGreaterThan(0);
       expect(fullResponse).toContain("4");
-    }, 30_000);
+    }, 60_000);
 
     // Flaky
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVars,
+      execute: runBedrockTest,
       getModelParams: () => ({
         provider: "bedrock",
         adapter: LLMAdapter.Bedrock,
@@ -684,41 +729,43 @@ describe("LLM Connection Tests", () => {
         secretKey: encrypt(getApiKey()),
         config: getConfig(),
       }),
-      timeoutMs: 30_000,
+      timeoutMs: 60_000,
     });
 
     test("tool calling", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What's the weather like in Paris?",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runBedrockTest(() =>
+        fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What's the weather like in Paris?",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "bedrock",
+            adapter: LLMAdapter.Bedrock,
+            model: MODEL,
+            temperature: 0,
+            max_tokens: 100,
           },
-        ],
-        modelParams: {
-          provider: "bedrock",
-          adapter: LLMAdapter.Bedrock,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 100,
-        },
-        tools: [weatherTool],
-        llmConnection: {
-          secretKey: encrypt(getApiKey()),
-          config: getConfig(),
-        },
-      });
+          tools: [weatherTool],
+          llmConnection: {
+            secretKey: encrypt(getApiKey()),
+            config: getConfig(),
+          },
+        }),
+      );
 
       expect(completion).toHaveProperty("tool_calls");
       expect(Array.isArray(completion.tool_calls)).toBe(true);
       expect(completion.tool_calls.length).toBeGreaterThan(0);
       expect(completion.tool_calls[0].name).toBe("get_weather");
       expect(completion.tool_calls[0].args).toHaveProperty("location");
-    }, 30_000);
+    }, 60_000);
   });
 
   describe("VertexAI", () => {
