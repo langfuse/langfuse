@@ -79,6 +79,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
           tickFormatter={(value) => valueFormatter(Number(value))}
         />
         <YAxis

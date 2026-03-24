@@ -1,7 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
-import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
+import { Line, LineChart, XAxis, YAxis } from "recharts";
 import {
+  ChartActiveReferenceLine,
   ChartContainer,
+  ChartLegend,
   ChartTooltip,
   type ChartConfig,
 } from "@/src/components/ui/chart";
@@ -151,13 +153,14 @@ export function ScoreTimeSeriesNumericChart({
           fontSize={12}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--border) / 0.5)" }}
-          interval={1}
+          interval="equidistantPreserveEnd"
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
           tickFormatter={(value) => compactNumberFormatter(value)}
         />
         <Line
@@ -186,6 +189,7 @@ export function ScoreTimeSeriesNumericChart({
             connectNulls
           />
         )}
+        <ChartActiveReferenceLine />
         <ChartTooltip
           content={
             <ScoreChartTooltip
@@ -195,7 +199,7 @@ export function ScoreTimeSeriesNumericChart({
             />
           }
         />
-        <Legend
+        <ChartLegend
           content={
             <ScoreChartLegendContent
               interactive={isComparisonMode}

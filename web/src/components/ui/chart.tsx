@@ -58,13 +58,19 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border h-full w-full flex-1 justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
+          "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border relative h-full w-full flex-1 justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
           className,
         )}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <RechartsPrimitive.ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={1}
+          initialDimension={{ width: 1, height: 1 }}
+        >
           {children}
         </RechartsPrimitive.ResponsiveContainer>
       </div>
@@ -106,7 +112,29 @@ ${colorConfig
   );
 };
 
-const ChartTooltip = RechartsPrimitive.Tooltip;
+type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
+
+function ChartTooltip({
+  allowEscapeViewBox = { x: true, y: true },
+  offset = 12,
+  useTranslate3d = true,
+  wrapperStyle,
+  ...props
+}: ChartTooltipProps) {
+  return (
+    <RechartsPrimitive.Tooltip
+      allowEscapeViewBox={allowEscapeViewBox}
+      offset={offset}
+      useTranslate3d={useTranslate3d}
+      wrapperStyle={{
+        pointerEvents: "none",
+        zIndex: 50,
+        ...wrapperStyle,
+      }}
+      {...props}
+    />
+  );
+}
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
@@ -287,7 +315,41 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
-const ChartLegend = RechartsPrimitive.Legend;
+type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
+
+function ChartLegend({ itemSorter = null, ...props }: ChartLegendProps) {
+  return <RechartsPrimitive.Legend itemSorter={itemSorter} {...props} />;
+}
+
+function ChartActiveReferenceLine({
+  stroke = "hsl(var(--border))",
+  strokeDasharray = "4 4",
+  strokeOpacity = 0.8,
+  zIndex = 350,
+}: {
+  stroke?: string;
+  strokeDasharray?: string;
+  strokeOpacity?: number;
+  zIndex?: number;
+}) {
+  const activeLabel = RechartsPrimitive.useActiveTooltipLabel();
+  const isTooltipActive = RechartsPrimitive.useIsTooltipActive();
+
+  if (!isTooltipActive || activeLabel === undefined || activeLabel === null) {
+    return null;
+  }
+
+  return (
+    <RechartsPrimitive.ReferenceLine
+      x={activeLabel}
+      stroke={stroke}
+      strokeDasharray={strokeDasharray}
+      strokeOpacity={strokeOpacity}
+      ifOverflow="extendDomain"
+      zIndex={zIndex}
+    />
+  );
+}
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
@@ -407,6 +469,7 @@ export {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
+  ChartActiveReferenceLine,
   ChartStyle,
   useChart,
   getPayloadConfigFromPayload,

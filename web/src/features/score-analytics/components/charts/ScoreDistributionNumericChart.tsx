@@ -1,7 +1,8 @@
 import { useMemo, useState, useCallback } from "react";
-import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
+  ChartLegend,
   ChartTooltip,
   type ChartConfig,
 } from "@/src/components/ui/chart";
@@ -121,13 +122,14 @@ export function ScoreDistributionNumericChart({
           fontSize={12}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--border) / 0.5)" }}
-          interval={1}
+          interval="equidistantPreserveEnd"
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
           tickFormatter={(value) => compactNumberFormatter(value)}
         />
         <ChartTooltip
@@ -155,7 +157,7 @@ export function ScoreDistributionNumericChart({
           />
         )}
 
-        <Legend
+        <ChartLegend
           content={
             <ScoreChartLegendContent
               interactive={isComparisonMode}
