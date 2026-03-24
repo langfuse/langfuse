@@ -1,5 +1,5 @@
 import { ScoreConfigCategory } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const createConfigSchema = z.object({
   name: z.string().min(1).max(35),

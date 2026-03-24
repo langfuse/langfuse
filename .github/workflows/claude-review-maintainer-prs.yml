@@ -1,0 +1,20 @@
+name: Claude Review on Maintainer PRs
+
+on:
+  pull_request_target:
+    types:
+      - opened
+
+jobs:
+  comment:
+    if: github.event.pull_request.draft == false && contains(fromJson('["COLLABORATOR", "MEMBER", "OWNER"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add Claude review comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --method POST --raw-field body='@claude review'

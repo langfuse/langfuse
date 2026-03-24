@@ -11,7 +11,7 @@ import {
   type AggregatableScoreDataType,
   ScoreConfigDataType,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;

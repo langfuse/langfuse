@@ -5,7 +5,7 @@ import {
   RetryBaggage,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -51,14 +51,18 @@ export async function retryLLMRateLimitError(
     const jobId = job.data.payload[config.idField];
 
     // Check if the job is older than 24h
-    const record = await kyselyPrisma.$kysely
-      .selectFrom(config.table)
-      .select("created_at")
-      .where("id", "=", jobId)
-      .where("project_id", "=", job.data.payload.projectId)
-      .executeTakeFirstOrThrow();
+    const record =
+      config.table === "dataset_runs"
+        ? await prisma.datasetRuns.findFirstOrThrow({
+            select: { createdAt: true },
+            where: { id: jobId, projectId: job.data.payload.projectId },
+          })
+        : await prisma.jobExecution.findFirstOrThrow({
+            select: { createdAt: true },
+            where: { id: jobId, projectId: job.data.payload.projectId },
+          });
 
-    if (record.created_at < new Date(Date.now() - ONE_DAY_IN_MS)) {
+    if (record.createdAt < new Date(Date.now() - ONE_DAY_IN_MS)) {
       logger.info(
         `Job ${jobId} is rate limited for more than 24h. Stop retrying.`,
       );

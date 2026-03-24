@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
@@ -321,11 +321,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
-    .enum(["true", "false"])
-    .default("true"),
-
-  // Legacy events table (transitional deployment)
-  LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS: z
     .enum(["true", "false"])
     .default("true"),
 

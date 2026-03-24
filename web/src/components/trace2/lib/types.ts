@@ -31,7 +31,7 @@ export type TreeNode = {
   // Pre-computed cost for this node + all descendants
   // Calculated bottom-up during tree construction for O(1) access
   totalCost?: Decimal;
-  // Trace-specific properties (when type === 'TRACE')
+  // Duration in seconds. Set on TRACE wrapper nodes (v3) or root observation nodes (v4 events-based traces).
   latency?: number;
   // Observation-specific properties (when type !== 'TRACE')
   parentObservationId?: string | null;
