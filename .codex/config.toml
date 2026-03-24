@@ -1,12 +1,1 @@
-[mcp_servers.playwright]
-command = "npx"
-args = [
-  "-y",
-  "@playwright/mcp@latest",
-  "--isolated",
-  "--save-trace",
-  "--output-dir",
-  ".playwright-mcp",
-  "--test-id-attribute",
-  "data-testid",
-]
+sandbox_mode = "workspace-write"
