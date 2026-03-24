@@ -188,6 +188,7 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      useSSE: true,
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
@@ -371,7 +372,7 @@ export function DashboardWidget({
             showSpinner={false}
             showHintImmediately={true}
             hintText={queryValidation.reason}
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            className="backdrop-blur-xs bg-background/80 absolute inset-0 z-20"
             hintClassName="max-w-sm px-4"
           />
         ) : (
@@ -409,7 +410,7 @@ export function DashboardWidget({
               showSpinner={chartLoadingState.showSpinner}
               showHintImmediately={chartLoadingState.showHintImmediately}
               hintText={chartLoadingState.hintText}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              className="backdrop-blur-xs bg-background/80 absolute inset-0 z-20"
               hintClassName="max-w-sm px-4"
             />
             {queryResult.progress && queryResult.isPending ? (
