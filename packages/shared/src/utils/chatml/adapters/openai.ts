@@ -176,71 +176,71 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     );
 
     if (hasAnthropicBlocks) {
-    const toolUseBlocks: Array<Record<string, unknown>> = [];
-    const textBlocks: Array<Record<string, unknown>> = [];
-    const thinkingBlocks: Array<Record<string, unknown>> = [];
-    const toolResultBlocks: Array<Record<string, unknown>> = [];
+      const toolUseBlocks: Array<Record<string, unknown>> = [];
+      const textBlocks: Array<Record<string, unknown>> = [];
+      const thinkingBlocks: Array<Record<string, unknown>> = [];
+      const toolResultBlocks: Array<Record<string, unknown>> = [];
 
-    for (const b of contentArr) {
-      if (!b || typeof b !== "object") continue;
-      switch (b.type) {
-        case "tool_use":
-          toolUseBlocks.push(b);
-          break;
-        case "text":
-          textBlocks.push(b);
-          break;
-        case "thinking":
-          thinkingBlocks.push(b);
-          break;
-        case "tool_result":
-          toolResultBlocks.push(b);
-          break;
+      for (const b of contentArr) {
+        if (!b || typeof b !== "object") continue;
+        switch (b.type) {
+          case "tool_use":
+            toolUseBlocks.push(b);
+            break;
+          case "text":
+            textBlocks.push(b);
+            break;
+          case "thinking":
+            thinkingBlocks.push(b);
+            break;
+          case "tool_result":
+            toolResultBlocks.push(b);
+            break;
+        }
       }
-    }
 
-    if (toolUseBlocks.length > 0) {
-      const toolCalls = toolUseBlocks.map((b) => ({
-        id: b.id || "",
-        name: b.name || "",
-        arguments:
-          typeof b.input === "string"
-            ? b.input
-            : JSON.stringify(b.input ?? {}),
-        type: "function",
-      }));
+      if (toolUseBlocks.length > 0) {
+        const toolCalls = toolUseBlocks.map((b) => ({
+          id: b.id || "",
+          name: b.name || "",
+          arguments:
+            typeof b.input === "string"
+              ? b.input
+              : JSON.stringify(b.input ?? {}),
+          type: "function",
+        }));
 
-      const textContent = textBlocks
-        .map((b) => b.text)
-        .filter(Boolean)
-        .join("\n");
+        const textContent = textBlocks
+          .map((b) => b.text)
+          .filter(Boolean)
+          .join("\n");
 
-      const { content: _content, ...rest } = working;
-      working = {
-        ...rest,
-        content: textContent || undefined,
-        tool_calls: toolCalls,
-        ...(thinkingBlocks.length > 0
-          ? {
-              thinking: thinkingBlocks.map((b) => ({
-                type: "thinking" as const,
-                content: String(b.thinking ?? ""),
-                ...(b.signature ? { signature: b.signature } : {}),
-              })),
-            }
-          : {}),
-      };
-    }
+        const { content: _content, ...rest } = working;
+        working = {
+          ...rest,
+          content: textContent || undefined,
+          tool_calls: toolCalls,
+          ...(thinkingBlocks.length > 0
+            ? {
+                thinking: thinkingBlocks.map((b) => ({
+                  type: "thinking" as const,
+                  content: String(b.thinking ?? ""),
+                  ...(b.signature ? { signature: b.signature } : {}),
+                })),
+              }
+            : {}),
+        };
+      }
 
-    // Anthropic tool_result: convert each result block to a tool message
-    if (toolResultBlocks.length > 0 && toolUseBlocks.length === 0) {
-      const first = toolResultBlocks[0];
-      working = {
-        role: "tool",
-        tool_call_id: first.tool_use_id || "",
-        content: stringifyToolResultContent(first.content),
-      };
-    }
+      // Anthropic tool_result: convert each result block to a tool message
+      if (toolResultBlocks.length > 0 && toolUseBlocks.length === 0) {
+        const first = toolResultBlocks[0];
+        working = {
+          role: "tool",
+          tool_call_id: first.tool_use_id || "",
+          content: stringifyToolResultContent(first.content),
+        };
+      }
     }
   }
 
