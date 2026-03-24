@@ -7,6 +7,7 @@ import {
 import {
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
+  type ObservationTableQuery,
   getCategoricalScoresGroupedByName,
   getEventsGroupedByModel,
   getEventsGroupedByModelId,
@@ -64,6 +65,13 @@ interface GetObservationsListParams {
   limit: number;
 }
 
+export type EventListObservation = Awaited<
+  ReturnType<typeof getObservationsWithModelDataFromEventsTable>
+>[number] & {
+  scores?: ReturnType<typeof aggregateScores>;
+  traceScores?: ReturnType<typeof aggregateScores>;
+};
+
 interface GetObservationsCountParams {
   projectId: string;
   filter: any[];
@@ -81,8 +89,10 @@ interface GetObservationsFilterOptionsParams {
 /**
  * Get paginated list of events
  */
-export async function getEventList(params: GetObservationsListParams) {
-  const queryOpts = {
+export function buildEventListQueryOptions(
+  params: GetObservationsListParams,
+): ObservationTableQuery {
+  return {
     projectId: params.projectId,
     filter: params.filter,
     searchQuery: params.searchQuery,
@@ -93,10 +103,17 @@ export async function getEventList(params: GetObservationsListParams) {
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
+}
 
-  const observations =
-    await getObservationsWithModelDataFromEventsTable(queryOpts);
-
+export async function hydrateEventListObservations({
+  projectId,
+  observations,
+}: {
+  projectId: string;
+  observations: Awaited<
+    ReturnType<typeof getObservationsWithModelDataFromEventsTable>
+  >;
+}) {
   if (observations.length === 0) {
     return { observations };
   }
@@ -111,14 +128,14 @@ export async function getEventList(params: GetObservationsListParams) {
 
   const [scores, traceScores] = await Promise.all([
     getScoresForObservations({
-      projectId: params.projectId,
+      projectId,
       observationIds: observations.map((observation) => observation.id),
       excludeMetadata: true,
       includeHasMetadata: true,
     }),
     traceIds.length > 0
       ? getScoresForTraces({
-          projectId: params.projectId,
+          projectId,
           traceIds,
           excludeMetadata: true,
           includeHasMetadata: true,
@@ -177,6 +194,17 @@ export async function getEventList(params: GetObservationsListParams) {
   }));
 
   return { observations: observationsWithScores };
+}
+
+export async function getEventList(params: GetObservationsListParams) {
+  const queryOpts = buildEventListQueryOptions(params);
+  const observations =
+    await getObservationsWithModelDataFromEventsTable(queryOpts);
+
+  return hydrateEventListObservations({
+    projectId: queryOpts.projectId,
+    observations,
+  });
 }
 
 /**

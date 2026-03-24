@@ -1,4 +1,5 @@
 import {
+  buildObservationsFromEventsTableQuery,
   createEvent,
   createEventsCh,
   getObservationsWithModelDataFromEventsTable,
@@ -9,6 +10,9 @@ import {
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
+  hydrateObservationsWithModelDataFromEventsTableRows,
+  queryClickhouse,
+  type EventsTableObservationListRow,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -203,6 +207,51 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result2.length).toBeLessThanOrEqual(2);
     });
 
+    it("should hydrate the extracted rows query the same way as the existing list helper", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "extracted-helper-parity",
+        input: "Test input",
+        output: "Test output",
+      });
+
+      await createEventsCh([event]);
+
+      const queryOpts = {
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      };
+
+      const expected =
+        await getObservationsWithModelDataFromEventsTable(queryOpts);
+      const { query, params } = buildObservationsFromEventsTableQuery({
+        ...queryOpts,
+        select: "rows",
+      });
+      const rawRows = await queryClickhouse<EventsTableObservationListRow>({
+        query,
+        params,
+        preferredClickhouseService: "EventsReadOnly",
+      });
+      const hydrated =
+        await hydrateObservationsWithModelDataFromEventsTableRows(
+          rawRows,
+          queryOpts,
+        );
+
+      expect(hydrated).toEqual(expected);
+    });
+
     it("should handle events without end_time (null latency)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -272,7 +321,8 @@ describe("Clickhouse Events Repository Test", () => {
         name: "io-metadata-test",
         input: "Test input content",
         output: "Test output content",
-        metadata: { key: "value" },
+        metadata_names: ["key"],
+        metadata_values: ["value"],
       });
 
       await createEventsCh([event]);
@@ -713,8 +763,9 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
+        const traceIdsToMatch: string[] = [traceId1, traceId2, traceId3];
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          traceIdsToMatch.includes(o.traceId ?? ""),
         );
         expect(filteredObservations.length).toBe(2);
         const traceIds = filteredObservations.map((o) => o.traceId).sort();
@@ -827,8 +878,9 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
+        const traceIdsToMatch: string[] = [traceId1, traceId2, traceId3];
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          traceIdsToMatch.includes(o.traceId ?? ""),
         );
         expect(filteredObservations.length).toBe(2);
         const names = filteredObservations.map((o) => o.name).sort();
@@ -1015,8 +1067,9 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
+        const traceIdsToMatch: string[] = [traceId1, traceId2, traceId3];
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          traceIdsToMatch.includes(o.traceId ?? ""),
         );
         expect(filteredObservations.length).toBe(1);
         expect(filteredObservations[0].name).toBe("new-user-1");
@@ -2099,6 +2152,8 @@ describe("Clickhouse Events Repository Test", () => {
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [],
+        minStartTime: new Date(),
+        maxStartTime: new Date(),
       });
 
       expect(result).toBeDefined();

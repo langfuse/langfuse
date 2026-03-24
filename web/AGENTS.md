@@ -22,6 +22,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Internal streaming API routes: `src/pages/api/{dashboard,events}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:
@@ -93,13 +94,13 @@ performance, bundle size, or React/Next.js performance patterns.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP server before signoff, including a quick functional pass and a visual regression check.
+4. Review the affected user flow in a real browser with the Playwright MCP server before signoff, including a quick functional pass and a visual regression check. Use the seeded local login `demo@langfuse.com` / `password` when needed.
 
 ### Agent browser loop
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
 3. Use the workspace `playwright` MCP server from `.mcp.json` or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
-4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
+4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff. The default seeded browser account is `demo@langfuse.com` / `password`, and the main seeded project URL is `http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
 5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 
 ## Package-Specific Rules

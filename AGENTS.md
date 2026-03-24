@@ -177,6 +177,8 @@ Minimum verification matrix:
 - Playwright MCP traces and other browser session artifacts live under `.playwright-mcp/` and are gitignored.
 - For user-visible frontend changes in `web/**`, review the affected flow in a real browser with the Playwright MCP server before signoff. Cover the primary changed path with a quick functional pass and a visual check for obvious regressions.
 - For web flows, start `pnpm run dev:web` (or `pnpm run dev`) before asking an agent to drive the app in a browser.
+- Seeded local browser login for Playwright checks: `demo@langfuse.com` / `password`.
+- Seeded local project for browser checks: `http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
 - Optional: generate Playwright's planner/generator/healer agent files with `pnpm --filter web exec playwright init-agents --loop=<claude|vscode|copilot|opencode>`.
 
 ## Git Notes

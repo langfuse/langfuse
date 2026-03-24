@@ -97,7 +97,7 @@ export default function Traces() {
       }}
     >
       {isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable projectId={projectId} useStreamingProgress />
       ) : (
         <TracesTable projectId={projectId} />
       )}

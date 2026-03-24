@@ -363,6 +363,55 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   return res;
 }
 
+async function sendClickhouseQueryWithRetry<F extends DataFormat>(opts: {
+  query: string;
+  params?: Record<string, unknown>;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
+  format: F;
+  span: Span;
+}) {
+  return await backOff(
+    async () => {
+      return await sendClickhouseQuery(opts);
+    },
+    {
+      numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
+      retry: (error: Error, attemptNumber: number) => {
+        const shouldRetry = isRetryableError(error);
+        if (shouldRetry) {
+          logger.warn(
+            `ClickHouse query failed with retryable error (attempt ${attemptNumber}/${env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS}): ${error.message}`,
+            {
+              error: error.message,
+              attemptNumber,
+              tags: opts.tags,
+            },
+          );
+          opts.span.addEvent("clickhouse-query-retry", {
+            "retry.attempt": attemptNumber,
+            "retry.error": error.message,
+          });
+        } else {
+          logger.error(
+            `ClickHouse query failed with non-retryable error: ${error.message}`,
+            {
+              error: error.message,
+              tags: opts.tags,
+            },
+          );
+        }
+        return shouldRetry;
+      },
+      startingDelay: 100,
+      timeMultiple: 1,
+      maxDelay: 100,
+    },
+  );
+}
+
 /**
  * Determines if an error is retryable (socket hang up, connection reset, broken pipe, etc.)
  */
@@ -394,55 +443,20 @@ export async function queryClickhouse<T>(
     async (span) => {
       setSpanQueryAttributes(span, opts.query);
 
-      return await backOff(
-        async () => {
-          const res = await sendClickhouseQuery({
-            ...opts,
-            clickhouseSettings: {
-              asterisk_include_alias_columns: 1,
-              asterisk_include_materialized_columns: 1,
-              ...opts.clickhouseSettings,
-            },
-            format: "JSONEachRow",
-            span,
-          });
-          return (await res.json<T>()).map(handleExceptionRow);
+      return await sendClickhouseQueryWithRetry({
+        ...opts,
+        clickhouseSettings: {
+          asterisk_include_alias_columns: 1,
+          asterisk_include_materialized_columns: 1,
+          ...opts.clickhouseSettings,
         },
-        {
-          numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
-          retry: (error: Error, attemptNumber: number) => {
-            const shouldRetry = isRetryableError(error);
-            if (shouldRetry) {
-              logger.warn(
-                `ClickHouse query failed with retryable error (attempt ${attemptNumber}/${env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS}): ${error.message}`,
-                {
-                  error: error.message,
-                  attemptNumber,
-                  tags: opts.tags,
-                },
-              );
-              span.addEvent("clickhouse-query-retry", {
-                "retry.attempt": attemptNumber,
-                "retry.error": error.message,
-              });
-            } else {
-              logger.error(
-                `ClickHouse query failed with non-retryable error: ${error.message}`,
-                {
-                  error: error.message,
-                  tags: opts.tags,
-                },
-              );
-            }
-            return shouldRetry;
-          },
-          startingDelay: 100,
-          timeMultiple: 1,
-          maxDelay: 100,
-        },
-      ).catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
-      });
+        format: "JSONEachRow",
+        span,
+      })
+        .then(async (res) => (await res.json<T>()).map(handleExceptionRow))
+        .catch((error) => {
+          throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        });
     },
   );
 }
@@ -462,7 +476,7 @@ export async function* queryClickhouseWithProgress<T>(
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
-        sendClickhouseQuery({
+        sendClickhouseQueryWithRetry({
           ...opts,
           clickhouseSettings: {
             asterisk_include_alias_columns: 1,
