@@ -219,10 +219,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       working = {
         ...rest,
         content: textContent || undefined,
-        tool_calls: [
-          ...((working.tool_calls as unknown[]) ?? []),
-          ...toolCalls,
-        ],
+        tool_calls: toolCalls,
         ...(thinkingBlocks.length > 0
           ? {
               thinking: thinkingBlocks.map((b) => ({
