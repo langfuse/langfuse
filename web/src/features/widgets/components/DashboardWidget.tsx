@@ -191,10 +191,7 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
-      useSSE: shouldUseWidgetSSE({
-        isV4BetaEnabled: isBetaEnabled,
-        version: metricsVersion,
-      }),
+      useSSE: true,
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
