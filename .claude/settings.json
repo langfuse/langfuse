@@ -7,11 +7,7 @@
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
-      "Bash(tail:*)",
-      "Bash(git show:*)",
-      "Bash(git log:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh api:*)"
+      "Bash(tail:*)"
     ],
     "deny": []
   },
