@@ -1955,7 +1955,7 @@ export function WidgetForm({
               </div>
               <QueryStatusFooter
                 isLoading={queryResult.isPending}
-                progress={queryResult.progress}
+                progress={null}
               />
             </div>
           ) : (
@@ -1967,9 +1967,7 @@ export function WidgetForm({
                     showSpinner={chartLoadingState.showSpinner}
                     showHintImmediately={chartLoadingState.showHintImmediately}
                     hintText={chartLoadingState.hintText}
-                    progress={
-                      queryResult.isPending ? queryResult.progress : null
-                    }
+                    progress={null}
                     hintClassName="max-w-sm px-4"
                   />
                 ) : (
