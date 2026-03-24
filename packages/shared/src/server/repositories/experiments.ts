@@ -14,7 +14,7 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoresCTE,
-  eventsExperimentItemsByIds,
+  eventsExperimentsRootSpans,
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsScoresAggregation,
@@ -774,7 +774,7 @@ export const getExperimentItemsFromEvents = async (
   ];
 
   // ========== QUERY 2: Fetch data for ALL experiments ==========
-  const queryBuilderData = eventsExperimentItemsByIds({
+  const queryBuilderData = eventsExperimentsRootSpans({
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
@@ -876,7 +876,7 @@ export const getExperimentItemsBatchIO = async (props: {
 
   const allExperimentIds = [baseExperimentId, ...compExperimentIds];
 
-  const queryBuilder = eventsExperimentItemsByIds({
+  const queryBuilder = eventsExperimentsRootSpans({
     projectId,
     experimentIds: allExperimentIds,
     experimentItemIds: itemIds,

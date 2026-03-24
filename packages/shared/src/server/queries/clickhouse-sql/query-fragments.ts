@@ -279,20 +279,16 @@ export const eventsExperimentsAggregation = (params: {
     .whereRaw("e.experiment_id != ''");
 };
 
-export const eventsExperimentItemsByIds = (params: {
+export const eventsExperimentsRootSpans = (params: {
   projectId: string;
   experimentIds?: string[];
   experimentItemIds?: string[];
 }): EventsQueryBuilder =>
-  eventsExperiments(params)
+  eventsExperiments({
+    projectId: params.projectId,
+    experimentIds: params.experimentIds,
+  })
     .whereRaw("e.experiment_item_root_span_id = e.span_id")
-    .when(
-      Boolean(params.experimentIds && params.experimentIds.length > 0),
-      (b) =>
-        b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
-          experimentIds: params.experimentIds,
-        }),
-    )
     .when(
       Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
       (b) =>
