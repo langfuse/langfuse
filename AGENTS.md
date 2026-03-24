@@ -169,6 +169,27 @@ Minimum verification matrix:
 - Schema/client drift: run `pnpm run db:generate`.
 - Local infra issues: run `pnpm run infra:dev:up`; use `pnpm run dx` only when destructive reset is intended.
 
+## Production Monitoring
+
+- Use the Datadog MCP that matches the Datadog site for the target environment. Do not mix `app.datadoghq.eu` and `app.datadoghq.com` data during investigations.
+- Region and environment mapping:
+  - `staging` -> `datadog-eu` -> `app.datadoghq.eu`
+  - `prod-eu` -> `datadog-eu` -> `app.datadoghq.eu`
+  - `prod-us` -> `datadog-us` -> `app.datadoghq.com`
+  - `prod-jp` -> `datadog-us` -> `app.datadoghq.com`
+- The checked-in MCP configs currently use `toolsets=core`. With this setup, agents can extract:
+  - Events such as monitor alerts, deployment notifications, infrastructure changes, security findings, and service status changes
+  - Incidents, including incident lists plus incident state, severity, and metadata; incident detail is available, but incident timeline data is not
+  - Metrics, including historical and realtime metric queries, aggregations, metric metadata, and available tag dimensions
+  - Monitor status, thresholds, and alert conditions
+  - APM trace and span data via trace lookup by trace ID and span search by service, resource, time, and related filters
+  - Logs via direct log search and SQL-style aggregate analysis
+  - RUM events via advanced query search
+  - Hosts, services, and service dependency relationships
+  - Dashboard discovery via dashboard search/listing
+  - Notebook search and notebook detail retrieval
+- The current `core` toolset does not expose every Datadog capability. In particular, full dashboard retrieval and dashboard CRUD require the `dashboards` toolset, advanced APM investigation tools require the `apm` toolset, monitor authoring helpers require the `alerting` toolset, and synthetics/software-delivery/workflows/cases require their respective toolsets.
+
 ## Agent Browser Automation
 - Shared Playwright MCP configs live in `.mcp.json` and `.vscode/mcp.json`.
 - Codex project-scoped MCP config lives in `.codex/config.toml` for trusted-project setups.
