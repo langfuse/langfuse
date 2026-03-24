@@ -4,6 +4,10 @@
   "description": "",
   "license": "MIT",
   "private": true,
+  "files": [
+    "dist/**",
+    "entrypoint.sh"
+  ],
   "engines": {
     "node": "24"
   },
