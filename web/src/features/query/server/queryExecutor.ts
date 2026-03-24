@@ -46,7 +46,8 @@ export async function prepareExecuteQuery(opts: {
   const { query: compiledQuery, parameters } = await queryBuilder.build(
     query,
     projectId,
-    enableSingleLevelOptimization,
+    enableSingleLevelOptimization ||
+      env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION === "true",
   );
 
   const view = getViewDeclaration(query.view, version);
