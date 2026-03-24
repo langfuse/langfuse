@@ -6,7 +6,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { X, ChevronDown } from "lucide-react";
-import { type ExperimentOption } from "./ExperimentComparisonSelector";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 
 type ExperimentBaselineControlsProps = {

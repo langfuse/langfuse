@@ -24,7 +24,6 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
-  EventsAggQueryBuilder,
   getExperimentNamesFromEvents,
 } from "@langfuse/shared/src/server";
 import {
@@ -46,7 +45,6 @@ import {
   timeFilter,
   AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
-  optionalPaginationZod,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";

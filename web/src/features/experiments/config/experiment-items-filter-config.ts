@@ -1,5 +1,4 @@
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
 
 /**

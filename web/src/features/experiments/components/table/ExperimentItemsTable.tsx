@@ -408,56 +408,59 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
   });
 
-  const buildExperimentScoreColumns = (
-    scoreColumns: LangfuseColumnDef<ExperimentItemData>[],
-    scoreField: "observationScores" | "traceScores",
-  ): LangfuseColumnDef<ExperimentItemsTableRow>[] =>
-    scoreColumns.map((scoreCol) => ({
-      ...scoreCol,
-      // Override the cell renderer to show stacked scores for each experiment
-      cell: ({ row }: { row: any }) => {
-        const experiments = row.original.experiments;
-        // todo: fix properly
-        const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            renderValue={(exp) => {
-              const scoresData = exp[scoreField] ?? {};
-              const value = scoresData[scoreKey];
+  const buildExperimentScoreColumns = useCallback(
+    (
+      scoreColumns: LangfuseColumnDef<ExperimentItemData>[],
+      scoreField: "observationScores" | "traceScores",
+    ): LangfuseColumnDef<ExperimentItemsTableRow>[] =>
+      scoreColumns.map((scoreCol) => ({
+        ...scoreCol,
+        // Override the cell renderer to show stacked scores for each experiment
+        cell: ({ row }: { row: any }) => {
+          const experiments = row.original.experiments;
+          // todo: fix properly
+          const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
+          return (
+            <StackedExperimentCell
+              experiments={experiments}
+              allExperimentIds={allExperimentIds}
+              renderValue={(exp) => {
+                const scoresData = exp[scoreField] ?? {};
+                const value = scoresData[scoreKey];
 
-              if (!value)
-                return <span className="text-muted-foreground">-</span>;
+                if (!value)
+                  return <span className="text-muted-foreground">-</span>;
 
-              const mockRow = {
-                getValue: (key: string) =>
-                  key === scoreField ? scoresData : undefined,
-                original: exp,
-              } as any;
-              const scoreCell = scoreCol.cell;
+                const mockRow = {
+                  getValue: (key: string) =>
+                    key === scoreField ? scoresData : undefined,
+                  original: exp,
+                } as any;
+                const scoreCell = scoreCol.cell;
 
-              return typeof scoreCell === "function"
-                ? scoreCell({
-                    row: mockRow,
-                    getValue: mockRow.getValue,
-                  } as any)
-                : null;
-            }}
-          />
-        );
-      },
-    })) as LangfuseColumnDef<ExperimentItemsTableRow>[];
+                return typeof scoreCell === "function"
+                  ? scoreCell({
+                      row: mockRow,
+                      getValue: mockRow.getValue,
+                    } as any)
+                  : null;
+              }}
+            />
+          );
+        },
+      })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
+    [allExperimentIds],
+  );
 
   const observationExperimentScoreColumns = useMemo(
     () =>
       buildExperimentScoreColumns(observationScoreColumns, "observationScores"),
-    [observationScoreColumns, allExperimentIds],
+    [observationScoreColumns, buildExperimentScoreColumns],
   );
 
   const traceExperimentScoreColumns = useMemo(
     () => buildExperimentScoreColumns(traceScoreColumns, "traceScores"),
-    [traceScoreColumns, allExperimentIds],
+    [traceScoreColumns, buildExperimentScoreColumns],
   );
 
   const observationScoreOrder = useMemo(
