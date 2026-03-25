@@ -1,5 +1,13 @@
 {
   "servers": {
+    "datadog-eu": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.eu/api/unstable/mcp-server/mcp?toolsets=core"
+    },
+    "datadog-us": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=core"
+    },
     "playwright": {
       "type": "stdio",
       "command": "npx",
