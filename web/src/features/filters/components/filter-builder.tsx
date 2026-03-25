@@ -872,10 +872,10 @@ function FilterBuilderForm({
                           disabled={disabled}
                           type="number"
                           step={
-                            (column && "step" in column && column.step) || 0.01
+                            (column?.type === "number" && column.step) || 0.01
                           }
                           min={
-                            column && "min" in column ? column.min : undefined
+                            column?.type === "number" ? column.min : undefined
                           }
                           placeholder="number"
                           lang="en-US"
