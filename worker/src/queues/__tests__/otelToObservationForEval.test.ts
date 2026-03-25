@@ -1522,7 +1522,7 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
             spans: [
               {
                 traceId: createBufferId("123456789012345678901234567890ab"),
-                spanId: createBufferId("notool567890ab"),
+                spanId: createBufferId("00b001567890abcd"),
                 name: "no-tools-test",
                 kind: 1,
                 startTimeUnixNano: createNanoTimestamp(
