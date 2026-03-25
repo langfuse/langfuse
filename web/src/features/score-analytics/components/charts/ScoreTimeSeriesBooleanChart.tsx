@@ -159,7 +159,7 @@ export function ScoreTimeSeriesBooleanChart({
           fontSize={12}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--border) / 0.5)" }}
-          interval="equidistantPreserveEnd"
+          interval={1}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"

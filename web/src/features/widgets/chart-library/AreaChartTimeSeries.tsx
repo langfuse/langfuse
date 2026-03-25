@@ -89,7 +89,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval="equidistantPreserveEnd"
+            interval="preserveStartEnd"
             minTickGap={24}
           />
           <YAxis
