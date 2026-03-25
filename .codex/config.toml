@@ -13,3 +13,9 @@ args = [
 
 [mcp_servers.datadog]
 url = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+
+[mcp_servers.langfuse-docs]
+url = "https://langfuse.com/api/mcp"
+
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"
