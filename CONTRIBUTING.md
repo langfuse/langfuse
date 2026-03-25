@@ -165,6 +165,7 @@ MCP server catalog.
 
 - Canonical repo instructions: `AGENTS.md`
 - Claude entrypoint shim: `CLAUDE.md`
+- Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
 - Tool-specific MCP configs generated locally from that catalog and not committed:

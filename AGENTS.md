@@ -142,6 +142,7 @@ Minimum verification matrix:
 - Shared agent/tool config lives under `.agents/config.json` and `.agents/skills/`; `pnpm install` regenerates tool-specific config shims via `pnpm run agents:sync` and validates them with `pnpm run agents:check`.
 - Durable repo guidance that should apply across tools belongs in root/package `AGENTS.md` files or `.agents/skills/**`, not only in tool-specific config directories.
 - Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
+- Shared agent setup overview: [`.agents/README.md`](.agents/README.md)
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
 - Shared skills use a short `SKILL.md` entrypoint and should prefer focused `references/` docs and `scripts/` helpers over large compiled guides. Keep any local `AGENTS.md` concise and use it as a router, not a dump of all details.
 - If a task matches one of the shared skill scopes below, read the linked `SKILL.md` before editing code, then follow its local references as needed:

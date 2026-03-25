@@ -6,6 +6,9 @@ Use these from `AGENTS.md` and `CLAUDE.md`. They are not tool-specific and
 should stay focused on reusable implementation guidance rather than runtime
 automation.
 
+For the shared agent config and generated shim model, start with
+[`../README.md`](../README.md).
+
 Shared skills should use progressive disclosure:
 
 - `SKILL.md` is the short entrypoint with trigger guidance and navigation.
@@ -49,4 +52,16 @@ Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
 6. Link the skill from `AGENTS.md` if it is relevant across the repo.
 7. Link the skill from `CLAUDE.md` if Claude Code should load it from the
    project entrypoint.
-8. Run `pnpm run skills:check` after editing any skill files.
+8. Update `AGENTS.md` or package-local `AGENTS.md` if the new skill changes the
+   default reusable workflow for future agents.
+9. Run the relevant verification for the package or workflow the skill affects.
+
+## Skill Design Rules
+
+- Keep the skill tool-neutral.
+- Use `SKILL.md` as the short entrypoint, not the full knowledge dump.
+- Prefer `references/` for deeper docs and `scripts/` for deterministic helpers.
+- Avoid copying large sections of repo docs into the skill when a stable link is
+  enough.
+- If the skill is web- or package-specific, link the nearest package
+  `AGENTS.md` or package docs instead of restating them.
