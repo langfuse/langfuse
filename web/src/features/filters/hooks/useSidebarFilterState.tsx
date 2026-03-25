@@ -65,9 +65,7 @@ export function decodeAndNormalizeFilters(
           validationResult.data.column,
         );
         if (!canonicalColumnId) {
-          console.warn(
-            `Unknown filter column skipped: ${validationResult.data.column}`,
-          );
+          // Gracefully ignore stale filters from old URLs or saved state.
           continue;
         }
 
@@ -420,6 +418,10 @@ export function useSidebarFilterState(
     if (disableUrlPersistence) return [];
     return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
   }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+  const canonicalFiltersQuery = useMemo(
+    () => encodeFiltersGeneric(urlFilterState),
+    [urlFilterState],
+  );
 
   const rawFilterState: FilterState = peekContext
     ? peekContext.tableState.filters
@@ -515,6 +517,38 @@ export function useSidebarFilterState(
     peekContext,
     pendingFiltersQuery,
     urlFiltersQuery,
+  ]);
+
+  // Sanitize stale or outdated filter queries in URL/session state.
+  useEffect(() => {
+    if (disableUrlPersistence) return;
+    if (peekContext) return;
+    if (pendingFiltersQuery !== null) return;
+
+    if (typeof urlFiltersQuery === "string") {
+      if (urlFiltersQuery !== canonicalFiltersQuery) {
+        setPendingFiltersQuery(canonicalFiltersQuery);
+        setUrlFiltersQuery(canonicalFiltersQuery || null);
+      }
+
+      if (storedFiltersQuery !== canonicalFiltersQuery) {
+        setStoredFiltersQuery(canonicalFiltersQuery);
+      }
+      return;
+    }
+
+    if (storedFiltersQuery !== canonicalFiltersQuery) {
+      setStoredFiltersQuery(canonicalFiltersQuery);
+    }
+  }, [
+    disableUrlPersistence,
+    peekContext,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
+    canonicalFiltersQuery,
+    setStoredFiltersQuery,
+    setUrlFiltersQuery,
   ]);
 
   // Mirror explicit URL filter state into session fallback storage.
