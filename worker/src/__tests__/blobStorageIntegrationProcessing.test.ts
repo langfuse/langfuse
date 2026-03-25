@@ -6,6 +6,7 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createSessionScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -117,6 +118,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       const now = new Date();
+      const sessionScoreId = randomUUID();
+      const sessionId = randomUUID();
       // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
@@ -186,6 +189,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             name: "Test Score",
             value: 0.95,
           }),
+          createSessionScore({
+            id: sessionScoreId,
+            session_id: sessionId,
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            name: "Test Session Score",
+            value: 0.8,
+          }),
         ]),
         createEventsCh([event]),
       ]);
@@ -235,6 +246,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(scoreId);
         expect(content).toContain("Test Score");
         expect(content).toContain("0.95");
+        // Verify session_id is exported for session-scoped scores
+        expect(content).toContain(sessionScoreId);
+        expect(content).toContain(sessionId);
+        expect(content).toContain("Test Session Score");
+        expect(content).toContain("0.8");
       }
 
       if (eventFile) {
