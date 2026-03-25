@@ -1,0 +1,35 @@
+{
+  "shared": {
+    "setupScript": "bash scripts/codex/setup.sh",
+    "devCommand": "pnpm run dev",
+    "devTerminalDescription": "Main development terminal running the development server"
+  },
+  "claude": {
+    "settings": {
+      "permissions": {
+        "allow": [
+          "Bash(find:*)",
+          "Bash(rg:*)",
+          "Bash(grep:*)",
+          "Bash(ls:*)",
+          "Bash(cat:*)",
+          "Bash(head:*)",
+          "Bash(tail:*)"
+        ],
+        "deny": []
+      },
+      "enableAllProjectMcpServers": true
+    }
+  },
+  "codex": {
+    "environment": {
+      "version": 1,
+      "name": "langfuse"
+    }
+  },
+  "cursor": {
+    "environment": {
+      "agentCanUpdateSnapshot": false
+    }
+  }
+}

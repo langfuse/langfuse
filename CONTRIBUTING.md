@@ -166,20 +166,25 @@ MCP server catalog.
 - Canonical repo instructions: `AGENTS.md`
 - Claude entrypoint shim: `CLAUDE.md`
 - Shared skills: `.agents/skills/`
+- Shared tool/bootstrap config: `.agents/project-tools.json`
 - Shared MCP server catalog: `.agents/mcp-servers.json`
 - Tool-specific MCP configs generated locally from that catalog and not committed:
   - `.mcp.json`
   - `.cursor/mcp.json`
   - `.vscode/mcp.json`
   - `.codex/config.toml`
+- Tool-specific runtime shims generated locally from the shared config and not committed:
+  - `.claude/settings.json`
+  - `.codex/environments/environment.toml`
+  - `.cursor/environment.json`
 - Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
 
 When you change the shared MCP setup:
 
-1. Edit `.agents/mcp-servers.json`
+1. Edit `.agents/mcp-servers.json` or `.agents/project-tools.json`
 2. Run `pnpm run agents:sync`
 3. Run `pnpm run agents:check`
-4. Do not commit the generated MCP config files
+4. Do not commit the generated MCP config files or runtime shims
 
 **Steps**
 

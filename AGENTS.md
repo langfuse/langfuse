@@ -46,6 +46,13 @@ langfuse/
   - `@langfuse/shared` -> no imports from `web`, `worker`, or `ee`
 - Queue payload schemas and queue-name contracts are owned by
   `packages/shared/src/server/queues.ts`.
+- High-signal domain models live in:
+  - `packages/shared/src/domain/observations.ts`
+  - `packages/shared/src/domain/traces.ts`
+  - `packages/shared/src/domain/scores.ts`
+- Database schema entry points live in:
+  - `packages/shared/prisma/schema.prisma`
+  - `packages/shared/clickhouse/migrations/clustered/*.sql`
 - Shared package import surfaces:
   - `@langfuse/shared`: client-safe/shared contracts, types, schemas, and
     reusable utilities
@@ -132,7 +139,7 @@ Minimum verification matrix:
 - Keep guidance DRY: canonicalize to the most specific file.
 - `CLAUDE.md` is the Claude Code entrypoint for this repo and should stay as a thin shim that points back to this file.
 - Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
-- Shared MCP server definitions live in `.agents/mcp-servers.json`; `pnpm install` regenerates local tool-specific MCP config files via `pnpm run agents:sync` and validates them with `pnpm run agents:check`.
+- Shared agent/tool config lives under `.agents/`; `pnpm install` regenerates tool-specific config shims via `pnpm run agents:sync` and validates them with `pnpm run agents:check`.
 - Durable repo guidance that should apply across tools belongs in root/package `AGENTS.md` files or `.agents/skills/**`, not only in tool-specific config directories.
 - Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
@@ -173,7 +180,9 @@ Minimum verification matrix:
 
 ## Agent Browser Automation
 - Project-scoped MCP configs are generated local artifacts at `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, and `.codex/config.toml`.
-- `.agents/mcp-servers.json` is the source of truth for shared MCP server definitions; regenerate tool-specific files with `pnpm install` or `pnpm run agents:sync` instead of editing them by hand.
+- Tool-specific runtime shims are generated local artifacts at `.claude/settings.json`, `.cursor/environment.json`, and `.codex/environments/environment.toml`.
+- Tool-specific config directories such as `.claude/`, `.codex/`, `.cursor/`, and `.vscode/` remain because the tools discover project settings from those fixed paths.
+- `.agents/mcp-servers.json` and `.agents/project-tools.json` are the source of truth for shared MCP/bootstrap settings; regenerate tool-specific files with `pnpm install` or `pnpm run agents:sync` instead of editing them by hand.
 - Install Chromium into the default user-level Playwright cache with `pnpm run playwright:install`.
 - `scripts/codex/setup.sh` runs the Playwright install step for first-time Codex bootstrap.
 - Playwright MCP traces and other browser session artifacts live under `.playwright-mcp/` and are gitignored.
