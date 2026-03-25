@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
+import { BookOpenText, X } from "lucide-react";
 
 const OBSERVATIONS_V4_GUIDE_URL =
   "https://langfuse.com/faq/all/explore-observations-in-v4";
@@ -75,9 +75,10 @@ export function UnifiedObservationsDocsBanner() {
         href={OBSERVATIONS_V4_GUIDE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="min-w-0 flex-1 truncate text-sm font-medium underline underline-offset-2"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium underline underline-offset-2"
       >
-        Filter the right data
+        <BookOpenText className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">How to filter the right data</span>
       </Link>
       <Button
         variant="ghost"
