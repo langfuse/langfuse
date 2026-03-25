@@ -10,6 +10,7 @@ import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { api } from "@/src/utils/api";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/router";
@@ -20,6 +21,7 @@ export default function Experiments() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -27,6 +29,14 @@ export default function Experiments() {
   });
 
   const { isEnabled } = useIsExperimentV4Enabled();
+
+  const handleExperimentSuccess = async () => {
+    setIsCreateExperimentDialogOpen(false);
+    await Promise.all([
+      utils.experiments.all.invalidate(),
+      utils.experiments.countAll.invalidate(),
+    ]);
+  };
 
   return (
     <Page
@@ -56,6 +66,7 @@ export default function Experiments() {
                 key="create-experiment-form-project-experiments"
                 projectId={projectId}
                 setFormOpen={setIsCreateExperimentDialogOpen}
+                handleExperimentSuccess={handleExperimentSuccess}
               />
             </DialogContent>
           </Dialog>
