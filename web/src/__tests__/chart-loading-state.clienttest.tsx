@@ -13,8 +13,49 @@ describe("ChartLoadingState", () => {
     jest.useRealTimers();
   });
 
-  test("renders spinner immediately, waits 1 second before showing progress, and 3 seconds before showing the hint", () => {
-    render(<ChartLoadingState isLoading={true} />);
+  test("keeps the legacy loader timing by default", () => {
+    const hintDelayMs = 1375;
+
+    render(<ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />);
+
+    expect(
+      screen.getByRole("status", { name: "Loading chart data" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(hintDelayMs - 1);
+    });
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+  });
+
+  test("renders legacy query progress immediately when progress is provided", () => {
+    render(
+      <ChartLoadingState
+        isLoading={true}
+        progress={{
+          read_rows: 1_779_300_000,
+          total_rows_to_read: 2_924_500_000,
+          elapsed_ns: 0,
+          read_bytes: 0,
+          percent: 0.6084,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByText("Loading widget")).toBeInTheDocument();
+    expect(screen.getByText("Reading 1.8B / ~2.9B rows")).toBeInTheDocument();
+  });
+
+  test("renders spinner immediately, waits 1 second before showing progress, and 3 seconds before showing the hint in minimal mode", () => {
+    render(<ChartLoadingState isLoading={true} variant="minimal" />);
 
     expect(
       screen.getByRole("status", { name: "Loading chart data" }),
@@ -46,8 +87,10 @@ describe("ChartLoadingState", () => {
     expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
   });
 
-  test("resets delayed progress and hint when loading toggles off and on again", () => {
-    const { rerender } = render(<ChartLoadingState isLoading={true} />);
+  test("resets delayed progress and hint when minimal loading toggles off and on again", () => {
+    const { rerender } = render(
+      <ChartLoadingState isLoading={true} variant="minimal" />,
+    );
 
     act(() => {
       jest.advanceTimersByTime(3000);
@@ -60,7 +103,7 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
-    rerender(<ChartLoadingState isLoading={true} />);
+    rerender(<ChartLoadingState isLoading={true} variant="minimal" />);
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
@@ -106,10 +149,11 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
 
-  test("renders query progress details after the progress delay when progress is provided", () => {
+  test("renders query progress details after the progress delay in minimal mode", () => {
     render(
       <ChartLoadingState
         isLoading={true}
+        variant="minimal"
         progress={{
           read_rows: 1_779_300_000,
           total_rows_to_read: 2_924_500_000,
@@ -131,8 +175,10 @@ describe("ChartLoadingState", () => {
     expect(screen.getByText("Reading 1.8B / ~2.9B rows")).toBeInTheDocument();
   });
 
-  test("supports tight layout with the same delayed loader behavior", () => {
-    render(<ChartLoadingState isLoading={true} layout="tight" />);
+  test("supports tight layout with the same delayed minimal loader behavior", () => {
+    render(
+      <ChartLoadingState isLoading={true} variant="minimal" layout="tight" />,
+    );
 
     expect(
       screen.getByRole("status", { name: "Loading chart data" }),
