@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
@@ -93,6 +93,23 @@ describe("ChartLoadingState", () => {
 
     expect(screen.getByText(customHint)).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
+  });
+
+  test("renders a retry button for error states when a retry handler is provided", () => {
+    const onRetry = jest.fn();
+
+    render(
+      <ChartLoadingState
+        isLoading={true}
+        showHintImmediately={true}
+        showSpinner={false}
+        onRetry={onRetry}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   test("shows only the spinner for the first second before swapping to the loading bar", () => {
