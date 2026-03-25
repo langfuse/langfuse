@@ -32,7 +32,6 @@ import type {
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
   TextFilterEntry,
-  PositionInTraceMode,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
@@ -312,27 +311,6 @@ export function DataTableControls({
                   keyOptions={filter.keyOptions}
                   value={filter.value}
                   onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "positionInTrace") {
-              return (
-                <PositionInTraceFacetComponent
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  mode={filter.mode}
-                  nthValue={filter.nthValue}
-                  onModeChange={filter.onModeChange}
-                  onNthValueChange={filter.onNthValueChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
                   isDisabled={filter.isDisabled}
@@ -1217,102 +1195,6 @@ export function StringKeyValueFacet({
           keyPlaceholder={keyPlaceholder}
         />
       )}
-    </FilterAccordionItem>
-  );
-}
-
-interface PositionInTraceFacetProps extends BaseFacetProps {
-  mode: PositionInTraceMode | null;
-  nthValue: number;
-  onModeChange: (mode: PositionInTraceMode | null) => void;
-  onNthValueChange: (value: number) => void;
-}
-
-const POSITION_MODES: {
-  key: PositionInTraceMode;
-  label: string;
-}[] = [
-  { key: "root", label: "1st" },
-  { key: "last", label: "Last" },
-  { key: "nthFromStart", label: "Nth from start" },
-  { key: "nthFromEnd", label: "Nth from end" },
-];
-
-function PositionInTraceFacetComponent({
-  label,
-  tooltip,
-  filterKey,
-  filterKeyShort,
-  expanded: _expanded,
-  loading,
-  mode,
-  nthValue,
-  onModeChange,
-  onNthValueChange,
-  isActive,
-  isDisabled,
-  disabledReason,
-  onReset,
-}: PositionInTraceFacetProps) {
-  const showNthInput = mode === "nthFromStart" || mode === "nthFromEnd";
-
-  return (
-    <FilterAccordionItem
-      label={label}
-      tooltip={tooltip}
-      filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
-      isActive={isActive}
-      isDisabled={isDisabled}
-      disabledReason={disabledReason}
-      onReset={onReset}
-    >
-      <div className="px-4 py-1">
-        {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1">
-              {POSITION_MODES.map(({ key, label: modeLabel }) => (
-                <button
-                  key={key}
-                  onClick={() => onModeChange(mode === key ? null : key)}
-                  className={cn(
-                    "rounded-md border px-2 py-1 text-xs transition-colors",
-                    mode === key
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )}
-                >
-                  {modeLabel}
-                </button>
-              ))}
-            </div>
-            {showNthInput && (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor={`nth-${filterKey}`}
-                  className="text-muted-foreground text-xs"
-                >
-                  Position:
-                </Label>
-                <Input
-                  id={`nth-${filterKey}`}
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={nthValue}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v)) onNthValueChange(v);
-                  }}
-                  className="h-7 w-20 text-xs"
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </FilterAccordionItem>
   );
 }
