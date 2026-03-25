@@ -47,10 +47,10 @@ export function useExperimentResultsState() {
   const clearBaseline = () => {
     if (!baselineId) return;
 
-    // Move current baseline to compare list (if space available)
+    // Move current baseline to compare list (always add, regardless of MAX_COMPARISONS)
     const newComparisonIds = comparisonIds.includes(baselineId)
       ? comparisonIds
-      : [...comparisonIds, baselineId].slice(0, MAX_COMPARISONS);
+      : [...comparisonIds, baselineId];
 
     setState({
       baseline: undefined,

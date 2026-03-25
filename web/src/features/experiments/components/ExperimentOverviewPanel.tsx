@@ -71,7 +71,7 @@ export function ExperimentOverviewPanel({
             {experiment.description && (
               <div>
                 <div className="text-muted-foreground text-xs">Description</div>
-                <div>{displayDescription}</div>
+                <div className="break-words">{displayDescription}</div>
                 {isLongDescription && (
                   <Button
                     variant="link"

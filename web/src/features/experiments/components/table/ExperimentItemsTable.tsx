@@ -953,26 +953,27 @@ export default function ExperimentItemsTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             {layout === "grid" ? (
-              <ExperimentGridView
-                projectId={projectId}
-                baselineExperimentId={fallbackBaselineId ?? ""}
-                comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
-                useExperimentColors={hasBaseline}
-                noResultsMessage={
-                  !hasSelectedRuns ? (
-                    <span className="text-muted-foreground">
-                      Please select a baseline experiment.
-                    </span>
-                  ) : undefined
-                }
-                rows={rows}
-                isLoading={items.status === "loading" || isViewLoading}
-                rowHeight={rowHeight}
-                pagination={pagination}
-                observationScoreOrder={observationScoreOrder}
-                traceScoreOrder={traceScoreOrder}
-                columnVisibility={columnVisibility}
-              />
+              hasSelectedRuns ? (
+                <ExperimentGridView
+                  projectId={projectId}
+                  baselineExperimentId={fallbackBaselineId ?? ""}
+                  comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
+                  useExperimentColors={hasBaseline}
+                  rows={rows}
+                  isLoading={items.status === "loading" || isViewLoading}
+                  rowHeight={rowHeight}
+                  pagination={pagination}
+                  observationScoreOrder={observationScoreOrder}
+                  traceScoreOrder={traceScoreOrder}
+                  columnVisibility={columnVisibility}
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="text-muted-foreground">
+                    Please select a baseline experiment.
+                  </span>
+                </div>
+              )
             ) : (
               <ExperimentCompareTable
                 dataUpdatedAt={dataUpdatedAt}
