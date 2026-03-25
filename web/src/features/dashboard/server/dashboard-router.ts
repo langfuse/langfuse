@@ -39,10 +39,6 @@ import {
   executeQuery,
   validateQuery,
 } from "@/src/features/query/server/queryExecutor";
-import {
-  MANUAL_WIDGET_ERROR_MESSAGE,
-  shouldForceManualWidgetError,
-} from "@/src/features/dashboard/server/manual-widget-error-trigger";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -448,18 +444,11 @@ export const dashboardRouter = createTRPCRouter({
         version: viewVersions.optional().default("v1"),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {
           throw new InvalidRequestError(validation.reason);
-        }
-
-        if (shouldForceManualWidgetError({ referer: ctx.headers.referer })) {
-          throw new TRPCError({
-            code: "UNPROCESSABLE_CONTENT",
-            message: MANUAL_WIDGET_ERROR_MESSAGE,
-          });
         }
 
         return executeQuery(

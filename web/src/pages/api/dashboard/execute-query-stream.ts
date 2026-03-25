@@ -19,10 +19,6 @@ import {
   toClickhouseQueryOpts,
   validateQuery,
 } from "@/src/features/query/server/queryExecutor";
-import {
-  MANUAL_WIDGET_ERROR_MESSAGE,
-  shouldForceManualWidgetError,
-} from "@/src/features/dashboard/server/manual-widget-error-trigger";
 
 export type SSEEvent =
   | { type: "progress"; progress: object }
@@ -117,11 +113,6 @@ export default async function handler(
   const validation = validateQuery(query, version);
   if (!validation.valid) {
     res.status(400).json({ message: "Invalid query", errors: validation });
-    return;
-  }
-
-  if (shouldForceManualWidgetError({ referer: req.headers.referer })) {
-    res.status(422).json({ message: MANUAL_WIDGET_ERROR_MESSAGE });
     return;
   }
 
