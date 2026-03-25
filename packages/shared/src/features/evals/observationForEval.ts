@@ -12,63 +12,68 @@ const flexibleUsageCostSchema = z.record(
   z.coerce.number().nullable(),
 );
 
-export const observationForEvalSchema = z.object({
-  // Identifiers
-  span_id: z.string(),
-  trace_id: z.string(),
-  project_id: z.string(),
-  parent_span_id: z.string().nullish(),
+export const observationForEvalSchema = z
+  .object({
+    // Identifiers
+    span_id: z.string(),
+    trace_id: z.string(),
+    project_id: z.string(),
+    parent_span_id: z.string().nullish(),
 
-  // Core properties
-  type: z.string(),
-  name: z.string(),
-  environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
-  version: z.string().nullish(),
-  level: z.string().default(ObservationLevel.DEFAULT),
-  status_message: z.string().nullish(),
+    // Core properties
+    type: z.string(),
+    name: z.string(),
+    environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
+    version: z.string().nullish(),
+    level: z.string().default(ObservationLevel.DEFAULT),
+    status_message: z.string().nullish(),
 
-  // Trace-level properties
-  trace_name: z.string().nullish(),
-  user_id: z.string().nullish(),
-  session_id: z.string().nullish(),
-  tags: z.array(z.string()).default([]),
-  release: z.string().nullish(),
+    // Trace-level properties
+    trace_name: z.string().nullish(),
+    user_id: z.string().nullish(),
+    session_id: z.string().nullish(),
+    tags: z.array(z.string()).default([]),
+    release: z.string().nullish(),
 
-  // Model
-  provided_model_name: z.string().nullish(),
-  model_parameters: z.unknown().nullish(),
+    // Model
+    provided_model_name: z.string().nullish(),
+    model_parameters: z.unknown().nullish(),
 
-  // Prompt
-  prompt_id: z.string().nullish(),
-  prompt_name: z.string().nullish(),
-  // Accepts string, number, or any other type from ingestion
-  prompt_version: z.union([z.string().nullish(), z.number().nullish()]),
+    // Prompt
+    prompt_id: z.string().nullish(),
+    prompt_name: z.string().nullish(),
+    // Accepts string, number, or any other type from ingestion
+    prompt_version: z.union([z.string().nullish(), z.number().nullish()]),
 
-  // Usage & Cost - accepts number values directly from ingestion
-  provided_usage_details: flexibleUsageCostSchema,
-  provided_cost_details: flexibleUsageCostSchema,
-  usage_details: flexibleUsageCostSchema,
-  cost_details: flexibleUsageCostSchema,
+    // Usage & Cost - accepts number values directly from ingestion
+    provided_usage_details: flexibleUsageCostSchema,
+    provided_cost_details: flexibleUsageCostSchema,
+    usage_details: flexibleUsageCostSchema,
+    cost_details: flexibleUsageCostSchema,
 
-  // Tool calls
-  tool_definitions: z.record(z.string(), z.unknown()).default({}),
-  tool_calls: z.array(z.unknown()).default([]),
-  tool_call_names: z.array(z.string()).default([]),
+    // Tool calls
+    tool_definitions: z.record(z.string(), z.unknown()).default({}),
+    tool_calls: z.array(z.unknown()).default([]),
+    tool_call_names: z.array(z.string()).default([]),
 
-  // Experiment
-  experiment_id: z.string().nullish(),
-  experiment_name: z.string().nullish(),
-  experiment_description: z.string().nullish(),
-  experiment_dataset_id: z.string().nullish(),
-  experiment_item_id: z.string().nullish(),
-  experiment_item_expected_output: z.string().nullish(),
-  experiment_item_root_span_id: z.string().nullish(),
+    // Experiment
+    experiment_id: z.string().nullish(),
+    experiment_name: z.string().nullish(),
+    experiment_description: z.string().nullish(),
+    experiment_dataset_id: z.string().nullish(),
+    experiment_item_id: z.string().nullish(),
+    experiment_item_expected_output: z.string().nullish(),
+    experiment_item_root_span_id: z.string().nullish(),
 
-  // Data - accepts any type (string, array, object) from different OTEL SDKs
-  input: z.unknown().nullish(),
-  output: z.unknown().nullish(),
-  metadata: z.record(z.string(), z.unknown()).nullish(),
-});
+    // Data - accepts any type (string, array, object) from different OTEL SDKs
+    input: z.unknown().nullish(),
+    output: z.unknown().nullish(),
+    metadata: z.record(z.string(), z.unknown()).nullish(),
+  })
+  .transform((data) => ({
+    ...data,
+    tool_call_count: data.tool_call_names.length,
+  }));
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 
@@ -102,6 +107,8 @@ export type ObservationEvalFilterColumnInternal =
     | "experiment_dataset_id"
     | "metadata"
     | "parent_span_id"
+    | "tool_call_names"
+    | "tool_call_count"
   >;
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
@@ -159,7 +166,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 export const availableObservationEvalVariableColumns = [
   ...observationEvalVariableColumns,
   {
-    id: "toolCalls",
+    id: "toolCalls", // Needs to match the `ID` from `mapEventsTable.ts` and `mapObservationsTable.ts`
     name: "Tool Calls",
     description: "Tool calls",
     internal: "tool_calls",
@@ -290,6 +297,21 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     internal: "parent_span_id",
     nullable: true,
   },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "tool_call_names",
+    options: [], // to be filled at runtime
+  },
+  {
+    name: "Tool Call Count",
+    id: "toolCalls",
+    type: "number",
+    internal: "tool_call_count",
+    step: 1,
+    min: 0,
+  },
 ];
 
 export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
@@ -313,6 +335,7 @@ export type ObservationEvalOptions = {
   tags?: Array<SingleValueOption>;
   traceName?: Array<SingleValueOption>;
   name?: Array<SingleValueOption>;
+  calledToolNames?: Array<SingleValueOption>;
 };
 
 export type ExperimentEvalOptions = {
@@ -335,6 +358,9 @@ export function observationEvalFilterColsWithOptions(
     }
     if (col.id === "name") {
       return formatColumnOptions(col, options?.name ?? []);
+    }
+    if (col.id === "calledToolNames") {
+      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     return col;
   });
