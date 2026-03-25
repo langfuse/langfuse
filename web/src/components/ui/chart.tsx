@@ -115,7 +115,7 @@ ${colorConfig
 type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
 
 function ChartTooltip({
-  allowEscapeViewBox = { x: true, y: true },
+  allowEscapeViewBox = { x: false, y: false },
   isAnimationActive = false,
   offset = 12,
   useTranslate3d = true,
