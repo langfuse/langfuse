@@ -1,7 +1,10 @@
-import { type z } from "zod";
 import {
   AGGREGATABLE_SCORE_TYPES,
   type FilterCondition,
+  getMandatoryFilterExpressionLeafFilters,
+  normalizeFilterExpressionInput,
+  type FilterExpression,
+  type FilterInput,
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
@@ -33,11 +36,8 @@ import {
   getScoresForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
-import { type timeFilter, type FilterState } from "@langfuse/shared";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-
-type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   {
@@ -56,7 +56,7 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
 
 interface GetObservationsListParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterExpression;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;
@@ -66,7 +66,7 @@ interface GetObservationsListParams {
 
 interface GetObservationsCountParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterExpression;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;
@@ -74,8 +74,7 @@ interface GetObservationsCountParams {
 
 interface GetObservationsFilterOptionsParams {
   projectId: string;
-  startTimeFilter?: TimeFilter[];
-  hasParentObservation?: boolean;
+  filter?: FilterInput;
 }
 
 /**
@@ -204,42 +203,28 @@ export async function getEventCount(params: GetObservationsCountParams) {
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId, startTimeFilter, hasParentObservation } = params;
+  const { projectId } = params;
+  const normalizedFilter = normalizeFilterExpressionInput(params.filter);
 
-  // Build filter with optional hasParentObservation for scoping filter options
-  const eventsFilter: FilterState = [
-    ...(startTimeFilter ?? []),
-    ...(hasParentObservation !== undefined
-      ? [
-          {
-            column: "hasParentObservation" as const,
-            type: "boolean" as const,
-            operator: "=" as const,
-            value: hasParentObservation,
-          },
-        ]
-      : []),
-  ];
+  const mandatoryStartTimeFilters = getMandatoryFilterExpressionLeafFilters(
+    normalizedFilter,
+  ).filter(
+    (filter) => filter.type === "datetime" && filter.column === "startTime",
+  );
 
-  // Map startTimeFilter to Timestamp column for trace queries
-  const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
+  const traceTimestampFilters = mandatoryStartTimeFilters.map((filter) => ({
+    column: "Timestamp" as const,
+    operator: filter.operator,
+    value: filter.value,
+    type: "datetime" as const,
+  }));
   const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+    mandatoryStartTimeFilters.map((filter) => ({
+      column: "timestamp",
+      operator: filter.operator,
+      value: filter.value,
+      type: "datetime",
+    }));
 
   const [
     numericScoreNames,
@@ -270,24 +255,24 @@ export async function getEventFilterOptions(
       projectId,
       filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
     }),
-    getEventsGroupedByModel(projectId, eventsFilter),
-    getEventsGroupedByName(projectId, eventsFilter),
-    getEventsGroupedByPromptName(projectId, eventsFilter),
-    getEventsGroupedByTraceTags(projectId, eventsFilter),
-    getEventsGroupedByTraceName(projectId, eventsFilter),
-    getEventsGroupedByModelId(projectId, eventsFilter),
-    getEventsGroupedByType(projectId, eventsFilter),
-    getEventsGroupedByUserId(projectId, eventsFilter),
-    getEventsGroupedByVersion(projectId, eventsFilter),
-    getEventsGroupedBySessionId(projectId, eventsFilter),
-    getEventsGroupedByLevel(projectId, eventsFilter),
-    getEventsGroupedByEnvironment(projectId, eventsFilter),
-    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
-    getEventsGroupedByExperimentId(projectId, eventsFilter),
-    getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByHasParentObservation(projectId, eventsFilter),
-    getEventsGroupedByToolName(projectId, eventsFilter),
-    getEventsGroupedByCalledToolName(projectId, eventsFilter),
+    getEventsGroupedByModel(projectId, normalizedFilter),
+    getEventsGroupedByName(projectId, normalizedFilter),
+    getEventsGroupedByPromptName(projectId, normalizedFilter),
+    getEventsGroupedByTraceTags(projectId, normalizedFilter),
+    getEventsGroupedByTraceName(projectId, normalizedFilter),
+    getEventsGroupedByModelId(projectId, normalizedFilter),
+    getEventsGroupedByType(projectId, normalizedFilter),
+    getEventsGroupedByUserId(projectId, normalizedFilter),
+    getEventsGroupedByVersion(projectId, normalizedFilter),
+    getEventsGroupedBySessionId(projectId, normalizedFilter),
+    getEventsGroupedByLevel(projectId, normalizedFilter),
+    getEventsGroupedByEnvironment(projectId, normalizedFilter),
+    getEventsGroupedByExperimentDatasetId(projectId, normalizedFilter),
+    getEventsGroupedByExperimentId(projectId, normalizedFilter),
+    getEventsGroupedByExperimentName(projectId, normalizedFilter),
+    getEventsGroupedByHasParentObservation(projectId, normalizedFilter),
+    getEventsGroupedByToolName(projectId, normalizedFilter),
+    getEventsGroupedByCalledToolName(projectId, normalizedFilter),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(

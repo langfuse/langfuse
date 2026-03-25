@@ -121,3 +121,96 @@ export const singleFilter = z.discriminatedUnion("type", [
   nullFilter,
   positionInTraceFilter,
 ]);
+
+export const filterGroupOperator = z.enum(["AND", "OR"]);
+
+type FilterConditionSchema = z.infer<typeof singleFilter>;
+type FilterGroupSchema = {
+  type: "group";
+  operator: z.infer<typeof filterGroupOperator>;
+  conditions: FilterExpressionSchema[];
+};
+type FilterExpressionSchema = FilterConditionSchema | FilterGroupSchema;
+type FilterInputSchema =
+  | FilterConditionSchema[]
+  | FilterExpressionSchema
+  | null
+  | undefined;
+
+export const filterExpression: z.ZodType<FilterExpressionSchema> = z.lazy(() =>
+  z.union([singleFilter, filterGroup]),
+);
+
+export const filterGroup: z.ZodType<FilterGroupSchema> = z.lazy(() =>
+  z.object({
+    type: z.literal("group"),
+    operator: filterGroupOperator,
+    conditions: z.array(filterExpression).min(1),
+  }),
+);
+
+export const filterInput = z.union([z.array(singleFilter), filterExpression]);
+
+export function normalizeFilterExpressionInput(
+  filterInputValue?: FilterInputSchema,
+): FilterExpressionSchema | undefined {
+  if (!filterInputValue) {
+    return undefined;
+  }
+
+  if (Array.isArray(filterInputValue)) {
+    if (filterInputValue.length === 0) {
+      return undefined;
+    }
+
+    return {
+      type: "group",
+      operator: "AND",
+      conditions: filterInputValue,
+    };
+  }
+
+  return filterInputValue;
+}
+
+export function isFilterGroup(
+  filterValue: FilterExpressionSchema,
+): filterValue is FilterGroupSchema {
+  return filterValue.type === "group";
+}
+
+export function getFilterExpressionLeafFilters(
+  filterValue?: FilterExpressionSchema,
+): FilterConditionSchema[] {
+  if (!filterValue) {
+    return [];
+  }
+
+  if (!isFilterGroup(filterValue)) {
+    return [filterValue];
+  }
+
+  return filterValue.conditions.flatMap((condition) =>
+    getFilterExpressionLeafFilters(condition),
+  );
+}
+
+export function getMandatoryFilterExpressionLeafFilters(
+  filterValue?: FilterExpressionSchema,
+): FilterConditionSchema[] {
+  if (!filterValue) {
+    return [];
+  }
+
+  if (!isFilterGroup(filterValue)) {
+    return [filterValue];
+  }
+
+  if (filterValue.operator === "OR") {
+    return [];
+  }
+
+  return filterValue.conditions.flatMap((condition) =>
+    getMandatoryFilterExpressionLeafFilters(condition),
+  );
+}

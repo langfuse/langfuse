@@ -1,10 +1,21 @@
 import { type z } from "zod";
-import { singleFilter, timeFilter } from "./interfaces/filters";
+import {
+  filterExpression,
+  filterGroup,
+  filterGroupOperator,
+  filterInput,
+  singleFilter,
+  timeFilter,
+} from "./interfaces/filters";
 
 // to be sent to the server
 export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
+export type FilterGroupOperator = z.infer<typeof filterGroupOperator>;
+export type FilterGroup = z.infer<typeof filterGroup>;
+export type FilterExpression = z.infer<typeof filterExpression>;
+export type FilterInput = z.infer<typeof filterInput>;
 
 // to be used in the client during editing
 export type MakeOptional<T> = {
