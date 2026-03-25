@@ -495,7 +495,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        baseExperimentId: z.string(),
+        baseExperimentId: z.string().nullish(),
         compExperimentIds: z.array(z.string()),
         filterByExperiment: z
           .array(
@@ -522,7 +522,7 @@ export const experimentsRouter = createTRPCRouter({
 
       const items = await getExperimentItemsFromEvents({
         projectId: input.projectId,
-        baseExperimentId: input.baseExperimentId,
+        baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
         filterByExperiment: input.filterByExperiment ?? [],
         offset: input.page * input.limit,
@@ -634,7 +634,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        baseExperimentId: z.string(),
+        baseExperimentId: z.string().nullish(),
         compExperimentIds: z.array(z.string()),
         filterByExperiment: z
           .array(
@@ -659,7 +659,7 @@ export const experimentsRouter = createTRPCRouter({
 
       const count = await getExperimentItemsCountFromEvents({
         projectId: input.projectId,
-        baseExperimentId: input.baseExperimentId,
+        baseExperimentId: input.baseExperimentId ?? undefined,
         compExperimentIds: input.compExperimentIds,
         filterByExperiment: input.filterByExperiment ?? [],
         config: {

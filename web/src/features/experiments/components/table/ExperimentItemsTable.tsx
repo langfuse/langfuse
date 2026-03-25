@@ -54,10 +54,22 @@ import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
+
+export const getDefaultExperimentFilterTarget = (props: {
+  baselineId?: string;
+  comparisonIds: string[];
+}) => props.baselineId ?? props.comparisonIds[0];
+
+export const shouldEnableExperimentPeek = (props: {
+  hasBaseline: boolean;
+  hideControls: boolean;
+}) => !props.hideControls && props.hasBaseline;
 
 /**
  * Cell component that renders stacked values for each experiment.
@@ -66,11 +78,13 @@ const renderExperimentSpecificHeader = (label: string) => (
 const StackedExperimentCell = ({
   experiments,
   allExperimentIds,
+  colorExperimentIds,
   renderValue,
   className,
 }: {
   experiments: ExperimentItemData[];
   allExperimentIds: string[];
+  colorExperimentIds?: string[];
   renderValue: (exp: ExperimentItemData) => React.ReactNode;
   className?: string;
 }) => {
@@ -93,7 +107,10 @@ const StackedExperimentCell = ({
             key={experimentId}
             className={cn(
               "flex min-h-0 items-start overflow-hidden px-2",
-              getExperimentColor(experimentId, allExperimentIds),
+              getExperimentColor(
+                experimentId,
+                colorExperimentIds ?? allExperimentIds,
+              ),
             )}
           >
             {exp ? (
@@ -114,11 +131,13 @@ const StackedExperimentCell = ({
 const StackedOutputCell = ({
   outputs,
   allExperimentIds,
+  colorExperimentIds,
   singleLine,
   isLoading,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
+  colorExperimentIds?: string[];
   singleLine: boolean;
   isLoading: boolean;
 }) => {
@@ -141,7 +160,10 @@ const StackedOutputCell = ({
             key={experimentId}
             className={cn(
               "flex min-h-0 items-start overflow-hidden",
-              getExperimentColor(experimentId, allExperimentIds),
+              getExperimentColor(
+                experimentId,
+                colorExperimentIds ?? allExperimentIds,
+              ),
             )}
           >
             {isLoading ? (
@@ -179,21 +201,43 @@ const StackedOutputCell = ({
  */
 export default function ExperimentItemsTable({
   projectId,
-  experimentId,
   hideControls = false,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const { comparisonIds, layout, itemVisibility } = useExperimentResultsState();
+  const {
+    baselineId,
+    hasBaseline,
+    resolveBaselineOrFirstComparison,
+    comparisonIds,
+    layout,
+    itemVisibility,
+  } = useExperimentResultsState();
+  const fallbackBaselineId = resolveBaselineOrFirstComparison();
+  const comparisonIdsWithoutFallbackBaseline = useMemo(
+    () =>
+      fallbackBaselineId
+        ? comparisonIds.filter((id) => id !== fallbackBaselineId)
+        : comparisonIds,
+    [comparisonIds, fallbackBaselineId],
+  );
+  const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
+    baselineId,
+    comparisonIds,
+  });
+  const canUsePeek = shouldEnableExperimentPeek({
+    hasBaseline,
+    hideControls,
+  });
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter(
       (exp) =>
         comparisonIds.includes(exp.experimentId) ||
-        exp.experimentId === experimentId,
+        (baselineId ? exp.experimentId === baselineId : false),
     );
-  }, [experimentNames, comparisonIds, experimentId]);
+  }, [experimentNames, comparisonIds, baselineId]);
 
   const { selectAll, setSelectAll } = useSelectAll(
     projectId,
@@ -236,11 +280,12 @@ export default function ExperimentItemsTable({
   const filtersByExperiment = useMemo(() => {
     const filterState = queryFilter.filterState;
     if (filterState.length === 0) return [];
+    if (!defaultFilterTargetExperimentId) return [];
 
     // Group filters by target experiment
     const grouped: Record<string, FilterState> = {};
     filterState.forEach((filter, index) => {
-      const targetExp = filterTargets[index] ?? experimentId;
+      const targetExp = filterTargets[index] ?? defaultFilterTargetExperimentId;
       if (!grouped[targetExp]) {
         grouped[targetExp] = [];
       }
@@ -252,7 +297,7 @@ export default function ExperimentItemsTable({
       runId,
       filters,
     }));
-  }, [queryFilter.filterState, filterTargets, experimentId]);
+  }, [queryFilter.filterState, filterTargets, defaultFilterTargetExperimentId]);
 
   // Handler for changing filter target experiment
   const handleFilterTargetChange = useCallback(
@@ -271,7 +316,7 @@ export default function ExperimentItemsTable({
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
-        const target = filterTargets[i] ?? experimentId;
+        const target = filterTargets[i] ?? defaultFilterTargetExperimentId;
         if (target === _fromExperimentId) {
           if (currentGroupIndex === filterIndex) {
             originalIndex = i;
@@ -287,7 +332,7 @@ export default function ExperimentItemsTable({
         [originalIndex]: toExperimentId,
       }));
     },
-    [filterTargets, experimentId],
+    [filterTargets, defaultFilterTargetExperimentId],
   );
 
   // Handler for removing a filter via pill
@@ -300,7 +345,7 @@ export default function ExperimentItemsTable({
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
-        const target = filterTargets[i] ?? experimentId;
+        const target = filterTargets[i] ?? defaultFilterTargetExperimentId;
         if (target === experimentIdToRemoveFrom) {
           if (currentGroupIndex === filterIndex) {
             originalIndex = i;
@@ -329,14 +374,14 @@ export default function ExperimentItemsTable({
         return newTargets;
       });
     },
-    [filterTargets, experimentId],
+    [filterTargets, defaultFilterTargetExperimentId],
   );
 
   // Use the custom hook for experiment items data fetching
   const { items, totalCount, dataUpdatedAt, ioLoading } =
     useExperimentItemsTableData({
       projectId,
-      baseExperimentId: experimentId,
+      baseExperimentId: baselineId,
       compExperimentIds: comparisonIds,
       filterByExperiment: filtersByExperiment.map((filter) => ({
         experimentId: filter.runId,
@@ -379,8 +424,14 @@ export default function ExperimentItemsTable({
 
   // All experiment IDs for color coding (base first, then comparisons)
   const allExperimentIds = useMemo(() => {
-    return [experimentId, ...comparisonIds];
-  }, [experimentId, comparisonIds]);
+    return fallbackBaselineId
+      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
+      : [];
+  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
+  const colorExperimentIds = useMemo(
+    () => (hasBaseline ? allExperimentIds : []),
+    [hasBaseline, allExperimentIds],
+  );
 
   const {
     scoreColumns: observationScoreColumns,
@@ -418,12 +469,19 @@ export default function ExperimentItemsTable({
         // Override the cell renderer to show stacked scores for each experiment
         cell: ({ row }: { row: any }) => {
           const experiments = row.original.experiments;
+          const baselineExperiment = hasBaseline
+            ? experiments.find(
+                (exp: ExperimentItemData) => exp.experimentId === baselineId,
+              )
+            : undefined;
+          const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
           // todo: fix properly
           const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
           return (
             <StackedExperimentCell
               experiments={experiments}
               allExperimentIds={allExperimentIds}
+              colorExperimentIds={colorExperimentIds}
               renderValue={(exp) => {
                 const scoresData = exp[scoreField] ?? {};
                 const value = scoresData[scoreKey];
@@ -437,19 +495,42 @@ export default function ExperimentItemsTable({
                   original: exp,
                 } as any;
                 const scoreCell = scoreCol.cell;
+                const diff =
+                  hasBaseline &&
+                  baselineId &&
+                  exp.experimentId !== baselineId &&
+                  scoreKey &&
+                  baselineScoresData
+                    ? computeScoreDiffs(scoresData, baselineScoresData)[
+                        scoreKey
+                      ]
+                    : null;
 
-                return typeof scoreCell === "function"
-                  ? scoreCell({
-                      row: mockRow,
-                      getValue: mockRow.getValue,
-                    } as any)
-                  : null;
+                const renderedScore =
+                  typeof scoreCell === "function"
+                    ? scoreCell({
+                        row: mockRow,
+                        getValue: mockRow.getValue,
+                      } as any)
+                    : null;
+
+                return (
+                  <div className="flex items-center gap-1">
+                    {renderedScore}
+                    {diff && (
+                      <DiffLabel
+                        diff={diff}
+                        formatValue={(v) => v.toFixed(2)}
+                      />
+                    )}
+                  </div>
+                );
               }}
             />
           );
         },
       })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds],
+    [allExperimentIds, colorExperimentIds, hasBaseline, baselineId],
   );
 
   const observationExperimentScoreColumns = useMemo(
@@ -504,6 +585,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
           />
         );
@@ -526,6 +608,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
           />
         );
@@ -545,6 +628,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => <span>{exp.level}</span>}
           />
         );
@@ -566,6 +650,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => (
               <span>
                 {exp.totalCost != null ? (
@@ -595,6 +680,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) =>
               exp.latencyMs != null ? (
                 <span>{latencyFormatter(exp.latencyMs)}</span>
@@ -617,6 +703,7 @@ export default function ExperimentItemsTable({
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => {
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
@@ -676,6 +763,7 @@ export default function ExperimentItemsTable({
           <StackedOutputCell
             outputs={outputs}
             allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
             singleLine={rowHeight === "s"}
             isLoading={ioLoading}
           />
@@ -736,7 +824,7 @@ export default function ExperimentItemsTable({
       const firstExp = row.experiments[0];
       // Get baseline experiment's trace/observation for peek view
       const baselineExp = row.experiments.find(
-        (e) => e.experimentId === experimentId,
+        (e) => e.experimentId === fallbackBaselineId,
       );
       return {
         traceId: firstExp?.traceId || "",
@@ -768,7 +856,7 @@ export default function ExperimentItemsTable({
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
-    if (hideControls) return undefined;
+    if (!canUsePeek) return undefined;
     return {
       itemType: "TRACE",
       customTitlePrefix: "Experiment Item:",
@@ -776,7 +864,7 @@ export default function ExperimentItemsTable({
       children: <ExperimentPeekView projectId={projectId} />,
       ...peekNavigationProps,
     };
-  }, [projectId, peekNavigationProps, hideControls]);
+  }, [projectId, peekNavigationProps, canUsePeek]);
 
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     return items.status === "success" && items.rows ? items.rows : [];
@@ -866,8 +954,9 @@ export default function ExperimentItemsTable({
             {layout === "grid" ? (
               <ExperimentGridView
                 projectId={projectId}
-                baselineExperimentId={experimentId}
-                comparisonExperimentIds={comparisonIds}
+                baselineExperimentId={fallbackBaselineId ?? ""}
+                comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
+                useExperimentColors={hasBaseline}
                 rows={rows}
                 isLoading={items.status === "loading" || isViewLoading}
                 rowHeight={rowHeight}

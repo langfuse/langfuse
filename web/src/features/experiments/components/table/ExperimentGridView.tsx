@@ -28,6 +28,7 @@ type ExperimentGridViewProps = {
   projectId: string;
   baselineExperimentId: string;
   comparisonExperimentIds: string[];
+  useExperimentColors?: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
@@ -49,6 +50,7 @@ export const ExperimentGridView = ({
   projectId,
   baselineExperimentId,
   comparisonExperimentIds,
+  useExperimentColors = true,
   rows,
   isLoading,
   rowHeight,
@@ -71,7 +73,9 @@ export const ExperimentGridView = ({
       const isBaseline = index === 0;
       const expInfo = experimentNames.find((e) => e.experimentId === expId);
       const expName = expInfo?.experimentName ?? expId.slice(0, 8);
-      const colorClass = getExperimentColor(expId, allExperimentIds);
+      const colorClass = useExperimentColors
+        ? getExperimentColor(expId, allExperimentIds)
+        : undefined;
 
       return {
         accessorKey: `exp_${index}`, // Avoid nested path syntax that confuses TanStack
@@ -81,7 +85,7 @@ export const ExperimentGridView = ({
             <span className={cn("truncate font-medium", colorClass)}>
               {expName}
             </span>
-            {isBaseline && (
+            {isBaseline && useExperimentColors && (
               <Badge variant="outline" className="shrink-0 text-xs">
                 Baseline
               </Badge>
@@ -103,11 +107,12 @@ export const ExperimentGridView = ({
           }
 
           // Get baseline data for diff calculation
-          const baselineData = isBaseline
-            ? undefined
-            : row.original.experiments.find(
-                (e) => e.experimentId === baselineExperimentId,
-              );
+          const baselineData =
+            isBaseline || !useExperimentColors
+              ? undefined
+              : row.original.experiments.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                );
 
           return (
             <ExperimentGridCell
@@ -142,6 +147,7 @@ export const ExperimentGridView = ({
     observationScoreOrder,
     traceScoreOrder,
     columnVisibility,
+    useExperimentColors,
   ]);
 
   // Build all columns: Input, Expected Output, then experiment columns

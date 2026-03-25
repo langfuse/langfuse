@@ -10,6 +10,8 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
+import { Button } from "@/src/components/ui/button";
+import { X } from "lucide-react";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -17,6 +19,7 @@ export default function ExperimentResults() {
 
   const {
     baselineId,
+    hasBaseline,
     setBaseline,
     clearBaseline,
     comparisonIds,
@@ -31,6 +34,7 @@ export default function ExperimentResults() {
     "overview-panel-experiment-detail",
     true,
   );
+  const hasAnyRuns = hasBaseline || comparisonIds.length > 0;
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -43,24 +47,12 @@ export default function ExperimentResults() {
     },
   );
 
-  // Show loading state while redirecting
-  if (!baselineId) {
-    return (
-      <Page
-        headerProps={{
-          title: "Experiment Results",
-          itemType: "EXPERIMENT",
-        }}
-      >
-        <div className="p-4">Loading...</div>
-      </Page>
-    );
-  }
-
   return (
     <Page
       headerProps={{
-        title: experiment?.name ?? baselineId,
+        title: hasBaseline
+          ? (experiment?.name ?? baselineId ?? "Experiment Results")
+          : "Experiment Results",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
@@ -70,53 +62,59 @@ export default function ExperimentResults() {
             "View and analyze experiment items with traces, scores, and metrics.",
           href: "https://langfuse.com/docs/datasets/experiments",
         },
-        actionButtonsRight: experiment?.datasetId ? (
-          <>
-            <ExperimentDisplaySettings
-              layout={layout}
-              onLayoutChange={setLayout}
-              itemVisibility={itemVisibility}
-              onItemVisibilityChange={setItemVisibility}
-              hasComparisons={comparisonIds.length > 0}
-            />
+        actionButtonsRight:
+          hasBaseline || hasAnyRuns ? (
+            <>
+              {hasBaseline && (
+                <Button variant="outline" onClick={clearBaseline}>
+                  <X className="h-4 w-4" />
+                  <span className="ml-2 hidden md:inline">Clear baseline</span>
+                </Button>
+              )}
 
-            <OverviewPanelToggle
-              open={isOverviewOpen}
-              onOpenChange={setIsOverviewOpen}
-            />
-          </>
-        ) : undefined,
+              <ExperimentDisplaySettings
+                layout={layout}
+                onLayoutChange={setLayout}
+                itemVisibility={itemVisibility}
+                onItemVisibilityChange={setItemVisibility}
+                hasComparisons={comparisonIds.length > 0}
+                hasBaseline={hasBaseline}
+              />
+
+              <OverviewPanelToggle
+                open={isOverviewOpen}
+                onOpenChange={setIsOverviewOpen}
+              />
+            </>
+          ) : undefined,
       }}
     >
-      {experiment?.datasetId ? (
-        <OverviewPanelLayout
-          open={isOverviewOpen}
-          persistId={`experiment-detail-${baselineId}`}
-          mainContent={
-            <ExperimentItemsTable
-              projectId={projectId}
-              experimentId={baselineId}
-              datasetId={experiment.datasetId}
-            />
-          }
-          overviewContent={
-            <ExperimentOverviewPanel
-              projectId={projectId}
-              experiment={experiment}
-              comparisonIds={comparisonIds}
-              onComparisonIdsChange={setComparisonIds}
-              onBaselineChange={setBaseline}
-              onBaselineClear={clearBaseline}
-            />
-          }
-          defaultMainSize={75}
-          defaultSidebarSize={25}
-          minMainSize={50}
-          maxSidebarSize={40}
-        />
-      ) : (
-        <div className="p-4">Loading experiment...</div>
-      )}
+      <OverviewPanelLayout
+        open={isOverviewOpen}
+        persistId={`experiment-detail-${baselineId ?? "none"}`}
+        mainContent={
+          hasAnyRuns ? (
+            <ExperimentItemsTable projectId={projectId} />
+          ) : (
+            <div className="h-full w-full" />
+          )
+        }
+        overviewContent={
+          <ExperimentOverviewPanel
+            projectId={projectId}
+            hasBaseline={hasBaseline}
+            experiment={experiment ?? undefined}
+            comparisonIds={comparisonIds}
+            onComparisonIdsChange={setComparisonIds}
+            onBaselineChange={setBaseline}
+            onBaselineClear={clearBaseline}
+          />
+        }
+        defaultMainSize={75}
+        defaultSidebarSize={25}
+        minMainSize={50}
+        maxSidebarSize={40}
+      />
     </Page>
   );
 }

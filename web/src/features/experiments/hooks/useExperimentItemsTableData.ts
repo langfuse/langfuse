@@ -8,7 +8,7 @@ import {
 
 type UseExperimentItemsTableDataParams = {
   projectId: string;
-  baseExperimentId: string;
+  baseExperimentId?: string;
   compExperimentIds: string[];
   filterByExperiment: {
     experimentId: string;

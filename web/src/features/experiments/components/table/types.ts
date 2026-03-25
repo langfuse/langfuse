@@ -107,8 +107,6 @@ export type ExperimentOption = {
  */
 export type ExperimentItemsTableProps = {
   projectId: string;
-  experimentId: string;
-  datasetId: string;
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];

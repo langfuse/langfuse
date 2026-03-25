@@ -1,4 +1,3 @@
-import { useRouter } from "next/router";
 import {
   useQueryParams,
   withDefault,
@@ -9,9 +8,6 @@ import {
 const MAX_COMPARISONS = 4;
 
 export function useExperimentResultsState() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
@@ -21,6 +17,7 @@ export function useExperimentResultsState() {
 
   // Parse baseline ID
   const baselineId = state.baseline as string | undefined;
+  const hasBaseline = Boolean(baselineId);
 
   // Parse comparison IDs - filter out null values and cast to string[]
   const rawIds = state.c as (string | null)[] | undefined;
@@ -46,7 +43,7 @@ export function useExperimentResultsState() {
     });
   };
 
-  // Clear baseline - moves current baseline to compare list and navigates away
+  // Clear baseline - moves current baseline to compare list.
   const clearBaseline = () => {
     if (!baselineId) return;
 
@@ -59,9 +56,6 @@ export function useExperimentResultsState() {
       baseline: undefined,
       c: newComparisonIds,
     });
-
-    // Navigate back to experiments list
-    void router.push(`/project/${projectId}/experiments`);
   };
 
   // Comparison management
@@ -95,11 +89,15 @@ export function useExperimentResultsState() {
     setState({ itemVisibility: newVisibility });
   };
 
+  const resolveBaselineOrFirstComparison = () => baselineId ?? comparisonIds[0];
+
   return {
     // Baseline
     baselineId,
+    hasBaseline,
     setBaseline,
     clearBaseline,
+    resolveBaselineOrFirstComparison,
 
     // Comparison
     comparisonIds,

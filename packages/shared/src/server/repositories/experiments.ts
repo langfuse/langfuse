@@ -917,9 +917,10 @@ export const getExperimentItemsBatchIO = async (props: {
     }
 
     const item = itemMap.get(row.item_id)!;
+    const effectiveBaseline = baseExperimentId ?? compExperimentIds[0];
 
-    // Extract input and expectedOutput from base experiment
-    if (row.experiment_id === baseExperimentId) {
+    // Extract input and expectedOutput from effective base experiment
+    if (row.experiment_id === effectiveBaseline) {
       item.input = row.input;
       item.expectedOutput = row.expected_output;
     }
