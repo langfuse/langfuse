@@ -76,6 +76,7 @@ export function ChartLoadingState({
   const shouldShowHint = showHintImmediately || showHint;
   const isCompact = layout !== "default";
   const isTight = layout === "tight";
+  const isTextOnlyState = !showSpinner;
   const statusTitle = showSpinner ? "Loading widget" : "Query needs attention";
 
   return (
@@ -90,23 +91,25 @@ export function ChartLoadingState({
     >
       <div className="m-auto w-full max-w-sm px-4 py-4">
         <div className={cn("flex flex-col", isCompact ? "gap-3" : "gap-5")}>
-          {!isCompact ? <ChartLoadingPreview /> : null}
+          {!isCompact && !isTextOnlyState ? <ChartLoadingPreview /> : null}
 
           <div
             className={cn(
               "flex",
-              isCompact
-                ? "items-start gap-3 text-left"
-                : "flex-col items-center gap-3 text-center",
+              isTextOnlyState
+                ? "justify-center text-center"
+                : isCompact
+                  ? "items-start gap-3 text-left"
+                  : "flex-col items-center gap-3 text-center",
             )}
           >
-            <div
-              className={cn(
-                "bg-background/80 border-border/60 flex shrink-0 items-center justify-center rounded-full border shadow-xs",
-                isCompact ? "h-9 w-9" : "h-10 w-10",
-              )}
-            >
-              {showSpinner ? (
+            {showSpinner ? (
+              <div
+                className={cn(
+                  "bg-background/80 border-border/60 flex shrink-0 items-center justify-center rounded-full border shadow-xs",
+                  isCompact ? "h-9 w-9" : "h-10 w-10",
+                )}
+              >
                 <Loader2
                   className={cn(
                     isCompact ? "h-4 w-4" : "h-5 w-5",
@@ -114,18 +117,15 @@ export function ChartLoadingState({
                     spinnerClassName,
                   )}
                 />
-              ) : (
-                <span
-                  className={cn(
-                    "bg-muted-foreground/60 block rounded-full",
-                    "h-2.5 w-2.5",
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
+              </div>
+            ) : null}
 
-            <div className={cn("space-y-1", isCompact ? "min-w-0 flex-1" : "")}>
+            <div
+              className={cn(
+                "space-y-1",
+                isCompact && !isTextOnlyState ? "min-w-0 flex-1" : "",
+              )}
+            >
               <p
                 className={cn(
                   "text-foreground font-medium",
