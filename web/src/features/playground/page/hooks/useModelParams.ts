@@ -9,7 +9,54 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
-import { getModelNameKey, getModelProviderKey } from "../storage/keys";
+import {
+  getModelNameKey,
+  getModelParamsEnabledKey,
+  getModelProviderKey,
+} from "../storage/keys";
+
+const MODEL_PARAM_TOGGLE_KEYS = [
+  "temperature",
+  "max_tokens",
+  "top_p",
+  "maxReasoningTokens",
+  "providerOptions",
+] as const;
+
+type ModelParamToggleKey = (typeof MODEL_PARAM_TOGGLE_KEYS)[number];
+type ModelParamToggleState = Partial<Record<ModelParamToggleKey, boolean>>;
+
+const isModelParamToggleKey = (
+  key: keyof UIModelParams,
+): key is ModelParamToggleKey =>
+  MODEL_PARAM_TOGGLE_KEYS.includes(key as ModelParamToggleKey);
+
+const resolveEnabledForAdapter = (
+  adapter: LLMAdapter,
+  persisted: ModelParamToggleState,
+  fallback: Record<ModelParamToggleKey, boolean>,
+): Record<ModelParamToggleKey, boolean> => {
+  const resolved = {
+    temperature: persisted.temperature ?? fallback.temperature,
+    max_tokens: persisted.max_tokens ?? fallback.max_tokens,
+    top_p: persisted.top_p ?? fallback.top_p,
+    providerOptions: persisted.providerOptions ?? fallback.providerOptions,
+    maxReasoningTokens:
+      adapter === LLMAdapter.VertexAI
+        ? (persisted.maxReasoningTokens ?? fallback.maxReasoningTokens)
+        : fallback.maxReasoningTokens,
+  } satisfies Record<ModelParamToggleKey, boolean>;
+
+  if (
+    adapter === LLMAdapter.Anthropic &&
+    resolved.temperature &&
+    resolved.top_p
+  ) {
+    resolved.top_p = false;
+  }
+
+  return resolved;
+};
 
 /**
  * Hook for managing model parameters with window isolation support
@@ -45,6 +92,10 @@ export const useModelParams = (windowId?: string) => {
   const [persistedModelProvider, setPersistedModelProvider] = useLocalStorage<
     string | null
   >(modelProviderKey, null);
+
+  const modelParamsEnabledKey = getModelParamsEnabledKey(windowId ?? "");
+  const [persistedModelParamEnabled, setPersistedModelParamEnabled] =
+    useLocalStorage<ModelParamToggleState>(modelParamsEnabledKey, {});
 
   const availableProviders = useMemo(() => {
     const adapter = availableLLMApiKeys.data?.data ?? [];
@@ -110,14 +161,32 @@ export const useModelParams = (windowId?: string) => {
         [key]: { ...prev[key], enabled },
       };
 
+      const keysToPersist: ModelParamToggleKey[] = [];
+
+      if (isModelParamToggleKey(key)) {
+        keysToPersist.push(key);
+      }
+
       // For Anthropic models, temperature and top_p are mutually exclusive
       // When enabling one, disable the other
       if (updated.adapter.value === LLMAdapter.Anthropic && enabled) {
         if (key === "temperature" && prev.top_p.enabled) {
           updated.top_p = { ...prev.top_p, enabled: false };
+          keysToPersist.push("top_p");
         } else if (key === "top_p" && prev.temperature.enabled) {
           updated.temperature = { ...prev.temperature, enabled: false };
+          keysToPersist.push("temperature");
         }
+      }
+
+      if (keysToPersist.length > 0) {
+        setPersistedModelParamEnabled((prevPersisted) => {
+          const next = { ...prevPersisted };
+          for (const k of keysToPersist) {
+            next[k] = updated[k].enabled;
+          }
+          return next;
+        });
       }
 
       return updated;
@@ -169,42 +238,77 @@ export const useModelParams = (windowId?: string) => {
   // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
     if (selectedProviderApiKey?.adapter) {
-      setModelParams((prev) => ({
-        ...prev,
-        adapter: {
-          value: selectedProviderApiKey.adapter,
-          enabled: true,
-        },
-        maxTemperature: {
-          value: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-            .maxTemperature.value,
-          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-            .maxTemperature.enabled,
-        },
-        temperature: {
-          value: Math.min(
-            prev.temperature.value,
-            getDefaultAdapterParams(selectedProviderApiKey.adapter)
-              .maxTemperature.value,
-          ),
-          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-            .temperature.enabled,
-        },
-        max_tokens: {
-          value: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-            .max_tokens.value,
-          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-            .max_tokens.enabled,
-        },
-        top_p: {
-          value: getDefaultAdapterParams(selectedProviderApiKey.adapter).top_p
-            .value,
-          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter).top_p
-            .enabled,
-        },
-      }));
+      const defaults = getDefaultAdapterParams(selectedProviderApiKey.adapter);
+
+      setModelParams((prev) => {
+        const shouldResetForAdapter =
+          prev.adapter.value !== selectedProviderApiKey.adapter;
+
+        const fallbackEnabled: Record<ModelParamToggleKey, boolean> = {
+          temperature: shouldResetForAdapter
+            ? defaults.temperature.enabled
+            : prev.temperature.enabled,
+          max_tokens: shouldResetForAdapter
+            ? defaults.max_tokens.enabled
+            : prev.max_tokens.enabled,
+          top_p: shouldResetForAdapter
+            ? defaults.top_p.enabled
+            : prev.top_p.enabled,
+          providerOptions: prev.providerOptions.enabled,
+          maxReasoningTokens: prev.maxReasoningTokens.enabled,
+        };
+
+        const resolvedEnabled = resolveEnabledForAdapter(
+          selectedProviderApiKey.adapter,
+          persistedModelParamEnabled,
+          fallbackEnabled,
+        );
+
+        return {
+          ...prev,
+          adapter: {
+            value: selectedProviderApiKey.adapter,
+            enabled: true,
+          },
+          maxTemperature: shouldResetForAdapter
+            ? {
+                value: defaults.maxTemperature.value,
+                enabled: defaults.maxTemperature.enabled,
+              }
+            : prev.maxTemperature,
+          temperature: {
+            value: shouldResetForAdapter
+              ? Math.min(prev.temperature.value, defaults.maxTemperature.value)
+              : prev.temperature.value,
+            enabled: resolvedEnabled.temperature,
+          },
+          max_tokens: {
+            value: shouldResetForAdapter
+              ? defaults.max_tokens.value
+              : prev.max_tokens.value,
+            enabled: resolvedEnabled.max_tokens,
+          },
+          top_p: {
+            value: shouldResetForAdapter
+              ? defaults.top_p.value
+              : prev.top_p.value,
+            enabled: resolvedEnabled.top_p,
+          },
+          maxReasoningTokens: {
+            value:
+              prev.maxReasoningTokens?.value ??
+              defaults.maxReasoningTokens.value,
+            enabled: resolvedEnabled.maxReasoningTokens,
+          },
+          providerOptions: {
+            value:
+              prev.providerOptions?.value ?? defaults.providerOptions.value,
+            enabled: resolvedEnabled.providerOptions,
+          },
+        };
+      });
     }
-  }, [selectedProviderApiKey?.adapter]);
+  }, [selectedProviderApiKey?.adapter, persistedModelParamEnabled]);
 
   return {
     modelParams,
