@@ -90,6 +90,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { UnifiedObservationsDocsBanner } from "@/src/features/events/components/UnifiedObservationsDocsBanner";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1357,7 +1358,11 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              queryFilter={queryFilter}
+              filterWithAI
+              topContent={<UnifiedObservationsDocsBanner />}
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
