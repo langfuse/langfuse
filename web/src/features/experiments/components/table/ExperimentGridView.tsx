@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {
@@ -39,6 +40,7 @@ type ExperimentGridViewProps = {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  peekView?: DataTablePeekViewProps;
 };
 
 /**
@@ -56,6 +58,7 @@ export const ExperimentGridView = ({
   traceScoreOrder,
   columnVisibility,
   pagination,
+  peekView,
 }: ExperimentGridViewProps) => {
   // Build all experiment IDs (baseline first)
   const allExperimentIds = useMemo(
@@ -194,6 +197,7 @@ export const ExperimentGridView = ({
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       topAlignCells
+      peekView={peekView}
     />
   );
 };
