@@ -25,8 +25,6 @@ export interface ScoreChartLegendContentProps extends Pick<
   onVisibilityChange?: (key: string, visible: boolean) => void;
   /** Optional function to format labels */
   formatLabel?: (label: string, item: LegendPayload) => string;
-  /** Hide the color indicator icon */
-  hideIcon?: boolean;
   /** Custom className */
   className?: string;
   /** Name key to use for legend items */
