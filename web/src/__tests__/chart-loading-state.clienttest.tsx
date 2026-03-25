@@ -13,38 +13,39 @@ describe("ChartLoadingState", () => {
     jest.useRealTimers();
   });
 
-  test("renders spinner immediately and delayed hint after configured delay", () => {
+  test("keeps legacy pending state spinner-only without loading copy or hint", () => {
     const hintDelayMs = 1375;
-
-    render(<ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />);
+    const { container } = render(
+      <ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />,
+    );
 
     expect(
       screen.getByRole("status", { name: "Loading chart data" }),
     ).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByText("Loading widget")).not.toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(hintDelayMs - 1);
+      jest.advanceTimersByTime(hintDelayMs);
     });
-    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
-    act(() => {
-      jest.advanceTimersByTime(1);
-    });
-    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByText("Loading widget")).not.toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
 
-  test("resets delayed hint when loading toggles off and on again", () => {
+  test("keeps legacy pending state spinner-only when loading toggles off and on again", () => {
     const hintDelayMs = 825;
-
-    const { rerender } = render(
+    const { rerender, container } = render(
       <ChartLoadingState isLoading={true} hintDelayMs={hintDelayMs} />,
     );
 
     act(() => {
       jest.advanceTimersByTime(hintDelayMs);
     });
-    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     rerender(<ChartLoadingState isLoading={false} hintDelayMs={hintDelayMs} />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -56,7 +57,8 @@ describe("ChartLoadingState", () => {
     act(() => {
       jest.advanceTimersByTime(hintDelayMs);
     });
-    expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
 
   test("shows hint immediately without spinner for overload state", () => {

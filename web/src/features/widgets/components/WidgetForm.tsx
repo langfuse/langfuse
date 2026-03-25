@@ -75,7 +75,10 @@ import {
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -982,7 +985,11 @@ export function WidgetForm({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
   });
-  const loadingProgress = queryResult.isPending ? null : undefined;
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: null,
+    useBackendProgress: false,
+  });
 
   // Transform the query results to a consistent format for charts
   const transformedData: DataPoint[] = useMemo(

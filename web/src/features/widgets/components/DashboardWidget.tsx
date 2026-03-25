@@ -25,7 +25,10 @@ import {
   shouldUseWidgetSSE,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -204,15 +207,21 @@ export function DashboardWidget({
     isError: queryResult.isError,
     errorMessage: queryResult.error,
   });
+  const usesBackendProgress = shouldUseWidgetSSE({
+    isV4BetaEnabled: isBetaEnabled,
+    version: metricsVersion,
+  });
   const loadingStateLayout =
     placement.y_size <= 2
       ? "tight"
       : placement.x_size <= 4
         ? "compact"
         : "default";
-  const loadingProgress = queryResult.isPending
-    ? (queryResult.progress ?? null)
-    : undefined;
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: queryResult.progress,
+    useBackendProgress: usesBackendProgress,
+  });
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {

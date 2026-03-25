@@ -77,11 +77,15 @@ export function ChartLoadingState({
   const shouldShowHint = showHintImmediately || showHint;
   const isCompact = layout !== "default";
   const isTight = layout === "tight";
+  const isLegacySpinnerOnlyState = showSpinner && !shouldShowProgress;
   const isTightProgressState = isTight && shouldShowProgress;
   const shouldRenderStatusTitle = !isTightProgressState;
   const shouldRenderHint = shouldShowHint && !isTightProgressState;
 
-  if (isPendingProgressState && !showProgressPhase) {
+  if (
+    isLegacySpinnerOnlyState ||
+    (isPendingProgressState && !showProgressPhase)
+  ) {
     return (
       <div
         role="status"
