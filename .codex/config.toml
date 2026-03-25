@@ -10,3 +10,6 @@ args = [
   "--test-id-attribute",
   "data-testid",
 ]
+
+[mcp_servers.datadog]
+url = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
