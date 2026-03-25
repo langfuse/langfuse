@@ -1,0 +1,158 @@
+{
+  "obs-assistant-tool-use": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What is the weather in Berlin and Tokyo?",
+          "tools": [
+            {
+              "name": "get_weather",
+              "description": "Get current weather for a city",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "I'll check the weather in both cities for you.",
+          "type": "message",
+          "tool_calls": [
+            {
+              "id": "toolu_01AAA",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Berlin\"}",
+              "type": "function"
+            },
+            {
+              "id": "toolu_01BBB",
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Tokyo\"}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "id": "msg_01ABC",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "tool_use"
+          }
+        }
+      ]
+    }
+  },
+  "obs-tool-results": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What is the weather in Berlin and Tokyo?"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll check the weather in both cities for you."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01AAA",
+              "name": "get_weather",
+              "input": {
+                "city": "Berlin"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01BBB",
+              "name": "get_weather",
+              "input": {
+                "city": "Tokyo"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01AAA",
+              "content": "Cloudy, 15°C"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BBB",
+              "content": "Sunny, 22°C"
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "Here is the weather:\n\nBerlin: Cloudy, 15°C\nTokyo: Sunny, 22°C",
+          "type": "message",
+          "json": {
+            "id": "msg_01DEF",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn"
+          }
+        }
+      ]
+    }
+  },
+  "obs-thinking": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What is 25 * 37?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "25 * 37 = 925",
+          "type": "message",
+          "thinking": [
+            {
+              "type": "thinking",
+              "content": "Let me calculate 25 * 37. 25 * 37 = 25 * 30 + 25 * 7 = 750 + 175 = 925.",
+              "signature": "sig_abc123"
+            }
+          ],
+          "json": {
+            "id": "msg_01GHI",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn"
+          }
+        }
+      ]
+    }
+  }
+}
