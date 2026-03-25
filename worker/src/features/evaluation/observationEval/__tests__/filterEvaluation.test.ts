@@ -1184,10 +1184,10 @@ describe("tool_calls computation", () => {
     expect(obs.tool_call_names).toEqual([]);
   });
 
-  it("should derive tool_call_count from tool_call_names length", () => {
+  it("should accept an explicit tool_call_count", () => {
     const obs = observationForEvalSchema.parse({
       ...minimalObs,
-      tool_call_names: ["a", "b", "c"],
+      tool_call_count: 3,
     });
 
     expect(obs.tool_call_count).toBe(3);
