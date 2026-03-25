@@ -1,8 +1,0 @@
----
-description: How we build new full-stack features including frontend APIs, file structure, and components
-globs: web/**
-alwaysApply: true
----
-Use [web/AGENTS.md](mdc:web/AGENTS.md) for the shared web feature conventions,
-including feature structure, tRPC, components, styling, RBAC, entitlements,
-and test guidance.

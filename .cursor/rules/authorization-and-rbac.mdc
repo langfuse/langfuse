@@ -1,7 +1,0 @@
----
-description: How to manage authorization and RBAC within full-stack langfuse features
-globs: web/
-alwaysApply: true
----
-Use [web/AGENTS.md](mdc:web/AGENTS.md) for the shared web conventions, then
-read [README.md](mdc:web/src/features/rbac/README.md) for RBAC specifics.

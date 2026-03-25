@@ -1,8 +1,0 @@
----
-description: How to enforce entitlements across full-stack features
-globs: web/**
-alwaysApply: true
----
-Use [web/AGENTS.md](mdc:web/AGENTS.md) for the shared web conventions, then
-read [README.md](mdc:web/src/features/entitlements/README.md) for entitlement
-details.

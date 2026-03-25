@@ -1,9 +1,0 @@
----
-description: Guidelines for positioning elements with banner awareness
-globs:
-  - "**/*.tsx"
-  - "**/*.jsx"
-alwaysApply: true
----
-Use [web/AGENTS.md](mdc:web/AGENTS.md) for the shared banner-offset rule and
-related viewport layout utilities.

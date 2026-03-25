@@ -1,7 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-Use root [AGENTS.md](mdc:AGENTS.md) and [web/AGENTS.md](mdc:web/AGENTS.md) for
-the shared test independence and cleanup rules.

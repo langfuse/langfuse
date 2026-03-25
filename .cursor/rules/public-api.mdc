@@ -1,7 +1,0 @@
----
-description: How to create new public api routes for Langfuse
-globs:
-alwaysApply: false
----
-Use [web/AGENTS.md](mdc:web/AGENTS.md) for the shared public API checklist and
-Fern regeneration expectations.
