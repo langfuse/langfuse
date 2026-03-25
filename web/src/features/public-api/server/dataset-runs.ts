@@ -33,12 +33,14 @@ export const createOrFetchDatasetRun = async ({
   name,
   description,
   metadata,
+  createdAt,
 }: {
   projectId: string;
   datasetId: string;
   name: string;
   description?: string;
   metadata?: Json | null;
+  createdAt?: Date;
 }) => {
   try {
     // Attempt to fetch existing run
@@ -64,8 +66,8 @@ export const createOrFetchDatasetRun = async ({
         name,
         description: description ?? null,
         metadata: metadata ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: createdAt ?? new Date(),
+        updatedAt: createdAt ?? new Date(),
       },
     });
     return datasetRun;
