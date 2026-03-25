@@ -73,6 +73,7 @@ node_modules
 
 web/test-results/*
 .playwright-mcp/*
+.codex-artifacts/
 
 # local config files
 *.local.*

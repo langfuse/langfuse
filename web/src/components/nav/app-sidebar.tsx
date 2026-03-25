@@ -17,7 +17,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
@@ -66,7 +65,6 @@ export function AppSidebar({
       <SidebarFooter>
         <NavUser {...userNavProps} />
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }
