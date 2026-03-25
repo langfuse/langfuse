@@ -15,7 +15,7 @@ describe("UnifiedObservationsDocsBanner", () => {
     );
 
     const guideLink = screen.getByRole("link", {
-      name: /how to filter the right data/i,
+      name: /to filter/i,
     });
     expect(guideLink).toHaveAttribute(
       "href",

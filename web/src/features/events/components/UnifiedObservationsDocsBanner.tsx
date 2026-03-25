@@ -78,7 +78,7 @@ export function UnifiedObservationsDocsBanner() {
         className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium underline underline-offset-2"
       >
         <BookOpenText className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">How to filter the right data</span>
+        <span className="truncate">How to filter</span>
       </Link>
       <Button
         variant="ghost"
