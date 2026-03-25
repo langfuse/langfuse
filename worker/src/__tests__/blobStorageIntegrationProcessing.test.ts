@@ -6,6 +6,8 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createSessionScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -117,6 +119,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       const now = new Date();
+      const sessionScoreId = randomUUID();
+      const sessionId = randomUUID();
+      const datasetRunScoreId = randomUUID();
+      const datasetRunId = randomUUID();
       // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
@@ -186,6 +192,22 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             name: "Test Score",
             value: 0.95,
           }),
+          createSessionScore({
+            id: sessionScoreId,
+            session_id: sessionId,
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            name: "Test Session Score",
+            value: 0.8,
+          }),
+          createDatasetRunScore({
+            id: datasetRunScoreId,
+            dataset_run_id: datasetRunId,
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            name: "Test Dataset Run Score",
+            value: 0.7,
+          }),
         ]),
         createEventsCh([event]),
       ]);
@@ -235,6 +257,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(scoreId);
         expect(content).toContain("Test Score");
         expect(content).toContain("0.95");
+        // Verify session_id is exported for session-scoped scores
+        expect(content).toContain(sessionScoreId);
+        expect(content).toContain(sessionId);
+        expect(content).toContain("Test Session Score");
+        expect(content).toContain("0.8");
+        // Verify dataset_run_id is exported for dataset-run-scoped scores
+        expect(content).toContain(datasetRunScoreId);
+        expect(content).toContain(datasetRunId);
+        expect(content).toContain("Test Dataset Run Score");
+        expect(content).toContain("0.7");
       }
 
       if (eventFile) {
