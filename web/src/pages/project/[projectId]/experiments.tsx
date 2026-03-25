@@ -67,6 +67,7 @@ export default function Experiments() {
                 projectId={projectId}
                 setFormOpen={setIsCreateExperimentDialogOpen}
                 handleExperimentSuccess={handleExperimentSuccess}
+                showSDKRunInfoPage
               />
             </DialogContent>
           </Dialog>
