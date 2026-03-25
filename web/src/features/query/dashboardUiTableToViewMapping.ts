@@ -282,3 +282,50 @@ export const mapLegacyUiTableFilterToView = (
     return [{ ...filter, column: definition.viewName }];
   });
 };
+
+/**
+ * Reverse mapping: converts persisted view-level filter column names back to
+ * the widget form's filterColumns identifiers so that the filter builder UI
+ * can match them and display the correct column label.
+ *
+ * `targetColumns` is the array of ColumnDefinition objects used by the widget
+ * form's InlineFilterBuilder. A filter column value is remapped when it does
+ * not already match any column `id` or `name` in `targetColumns` but does
+ * match a `viewName` in the view mappings – in which case we look up the
+ * corresponding `uiTableName` and then resolve it to the matching
+ * targetColumn's `id`.
+ */
+export const mapViewFilterToWidgetFormFilter = (
+  view: z.infer<typeof views>,
+  filters: z.infer<typeof FilterArray>,
+  targetColumns: { id: string; name: string }[],
+): z.infer<typeof FilterArray> => {
+  return filters.map((filter) => {
+    // If the column already matches a target column id or name, no mapping needed
+    const alreadyMatched = targetColumns.some(
+      (c) => c.id === filter.column || c.name === filter.column,
+    );
+    if (alreadyMatched) {
+      return filter;
+    }
+
+    // Try to find a view mapping entry where the viewName matches the filter column
+    const definition = viewMappings[view]?.find(
+      (def) => def.viewName === filter.column,
+    );
+    if (!definition) {
+      return filter;
+    }
+
+    // Find the matching target column by uiTableName
+    const targetColumn = targetColumns.find(
+      (c) =>
+        c.name === definition.uiTableName || c.id === definition.uiTableName,
+    );
+    if (!targetColumn) {
+      return filter;
+    }
+
+    return { ...filter, column: targetColumn.name };
+  });
+};

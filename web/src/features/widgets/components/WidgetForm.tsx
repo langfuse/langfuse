@@ -12,6 +12,7 @@ import {
   getValidAggregationsForMeasureType,
   type QueryType,
   mapLegacyUiTableFilterToView,
+  mapViewFilterToWidgetFormFilter,
 } from "@/src/features/query";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -147,6 +148,31 @@ const chartTypes: ChartType[] = [
     icon: Table,
     supportsBreakdown: true,
   },
+];
+
+/**
+ * Static column definitions used by the widget form filter builder.
+ * This is the superset of all possible filter columns across all views.
+ * Used both for rendering the filter builder UI (with dynamic options added)
+ * and for reverse-mapping persisted view-level filter column names back to
+ * the widget form identifiers when loading a saved widget.
+ */
+const WIDGET_FILTER_COLUMNS: { id: string; name: string }[] = [
+  { id: "environment", name: "Environment" },
+  { id: "traceName", name: "Trace Name" },
+  { id: "observationName", name: "Observation Name" },
+  { id: "scoreName", name: "Score Name" },
+  { id: "tags", name: "Tags" },
+  { id: "toolNames", name: "Tool Names" },
+  { id: "user", name: "User" },
+  { id: "session", name: "Session" },
+  { id: "metadata", name: "Metadata" },
+  { id: "release", name: "Release" },
+  { id: "version", name: "Version" },
+  { id: "providedModelName", name: "Model" },
+  { id: "level", name: "Level" },
+  { id: "value", name: "Score Value" },
+  { id: "stringValue", name: "Score String Value" },
 ];
 
 /**
@@ -371,21 +397,13 @@ export function WidgetForm({
     }
   };
   const [userFilterState, setUserFilterState] = useState<FilterState>(
-    initialValues.filters?.map((filter) => {
-      if (filter.column === "name") {
-        // We need to map the generic `name` property to the correct column name for the selected view
-        return {
-          ...filter,
-          column:
-            initialValues.view === "traces"
-              ? "traceName"
-              : initialValues.view === "observations"
-                ? "observationName"
-                : "scoreName",
-        };
-      }
-      return filter;
-    }) ?? [],
+    initialValues.filters
+      ? mapViewFilterToWidgetFormFilter(
+          initialValues.view,
+          initialValues.filters,
+          WIDGET_FILTER_COLUMNS,
+        )
+      : [],
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
