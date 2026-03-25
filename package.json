@@ -8,6 +8,9 @@
     "node": "24"
   },
   "scripts": {
+    "agents:check": "node scripts/agents/sync-mcp-configs.mjs --check",
+    "agents:sync": "node scripts/agents/sync-mcp-configs.mjs",
+    "postinstall": "pnpm run agents:sync && pnpm run agents:check",
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",

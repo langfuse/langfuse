@@ -1,7 +1,18 @@
 {
   "mcpServers": {
+    "datadog": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+    },
+    "langfuse-docs": {
+      "type": "http",
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.app/mcp"
+    },
     "playwright": {
-      "type": "stdio",
       "command": "npx",
       "args": [
         "-y",

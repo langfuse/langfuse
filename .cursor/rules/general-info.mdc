@@ -3,7 +3,10 @@ description:
 globs: 
 alwaysApply: true
 ---
-# General rules
+# Shared agent setup
 
-- Linting in this repo only works if the development server is running
-- Always run the full mono-repo via `pnpm run dx` (use `pnpm dx-f` when you run this in a background agent). Thereby the database will also be seeded.
+- Treat [AGENTS.md](mdc:AGENTS.md) as the canonical shared repo instructions and read the closest package-local `AGENTS.md` before editing package code.
+- Use the verification matrix and command guidance in [AGENTS.md](mdc:AGENTS.md) instead of inventing tool-specific workflows.
+- Use `bash scripts/codex/setup.sh` as the shared repo bootstrap for agent environments when the tool supports a project install/setup command.
+- Start `pnpm run dev`, `pnpm run dev:web`, or other long-running services only when the task needs them.
+- `pnpm run dx` and `pnpm run dx-f` are destructive reset flows, not default bootstrap commands.

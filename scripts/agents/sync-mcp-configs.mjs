@@ -1,0 +1,171 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import process from "node:process";
+
+const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
+const sourcePath = resolve(repoRoot, ".agents/mcp-servers.json");
+const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+const servers = source.servers;
+const checkMode = process.argv.includes("--check");
+
+const sortObject = (value) =>
+  Object.fromEntries(
+    Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+  );
+
+const formatSharedJsonConfig = () => {
+  const mcpServers = Object.fromEntries(
+    Object.entries(sortObject(servers)).map(([name, config]) => {
+      if (config.transport === "stdio") {
+        return [
+          name,
+          {
+            command: config.command,
+            args: config.args ?? [],
+            ...(config.env ? { env: config.env } : {}),
+          },
+        ];
+      }
+
+      return [
+        name,
+        {
+          type: "http",
+          url: config.url,
+          ...(config.headers ? { headers: config.headers } : {}),
+        },
+      ];
+    }),
+  );
+
+  return JSON.stringify({ mcpServers }, null, 2) + "\n";
+};
+
+const formatVsCodeConfig = () => {
+  const serversConfig = Object.fromEntries(
+    Object.entries(sortObject(servers)).map(([name, config]) => {
+      if (config.transport === "stdio") {
+        return [
+          name,
+          {
+            type: "stdio",
+            command: config.command,
+            args: config.args ?? [],
+            ...(config.env ? { env: config.env } : {}),
+          },
+        ];
+      }
+
+      return [
+        name,
+        {
+          type: "http",
+          url: config.url,
+          ...(config.headers ? { headers: config.headers } : {}),
+        },
+      ];
+    }),
+  );
+
+  return JSON.stringify({ servers: serversConfig }, null, 2) + "\n";
+};
+
+const formatCodexToml = () => {
+  const lines = [];
+
+  for (const [name, config] of Object.entries(sortObject(servers))) {
+    lines.push(`[mcp_servers.${name}]`);
+
+    if (config.transport === "stdio") {
+      lines.push(`command = ${JSON.stringify(config.command)}`);
+      if (config.args?.length) {
+        lines.push("args = [");
+        for (const arg of config.args) {
+          lines.push(`  ${JSON.stringify(arg)},`);
+        }
+        lines.push("]");
+      } else {
+        lines.push("args = []");
+      }
+      if (config.env) {
+        lines.push("[mcp_servers." + name + ".env]");
+        for (const [envName, envValue] of Object.entries(sortObject(config.env))) {
+          lines.push(`${envName} = ${JSON.stringify(envValue)}`);
+        }
+      }
+    } else {
+      lines.push(`url = ${JSON.stringify(config.url)}`);
+      if (config.headers) {
+        lines.push("[mcp_servers." + name + ".headers]");
+        for (const [headerName, headerValue] of Object.entries(
+          sortObject(config.headers),
+        )) {
+          lines.push(`${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`);
+        }
+      }
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n");
+};
+
+const outputs = [
+  {
+    path: resolve(repoRoot, ".mcp.json"),
+    content: formatSharedJsonConfig(),
+  },
+  {
+    path: resolve(repoRoot, ".cursor/mcp.json"),
+    content: formatSharedJsonConfig(),
+  },
+  {
+    path: resolve(repoRoot, ".vscode/mcp.json"),
+    content: formatVsCodeConfig(),
+  },
+  {
+    path: resolve(repoRoot, ".codex/config.toml"),
+    content: formatCodexToml(),
+    optional: true,
+  },
+];
+
+let hasMismatch = false;
+
+for (const output of outputs) {
+  if (checkMode) {
+    try {
+      const current = readFileSync(output.path, "utf8");
+      if (current !== output.content) {
+        hasMismatch = true;
+        console.error(`Out of sync: ${output.path}`);
+      }
+    } catch (error) {
+      if (output.optional) {
+        console.warn(`Skipping optional config check: ${output.path}`);
+        continue;
+      }
+
+      throw error;
+    }
+    continue;
+  }
+
+  try {
+    mkdirSync(resolve(output.path, ".."), { recursive: true });
+    writeFileSync(output.path, output.content);
+    console.log(`Updated ${output.path}`);
+  } catch (error) {
+    if (output.optional) {
+      console.warn(`Skipping optional config generation: ${output.path}`);
+      continue;
+    }
+
+    throw error;
+  }
+}
+
+if (checkMode && hasMismatch) {
+  process.exitCode = 1;
+}

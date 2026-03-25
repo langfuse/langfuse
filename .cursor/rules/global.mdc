@@ -25,4 +25,4 @@ We use Postgres and Clickhouse.
 
 When running in a background/cloud agent, please adhere to the following rules:
 
-- Before finishing a task, please run prettier via `pnpm format` to format the code of the repository. Otherwise, the CI check will fail on the change.
+- Do not run repo-wide `pnpm format` by default. Prefer the scoped verification commands from [AGENTS.md](mdc:AGENTS.md) and only format the files you touched or the scope the task requires.

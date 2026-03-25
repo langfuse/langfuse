@@ -1,6 +1,6 @@
 {
   "agentCanUpdateSnapshot": false,
-  "install": "cp .env.dev.example .env && pnpm i",
+  "install": "bash scripts/codex/setup.sh",
   "terminals": [
     {
       "name": "Development Terminal",

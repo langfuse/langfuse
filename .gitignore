@@ -74,6 +74,10 @@ node_modules
 web/test-results/*
 .playwright-mcp/*
 .codex-artifacts/
+.mcp.json
+.cursor/mcp.json
+.vscode/mcp.json
+.codex/config.toml
 
 # local config files
 *.local.*

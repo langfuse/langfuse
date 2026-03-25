@@ -132,6 +132,8 @@ Minimum verification matrix:
 - Keep guidance DRY: canonicalize to the most specific file.
 - `CLAUDE.md` is the Claude Code entrypoint for this repo and should stay as a thin shim that points back to this file.
 - Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
+- Shared MCP server definitions live in `.agents/mcp-servers.json`; `pnpm install` regenerates local tool-specific MCP config files via `pnpm run agents:sync` and validates them with `pnpm run agents:check`.
+- Durable repo guidance that should apply across tools belongs in root/package `AGENTS.md` files or `.agents/skills/**`, not only in tool-specific config directories.
 - Codex may create or refine shared skills under `.agents/skills/` when a repeated repo-specific workflow would help future agents. Keep shared skills tool-neutral and scoped to durable guidance.
 - Shared skill index: [`.agents/skills/README.md`](.agents/skills/README.md)
 - Shared skills use a short `SKILL.md` entrypoint and should prefer focused `references/` docs and `scripts/` helpers over large compiled guides. Keep any local `AGENTS.md` concise and use it as a router, not a dump of all details.
@@ -170,8 +172,8 @@ Minimum verification matrix:
 - Local infra issues: run `pnpm run infra:dev:up`; use `pnpm run dx` only when destructive reset is intended.
 
 ## Agent Browser Automation
-- Shared Playwright MCP configs live in `.mcp.json` and `.vscode/mcp.json`.
-- Codex project-scoped MCP config lives in `.codex/config.toml` for trusted-project setups.
+- Project-scoped MCP configs are generated local artifacts at `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, and `.codex/config.toml`.
+- `.agents/mcp-servers.json` is the source of truth for shared MCP server definitions; regenerate tool-specific files with `pnpm install` or `pnpm run agents:sync` instead of editing them by hand.
 - Install Chromium into the default user-level Playwright cache with `pnpm run playwright:install`.
 - `scripts/codex/setup.sh` runs the Playwright install step for first-time Codex bootstrap.
 - Playwright MCP traces and other browser session artifacts live under `.playwright-mcp/` and are gitignored.
@@ -188,3 +190,4 @@ Minimum verification matrix:
 ## Cursor Rules
 
 - Additional folder-specific rules live in `.cursor/rules/`.
+- Cursor-specific rules must not conflict with the shared instructions in root/package `AGENTS.md`.
