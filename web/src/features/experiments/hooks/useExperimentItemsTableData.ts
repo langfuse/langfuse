@@ -41,6 +41,9 @@ export function useExperimentItemsTableData({
   orderByState,
   itemVisibility,
 }: UseExperimentItemsTableDataParams) {
+  const hasSelectedRuns =
+    Boolean(baseExperimentId) || compExperimentIds.length > 0;
+
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
@@ -84,15 +87,19 @@ export function useExperimentItemsTableData({
 
   // Fetch experiment items
   const itemsQuery = api.experiments.items.useQuery(getAllPayload, {
+    enabled: hasSelectedRuns,
     refetchOnWindowFocus: true,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.itemsCount.useQuery(getCountPayload, {
+    enabled: hasSelectedRuns,
     refetchOnWindowFocus: true,
   });
 
-  const totalCount = totalCountQuery.data?.count ?? null;
+  const totalCount = hasSelectedRuns
+    ? (totalCountQuery.data?.count ?? null)
+    : 0;
 
   // Build batchIO payload based on items data
   const batchIOPayload = useMemo(() => {
@@ -111,13 +118,20 @@ export function useExperimentItemsTableData({
 
   // Fetch IO data for visible items
   const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
-    enabled: itemsQuery.isSuccess && batchIOPayload !== null,
+    enabled: hasSelectedRuns && itemsQuery.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Merge items with IO data
   const joinedData = useMemo(() => {
+    if (!hasSelectedRuns) {
+      return {
+        status: "success" as const,
+        rows: [] as ExperimentItemsTableRow[],
+      };
+    }
+
     if (itemsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
@@ -167,6 +181,7 @@ export function useExperimentItemsTableData({
 
     return { status: "success" as const, rows: mergedRows };
   }, [
+    hasSelectedRuns,
     itemsQuery.isLoading,
     itemsQuery.isError,
     itemsQuery.data?.data,

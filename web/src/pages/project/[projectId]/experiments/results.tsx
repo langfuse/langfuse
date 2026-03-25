@@ -34,7 +34,6 @@ export default function ExperimentResults() {
     "overview-panel-experiment-detail",
     true,
   );
-  const hasAnyRuns = hasBaseline || comparisonIds.length > 0;
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -62,43 +61,36 @@ export default function ExperimentResults() {
             "View and analyze experiment items with traces, scores, and metrics.",
           href: "https://langfuse.com/docs/datasets/experiments",
         },
-        actionButtonsRight:
-          hasBaseline || hasAnyRuns ? (
-            <>
-              {hasBaseline && (
-                <Button variant="outline" onClick={clearBaseline}>
-                  <X className="h-4 w-4" />
-                  <span className="ml-2 hidden md:inline">Clear baseline</span>
-                </Button>
-              )}
+        actionButtonsRight: (
+          <>
+            {hasBaseline && comparisonIds.length > 0 && (
+              <Button variant="outline" onClick={clearBaseline}>
+                <X className="h-4 w-4" />
+                <span className="ml-2 hidden md:inline">Clear baseline</span>
+              </Button>
+            )}
 
-              <ExperimentDisplaySettings
-                layout={layout}
-                onLayoutChange={setLayout}
-                itemVisibility={itemVisibility}
-                onItemVisibilityChange={setItemVisibility}
-                hasComparisons={comparisonIds.length > 0}
-                hasBaseline={hasBaseline}
-              />
+            <ExperimentDisplaySettings
+              layout={layout}
+              onLayoutChange={setLayout}
+              itemVisibility={itemVisibility}
+              onItemVisibilityChange={setItemVisibility}
+              hasComparisons={comparisonIds.length > 0}
+              hasBaseline={hasBaseline}
+            />
 
-              <OverviewPanelToggle
-                open={isOverviewOpen}
-                onOpenChange={setIsOverviewOpen}
-              />
-            </>
-          ) : undefined,
+            <OverviewPanelToggle
+              open={isOverviewOpen}
+              onOpenChange={setIsOverviewOpen}
+            />
+          </>
+        ),
       }}
     >
       <OverviewPanelLayout
         open={isOverviewOpen}
         persistId={`experiment-detail-${baselineId ?? "none"}`}
-        mainContent={
-          hasAnyRuns ? (
-            <ExperimentItemsTable projectId={projectId} />
-          ) : (
-            <div className="h-full w-full" />
-          )
-        }
+        mainContent={<ExperimentItemsTable projectId={projectId} />}
         overviewContent={
           <ExperimentOverviewPanel
             projectId={projectId}

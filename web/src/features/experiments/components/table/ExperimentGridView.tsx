@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
+import { type ReactNode } from "react";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {
@@ -40,6 +41,7 @@ type ExperimentGridViewProps = {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
   };
+  noResultsMessage?: ReactNode;
 };
 
 /**
@@ -58,6 +60,7 @@ export const ExperimentGridView = ({
   traceScoreOrder,
   columnVisibility,
   pagination,
+  noResultsMessage,
 }: ExperimentGridViewProps) => {
   // Build all experiment IDs (baseline first)
   const allExperimentIds = useMemo(
@@ -196,6 +199,7 @@ export const ExperimentGridView = ({
           ? { isLoading: true, isError: false }
           : { isLoading: false, isError: false, data: rows }
       }
+      noResultsMessage={noResultsMessage}
       pagination={pagination}
       rowHeight={rowHeight}
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}

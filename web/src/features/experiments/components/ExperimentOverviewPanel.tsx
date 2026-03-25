@@ -146,6 +146,7 @@ export function ExperimentOverviewPanel({
           baselineName={experiment?.name}
           onBaselineChange={onBaselineChange}
           onBaselineClear={onBaselineClear}
+          canClearBaseline={comparisonIds.length > 0}
         />
       </div>
 

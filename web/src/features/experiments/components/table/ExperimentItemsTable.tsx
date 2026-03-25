@@ -226,6 +226,7 @@ export default function ExperimentItemsTable({
     baselineId,
     comparisonIds,
   });
+  const hasSelectedRuns = hasBaseline || comparisonIds.length > 0;
   const canUsePeek = shouldEnableExperimentPeek({
     hasBaseline,
     hideControls,
@@ -957,6 +958,13 @@ export default function ExperimentItemsTable({
                 baselineExperimentId={fallbackBaselineId ?? ""}
                 comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
                 useExperimentColors={hasBaseline}
+                noResultsMessage={
+                  !hasSelectedRuns ? (
+                    <span className="text-muted-foreground">
+                      Please select a baseline experiment.
+                    </span>
+                  ) : undefined
+                }
                 rows={rows}
                 isLoading={items.status === "loading" || isViewLoading}
                 rowHeight={rowHeight}
@@ -983,6 +991,13 @@ export default function ExperimentItemsTable({
                 onColumnVisibilityChange={setColumnVisibilityState}
                 rowHeight={rowHeight}
                 peekView={peekConfig}
+                noResultsMessage={
+                  !hasSelectedRuns ? (
+                    <span className="text-muted-foreground">
+                      Please select a baseline experiment.
+                    </span>
+                  ) : undefined
+                }
               />
             )}
           </div>

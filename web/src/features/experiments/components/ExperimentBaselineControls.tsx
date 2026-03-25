@@ -14,6 +14,7 @@ type ExperimentBaselineControlsProps = {
   baselineName?: string;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
+  canClearBaseline?: boolean;
 };
 
 export function ExperimentBaselineControls({
@@ -22,6 +23,7 @@ export function ExperimentBaselineControls({
   baselineName,
   onBaselineChange,
   onBaselineClear,
+  canClearBaseline = true,
 }: ExperimentBaselineControlsProps) {
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
@@ -60,7 +62,7 @@ export function ExperimentBaselineControls({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {baselineId && (
+      {baselineId && canClearBaseline && (
         <Button
           variant="ghost"
           size="sm"
