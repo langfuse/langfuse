@@ -71,7 +71,12 @@ describe("ChartLoadingState", () => {
     );
 
     expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
+    expect(screen.getByText("Query needs attention")).toBeInTheDocument();
     expect(container.querySelector("svg")).not.toBeInTheDocument();
+    expect(container.querySelector(".space-y-3")).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[aria-hidden="true"]'),
+    ).not.toBeInTheDocument();
   });
 
   test("renders a provided hint text for error states", () => {
