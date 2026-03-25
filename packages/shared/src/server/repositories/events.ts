@@ -1,7 +1,11 @@
 import { prisma } from "../../db";
 import { Observation, EventsObservation, ObservationType } from "../../domain";
 import { env } from "../../env";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import {
+  InternalServerError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "../../errors";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -75,6 +79,11 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import {
+  FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+  getIncompatibleFirstObservationInTraceFilters,
+  isFirstObservationInTraceEnabled,
+} from "../../features/events/firstObservationInTrace";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
@@ -410,9 +419,44 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
+  const firstObservationInTraceFilterEnabled =
+    isFirstObservationInTraceEnabled(filter);
   const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
+    ...filter.filter(
+      (f) =>
+        f.type !== "positionInTrace" &&
+        f.column !== FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+    ),
   ];
+
+  if (positionFilter && firstObservationInTraceFilterEnabled) {
+    throw new InvalidRequestError(
+      "Position in trace and 1st observation in trace cannot be combined.",
+    );
+  }
+
+  const incompatibleFirstObservationFilters =
+    firstObservationInTraceFilterEnabled
+      ? getIncompatibleFirstObservationInTraceFilters(baseFilter)
+      : [];
+
+  if (incompatibleFirstObservationFilters.length > 0) {
+    throw new InvalidRequestError(
+      `1st observation in trace cannot be combined with filters on ${incompatibleFirstObservationFilters
+        .map((f) => f.column)
+        .join(", ")}.`,
+    );
+  }
+
+  if (
+    firstObservationInTraceFilterEnabled &&
+    opts.searchQuery &&
+    (opts.searchType ?? []).includes("content")
+  ) {
+    throw new InvalidRequestError(
+      "Full-text content search is not supported with 1st observation in trace.",
+    );
+  }
 
   // Build filter list from baseFilter (without positionInTrace)
   const observationsFilter = new FilterList(
@@ -424,6 +468,13 @@ async function getObservationsFromEventsTableInternal<T>(
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
+
+  if (firstObservationInTraceFilterEnabled && !startTimeFrom) {
+    throw new InvalidRequestError(
+      "1st observation in trace requires a start time range.",
+    );
+  }
+
   const hasObservationScoresFilter = baseFilter.some((f) => {
     const column = f.column.toLowerCase();
     return (
@@ -470,6 +521,37 @@ async function getObservationsFromEventsTableInternal<T>(
         )
         .selectFieldSet("metadata");
     }
+  }
+
+  if (firstObservationInTraceFilterEnabled) {
+    const nativeFilter = new FilterList(
+      createFilterFromFilterState(
+        baseFilter,
+        eventsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const appliedNativeFilter = nativeFilter.apply();
+    const firstObservationBuilder = new EventsQueryBuilder({ projectId })
+      .selectRaw(
+        "e.trace_id",
+        "argMin(e.span_id, tuple(e.start_time, e.event_ts, e.span_id)) as first_span_id",
+      )
+      .whereRaw("e.is_deleted = 0")
+      .where(appliedNativeFilter)
+      .where(search);
+    const firstObservationCte = firstObservationBuilder.buildWithParams();
+
+    queryBuilder.withCTE("first_observations", {
+      query: `${firstObservationCte.query}\nGROUP BY e.trace_id`,
+      params: firstObservationCte.params,
+    });
+
+    queryBuilder
+      .innerJoin(
+        "first_observations fo",
+        "ON fo.trace_id = e.trace_id AND fo.first_span_id = e.span_id",
+      )
+      .whereRaw("e.is_deleted = 0");
   }
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
