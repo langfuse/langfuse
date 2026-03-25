@@ -166,7 +166,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 export const availableObservationEvalVariableColumns = [
   ...observationEvalVariableColumns,
   {
-    id: "toolCalls", // Needs to match the `ID` from `mapEventsTable.ts` and `mapObservationsTable.ts`
+    id: "toolCalls", // Needs to match the `ID` from `mapObservationsTable.ts`
     name: "Tool Calls",
     description: "Tool calls",
     internal: "tool_calls",
