@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "license": "MIT",
   "private": true,
+  "files": [
+    "dist/**",
+    "prisma/**",
+    "clickhouse/**",
+    "scripts/cleanup.sql"
+  ],
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "engines": {
