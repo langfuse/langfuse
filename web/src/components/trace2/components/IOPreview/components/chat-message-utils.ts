@@ -78,7 +78,9 @@ export function parseToolCallsFromMessage(
     return message.tool_calls;
   if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls))
     return message.json.tool_calls;
-  // Anthropic: tool calls live inside content array as type: "tool_use" blocks
+  // Anthropic: tool calls can live inside content array as type: "tool_use" blocks.
+  // Normalize them to the standard tool_calls shape so downstream consumers can
+  // render and number them the same way as OpenAI-style tool calls.
   if (Array.isArray(message.content)) {
     const toolUseBlocks = (message.content as unknown[]).filter(
       (b): b is Record<string, unknown> =>
@@ -86,7 +88,17 @@ export function parseToolCallsFromMessage(
         b !== null &&
         (b as Record<string, unknown>).type === "tool_use",
     );
-    if (toolUseBlocks.length > 0) return toolUseBlocks;
+    if (toolUseBlocks.length > 0) {
+      return toolUseBlocks.map((toolUseBlock) => ({
+        id: toolUseBlock.id,
+        name: toolUseBlock.name,
+        arguments:
+          typeof toolUseBlock.input === "string"
+            ? toolUseBlock.input
+            : JSON.stringify(toolUseBlock.input ?? {}),
+        type: "function",
+      }));
+    }
   }
   return [];
 }
