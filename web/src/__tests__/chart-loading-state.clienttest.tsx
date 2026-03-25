@@ -87,4 +87,33 @@ describe("ChartLoadingState", () => {
     expect(screen.getByText(customHint)).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
+
+  test("renders query progress details when progress is provided", () => {
+    render(
+      <ChartLoadingState
+        isLoading={true}
+        progress={{
+          read_rows: 1_779_300_000,
+          total_rows_to_read: 2_924_500_000,
+          elapsed_ns: 0,
+          read_bytes: 0,
+          percent: 0.6084,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByText("Reading 1.8B / ~2.9B rows")).toBeInTheDocument();
+  });
+
+  test("supports tight layout without rendering the default preview chrome", () => {
+    const { container } = render(
+      <ChartLoadingState isLoading={true} layout="tight" />,
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Loading chart data" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".space-y-3")).not.toBeInTheDocument();
+  });
 });
