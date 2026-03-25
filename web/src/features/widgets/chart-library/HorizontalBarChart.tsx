@@ -4,7 +4,14 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  LabelList,
+  type RenderableText,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -72,6 +79,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
           tickFormatter={(value) => valueFormatter(Number(value))}
         />
         <YAxis
@@ -115,7 +123,9 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
             <LabelList
               dataKey="metric"
               position="right"
-              formatter={(value: number) => valueFormatter(value)}
+              formatter={(value: RenderableText) =>
+                valueFormatter(Number(value ?? 0))
+              }
               className="fill-muted-foreground"
               style={{ fontSize: 12 }}
             />
