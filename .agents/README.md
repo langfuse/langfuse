@@ -9,14 +9,11 @@ or `.vscode/`.
 
 ## Layout
 
-- `AGENTS.md`, `CLAUDE.md`, `REVIEW.md`: canonical shared docs for repo
-  instructions, Claude entrypoint guidance, and review policy
+- `AGENTS.md`: canonical shared root instructions
 - `config.json`: shared bootstrap and MCP configuration used to generate
   tool-specific shims
 - `skills/`: shared, tool-neutral implementation guidance for recurring
   workflows
-- `shims/`: provider-specific discovery adapters whose durable logic still lives
-  in the shared docs or skills above
 
 ## `config.json`
 
@@ -72,11 +69,9 @@ tool discovery files that those products require.
 
 Generated local artifacts:
 
-- `.claude/agents/changelog-writer.md`
 - `.claude/settings.json`
 - `.claude/skills/*`
 - `.cursor/environment.json`
-- `.cursor/commands/review.md`
 - `.cursor/mcp.json`
 - `.vscode/mcp.json`
 - `.mcp.json`
@@ -86,8 +81,7 @@ Generated local artifacts:
 The repo root discovery files remain committed as symlinks:
 
 - `AGENTS.md` -> `.agents/AGENTS.md`
-- `CLAUDE.md` -> `.agents/CLAUDE.md`
-- `REVIEW.md` -> `.agents/REVIEW.md`
+- `CLAUDE.md` -> `AGENTS.md`
 
 This keeps provider discovery stable while `.agents/` remains the source of
 truth.
@@ -162,8 +156,8 @@ After editing `.agents/config.json`:
 
 1. Run `pnpm run agents:sync`
 2. Run `pnpm run agents:check`
-3. Verify you did not stage any generated shim files under `.claude/skills/`,
-   `.cursor/commands/`, or the generated MCP/runtime config paths
+3. Verify you did not stage any generated files under `.claude/skills/` or the
+   generated MCP/runtime config paths
 4. Update `AGENTS.md` or `CONTRIBUTING.md` if the shared workflow materially
    changed
 
@@ -182,7 +176,6 @@ Use them for durable, reusable guidance such as:
 Do not use skills for one-off task notes or tool runtime configuration.
 
 `pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
-Claude can discover the same repo-owned skills, and projects any provider-only
-adapters from `shims/` into their fixed discovery paths.
+Claude can discover the same repo-owned skills.
 
 For the skill authoring workflow, see [skills/README.md](skills/README.md).

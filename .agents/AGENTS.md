@@ -142,7 +142,9 @@ Minimum verification matrix:
 - Root `AGENTS.md` is monorepo-level only.
 - Package-local runbooks, commands, and entry points belong in package `AGENTS.md` files.
 - Keep guidance DRY: canonicalize to the most specific file.
-- `AGENTS.md`, `CLAUDE.md`, and `REVIEW.md` are canonicalized under `.agents/` and exposed at the repo root as symlinks for tool discovery.
+- `.agents/AGENTS.md` is the canonical root guide.
+- Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
+- Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md` because Anthropic still documents `CLAUDE.md` as the project memory filename.
 - Repo-owned Codex cloud bootstrap lives in `scripts/codex/setup.sh` and `scripts/codex/maintenance.sh`; contributors still configure the actual environment in the Codex UI.
 - Shared agent/tool config lives under `config.json` and `skills/`; `pnpm install` regenerates tool-specific config shims via `pnpm run agents:sync` and validates them with `pnpm run agents:check`.
 - Durable repo guidance that should apply across tools belongs in root/package `AGENTS.md` files or `skills/**`, not only in tool-specific config directories.
@@ -153,12 +155,10 @@ Minimum verification matrix:
 - If a task matches one of the shared skill scopes below, read the linked `SKILL.md` before editing code, then follow its local references as needed:
   - Backend and API work in `web/src/server/**`, `web/src/pages/api/public/**`, `worker/src/**`, or `packages/shared/src/**`: [`skills/backend-dev-guidelines/SKILL.md`](skills/backend-dev-guidelines/SKILL.md)
   - Model pricing work in `worker/src/constants/default-model-prices.json`, `packages/shared/src/server/llm/types.ts`, or related pricing files: [`skills/add-model-price/SKILL.md`](skills/add-model-price/SKILL.md)
-  - Code review tasks: [`skills/code-review/SKILL.md`](skills/code-review/SKILL.md) and [`REVIEW.md`](REVIEW.md)
+  - Code review tasks: [`skills/code-review/SKILL.md`](skills/code-review/SKILL.md)
   - Changelog drafting for completed feature branches: [`skills/changelog-writing/SKILL.md`](skills/changelog-writing/SKILL.md)
 - If more than one skill matches, read the minimal set required.
-- `REVIEW.md` is the canonical shared review checklist for this repo.
 - Claude should discover the shared repo skills via `.claude/skills/`, which projects `skills/` through symlinks at provider-specific discovery paths.
-- Claude's `changelog-writer` subagent is preserved as a generated shim from `shims/claude/agents/changelog-writer.md` so Claude-specific subagent behavior does not regress.
 
 ## Release Channel
 

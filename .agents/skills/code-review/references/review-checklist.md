@@ -1,9 +1,6 @@
-# Code Review Instructions
+# Langfuse Review Checklist
 
-This is the canonical shared review checklist for Langfuse. Shared review
-skills and any tool-specific review wrappers should point here instead of
-copying durable review policy into `.claude/`, `.cursor/`, or other tool
-directories. The root `REVIEW.md` should remain only as a discovery symlink.
+This is the canonical shared review checklist for Langfuse.
 
 ## Database Migrations
 

@@ -204,19 +204,7 @@ const symlinkOutputs = [
   },
   {
     path: resolve(repoRoot, "CLAUDE.md"),
-    target: resolve(repoRoot, ".agents/CLAUDE.md"),
-  },
-  {
-    path: resolve(repoRoot, "REVIEW.md"),
-    target: resolve(repoRoot, ".agents/REVIEW.md"),
-  },
-  {
-    path: resolve(repoRoot, ".claude/agents/changelog-writer.md"),
-    target: resolve(repoRoot, ".agents/shims/claude/agents/changelog-writer.md"),
-  },
-  {
-    path: resolve(repoRoot, ".cursor/commands/review.md"),
-    target: resolve(repoRoot, ".agents/shims/cursor/commands/review.md"),
+    target: resolve(repoRoot, "AGENTS.md"),
   },
   ...sharedSkillNames.map((name) => ({
     path: resolve(repoRoot, ".claude/skills", name),
