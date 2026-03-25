@@ -341,9 +341,6 @@ export const dashboardRouter = createTRPCRouter({
         return [];
       }
 
-      throw new TRPCError({
-        code: "GATEWAY_TIMEOUT",
-      });
       switch (input.queryName) {
         case "score-aggregate":
           if (input.version === "v2") {
