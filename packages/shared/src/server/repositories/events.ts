@@ -243,6 +243,27 @@ export function extractTimeFilter(
     : null;
 }
 
+export function extractTimeFilterFromFilterState(
+  filter: FilterState,
+  column: "startTime" | "timestamp" = "startTime",
+): string | null {
+  const columnVariants =
+    column === "startTime"
+      ? new Set(["startTime", "Start Time"])
+      : new Set(["timestamp", "Timestamp"]);
+
+  const timeFilter = filter.find(
+    (f) =>
+      columnVariants.has(f.column) &&
+      f.type === "datetime" &&
+      (f.operator === ">=" || f.operator === ">"),
+  );
+
+  return timeFilter && timeFilter.type === "datetime"
+    ? convertDateToClickhouseDateTime(timeFilter.value)
+    : null;
+}
+
 /**
  * Column mapping for public API filters on events table (observations)
  */
@@ -467,9 +488,11 @@ async function getObservationsFromEventsTableInternal<T>(
     ),
   );
 
-  const startTimeFrom = extractTimeFilter(observationsFilter);
+  const rawStartTimeFrom = extractTimeFilterFromFilterState(baseFilter);
+  const startTimeFrom =
+    extractTimeFilter(observationsFilter) ?? rawStartTimeFrom;
 
-  if (firstObservationInTraceFilterEnabled && !startTimeFrom) {
+  if (firstObservationInTraceFilterEnabled && !rawStartTimeFrom) {
     throw new InvalidRequestError(
       "1st observation in trace requires a start time range.",
     );
