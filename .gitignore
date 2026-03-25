@@ -75,9 +75,12 @@ web/test-results/*
 .playwright-mcp/*
 .codex-artifacts/
 .mcp.json
+.claude/agents/
 .claude/settings.json
+.claude/skills/
 .cursor/mcp.json
 .cursor/environment.json
+.cursor/commands/
 .vscode/mcp.json
 .codex/config.toml
 .codex/environments/environment.toml

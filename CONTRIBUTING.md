@@ -163,11 +163,18 @@ This repository keeps the shared agent setup in source control so developers
 using different tools can work against the same instructions, bootstrap, and
 MCP server catalog.
 
-- Canonical repo instructions: `AGENTS.md`
-- Claude entrypoint shim: `CLAUDE.md`
+- Canonical shared docs:
+  - `.agents/AGENTS.md`
+  - `.agents/CLAUDE.md`
+  - `.agents/REVIEW.md`
+- Root discovery symlinks:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `REVIEW.md`
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
+- Shared provider adapters: `.agents/shims/`
 - Tool-specific MCP configs generated locally from that catalog and not committed:
   - `.mcp.json`
   - `.cursor/mcp.json`
@@ -177,6 +184,10 @@ MCP server catalog.
   - `.claude/settings.json`
   - `.codex/environments/environment.toml`
   - `.cursor/environment.json`
+- Tool-specific skill/command projections generated locally and not committed:
+  - `.claude/agents/changelog-writer.md`
+  - `.claude/skills/*`
+  - `.cursor/commands/review.md`
 - Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
 
 When you change the shared MCP setup:

@@ -1,5 +1,15 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import process from "node:process";
 
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
@@ -145,7 +155,7 @@ const formatCodexEnvironmentToml = () => {
   return lines.join("\n");
 };
 
-const outputs = [
+const fileOutputs = [
   {
     path: resolve(repoRoot, ".claude/settings.json"),
     content: formatClaudeSettings(),
@@ -178,9 +188,54 @@ const outputs = [
   },
 ];
 
+const skillsRoot = resolve(repoRoot, ".agents/skills");
+const sharedSkillNames = readdirSync(skillsRoot, { withFileTypes: true })
+  .filter(
+    (entry) =>
+      entry.isDirectory() && existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
+  )
+  .map((entry) => entry.name)
+  .sort((left, right) => left.localeCompare(right));
+
+const symlinkOutputs = [
+  {
+    path: resolve(repoRoot, "AGENTS.md"),
+    target: resolve(repoRoot, ".agents/AGENTS.md"),
+  },
+  {
+    path: resolve(repoRoot, "CLAUDE.md"),
+    target: resolve(repoRoot, ".agents/CLAUDE.md"),
+  },
+  {
+    path: resolve(repoRoot, "REVIEW.md"),
+    target: resolve(repoRoot, ".agents/REVIEW.md"),
+  },
+  {
+    path: resolve(repoRoot, ".claude/agents/changelog-writer.md"),
+    target: resolve(repoRoot, ".agents/shims/claude/agents/changelog-writer.md"),
+  },
+  {
+    path: resolve(repoRoot, ".cursor/commands/review.md"),
+    target: resolve(repoRoot, ".agents/shims/cursor/commands/review.md"),
+  },
+  ...sharedSkillNames.map((name) => ({
+    path: resolve(repoRoot, ".claude/skills", name),
+    target: resolve(skillsRoot, name),
+  })),
+];
+
+const isMatchingSymlink = (path, target) => {
+  const stats = lstatSync(path);
+  if (!stats.isSymbolicLink()) {
+    return false;
+  }
+
+  return resolve(dirname(path), readlinkSync(path)) === target;
+};
+
 let hasMismatch = false;
 
-for (const output of outputs) {
+for (const output of fileOutputs) {
   if (checkMode) {
     try {
       const current = readFileSync(output.path, "utf8");
@@ -191,6 +246,14 @@ for (const output of outputs) {
     } catch (error) {
       if (output.optional) {
         console.warn(`Skipping optional config check: ${output.path}`);
+        continue;
+      }
+
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        hasMismatch = true;
+        console.error(
+          `Missing generated config: ${output.path}. Run "pnpm run agents:sync".`,
+        );
         continue;
       }
 
@@ -211,6 +274,47 @@ for (const output of outputs) {
 
     throw error;
   }
+}
+
+for (const output of symlinkOutputs) {
+  if (checkMode) {
+    try {
+      if (!isMatchingSymlink(output.path, output.target)) {
+        hasMismatch = true;
+        console.error(`Out of sync symlink: ${output.path}`);
+      }
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        hasMismatch = true;
+        console.error(`Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`);
+        continue;
+      }
+
+      throw error;
+    }
+
+    continue;
+  }
+
+  mkdirSync(dirname(output.path), { recursive: true });
+
+  try {
+    if (isMatchingSymlink(output.path, output.target)) {
+      continue;
+    }
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
+  }
+
+  rmSync(output.path, { force: true, recursive: true });
+  symlinkSync(
+    relative(dirname(output.path), output.target),
+    output.path,
+    lstatSync(output.target).isDirectory() ? "dir" : "file",
+  );
+  console.log(`Linked ${output.path}`);
 }
 
 if (checkMode && hasMismatch) {
