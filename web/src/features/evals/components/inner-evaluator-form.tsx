@@ -367,8 +367,8 @@ export const InnerEvaluatorForm = (props: {
 
     const mapping = form.getValues("mapping");
 
-    if (mapping.length === 0) {
-      // Initialize mapping for new evaluators
+    if (mapping.length === 0 && props.evalTemplate.vars.length > 0) {
+      // Initialize mapping for new evaluators (only if there are vars to map)
       const target = form.getValues("target");
       form.setValue(
         "mapping",

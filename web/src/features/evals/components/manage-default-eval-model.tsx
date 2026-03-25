@@ -13,7 +13,7 @@ export function ManageDefaultEvalModel({
   className,
 }: {
   projectId: string;
-  setUpMessage?: string;
+  setUpMessage?: React.ReactNode;
   variant?: "default" | "color-coded";
   showEditButton?: boolean;
   className?: string;

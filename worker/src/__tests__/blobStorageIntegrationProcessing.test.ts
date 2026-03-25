@@ -6,6 +6,8 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createSessionScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -97,6 +99,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: false,
         exportFrequency: "hourly",
+        compressed: false,
       },
     });
 
@@ -116,6 +119,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
       const now = new Date();
+      const sessionScoreId = randomUUID();
+      const sessionId = randomUUID();
+      const datasetRunScoreId = randomUUID();
+      const datasetRunId = randomUUID();
       // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
@@ -137,6 +144,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportSource: "TRACES_OBSERVATIONS_EVENTS",
           nextSyncAt: twoHoursAgo,
           lastSyncAt: twoHoursAgo,
+          compressed: false,
         },
       });
 
@@ -183,6 +191,22 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
             name: "Test Score",
             value: 0.95,
+          }),
+          createSessionScore({
+            id: sessionScoreId,
+            session_id: sessionId,
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            name: "Test Session Score",
+            value: 0.8,
+          }),
+          createDatasetRunScore({
+            id: datasetRunScoreId,
+            dataset_run_id: datasetRunId,
+            project_id: projectId,
+            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            name: "Test Dataset Run Score",
+            value: 0.7,
           }),
         ]),
         createEventsCh([event]),
@@ -233,6 +257,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(scoreId);
         expect(content).toContain("Test Score");
         expect(content).toContain("0.95");
+        // Verify session_id is exported for session-scoped scores
+        expect(content).toContain(sessionScoreId);
+        expect(content).toContain(sessionId);
+        expect(content).toContain("Test Session Score");
+        expect(content).toContain("0.8");
+        // Verify dataset_run_id is exported for dataset-run-scoped scores
+        expect(content).toContain(datasetRunScoreId);
+        expect(content).toContain(datasetRunId);
+        expect(content).toContain("Test Dataset Run Score");
+        expect(content).toContain("0.7");
       }
 
       if (eventFile) {
@@ -282,6 +316,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "weekly",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -348,6 +383,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "daily",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -459,6 +495,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportSource: "TRACES_OBSERVATIONS_EVENTS",
             fileType,
             lastSyncAt: oneHourAgo,
+            compressed: false,
           },
         });
 
@@ -563,6 +600,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null, // First export
+            compressed: false,
           },
         });
 
@@ -639,6 +677,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_TODAY" as any,
           exportStartDate: new Date(), // Use current date
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -702,6 +741,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportMode: "FROM_CUSTOM_DATE" as any,
           exportStartDate: customDate,
           lastSyncAt: null, // First export
+          compressed: false,
         },
       });
 
@@ -761,6 +801,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             exportMode: "FULL_HISTORY",
             exportStartDate: null,
             lastSyncAt: null,
+            compressed: false,
           },
         });
 
@@ -837,6 +878,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: twoDaysAgo, // Start from 2 days ago
+          compressed: false,
         },
       });
 
@@ -894,6 +936,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           lastSyncAt: oneHourAgo,
+          compressed: false,
         },
       });
 
@@ -931,5 +974,173 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         now.getTime(),
       );
     });
+  });
+
+  describe("gzip compression", () => {
+    maybeIt(
+      "should produce .csv.gz files when compressed is true",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".csv.gz"))).toBe(
+          true,
+        );
+      },
+    );
+
+    maybeIt(
+      "should produce plain .csv files when compressed is false",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.CSV,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "Uncompressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(
+          projectFiles.every(
+            (f) => f.file.endsWith(".csv") && !f.file.endsWith(".csv.gz"),
+          ),
+        ).toBe(true);
+
+        // Verify content is plain text (readable)
+        const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+        if (traceFile) {
+          const content = await s3StorageService.download(traceFile.file);
+          expect(content).toContain(traceId);
+          expect(content).toContain("Uncompressed Trace");
+        }
+      },
+    );
+
+    maybeIt(
+      "should produce .jsonl.gz files when compressed with JSONL format",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: true,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime() - 40 * 60 * 1000,
+            name: "JSONL Compressed Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        expect(projectFiles.length).toBeGreaterThan(0);
+        expect(projectFiles.every((f) => f.file.endsWith(".jsonl.gz"))).toBe(
+          true,
+        );
+      },
+    );
   });
 });

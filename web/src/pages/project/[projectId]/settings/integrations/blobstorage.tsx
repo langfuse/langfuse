@@ -259,6 +259,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
   });
@@ -287,6 +288,7 @@ const BlobStorageIntegrationSettingsForm = ({
         (isBetaEnabled
           ? AnalyticsIntegrationExportSource.EVENTS
           : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -739,6 +741,27 @@ const BlobStorageIntegrationSettingsForm = ({
             )}
           />
         )}
+
+        <FormField
+          control={blobStorageForm.control}
+          name="compressed"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gzip Compression</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  className="mt-1 ml-4"
+                />
+              </FormControl>
+              <FormDescription>
+                Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={blobStorageForm.control}
