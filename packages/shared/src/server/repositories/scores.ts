@@ -2266,3 +2266,40 @@ export const getScoreCountsByProjectAndDay = async ({
     date: row.date,
   }));
 };
+
+export const getScoresForKubit = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT s.*
+    FROM scores s FINAL
+    WHERE s.project_id = {projectId: String}
+      AND s.timestamp >= {minTimestamp: DateTime64(3)}
+      AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+      AND s.is_deleted = 0
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "kubit",
+      type: "score",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  for await (const record of records) {
+    yield { entity_type: "score" as const, ...record };
+  }
+};

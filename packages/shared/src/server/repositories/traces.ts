@@ -1644,3 +1644,40 @@ export const getTraceCountsByProjectAndDay = async ({
     date: row.date,
   }));
 };
+
+export const getTracesForKubit = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT t.*
+    FROM traces t FINAL
+    WHERE t.project_id = {projectId: String}
+      AND t.timestamp >= {minTimestamp: DateTime64(3)}
+      AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+      AND t.is_deleted = 0
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "kubit",
+      type: "trace",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  for await (const record of records) {
+    yield { entity_type: "trace" as const, ...record };
+  }
+};

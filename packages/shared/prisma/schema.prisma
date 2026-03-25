@@ -135,6 +135,7 @@ model Project {
   PosthogIntegration        PosthogIntegration[]
   MixpanelIntegration       MixpanelIntegration[]
   BlobStorageIntegration    BlobStorageIntegration[]
+  KubitIntegration          KubitIntegration?
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
   BatchAction               BatchAction[]
@@ -1088,6 +1089,33 @@ model MixpanelIntegration {
   exportSource                  AnalyticsIntegrationExportSource @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("mixpanel_integrations")
+}
+
+model KubitIntegration {
+  projectId             String    @id @map("project_id")
+  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  endpointUrl           String    @map("endpoint_url")
+  encryptedApiKey       String    @map("encrypted_api_key")
+  enabled               Boolean
+  syncIntervalMinutes   Int       @default(60) @map("sync_interval_minutes")
+  requestTimeoutSeconds Int       @default(30) @map("request_timeout_seconds")
+  encryptedAwsAccessKeyId     String?   @map("encrypted_aws_access_key_id")
+  encryptedAwsSecretAccessKey String?   @map("encrypted_aws_secret_access_key")
+  encryptedAwsSessionToken    String?   @map("encrypted_aws_session_token")
+  awsCredentialsExpiry        DateTime? @map("aws_credentials_expiry")
+  awsKinesisStreamName        String?   @map("aws_kinesis_stream_name")
+  awsKinesisRegion            String?   @map("aws_kinesis_region")
+  awsKinesisPartitionKey      String?   @map("aws_kinesis_partition_key")
+  lastSyncAt                  DateTime? @map("last_sync_at")
+  lastError                   String?   @map("last_error")
+  currentSyncMaxTimestamp     DateTime? @map("current_sync_max_timestamp")
+  tracesSyncedAt              DateTime? @map("traces_synced_at")
+  observationsSyncedAt        DateTime? @map("observations_synced_at")
+  eventsSyncedAt              DateTime? @map("events_synced_at")
+  scoresSyncedAt              DateTime? @map("scores_synced_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  @@map("kubit_integrations")
 }
 
 model BlobStorageIntegration {

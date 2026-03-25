@@ -2996,6 +2996,44 @@ export const getEventsForAnalyticsIntegrations = async function* (
   }
 };
 
+export const getEventsForKubit = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("base", "calculated", "io", "metadata", "eventTs")
+    .whereRaw(
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      {
+        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      },
+    )
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.span_id", "e.project_id");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params,
+    tags: {
+      feature: "kubit-integration",
+      type: "event",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  for await (const record of records) {
+    yield { entity_type: "enriched_observation" as const, ...record };
+  }
+};
+
 /*
  * Check if any session exists in events table
  * Filters for non-empty session_id
