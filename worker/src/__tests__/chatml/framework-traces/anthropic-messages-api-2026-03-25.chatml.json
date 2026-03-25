@@ -111,7 +111,12 @@
       "data": [
         {
           "role": "assistant",
-          "content": "Here is the weather:\n\nBerlin: Cloudy, 15°C\nTokyo: Sunny, 22°C",
+          "content": [
+            {
+              "type": "text",
+              "text": "Here is the weather:\n\nBerlin: Cloudy, 15°C\nTokyo: Sunny, 22°C"
+            }
+          ],
           "type": "message",
           "json": {
             "id": "msg_01DEF",

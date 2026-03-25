@@ -323,7 +323,7 @@ describe("Anthropic Adapter", () => {
       });
     });
 
-    it("should handle plain text assistant response", () => {
+    it("should pass through pure-text assistant response without destructive normalization", () => {
       const output = {
         role: "assistant",
         content: [{ type: "text", text: "Hello!" }],
@@ -333,10 +333,13 @@ describe("Anthropic Adapter", () => {
       const result = normalizeOutput(output, anthropicCtx);
       expect(result.success).toBe(true);
       expect(result.data?.[0].role).toBe("assistant");
-      expect(result.data?.[0].content).toBe("Hello!");
+      // Pure-text content arrays are preserved as-is (no Anthropic-specific blocks)
+      expect(result.data?.[0].content).toEqual([
+        { type: "text", text: "Hello!" },
+      ]);
     });
 
-    it("should concatenate multiple text blocks", () => {
+    it("should pass through multiple text blocks without destructive normalization", () => {
       const output = {
         role: "assistant",
         content: [
@@ -347,9 +350,11 @@ describe("Anthropic Adapter", () => {
 
       const result = normalizeOutput(output, anthropicCtx);
       expect(result.success).toBe(true);
-      expect(result.data?.[0].content).toBe(
-        "First paragraph.\nSecond paragraph.",
-      );
+      // Pure-text content arrays are preserved as-is
+      expect(result.data?.[0].content).toEqual([
+        { type: "text", text: "First paragraph." },
+        { type: "text", text: "Second paragraph." },
+      ]);
     });
 
     it("should pass through messages with string content unchanged", () => {

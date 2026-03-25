@@ -50,17 +50,24 @@ const AnthropicResponseSchema = z.looseObject({
   stop_reason: z.string(),
 });
 
-// Anthropic-specific content block (tool_use or tool_result — text alone is too generic)
-const AnthropicSpecificBlockSchema = z.looseObject({
-  type: z.enum(["tool_use", "tool_result", "thinking", "redacted_thinking"]),
-});
+const ANTHROPIC_BLOCK_TYPES = new Set([
+  "tool_use",
+  "tool_result",
+  "thinking",
+  "redacted_thinking",
+]);
 
 // Array of Anthropic messages (at least one with Anthropic-specific content blocks)
 const AnthropicMessagesArraySchema = z.array(z.any()).refine((arr) =>
   arr.some((m) => {
     if (!m || typeof m !== "object" || !Array.isArray(m.content)) return false;
     return (m.content as unknown[]).some(
-      (b) => AnthropicSpecificBlockSchema.safeParse(b).success,
+      (b) =>
+        b !== null &&
+        typeof b === "object" &&
+        ANTHROPIC_BLOCK_TYPES.has(
+          (b as Record<string, unknown>).type as string,
+        ),
     );
   }),
 );
@@ -189,16 +196,15 @@ function normalizeMessage(
     text,
   } = extractFromContent(message.content as unknown[]);
 
-  // Check if content array had any recognized typed blocks
-  const hasTypedBlocks =
+  // Check if content array had any Anthropic-specific blocks
+  const hasAnthropicBlocks =
     toolUseBlocks.length > 0 ||
     toolResultBlocks.length > 0 ||
     thinkingParts.length > 0 ||
-    redactedThinkingParts.length > 0 ||
-    text.length > 0;
+    redactedThinkingParts.length > 0;
 
-  // No recognized blocks — return as-is
-  if (!hasTypedBlocks) {
+  // No Anthropic-specific blocks — return as-is (preserves pure-text content arrays)
+  if (!hasAnthropicBlocks) {
     return removeNullFields(message);
   }
 
@@ -305,12 +311,6 @@ function preprocessData(data: unknown, _ctx: NormalizerContext): unknown {
     return normalizeMessages(data);
   }
 
-  // Single message
-  if (typeof data === "object") {
-    const normalized = normalizeMessage(data);
-    return Array.isArray(normalized) ? normalized : [normalized];
-  }
-
   return data;
 }
 
@@ -372,7 +372,7 @@ export const anthropicAdapter: ProviderAdapter = {
       }
     }
 
-    // STRUCTURAL: Anthropic Messages API request
+    // STRUCTURAL: Anthropic Messages API request ({model, messages} with Anthropic blocks)
     if (AnthropicRequestSchema.safeParse(ctx.metadata).success) {
       const obj = ctx.metadata as Record<string, unknown>;
       if (
@@ -386,9 +386,13 @@ export const anthropicAdapter: ProviderAdapter = {
     // Structural: Anthropic Messages API response
     if (AnthropicResponseSchema.safeParse(ctx.metadata).success) return true;
 
-    // Structural: Array of messages with Anthropic content blocks (on metadata)
-    if (AnthropicMessagesArraySchema.safeParse(ctx.metadata).success)
+    // Structural: Raw array of Anthropic messages on metadata (only if metadata is an array)
+    if (
+      Array.isArray(ctx.metadata) &&
+      AnthropicMessagesArraySchema.safeParse(ctx.metadata).success
+    ) {
       return true;
+    }
 
     // Structural checks on data (slower, do last)
     if (AnthropicResponseSchema.safeParse(ctx.data).success) return true;
