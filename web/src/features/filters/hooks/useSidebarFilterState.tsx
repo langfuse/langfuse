@@ -520,6 +520,11 @@ export function useSidebarFilterState(
   ]);
 
   // Sanitize stale or outdated filter queries in URL/session state.
+  // TODO(2026-04-15): Remove this entire effect once stale
+  // positionInTrace traces-table URL/session state has aged out.
+  // Remove the canonicalFiltersQuery cleanup path here and the matching
+  // stale-positionInTrace migration tests in sidebarFilterSessionPersistence
+  // / filter-integration when this is no longer needed.
   useEffect(() => {
     if (disableUrlPersistence) return;
     if (peekContext) return;
