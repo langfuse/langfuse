@@ -11,6 +11,7 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import Image from "next/image";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
@@ -200,7 +201,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
+    cmdKKeywords: ["posthog", "mixpanel", "kubit", "analytics"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -318,6 +319,37 @@ const Integrations = (props: { projectId: string }) => {
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/integrations/analytics/mixpanel"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <Image
+            src="/kubit-logo.png"
+            alt="Kubit"
+            width={80}
+            height={24}
+            className="mb-4"
+          />
+          <p className="mb-4 text-sm text-primary">
+            Integrate with Kubit to sync your Langfuse traces, observations, and
+            scores for advanced product analytics.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              href={`/project/${props.projectId}/settings/integrations/kubit`}
+            >
+              Configure
+            </ActionButton>
+            <Button asChild variant="ghost">
+              <Link
+                href="https://langfuse.com/integrations/analytics/kubit"
                 target="_blank"
               >
                 Integration Docs ↗

@@ -71,6 +71,8 @@ export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/mixpanelIntegrationQueue";
 export * from "./redis/mixpanelIntegrationProcessingQueue";
+export * from "./redis/kubitIntegrationQueue";
+export * from "./redis/kubitIntegrationProcessingQueue";
 export * from "./redis/blobStorageIntegrationQueue";
 export * from "./redis/blobStorageIntegrationProcessingQueue";
 export * from "./redis/dataRetentionQueue";
