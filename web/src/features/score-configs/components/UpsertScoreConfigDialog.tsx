@@ -387,7 +387,10 @@ export function UpsertScoreConfigDialog({
                                     label: "",
                                     value:
                                       fields.length > 0
-                                        ? fields[fields.length - 1].value + 1
+                                        ? fields.reduce(
+                                            (max, f) => Math.max(max, f.value),
+                                            0,
+                                          ) + 1
                                         : 0,
                                   })
                                 }
