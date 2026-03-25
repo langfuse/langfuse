@@ -46,7 +46,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-screen-md pb-0">
+      <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) pb-0">
         <DialogHeader>
           <DialogTitle>
             Create Evaluator for batched observation runs
@@ -56,18 +56,18 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="max-h-[72vh] overflow-y-auto pb-0 pr-1">
+        <DialogBody className="max-h-[72vh] overflow-y-auto pr-1 pb-0">
           {!templateId ? (
             <div className="space-y-4 px-1 pb-1">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Select an evaluator template to configure.
               </p>
               {templatesQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Loading templates...
                 </p>
               ) : templatesQuery.isError ? (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   Failed to load templates: {templatesQuery.error.message}
                 </p>
               ) : (

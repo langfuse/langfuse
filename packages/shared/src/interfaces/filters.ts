@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Make sure to update the InMemoryFilterService if you add new filter types
 export const filterOperators = {

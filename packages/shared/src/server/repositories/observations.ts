@@ -40,6 +40,7 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { TracingSearchType } from "../../interfaces/search";
+import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
@@ -742,6 +743,7 @@ const getObservationsTableInternal = async <T>(
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -884,6 +886,7 @@ export const getObservationsGroupedByModel = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -934,6 +937,7 @@ export const getObservationsGroupedByModelId = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -985,6 +989,7 @@ export const getObservationsGroupedByName = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -1036,6 +1041,7 @@ export const getObservationsGroupedByToolName = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -1084,6 +1090,7 @@ export const getObservationsGroupedByCalledToolName = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -1132,6 +1139,7 @@ export const getObservationsGroupedByPromptName = async (
     ...createFilterFromFilterState(
       filter,
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
@@ -1686,6 +1694,9 @@ export const getObservationCountsByProjectInCreationInterval = async ({
     params: {
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
+    },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
     },
     tags: {
       feature: "tracing",

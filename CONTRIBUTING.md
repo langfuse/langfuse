@@ -117,11 +117,51 @@ Requirements
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
+### Codex Cloud Setup
+
+You can also attach this repository to an OpenAI Codex cloud environment. The
+cloud environment itself is configured in the Codex UI, while the repo-owned
+bootstrap is versioned in:
+
+- `scripts/codex/setup.sh`
+- `scripts/codex/maintenance.sh`
+
+Recommended Codex UI configuration:
+
+1. Create a new cloud environment for this repository in the Codex UI.
+2. Choose a base environment with Node.js 24 support.
+3. Set the setup script to:
+
+   ```bash
+   bash scripts/codex/setup.sh
+   ```
+
+4. Set the maintenance script to:
+
+   ```bash
+   bash scripts/codex/maintenance.sh
+   ```
+
+5. Keep internet access disabled by default, or only allow the minimum domains
+   needed for your task.
+6. Add secrets and environment variables in the Codex UI instead of committing
+   them to the repository.
+
+Notes:
+
+- This Codex setup is intended for repository tasks such as code changes,
+  linting, typechecking, and targeted tests.
+- It does **not** start the full Langfuse stack. Local development still uses
+  Docker and `pnpm run dx` / `pnpm run dev`.
+- Running the full application inside Codex requires external services for
+  PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
+  variables in the Codex UI.
+
 **Steps**
 
 1. Install development dependencies:
    - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
 
 2. Fork the repository and clone it locally
 

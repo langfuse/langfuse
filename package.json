@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.156.0",
+  "version": "3.162.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -27,11 +27,12 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web -- --turbo",
-    "dev:web-no-turbo": "turbo run dev --filter=web",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "playwright:install": "pnpm --filter web exec playwright install chromium",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
@@ -42,9 +43,9 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2",
-    "release-it": "^19.0.4",
-    "turbo": "2.8.13"
+    "prettier": "^3.8.1",
+    "release-it": "^19.2.4",
+    "turbo": "2.8.20"
   },
   "release-it": {
     "git": {
@@ -92,6 +93,7 @@
   "packageManager": "pnpm@9.5.0",
   "pnpm": {
     "overrides": {
+      "zod": "4.3.6",
       "nanoid": "^3.3.8",
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",

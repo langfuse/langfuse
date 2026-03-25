@@ -13,8 +13,10 @@ import {
   getPayloadConfigFromPayload,
 } from "@/src/components/ui/chart";
 
-export interface ScoreChartLegendContentProps
-  extends Pick<LegendProps, "payload" | "verticalAlign"> {
+export interface ScoreChartLegendContentProps extends Pick<
+  LegendProps,
+  "payload" | "verticalAlign"
+> {
   /** Enable interactive click-to-toggle functionality */
   interactive?: boolean;
   /** Visibility state for each legend item (key -> visible) */
@@ -442,7 +444,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                   ref={buttonRef}
                   variant="ghost"
                   size="sm"
-                  className="h-6 shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:bg-accent"
+                  className="text-muted-foreground hover:bg-accent h-6 shrink-0 gap-1 px-2 text-xs"
                   aria-label={`Show all ${payload.length} categories`}
                 >
                   <span>Show all {payload.length}</span>
@@ -460,7 +462,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">All Categories</p>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       {payload.length} total
                     </span>
                   </div>
@@ -470,7 +472,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                         <div key={groupName}>
                           {/* Only show subheader if there are multiple groups */}
                           {Object.keys(groupedItems).length > 1 && (
-                            <h4 className="mb-2 text-xs font-medium text-muted-foreground">
+                            <h4 className="text-muted-foreground mb-2 text-xs font-medium">
                               {groupName}
                             </h4>
                           )}
@@ -489,7 +491,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                               return (
                                 <div
                                   key={key}
-                                  className="rounded-sm px-2 py-1.5 hover:bg-accent/50"
+                                  className="hover:bg-accent/50 rounded-sm px-2 py-1.5"
                                 >
                                   <LegendItem
                                     color={color}

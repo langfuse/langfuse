@@ -28,6 +28,16 @@ interface MediaFile {
   filePath: string;
 }
 
+export type SeedMediaKey = "image" | "pdf" | "audio";
+
+export interface SeedMediaFixture {
+  name: string;
+  contentType: string;
+  mediaId: string;
+  referenceString: string;
+  source: string;
+}
+
 const MEDIA_FILES: Record<string, MediaFile> = {
   image: {
     name: "langfuse-logo.png",
@@ -49,12 +59,51 @@ const MEDIA_FILES: Record<string, MediaFile> = {
   },
 };
 
+const SEED_MEDIA_REFERENCE_SOURCE = "base64_data_uri";
+const seedMediaFixtureCache = new Map<SeedMediaKey, SeedMediaFixture | null>();
+
 // Deterministic trace IDs for media test traces
 export const MEDIA_TEST_TRACE_IDS = {
   imageOnly: "seed-media-image-only",
   allTypes: "seed-media-all-types",
   allTypesChatML: "seed-media-all-types-chatml",
 } as const;
+
+export function getSeedMediaFixture(
+  mediaKey: SeedMediaKey,
+): SeedMediaFixture | null {
+  if (seedMediaFixtureCache.has(mediaKey)) {
+    return seedMediaFixtureCache.get(mediaKey) ?? null;
+  }
+
+  const mediaFile = MEDIA_FILES[mediaKey];
+
+  if (!fs.existsSync(mediaFile.filePath)) {
+    logger.warn(
+      `[seed-media] Test file not found: ${mediaFile.filePath}, media fixture unavailable`,
+    );
+    seedMediaFixtureCache.set(mediaKey, null);
+    return null;
+  }
+
+  const fileBytes = fs.readFileSync(mediaFile.filePath);
+  const sha256Hash = crypto
+    .createHash("sha256")
+    .update(fileBytes)
+    .digest("base64");
+  const mediaId = getMediaIdFromHash(sha256Hash);
+  const fixture = {
+    name: mediaFile.name,
+    contentType: mediaFile.contentType,
+    mediaId,
+    source: SEED_MEDIA_REFERENCE_SOURCE,
+    referenceString: `@@@langfuseMedia:type=${mediaFile.contentType}|id=${mediaId}|source=${SEED_MEDIA_REFERENCE_SOURCE}@@@`,
+  };
+
+  seedMediaFixtureCache.set(mediaKey, fixture);
+
+  return fixture;
+}
 
 /**
  * Derive media ID from SHA256 hash (first 22 chars, URL-safe)

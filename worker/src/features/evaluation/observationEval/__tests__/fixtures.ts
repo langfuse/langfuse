@@ -93,6 +93,8 @@ export function createTestEvalConfig(
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: `template-${randomUUID()}`,
     scoreName: "test-score",
+    status: "ACTIVE",
+    blockedAt: null,
     targetObject: EvalTargetObject.EVENT,
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },
@@ -203,6 +205,7 @@ export function createMockJobConfiguration(
     sampling: string;
     delay: number;
     status: string;
+    blockedAt: Date | null;
     timeScope: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -226,6 +229,7 @@ export function createMockJobConfiguration(
     sampling: overrides.sampling ?? "1.0",
     delay: overrides.delay ?? 0,
     status: overrides.status ?? "ACTIVE",
+    blockedAt: overrides.blockedAt ?? null,
     timeScope: overrides.timeScope ?? ["NEW"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),
@@ -250,7 +254,7 @@ export function createMockEvalTemplate(
     model: string;
     provider: string;
     modelParams: Record<string, unknown>;
-    outputSchema: Record<string, string>;
+    outputDefinition: Record<string, string>;
     vars: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -267,7 +271,7 @@ export function createMockEvalTemplate(
     model: overrides.model ?? "gpt-4",
     provider: overrides.provider ?? "openai",
     modelParams: overrides.modelParams ?? {},
-    outputSchema: overrides.outputSchema ?? {
+    outputDefinition: overrides.outputDefinition ?? {
       score: "A number between 0 and 1",
       reasoning: "Explain your reasoning",
     },

@@ -6,6 +6,7 @@
 
 import {
   type FilterState,
+  type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
 } from "@langfuse/shared";
@@ -18,6 +19,7 @@ import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
@@ -28,6 +30,7 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -575,6 +578,24 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(result[1]?.value).toBe("a");
   });
 
+  it("should drop filters for columns missing in active table definitions", () => {
+    const urlFilter =
+      "environment;stringOptions;;any of;production,trace_scores_v4_only;number;;>=;0.8";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      traceFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]).toEqual({
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    });
+  });
+
   it("should handle backend column remapping from URL", () => {
     // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
     const urlFilter = "tags;arrayOptions;;any of;tag1";
@@ -590,6 +611,56 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+
+  it("should discard stale positionInTrace URL filters on the general events table", () => {
+    const urlFilter = "positionInTrace;positionInTrace;last;=;";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual([]);
+  });
+});
+
+describe("Saved view validation", () => {
+  it("should discard stale positionInTrace filters on the general events table", () => {
+    const filters: FilterState = [
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ];
+
+    expect(
+      validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
+    ).toEqual([]);
+  });
+
+  it("should preserve positionInTrace filters when the session view defines the column", () => {
+    const sessionEventColumns: ColumnDefinition[] = [
+      ...observationEventsFilterConfig.columnDefinitions,
+      {
+        name: "Position in Trace",
+        id: "positionInTrace",
+        type: "positionInTrace",
+        internal: "positionInTrace",
+      },
+    ];
+    const filters: FilterState = [
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ];
+
+    expect(validateFilters(filters, sessionEventColumns)).toEqual(filters);
   });
 });
 
@@ -727,11 +798,7 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
 });
 
 describe("Implicit Environment Defaults (sidebar only)", () => {
-  const hiddenEnvironments = [
-    "langfuse-prompt-experiment",
-    "langfuse-evaluation",
-    "sdk-experiment",
-  ];
+  const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
     "production",
     "staging",

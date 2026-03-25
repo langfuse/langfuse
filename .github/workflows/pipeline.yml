@@ -125,6 +125,8 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
+    env:
+      DOCKER_COMPOSE_FILE: docker-compose.build.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,32 +138,51 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Build and run both images from compose
+      - name: Build images
         run: |
-          docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
+          docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
           docker buildx bake -f /tmp/bake.json
-          docker compose --progress plain -f docker-compose.build.yml up -d
-      - name: Ensure no unhealthy status
+      - name: Start compose services and wait for healthchecks
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
       - name: Check worker health
         run: |
-          timeout 20 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3030/api/health
       - name: Check server health
         run: |
-          timeout 20 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-      - name: Dump docker logs on failure
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3000/api/public/health
+      - name: Capture docker diagnostics on failure
         if: failure()
         run: |
-          echo "=== langfuse-web logs ==="
-          docker compose -f docker-compose.build.yml logs langfuse-web --tail=100
-          echo "=== langfuse-worker logs ==="
-          docker compose -f docker-compose.build.yml logs langfuse-worker --tail=100
+          mkdir -p /tmp/docker-diagnostics
+
+          docker compose -f "$DOCKER_COMPOSE_FILE" ps -a \
+            | tee /tmp/docker-diagnostics/compose-state.txt || true
+
+          timeout 15 docker events --since 20m --until "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            | tee /tmp/docker-diagnostics/docker-events.txt || true
+
+          ss -ltnp | tee /tmp/docker-diagnostics/host-listeners.txt || true
+
+          for service in langfuse-web langfuse-worker postgres redis minio clickhouse; do
+            container_id="$(docker compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service" || true)"
+            if [ -z "$container_id" ]; then
+              echo "No container found for ${service}" | tee -a /tmp/docker-diagnostics/missing-containers.txt
+              continue
+            fi
+
+            docker inspect "$container_id" > "/tmp/docker-diagnostics/${service}-inspect.json" || true
+            docker logs --timestamps "$container_id" > "/tmp/docker-diagnostics/${service}-docker-logs.txt" 2>&1 || true
+          done
+      - name: Upload docker diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/docker-diagnostics
+          if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -272,11 +293,11 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
       - name: run test-client
         if: matrix.deploy-mode == '' && matrix.shard == 1
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
+        run: npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
 
   tests-worker:
     timeout-minutes: 20

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { paginationZod, LLMAdapter, type JSONValue } from "@langfuse/shared";
 import { BedrockConfigSchema, VertexAIConfigSchema } from "@langfuse/shared";
 

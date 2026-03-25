@@ -310,6 +310,9 @@ describe("Prompts endpoint", () => {
     if (!redisValue) {
       return;
     }
-    expect(JSON.parse(redisValue)).toEqual(validatedPrompt);
+    expect(JSON.parse(redisValue)).toEqual({
+      ...validatedPrompt,
+      isActive: null, // deprecated isActive is being patched at the endpoint handler level; in Redis it is still null as in DB
+    });
   });
 });

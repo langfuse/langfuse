@@ -2,7 +2,7 @@ import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { logger, compareVersions } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const ReleaseApiRes = z.array(
   z.object({

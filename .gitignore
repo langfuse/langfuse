@@ -72,6 +72,8 @@ node_modules
 .turbo
 
 web/test-results/*
+.playwright-mcp/*
+.codex-artifacts/
 
 # local config files
 *.local.*

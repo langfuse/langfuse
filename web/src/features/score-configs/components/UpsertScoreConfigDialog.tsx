@@ -150,7 +150,7 @@ export function UpsertScoreConfigDialog({
       >
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isPending}>
-            <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
             {id ? "Update score config" : "Add new score config"}
           </Button>
         </DialogTrigger>
@@ -290,7 +290,7 @@ export function UpsertScoreConfigDialog({
                       render={() => (
                         <>
                           {fields.length > 0 && (
-                            <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
+                            <div className="mb-2 grid grid-cols-[1fr_3fr] items-center gap-2 text-left sm:grid-cols-[1fr_7fr]">
                               <FormLabel className="grid grid-flow-col">
                                 Value
                                 <DocPopup
@@ -309,7 +309,7 @@ export function UpsertScoreConfigDialog({
                           {fields.map((category, index) => (
                             <div
                               key={`${category.id}-langfuseObject`}
-                              className="items-top mb-2 grid grid-cols-[1fr,3fr] gap-2 text-left sm:grid-cols-[1fr,7fr]"
+                              className="items-top mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
                             >
                               <FormField
                                 control={form.control}
@@ -329,7 +329,7 @@ export function UpsertScoreConfigDialog({
                                   </FormItem>
                                 )}
                               />
-                              <div className="grid grid-cols-[1fr,auto] gap-2">
+                              <div className="grid grid-cols-[1fr_auto] gap-2">
                                 <FormField
                                   control={form.control}
                                   name={`categories.${index}.label`}
@@ -383,7 +383,16 @@ export function UpsertScoreConfigDialog({
                                   ) && fields.length === 2
                                 }
                                 onClick={() =>
-                                  append({ label: "", value: fields.length })
+                                  append({
+                                    label: "",
+                                    value:
+                                      fields.length > 0
+                                        ? fields.reduce(
+                                            (max, f) => Math.max(max, f.value),
+                                            0,
+                                          ) + 1
+                                        : 0,
+                                  })
                                 }
                               >
                                 Add category

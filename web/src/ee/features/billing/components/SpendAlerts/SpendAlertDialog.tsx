@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 import {
   Dialog,
   DialogContent,
@@ -117,7 +117,7 @@ export function SpendAlertDialog({
         <DialogTitle>
           {alert ? "Edit Spend Alert" : "Create Spend Alert"}
         </DialogTitle>
-        <DialogDescription className="pb-2 pt-1 text-sm text-muted-foreground">
+        <DialogDescription className="text-muted-foreground pt-1 pb-2 text-sm">
           Get notified when your organization&apos;s spending exceeds a limit.
         </DialogDescription>
         <Form {...form}>
@@ -164,7 +164,7 @@ export function SpendAlertDialog({
                 </FormItem>
               )}
             />
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
                 <Info className="mr-2 h-3 w-3" />
                 <span className="font-medium">How it works</span>

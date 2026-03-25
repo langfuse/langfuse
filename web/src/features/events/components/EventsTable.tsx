@@ -72,6 +72,8 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
@@ -1156,6 +1158,7 @@ export default function ObservationsEventsTable({
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
+    disabled: hideControls,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1436,18 +1439,18 @@ export default function ObservationsEventsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+                    const observationUrl = buildTraceDetailPath({
+                      projectId,
+                      traceId,
+                      observationId,
+                      timestamp,
+                    });
 
-                    const params = new URLSearchParams();
-                    params.set("observation", observationId);
-                    if (timestamp) {
-                      params.set("timestamp", timestamp.toISOString());
-                    }
-
-                    observationUrl += `?${params.toString()}`;
-
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-                    window.open(fullUrl, "_blank");
+                    window.open(
+                      getSafeRedirectPath(observationUrl),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }
                 // For normal clicks, let the data-table handle opening the peek view

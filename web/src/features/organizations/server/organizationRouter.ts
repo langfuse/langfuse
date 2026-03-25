@@ -8,7 +8,7 @@ import {
   organizationOptionalNameSchema,
   organizationNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
