@@ -76,7 +76,7 @@ import { eventsTableCols } from "../../eventsTable";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
-type ObservationsTableQueryResultWitouhtTraceFields = Omit<
+export type EventsTableObservationListRow = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
@@ -92,19 +92,19 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
  * @param requestedFields - Field groups for V2 API (null = V1 API, returns complete observations)
  */
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsTableObservationListRow>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroup[],
 ): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsTableObservationListRow>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: null,
 ): Promise<Array<EventsObservation & ObservationPriceFields>>;
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsTableObservationListRow>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroup[] | null,
@@ -207,6 +207,169 @@ async function enrichObservationsWithTraceFields(
       toolCallsCount: o.toolCalls ? o.toolCalls.length : null,
     };
   });
+}
+
+export function buildObservationsFromEventsTableQuery(
+  opts: ObservationTableQuery & {
+    select: "count" | "rows";
+  },
+): { query: string; params: Record<string, unknown> } {
+  const {
+    projectId,
+    filter,
+    selectIOAndMetadata,
+    renderingProps = DEFAULT_RENDERING_PROPS,
+    limit,
+    offset,
+    orderBy,
+  } = opts;
+
+  const positionFilter = filter.find((f) => f.type === "positionInTrace");
+  const baseFilter: typeof filter = [
+    ...filter.filter((f) => f.type !== "positionInTrace"),
+  ];
+
+  const observationsFilter = new FilterList(
+    createFilterFromFilterState(
+      baseFilter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const startTimeFrom = extractTimeFilter(observationsFilter);
+  const hasObservationScoresFilter = baseFilter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "scores" ||
+      column === "scores_avg" ||
+      column === "score_categories" ||
+      column === "scores (numeric)" ||
+      column === "scores (categorical)"
+    );
+  });
+  const hasTraceScoresFilter = baseFilter.some((f) => {
+    const column = f.column.toLowerCase();
+    return (
+      column === "trace_scores_avg" ||
+      column === "trace_score_categories" ||
+      column === "trace scores (numeric)" ||
+      column === "trace scores (categorical)"
+    );
+  });
+  const search = clickhouseSearchCondition(
+    opts.searchQuery,
+    opts.searchType,
+    "e",
+    ["span_id", "name", "user_id", "session_id", "trace_id"],
+  );
+
+  const orderByEntries = orderByToEntries(
+    [orderBy ?? null],
+    eventsTableUiColumnDefinitions,
+  );
+
+  const queryBuilder = new EventsQueryBuilder({ projectId });
+
+  if (opts.select === "count") {
+    queryBuilder.selectFieldSet("count");
+  } else {
+    queryBuilder.selectFieldSet("base", "calculated");
+    if (selectIOAndMetadata) {
+      queryBuilder
+        .selectIO(
+          renderingProps.truncated,
+          env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
+        )
+        .selectFieldSet("metadata");
+    }
+  }
+
+  if (positionFilter && "key" in positionFilter) {
+    const key = positionFilter.key;
+    const isFromEnd = key === "last" || key === "nthFromEnd";
+    const direction = isFromEnd ? "DESC" : "ASC";
+    const position =
+      key === "last" || key === "root"
+        ? 1
+        : typeof positionFilter.value === "number"
+          ? positionFilter.value
+          : 1;
+
+    const nativeFilter = new FilterList(
+      createFilterFromFilterState(
+        baseFilter,
+        eventsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const appliedNativeFilter = nativeFilter.apply();
+    const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
+      .selectRaw(
+        "e.span_id",
+        `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
+      )
+      .where(appliedNativeFilter)
+      .where(search);
+
+    queryBuilder.withCTE(
+      "qualifying_obs",
+      qualifyingObsBuilder.buildWithParams(),
+    );
+
+    queryBuilder.whereRaw(
+      "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
+      { _posRn: Math.max(1, position) },
+    );
+  }
+
+  queryBuilder
+    .when(hasObservationScoresFilter, (b) =>
+      b.withCTE(
+        "scores_agg",
+        eventsScoresAggregation({ projectId, startTimeFrom }),
+      ),
+    )
+    .when(hasTraceScoresFilter, (b) =>
+      b.withCTE(
+        "trace_scores_agg",
+        eventsTracesScoresAggregation({
+          projectId,
+          startTimeFrom,
+          hasScoreAggregationFilters: true,
+        }),
+      ),
+    )
+    .when(hasObservationScoresFilter, (b) =>
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    )
+    .when(hasTraceScoresFilter, (b) =>
+      b.leftJoin(
+        "trace_scores_agg AS ts",
+        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
+    )
+    .applyFilters(observationsFilter)
+    .where(search)
+    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
+    .limit(limit, offset);
+
+  return queryBuilder.buildWithParams();
+}
+
+export async function hydrateObservationsWithModelDataFromEventsTableRows(
+  observationRecords: Array<EventsTableObservationListRow>,
+  opts: ObservationTableQuery,
+): Promise<FullEventsObservations> {
+  const withModelData: Array<EventsObservation & ObservationPriceFields> =
+    await enrichObservationsWithModelData(
+      observationRecords,
+      opts.projectId,
+      opts.renderingProps?.shouldJsonParse ??
+        DEFAULT_RENDERING_PROPS.shouldJsonParse,
+      null,
+    );
+
+  return enrichObservationsWithTraceFields(withModelData);
 }
 
 /**
@@ -329,7 +492,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   }
 
   const records =
-    await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsFromEventsTableInternal<EventsTableObservationListRow>(
       {
         projectId,
         filter,
@@ -372,7 +535,7 @@ export const getObservationsWithModelDataFromEventsTable = async (
   opts: ObservationTableQuery,
 ): Promise<FullEventsObservations> => {
   const observationRecords =
-    await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsFromEventsTableInternal<EventsTableObservationListRow>(
       {
         ...opts,
         select: "rows",
@@ -380,15 +543,10 @@ export const getObservationsWithModelDataFromEventsTable = async (
       },
     );
 
-  const withModelData: Array<EventsObservation & ObservationPriceFields> =
-    await enrichObservationsWithModelData(
-      observationRecords,
-      opts.projectId,
-      false,
-      null, // V1 path: always enrich all fields
-    );
-
-  return enrichObservationsWithTraceFields(withModelData);
+  return hydrateObservationsWithModelDataFromEventsTableRows(
+    observationRecords,
+    opts,
+  );
 };
 
 async function getObservationsFromEventsTableInternal<T>(
@@ -397,155 +555,8 @@ async function getObservationsFromEventsTableInternal<T>(
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> {
-  const {
-    projectId,
-    filter,
-    selectIOAndMetadata,
-    renderingProps = DEFAULT_RENDERING_PROPS,
-    limit,
-    offset,
-    orderBy,
-    clickhouseConfigs,
-  } = opts;
-
-  // Extract positionInTrace filter and build baseFilter without it
-  const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
-  ];
-
-  // Build filter list from baseFilter (without positionInTrace)
-  const observationsFilter = new FilterList(
-    createFilterFromFilterState(
-      baseFilter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasObservationScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "scores" ||
-      column === "scores_avg" ||
-      column === "score_categories" ||
-      column === "scores (numeric)" ||
-      column === "scores (categorical)"
-    );
-  });
-  const hasTraceScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "trace_scores_avg" ||
-      column === "trace_score_categories" ||
-      column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)"
-    );
-  });
-  const search = clickhouseSearchCondition(
-    opts.searchQuery,
-    opts.searchType,
-    "e",
-    ["span_id", "name", "user_id", "session_id", "trace_id"],
-  );
-
-  const orderByEntries = orderByToEntries(
-    [orderBy ?? null],
-    eventsTableUiColumnDefinitions,
-  );
-
-  // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder({ projectId });
-
-  if (opts.select === "count") {
-    queryBuilder.selectFieldSet("count");
-  } else {
-    queryBuilder.selectFieldSet("base", "calculated");
-    if (selectIOAndMetadata) {
-      queryBuilder
-        .selectIO(
-          renderingProps.truncated,
-          env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
-        )
-        .selectFieldSet("metadata");
-    }
-  }
-
-  // Handle positionInTrace via CTE with ROW_NUMBER()
-  // All modes use the same pattern: rank observations per trace, pick rn = N.
-  // root/nthFromStart → ORDER BY start_time ASC
-  // last/nthFromEnd   → ORDER BY start_time DESC
-  if (positionFilter && "key" in positionFilter) {
-    const key = positionFilter.key;
-    const isFromEnd = key === "last" || key === "nthFromEnd";
-    const direction = isFromEnd ? "DESC" : "ASC";
-    const position =
-      key === "last" || key === "root"
-        ? 1
-        : typeof positionFilter.value === "number"
-          ? positionFilter.value
-          : 1;
-
-    // Build observation-only filter for CTE (no s.* or t.* references)
-    const nativeFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
-    );
-    const appliedNativeFilter = nativeFilter.apply();
-    const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
-      .selectRaw(
-        "e.span_id",
-        `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
-      )
-      .where(appliedNativeFilter)
-      .where(search);
-
-    queryBuilder.withCTE(
-      "qualifying_obs",
-      qualifyingObsBuilder.buildWithParams(),
-    );
-
-    queryBuilder.whereRaw(
-      "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
-      { _posRn: Math.max(1, position) },
-    );
-  }
-
-  queryBuilder
-    .when(hasObservationScoresFilter, (b) =>
-      b.withCTE(
-        "scores_agg",
-        eventsScoresAggregation({ projectId, startTimeFrom }),
-      ),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.withCTE(
-        "trace_scores_agg",
-        eventsTracesScoresAggregation({
-          projectId,
-          startTimeFrom,
-          hasScoreAggregationFilters: true,
-        }),
-      ),
-    )
-    .when(hasObservationScoresFilter, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.leftJoin(
-        "trace_scores_agg AS ts",
-        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-      ),
-    )
-    .applyFilters(observationsFilter)
-    .where(search)
-    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
-    .limit(limit, offset);
-
-  const { query, params } = queryBuilder.buildWithParams();
+  const { projectId, clickhouseConfigs } = opts;
+  const { query, params } = buildObservationsFromEventsTableQuery(opts);
 
   return measureAndReturn({
     operationName: "getObservationsFromEventsTableInternal",
@@ -1079,7 +1090,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
   });
 
   const observationRecords =
-    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsRowsFromBuilder<EventsTableObservationListRow>(
       projectId,
       queryBuilder,
     );
@@ -1155,7 +1166,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   }
 
   const records =
-    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsRowsFromBuilder<EventsTableObservationListRow>(
       projectId,
       builder,
     );

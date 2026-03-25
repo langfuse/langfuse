@@ -9,6 +9,7 @@ import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import { useSSEEventsTableQuery } from "@/src/features/events/hooks/useSSEEventsTableQuery";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
@@ -31,6 +32,8 @@ type UseEventsTableDataParams = {
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
+  useStreamingListQuery?: boolean;
+  refreshKey?: string | number;
 };
 
 export function useEventsTableData({
@@ -43,6 +46,8 @@ export function useEventsTableData({
   selectedRows,
   selectAll,
   setSelectedRows,
+  useStreamingListQuery = false,
+  refreshKey,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -75,16 +80,46 @@ export function useEventsTableData({
 
   const silentHttpCodes = [422];
 
-  const observations = api.events.all.useQuery(getAllPayload, {
+  const observationsTrpc = api.events.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
+    enabled: !useStreamingListQuery,
     meta: {
       silentHttpCodes, // Turns off red bubble
     },
   });
 
+  const observationsSSE = useSSEEventsTableQuery(getAllPayload, {
+    enabled: useStreamingListQuery,
+    refreshKey,
+  });
+  const observationsData = useStreamingListQuery
+    ? observationsSSE.data
+    : observationsTrpc.data;
+  const observationsIsSuccess = useStreamingListQuery
+    ? observationsSSE.isSuccess
+    : observationsTrpc.isSuccess;
+  const observationsIsLoading = useStreamingListQuery
+    ? observationsSSE.isLoading
+    : observationsTrpc.isLoading;
+  const observationsIsError = useStreamingListQuery
+    ? observationsSSE.isError
+    : observationsTrpc.isError;
+  const observationsError = useStreamingListQuery
+    ? observationsSSE.error
+    : observationsTrpc.error;
+  const observationsDataUpdatedAt = useStreamingListQuery
+    ? observationsSSE.dataUpdatedAt
+    : observationsTrpc.dataUpdatedAt;
+  const observationsProgress = useStreamingListQuery
+    ? observationsSSE.progress
+    : null;
+  const observationsResourceLimitError = useStreamingListQuery
+    ? observationsSSE.errorKind === "resource_limit"
+    : false;
+
   const batchIOPayload = useMemo(() => {
     const validObservations =
-      observations.data?.observations?.filter(
+      observationsData?.observations?.filter(
         (o) => o.id && o.traceId && o.startTime,
       ) ?? [];
 
@@ -108,33 +143,37 @@ export function useEventsTableData({
       minStartTime,
       maxStartTime,
     };
-  }, [observations.data?.observations, projectId]);
+  }, [observationsData?.observations, projectId]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
-    enabled: observations.isSuccess && batchIOPayload !== null,
+    enabled: observationsIsSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Extract error information for display (only from observations.all, not batchIO)
-  const error = observations.error;
+  const error = observationsError;
 
-  const errorHttpStatus = observations.error?.data?.httpStatus;
+  const errorHttpStatus = useStreamingListQuery
+    ? observationsResourceLimitError
+      ? 422
+      : undefined
+    : observationsTrpc.error?.data?.httpStatus;
 
   const isSilencedError =
-    observations.isError &&
+    observationsIsError &&
     errorHttpStatus &&
     silentHttpCodes.includes(errorHttpStatus);
 
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (observations.isLoading) {
+    if (observationsIsLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
-    if (observations.isError) {
+    if (observationsIsError) {
       if (isSilencedError) {
         // Treat silenced errors as successful with no data
         return { status: "success" as const, rows: [] };
@@ -144,13 +183,13 @@ export function useEventsTableData({
 
     // Success case - join the data
     return joinTableCoreAndMetrics<FullEventsObservation, EventBatchIOOutput>(
-      observations.data?.observations,
+      observationsData?.observations,
       ioDataQuery.data,
     );
   }, [
-    observations.isLoading,
-    observations.isError,
-    observations.data?.observations,
+    observationsData?.observations,
+    observationsIsError,
+    observationsIsLoading,
     ioDataQuery.data,
     isSilencedError,
   ]);
@@ -186,7 +225,7 @@ export function useEventsTableData({
   }) => {
     const selectedObservationIds = Object.keys(selectedRows).filter(
       (observationId) =>
-        (observations.data?.observations ?? [])
+        (observationsData?.observations ?? [])
           .map((o) => o.id)
           .includes(observationId),
     );
@@ -207,12 +246,13 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    dataUpdatedAt: observations.dataUpdatedAt,
+    dataUpdatedAt: observationsDataUpdatedAt,
     totalCountQuery,
     totalCount,
     addToQueueMutation,
     handleAddToAnnotationQueue,
     ioLoading: ioDataQuery.isLoading,
+    progress: observationsProgress,
     error,
     errorHttpStatus,
     isSilencedError,

@@ -66,6 +66,7 @@ interface DataTableProps<TData, TValue> {
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
   noResultsMessage?: React.ReactNode;
+  loadingContent?: React.ReactNode;
   rowHeight?: RowHeight;
   customRowHeights?: CustomHeights;
   className?: string;
@@ -152,6 +153,7 @@ export function DataTable<TData extends object, TValue>({
   onColumnOrderChange,
   help,
   noResultsMessage,
+  loadingContent,
   orderBy,
   setOrderBy,
   rowHeight,
@@ -255,6 +257,9 @@ export function DataTable<TData extends object, TValue>({
   );
 
   const hasRowClickAction = !!onRowClick || !!peekView?.openPeek;
+  const shouldShowLoadingOverlay =
+    data.isLoading || (!data.isError && !data.data);
+  const resolvedLoadingContent = loadingContent ?? "Loading...";
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -294,6 +299,11 @@ export function DataTable<TData extends object, TValue>({
           className={cn("relative min-h-full w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
+          {shouldShowLoadingOverlay ? (
+            <div className="pointer-events-none absolute inset-x-0 top-10 z-10 flex justify-center pt-6">
+              {resolvedLoadingContent}
+            </div>
+          ) : null}
           <Table>
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
@@ -411,6 +421,7 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 noResultsMessage={noResultsMessage}
+                loadingContent={resolvedLoadingContent}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 tableSnapshot={{
@@ -428,6 +439,7 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 noResultsMessage={noResultsMessage}
+                loadingContent={resolvedLoadingContent}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
               />
@@ -473,6 +485,7 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   noResultsMessage?: React.ReactNode;
+  loadingContent?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
@@ -530,13 +543,16 @@ function TableBodyComponent<TData>({
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
-      {data.isLoading || !data.data ? (
-        <TableRow className="h-svh">
-          <TableCell
-            colSpan={columns.length}
-            className="content-start border-b text-center"
-          >
-            Loading...
+      {data.isLoading ? (
+        <TableRow className="h-[60vh] hover:bg-transparent">
+          <TableCell colSpan={columns.length} className="border-b p-0">
+            <div className="h-[60vh] w-full" />
+          </TableCell>
+        </TableRow>
+      ) : !data.data ? (
+        <TableRow className="h-[60vh] hover:bg-transparent">
+          <TableCell colSpan={columns.length} className="border-b p-0">
+            <div className="h-[60vh] w-full" />
           </TableCell>
         </TableRow>
       ) : table.getRowModel().rows.length ? (
@@ -644,6 +660,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
     !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
   if (prevDataArr !== nextDataArr) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
+  if (prev.loadingContent !== next.loadingContent) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
 

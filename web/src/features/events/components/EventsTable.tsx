@@ -90,6 +90,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { EventsTableLoadingState } from "@/src/features/events/components/EventsTableLoadingState";
 
 export type EventsTableRow = {
   // Identity fields
@@ -171,6 +172,7 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
+  useStreamingProgress?: boolean;
 };
 
 export default function ObservationsEventsTable({
@@ -181,6 +183,7 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   sessionId,
+  useStreamingProgress = false,
 }: EventsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -425,6 +428,7 @@ export default function ObservationsEventsTable({
     handleAddToAnnotationQueue,
     dataUpdatedAt,
     ioLoading,
+    progress,
     isSilencedError,
   } = useEventsTableData({
     projectId,
@@ -438,6 +442,8 @@ export default function ObservationsEventsTable({
     selectedRows,
     selectAll,
     setSelectedRows,
+    useStreamingListQuery: useStreamingProgress,
+    refreshKey: refreshTick,
   });
 
   // Disabled for now because perhaps confusing
@@ -1392,6 +1398,16 @@ export default function ObservationsEventsTable({
                   <span className="text-muted-foreground">
                     {RESOURCE_LIMIT_ERROR_MESSAGE}
                   </span>
+                ) : undefined
+              }
+              loadingContent={
+                useStreamingProgress ? (
+                  <EventsTableLoadingState
+                    isLoading={
+                      observations.status === "loading" || isViewLoading
+                    }
+                    progress={progress}
+                  />
                 ) : undefined
               }
               pagination={
