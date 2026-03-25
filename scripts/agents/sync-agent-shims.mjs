@@ -3,11 +3,9 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
-const sourcePath = resolve(repoRoot, ".agents/mcp-servers.json");
-const source = JSON.parse(readFileSync(sourcePath, "utf8"));
-const servers = source.servers;
-const toolConfigPath = resolve(repoRoot, ".agents/project-tools.json");
-const toolConfig = JSON.parse(readFileSync(toolConfigPath, "utf8"));
+const sourcePath = resolve(repoRoot, ".agents/config.json");
+const config = JSON.parse(readFileSync(sourcePath, "utf8"));
+const servers = config.mcpServers;
 const checkMode = process.argv.includes("--check");
 
 const sortObject = (value) =>
@@ -17,14 +15,14 @@ const sortObject = (value) =>
 
 const formatSharedJsonConfig = () => {
   const mcpServers = Object.fromEntries(
-    Object.entries(sortObject(servers)).map(([name, config]) => {
-      if (config.transport === "stdio") {
+    Object.entries(sortObject(servers)).map(([name, server]) => {
+      if (server.transport === "stdio") {
         return [
           name,
           {
-            command: config.command,
-            args: config.args ?? [],
-            ...(config.env ? { env: config.env } : {}),
+            command: server.command,
+            args: server.args ?? [],
+            ...(server.env ? { env: server.env } : {}),
           },
         ];
       }
@@ -33,8 +31,8 @@ const formatSharedJsonConfig = () => {
         name,
         {
           type: "http",
-          url: config.url,
-          ...(config.headers ? { headers: config.headers } : {}),
+          url: server.url,
+          ...(server.headers ? { headers: server.headers } : {}),
         },
       ];
     }),
@@ -44,16 +42,16 @@ const formatSharedJsonConfig = () => {
 };
 
 const formatVsCodeConfig = () => {
-  const serversConfig = Object.fromEntries(
-    Object.entries(sortObject(servers)).map(([name, config]) => {
-      if (config.transport === "stdio") {
+  const mcpServers = Object.fromEntries(
+    Object.entries(sortObject(servers)).map(([name, server]) => {
+      if (server.transport === "stdio") {
         return [
           name,
           {
             type: "stdio",
-            command: config.command,
-            args: config.args ?? [],
-            ...(config.env ? { env: config.env } : {}),
+            command: server.command,
+            args: server.args ?? [],
+            ...(server.env ? { env: server.env } : {}),
           },
         ];
       }
@@ -62,45 +60,45 @@ const formatVsCodeConfig = () => {
         name,
         {
           type: "http",
-          url: config.url,
-          ...(config.headers ? { headers: config.headers } : {}),
+          url: server.url,
+          ...(server.headers ? { headers: server.headers } : {}),
         },
       ];
     }),
   );
 
-  return JSON.stringify({ servers: serversConfig }, null, 2) + "\n";
+  return JSON.stringify({ servers: mcpServers }, null, 2) + "\n";
 };
 
 const formatCodexToml = () => {
   const lines = [];
 
-  for (const [name, config] of Object.entries(sortObject(servers))) {
+  for (const [name, server] of Object.entries(sortObject(servers))) {
     lines.push(`[mcp_servers.${name}]`);
 
-    if (config.transport === "stdio") {
-      lines.push(`command = ${JSON.stringify(config.command)}`);
-      if (config.args?.length) {
+    if (server.transport === "stdio") {
+      lines.push(`command = ${JSON.stringify(server.command)}`);
+      if (server.args?.length) {
         lines.push("args = [");
-        for (const arg of config.args) {
+        for (const arg of server.args) {
           lines.push(`  ${JSON.stringify(arg)},`);
         }
         lines.push("]");
       } else {
         lines.push("args = []");
       }
-      if (config.env) {
-        lines.push("[mcp_servers." + name + ".env]");
-        for (const [envName, envValue] of Object.entries(sortObject(config.env))) {
+      if (server.env) {
+        lines.push(`[mcp_servers.${name}.env]`);
+        for (const [envName, envValue] of Object.entries(sortObject(server.env))) {
           lines.push(`${envName} = ${JSON.stringify(envValue)}`);
         }
       }
     } else {
-      lines.push(`url = ${JSON.stringify(config.url)}`);
-      if (config.headers) {
-        lines.push("[mcp_servers." + name + ".headers]");
+      lines.push(`url = ${JSON.stringify(server.url)}`);
+      if (server.headers) {
+        lines.push(`[mcp_servers.${name}.headers]`);
         for (const [headerName, headerValue] of Object.entries(
-          sortObject(config.headers),
+          sortObject(server.headers),
         )) {
           lines.push(`${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`);
         }
@@ -114,19 +112,18 @@ const formatCodexToml = () => {
 };
 
 const formatClaudeSettings = () =>
-  JSON.stringify(toolConfig.claude.settings, null, 2) + "\n";
+  JSON.stringify(config.claude.settings, null, 2) + "\n";
 
 const formatCursorEnvironment = () =>
   JSON.stringify(
     {
-      agentCanUpdateSnapshot:
-        toolConfig.cursor.environment.agentCanUpdateSnapshot,
-      install: toolConfig.shared.setupScript,
+      agentCanUpdateSnapshot: config.cursor.environment.agentCanUpdateSnapshot,
+      install: config.shared.setupScript,
       terminals: [
         {
           name: "Development Terminal",
-          command: toolConfig.shared.devCommand,
-          description: toolConfig.shared.devTerminalDescription,
+          command: config.shared.devCommand,
+          description: config.shared.devTerminalDescription,
         },
       ],
     },
@@ -137,11 +134,11 @@ const formatCursorEnvironment = () =>
 const formatCodexEnvironmentToml = () => {
   const lines = [
     "# THIS IS AUTOGENERATED. DO NOT EDIT MANUALLY",
-    `version = ${toolConfig.codex.environment.version}`,
-    `name = ${JSON.stringify(toolConfig.codex.environment.name)}`,
+    `version = ${config.codex.environment.version}`,
+    `name = ${JSON.stringify(config.codex.environment.name)}`,
     "",
     "[setup]",
-    `script = ${JSON.stringify(toolConfig.shared.setupScript)}`,
+    `script = ${JSON.stringify(config.shared.setupScript)}`,
     "",
   ];
 

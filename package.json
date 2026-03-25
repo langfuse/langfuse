@@ -8,8 +8,8 @@
     "node": "24"
   },
   "scripts": {
-    "agents:check": "node scripts/agents/sync-mcp-configs.mjs --check",
-    "agents:sync": "node scripts/agents/sync-mcp-configs.mjs",
+    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check",
+    "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
     "postinstall": "pnpm run agents:sync && pnpm run agents:check",
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",

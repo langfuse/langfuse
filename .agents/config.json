@@ -4,6 +4,34 @@
     "devCommand": "pnpm run dev",
     "devTerminalDescription": "Main development terminal running the development server"
   },
+  "mcpServers": {
+    "playwright": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--save-trace",
+        "--output-dir",
+        ".playwright-mcp",
+        "--test-id-attribute",
+        "data-testid"
+      ]
+    },
+    "datadog": {
+      "transport": "http",
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+    },
+    "langfuse-docs": {
+      "transport": "http",
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp"
+    }
+  },
   "claude": {
     "settings": {
       "permissions": {

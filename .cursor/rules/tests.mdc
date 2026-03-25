@@ -3,7 +3,5 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Writing tests
-
-- When writing tests, focus on decoupling each `it` or `test` block to ensure that they can run independently and concurrently. Tests must never depend on the action or outcome of previous or subsequent tests.
-- When writing tests, especially in `__tests__/server`, prefer scoped cleanup or unique test data over global reset helpers.
+Use root [AGENTS.md](mdc:AGENTS.md) and [web/AGENTS.md](mdc:web/AGENTS.md) for
+the shared test independence and cleanup rules.
