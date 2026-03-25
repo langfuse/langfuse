@@ -159,5 +159,236 @@
         }
       ]
     }
+  },
+  "obs-thinking-tool-use": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Can you help me with the code in this repository?",
+          "tools": [
+            {
+              "name": "Read",
+              "description": "Read a file from the filesystem",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Number of lines to read"
+                  }
+                },
+                "required": [
+                  "file_path"
+                ]
+              }
+            },
+            {
+              "name": "Bash",
+              "description": "Execute a bash command",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "command"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "Of course! Let me first take a look at the repository structure.",
+          "type": "message",
+          "tool_calls": [
+            {
+              "id": "toolu_01AAA",
+              "name": "Read",
+              "arguments": "{\"file_path\":\"/workspace/project/README.md\"}",
+              "type": "function"
+            }
+          ],
+          "thinking": [
+            {
+              "type": "thinking",
+              "content": "The user wants help with the repository. Let me explore the project structure first.",
+              "signature": "sig_redacted"
+            }
+          ],
+          "json": {
+            "id": "msg_01XYZ",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "tool_use"
+          }
+        }
+      ]
+    }
+  },
+  "obs-parallel-tool-calls": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Can you help me with the code in this repository?"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Of course! Let me first take a look at the repository structure."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01AAA",
+              "name": "Read",
+              "input": {
+                "file_path": "/workspace/project/README.md"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01AAA",
+              "content": "# My Project\nA sample project for testing."
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "type": "message",
+          "tool_calls": [
+            {
+              "id": "toolu_01BBB",
+              "name": "Read",
+              "arguments": "{\"file_path\":\"/workspace/project/src/main.ts\"}",
+              "type": "function"
+            },
+            {
+              "id": "toolu_01CCC",
+              "name": "Read",
+              "arguments": "{\"file_path\":\"/workspace/project/package.json\"}",
+              "type": "function"
+            },
+            {
+              "id": "toolu_01DDD",
+              "name": "Read",
+              "arguments": "{\"file_path\":\"/workspace/project/tsconfig.json\",\"limit\":50}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "id": "msg_01DEF",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "tool_use"
+          }
+        }
+      ]
+    }
+  },
+  "obs-final-response": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Can you help me with the code in this repository?"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01BBB",
+              "name": "Read",
+              "input": {
+                "file_path": "/workspace/project/src/main.ts"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01CCC",
+              "name": "Read",
+              "input": {
+                "file_path": "/workspace/project/package.json"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01DDD",
+              "name": "Read",
+              "input": {
+                "file_path": "/workspace/project/tsconfig.json",
+                "limit": 50
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BBB",
+              "content": "console.log(\"hello world\");"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01CCC",
+              "content": "{\"name\": \"my-project\", \"version\": \"1.0.0\"}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01DDD",
+              "content": "{\"compilerOptions\": {\"target\": \"es2020\"}}"
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Here's an overview of the repository:\n\n**My Project** is a TypeScript project with a simple main entry point.\n\n- `src/main.ts`: Contains the main application logic\n- `package.json`: Project configuration (v1.0.0)\n- `tsconfig.json`: TypeScript config targeting ES2020\n\nHow can I help you with this project?"
+            }
+          ],
+          "type": "message",
+          "json": {
+            "id": "msg_01GHI",
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn"
+          }
+        }
+      ]
+    }
   }
 }
