@@ -35,7 +35,7 @@ describe("ChartLoadingState", () => {
     expect(screen.getByText(SLOW_QUERY_HINT_TEXT)).toBeInTheDocument();
   });
 
-  test("renders legacy query progress immediately when progress is provided", () => {
+  test("does not render progress details in legacy mode even when progress is provided", () => {
     render(
       <ChartLoadingState
         isLoading={true}
@@ -49,9 +49,11 @@ describe("ChartLoadingState", () => {
       />,
     );
 
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
-    expect(screen.getByText("Loading widget")).toBeInTheDocument();
-    expect(screen.getByText("Reading 1.8B / ~2.9B rows")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Loading widget")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Reading 1.8B / ~2.9B rows"),
+    ).not.toBeInTheDocument();
   });
 
   test("renders spinner immediately, waits 1 second before showing progress, and 3 seconds before showing the hint in minimal mode", () => {
