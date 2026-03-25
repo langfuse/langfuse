@@ -82,8 +82,9 @@ export type ExperimentOutputData = {
  * Each row represents one item_id with data from multiple experiments.
  */
 export type ExperimentItemsTableRow = {
-  // Identity field - the dataset item ID
+  // Identity fields
   itemId: string;
+  id?: string; // Added for DataTable row identification (peek view)
 
   // Data from each experiment for this item
   experiments: ExperimentItemData[];
