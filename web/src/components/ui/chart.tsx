@@ -116,6 +116,7 @@ type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
 
 function ChartTooltip({
   allowEscapeViewBox = { x: true, y: true },
+  isAnimationActive = false,
   offset = 12,
   useTranslate3d = true,
   wrapperStyle,
@@ -124,6 +125,7 @@ function ChartTooltip({
   return (
     <RechartsPrimitive.Tooltip
       allowEscapeViewBox={allowEscapeViewBox}
+      isAnimationActive={isAnimationActive}
       offset={offset}
       useTranslate3d={useTranslate3d}
       wrapperStyle={{
