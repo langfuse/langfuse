@@ -1430,9 +1430,19 @@ describe("prompts trpc", () => {
             name: rubricPromptName,
             version: 1,
             type: "text",
-            prompt: "rubric content",
+            prompt: "rubric latest-labeled content",
             createdBy: "test-user",
             labels: ["production", "latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: rubricPromptName,
+            version: 2,
+            type: "text",
+            prompt: "rubric higher-version content",
+            createdBy: "test-user",
+            labels: ["staging"],
           },
           {
             id: v4(),
@@ -1503,6 +1513,7 @@ describe("prompts trpc", () => {
         },
       });
       expect(copiedRubricPrompt).not.toBeNull();
+      expect(copiedRubricPrompt?.prompt).toBe("rubric latest-labeled content");
 
       const exactTargetPrompt = await prisma.prompt.findMany({
         where: {
