@@ -49,7 +49,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     ] as { value: ObservationLevelType }[],
   },
   {
-    name: "Total Cost ($)",
+    name: "Cost ($)",
     id: "totalCost",
     type: "number",
     internal: "total_cost",

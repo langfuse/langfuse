@@ -11,7 +11,7 @@ export type ExperimentOption = {
 
 type ExperimentComparisonSelectorProps = {
   projectId: string;
-  baselineExperimentId: string;
+  baselineExperimentId?: string;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
   isLoading?: boolean;
@@ -38,9 +38,9 @@ export function ExperimentComparisonSelector({
 
   // Filter out baseline experiment from options
   const searchResultsExclBaseline = useMemo(() => {
-    return searchResults.filter(
-      (exp) => exp.experimentId !== baselineExperimentId,
-    );
+    return baselineExperimentId
+      ? searchResults.filter((exp) => exp.experimentId !== baselineExperimentId)
+      : searchResults;
   }, [baselineExperimentId, searchResults]);
 
   // Map selected IDs to full experiment objects

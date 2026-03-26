@@ -917,10 +917,17 @@ export const getExperimentItemsBatchIO = async (props: {
     }
 
     const item = itemMap.get(row.item_id)!;
+    const isBaseline =
+      baseExperimentId && row.experiment_id === baseExperimentId;
 
-    // Extract input and expectedOutput from base experiment
-    if (row.experiment_id === baseExperimentId) {
+    // Use baseline value if available, otherwise first non-null
+    if (row.input !== null && (isBaseline || item.input === null)) {
       item.input = row.input;
+    }
+    if (
+      row.expected_output !== null &&
+      (isBaseline || item.expectedOutput === null)
+    ) {
       item.expectedOutput = row.expected_output;
     }
 

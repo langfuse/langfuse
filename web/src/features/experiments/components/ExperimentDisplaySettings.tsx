@@ -15,6 +15,7 @@ type ExperimentDisplaySettingsProps = {
   itemVisibility: "baseline-only" | "all";
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
   hasComparisons: boolean;
+  hasBaseline: boolean;
 };
 
 export function ExperimentDisplaySettings({
@@ -23,7 +24,10 @@ export function ExperimentDisplaySettings({
   itemVisibility,
   onItemVisibilityChange,
   hasComparisons,
+  hasBaseline,
 }: ExperimentDisplaySettingsProps) {
+  const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,7 +54,7 @@ export function ExperimentDisplaySettings({
         <DropdownMenuLabel>Item Visibility</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => onItemVisibilityChange("baseline-only")}
-          disabled={!hasComparisons}
+          disabled={isItemVisibilityDisabled}
         >
           {itemVisibility === "baseline-only" && (
             <Check className="mr-2 h-4 w-4" />
@@ -62,7 +66,7 @@ export function ExperimentDisplaySettings({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onItemVisibilityChange("all")}
-          disabled={!hasComparisons}
+          disabled={isItemVisibilityDisabled}
         >
           {itemVisibility === "all" && <Check className="mr-2 h-4 w-4" />}
           {itemVisibility !== "all" && <span className="mr-2 h-4 w-4" />}

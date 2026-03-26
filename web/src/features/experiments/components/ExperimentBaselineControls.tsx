@@ -10,10 +10,11 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 
 type ExperimentBaselineControlsProps = {
   projectId: string;
-  baselineId: string;
+  baselineId?: string;
   baselineName?: string;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
+  canClearBaseline?: boolean;
 };
 
 export function ExperimentBaselineControls({
@@ -22,13 +23,14 @@ export function ExperimentBaselineControls({
   baselineName,
   onBaselineChange,
   onBaselineClear,
+  canClearBaseline = true,
 }: ExperimentBaselineControlsProps) {
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
   });
   // Filter out current baseline from available options
-  const availableForBaseline = experimentNames.filter(
-    (exp) => exp.experimentId !== baselineId,
+  const availableForBaseline = experimentNames.filter((exp) =>
+    baselineId ? exp.experimentId !== baselineId : true,
   );
 
   return (
@@ -37,7 +39,7 @@ export function ExperimentBaselineControls({
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" disabled={isLoading}>
             <span className="max-w-48 truncate">
-              {baselineName ?? baselineId}
+              {baselineName ?? baselineId ?? "Select baseline..."}
             </span>
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
@@ -60,15 +62,17 @@ export function ExperimentBaselineControls({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBaselineClear}
-        disabled={isLoading}
-        title="Clear baseline"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+      {baselineId && canClearBaseline && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBaselineClear}
+          disabled={isLoading}
+          title="Clear baseline"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

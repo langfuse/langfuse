@@ -8,6 +8,7 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ExperimentItemsTableRow } from "./types";
 import { type PaginationState } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 
 const LIST_VIEW_ROW_HEIGHTS = {
   s: "h-24", // 96px - increased density
@@ -44,6 +45,7 @@ type ExperimentCompareTableProps = {
   onColumnVisibilityChange: OnChangeFn<VisibilityState>;
   rowHeight: RowHeight;
   peekView?: DataTablePeekViewProps;
+  noResultsMessage?: ReactNode;
 };
 
 export const ExperimentCompareTable = ({
@@ -63,6 +65,7 @@ export const ExperimentCompareTable = ({
   onColumnVisibilityChange,
   rowHeight,
   peekView,
+  noResultsMessage,
 }: ExperimentCompareTableProps) => {
   return (
     <DataTable
@@ -70,6 +73,7 @@ export const ExperimentCompareTable = ({
       tableName={"experiment-items"}
       columns={columns}
       peekView={peekView}
+      noResultsMessage={noResultsMessage}
       data={
         isLoading
           ? { isLoading: true, isError: false }
