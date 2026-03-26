@@ -9,7 +9,6 @@ export default defineConfig({
     dir: "./src",
     pool: "forks",
     maxWorkers: 1,
-    isolate: false,
     server: {
       deps: {
         inline: ["@langfuse/shared"],
