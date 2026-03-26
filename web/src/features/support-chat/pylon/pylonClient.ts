@@ -11,7 +11,7 @@ type CreatePylonIssueParams = {
   tags?: string[];
   priority?: "urgent" | "high" | "medium" | "low";
   attachmentUrls?: string[];
-  customFields?: { slug: string; value: string }[];
+  customFields?: { slug: string; value?: string; values?: string[] }[];
 };
 
 type PylonIssueResponse = {
@@ -20,6 +20,7 @@ type PylonIssueResponse = {
     number: number;
     link: string;
     state: string;
+    account?: { id: string };
   };
   request_id?: string;
   errors?: string[];
@@ -45,7 +46,7 @@ export async function createPylonIssue(
     requester_email: requesterEmail,
     destination_metadata: {
       destination: "email",
-      email: "support@langfuse.com",
+      email: "support@clickhouse.com",
     },
   };
 
@@ -132,6 +133,41 @@ export async function uploadPylonAttachment(
   return json;
 }
 
+type UpdatePylonAccountParams = {
+  apiKey: string;
+  accountId: string;
+  customFields: { slug: string; value: string }[];
+};
+
+export async function updatePylonAccountCustomFields(
+  params: UpdatePylonAccountParams,
+): Promise<void> {
+  const { apiKey, accountId, customFields } = params;
+
+  const res = await fetch(`${PYLON_API_BASE}/accounts/${accountId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ custom_fields: customFields }),
+  });
+
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as {
+      errors?: string[];
+      request_id?: string;
+    };
+    const errorMsg = json.errors?.join(", ") ?? res.statusText;
+    logger.error("Pylon updateAccount failed", {
+      status: res.status,
+      errors: json.errors,
+      requestId: json.request_id,
+    });
+    throw new Error(`Pylon account update error (${res.status}): ${errorMsg}`);
+  }
+}
+
 export function mapSeverityToPylonPriority(
   severity: string,
 ): "urgent" | "high" | "medium" | "low" {
@@ -203,6 +239,47 @@ export function buildPylonMetadataString(params: {
   if (params.browserMetadata)
     rows.push(`Browser: ${JSON.stringify(params.browserMetadata)}`);
   return rows.join("\n");
+}
+
+export function mapMessageTypeToPylonQuestionType(messageType: string): string {
+  switch (messageType) {
+    case "Bug":
+      return "bug";
+    case "Feedback":
+      return "feature_request";
+    case "Question":
+    default:
+      return "question";
+  }
+}
+
+export function mapToPylonCaseSeverity(params: {
+  severity: string;
+  plan?: string;
+}): "Sev-1" | "Sev-2" | "Sev-3" {
+  const { severity, plan } = params;
+  const isHighTierPlan =
+    plan === "cloud:team" ||
+    plan === "cloud:enterprise" ||
+    plan === "self-hosted:enterprise";
+
+  if (severity === "Outage, data loss, or data breach" && isHighTierPlan) {
+    return "Sev-1";
+  }
+
+  if (
+    severity === "Outage, data loss, or data breach" ||
+    severity === "Feature is not working at all"
+  ) {
+    return "Sev-2";
+  }
+
+  return "Sev-3";
+}
+
+export function mapPlanToPylonCustomerTier(plan: string): string {
+  if (plan === "oss") return "self_hosted_free";
+  return plan.replace(/[:-]/g, "_");
 }
 
 function escapeHtml(str: string): string {

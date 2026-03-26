@@ -23,6 +23,10 @@ import {
   buildPylonIssueBodyHtml,
   buildPylonMetadataString,
   mapSeverityToPylonPriority,
+  updatePylonAccountCustomFields,
+  mapPlanToPylonCustomerTier,
+  mapToPylonCaseSeverity,
+  mapMessageTypeToPylonQuestionType,
 } from "../pylon/pylonClient";
 
 import {
@@ -323,6 +327,7 @@ export const plainRouter = createTRPCRouter({
 
       // (6) Dual-write: create issue in Pylon (best-effort, blocking)
       // TEMPORARY: only route clickhouse.com and langfuse.com to Pylon for testing
+      let pylonIssueFailed = false;
       const emailDomain = email.split("@")[1]?.toLowerCase();
       const pylonTestDomains = ["clickhouse.com", "langfuse.com"];
       if (env.PYLON_API_KEY && pylonTestDomains.includes(emailDomain ?? "")) {
@@ -333,13 +338,22 @@ export const plainRouter = createTRPCRouter({
             requesterEmail: email,
           });
           const pylonMetadata = buildPylonMetadataString({
+            messageType: input.messageType,
+            severity: input.severity,
+            topic: input.topic,
+            integrationType: input.integrationType,
+            url: input.url,
             organizationId: currentSupportRequestContext.organizationId,
             projectId: currentSupportRequestContext.projectId,
+            plan: currentSupportRequestContext.plan,
             cloudRegion: currentSupportRequestContext.region,
             version: VERSION,
             browserMetadata: input.browserMetadata,
           });
-          await createPylonIssue({
+          const pylonCustomerTier = currentSupportRequestContext.plan
+            ? mapPlanToPylonCustomerTier(currentSupportRequestContext.plan)
+            : undefined;
+          const pylonIssue = await createPylonIssue({
             apiKey: env.PYLON_API_KEY,
             title: pylonTitle,
             bodyHtml: pylonBodyHtml,
@@ -349,16 +363,63 @@ export const plainRouter = createTRPCRouter({
             priority: mapSeverityToPylonPriority(input.severity),
             attachmentUrls: input.pylonAttachmentUrls,
             customFields: [
-              ...(input.url ? [{ slug: "url", value: input.url }] : []),
-              { slug: "question_type", value: input.messageType },
-              { slug: "topic", value: input.topic },
-              ...(input.integrationType
-                ? [{ slug: "integration_type", value: input.integrationType }]
+              ...(input.url
+                ? [{ slug: "langfuse_page_url", value: input.url }]
                 : []),
-              { slug: "metadata", value: pylonMetadata },
+              {
+                slug: "question_type",
+                values: [mapMessageTypeToPylonQuestionType(input.messageType)],
+              },
+              { slug: "langfuse_topic", value: input.topic },
+              ...(input.integrationType
+                ? [
+                    {
+                      slug: "langfuse_integration_type",
+                      value: input.integrationType,
+                    },
+                  ]
+                : []),
+              { slug: "langfuse_metadata", value: pylonMetadata },
+              ...(pylonCustomerTier
+                ? [
+                    {
+                      slug: "langfuse_customer_tier",
+                      value: pylonCustomerTier,
+                    },
+                  ]
+                : []),
+              {
+                slug: "case_severity",
+                value: mapToPylonCaseSeverity({
+                  severity: input.severity,
+                  plan: currentSupportRequestContext.plan,
+                }),
+              },
             ],
           });
+
+          const pylonAccountId = pylonIssue.data?.account?.id;
+          if (pylonAccountId && pylonCustomerTier) {
+            try {
+              await updatePylonAccountCustomFields({
+                apiKey: env.PYLON_API_KEY,
+                accountId: pylonAccountId,
+                customFields: [
+                  {
+                    slug: "langfuse_customer_tier",
+                    value: pylonCustomerTier,
+                  },
+                ],
+              });
+            } catch (e) {
+              logger.error(
+                "Pylon account custom field update failed (best-effort)",
+                e,
+              );
+            }
+          }
         } catch (e) {
+          pylonIssueFailed = true;
           logger.error("Pylon issue creation failed (best-effort)", e);
         }
       }
@@ -370,6 +431,7 @@ export const plainRouter = createTRPCRouter({
         createdAt,
         createdWithThreadFields,
         attachmentCount: (input.attachmentIds ?? []).length,
+        pylonIssueFailed,
       };
     }),
 });
