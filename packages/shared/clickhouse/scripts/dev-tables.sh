@@ -508,14 +508,14 @@ clickhouse client \
   TRUNCATE events_core;
   TRUNCATE events_full;
 
-  -- Insert observations into events_full, with experiment metadata via LEFT JOIN
+  -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
-                      tool_definitions, tool_calls, tool_call_names, input, output,
-                      metadata_names, metadata_values,
+                      tool_definitions, tool_calls, tool_call_names, input,
+                      output, metadata_names, metadata_values,
                       experiment_id, experiment_name, experiment_description, experiment_dataset_id,
                       experiment_item_id, experiment_item_expected_output,
                       experiment_metadata_names, experiment_metadata_values,
@@ -526,21 +526,45 @@ clickhouse client \
   SELECT o.project_id,
          o.trace_id,
          o.id                                                                            AS span_id,
-         CASE WHEN o.id = concat('t-', o.trace_id) THEN '' ELSE coalesce(o.parent_observation_id, concat('t-', o.trace_id)) END AS parent_span_id,
-         o.start_time, o.end_time, o.name, o.type, o.environment,
+         CASE
+           WHEN o.id = concat('t-', o.trace_id) THEN ''
+           ELSE coalesce(o.parent_observation_id, concat('t-', o.trace_id))
+         END                                                                             AS parent_span_id,
+         o.start_time,
+         o.end_time,
+         o.name,
+         o.type,
+         o.environment,
          coalesce(o.version, t.version)                                                  AS version,
          coalesce(t.release, '')                                                         AS release,
-         t.tags, t.name AS trace_name, coalesce(t.user_id, '') AS user_id, coalesce(t.session_id, '') AS session_id,
-         t.public, t.bookmarked AND (o.parent_observation_id IS NULL OR o.parent_observation_id = '') AS bookmarked,
-         o.level, coalesce(o.status_message, '') AS status_message, o.completion_start_time,
-         o.prompt_id, o.prompt_name, o.prompt_version,
-         o.internal_model_id AS model_id, o.provided_model_name, coalesce(o.model_parameters, '{}'),
-         o.provided_usage_details, o.usage_details, o.provided_cost_details, o.cost_details,
-         o.usage_pricing_tier_id, o.usage_pricing_tier_name,
-         o.tool_definitions, o.tool_calls, o.tool_call_names,
-         coalesce(o.input, '') AS input, coalesce(o.output, '') AS output,
-         mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+         t.tags                                                                          AS tags,
+         t.name                                                                          AS trace_name,
+         coalesce(t.user_id, '')                                                         AS user_id,
+         coalesce(t.session_id, '')                                                      AS session_id,
+         t.public                                                                        AS public,
+         t.bookmarked AND (o.parent_observation_id IS NULL OR o.parent_observation_id = '') AS bookmarked,
+         o.level,
+         coalesce(o.status_message, '')                                                  AS status_message,
+         o.completion_start_time,
+         o.prompt_id,
+         o.prompt_name,
+         o.prompt_version,
+         o.internal_model_id                                                             AS model_id,
+         o.provided_model_name,
+         coalesce(o.model_parameters, '{}'),
+         o.provided_usage_details,
+         o.usage_details,
+         o.provided_cost_details,
+         o.cost_details,
+         o.usage_pricing_tier_id,
+         o.usage_pricing_tier_name,
+         o.tool_definitions,
+         o.tool_calls,
+         o.tool_call_names,
+         coalesce(o.input, '')                                                           AS input,
+         coalesce(o.output, '')                                                          AS output,
+         mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map())))                     AS metadata_names,
+         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_values,
          coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
          coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
          coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
@@ -553,19 +577,26 @@ clickhouse client \
          if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
          if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
-         '' AS blob_storage_file_path, byteSize(*) AS event_bytes,
-         o.created_at, o.updated_at, o.event_ts, o.is_deleted
+         ''                                                                              AS blob_storage_file_path,
+         byteSize(*)                                                                     AS event_bytes,
+         o.created_at,
+         o.updated_at,
+         o.event_ts,
+         o.is_deleted
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
   LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
-  WHERE o.is_deleted = 0;
+  WHERE (o.is_deleted = 0);
 
-  -- Insert traces as synthetic spans, with experiment metadata via LEFT JOIN
+  -- Backfill events from traces table as well (experiment metadata included when dataset_run_items match)
+  -- Traces are converted to synthetic observations with id = 't-' + trace_id
+  -- (matching convertTraceToStagingObservation in the ingestion pipeline)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
                       model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
-                      tool_definitions, tool_calls, tool_call_names, input, output,
+                      tool_definitions, tool_calls, tool_call_names,
+                      input, output,
                       metadata_names, metadata_values,
                       experiment_id, experiment_name, experiment_description, experiment_dataset_id,
                       experiment_item_id, experiment_item_expected_output,
@@ -574,14 +605,37 @@ clickhouse client \
                       experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
-  SELECT t.project_id, t.id, concat('t-', t.id) AS span_id, '' AS parent_span_id,
-         t.timestamp AS start_time, t.name, 'SPAN' AS type, t.environment, t.version,
-         coalesce(t.release, '') AS release, t.tags, t.name AS trace_name,
-         coalesce(t.user_id, '') AS user_id, coalesce(t.session_id, '') AS session_id,
-         t.public, t.bookmarked, 'DEFAULT' AS level,
-         '{}' AS model_parameters, map(), map(), map(), map(), NULL, NULL, map(), [], [],
-         coalesce(t.input, '') AS input, coalesce(t.output, '') AS output,
-         mapKeys(t.metadata) AS metadata_names, mapValues(t.metadata) AS metadata_values,
+  SELECT t.project_id,
+         t.id,
+         concat('t-', t.id)                                                              AS span_id,
+         ''                                                                               AS parent_span_id,
+         t.timestamp,
+         t.name,
+         'SPAN',
+         t.environment,
+         t.version,
+         coalesce(t.release, '')                                                         AS release,
+         t.tags                                                                          AS tags,
+         t.name                                                                          AS trace_name,
+         coalesce(t.user_id, '')                                                         AS user_id,
+         coalesce(t.session_id, '')                                                      AS session_id,
+         t.public                                                                        AS public,
+         t.bookmarked                                                                    AS bookmarked,
+         'DEFAULT'                                                                       AS level,
+         '{}'                                                                            AS model_parameters,
+         map(),
+         map(),
+         map(),
+         map(),
+         NULL,
+         NULL,
+         map(),
+         [],
+         [],
+         coalesce(t.input, '')                                                           AS input,
+         coalesce(t.output, '')                                                          AS output,
+         mapKeys(t.metadata)                                                             AS metadata_names,
+         mapValues(t.metadata)                                                           AS metadata_values,
          coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
          coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
          coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
@@ -594,11 +648,15 @@ clickhouse client \
          if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
          if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
-         '' AS blob_storage_file_path, byteSize(*) AS event_bytes,
-         t.created_at, t.updated_at, t.event_ts, t.is_deleted
+         ''                                                                              AS blob_storage_file_path,
+         byteSize(*)                                                                     AS event_bytes,
+         t.created_at,
+         t.updated_at,
+         t.event_ts,
+         t.is_deleted
   FROM traces t FINAL
   LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
-  WHERE t.is_deleted = 0;
+  WHERE (t.is_deleted = 0);
 
 EOF
 
