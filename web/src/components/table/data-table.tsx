@@ -386,9 +386,8 @@ export function DataTable<TData extends object, TValue>({
                               }}
                               onDoubleClick={() => header.column.resetSize()}
                               onMouseDown={header.getResizeHandler()}
-                              onTouchStart={header.getResizeHandler()}
                               className={cn(
-                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                "bg-secondary absolute top-0 right-0 hidden h-full w-1.5 cursor-col-resize opacity-0 select-none group-hover:opacity-100 md:block",
                                 header.column.getIsResizing() &&
                                   "bg-primary-accent opacity-100",
                               )}
