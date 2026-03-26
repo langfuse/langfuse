@@ -8,6 +8,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants";
 import { nanoid } from "nanoid";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   MessageTypeSchema,
@@ -17,6 +18,16 @@ import {
 } from "../formConstants";
 
 import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events/supportRequestMetadataEvent";
+import {
+  createPylonIssue,
+  buildPylonIssueBodyHtml,
+  buildPylonMetadataString,
+  mapSeverityToPylonPriority,
+  updatePylonAccountCustomFields,
+  mapPlanToPylonCustomerTier,
+  mapToPylonCaseSeverity,
+  mapMessageTypeToPylonQuestionType,
+} from "../pylon/pylonClient";
 
 import {
   initPlain,
@@ -44,10 +55,12 @@ const CreateSupportThreadInput = z.object({
   url: z.string().url().optional(),
   organizationId: z.string().optional(),
   projectId: z.string().optional(),
-  browserMetadata: z.record(z.any()).optional(),
+  browserMetadata: z.record(z.string(), z.any()).optional(),
   integrationType: z.string().optional(),
-  /** IDs of attachments already uploaded via prepareAttachmentUploads */
+  /** IDs of attachments already uploaded via prepareAttachmentUploads (Plain) */
   attachmentIds: z.array(z.string()).optional(),
+  /** URLs of attachments already uploaded to Pylon */
+  pylonAttachmentUrls: z.array(z.string().url()).optional(),
 });
 
 const PrepareAttachmentUploadsInput = z.object({
@@ -312,6 +325,105 @@ export const plainRouter = createTRPCRouter({
         impersonate: false,
       });
 
+      // (6) Dual-write: create issue in Pylon (best-effort, blocking)
+      // TEMPORARY: only route clickhouse.com and langfuse.com to Pylon for testing
+      let pylonIssueFailed = false;
+      const emailDomain = email.split("@")[1]?.toLowerCase();
+      const pylonTestDomains = ["clickhouse.com", "langfuse.com"];
+      if (env.PYLON_API_KEY && pylonTestDomains.includes(emailDomain ?? "")) {
+        try {
+          const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
+          const pylonBodyHtml = buildPylonIssueBodyHtml({
+            message: input.message,
+            requesterEmail: email,
+          });
+          const pylonMetadata = buildPylonMetadataString({
+            messageType: input.messageType,
+            severity: input.severity,
+            topic: input.topic,
+            integrationType: input.integrationType,
+            url: input.url,
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            plan: currentSupportRequestContext.plan,
+            cloudRegion: currentSupportRequestContext.region,
+            version: VERSION,
+            browserMetadata: input.browserMetadata,
+          });
+          const pylonCustomerTier = currentSupportRequestContext.plan
+            ? mapPlanToPylonCustomerTier(currentSupportRequestContext.plan)
+            : undefined;
+          const pylonIssue = await createPylonIssue({
+            apiKey: env.PYLON_API_KEY,
+            title: pylonTitle,
+            bodyHtml: pylonBodyHtml,
+            requesterEmail: email,
+            requesterName: fullName,
+            tags: ["Langfuse"],
+            priority: mapSeverityToPylonPriority(input.severity),
+            attachmentUrls: input.pylonAttachmentUrls,
+            customFields: [
+              ...(input.url
+                ? [{ slug: "langfuse_page_url", value: input.url }]
+                : []),
+              {
+                slug: "question_type",
+                values: [mapMessageTypeToPylonQuestionType(input.messageType)],
+              },
+              { slug: "langfuse_topic", value: input.topic },
+              ...(input.integrationType
+                ? [
+                    {
+                      slug: "langfuse_integration_type",
+                      value: input.integrationType,
+                    },
+                  ]
+                : []),
+              { slug: "langfuse_metadata", value: pylonMetadata },
+              ...(pylonCustomerTier
+                ? [
+                    {
+                      slug: "langfuse_customer_tier",
+                      value: pylonCustomerTier,
+                    },
+                  ]
+                : []),
+              {
+                slug: "case_severity",
+                value: mapToPylonCaseSeverity({
+                  severity: input.severity,
+                  plan: currentSupportRequestContext.plan,
+                }),
+              },
+            ],
+          });
+
+          const pylonAccountId = pylonIssue.data?.account?.id;
+          if (pylonAccountId && pylonCustomerTier) {
+            try {
+              await updatePylonAccountCustomFields({
+                apiKey: env.PYLON_API_KEY,
+                accountId: pylonAccountId,
+                customFields: [
+                  {
+                    slug: "langfuse_customer_tier",
+                    value: pylonCustomerTier,
+                  },
+                ],
+              });
+            } catch (e) {
+              logger.error(
+                "Pylon account custom field update failed (best-effort)",
+                e,
+              );
+            }
+          }
+        } catch (e) {
+          pylonIssueFailed = true;
+          logger.error("Pylon issue creation failed (best-effort)", e);
+        }
+      }
+
       return {
         threadId,
         customerId,
@@ -319,6 +431,7 @@ export const plainRouter = createTRPCRouter({
         createdAt,
         createdWithThreadFields,
         attachmentCount: (input.attachmentIds ?? []).length,
+        pylonIssueFailed,
       };
     }),
 });

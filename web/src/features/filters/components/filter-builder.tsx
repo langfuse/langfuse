@@ -871,7 +871,13 @@ function FilterBuilderForm({
                           value={filter.value ?? undefined}
                           disabled={disabled}
                           type="number"
-                          step="0.01"
+                          step={
+                            (column?.type === "number" && column.step) || 0.01
+                          }
+                          min={
+                            column?.type === "number" ? column.min : undefined
+                          }
+                          placeholder="number"
                           lang="en-US"
                           onChange={(e) =>
                             handleFilterChange(

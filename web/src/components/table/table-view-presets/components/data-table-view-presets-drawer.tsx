@@ -75,7 +75,7 @@ import {
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -438,7 +438,7 @@ export function TableViewPresetsDrawer({
                       key={SYSTEM_PRESETS.DEFAULT.id}
                       onSelect={() => handleSetViewId(null)}
                       className={cn(
-                        "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === null && "bg-muted",
                       )}
                       title="Reflects your current table settings without applying any saved custom table views"
@@ -460,7 +460,7 @@ export function TableViewPresetsDrawer({
                       key={preset.id}
                       onSelect={() => handleSelectSystemFilterPreset(preset)}
                       className={cn(
-                        "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                         selectedViewId === preset.id &&
                           isEqual(
                             normalizeForComparison(currentState.filters),
@@ -502,7 +502,7 @@ export function TableViewPresetsDrawer({
                         key={view.id}
                         onSelect={() => handleSelectView(view)}
                         className={cn(
-                          "group hover:bg-muted/50 mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                          "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
                           selectedViewId === view.id && "bg-muted",
                         )}
                       >

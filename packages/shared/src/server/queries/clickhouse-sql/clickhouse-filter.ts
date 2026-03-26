@@ -310,9 +310,9 @@ export class StringObjectFilter implements Filter {
 
     let query: string;
     if (isEventsTable) {
-      // For events tables, use array access: metadata_values[indexOf(metadata_names, key)]
-      const namesColumn = `${prefix}metadata_names`;
-      const valuesColumn = `${prefix}metadata_values`;
+      // For events tables, use array access: {field}_values[indexOf({field}_names, key)]
+      const namesColumn = `${prefix}${this.field}_names`;
+      const valuesColumn = `${prefix}${this.field}_values`;
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
 
       switch (this.operator) {

@@ -1,4 +1,4 @@
-import { type ZodSchema, z } from "zod/v4";
+import { type ZodSchema, z } from "zod";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -465,7 +465,7 @@ export async function fetchLLMCompletion(
           ? { method: "functionCalling" as const }
           : undefined;
 
-      const structuredOutput = await chatModel
+      const structuredOutput = await (chatModel as ChatOpenAI)
         .withStructuredOutput(
           params.structuredOutputSchema,
           structuredOutputConfig,

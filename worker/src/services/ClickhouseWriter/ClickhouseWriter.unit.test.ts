@@ -35,26 +35,30 @@ vi.mock("../../env", async (importOriginal) => {
   };
 });
 
-const clickhouseClientMock = {
-  insert: vi.fn(),
-};
-
 describe("ClickhouseWriter", () => {
+  let clickhouseClientMock: {
+    insert: ReturnType<typeof vi.fn>;
+  };
   let writer: ClickhouseWriter;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    clickhouseClientMock = {
+      insert: vi.fn(),
+    };
     vi.useFakeTimers();
     writer = ClickhouseWriter.getInstance(clickhouseClientMock);
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
     vi.useRealTimers();
 
     // Reset singleton instance
     await writer.shutdown();
 
     ClickhouseWriter.instance = null;
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("should be a singleton", () => {

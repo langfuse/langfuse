@@ -1,4 +1,5 @@
 import { pipeline } from "stream";
+import { createGzip } from "zlib";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,6 +17,8 @@ import {
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
+  sendBlobStorageExportFailedEmail,
+  getProjectAdminEmails,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -158,6 +161,7 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
+  compressed: boolean;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -185,7 +189,13 @@ const processBlobStorageExport = async (config: {
       .toISOString()
       .replace(/:/g, "-")
       .substring(0, 19);
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${blobStorageProps.extension}`;
+    const extension = config.compressed
+      ? `${blobStorageProps.extension}.gz`
+      : blobStorageProps.extension;
+    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+    const uploadContentType = config.compressed
+      ? "application/gzip"
+      : blobStorageProps.contentType;
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
@@ -223,18 +233,19 @@ const processBlobStorageExport = async (config: {
         throw new Error(`Unsupported table type: ${config.table}`);
     }
 
-    const fileStream = pipeline(
-      dataStream,
-      streamTransformations[config.fileType](),
-      (err) => {
-        if (err) {
-          logger.error(
-            "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
-            err,
-          );
-        }
-      },
-    );
+    const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
+      if (err) {
+        logger.error(
+          "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
+          err,
+        );
+      }
+    };
+
+    const formatTransform = streamTransformations[config.fileType]();
+    const fileStream = config.compressed
+      ? pipeline(dataStream, formatTransform, createGzip(), pipelineCallback)
+      : pipeline(dataStream, formatTransform, pipelineCallback);
 
     // Upload the file to cloud storage
     // For CSV exports, use larger part size to handle big files
@@ -243,7 +254,7 @@ const processBlobStorageExport = async (config: {
 
     await storageService.uploadFileBuffered({
       fileName: filePath,
-      fileType: blobStorageProps.contentType,
+      fileType: uploadContentType,
       data: fileStream,
       partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
     });
@@ -353,6 +364,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
+      compressed: blobStorageIntegration.compressed,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
@@ -463,8 +475,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    const errorMessage = extractStorageErrorMessage(error);
+
     try {
-      const errorMessage = extractStorageErrorMessage(error);
       await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
@@ -478,6 +491,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
         persistError,
       );
     }
+
+    notifyBlobStorageExportFailedInBackground(projectId);
+
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
       error,
@@ -485,6 +501,85 @@ export const handleBlobStorageIntegrationProjectJob = async (
     throw error; // Rethrow to trigger retries
   }
 };
+
+function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+  void (async () => {
+    try {
+      const cooldownMs =
+        env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
+        60 *
+        60 *
+        1000;
+
+      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+      // If the email send subsequently fails, the cooldown still applies — the next failure
+      // after cooldown expiry will retry the notification.
+      const claimed = await prisma.blobStorageIntegration.updateMany({
+        where: {
+          projectId,
+          OR: [
+            { lastFailureNotificationSentAt: null },
+            {
+              lastFailureNotificationSentAt: {
+                lt: new Date(Date.now() - cooldownMs),
+              },
+            },
+          ],
+        },
+        data: { lastFailureNotificationSentAt: new Date() },
+      });
+
+      if (claimed.count === 0) {
+        logger.info(
+          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+        );
+        return;
+      }
+
+      const emailEnv = {
+        EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
+        SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
+        NEXTAUTH_URL: env.NEXTAUTH_URL,
+        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
+      };
+
+      if (
+        !emailEnv.EMAIL_FROM_ADDRESS ||
+        !emailEnv.SMTP_CONNECTION_URL ||
+        !emailEnv.NEXTAUTH_URL
+      ) {
+        return;
+      }
+
+      const [adminEmails, project] = await Promise.all([
+        getProjectAdminEmails(projectId),
+        prisma.project.findUnique({
+          where: { id: projectId },
+          select: { name: true },
+        }),
+      ]);
+
+      if (adminEmails.length === 0) {
+        return;
+      }
+
+      const projectName = project?.name ?? projectId;
+      const settingsUrl = `${emailEnv.NEXTAUTH_URL}/project/${projectId}/settings/integrations/blobstorage`;
+
+      await sendBlobStorageExportFailedEmail({
+        env: emailEnv,
+        projectName,
+        settingsUrl,
+        receiverEmails: adminEmails,
+      });
+    } catch (error) {
+      logger.error(
+        `[BLOB INTEGRATION] Failed to send failure notification for project ${projectId}`,
+        error,
+      );
+    }
+  })();
+}
 
 function extractStorageErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error).slice(0, 1000);

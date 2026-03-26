@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
 import { InvalidRequestError } from "../../../errors";
@@ -187,7 +187,7 @@ const matchAndVerifyTracesUiColumn = (
         (col) => col.uiTableId ?? col.uiTableName,
       ),
     });
-    throw new QueryBuilderError(errorMessage);
+    throw new InvalidRequestError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
-import { type LegendProps } from "recharts";
+import type { DefaultLegendContentProps, LegendPayload } from "recharts";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,8 +13,10 @@ import {
   getPayloadConfigFromPayload,
 } from "@/src/components/ui/chart";
 
-export interface ScoreChartLegendContentProps
-  extends Pick<LegendProps, "payload" | "verticalAlign"> {
+export interface ScoreChartLegendContentProps extends Pick<
+  DefaultLegendContentProps,
+  "payload" | "verticalAlign"
+> {
   /** Enable interactive click-to-toggle functionality */
   interactive?: boolean;
   /** Visibility state for each legend item (key -> visible) */
@@ -22,9 +24,7 @@ export interface ScoreChartLegendContentProps
   /** Callback when visibility changes */
   onVisibilityChange?: (key: string, visible: boolean) => void;
   /** Optional function to format labels */
-  formatLabel?: (label: string, item: unknown) => string;
-  /** Hide the color indicator icon */
-  hideIcon?: boolean;
+  formatLabel?: (label: string, item: LegendPayload) => string;
   /** Custom className */
   className?: string;
   /** Name key to use for legend items */
@@ -302,7 +302,7 @@ export const ScoreChartLegendContent = React.forwardRef<
         return {};
       }
 
-      const groups: Record<string, typeof payload> = {};
+      const groups: Record<string, LegendPayload[]> = {};
 
       payload.forEach((item) => {
         const key = `${nameKey || item.dataKey || "value"}`;
@@ -371,7 +371,7 @@ export const ScoreChartLegendContent = React.forwardRef<
     };
 
     // Format label for display
-    const getFormattedLabel = (item: (typeof payload)[0]): string => {
+    const getFormattedLabel = (item: LegendPayload): string => {
       const key = `${nameKey || item.dataKey || "value"}`;
 
       // Try to get label from ChartConfig first
