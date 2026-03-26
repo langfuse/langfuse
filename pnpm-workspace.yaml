@@ -4,3 +4,20 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@sentry/cli"
+  - esbuild
+  - sharp
+  - unrs-resolver
+ignoredBuiltDependencies:
+  - "@datadog/native-appsec"
+  - "@datadog/native-iast-taint-tracking"
+  - "@datadog/native-metrics"
+  - core-js
+  - dd-trace
+  - msgpackr-extract
+  - msw
+  - prisma
+  - protobufjs
