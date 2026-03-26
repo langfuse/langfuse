@@ -4032,8 +4032,8 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     }
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].bookmarked).toBe(1); // ClickHouse UInt8 boolean
-    expect(rows[0].public).toBe(1);
+    expect(rows[0].bookmarked).toBe(true);
+    expect(rows[0].public).toBe(true);
     expect(rows[0].created_at).toBeDefined();
     expect(rows[0].updated_at).toBeDefined();
   });

@@ -1809,7 +1809,8 @@ export const getObservationsForBlobStorageExport = function (
       if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
       usage_details['input'] as input_usage,
       usage_details['output'] as output_usage,
-      usage_details['total'] as total_usage
+      usage_details['total'] as total_usage,
+      internal_model_id as model_id
     FROM observations FINAL
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
