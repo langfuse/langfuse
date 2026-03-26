@@ -600,11 +600,16 @@ export function CategoricalFacet({
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
 
-  // Filter options by search query
+  // Filter options by search query (check both raw value and display label)
   const filteredOptions = searchQuery
-    ? options.filter((option) =>
-        option.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? options.filter((option) => {
+        const search = searchQuery.toLowerCase();
+        const displayLabel = displayByValue?.get(option) ?? option;
+        return (
+          option.toLowerCase().includes(search) ||
+          displayLabel.toLowerCase().includes(search)
+        );
+      })
     : options;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
