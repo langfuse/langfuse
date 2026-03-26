@@ -197,6 +197,7 @@ export function DataTableControls({
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
+                  displayByValue={filter.displayByValue}
                   loading={filter.loading}
                   value={filter.value}
                   onChange={filter.onChange}
@@ -344,6 +345,7 @@ interface BaseFacetProps {
 interface CategoricalFacetProps extends BaseFacetProps {
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
@@ -552,6 +554,7 @@ export function CategoricalFacet({
   loading,
   options,
   counts,
+  displayByValue,
   value,
   onChange,
   onOnlyChange,
@@ -753,26 +756,32 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => (
-                      <FilterValueCheckbox
-                        key={option}
-                        id={`${filterKey}-${option}`}
-                        label={option}
-                        icon={renderIcon?.(option)}
-                        count={counts.get(option) || 0}
-                        checked={value.includes(option)}
-                        onCheckedChange={(checked) => {
-                          const newValues = checked
-                            ? [...value, option]
-                            : value.filter((v: string) => v !== option);
-                          onChange(newValues);
-                        }}
-                        onLabelClick={
-                          onOnlyChange ? () => onOnlyChange(option) : undefined
-                        }
-                        totalSelected={value.length}
-                      />
-                    ))}
+                    {visibleOptions.map((option: string) => {
+                      const displayLabel =
+                        displayByValue?.get(option) ?? option;
+                      return (
+                        <FilterValueCheckbox
+                          key={option}
+                          id={`${filterKey}-${option}`}
+                          label={displayLabel}
+                          icon={renderIcon?.(option)}
+                          count={counts.get(option) || 0}
+                          checked={value.includes(option)}
+                          onCheckedChange={(checked) => {
+                            const newValues = checked
+                              ? [...value, option]
+                              : value.filter((v: string) => v !== option);
+                            onChange(newValues);
+                          }}
+                          onLabelClick={
+                            onOnlyChange
+                              ? () => onOnlyChange(option)
+                              : undefined
+                          }
+                          totalSelected={value.length}
+                        />
+                      );
+                    })}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button
