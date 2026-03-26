@@ -111,6 +111,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           variant="ghost"
           size="xs"
           disabled={!hasAccess}
+          title="Duplicate folder including prompts"
           onClick={() => capture("prompt_detail:duplicate_button_click")}
         >
           <Copy className="h-4 w-4" />
