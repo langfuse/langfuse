@@ -7,6 +7,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalOutputResultSchema,
   ChatMessageType,
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   type PersistedEvalOutputDefinition,
@@ -22,7 +23,7 @@ import { z } from "zod";
  * Each adapter is tested with:
  * 1. Simple completion
  * 2. Streaming completion
- * 3. Structured output (legacy eval schema, v2 numeric schema, v2 categorical schema)
+ * 3. Structured output (legacy eval schema, v2 numeric schema, v2 boolean schema, v2 categorical schema)
  * 4. Tool calling
  *
  * Required environment variables (tests will FAIL if not set):
@@ -50,6 +51,11 @@ const numericEvalResponseSchema = z.object({
   reasoning: z.string().min(1),
 });
 
+const booleanEvalResponseSchema = z.object({
+  score: z.boolean(),
+  reasoning: z.string().min(1),
+});
+
 const categoricalScoreValues = ["correct", "incorrect"] as const;
 const categoricalEvalResponseSchema = z.object({
   score: z.enum(categoricalScoreValues),
@@ -61,7 +67,10 @@ type EvalStructuredOutputTestCase = {
   prompt: string;
   outputDefinition: PersistedEvalOutputDefinition;
   responseSchema: z.ZodTypeAny;
-  assertParsed?: (data: { score: number | string; reasoning: string }) => void;
+  assertParsed?: (data: {
+    score: number | boolean | string;
+    reasoning: string;
+  }) => void;
 };
 
 const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
@@ -86,6 +95,20 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
       reasoningDescription: "Explain briefly why you chose that score.",
     }),
     responseSchema: numericEvalResponseSchema,
+  },
+  {
+    name: "structured output - v2 boolean eval schema",
+    prompt:
+      "Judge whether the answer '2 + 2 = 5' is correct. Return true only if it is mathematically correct, otherwise false, and explain briefly.",
+    outputDefinition: createBooleanEvalOutputDefinition({
+      scoreDescription:
+        "Return true when the answer is mathematically correct, otherwise return false.",
+      reasoningDescription: "Explain briefly why you chose that verdict.",
+    }),
+    responseSchema: booleanEvalResponseSchema,
+    assertParsed: (data) => {
+      expect(data.score).toBe(false);
+    },
   },
   {
     name: "structured output - v2 categorical eval schema",
