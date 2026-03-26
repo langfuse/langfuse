@@ -110,6 +110,15 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
+const INTERACTIVE_ROW_CLICK_SELECTOR =
+  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+
+export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return false;
+
+  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
+};
+
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
@@ -499,7 +508,10 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={(e) => onRowClick?.(row.original, e)}
+      onClick={(e) => {
+        if (shouldIgnoreRowClickTarget(e.target)) return;
+        onRowClick?.(row.original, e);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           onRowClick?.(row.original);
