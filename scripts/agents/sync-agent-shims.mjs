@@ -212,6 +212,13 @@ const symlinkOutputs = [
   })),
 ];
 
+const managedDirectoryEntries = [
+  {
+    path: resolve(repoRoot, ".claude/skills"),
+    expectedChildren: new Set(sharedSkillNames),
+  },
+];
+
 const isMatchingSymlink = (path, target) => {
   const stats = lstatSync(path);
   if (!stats.isSymbolicLink()) {
@@ -219,6 +226,14 @@ const isMatchingSymlink = (path, target) => {
   }
 
   return resolve(dirname(path), readlinkSync(path)) === target;
+};
+
+const findUnexpectedChildren = ({ path, expectedChildren }) => {
+  if (!existsSync(path)) {
+    return [];
+  }
+
+  return readdirSync(path).filter((entry) => !expectedChildren.has(entry));
 };
 
 let hasMismatch = false;
@@ -303,6 +318,28 @@ for (const output of symlinkOutputs) {
     lstatSync(output.target).isDirectory() ? "dir" : "file",
   );
   console.log(`Linked ${output.path}`);
+}
+
+for (const directory of managedDirectoryEntries) {
+  const unexpectedChildren = findUnexpectedChildren(directory);
+
+  if (unexpectedChildren.length === 0) {
+    continue;
+  }
+
+  if (checkMode) {
+    hasMismatch = true;
+    for (const child of unexpectedChildren) {
+      console.error(`Unexpected generated shim: ${resolve(directory.path, child)}`);
+    }
+    continue;
+  }
+
+  for (const child of unexpectedChildren) {
+    const childPath = resolve(directory.path, child);
+    rmSync(childPath, { force: true, recursive: true });
+    console.log(`Removed stale generated shim ${childPath}`);
+  }
 }
 
 if (checkMode && hasMismatch) {
