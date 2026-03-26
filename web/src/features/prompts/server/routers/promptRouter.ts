@@ -394,6 +394,11 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:CUD",
       });
 
+      // TODO: Decide product behavior for protected labels on duplication.
+      // We currently preserve labels here to match duplicatePrompt, which also
+      // duplicates protected labels without a separate promptProtectedLabels:CUD
+      // check. If duplicates should be treated as factually new prompts, strip
+      // protected labels in both duplication flows instead of diverging here.
       const result = await duplicateFolder({
         projectId: input.projectId,
         sourcePath: input.sourcePath,

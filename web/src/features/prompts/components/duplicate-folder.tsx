@@ -217,6 +217,14 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                   </FormItem>
                 )}
               />
+              {form.watch("copySettings") === CopySettings.LATEST_ONLY &&
+                form.watch("rewritePromptReferences") && (
+                  <p className="text-muted-foreground text-sm">
+                    When copying latest only, labels referenced within the
+                    folder may be added to copied prompts so rewritten
+                    references continue to work.
+                  </p>
+                )}
               {error && (
                 <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <p className="font-medium">Error:</p>
