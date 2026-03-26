@@ -1,4 +1,5 @@
 import {
+  normalizeEventsLuceneAutocompleteValues,
   resolveEventsLuceneCompletionItems,
   tokenizeEventsLuceneQuery,
 } from "@/src/features/events/components/events-lucene-search-utils";
@@ -42,6 +43,15 @@ describe("events lucene search autocomplete", () => {
     expect(result.items.map((item) => item.label)).toContain(
       "[2025-01-01 TO 2025-01-31]",
     );
+  });
+
+  it("normalizes sidebar filter options into plain autocomplete values", () => {
+    expect(
+      normalizeEventsLuceneAutocompleteValues([
+        { value: "production" },
+        { value: "staging" },
+      ]),
+    ).toEqual(["production", "staging"]);
   });
 });
 

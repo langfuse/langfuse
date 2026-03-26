@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { EventsLuceneSearchInput } from "./EventsLuceneSearchInput";
+import { normalizeEventsLuceneAutocompleteValues } from "./events-lucene-search-utils";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -376,16 +377,26 @@ export default function ObservationsEventsTable({
   });
   const luceneFieldOptions = useMemo(
     () => ({
-      environment: filterOptions.environment ?? [],
-      name: filterOptions.name ?? [],
-      type: filterOptions.type ?? [],
-      level: filterOptions.level ?? [],
-      modelId: filterOptions.modelId ?? [],
-      providedModelName: filterOptions.providedModelName ?? [],
-      promptName: filterOptions.promptName ?? [],
-      traceName: filterOptions.traceName ?? [],
-      userId: filterOptions.userId ?? [],
-      sessionId: filterOptions.sessionId ?? [],
+      environment: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.environment,
+      ),
+      name: normalizeEventsLuceneAutocompleteValues(filterOptions.name),
+      type: normalizeEventsLuceneAutocompleteValues(filterOptions.type),
+      level: normalizeEventsLuceneAutocompleteValues(filterOptions.level),
+      modelId: normalizeEventsLuceneAutocompleteValues(filterOptions.modelId),
+      providedModelName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.providedModelName,
+      ),
+      promptName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.promptName,
+      ),
+      traceName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.traceName,
+      ),
+      userId: normalizeEventsLuceneAutocompleteValues(filterOptions.userId),
+      sessionId: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.sessionId,
+      ),
     }),
     [filterOptions],
   );

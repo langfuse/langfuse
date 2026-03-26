@@ -8,6 +8,12 @@ export type EventsLuceneAutocompleteOptions = Partial<
   Record<EventsLuceneFieldId, string[]>
 >;
 
+type EventsLuceneAutocompleteOptionLike =
+  | string
+  | {
+      value: string;
+    };
+
 export type EventsLuceneCompletionItem = {
   label: string;
   apply: string;
@@ -147,6 +153,18 @@ const DATETIME_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     boost: 15,
   },
 ];
+
+export function normalizeEventsLuceneAutocompleteValues(
+  values: ReadonlyArray<EventsLuceneAutocompleteOptionLike> | null | undefined,
+): string[] {
+  if (!values) {
+    return [];
+  }
+
+  return values
+    .map((value) => (typeof value === "string" ? value : value.value))
+    .filter((value): value is string => Boolean(value));
+}
 
 function escapeLuceneQuotedValue(value: string) {
   return value.replace(/(["\\])/g, "\\$1");
