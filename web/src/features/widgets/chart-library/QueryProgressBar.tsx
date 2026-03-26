@@ -20,8 +20,11 @@ export function QueryProgressBar({
   layout = "default",
 }: QueryProgressBarProps) {
   const hasProgress = progress != null;
-  const percent = hasProgress ? Math.min(progress.percent * 100, 100) : 0;
+  const percent = hasProgress
+    ? Math.max(0, Math.min(progress.percent * 100, 100))
+    : 0;
   const compactLayout = layout !== "default";
+  const showProgressLabel = layout !== "tight";
 
   return (
     <div className={cn("w-full min-w-0", className)}>
@@ -41,22 +44,22 @@ export function QueryProgressBar({
             className="bg-primary/60 h-full rounded-full transition-all duration-500 ease-out"
             style={{ width: `${percent}%` }}
           />
-        ) : (
-          <div className="bg-primary/50 h-full w-1/3 animate-pulse rounded-full" />
-        )}
+        ) : null}
       </div>
-      <p
-        className={cn(
-          "text-muted-foreground mt-2 tabular-nums",
-          compactLayout ? "text-[11px] leading-4" : "text-xs",
-        )}
-      >
-        {hasProgress
-          ? `Reading ${formatRows(progress.read_rows)} / ~${formatRows(
-              progress.total_rows_to_read,
-            )} rows`
-          : "Reading query progress..."}
-      </p>
+      {showProgressLabel ? (
+        <p
+          className={cn(
+            "text-muted-foreground mt-2 tabular-nums",
+            compactLayout ? "text-[11px] leading-4" : "text-xs",
+          )}
+        >
+          {hasProgress
+            ? `Reading ${formatRows(progress.read_rows)} / ~${formatRows(
+                progress.total_rows_to_read,
+              )} rows`
+            : "Reading query progress..."}
+        </p>
+      ) : null}
     </div>
   );
 }
