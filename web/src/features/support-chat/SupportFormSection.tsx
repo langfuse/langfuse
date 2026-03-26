@@ -188,7 +188,7 @@ export function SupportFormSection({
   );
 
   const createSupportThread = api.plainRouter.createSupportThread.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       form.reset({
         messageType: "Question",
         severity: "Question or feature request",
@@ -197,6 +197,13 @@ export function SupportFormSection({
       });
       setWarnedShortOnce(false);
       setFiles(undefined);
+      if (data.pylonIssueFailed) {
+        showErrorToast(
+          "Pylon Sync Failed",
+          "The support ticket was created but failed to sync to Pylon. Check server logs for details.",
+          "WARNING",
+        );
+      }
       onSuccess();
     },
     onSettled: () => setIsSubmittingLocal(false),
