@@ -317,6 +317,11 @@
     @apply border-border;
   }
 
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
   html,
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
