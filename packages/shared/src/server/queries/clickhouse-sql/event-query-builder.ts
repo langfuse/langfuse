@@ -278,6 +278,10 @@ const FIELD_SETS = {
     "release",
     "traceName",
     "parentObservationId",
+    "bookmarked",
+    "public",
+    "createdAt",
+    "updatedAt",
   ],
 
   eval: [

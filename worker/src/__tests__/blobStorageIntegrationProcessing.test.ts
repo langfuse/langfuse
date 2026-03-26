@@ -154,13 +154,18 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const observationId = randomUUID();
       const scoreId = randomUUID();
 
+      const dataTime = now.getTime() - 90 * 60 * 1000; // 90 minutes before now
+
       // Create event data for events table export
       const event = createEvent({
         project_id: projectId,
         trace_id: traceId,
         type: "GENERATION",
         name: "Test Event",
-        start_time: (now.getTime() - 90 * 60 * 1000) * 1000, // 90 minutes before now (microseconds)
+        start_time: dataTime * 1000, // microseconds
+        end_time: (dataTime + 5000) * 1000, // 5s later (microseconds)
+        bookmarked: true,
+        public: true,
       });
 
       // Create trace, observation, score, and event in Clickhouse
@@ -170,7 +175,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           createTrace({
             id: traceId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 min before now
+            timestamp: dataTime,
             name: "Test Trace",
           }),
         ]),
@@ -179,7 +184,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: observationId,
             trace_id: traceId,
             project_id: projectId,
-            start_time: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            start_time: dataTime,
+            end_time: dataTime + 5000, // 5s later
+            completion_start_time: dataTime + 1000, // 1s later
+            total_cost: 42.5,
+            usage_details: { input: 100, output: 200, total: 300 },
             name: "Test Observation",
           }),
         ]),
@@ -188,7 +197,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: scoreId,
             trace_id: traceId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Score",
             value: 0.95,
           }),
@@ -196,7 +205,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: sessionScoreId,
             session_id: sessionId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Session Score",
             value: 0.8,
           }),
@@ -204,7 +213,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: datasetRunScoreId,
             dataset_run_id: datasetRunId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Dataset Run Score",
             value: 0.7,
           }),
@@ -244,12 +253,22 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         const content = await s3StorageService.download(traceFile.file);
         expect(content).toContain(traceId);
         expect(content).toContain("Test Trace");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
       }
 
       if (observationFile) {
         const content = await s3StorageService.download(observationFile.file);
         expect(content).toContain(observationId);
         expect(content).toContain("Test Observation");
+        // Verify new fields: total_cost, latency, time_to_first_token, usage extractions
+        expect(content).toContain("total_cost");
+        expect(content).toContain("latency");
+        expect(content).toContain("time_to_first_token");
+        expect(content).toContain("input_usage");
+        expect(content).toContain("output_usage");
+        expect(content).toContain("total_usage");
       }
 
       if (scoreFile) {
@@ -267,12 +286,20 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(datasetRunId);
         expect(content).toContain("Test Dataset Run Score");
         expect(content).toContain("0.7");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
       }
 
       if (eventFile) {
         const content = await s3StorageService.download(eventFile.file);
         expect(content).toContain(event.span_id);
         expect(content).toContain("Test Event");
+        // Verify new fields: bookmarked, public, created_at, updated_at
+        expect(content).toContain("bookmarked");
+        expect(content).toContain("public");
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
       }
 
       // Check integration lastSyncAt and nextSyncAt are updated
