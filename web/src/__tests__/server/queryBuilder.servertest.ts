@@ -4355,6 +4355,8 @@ describe("getValidAggregationsForMeasureType", () => {
     ["integer", allAggs],
     ["decimal", allAggs],
     ["number", allAggs],
+    // uniqueCount → all aggregations except count
+    ["uniqueCount", allAggs - 1],
     // Non-numeric / missing → restricted
     ["string", restricted.length],
     ["boolean", restricted.length],
@@ -4366,6 +4368,13 @@ describe("getValidAggregationsForMeasureType", () => {
 
   it("restricted set contains only count and uniq", () => {
     expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
+  });
+
+  it("uniqueCount excludes count but includes sum and uniq", () => {
+    const valid = getValidAggregationsForMeasureType("uniqueCount");
+    expect(valid).not.toContain("count");
+    expect(valid).toContain("sum");
+    expect(valid).toContain("uniq");
   });
 });
 

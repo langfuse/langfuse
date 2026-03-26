@@ -98,14 +98,14 @@ export const traceView: ViewDeclarationType = {
     uniqueUserIds: {
       sql: "uniq(traces.user_id)",
       alias: "uniqueUserIds",
-      type: "integer",
+      type: "uniqueCount",
       description: "Count of unique userIds.",
       unit: "users",
     },
     uniqueSessionIds: {
       sql: "uniq(traces.session_id)",
       alias: "uniqueSessionIds",
-      type: "integer",
+      type: "uniqueCount",
       description: "Count of unique sessionIds.",
       unit: "sessions",
     },
@@ -268,7 +268,7 @@ export const eventsTracesView: ViewDeclarationType = {
       sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
       aggs: { agg: "any" },
       alias: "uniqueUserIds",
-      type: "string",
+      type: "uniqueCount",
       description:
         "User identifier; apply uniq aggregation to count distinct users.",
       unit: "users",
@@ -277,7 +277,7 @@ export const eventsTracesView: ViewDeclarationType = {
       sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
       aggs: { agg: "any" },
       alias: "uniqueSessionIds",
-      type: "string",
+      type: "uniqueCount",
       description:
         "Session identifier; apply uniq aggregation to count distinct sessions.",
       unit: "sessions",
@@ -1168,7 +1168,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       sql: "@@AGG@@(nullIf(events_observations.user_id, ''))",
       aggs: { agg: "any" },
       alias: "uniqueUserIds",
-      type: "string",
+      type: "uniqueCount",
       description:
         "User identifier; apply uniq aggregation to count distinct users.",
       unit: "users",
@@ -1177,7 +1177,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       sql: "@@AGG@@(nullIf(events_observations.session_id, ''))",
       aggs: { agg: "any" },
       alias: "uniqueSessionIds",
-      type: "string",
+      type: "uniqueCount",
       description:
         "Session identifier; apply uniq aggregation to count distinct sessions.",
       unit: "sessions",

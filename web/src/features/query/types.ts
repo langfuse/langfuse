@@ -124,6 +124,12 @@ export const metricAggregations = z.enum([
  * Returns the subset of aggregations that are valid for a given measure type.
  * Whitelists known numeric types; unknown or missing types default to the
  * restrictive count/uniq set to surface missing type annotations early.
+ *
+ * "uniqueCount" is used for measures that already compute a unique count
+ * (e.g. uniq(user_id)). The inner query produces a per-group integer, so
+ * numeric aggregations like sum/avg/max/min are fine for the outer query,
+ * but "count" is excluded because it would count *rows* rather than summing
+ * the unique counts – which is the bug described in #12273.
  */
 export function getValidAggregationsForMeasureType(
   measureType: string | undefined,
@@ -134,6 +140,9 @@ export function getValidAggregationsForMeasureType(
     measureType === "number"
   ) {
     return [...metricAggregations.options];
+  }
+  if (measureType === "uniqueCount") {
+    return metricAggregations.options.filter((a) => a !== "count");
   }
   return ["count", "uniq"];
 }
