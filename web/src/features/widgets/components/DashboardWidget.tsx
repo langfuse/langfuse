@@ -38,7 +38,6 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
-import { hashKey } from "@tanstack/react-query";
 
 export interface WidgetPlacement {
   id: string;
@@ -178,19 +177,6 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
-  const queryRunKey = useMemo(
-    () =>
-      hashKey([
-        {
-          projectId,
-          version: metricsVersion,
-          query: widgetQuery,
-        },
-        retryCount,
-      ]),
-    [metricsVersion, projectId, retryCount, widgetQuery],
-  );
-
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -207,7 +193,7 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
-      runKey: queryRunKey,
+      refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
         isV4BetaEnabled: isBetaEnabled,
         version: metricsVersion,
