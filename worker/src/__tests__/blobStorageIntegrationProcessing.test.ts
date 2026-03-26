@@ -153,8 +153,37 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
       const scoreId = randomUUID();
+      const modelId = randomUUID();
 
       const dataTime = now.getTime() - 90 * 60 * 1000; // 90 minutes before now
+
+      // Create a Model + PricingTier + Prices in Postgres for model enrichment
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName: "gpt-4-test",
+          matchPattern: "gpt-4-test",
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                createMany: {
+                  data: [
+                    { modelId, usageType: "input", price: "0.03" },
+                    { modelId, usageType: "output", price: "0.06" },
+                    { modelId, usageType: "total", price: "0.09" },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      });
 
       // Create event data for events table export
       const event = createEvent({
@@ -166,6 +195,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         end_time: (dataTime + 5000) * 1000, // 5s later (microseconds)
         bookmarked: true,
         public: true,
+        model_id: modelId,
       });
 
       // Create trace, observation, score, and event in Clickhouse
@@ -189,6 +219,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             completion_start_time: dataTime + 1000, // 1s later
             total_cost: 42.5,
             usage_details: { input: 100, output: 200, total: 300 },
+            internal_model_id: modelId,
             name: "Test Observation",
           }),
         ]),
@@ -262,13 +293,24 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         const content = await s3StorageService.download(observationFile.file);
         expect(content).toContain(observationId);
         expect(content).toContain("Test Observation");
-        // Verify new fields: total_cost, latency, time_to_first_token, usage extractions
+        // Verify new fields: total_cost, latency, time_to_first_token
         expect(content).toContain("total_cost");
         expect(content).toContain("latency");
         expect(content).toContain("time_to_first_token");
-        expect(content).toContain("input_usage");
-        expect(content).toContain("output_usage");
-        expect(content).toContain("total_usage");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":100');
+        expect(content).toContain('""output"":200');
+        // Verify model pricing enrichment
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("prompt_id");
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
       }
 
       if (scoreFile) {
@@ -300,6 +342,19 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain("public");
         expect(content).toContain("created_at");
         expect(content).toContain("updated_at");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":1234');
+        expect(content).toContain('""output"":5678');
+        // Verify model pricing enrichment with actual values
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
       }
 
       // Check integration lastSyncAt and nextSyncAt are updated

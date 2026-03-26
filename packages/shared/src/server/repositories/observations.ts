@@ -1805,11 +1805,16 @@ export const getObservationsForBlobStorageExport = function (
       prompt_name,
       prompt_version,
       total_cost,
-      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
-      usage_details['input'] as input_usage,
-      usage_details['output'] as output_usage,
-      usage_details['total'] as total_usage
+      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
+      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token,
+      internal_model_id as model_id,
+      created_at,
+      updated_at,
+      prompt_id,
+      tool_calls,
+      tool_call_names,
+      tool_definitions,
+      usage_pricing_tier_name
     FROM observations FINAL
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
