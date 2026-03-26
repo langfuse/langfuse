@@ -108,7 +108,10 @@ export class SeederOrchestrator {
         logger.info(
           `Processing run ${runNumber + 1}/${numberOfRuns} for project ${projectId}`,
         );
-        const now = Date.now();
+        // Use timestamp 1 minute in the past so backfill picks up seed data
+        // Backfill requires: created_at > lastRun AND created_at <= (now - 30s)
+        // With lastRun = 1 hour ago and created_at = 1 minute ago, both conditions pass
+        const now = Date.now() - 60 * 1000;
 
         const traces: TraceRecordInsertType[] = [];
         const observations: ObservationRecordInsertType[] = [];
