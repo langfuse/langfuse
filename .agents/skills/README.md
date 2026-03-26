@@ -23,6 +23,25 @@ Shared skills should use progressive disclosure:
 
 ## Available Skills
 
+### agent-setup-maintenance
+
+Use for:
+- `.agents/config.json`, `.agents/AGENTS.md`, or `.agents/README.md`
+- shared skill additions or shared skill routing changes
+- generated shim behavior in `scripts/agents/sync-agent-shims.mjs`
+- install-time agent sync behavior and provider discovery paths
+
+Open: [agent-setup-maintenance/SKILL.md](agent-setup-maintenance/SKILL.md)
+
+### frontend-browser-review
+
+Use for:
+- user-visible changes in `web/**`
+- Playwright MCP browser review before signoff
+- checking visible regressions in layout, styling, navigation, or responsive behavior
+
+Open: [frontend-browser-review/SKILL.md](frontend-browser-review/SKILL.md)
+
 ### backend-dev-guidelines
 
 Use for:

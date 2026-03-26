@@ -53,6 +53,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Package-Local Skills
 
+- Shared browser-review workflow for user-visible frontend changes:
+  [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
@@ -60,7 +62,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
-performance, bundle size, or React/Next.js performance patterns.
+performance, bundle size, React/Next.js performance patterns, or browser-based
+signoff of user-visible changes.
 
 ## Web Conventions
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
@@ -115,7 +118,9 @@ performance, bundle size, or React/Next.js performance patterns.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP server before signoff, including a quick functional pass and a visual regression check.
+4. Review the affected user flow in a real browser with the Playwright MCP
+   server before signoff. Use
+   `../.agents/skills/frontend-browser-review/SKILL.md`.
 
 ### Agent browser loop
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
