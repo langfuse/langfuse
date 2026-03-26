@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { resolveEventsLuceneQueryForApi } from "@langfuse/shared";
+import { Button } from "@/src/components/ui/button";
 
 jest.mock("../features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => jest.fn(),
@@ -120,5 +121,34 @@ describe("DataTableToolbar Lucene search", () => {
         "Invalid Lucene query: Lucene operators require explicit field names in the events search bar. Use plain free text for broad search, or fielded clauses like name:weather AND level:ERROR.",
       ),
     ).toBeTruthy();
+  });
+
+  it("allows custom search inputs to submit the latest live value", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          currentQuery: "",
+          updateQuery,
+          renderInput: ({ onChange, onSubmit }) => (
+            <Button
+              type="button"
+              onClick={() => {
+                onChange("traceId:live-value");
+                onSubmit("traceId:live-value");
+              }}
+            >
+              Submit live value
+            </Button>
+          ),
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit live value" }));
+
+    expect(updateQuery).toHaveBeenCalledWith("traceId:live-value");
   });
 });

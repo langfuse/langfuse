@@ -81,7 +81,7 @@ interface SearchConfig {
   renderInput?: (props: {
     value: string;
     onChange: (value: string) => void;
-    onSubmit: () => void;
+    onSubmit: (valueOverride?: string) => void;
     error: string | null;
     placeholder: string;
     helpDescription?: React.ReactNode;
@@ -206,8 +206,9 @@ export function DataTableToolbar<TData, TValue>({
       ? "Search..."
       : `Search (${searchConfig?.metadataSearchFields?.join(", ")})`);
 
-  const submitSearch = () => {
-    const validationError = validateSearchQuery(searchString);
+  const submitSearch = (valueOverride?: string) => {
+    const nextSearchString = valueOverride ?? searchString;
+    const validationError = validateSearchQuery(nextSearchString);
 
     if (validationError) {
       setSearchError(validationError);
@@ -216,7 +217,7 @@ export function DataTableToolbar<TData, TValue>({
 
     setSearchError(null);
     capture("table:search_submit");
-    searchConfig?.updateQuery(searchString);
+    searchConfig?.updateQuery(nextSearchString);
   };
 
   // Only show the toggle button when we're using the new sidebar
@@ -295,7 +296,7 @@ export function DataTableToolbar<TData, TValue>({
                     }
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
-                        submitSearch();
+                        submitSearch(event.currentTarget.value);
                       }
                     }}
                     className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"

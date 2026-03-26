@@ -16,7 +16,7 @@ import type { StringStream } from "@codemirror/language";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { Search } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   matchEventsLuceneToken,
   resolveEventsLuceneCompletionItems,
@@ -42,7 +42,7 @@ const eventsLuceneLanguage = StreamLanguage.define({
 type EventsLuceneSearchInputProps = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (valueOverride?: string) => void;
   error?: string | null;
   placeholder: string;
   helpDescription?: React.ReactNode;
@@ -60,6 +60,11 @@ export function EventsLuceneSearchInput({
 }: EventsLuceneSearchInputProps) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
+  const latestValueRef = useRef(value);
+
+  useEffect(() => {
+    latestValueRef.current = value;
+  }, [value]);
 
   const completionSource = useMemo(
     () => (context: CompletionContext) => {
@@ -117,7 +122,7 @@ export function EventsLuceneSearchInput({
             completionStatus(view.state) !== "active"
           ) {
             event.preventDefault();
-            onSubmit();
+            onSubmit(view.state.doc.toString());
             return true;
           }
 
@@ -166,7 +171,7 @@ export function EventsLuceneSearchInput({
         variant="ghost"
         size="icon"
         className="text-muted-foreground hover:text-foreground mr-1 ml-1 h-7 w-7 shrink-0"
-        onClick={onSubmit}
+        onClick={() => onSubmit(latestValueRef.current)}
       >
         <Search className="h-4 w-4" />
       </Button>
@@ -179,7 +184,11 @@ export function EventsLuceneSearchInput({
           highlightActiveLine: false,
         }}
         extensions={extensions}
-        onChange={(nextValue) => onChange(nextValue.replace(/\s*\n+\s*/g, " "))}
+        onChange={(nextValue) => {
+          const normalizedValue = nextValue.replace(/\s*\n+\s*/g, " ");
+          latestValueRef.current = normalizedValue;
+          onChange(normalizedValue);
+        }}
         placeholder={placeholder}
         className="min-w-0 flex-1 text-sm"
       />
