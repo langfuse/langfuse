@@ -19,10 +19,6 @@
         "data-testid"
       ]
     },
-    "datadog": {
-      "transport": "http",
-      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
-    },
     "langfuse-docs": {
       "transport": "http",
       "url": "https://langfuse.com/api/mcp"
