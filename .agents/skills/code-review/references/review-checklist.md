@@ -1,4 +1,6 @@
-# Code Review Instructions
+# Langfuse Review Checklist
+
+This is the canonical shared review checklist for Langfuse.
 
 ## Database Migrations
 

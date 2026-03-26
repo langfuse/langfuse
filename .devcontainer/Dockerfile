@@ -13,5 +13,5 @@ RUN npm install -g pnpm@9.5.0
 RUN curl https://clickhouse.com/ | sh && \
     sudo ./clickhouse install
 
-# Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+# Install agent CLIs used in this repo
+RUN npm install -g @anthropic-ai/claude-code @openai/codex

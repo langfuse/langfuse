@@ -157,6 +157,40 @@ Notes:
   PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
   variables in the Codex UI.
 
+### Shared Agent Setup
+
+This repository keeps the shared agent setup in source control so developers
+using different tools can work against the same instructions, bootstrap, and
+MCP server catalog.
+
+- Canonical shared docs:
+  - `.agents/AGENTS.md`
+- Root discovery symlinks:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+- Shared agent setup overview: `.agents/README.md`
+- Shared skills: `.agents/skills/`
+- Shared tool/bootstrap/MCP config: `.agents/config.json`
+- Tool-specific MCP configs generated locally from that catalog and not committed:
+  - `.mcp.json`
+  - `.cursor/mcp.json`
+  - `.vscode/mcp.json`
+  - `.codex/config.toml`
+- Tool-specific runtime shims generated locally from the shared config and not committed:
+  - `.claude/settings.json`
+  - `.codex/environments/environment.toml`
+  - `.cursor/environment.json`
+- Tool-specific skill projections generated locally and not committed:
+  - `.claude/skills/*`
+- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+
+When you change the shared MCP setup:
+
+1. Edit `.agents/config.json`
+2. Run `pnpm run agents:sync`
+3. Run `pnpm run agents:check`
+4. Do not commit the generated MCP config files or runtime shims
+
 **Steps**
 
 1. Install development dependencies:

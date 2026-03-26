@@ -62,6 +62,28 @@ Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, bundle size, or React/Next.js performance patterns.
 
+## Web Conventions
+- Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
+  components under `src/components/*`.
+- We use tRPC for full-stack web features; register routers in
+  `src/server/api/root.ts`.
+- Authentication and RBAC guidance lives in `src/features/rbac/README.md`.
+- Entitlements guidance lives in `src/features/entitlements/README.md`.
+- Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
+  must be installed, ask the user before doing so.
+- Tailwind is the default styling layer; use the shared palette and globals in
+  `src/styles/globals.css`.
+- When anchoring sticky, fixed, or absolute elements to the viewport, use
+  `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
+  `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
+  the UI.
+- Public API routes should use
+  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
+  response types in `src/features/public-api/types/*`, add server tests, and
+  update Fern sources when the contract changes.
+- Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
+  unique test data over global reset helpers.
+
 ## Quick Commands
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
@@ -98,7 +120,7 @@ performance, bundle size, or React/Next.js performance patterns.
 ### Agent browser loop
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
-3. Use the workspace `playwright` MCP server from `.mcp.json` or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
+3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
 4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
 5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 

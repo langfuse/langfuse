@@ -2,9 +2,16 @@
 
 Shared repo skills for any coding agent working in Langfuse.
 
-Use these from `AGENTS.md` and `CLAUDE.md`. They are not tool-specific and
-should stay focused on reusable implementation guidance rather than runtime
-automation.
+Use these from `AGENTS.md`. Claude Code reaches the same shared instructions via
+the root `CLAUDE.md` compatibility symlink. Shared skills should stay focused on
+reusable implementation guidance rather than runtime automation.
+
+For the shared agent config and generated shim model, start with
+[`../README.md`](../README.md).
+
+Claude discovers these shared skills through symlinks under `.claude/skills/`.
+Those discovery links are created and verified by `pnpm run agents:sync` and
+`pnpm run agents:check`.
 
 Shared skills should use progressive disclosure:
 
@@ -36,6 +43,25 @@ Use for:
 
 Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
 
+### code-review
+
+Use for:
+- PR or branch review
+- correctness, regression, and risk-focused review tasks
+- applying the repo-specific review policy in
+  `code-review/references/review-checklist.md`
+
+Open: [code-review/SKILL.md](code-review/SKILL.md)
+
+### changelog-writing
+
+Use for:
+- changelog entries for completed features
+- drafting user-facing release notes
+- checking related docs links for changelog posts
+
+Open: [changelog-writing/SKILL.md](changelog-writing/SKILL.md)
+
 ## Adding a New Shared Skill
 
 1. Codex may create or refine shared skills under `.agents/skills/` when a
@@ -47,6 +73,18 @@ Open: [add-model-price/SKILL.md](add-model-price/SKILL.md)
    execution helpers.
 5. Keep the skill tightly scoped to one domain or workflow.
 6. Link the skill from `AGENTS.md` if it is relevant across the repo.
-7. Link the skill from `CLAUDE.md` if Claude Code should load it from the
-   project entrypoint.
-8. Run `pnpm run skills:check` after editing any skill files.
+7. Run `pnpm run agents:sync` and `pnpm run agents:check` so Claude's projected
+   `.claude/skills/` view stays in sync.
+8. Update `AGENTS.md` or package-local `AGENTS.md` if the new skill changes the
+   default reusable workflow for future agents.
+9. Run the relevant verification for the package or workflow the skill affects.
+
+## Skill Design Rules
+
+- Keep the skill tool-neutral.
+- Use `SKILL.md` as the short entrypoint, not the full knowledge dump.
+- Prefer `references/` for deeper docs and `scripts/` for deterministic helpers.
+- Avoid copying large sections of repo docs into the skill when a stable link is
+  enough.
+- If the skill is web- or package-specific, link the nearest package
+  `AGENTS.md` or package docs instead of restating them.
