@@ -291,10 +291,14 @@ function preprocessData(data: unknown, _ctx: NormalizerContext): unknown {
       : obj.messages;
 
     // Extract and attach tool definitions
-    if (Array.isArray(obj.tools) && obj.tools.length > 0) {
+    if (
+      Array.isArray(normalized) &&
+      Array.isArray(obj.tools) &&
+      obj.tools.length > 0
+    ) {
       const tools = (obj.tools as unknown[]).map(normalizeToolDefinition);
-      return (normalized as Record<string, unknown>[]).map((msg) => ({
-        ...msg,
+      return normalized.map((msg) => ({
+        ...(msg as Record<string, unknown>),
         tools,
       }));
     }
@@ -365,8 +369,12 @@ export const anthropicAdapter: ProviderAdapter = {
       if (scopeName === "agent_framework") return false;
     }
 
-    // HINTS: Observation name
-    if (ctx.observationName?.toLowerCase().includes("anthropic")) return true;
+    // HINTS: Observation name — require prefix match to avoid false positives
+    // (e.g. "anthropic-openai-bridge" with OpenAI-format data)
+    const obsName = ctx.observationName?.toLowerCase();
+    if (obsName?.startsWith("anthropic.") || obsName === "anthropic") {
+      return true;
+    }
 
     // Metadata attribute hints
     if (meta && typeof meta === "object") {

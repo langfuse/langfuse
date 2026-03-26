@@ -33,10 +33,20 @@ describe("Anthropic Adapter", () => {
       expect(anthropicAdapter.detect({ framework: "anthropic" })).toBe(true);
     });
 
-    it("should detect by observation name containing 'anthropic'", () => {
+    it("should detect by observation name starting with 'anthropic.'", () => {
       expect(
-        anthropicAdapter.detect({ observationName: "anthropic.chat" }),
+        anthropicAdapter.detect({
+          observationName: "anthropic.messages.create",
+        }),
       ).toBe(true);
+    });
+
+    it("should NOT detect observation name with 'anthropic' as substring only", () => {
+      expect(
+        anthropicAdapter.detect({
+          observationName: "anthropic-openai-bridge",
+        }),
+      ).toBe(false);
     });
 
     it("should detect by gen_ai.system attribute", () => {
