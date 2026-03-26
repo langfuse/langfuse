@@ -25,8 +25,10 @@ import {
   shouldUseWidgetSSE,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { QueryStatusFooter } from "@/src/features/widgets/chart-library/QueryStatusFooter";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -36,6 +38,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
+import { hashKey } from "@tanstack/react-query";
 
 export interface WidgetPlacement {
   id: string;
@@ -95,6 +98,7 @@ export function DashboardWidget({
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
     return defaultSort || null;
   });
+  const [retryCount, setRetryCount] = useState(0);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -174,6 +178,18 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  const queryRunKey = useMemo(
+    () =>
+      hashKey([
+        {
+          projectId,
+          version: metricsVersion,
+          query: widgetQuery,
+        },
+        retryCount,
+      ]),
+    [metricsVersion, projectId, retryCount, widgetQuery],
+  );
 
   const queryResult = useScheduledDashboardExecuteQuery(
     {
@@ -191,6 +207,7 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      runKey: queryRunKey,
       useSSE: shouldUseWidgetSSE({
         isV4BetaEnabled: isBetaEnabled,
         version: metricsVersion,
@@ -205,14 +222,24 @@ export function DashboardWidget({
     isError: queryResult.isError,
     errorMessage: queryResult.error,
   });
+  const usesBackendProgress = shouldUseWidgetSSE({
+    isV4BetaEnabled: isBetaEnabled,
+    version: metricsVersion,
+  });
   const loadingStateLayout =
     placement.y_size <= 2
       ? "tight"
       : placement.x_size <= 4
         ? "compact"
         : "default";
-  const showQueryErrorState =
-    chartLoadingState.isLoading && !queryResult.isPending;
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: queryResult.progress,
+    useBackendProgress: usesBackendProgress,
+  });
+  const handleRetry = useCallback(() => {
+    setRetryCount((current) => current + 1);
+  }, []);
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -389,59 +416,49 @@ export function DashboardWidget({
               hintText={queryValidation.reason}
               layout={loadingStateLayout}
               className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-              hintClassName="max-w-sm px-4"
             />
           </div>
         ) : (
-          <>
-            <div className="relative min-h-0 flex-1">
-              <Chart
-                chartType={widget.data.chartType}
-                data={transformedData}
-                rowLimit={
-                  widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-                  widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
-                  widget.data.chartConfig.type === "AREA_TIME_SERIES"
-                    ? 100
-                    : (widget.data.chartConfig.row_limit ?? 100)
-                }
-                chartConfig={{
-                  ...widget.data.chartConfig,
-                  // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                  ...(widget.data.chartType === "PIVOT_TABLE" && {
-                    dimensions: widget.data.dimensions.map((dim) => dim.field),
-                    metrics: widget.data.metrics.map(
-                      (metric) => `${metric.agg}_${metric.measure}`,
-                    ),
-                  }),
-                }}
-                sortState={
-                  widget.data.chartType === "PIVOT_TABLE"
-                    ? sortState
-                    : undefined
-                }
-                onSortChange={
-                  widget.data.chartType === "PIVOT_TABLE"
-                    ? updateSort
-                    : undefined
-                }
-                isLoading={queryResult.isPending}
-              />
-              <ChartLoadingState
-                isLoading={showQueryErrorState}
-                showSpinner={chartLoadingState.showSpinner}
-                showHintImmediately={chartLoadingState.showHintImmediately}
-                hintText={chartLoadingState.hintText}
-                className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                hintClassName="max-w-sm px-4"
-              />
-            </div>
-            <QueryStatusFooter
+          <div className="relative min-h-0 flex-1">
+            <Chart
+              chartType={widget.data.chartType}
+              data={transformedData}
+              rowLimit={
+                widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+                widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
+                widget.data.chartConfig.type === "AREA_TIME_SERIES"
+                  ? 100
+                  : (widget.data.chartConfig.row_limit ?? 100)
+              }
+              chartConfig={{
+                ...widget.data.chartConfig,
+                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+                ...(widget.data.chartType === "PIVOT_TABLE" && {
+                  dimensions: widget.data.dimensions.map((dim) => dim.field),
+                  metrics: widget.data.metrics.map(
+                    (metric) => `${metric.agg}_${metric.measure}`,
+                  ),
+                }),
+              }}
+              sortState={
+                widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+              }
+              onSortChange={
+                widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+              }
               isLoading={queryResult.isPending}
-              progress={queryResult.progress}
-              layout={loadingStateLayout}
             />
-          </>
+            <ChartLoadingState
+              isLoading={chartLoadingState.isLoading}
+              showSpinner={chartLoadingState.showSpinner}
+              showHintImmediately={chartLoadingState.showHintImmediately}
+              hintText={chartLoadingState.hintText}
+              onRetry={queryResult.isError ? handleRetry : undefined}
+              progress={loadingProgress}
+              layout={loadingStateLayout}
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          </div>
         )}
       </div>
     </div>
