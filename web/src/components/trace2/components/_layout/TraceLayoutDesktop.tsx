@@ -1,6 +1,7 @@
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   Group,
+  Separator,
   Panel,
   usePanelRef,
   useDefaultLayout,
@@ -15,6 +16,7 @@ import {
 } from "react";
 
 const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
+const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 
@@ -134,6 +136,19 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
     >
       {children}
     </Panel>
+  );
+};
+
+// Compound component: Resize handle
+TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
+  const { handleTogglePanel } = useLayoutContext();
+
+  return (
+    <Separator
+      id={RESIZABLE_PANEL_HANDLE_ID}
+      className="bg-border relative w-px transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
+      onDoubleClick={handleTogglePanel}
+    />
   );
 };
 

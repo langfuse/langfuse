@@ -140,6 +140,7 @@ function DesktopTraceContent({
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>
+      <TraceLayoutDesktop.ResizeHandle />
       <TraceLayoutDesktop.DetailPanel>
         <TracePanelDetail />
       </TraceLayoutDesktop.DetailPanel>
