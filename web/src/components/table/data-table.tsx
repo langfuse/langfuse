@@ -43,6 +43,7 @@ import {
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
+import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -160,7 +161,7 @@ export function DataTable<TData extends object, TValue>({
   onRowClick,
   peekView,
   hidePagination = false,
-  tableName: _tableName,
+  tableName,
   getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -177,6 +178,8 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
@@ -222,15 +225,17 @@ export function DataTable<TData extends object, TValue>({
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
       rowSelection,
+      columnSizing,
       columnPinning,
     },
-    enableColumnResizing: false,
+    onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
     defaultColumn: {
       minSize: 20,
       size: 150,
       maxSize: Number.MAX_SAFE_INTEGER,
     },
+    columnResizeMode: "onChange",
     autoResetPageIndex: false,
   });
 
@@ -373,6 +378,21 @@ export function DataTable<TData extends object, TValue>({
                             {orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
                               : null}
+
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
+                              )}
+                            />
                           </div>
                         )}
                       </TableHead>
