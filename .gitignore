@@ -9,6 +9,7 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
 
 # database

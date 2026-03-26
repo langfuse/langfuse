@@ -1,21 +1,24 @@
 import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
 
-// Load ../.env to match the CLI: dotenv -e ../.env
+// Load ../.env so direct Vitest runs and package scripts use the same worker env.
 config({ path: "../.env" });
 
 export default defineConfig({
   test: {
+    dir: "./src",
     pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
+    isolate: false,
     server: {
       deps: {
         inline: ["@langfuse/shared"],
       },
+    },
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/**/__tests__/**", "src/scripts/**"],
     },
   },
 });
