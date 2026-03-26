@@ -7,6 +7,6 @@ This helps us to:
 1. Understand how Langfuse is used and improve the most relevant features.
 2. Track overall usage for internal and external (e.g. fundraising) reporting.
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/src/features/telemetry/index.ts).
+The telemetry does not include raw traces, prompts, observations, scores, or dataset contents. We document the exact fields that are collected, where they are sent, and the implementation reference in our [telemetry docs](https://langfuse.com/self-hosting/security/telemetry).
 
-You can opt-out by setting `TELEMETRY_ENABLED=false`.
+For Langfuse OSS, you can opt out by setting `TELEMETRY_ENABLED=false`.
