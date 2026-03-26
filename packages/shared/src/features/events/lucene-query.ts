@@ -1,4 +1,8 @@
-import luceneParser = require("@hyperdx/lucene");
+import luceneParser, {
+  type LuceneBinaryNode,
+  type LuceneNode,
+  type LuceneRangeNode,
+} from "./hyperdx-lucene";
 import { InvalidRequestError } from "../../errors";
 import type { TracingSearchType } from "../../interfaces/search";
 import type { FilterCondition, FilterExpression } from "../../types";
@@ -238,9 +242,9 @@ const EXPLICIT_BOOLEAN_OPERATOR_PATTERN = /\b(?:AND|OR|NOT)\b/;
 const LUCENE_FIELD_LOOKING_PATTERN =
   /(^|\s)[A-Za-z_][A-Za-z0-9_.-]*:(?!\/\/)\S+/i;
 
-type RawLuceneNode = luceneParser.LuceneNode;
-type RawLuceneRangeNode = luceneParser.LuceneRangeNode;
-type RawLuceneBinaryNode = luceneParser.LuceneBinaryNode;
+type RawLuceneNode = LuceneNode;
+type RawLuceneRangeNode = LuceneRangeNode;
+type RawLuceneBinaryNode = LuceneBinaryNode;
 
 function isRawLuceneRangeNode(node: RawLuceneNode): node is RawLuceneRangeNode {
   return "term_min" in node;
