@@ -2,11 +2,7 @@ import {
   type TimeRange,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import {
-  directApi,
-  type RouterInputs,
-  type RouterOutputs,
-} from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { hashKey, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import {
   createContext,
@@ -296,7 +292,6 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
   priority?: number;
   queryId: string;
   refreshKey?: unknown;
-  runKey?: string;
   useSSE?: boolean;
 };
 
@@ -405,7 +400,6 @@ export const useScheduledDashboardExecuteQuery = (
     priority = 1000,
     queryId,
     refreshKey,
-    runKey,
     useSSE = false,
     ...queryOptions
   }: ScheduledDashboardExecuteQueryOptions,
@@ -420,6 +414,7 @@ export const useScheduledDashboardExecuteQuery = (
   error: string | null;
 } => {
   const context = useDashboardQuerySchedulerContext();
+  const utils = api.useUtils();
   const scheduler = context?.scheduler;
   const register = scheduler?.register;
   const unregister = scheduler?.unregister;
@@ -445,10 +440,10 @@ export const useScheduledDashboardExecuteQuery = (
     [cacheKeyInput, refreshKey],
   );
   const effectiveRunKey = useMemo(
-    () => runKey ?? hashKey(queryCacheKey),
-    [queryCacheKey, runKey],
+    () => hashKey(queryCacheKey),
+    [queryCacheKey],
   );
-  const { trpc: _trpcOptions, ...reactQueryOptions } = queryOptions;
+  const { trpc, ...reactQueryOptions } = queryOptions;
 
   useEffect(() => {
     if (!unregister) return;
@@ -468,7 +463,10 @@ export const useScheduledDashboardExecuteQuery = (
   const trpcResult = useQuery<DashboardExecuteQueryOutput, Error>({
     ...reactQueryOptions,
     queryKey: queryCacheKey,
-    queryFn: async () => directApi.dashboard.executeQuery.query(input),
+    queryFn: async () =>
+      utils.dashboard.executeQuery.fetch(input, {
+        trpc,
+      }),
     staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
     gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
     refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
