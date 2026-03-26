@@ -80,7 +80,7 @@ langfuse/
 - Dev all packages: `pnpm run dev`
 - Dev web only: `pnpm run dev:web`
 - Dev worker only: `pnpm run dev:worker`
-- Codex environment bootstrap: `bash scripts/codex/setup.sh` (installs deps, Playwright Chromium, and Prisma artifacts)
+- Codex environment bootstrap: `bash scripts/codex/setup.sh` (installs deps, Playwright Chromium, runs `pnpm --filter=shared run db:generate`, and refreshes workspace Prisma artifacts)
 - Codex environment maintenance: `bash scripts/codex/maintenance.sh`
 - Install repo-local Playwright browsers for agents: `pnpm run playwright:install`
 - Lint all: `pnpm run lint`
@@ -195,7 +195,7 @@ Minimum verification matrix:
 - Tool-specific config directories such as `.claude/`, `.codex/`, `.cursor/`, and `.vscode/` remain because the tools discover project settings from those fixed paths.
 - `config.json` is the source of truth for shared MCP/bootstrap settings; regenerate tool-specific files with `pnpm install` or `pnpm run agents:sync` instead of editing them by hand.
 - Install Chromium into the default user-level Playwright cache with `pnpm run playwright:install`.
-- `scripts/codex/setup.sh` runs the Playwright install step for first-time Codex bootstrap.
+- `scripts/codex/setup.sh` runs the Playwright install step and an explicit `pnpm --filter=shared run db:generate` before workspace-wide `db:generate` for first-time Codex bootstrap.
 - Playwright MCP traces and other browser session artifacts live under `.playwright-mcp/` and are gitignored.
 - For user-visible frontend changes in `web/**`, review the affected flow in a real browser with the Playwright MCP server before signoff. Cover the primary changed path with a quick functional pass and a visual check for obvious regressions.
 - For web flows, start `pnpm run dev:web` (or `pnpm run dev`) before asking an agent to drive the app in a browser.
