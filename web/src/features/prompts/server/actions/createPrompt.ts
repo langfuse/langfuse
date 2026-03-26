@@ -456,6 +456,29 @@ export const duplicateFolder = async ({
       `${targetPath}${originalName.slice(sourcePath.length)}`,
     ]),
   );
+  const requiredLabelsByPromptName = new Map<string, Set<string>>();
+
+  if (isSingleVersion && rewritePromptReferences) {
+    for (const prompt of sourcePrompts) {
+      for (const dep of prompt.PromptDependency) {
+        if (!dep.childLabel) continue;
+
+        const duplicatedDependencyName = duplicatedPromptNames.get(
+          dep.childName,
+        );
+        if (!duplicatedDependencyName) continue;
+
+        const existingLabels =
+          requiredLabelsByPromptName.get(duplicatedDependencyName) ?? new Set();
+        existingLabels.add(dep.childLabel);
+        requiredLabelsByPromptName.set(
+          duplicatedDependencyName,
+          existingLabels,
+        );
+      }
+    }
+  }
+
   const allPromptsToCreate: Array<{
     id: string;
     name: string;
@@ -494,7 +517,13 @@ export const duplicateFolder = async ({
         name: newName,
         version: isSingleVersion ? 1 : prompt.version,
         labels: isSingleVersion
-          ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+          ? [
+              ...new Set([
+                LATEST_PROMPT_LABEL,
+                ...prompt.labels,
+                ...(requiredLabelsByPromptName.get(newName) ?? []),
+              ]),
+            ]
           : prompt.labels,
         type: prompt.type,
         prompt: rewritePromptReferences

@@ -1430,9 +1430,9 @@ describe("prompts trpc", () => {
             name: rubricPromptName,
             version: 1,
             type: "text",
-            prompt: "rubric latest-labeled content",
+            prompt: "rubric production content",
             createdBy: "test-user",
-            labels: ["production", "latest"],
+            labels: ["production"],
           },
           {
             id: v4(),
@@ -1440,9 +1440,9 @@ describe("prompts trpc", () => {
             name: rubricPromptName,
             version: 2,
             type: "text",
-            prompt: "rubric higher-version content",
+            prompt: "rubric latest-labeled content",
             createdBy: "test-user",
-            labels: ["staging"],
+            labels: ["latest"],
           },
           {
             id: v4(),
@@ -1514,6 +1514,9 @@ describe("prompts trpc", () => {
       });
       expect(copiedRubricPrompt).not.toBeNull();
       expect(copiedRubricPrompt?.prompt).toBe("rubric latest-labeled content");
+      expect(copiedRubricPrompt?.labels).toEqual(
+        expect.arrayContaining(["latest", "production"]),
+      );
 
       const exactTargetPrompt = await prisma.prompt.findMany({
         where: {
@@ -1586,6 +1589,86 @@ describe("prompts trpc", () => {
           isSingleVersion: true,
         }),
       ).rejects.toThrow(/already exist/i);
+    });
+
+    it("should treat wildcard characters in source and target folder paths as literals", async () => {
+      const { project, caller } = await prepare();
+      const literalSourcePath = `dup-folder%_src-${v4().slice(0, 8)}`;
+      const literalTargetPath = `${literalSourcePath}-copy`;
+      const literalChildPromptName = `${literalSourcePath}/inside`;
+      const wildcardMatchPromptName = `dup-folderABsrc-${v4().slice(0, 8)}/decoy`;
+      const wildcardConflictPromptName = `${literalTargetPath.replace("%", "AB").replace("_", "")}/existing`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: literalSourcePath,
+            version: 1,
+            type: "text",
+            prompt: "prompt with wildcard chars in source folder name",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: literalChildPromptName,
+            version: 1,
+            type: "text",
+            prompt: "literal child content",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: wildcardMatchPromptName,
+            version: 1,
+            type: "text",
+            prompt: "should not be copied",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: wildcardConflictPromptName,
+            version: 1,
+            type: "text",
+            prompt: "should not block literal target path",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+        ],
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: literalSourcePath,
+        targetPath: literalTargetPath,
+        isSingleVersion: true,
+      });
+
+      expect(result.copiedCount).toBe(1);
+      expect(result.copiedPromptNames).toEqual([`${literalTargetPath}/inside`]);
+
+      const copiedPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: `${literalTargetPath}/inside`,
+        },
+      });
+      expect(copiedPrompt?.prompt).toBe("literal child content");
+
+      const copiedDecoy = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: `${literalTargetPath}/decoy`,
+        },
+      });
+      expect(copiedDecoy).toBeNull();
     });
   });
 });
