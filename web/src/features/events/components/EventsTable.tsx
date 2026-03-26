@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { EventsLuceneSearchInput } from "./EventsLuceneSearchInput";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -373,6 +374,21 @@ export default function ObservationsEventsTable({
     projectId,
     oldFilterState: filterOptionsFilterInput,
   });
+  const luceneFieldOptions = useMemo(
+    () => ({
+      environment: filterOptions.environment ?? [],
+      name: filterOptions.name ?? [],
+      type: filterOptions.type ?? [],
+      level: filterOptions.level ?? [],
+      modelId: filterOptions.modelId ?? [],
+      providedModelName: filterOptions.providedModelName ?? [],
+      promptName: filterOptions.promptName ?? [],
+      traceName: filterOptions.traceName ?? [],
+      userId: filterOptions.userId ?? [],
+      sessionId: filterOptions.sessionId ?? [],
+    }),
+    [filterOptions],
+  );
 
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
@@ -1324,6 +1340,7 @@ export default function ObservationsEventsTable({
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
               errorMessage: searchValidationError ?? undefined,
+              placeholder: "Search events or write Lucene filters...",
               validateQuery: (query) => {
                 const resolution = resolveEventsLuceneQueryForApi(query);
                 return resolution.isValid ? null : resolution.error;
@@ -1335,6 +1352,11 @@ export default function ObservationsEventsTable({
                     Plain text uses the existing full-text search. For Lucene
                     filters, every clause must use an explicit field such as
                     `name:` or `traceId:`.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Autocomplete suggests fields, boolean operators, and known
+                    values like environments, levels, models, sessions, and
+                    prompt names.
                   </p>
                   <p className="text-muted-foreground leading-relaxed">
                     Supported fields: {supportedLuceneFields.join(", ")}
@@ -1350,6 +1372,24 @@ export default function ObservationsEventsTable({
                     ))}
                   </div>
                 </div>
+              ),
+              renderInput: ({
+                value,
+                onChange,
+                onSubmit,
+                error,
+                placeholder,
+                helpDescription,
+              }) => (
+                <EventsLuceneSearchInput
+                  value={value}
+                  onChange={onChange}
+                  onSubmit={onSubmit}
+                  error={error}
+                  placeholder={placeholder}
+                  helpDescription={helpDescription}
+                  fieldOptions={luceneFieldOptions}
+                />
               ),
             }}
             viewConfig={{

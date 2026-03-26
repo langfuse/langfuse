@@ -72,11 +72,20 @@ interface SearchConfig {
   updateQuery: (event: string) => void;
   currentQuery?: string;
   errorMessage?: string;
+  placeholder?: string;
   tableAllowsFullTextSearch?: boolean;
   setSearchType?: (newSearchType: TracingSearchType[]) => void;
   searchType?: TracingSearchType[];
   validateQuery?: (query: string) => string | null;
   helpDescription?: React.ReactNode;
+  renderInput?: (props: {
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    error: string | null;
+    placeholder: string;
+    helpDescription?: React.ReactNode;
+  }) => React.ReactNode;
   customDropdownLabels?: {
     metadata: string;
     fullText: string;
@@ -179,6 +188,24 @@ export function DataTableToolbar<TData, TValue>({
   const validateSearchQuery = (value: string) =>
     searchConfig?.validateQuery?.(value) ?? null;
 
+  const handleSearchValueChange = (newValue: string) => {
+    setSearchString(newValue);
+
+    if (newValue === "") {
+      setSearchError(null);
+      searchConfig?.updateQuery("");
+      return;
+    }
+
+    setSearchError(validateSearchQuery(newValue));
+  };
+
+  const searchPlaceholder =
+    searchConfig?.placeholder ??
+    (searchConfig?.tableAllowsFullTextSearch
+      ? "Search..."
+      : `Search (${searchConfig?.metadataSearchFields?.join(", ")})`);
+
   const submitSearch = () => {
     const validationError = validateSearchQuery(searchString);
 
@@ -232,56 +259,54 @@ export function DataTableToolbar<TData, TValue>({
         {searchConfig && (
           <div className="flex max-w-120 shrink-0 flex-col gap-1 md:min-w-96">
             <div className="flex items-stretch">
-              <div
-                className={cn(
-                  "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                  searchConfig.setSearchType
-                    ? "rounded-l-md rounded-r-none border-r-0"
-                    : "rounded-l-md rounded-r-md",
-                  searchError && "border-destructive",
-                )}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="mr-1"
-                  onClick={submitSearch}
+              {searchConfig.renderInput ? (
+                searchConfig.renderInput({
+                  value: searchString,
+                  onChange: handleSearchValueChange,
+                  onSubmit: submitSearch,
+                  error: searchError,
+                  placeholder: searchPlaceholder,
+                  helpDescription: searchConfig.helpDescription,
+                })
+              ) : (
+                <div
+                  className={cn(
+                    "border-input bg-background flex h-8 flex-1 items-center border pl-2",
+                    searchConfig.setSearchType
+                      ? "rounded-l-md rounded-r-none border-r-0"
+                      : "rounded-l-md rounded-r-md",
+                    searchError && "border-destructive",
+                  )}
                 >
-                  <Search className="h-4 w-4" />
-                </Button>
-                <Input
-                  autoFocus
-                  placeholder={
-                    searchConfig.tableAllowsFullTextSearch
-                      ? "Search..."
-                      : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
-                  }
-                  value={searchString}
-                  onChange={(event) => {
-                    const newValue = event.currentTarget.value;
-                    setSearchString(newValue);
-
-                    if (newValue === "") {
-                      setSearchError(null);
-                      searchConfig.updateQuery("");
-                      return;
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="mr-1"
+                    onClick={submitSearch}
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    autoFocus
+                    placeholder={searchPlaceholder}
+                    value={searchString}
+                    onChange={(event) =>
+                      handleSearchValueChange(event.currentTarget.value)
                     }
-
-                    setSearchError(validateSearchQuery(newValue));
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      submitSearch();
-                    }
-                  }}
-                  className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-                />
-                {searchConfig.helpDescription && (
-                  <div className="pr-2">
-                    <DocPopup description={searchConfig.helpDescription} />
-                  </div>
-                )}
-              </div>
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        submitSearch();
+                      }
+                    }}
+                    className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
+                  />
+                  {searchConfig.helpDescription && (
+                    <div className="pr-2">
+                      <DocPopup description={searchConfig.helpDescription} />
+                    </div>
+                  )}
+                </div>
+              )}
               {searchConfig.setSearchType && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
