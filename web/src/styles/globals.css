@@ -317,7 +317,7 @@
     @apply border-border;
   }
 
-  button:not(:disabled),
+  button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }

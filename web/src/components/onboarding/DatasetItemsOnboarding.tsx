@@ -51,6 +51,16 @@ const DatasetItemEntryPointRow = ({
           : "bg-card hover:bg-accent/50 cursor-pointer",
       )}
       onClick={!disabled ? onClick : undefined}
+      onKeyDown={
+        !disabled
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
       title={
         !hasAccess
           ? "You don't have access to this feature, please contact your administrator"
