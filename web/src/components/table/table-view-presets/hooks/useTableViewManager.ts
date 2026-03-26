@@ -3,7 +3,6 @@ import {
   type TableViewPresetTableName,
   type FilterState,
   type OrderByState,
-  type TableViewPresetState,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
@@ -19,6 +18,12 @@ import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
+import {
+  resolveTableViewCompatibility,
+  type TableViewCompatibilityMode,
+  type NullableLayoutTableViewState,
+  type TableViewNotice,
+} from "../viewCompatibility";
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -38,6 +43,7 @@ interface UseTableStateProps {
   };
   currentFilterState?: FilterState;
   disabled?: boolean;
+  compatibilityMode?: TableViewCompatibilityMode;
 }
 
 /**
@@ -50,11 +56,13 @@ export function useTableViewManager({
   validationContext = {},
   currentFilterState,
   disabled = false,
+  compatibilityMode = "default",
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewNotice, setViewNotice] = useState<TableViewNotice | null>(null);
   const capture = usePostHogClientCapture();
   const pendingFiltersRef = useRef<FilterState | null>(null);
   const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
@@ -86,6 +94,7 @@ export function useTableViewManager({
   // Keep track of the viewId in session storage and in the query params
   const handleSetViewId = useCallback(
     (viewId: string | null) => {
+      setViewNotice(null);
       setStoredViewId(viewId);
       setSelectedViewId(viewId);
 
@@ -131,11 +140,8 @@ export function useTableViewManager({
     if (!isRouterReady) return;
 
     // If viewId already in URL and not a system preset → getById query handles it.
-    // Sync to session storage so navigating away and back restores the view.
+    // Persist it only after compatibility checks succeed.
     if (selectedViewId && !isSystemPresetId(selectedViewId)) {
-      if (storedViewId !== selectedViewId) {
-        setStoredViewId(selectedViewId);
-      }
       return;
     }
 
@@ -183,7 +189,7 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: NullableLayoutTableViewState) => {
       // lock table
       setIsLoading(true);
 
@@ -288,14 +294,33 @@ export function useTableViewManager({
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
 
+    const compatibilityResolution = resolveTableViewCompatibility({
+      viewData: selectedViewData,
+      targetTableName: tableName,
+      compatibilityMode,
+    });
+
     // Track permalink visit
     capture("saved_views:permalink_visit", {
       tableName,
       viewId: requestedViewId,
       name: selectedViewData.name,
+      compatibilityAction: compatibilityResolution.action,
     });
 
-    applyViewState(selectedViewData);
+    if (compatibilityResolution.action === "reject") {
+      pendingFiltersRef.current = null;
+      pendingFiltersPreviousStateRef.current = null;
+      setViewNotice(compatibilityResolution.notice);
+      setIsLoading(false);
+      isInitializedRef.current = true;
+      setIsInitialized(true);
+      return;
+    }
+
+    setViewNotice(compatibilityResolution.notice);
+    setStoredViewId(requestedViewId);
+    applyViewState(compatibilityResolution.viewState);
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
@@ -305,7 +330,9 @@ export function useTableViewManager({
     selectedViewId,
     capture,
     tableName,
+    compatibilityMode,
     applyViewState,
+    setStoredViewId,
   ]);
 
   useEffect(() => {
@@ -359,6 +386,7 @@ export function useTableViewManager({
       handleSetViewId: () => {},
       selectedViewId: null,
       defaultViewScope: null,
+      viewNotice: null,
     };
   }
 
@@ -368,5 +396,6 @@ export function useTableViewManager({
     handleSetViewId,
     selectedViewId,
     defaultViewScope: resolvedDefault?.scope as DefaultViewScope | null,
+    viewNotice,
   };
 }

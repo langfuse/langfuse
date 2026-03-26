@@ -5,12 +5,17 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  type FilterState,
+  type OrderByState,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import { showErrorToast } from "../notifications/showErrorToast";
 
 const mockUseRouter = jest.fn();
 const mockCapture = jest.fn();
@@ -27,6 +32,10 @@ jest.mock("posthog-js/react", () => ({
   usePostHog: () => ({
     capture: mockCapture,
   }),
+}));
+
+jest.mock("../notifications/showErrorToast", () => ({
+  showErrorToast: jest.fn(),
 }));
 
 jest.mock(
@@ -167,6 +176,52 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
+const EVENTS_TEST_COLUMNS = [
+  { id: "startTime", enableSorting: true },
+  { id: "name", enableSorting: true },
+  { id: "providedModelName", enableSorting: true },
+  { id: "traceTags", enableSorting: false },
+  { id: "totalTokens", enableSorting: true },
+] as const;
+
+const EVENTS_TEST_FILTER_COLUMNS = [
+  {
+    id: "startTime",
+    name: "Start Time",
+    type: "datetime",
+    internal: "e.start_time",
+  },
+  {
+    id: "name",
+    name: "Name",
+    type: "stringOptions",
+    internal: "e.name",
+    options: [],
+  },
+  {
+    id: "providedModelName",
+    name: "Provided Model Name",
+    type: "stringOptions",
+    internal: "e.provided_model_name",
+    options: [],
+    nullable: true,
+  },
+  {
+    id: "traceTags",
+    name: "Trace Tags",
+    type: "arrayOptions",
+    internal: "t.tags",
+    options: [],
+  },
+  {
+    id: "totalTokens",
+    name: "Total Tokens",
+    type: "number",
+    internal: "e.total_tokens",
+    nullable: true,
+  },
+] as const;
+
 function SavedViewHarness() {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     implicitDefaultConfig: {
@@ -231,6 +286,106 @@ function ViewSelectionHarness() {
   );
 }
 
+type ViewNotice = {
+  title: string;
+  description: string;
+  variant: "info" | "warning";
+  canClear?: boolean;
+};
+
+function EventsViewCompatibilityHarness({
+  initialColumnOrder = [],
+  initialColumnVisibility = {},
+}: {
+  initialColumnOrder?: string[];
+  initialColumnVisibility?: Record<string, boolean>;
+} = {}) {
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
+  const [orderBy, setOrderBy] = useState<OrderByState>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>(initialColumnOrder);
+  const [columnVisibility, setColumnVisibility] = useState<
+    Record<string, boolean>
+  >(initialColumnVisibility);
+
+  const { isLoading, selectedViewId, handleSetViewId, viewNotice } =
+    useTableViewManager({
+      tableName: TableViewPresetTableName.Observations,
+      projectId: "project-1",
+      stateUpdaters: {
+        setFilters: setAppliedFilters,
+        setOrderBy,
+        setColumnOrder,
+        setColumnVisibility,
+      },
+      validationContext: {
+        columns: [...EVENTS_TEST_COLUMNS],
+        filterColumnDefinition: [...EVENTS_TEST_FILTER_COLUMNS],
+      },
+      currentFilterState: appliedFilters,
+      compatibilityMode: "events-v4",
+    } as any) as {
+      isLoading: boolean;
+      selectedViewId: string | null;
+      handleSetViewId: (viewId: string | null) => void;
+      viewNotice?: ViewNotice | null;
+    };
+
+  return (
+    <div>
+      <div data-testid="events-loading-state">
+        {isLoading ? "loading" : "ready"}
+      </div>
+      <div data-testid="events-selected-view-id">
+        {selectedViewId ?? "null"}
+      </div>
+      <div data-testid="events-order-by">{JSON.stringify(orderBy)}</div>
+      <div data-testid="events-applied-filters">
+        {JSON.stringify(appliedFilters)}
+      </div>
+      <div data-testid="events-column-order">{JSON.stringify(columnOrder)}</div>
+      <div data-testid="events-column-visibility">
+        {JSON.stringify(columnVisibility)}
+      </div>
+      <div data-testid="events-view-notice-title">
+        {viewNotice?.title ?? "none"}
+      </div>
+      <div data-testid="events-view-notice-description">
+        {viewNotice?.description ?? "none"}
+      </div>
+      <button onClick={() => handleSetViewId(null)}>clear-view</button>
+    </div>
+  );
+}
+
+function buildSavedView(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    tableName: TableViewPresetTableName;
+    orderBy: OrderByState;
+    filters: FilterState;
+    columnOrder: string[] | null;
+    columnVisibility: Record<string, boolean> | null;
+    searchQuery: string;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? "view-1",
+    name: overrides.name ?? "Saved view",
+    tableName: overrides.tableName ?? TableViewPresetTableName.Traces,
+    projectId: "project-1",
+    orderBy: overrides.orderBy ?? null,
+    filters: overrides.filters ?? [],
+    columnOrder: overrides.columnOrder ?? null,
+    columnVisibility: overrides.columnVisibility ?? null,
+    searchQuery: overrides.searchQuery ?? "",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    createdBy: "user-1",
+    createdByUser: null,
+  };
+}
+
 const OLD_SAVED_VIEW_FILTERS: FilterState = [
   {
     column: "name",
@@ -277,6 +432,212 @@ describe("Saved view restore with implicit environment defaults", () => {
         createdByUser: null,
       },
       error: null,
+    });
+  });
+
+  describe("events view compatibility", () => {
+    beforeEach(() => {
+      queryParamStore.set("viewId", "view-compat");
+      mockUseRouter.mockReturnValue({
+        isReady: true,
+        query: { viewId: "view-compat" },
+      });
+    });
+
+    it("rejects legacy traces views on the v4 events surface", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy trace view",
+          tableName: TableViewPresetTableName.Traces,
+          orderBy: { column: "timestamp", order: "DESC" },
+          filters: [
+            {
+              column: "name",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["Execute evaluator: relevance"],
+            },
+          ],
+          columnOrder: ["timestamp", "name"],
+          columnVisibility: { timestamp: true, name: true },
+        }),
+      });
+
+      render(<EventsViewCompatibilityHarness />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-applied-filters").textContent).toBe(
+        "[]",
+      );
+      expect(screen.getByTestId("events-order-by").textContent).toBe("null");
+      expect(screen.getByTestId("events-column-order").textContent).toBe("[]");
+      expect(
+        screen.getByTestId("events-view-notice-title").textContent,
+      ).toContain("legacy Traces table");
+      expect(
+        screen.getByTestId("events-view-notice-description").textContent,
+      ).toContain("v4 Events view");
+      expect(sessionStorage.getItem("observations-project-1-viewId")).toBe(
+        "null",
+      );
+      expect(showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("migrates legacy observations views onto the v4 events surface", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy observations view",
+          tableName: TableViewPresetTableName.Observations,
+          orderBy: { column: "model", order: "ASC" },
+          filters: [
+            {
+              column: "tags",
+              type: "arrayOptions",
+              operator: "any of",
+              value: ["demo"],
+            },
+            {
+              column: "model",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["gpt-4.1"],
+            },
+            {
+              column: "tokens",
+              type: "number",
+              operator: ">=",
+              value: 10,
+            },
+          ],
+          columnOrder: ["model", "tags", "tokens"],
+          columnVisibility: { model: true, tags: true, tokens: false },
+        }),
+      });
+
+      render(<EventsViewCompatibilityHarness />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-order-by").textContent).toContain(
+        '"column":"providedModelName"',
+      );
+      expect(
+        screen.getByTestId("events-applied-filters").textContent,
+      ).toContain('"column":"traceTags"');
+      expect(
+        screen.getByTestId("events-applied-filters").textContent,
+      ).toContain('"column":"providedModelName"');
+      expect(
+        screen.getByTestId("events-applied-filters").textContent,
+      ).toContain('"column":"totalTokens"');
+      expect(screen.getByTestId("events-column-order").textContent).toBe(
+        '["providedModelName","traceTags","totalTokens"]',
+      );
+      expect(screen.getByTestId("events-column-visibility").textContent).toBe(
+        '{"providedModelName":true,"traceTags":true,"totalTokens":false}',
+      );
+      expect(
+        screen.getByTestId("events-view-notice-title").textContent,
+      ).toContain("migrated");
+      expect(sessionStorage.getItem("observations-project-1-viewId")).toBe(
+        JSON.stringify("view-compat"),
+      );
+      expect(showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("deduplicates totalTokens when migrating column order with usage group", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy observations usage view",
+          tableName: TableViewPresetTableName.Observations,
+          columnOrder: ["usage", "tokens", "model"],
+        }),
+      });
+
+      render(<EventsViewCompatibilityHarness />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-column-order").textContent).toBe(
+        '["usage","providedModelName"]',
+      );
+    });
+
+    it("preserves current layout when migrated legacy views store null layout fields", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy observations null layout view",
+          tableName: TableViewPresetTableName.Observations,
+          columnOrder: null,
+          columnVisibility: null,
+        }),
+      });
+
+      render(
+        <EventsViewCompatibilityHarness
+          initialColumnOrder={["name", "usage"]}
+          initialColumnVisibility={{ name: true, totalTokens: false }}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-loading-state").textContent).toBe(
+          "ready",
+        );
+      });
+
+      expect(screen.getByTestId("events-column-order").textContent).toBe(
+        '["name","usage"]',
+      );
+      expect(screen.getByTestId("events-column-visibility").textContent).toBe(
+        '{"name":true,"totalTokens":false}',
+      );
+    });
+
+    it("clears compatibility notice when the saved view is cleared", async () => {
+      mockGetByIdUseQuery.mockReturnValue({
+        data: buildSavedView({
+          id: "view-compat",
+          name: "Legacy trace view",
+          tableName: TableViewPresetTableName.Traces,
+        }),
+      });
+
+      render(<EventsViewCompatibilityHarness />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("events-view-notice-title").textContent,
+        ).toContain("legacy Traces table");
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "clear-view" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("events-selected-view-id").textContent).toBe(
+          "null",
+        );
+      });
+      expect(screen.getByTestId("events-view-notice-title").textContent).toBe(
+        "none",
+      );
     });
   });
 

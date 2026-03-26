@@ -38,7 +38,6 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
-import { type EvalTemplate } from "@langfuse/shared";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -52,6 +51,10 @@ export type EvalsTemplateRow = {
   provider?: string;
   model?: string;
 };
+
+type ExistingEvalTemplateOutputDefinition = NonNullable<
+  Parameters<typeof EvalTemplateForm>[0]["existingEvalTemplate"]
+>["outputDefinition"];
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
@@ -461,7 +464,7 @@ export default function EvalsTemplateTable({
                     prompt: cloneTemplate.data.prompt,
                     vars: cloneTemplate.data.vars,
                     outputDefinition: cloneTemplate.data
-                      .outputDefinition as EvalTemplate["outputDefinition"],
+                      .outputSchema as ExistingEvalTemplateOutputDefinition,
                     provider: cloneTemplate.data.provider,
                     model: cloneTemplate.data.model,
                     modelParams: cloneTemplate.data.modelParams as any,

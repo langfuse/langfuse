@@ -15,9 +15,9 @@ import {
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  EvalOutputDataTypeSchema,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
-  EvalOutputDataTypeSchema,
   getCategoricalCategoryRuleViolations,
   getMinimumCategoricalCategoriesMessage,
   MinimumCategoricalCategoryCount,
@@ -27,11 +27,12 @@ import {
   extractVariables,
   getIsCharOrUnderscore,
   resolvePersistedEvalOutputDefinition,
+  type EvalTemplate,
+  type ModelParams,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import router from "next/router";
-import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -61,8 +62,12 @@ import {
 
 type PartialEvalTemplate = Omit<
   EvalTemplate,
-  "id" | "version" | "createdAt" | "updatedAt"
-> & { id?: string };
+  "id" | "version" | "createdAt" | "updatedAt" | "outputSchema"
+> & {
+  id?: string;
+  outputDefinition?: PersistedEvalOutputDefinition;
+  outputSchema?: PersistedEvalOutputDefinition;
+};
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -77,6 +82,12 @@ export const EvalTemplateForm = (props: {
   preventRedirect?: boolean;
   cloneSourceId?: string | null;
 }) => {
+  const existingOutputDefinition = props.existingEvalTemplate
+    ? ((props.existingEvalTemplate.outputDefinition ??
+        props.existingEvalTemplate
+          .outputSchema) as PersistedEvalOutputDefinition)
+    : undefined;
+
   return (
     <div className="max-w-6xl">
       <InnerEvalTemplateForm
@@ -94,8 +105,7 @@ export const EvalTemplateForm = (props: {
                 name: props.existingEvalTemplate.name,
                 prompt: props.existingEvalTemplate.prompt,
                 vars: props.existingEvalTemplate.vars,
-                outputDefinition: props.existingEvalTemplate
-                  .outputDefinition as PersistedEvalOutputDefinition,
+                outputDefinition: existingOutputDefinition,
                 selectedModel: props.existingEvalTemplate.provider
                   ? {
                       provider: props.existingEvalTemplate.provider as string,

@@ -51,6 +51,8 @@ import {
   DataTableRefreshButton,
   type RefreshInterval,
 } from "@/src/components/table/data-table-refresh-button";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { type TableViewNotice } from "@/src/components/table/table-view-presets/viewCompatibility";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -80,6 +82,7 @@ interface TableViewControllers {
   applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
+  viewNotice?: TableViewNotice | null;
 }
 
 interface TableViewConfig {
@@ -159,11 +162,36 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
   const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
     useDataTableControls();
+  const viewNotice = viewConfig?.controllers.viewNotice;
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
+      {viewNotice && (
+        <Alert
+          className={cn(
+            "mb-2 border px-3 py-2",
+            viewNotice.variant === "warning"
+              ? "border-yellow-300 bg-yellow-50"
+              : "border-blue-300 bg-blue-50",
+          )}
+        >
+          <AlertTitle>{viewNotice.title}</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>{viewNotice.description}</span>
+            {viewNotice.canClear && viewConfig ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => viewConfig.controllers.handleSetViewId(null)}
+              >
+                Clear view
+              </Button>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="@container my-2 flex flex-wrap items-center gap-2">
         {hasNewSidebar && (
           <Button
