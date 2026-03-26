@@ -70,6 +70,10 @@ export function ChatMessageList({
   );
 
   const remainingMedia = useMemo(() => {
+    if (!shouldRenderMarkdown) {
+      return media ?? [];
+    }
+
     const renderedMediaIds = new Set<string>();
 
     visibleMessages.forEach(({ message }) => {
@@ -95,7 +99,7 @@ export function ChatMessageList({
     });
 
     return filterAlreadyRenderedMedia(media, renderedMediaIds);
-  }, [media, visibleMessages]);
+  }, [media, shouldRenderMarkdown, visibleMessages]);
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
