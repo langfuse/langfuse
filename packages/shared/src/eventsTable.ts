@@ -265,12 +265,6 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "", // handled by comment filter helpers
   },
   {
-    name: "Position in Trace",
-    id: "positionInTrace",
-    type: "positionInTrace",
-    internal: "positionInTrace",
-  },
-  {
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",

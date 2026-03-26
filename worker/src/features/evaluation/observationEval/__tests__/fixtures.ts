@@ -20,6 +20,7 @@ import {
 export function createTestObservation(
   overrides: Partial<ObservationForEval> = {},
 ): ObservationForEval {
+  const toolCallNames = overrides.tool_call_names ?? [];
   return {
     // Core identifiers
     span_id: `obs-${randomUUID()}`,
@@ -55,6 +56,7 @@ export function createTestObservation(
     tool_definitions: {},
     tool_calls: [],
     tool_call_names: [],
+    tool_call_count: toolCallNames.length,
 
     // Usage & Cost
     usage_details: { input: 100, output: 50 },
