@@ -12,10 +12,10 @@
     "node": "24"
   },
   "scripts": {
-    "test": "sh -c 'if [ \"$1\" = \"--\" ]; then shift; fi; vitest run \"$@\"' --",
+    "test": "vitest run",
     "test:exclude-llm-connections": "vitest run --exclude '**/llmConnections.test.ts'",
     "test:llm-connections-only": "vitest run llmConnections.test.ts",
-    "coverage": "sh -c 'if [ \"$1\" = \"--\" ]; then shift; fi; vitest run --coverage \"$@\"' --",
+    "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "build:check": "tsc",
