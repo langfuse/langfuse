@@ -349,6 +349,7 @@ export const addAttributesToSpan = ({
   span,
   input,
   orderBy,
+  resolvedProjectId,
 }: {
   span: opentelemetry.Span;
   input: GetAllEventsInput | GetEventFilterOptionsInput;
