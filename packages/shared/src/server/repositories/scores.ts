@@ -4,6 +4,7 @@ import {
   ScoreSourceType,
   AGGREGATABLE_SCORE_TYPES,
   AggregatableScoreDataType,
+  ScoreByDataType,
 } from "../../domain/scores";
 import {
   commandClickhouse,
@@ -43,8 +44,12 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
+import {
+  eventsTraceMetadata,
+  eventsExperimentTraceIds,
+  eventsExperiments,
+} from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
-import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -179,7 +184,7 @@ type GetScoresForSessionsProps<
   includeHasMetadata?: IncludeHasMetadata;
 };
 
-type GetScoresForDatasetRunsProps<
+type GetScoresForExperimentsProps<
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 > = {
@@ -260,11 +265,11 @@ export const getScoresForSessions = async <
   );
 };
 
-export const getScoresForDatasetRuns = async <
+export const getScoresForExperiments = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
-  props: GetScoresForDatasetRunsProps<ExcludeMetadata, IncludeHasMetadata>,
+  props: GetScoresForExperimentsProps<ExcludeMetadata, IncludeHasMetadata>,
 ) => {
   const {
     projectId,
@@ -387,6 +392,93 @@ export const getTraceScoresForDatasetRuns = async (
       includeMetadataPayload,
     ),
     datasetRunId: row.run_id,
+    hasMetadata: !!row.has_metadata,
+  }));
+};
+
+export const getScoresForExperimentItems = async (
+  projectId: string,
+  experimentIds: string[],
+): Promise<
+  Array<
+    ScoreByDataType<AggregatableScoreDataType> & {
+      experimentId: string;
+      hasMetadata: boolean;
+    }
+  >
+> => {
+  if (experimentIds.length === 0) return [];
+
+  // Build events subquery using the query builder
+  const eventsSubquery = eventsExperiments({
+    projectId,
+    experimentIds,
+  })
+    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
+    .buildWithParams();
+
+  const query = `
+    SELECT
+      s.id as id,
+      s.timestamp as timestamp,
+      s.project_id as project_id,
+      s.environment as environment,
+      s.trace_id as trace_id,
+      s.session_id as session_id,
+      s.observation_id as observation_id,
+      s.dataset_run_id as dataset_run_id,
+      s.name as name,
+      s.value as value,
+      s.source as source,
+      s.comment as comment,
+      s.author_user_id as author_user_id,
+      s.config_id as config_id,
+      s.data_type as data_type,
+      s.string_value as string_value,
+      s.queue_id as queue_id,
+      s.execution_trace_id as execution_trace_id,
+      s.created_at as created_at,
+      s.updated_at as updated_at,
+      s.event_ts as event_ts,
+      s.is_deleted as is_deleted,
+      length(mapKeys(s.metadata)) > 0 AS has_metadata,
+      e.experiment_id as experiment_id
+    FROM (${eventsSubquery.query}) e
+    JOIN scores s FINAL ON e.trace_id = s.trace_id
+      AND e.project_id = s.project_id
+    WHERE s.project_id = {projectId: String}
+      AND s.data_type IN ({dataTypes: Array(String)})
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id, e.experiment_id
+  `;
+
+  const rows = await queryClickhouse<
+    Omit<ScoreRecordReadType, "metadata"> & {
+      has_metadata: 0 | 1;
+      experiment_id: string;
+    }
+  >({
+    query,
+    params: {
+      projectId,
+      ...eventsSubquery.params,
+      dataTypes: AGGREGATABLE_SCORE_TYPES,
+    },
+    tags: {
+      feature: "experiments",
+      type: "trace-scores",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  const includeMetadataPayload = false;
+  return rows.map((row) => ({
+    ...convertClickhouseScoreToDomain<false, AggregatableScoreDataType>(
+      { ...row, metadata: {} },
+      includeMetadataPayload,
+    ),
+    experimentId: row.experiment_id,
     hasMetadata: !!row.has_metadata,
   }));
 };
@@ -600,6 +692,20 @@ export const getScoresForObservations = async <
   }));
 };
 
+/**
+ * Event/experiment column mappings for building WHERE filters inside the events CTE.
+ * Maps to actual events_proto columns with the "e" prefix used by EventsQueryBuilder.
+ */
+const scoresEventsFilterMapping = [
+  {
+    uiTableName: "Experiment IDs",
+    uiTableId: "experimentIds",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    queryPrefix: "e",
+  },
+];
+
 export const getScoresGroupedByNameSourceType = async ({
   projectId,
   filter,
@@ -619,23 +725,63 @@ export const getScoresGroupedByNameSourceType = async ({
       scoresTableCols,
     ),
   );
-  const scoresFilterRes = scoresFilter.apply();
 
-  // Only join dataset run items and traces if there is a dataset run items filter
-  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+  // Separate scores-only filters from event/experiment filters
+  const nonEventFilters = scoresFilter.filter(
+    (f) => !f.clickhouseTable.startsWith("events_"),
+  );
+
+  const scoresFilterRes = nonEventFilters.apply();
+
+  // Only join dataset run items if there is a dataset run items filter
+  const performDatasetRunItemsJoin = scoresFilter.some(
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
+
+  // Extract event-level filter entries from the frontend filter state
+  const eventFilterState = filter.filter((filterEntry) =>
+    scoresEventsFilterMapping.some(
+      (col) =>
+        col.uiTableName === filterEntry.column ||
+        col.uiTableId === filterEntry.column,
+    ),
+  );
+
+  let eventsCTE = "";
+  let eventsCTEParams: Record<string, unknown> = {};
+  const hasEventsFilters = eventFilterState.length > 0;
+
+  let eventsFilterRes;
+  if (hasEventsFilters) {
+    const eventsBuilder = eventsExperimentTraceIds(projectId);
+
+    // Create filters from the event filter state using the proper column mappings
+    const cteEventFilters = new FilterList(
+      createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
+    );
+    eventsFilterRes = cteEventFilters.apply();
+    if (eventsFilterRes.query) {
+      eventsBuilder.where(eventsFilterRes);
+    }
+
+    const { query: cteQuery, params: cteParams } =
+      eventsBuilder.buildWithParams();
+    eventsCTE = `WITH experiment_events AS (${cteQuery})`;
+    Object.assign(eventsCTEParams, cteParams);
+  }
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
 
   const query = `
-    select
+    ${eventsCTE}
+    SELECT
       s.name as name,
       s.source as source,
       s.data_type as data_type
     FROM scores s
-    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
+    ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
+    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -662,6 +808,8 @@ export const getScoresGroupedByNameSourceType = async ({
         ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
         : {}),
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      ...(eventsFilterRes ? eventsFilterRes.params : {}),
+      ...eventsCTEParams,
     },
     tags: {
       feature: "tracing",
@@ -1836,6 +1984,8 @@ export const getScoresForBlobStorageExport = function (
       environment,
       trace_id,
       observation_id,
+      session_id,
+      dataset_run_id,
       name,
       value,
       source,

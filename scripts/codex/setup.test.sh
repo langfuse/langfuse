@@ -40,7 +40,7 @@ assert_file_contains() {
   local expected="$2"
   local message="$3"
 
-  if ! grep -Fqx "$expected" "$file_path"; then
+  if ! grep -Fqx -- "$expected" "$file_path"; then
     echo "$message"
     echo "missing line: $expected"
     exit 1
@@ -91,6 +91,11 @@ assert_file_contains \
   "$pnpm_log" \
   "run playwright:install" \
   "setup.sh should install Playwright browsers for frontend review"
+
+assert_file_contains \
+  "$pnpm_log" \
+  "--filter=shared run db:generate" \
+  "setup.sh should generate the shared Prisma client explicitly before the workspace-wide task"
 
 assert_file_contains \
   "$pnpm_log" \

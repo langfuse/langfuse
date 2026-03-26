@@ -20,9 +20,15 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
-import { formatMetricName } from "@/src/features/widgets/utils";
+import {
+  formatMetricName,
+  shouldUseWidgetSSE,
+} from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
@@ -32,6 +38,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
+import { hashKey } from "@tanstack/react-query";
 
 export interface WidgetPlacement {
   id: string;
@@ -91,6 +98,7 @@ export function DashboardWidget({
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
     return defaultSort || null;
   });
+  const [retryCount, setRetryCount] = useState(0);
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -170,6 +178,18 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  const queryRunKey = useMemo(
+    () =>
+      hashKey([
+        {
+          projectId,
+          version: metricsVersion,
+          query: widgetQuery,
+        },
+        retryCount,
+      ]),
+    [metricsVersion, projectId, retryCount, widgetQuery],
+  );
 
   const queryResult = useScheduledDashboardExecuteQuery(
     {
@@ -187,6 +207,11 @@ export function DashboardWidget({
       meta: {
         silentHttpCodes: [422],
       },
+      runKey: queryRunKey,
+      useSSE: shouldUseWidgetSSE({
+        isV4BetaEnabled: isBetaEnabled,
+        version: metricsVersion,
+      }),
       enabled:
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
@@ -195,7 +220,26 @@ export function DashboardWidget({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+    errorMessage: queryResult.error,
   });
+  const usesBackendProgress = shouldUseWidgetSSE({
+    isV4BetaEnabled: isBetaEnabled,
+    version: metricsVersion,
+  });
+  const loadingStateLayout =
+    placement.y_size <= 2
+      ? "tight"
+      : placement.x_size <= 4
+        ? "compact"
+        : "default";
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: queryResult.progress,
+    useBackendProgress: usesBackendProgress,
+  });
+  const handleRetry = useCallback(() => {
+    setRetryCount((current) => current + 1);
+  }, []);
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -362,18 +406,20 @@ export function DashboardWidget({
       >
         {widget.data.description}
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         {!queryValidation.valid ? (
-          <ChartLoadingState
-            isLoading={true}
-            showSpinner={false}
-            showHintImmediately={true}
-            hintText={queryValidation.reason}
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-            hintClassName="max-w-sm px-4"
-          />
+          <div className="relative min-h-0 flex-1">
+            <ChartLoadingState
+              isLoading={true}
+              showSpinner={false}
+              showHintImmediately={true}
+              hintText={queryValidation.reason}
+              layout={loadingStateLayout}
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          </div>
         ) : (
-          <>
+          <div className="relative min-h-0 flex-1">
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
@@ -407,10 +453,12 @@ export function DashboardWidget({
               showSpinner={chartLoadingState.showSpinner}
               showHintImmediately={chartLoadingState.showHintImmediately}
               hintText={chartLoadingState.hintText}
+              onRetry={queryResult.isError ? handleRetry : undefined}
+              progress={loadingProgress}
+              layout={loadingStateLayout}
               className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-              hintClassName="max-w-sm px-4"
             />
-          </>
+          </div>
         )}
       </div>
     </div>

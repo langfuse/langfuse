@@ -96,6 +96,9 @@ types:
       exportStartDate:
         type: optional<datetime>
         docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+      compressed:
+        type: optional<boolean>
+        docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -113,6 +116,7 @@ types:
       fileType: BlobStorageIntegrationFileType
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
+      compressed: boolean
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>

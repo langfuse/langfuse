@@ -187,7 +187,7 @@ const matchAndVerifyTracesUiColumn = (
         (col) => col.uiTableId ?? col.uiTableName,
       ),
     });
-    throw new QueryBuilderError(errorMessage);
+    throw new InvalidRequestError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

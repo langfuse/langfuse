@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.161.0",
+  "version": "3.162.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -153,7 +153,7 @@
     "react-resizable-panels": "^4.6.5",
     "react-responsive": "^10.0.1",
     "react18-json-view": "^0.2.8-canary.6",
-    "recharts": "^2.15.2",
+    "recharts": "^3.8.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
@@ -186,7 +186,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/eslint": "^9.6.1",
     "@types/jest": "^29.5.12",
-    "@types/lodash": "^4.17.23",
+    "@types/lodash": "^4.17.24",
     "@types/node": "24.3.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
