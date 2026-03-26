@@ -209,11 +209,5 @@
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/react": "19.2.14",
-      "@types/react-dom": "19.2.3"
-    }
   }
 }
