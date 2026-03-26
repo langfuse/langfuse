@@ -25,10 +25,9 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { ExperimentPeekView } from "./ExperimentPeekView";
+import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -245,7 +244,10 @@ export default function ExperimentItemsTable({
     "experiment-items",
   );
 
-  const [paginationState, setPaginationState] = usePaginationState(1, 20);
+  const [paginationState, setPaginationState] = usePaginationState(0, 20, {
+    page: "pageIndex",
+    limit: "pageSize",
+  });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
@@ -389,31 +391,41 @@ export default function ExperimentItemsTable({
         filters: filter.filters,
       })),
       orderByState,
-      paginationState,
+      paginationState: {
+        page: paginationState.pageIndex + 1,
+        limit: paginationState.pageSize,
+      },
       itemVisibility,
     });
 
   useEffect(() => {
     if (items.status === "success") {
-      // Use the first experiment's data for detail page navigation
+      // Use baseline experiment for detail page navigation
       setDetailPageList(
         "experiment-items",
         items?.rows?.map((item: ExperimentItemsTableRow) => {
-          const firstExp = item.experiments[0];
+          const baselineExp = item.experiments.find(
+            (e) => e.experimentId === experimentId,
+          );
+
+          if (!baselineExp)
+            return {
+              id: item.itemId,
+            };
+
           return {
             id: item.itemId,
             params: {
-              traceId: firstExp?.traceId || "",
-              ...(firstExp?.startTime
-                ? { timestamp: firstExp.startTime.toISOString() }
-                : {}),
+              traceId: baselineExp.traceId,
+              observation: baselineExp.observationId,
+              timestamp: baselineExp.startTime.toISOString(),
             },
           };
-        }) ?? [],
+        }),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.status, items.rows]);
+  }, [items.status, items.rows, experimentId]);
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
@@ -811,27 +823,16 @@ export default function ExperimentItemsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: [
-      "observation",
-      "display",
-      "timestamp",
-      "traceId",
-      "baselineTraceId",
-      "baselineObservationId",
-    ],
-    paramsToMirrorPeekValue: ["observation"],
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
-      // Use the first experiment's data for peek navigation
-      const firstExp = row.experiments[0];
-      // Get baseline experiment's trace/observation for peek view
+      // Use baseline experiment (the one matching experimentId prop)
       const baselineExp = row.experiments.find(
         (e) => e.experimentId === fallbackBaselineId,
       );
       return {
-        traceId: firstExp?.traceId || "",
-        timestamp: firstExp?.startTime?.toISOString() || "",
-        baselineTraceId: baselineExp?.traceId || "",
-        baselineObservationId: baselineExp?.observationId || "",
+        traceId: baselineExp?.traceId || "",
+        timestamp: baselineExp?.startTime.toISOString() || "",
+        observation: baselineExp?.observationId || "",
       };
     },
     expandConfig: {
@@ -862,36 +863,24 @@ export default function ExperimentItemsTable({
       itemType: "TRACE",
       customTitlePrefix: "Experiment Item:",
       detailNavigationKey: "experiment-items",
-      children: <ExperimentPeekView projectId={projectId} />,
+      children: <PeekViewObservationDetail projectId={projectId} />,
       ...peekNavigationProps,
     };
   }, [projectId, peekNavigationProps, canUsePeek]);
 
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
-    return items.status === "success" && items.rows ? items.rows : [];
+    if (items.status === "success" && items.rows) {
+      // Add 'id' field for DataTable row identification (peek view requires it)
+      return items.rows.map((row) => ({ ...row, id: row.itemId }));
+    }
+    return [];
   }, [items]);
 
-  // TODO: why does this need to be custom?
   const pagination = useMemo(
     () => ({
       totalCount: totalCount ?? null,
-      onChange: ((updater) => {
-        const newState =
-          typeof updater === "function"
-            ? updater({
-                pageIndex: paginationState.page - 1,
-                pageSize: paginationState.limit,
-              })
-            : updater;
-        setPaginationState({
-          page: newState.pageIndex + 1,
-          limit: newState.pageSize,
-        });
-      }) as OnChangeFn<PaginationState>,
-      state: {
-        pageIndex: paginationState.page - 1,
-        pageSize: paginationState.limit,
-      } as PaginationState,
+      onChange: setPaginationState,
+      state: paginationState,
     }),
     [paginationState, setPaginationState, totalCount],
   );
@@ -930,8 +919,8 @@ export default function ExperimentItemsTable({
                 ) ?? [],
               setRowSelection: setSelectedRows,
               totalCount,
-              pageSize: paginationState.limit,
-              pageIndex: paginationState.page - 1,
+              pageSize: paginationState.pageSize,
+              pageIndex: paginationState.pageIndex,
             }}
           />
         )}
@@ -965,6 +954,7 @@ export default function ExperimentItemsTable({
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}
+                  peekView={peekConfig}
                   columnVisibility={columnVisibility}
                 />
               ) : (
