@@ -404,8 +404,13 @@ export default function ExperimentItemsTable({
       setDetailPageList(
         "experiment-items",
         items?.rows?.map((item: ExperimentItemsTableRow) => {
+          if (!baselineId)
+            return {
+              id: item.itemId,
+            };
+
           const baselineExp = item.experiments.find(
-            (e) => e.experimentId === experimentId,
+            (e) => e.experimentId === baselineId,
           );
 
           if (!baselineExp)
@@ -425,7 +430,7 @@ export default function ExperimentItemsTable({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.status, items.rows, experimentId]);
+  }, [items.status, items.rows, baselineId]);
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
