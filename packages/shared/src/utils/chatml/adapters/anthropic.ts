@@ -44,17 +44,13 @@ const AnthropicRequestSchema = z.looseObject({
 
 // Anthropic Messages API response: requires stop_reason OR type:"message"
 // to distinguish from generic {role, content} messages
+const AnthropicResponseBase = z.looseObject({
+  role: z.literal("assistant"),
+  content: z.array(AnthropicContentBlockSchema).min(1),
+});
 const AnthropicResponseSchema = z.union([
-  z.looseObject({
-    role: z.literal("assistant"),
-    content: z.array(AnthropicContentBlockSchema).min(1),
-    stop_reason: z.string(),
-  }),
-  z.looseObject({
-    role: z.literal("assistant"),
-    content: z.array(AnthropicContentBlockSchema).min(1),
-    type: z.literal("message"),
-  }),
+  AnthropicResponseBase.and(z.looseObject({ stop_reason: z.string() })),
+  AnthropicResponseBase.and(z.looseObject({ type: z.literal("message") })),
 ]);
 
 const ANTHROPIC_BLOCK_TYPES = new Set([
