@@ -64,6 +64,18 @@ describe("Anthropic Adapter", () => {
       ).toBe(true);
     });
 
+    it("should detect response with type:'message' but no stop_reason", () => {
+      expect(
+        anthropicAdapter.detect({
+          metadata: {
+            role: "assistant",
+            content: [{ type: "text", text: "Hello" }],
+            type: "message",
+          },
+        }),
+      ).toBe(true);
+    });
+
     it("should detect array of Anthropic messages structurally", () => {
       expect(
         anthropicAdapter.detect({
