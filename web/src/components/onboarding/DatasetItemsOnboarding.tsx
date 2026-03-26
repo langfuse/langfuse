@@ -43,6 +43,7 @@ const DatasetItemEntryPointRow = ({
     <div
       role="button"
       tabIndex={0}
+      aria-disabled={disabled}
       className={cn(
         "border-border flex h-20 items-center gap-4 rounded-lg border p-4 transition-colors",
         disabled
