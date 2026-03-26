@@ -42,6 +42,7 @@ type DuplicateFolderParams = {
   sourcePath: string;
   targetPath: string;
   isSingleVersion: boolean;
+  rewritePromptReferences?: boolean;
   createdBy: string;
   prisma: PrismaClient;
   user?: { id: string; name: string | null; email: string | null };
@@ -357,11 +358,44 @@ export const duplicatePrompt = async ({
   return createdPrompt;
 };
 
+const rewriteDuplicatedPromptContent = ({
+  prompt,
+  duplicatedPromptNames,
+  isSingleVersion,
+}: {
+  prompt: ReturnType<typeof PromptContentSchema.parse>;
+  duplicatedPromptNames: Map<string, string>;
+  isSingleVersion: boolean;
+}) => {
+  let rewrittenPrompt = JSON.stringify(prompt);
+
+  for (const dep of parsePromptDependencyTags(prompt)) {
+    const duplicatedDependencyName = duplicatedPromptNames.get(dep.name);
+
+    if (!duplicatedDependencyName) continue;
+
+    const currentTag =
+      dep.type === "version"
+        ? `@@@langfusePrompt:name=${dep.name}|version=${dep.version}@@@`
+        : `@@@langfusePrompt:name=${dep.name}|label=${dep.label}@@@`;
+
+    const rewrittenTag =
+      dep.type === "version"
+        ? `@@@langfusePrompt:name=${duplicatedDependencyName}|version=${isSingleVersion ? 1 : dep.version}@@@`
+        : `@@@langfusePrompt:name=${duplicatedDependencyName}|label=${dep.label}@@@`;
+
+    rewrittenPrompt = rewrittenPrompt.split(currentTag).join(rewrittenTag);
+  }
+
+  return PromptContentSchema.parse(JSON.parse(rewrittenPrompt));
+};
+
 export const duplicateFolder = async ({
   projectId,
   sourcePath,
   targetPath,
   isSingleVersion,
+  rewritePromptReferences = false,
   createdBy,
   prisma,
   user,
@@ -412,6 +446,12 @@ export const duplicateFolder = async ({
   }
 
   const oldToNewIdMap: Record<string, string> = {};
+  const duplicatedPromptNames = new Map(
+    [...promptsByName.keys()].map((originalName) => [
+      originalName,
+      `${targetPath}${originalName.slice(sourcePath.length)}`,
+    ]),
+  );
   const allPromptsToCreate: Array<{
     id: string;
     name: string;
@@ -430,7 +470,9 @@ export const duplicateFolder = async ({
   }> = [];
 
   for (const [originalName, versions] of promptsByName) {
-    const newName = `${targetPath}${originalName.slice(sourcePath.length)}`;
+    const newName =
+      duplicatedPromptNames.get(originalName) ??
+      `${targetPath}${originalName.slice(sourcePath.length)}`;
 
     const promptsToCopy = isSingleVersion
       ? [versions.reduce((a, b) => (a.version > b.version ? a : b))]
@@ -448,7 +490,13 @@ export const duplicateFolder = async ({
           ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
           : prompt.labels,
         type: prompt.type,
-        prompt: PromptContentSchema.parse(prompt.prompt),
+        prompt: rewritePromptReferences
+          ? rewriteDuplicatedPromptContent({
+              prompt: PromptContentSchema.parse(prompt.prompt),
+              duplicatedPromptNames,
+              isSingleVersion,
+            })
+          : PromptContentSchema.parse(prompt.prompt),
         config: jsonSchema.parse(prompt.config),
         tags: prompt.tags,
         projectId,
@@ -470,13 +518,22 @@ export const duplicateFolder = async ({
       data: sourcePrompts
         .filter((prompt) => oldToNewIdMap[prompt.id] !== undefined)
         .flatMap((prompt) =>
-          prompt.PromptDependency.map((dep) => ({
-            projectId,
-            parentId: oldToNewIdMap[prompt.id],
-            childName: dep.childName,
-            childVersion: dep.childVersion,
-            childLabel: dep.childLabel,
-          })),
+          prompt.PromptDependency.map((dep) => {
+            const duplicatedDependencyName = rewritePromptReferences
+              ? duplicatedPromptNames.get(dep.childName)
+              : undefined;
+
+            return {
+              projectId,
+              parentId: oldToNewIdMap[prompt.id],
+              childName: duplicatedDependencyName ?? dep.childName,
+              childVersion:
+                duplicatedDependencyName && dep.childVersion && isSingleVersion
+                  ? 1
+                  : dep.childVersion,
+              childLabel: dep.childLabel,
+            };
+          }),
         ),
     });
   });
@@ -496,9 +553,7 @@ export const duplicateFolder = async ({
   );
 
   return {
-    copiedPromptNames: [...promptsByName.keys()].map(
-      (originalName) => `${targetPath}${originalName.slice(sourcePath.length)}`,
-    ),
+    copiedPromptNames: [...duplicatedPromptNames.values()],
     copiedCount: allPromptsToCreate.length,
   };
 };

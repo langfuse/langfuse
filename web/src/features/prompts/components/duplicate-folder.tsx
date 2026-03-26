@@ -15,12 +15,14 @@ import { Input } from "@/src/components/ui/input";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,6 +39,7 @@ enum CopySettings {
 const formSchema = z.object({
   targetPath: z.string().min(1, "Target folder path is required"),
   copySettings: z.enum(CopySettings),
+  rewritePromptReferences: z.boolean(),
 });
 
 export function DuplicateFolder({ folderPath }: { folderPath: string }) {
@@ -53,6 +56,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
     defaultValues: {
       targetPath: `${folderPath}-copy`,
       copySettings: CopySettings.LATEST_ONLY,
+      rewritePromptReferences: false,
     },
   });
 
@@ -87,6 +91,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
       sourcePath: folderPath,
       targetPath: values.targetPath,
       isSingleVersion: values.copySettings === CopySettings.LATEST_ONLY,
+      rewritePromptReferences: values.rewritePromptReferences,
     });
   }
 
@@ -127,9 +132,9 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
             className="flex h-full flex-1 flex-col gap-4"
           >
             <DialogBody>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Copy all prompts from{" "}
-                <code className="relative break-all rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+                <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold break-all">
                   {folderPath}/
                 </code>{" "}
                 to a new folder path.
@@ -160,7 +165,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                         defaultValue={field.value}
                         className="flex flex-col space-y-1"
                       >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormItem className="flex items-center space-y-0 space-x-3">
                           <FormControl>
                             <RadioGroupItem value={CopySettings.LATEST_ONLY} />
                           </FormControl>
@@ -168,7 +173,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                             Copy only the latest version of each prompt
                           </FormLabel>
                         </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormItem className="flex items-center space-y-0 space-x-3">
                           <FormControl>
                             <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
                           </FormControl>
@@ -179,6 +184,36 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="rewritePromptReferences"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Rewrite prompt references in this folder
+                      </FormLabel>
+                      <FormDescription>
+                        Update references like{" "}
+                        <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                          {folderPath}/...
+                        </code>{" "}
+                        to point at{" "}
+                        <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                          {form.watch("targetPath") || `${folderPath}-copy`}/...
+                        </code>{" "}
+                        when the referenced prompt is also copied.
+                      </FormDescription>
+                    </div>
                   </FormItem>
                 )}
               />

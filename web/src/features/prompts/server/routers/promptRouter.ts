@@ -384,6 +384,7 @@ export const promptRouter = createTRPCRouter({
         sourcePath: StringNoHTMLNonEmpty,
         targetPath: StringNoHTMLNonEmpty,
         isSingleVersion: z.boolean(),
+        rewritePromptReferences: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -398,6 +399,7 @@ export const promptRouter = createTRPCRouter({
         sourcePath: input.sourcePath,
         targetPath: input.targetPath,
         isSingleVersion: input.isSingleVersion,
+        rewritePromptReferences: input.rewritePromptReferences,
         createdBy: ctx.session.user.id,
         prisma: ctx.prisma,
         user: {
