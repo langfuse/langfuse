@@ -418,7 +418,7 @@ export const promptRouter = createTRPCRouter({
         {
           session: ctx.session,
           resourceType: "prompt",
-          resourceId: input.sourcePath,
+          resourceId: input.targetPath,
           action: "create",
           after: result,
         },

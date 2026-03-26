@@ -16,6 +16,7 @@ import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/uti
 import {
   PromptContentSchema,
   PromptService,
+  escapeSqlLikePattern,
   redis,
   extractPlaceholderNames,
 } from "@langfuse/shared/src/server";
@@ -400,10 +401,13 @@ export const duplicateFolder = async ({
   prisma,
   user,
 }: DuplicateFolderParams) => {
+  const escapedTargetPath = escapeSqlLikePattern(targetPath);
+  const escapedSourcePath = escapeSqlLikePattern(sourcePath);
+
   const existingTargetPrompt = await prisma.prompt.findFirst({
     where: {
       projectId,
-      name: { startsWith: `${targetPath}/` },
+      name: { startsWith: `${escapedTargetPath}/` },
     },
   });
 
@@ -417,7 +421,7 @@ export const duplicateFolder = async ({
   const sourcePrompts = await prisma.prompt.findMany({
     where: {
       projectId,
-      name: { startsWith: `${sourcePath}/` },
+      name: { startsWith: `${escapedSourcePath}/` },
     },
     include: {
       PromptDependency: {
@@ -470,13 +474,16 @@ export const duplicateFolder = async ({
   }> = [];
 
   for (const [originalName, versions] of promptsByName) {
+    const latestVersion =
+      versions.find((version) =>
+        version.labels.includes(LATEST_PROMPT_LABEL),
+      ) ?? versions.reduce((a, b) => (a.version > b.version ? a : b));
+
     const newName =
       duplicatedPromptNames.get(originalName) ??
       `${targetPath}${originalName.slice(sourcePath.length)}`;
 
-    const promptsToCopy = isSingleVersion
-      ? [versions.reduce((a, b) => (a.version > b.version ? a : b))]
-      : versions;
+    const promptsToCopy = isSingleVersion ? [latestVersion] : versions;
 
     for (const prompt of promptsToCopy) {
       const newPromptId = uuidv4();
