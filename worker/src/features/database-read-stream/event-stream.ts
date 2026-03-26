@@ -8,19 +8,22 @@
  */
 
 import {
+  combineFilterInputs,
   FilterCondition,
+  type FilterInput,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
   eventsTableCols,
+  getFilterExpressionLeafFilters,
+  normalizeFilterExpressionInput,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
   queryClickhouseStream,
   logger,
-  FilterList,
-  createFilterFromFilterState,
+  createFilterTreeFromFilterInput,
   eventsTableUiColumnDefinitions,
   clickhouseSearchCondition,
   EventsQueryBuilder,
@@ -37,6 +40,53 @@ import { BatchExportEventsRow } from "./types";
 
 const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
 
+function stripUnsupportedEventStreamFilters(
+  filter: FilterInput | null | undefined,
+): FilterInput | undefined {
+  const normalizedFilter = normalizeFilterExpressionInput(filter);
+
+  if (!normalizedFilter) {
+    return undefined;
+  }
+
+  if (normalizedFilter.type === "group") {
+    const conditions = normalizedFilter.conditions
+      .map((condition) => stripUnsupportedEventStreamFilters(condition))
+      .filter((condition): condition is NonNullable<typeof condition> =>
+        Boolean(condition),
+      );
+
+    if (conditions.length === 0) {
+      return undefined;
+    }
+
+    if (conditions.length === 1) {
+      return conditions[0];
+    }
+
+    return {
+      type: "group",
+      operator: normalizedFilter.operator,
+      conditions,
+    };
+  }
+
+  const columnDef = eventsTableUiColumnDefinitions.find(
+    (column) =>
+      column.uiTableName === normalizedFilter.column ||
+      column.uiTableId === normalizedFilter.column,
+  );
+
+  if (
+    columnDef?.clickhouseTableName === "scores" ||
+    columnDef?.clickhouseTableName === "comments"
+  ) {
+    return undefined;
+  }
+
+  return normalizedFilter;
+}
+
 /**
  * Creates a stream of events from ClickHouse for batch export.
  * Includes comments fetched in batches and flattened scores.
@@ -47,7 +97,7 @@ const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
 export const getEventsStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
-  filter: FilterCondition[] | null;
+  filter: FilterInput | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
@@ -72,17 +122,10 @@ export const getEventsStream = async (props: {
     },
   };
 
-  // Filter out score and comment filters since they require special handling
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-    // Keep the filter if it's not a scores or comments filter
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
+  const eventOnlyFilterInput = stripUnsupportedEventStreamFilters(filter);
+  const eventOnlyFilters = getFilterExpressionLeafFilters(
+    normalizeFilterExpressionInput(eventOnlyFilterInput),
+  );
 
   // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
@@ -102,20 +145,15 @@ export const getEventsStream = async (props: {
   );
 
   // Build filters for events (project_id is handled by the query builder)
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
+  const eventsFilter = createFilterTreeFromFilterInput(
+    combineFilterInputs(eventOnlyFilterInput, {
+      column: "startTime",
+      operator: "<",
+      value: cutoffCreatedAt,
+      type: "datetime",
+    }),
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
   );
 
   const appliedEventsFilter = eventsFilter.apply();
@@ -353,7 +391,7 @@ export const getEventsStream = async (props: {
 export const getEventsStreamForEval = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
-  filter: FilterCondition[] | null;
+  filter: FilterInput | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
@@ -368,31 +406,17 @@ export const getEventsStreamForEval = async (props: {
   } = props;
 
   // Filter out score and comment filters since they're not relevant for eval
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
+  const eventOnlyFilterInput = stripUnsupportedEventStreamFilters(filter);
 
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
+  const eventsFilter = createFilterTreeFromFilterInput(
+    combineFilterInputs(eventOnlyFilterInput, {
+      column: "startTime",
+      operator: "<",
+      value: cutoffCreatedAt,
+      type: "datetime",
+    }),
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
   );
 
   const appliedEventsFilter = eventsFilter.apply();
@@ -493,7 +517,7 @@ export const getEventsStreamForEval = async (props: {
 export const getEventsStreamForDataset = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
-  filter: FilterCondition[] | null;
+  filter: FilterInput | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
@@ -507,31 +531,17 @@ export const getEventsStreamForDataset = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
+  const eventOnlyFilterInput = stripUnsupportedEventStreamFilters(filter);
 
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
+  const eventsFilter = createFilterTreeFromFilterInput(
+    combineFilterInputs(eventOnlyFilterInput, {
+      column: "startTime",
+      operator: "<",
+      value: cutoffCreatedAt,
+      type: "datetime",
+    }),
+    eventsTableUiColumnDefinitions,
+    eventsTableCols,
   );
 
   const appliedEventsFilter = eventsFilter.apply();

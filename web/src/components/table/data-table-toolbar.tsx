@@ -1,5 +1,10 @@
 import { Button } from "@/src/components/ui/button";
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -66,9 +71,12 @@ interface SearchConfig {
   metadataSearchFields?: string[];
   updateQuery: (event: string) => void;
   currentQuery?: string;
+  errorMessage?: string;
   tableAllowsFullTextSearch?: boolean;
   setSearchType?: (newSearchType: TracingSearchType[]) => void;
   searchType?: TracingSearchType[];
+  validateQuery?: (query: string) => string | null;
+  helpDescription?: React.ReactNode;
   customDropdownLabels?: {
     metadata: string;
     fullText: string;
@@ -155,10 +163,34 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const [searchError, setSearchError] = useState<string | null>(
+    searchConfig?.errorMessage ?? null,
+  );
 
   const capture = usePostHogClientCapture();
   const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
     useDataTableControls();
+
+  useEffect(() => {
+    setSearchString(searchConfig?.currentQuery ?? "");
+    setSearchError(searchConfig?.errorMessage ?? null);
+  }, [searchConfig?.currentQuery, searchConfig?.errorMessage]);
+
+  const validateSearchQuery = (value: string) =>
+    searchConfig?.validateQuery?.(value) ?? null;
+
+  const submitSearch = () => {
+    const validationError = validateSearchQuery(searchString);
+
+    if (validationError) {
+      setSearchError(validationError);
+      return;
+    }
+
+    setSearchError(null);
+    capture("table:search_submit");
+    searchConfig?.updateQuery(searchString);
+  };
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
@@ -198,126 +230,137 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {searchConfig && (
-          <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
-            <div
-              className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                searchConfig.setSearchType
-                  ? "rounded-l-md rounded-r-none border-r-0"
-                  : "rounded-l-md rounded-r-md",
-              )}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1"
-                onClick={() => {
-                  capture("table:search_submit");
-                  searchConfig.updateQuery(searchString);
-                }}
+          <div className="flex max-w-120 shrink-0 flex-col gap-1 md:min-w-96">
+            <div className="flex items-stretch">
+              <div
+                className={cn(
+                  "border-input bg-background flex h-8 flex-1 items-center border pl-2",
+                  searchConfig.setSearchType
+                    ? "rounded-l-md rounded-r-none border-r-0"
+                    : "rounded-l-md rounded-r-md",
+                  searchError && "border-destructive",
+                )}
               >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Input
-                autoFocus
-                placeholder={
-                  searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
-                }
-                value={searchString}
-                onChange={(event) => {
-                  const newValue = event.currentTarget.value;
-                  setSearchString(newValue);
-                  // If user cleared the search, update URL immediately
-                  if (newValue === "") {
-                    searchConfig.updateQuery("");
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mr-1"
+                  onClick={submitSearch}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Input
+                  autoFocus
+                  placeholder={
+                    searchConfig.tableAllowsFullTextSearch
+                      ? "Search..."
+                      : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
                   }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    capture("table:search_submit");
-                    searchConfig.updateQuery(searchString);
-                  }
-                }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-              />
-            </div>
-            {searchConfig.setSearchType && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
-                  >
-                    <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? (searchConfig.customDropdownLabels?.fullText ??
-                          "Full Text")
-                        : (searchConfig.customDropdownLabels?.metadata ??
-                          "IDs / Names")}
-                      <DocPopup
-                        description={
-                          searchConfig.tableAllowsFullTextSearch &&
-                          (searchConfig.searchType ?? []).includes(
-                            "content",
-                          ) ? (
-                            <p className="text-primary text-xs font-normal">
-                              Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                              {!searchConfig.hidePerformanceWarning &&
-                                " For improved performance, please filter the table down."}
-                            </p>
-                          ) : (
-                            <p className="text-primary text-xs font-normal">
-                              Searches in{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                            </p>
-                          )
-                        }
-                      />
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup
-                    value={
-                      searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? "metadata_fulltext"
-                        : "metadata"
-                    }
-                    onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value === "metadata_fulltext"
-                      )
-                        return;
+                  value={searchString}
+                  onChange={(event) => {
+                    const newValue = event.currentTarget.value;
+                    setSearchString(newValue);
 
-                      const newSearchType =
-                        value === "metadata_fulltext"
-                          ? ["id" as const, "content" as const]
-                          : ["id" as const];
-                      searchConfig.setSearchType?.(newSearchType);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="metadata">
-                      {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="metadata_fulltext"
-                      disabled={!searchConfig.tableAllowsFullTextSearch}
+                    if (newValue === "") {
+                      setSearchError(null);
+                      searchConfig.updateQuery("");
+                      return;
+                    }
+
+                    setSearchError(validateSearchQuery(newValue));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      submitSearch();
+                    }
+                  }}
+                  className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
+                />
+                {searchConfig.helpDescription && (
+                  <div className="pr-2">
+                    <DocPopup description={searchConfig.helpDescription} />
+                  </div>
+                )}
+              </div>
+              {searchConfig.setSearchType && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="default"
+                      className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
                     >
-                      {searchConfig.customDropdownLabels?.fullText ??
-                        "Full Text"}
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <span className="flex items-center gap-1 truncate">
+                        {searchConfig.tableAllowsFullTextSearch &&
+                        (searchConfig.searchType ?? []).includes("content")
+                          ? (searchConfig.customDropdownLabels?.fullText ??
+                            "Full Text")
+                          : (searchConfig.customDropdownLabels?.metadata ??
+                            "IDs / Names")}
+                        <DocPopup
+                          description={
+                            searchConfig.tableAllowsFullTextSearch &&
+                            (searchConfig.searchType ?? []).includes(
+                              "content",
+                            ) ? (
+                              <p className="text-primary text-xs font-normal">
+                                Searches in Input/Output and{" "}
+                                {searchConfig.metadataSearchFields?.join(", ")}.
+                                {!searchConfig.hidePerformanceWarning &&
+                                  " For improved performance, please filter the table down."}
+                              </p>
+                            ) : (
+                              <p className="text-primary text-xs font-normal">
+                                Searches in{" "}
+                                {searchConfig.metadataSearchFields?.join(", ")}.
+                              </p>
+                            )
+                          }
+                        />
+                      </span>
+                      <ChevronDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuRadioGroup
+                      value={
+                        searchConfig.tableAllowsFullTextSearch &&
+                        (searchConfig.searchType ?? []).includes("content")
+                          ? "metadata_fulltext"
+                          : "metadata"
+                      }
+                      onValueChange={(value) => {
+                        if (
+                          !searchConfig.tableAllowsFullTextSearch &&
+                          value === "metadata_fulltext"
+                        )
+                          return;
+
+                        const newSearchType =
+                          value === "metadata_fulltext"
+                            ? ["id" as const, "content" as const]
+                            : ["id" as const];
+                        searchConfig.setSearchType?.(newSearchType);
+                      }}
+                    >
+                      <DropdownMenuRadioItem value="metadata">
+                        {searchConfig.customDropdownLabels?.metadata ??
+                          "IDs / Names"}
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="metadata_fulltext"
+                        disabled={!searchConfig.tableAllowsFullTextSearch}
+                      >
+                        {searchConfig.customDropdownLabels?.fullText ??
+                          "Full Text"}
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            {searchError && (
+              <p className="text-destructive px-1 text-xs">{searchError}</p>
             )}
           </div>
         )}

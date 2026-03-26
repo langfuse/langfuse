@@ -35,6 +35,7 @@ import {
   deriveFilters,
   type ApiColumnMapping,
   ObservationPriceFields,
+  clickhouseSearchCondition,
 } from "../queries";
 import {
   createFilterFromFilterState,
@@ -48,7 +49,6 @@ import {
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,

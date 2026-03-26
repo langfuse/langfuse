@@ -124,14 +124,14 @@ export const singleFilter = z.discriminatedUnion("type", [
 
 export const filterGroupOperator = z.enum(["AND", "OR"]);
 
-type FilterConditionSchema = z.infer<typeof singleFilter>;
-type FilterGroupSchema = {
+export type FilterConditionSchema = z.infer<typeof singleFilter>;
+export type FilterGroupSchema = {
   type: "group";
   operator: z.infer<typeof filterGroupOperator>;
   conditions: FilterExpressionSchema[];
 };
-type FilterExpressionSchema = FilterConditionSchema | FilterGroupSchema;
-type FilterInputSchema =
+export type FilterExpressionSchema = FilterConditionSchema | FilterGroupSchema;
+export type FilterInputSchema =
   | FilterConditionSchema[]
   | FilterExpressionSchema
   | null
@@ -213,4 +213,38 @@ export function getMandatoryFilterExpressionLeafFilters(
   return filterValue.conditions.flatMap((condition) =>
     getMandatoryFilterExpressionLeafFilters(condition),
   );
+}
+
+export function combineFilterInputs(
+  ...filterValues: FilterInputSchema[]
+): FilterExpressionSchema | undefined {
+  const normalizedFilters = filterValues
+    .map((filterValue) => normalizeFilterExpressionInput(filterValue))
+    .filter((filterValue): filterValue is FilterExpressionSchema =>
+      Boolean(filterValue),
+    );
+
+  if (normalizedFilters.length === 0) {
+    return undefined;
+  }
+
+  if (normalizedFilters.length === 1) {
+    return normalizedFilters[0];
+  }
+
+  const conditions: FilterExpressionSchema[] = [];
+
+  for (const filterValue of normalizedFilters) {
+    if (isFilterGroup(filterValue) && filterValue.operator === "AND") {
+      conditions.push(...filterValue.conditions);
+    } else {
+      conditions.push(filterValue);
+    }
+  }
+
+  return {
+    type: "group",
+    operator: "AND",
+    conditions,
+  };
 }

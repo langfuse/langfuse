@@ -13,8 +13,10 @@ import {
   type BatchExportTableName,
   exportOptions,
   type BatchExportFileFormat,
+  type FilterInput,
   type OrderByState,
   BatchTableNames,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
@@ -25,9 +27,9 @@ export type BatchExportTableButtonProps = {
   projectId: string;
   tableName: BatchExportTableName;
   orderByState: OrderByState;
-  filterState: any;
-  searchQuery?: any;
-  searchType?: any;
+  filterState: FilterInput | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (

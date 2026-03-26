@@ -602,6 +602,114 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(count).toBeGreaterThanOrEqual(0);
     });
+
+    it("applies Lucene search safely for list and count queries", async () => {
+      const uniqueProjectId = randomUUID();
+      const otherProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const matchingObservationId = randomUUID();
+      const debugObservationId = randomUUID();
+      const otherProjectObservationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: matchingObservationId,
+          span_id: matchingObservationId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "ERROR",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: debugObservationId,
+          span_id: debugObservationId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "DEBUG",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "other-agent",
+          level: "ERROR",
+          input: "tool calendar request",
+          metadata_names: ["environment"],
+          metadata_values: ["staging"],
+          start_time: nowMicro + 2000,
+        }),
+        createEvent({
+          id: otherProjectObservationId,
+          span_id: otherProjectObservationId,
+          project_id: otherProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "ERROR",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro + 3000,
+        }),
+      ]);
+
+      const searchQuery =
+        "metadata.environment:prod AND input:weather AND NOT level:DEBUG";
+
+      const [observations, count] = await Promise.all([
+        getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          limit: 100,
+          offset: 0,
+          searchQuery,
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          searchQuery,
+        }),
+      ]);
+
+      expect(count).toBe(1);
+      expect(observations.map((observation) => observation.id)).toEqual([
+        matchingObservationId,
+      ]);
+      expect(observations.map((observation) => observation.id)).not.toContain(
+        debugObservationId,
+      );
+      expect(observations.map((observation) => observation.id)).not.toContain(
+        otherProjectObservationId,
+      );
+    });
+
+    it("rejects unsupported Lucene operators before querying ClickHouse", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await expect(
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          searchQuery: 'name:"chat completion"~2',
+        }),
+      ).rejects.toThrow(
+        "Invalid Lucene query: Phrase proximity search is not supported in events search.",
+      );
+    });
   });
 
   maybe("Filter Tests", () => {

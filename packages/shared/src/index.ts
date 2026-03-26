@@ -56,6 +56,7 @@ export * from "./features/comments/types";
 
 // experiments
 export * from "./features/experiments/utils";
+export * from "./features/events/lucene-query";
 
 // datasets
 export * from "./features/datasets/validation";

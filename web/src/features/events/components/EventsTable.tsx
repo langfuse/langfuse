@@ -18,12 +18,17 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
+  combineFilterInputs,
+  type FilterInput,
   type FilterState,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
   BatchActionType,
   ActionId,
+  EVENTS_LUCENE_QUERY_EXAMPLES,
+  getEventsLuceneSupportedFields,
+  resolveEventsLuceneQueryForApi,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -187,8 +192,15 @@ export default function ObservationsEventsTable({
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
+  const { searchQuery, setSearchQuery } = useFullTextSearch();
+  const resolvedSearchQuery = useMemo(
+    () => resolveEventsLuceneQueryForApi(searchQuery),
+    [searchQuery],
+  );
+  const supportedLuceneFields = useMemo(
+    () => [...getEventsLuceneSupportedFields(), "metadata.<key>"],
+    [],
+  );
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -348,9 +360,18 @@ export default function ObservationsEventsTable({
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
   // Fetch filter options
+  const filterOptionsFilterInput = useMemo(
+    () =>
+      resolvedSearchQuery.isValid
+        ? (combineFilterInputs(oldFilterState, resolvedSearchQuery.filter) ??
+          oldFilterState)
+        : oldFilterState,
+    [oldFilterState, resolvedSearchQuery],
+  );
+
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState,
+    oldFilterState: filterOptionsFilterInput,
   });
 
   const queryFilter = useSidebarFilterState(
@@ -416,7 +437,24 @@ export default function ObservationsEventsTable({
     .concat(sessionIdFilter);
 
   // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const baseFilterInput: FilterInput =
+    externalFilterState || combinedFilterState;
+  const filterInput = useMemo(
+    () =>
+      resolvedSearchQuery.isValid
+        ? combineFilterInputs(baseFilterInput, resolvedSearchQuery.filter)
+        : combineFilterInputs(baseFilterInput),
+    [baseFilterInput, resolvedSearchQuery],
+  );
+  const searchValidationError = resolvedSearchQuery.isValid
+    ? null
+    : resolvedSearchQuery.error;
+  const searchQueryForApi = resolvedSearchQuery.isValid
+    ? resolvedSearchQuery.searchQuery
+    : undefined;
+  const searchTypeForApi = resolvedSearchQuery.isValid
+    ? (resolvedSearchQuery.searchType ?? [])
+    : [];
 
   // Use the custom hook for observations data fetching
   const {
@@ -428,13 +466,14 @@ export default function ObservationsEventsTable({
     isSilencedError,
   } = useEventsTableData({
     projectId,
-    filterState,
+    filterState: filterInput,
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
     orderByState,
-    searchQuery,
-    searchType,
+    searchQuery: searchQueryForApi,
+    searchType: searchTypeForApi,
+    searchValidationError,
     selectedRows,
     selectAll,
     setSelectedRows,
@@ -1272,12 +1311,46 @@ export default function ObservationsEventsTable({
             columns={columns}
             filterState={queryFilter.explicitFilterState}
             searchConfig={{
-              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
+              metadataSearchFields: [
+                "ID",
+                "Trace ID",
+                "Name",
+                "Trace Name",
+                "User ID",
+                "Session ID",
+                "Level",
+                "Model",
+              ],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              searchType,
-              setSearchType,
+              errorMessage: searchValidationError ?? undefined,
+              validateQuery: (query) => {
+                const resolution = resolveEventsLuceneQueryForApi(query);
+                return resolution.isValid ? null : resolution.error;
+              },
               tableAllowsFullTextSearch: true,
+              helpDescription: (
+                <div className="space-y-2 text-xs">
+                  <p className="text-primary font-normal">
+                    Plain text uses the existing full-text search. For Lucene
+                    filters, every clause must use an explicit field such as
+                    `name:` or `traceId:`.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Supported fields: {supportedLuceneFields.join(", ")}
+                  </p>
+                  <div className="space-y-1">
+                    {EVENTS_LUCENE_QUERY_EXAMPLES.map((example) => (
+                      <code
+                        key={example}
+                        className="bg-muted block rounded px-2 py-1"
+                      >
+                        {example}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              ),
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.Observations,
@@ -1316,10 +1389,10 @@ export default function ObservationsEventsTable({
               <BatchExportTableButton
                 {...{
                   projectId,
-                  filterState,
+                  filterState: filterInput ?? null,
                   orderByState,
-                  searchQuery,
-                  searchType,
+                  searchQuery: searchQueryForApi,
+                  searchType: searchTypeForApi,
                 }}
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
@@ -1466,10 +1539,10 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: filterInput ?? null,
             orderBy: orderByState,
-            searchQuery: searchQuery ?? undefined,
-            searchType,
+            searchQuery: searchQueryForApi,
+            searchType: searchTypeForApi,
           }}
           selectAll={selectAll}
           totalCount={totalCount ?? 0}
@@ -1487,10 +1560,10 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: filterInput ?? null,
             orderBy: orderByState,
-            searchQuery: searchQuery ?? undefined,
-            searchType,
+            searchQuery: searchQueryForApi,
+            searchType: searchTypeForApi,
           }}
           selectAll={selectAll}
           totalCount={totalCount ?? 0}

@@ -5,6 +5,8 @@ import {
   BatchExportStatus,
   BatchExportTableName,
   exportOptions,
+  type FilterCondition,
+  type FilterInput,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -30,6 +32,25 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   observations: "OBSERVATION",
   sessions: "SESSION",
 };
+
+function getFlatBatchExportFilterOrThrow(
+  filter: FilterInput | null | undefined,
+  context: string,
+): FilterCondition[] {
+  if (!filter) {
+    return [];
+  }
+
+  if (Array.isArray(filter)) {
+    return filter;
+  }
+
+  if (filter.type === "group") {
+    throw new Error(`${context} does not support nested filter groups yet.`);
+  }
+
+  return [filter];
+}
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -137,11 +158,14 @@ export const handleBatchExportJob = async (
 
   // Process comment filters before creating stream
   const commentObjectType = tableToCommentType[parsedQuery.data.tableName];
-  let processedFilter = parsedQuery.data.filter ?? [];
+  let processedFilter: FilterInput | null = parsedQuery.data.filter ?? null;
 
   if (commentObjectType) {
     const { filterState, hasNoMatches } = await applyCommentFilters({
-      filterState: parsedQuery.data.filter ?? [],
+      filterState: getFlatBatchExportFilterOrThrow(
+        parsedQuery.data.filter,
+        `Batch export "${parsedQuery.data.tableName}"`,
+      ),
       prisma,
       projectId,
       objectType: commentObjectType,
@@ -175,7 +199,10 @@ export const handleBatchExportJob = async (
           projectId,
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
-          filter: processedFilter,
+          filter: getFlatBatchExportFilterOrThrow(
+            processedFilter,
+            `Batch export "${parsedQuery.data.tableName}"`,
+          ),
           fileFormat: jobDetails.format as BatchExportFileFormat,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
@@ -183,7 +210,10 @@ export const handleBatchExportJob = async (
             projectId,
             cutoffCreatedAt: jobDetails.createdAt,
             ...parsedQuery.data,
-            filter: processedFilter,
+            filter: getFlatBatchExportFilterOrThrow(
+              processedFilter,
+              `Batch export "${parsedQuery.data.tableName}"`,
+            ),
           })
         : parsedQuery.data.tableName === BatchExportTableName.Events
           ? await getEventsStream({
@@ -196,7 +226,10 @@ export const handleBatchExportJob = async (
               projectId,
               cutoffCreatedAt: jobDetails.createdAt,
               ...parsedQuery.data,
-              filter: processedFilter,
+              filter: getFlatBatchExportFilterOrThrow(
+                processedFilter,
+                `Batch export "${parsedQuery.data.tableName}"`,
+              ),
             });
 
   // Transform data to desired format
