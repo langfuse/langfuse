@@ -12,6 +12,13 @@ interface Details {
   [key: string]: number | undefined;
 }
 
+const sumValues = (entries: [string, number | undefined][]): number =>
+  entries.reduce(
+    (sum, [_, value]) =>
+      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
+    0,
+  );
+
 /**
  * Aggregates usage or cost details by summing values based on key patterns.
  * Used to calculate input/output/total values from detailed breakdowns.
@@ -34,23 +41,25 @@ export const calculateAggregatedUsage = (
       }, {})
     : details;
 
-  // Sum all keys containing "input"
-  const input = Object.entries(aggregatedDetails)
-    .filter(([key]) => key.includes("input"))
-    .reduce(
-      (sum, [_, value]) =>
-        new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-      0,
-    );
+  // Prioritize explicit "input" key if it exists, otherwise sum all keys containing "input"
+  const input =
+    aggregatedDetails.input !== undefined
+      ? aggregatedDetails.input
+      : sumValues(
+          Object.entries(aggregatedDetails).filter(([key]) =>
+            key.includes("input"),
+          ),
+        );
 
-  // Sum all keys containing "output"
-  const output = Object.entries(aggregatedDetails)
-    .filter(([key]) => key.includes("output"))
-    .reduce(
-      (sum, [_, value]) =>
-        new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-      0,
-    );
+  // Prioritize explicit "output" key if it exists, otherwise sum all keys containing "output"
+  const output =
+    aggregatedDetails.output !== undefined
+      ? aggregatedDetails.output
+      : sumValues(
+          Object.entries(aggregatedDetails).filter(([key]) =>
+            key.includes("output"),
+          ),
+        );
 
   // Get total or calculate from input + output
   const total = aggregatedDetails.total ?? input + output;
@@ -182,11 +191,15 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
     .filter(([key]) => filterFn(key))
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
-  const sectionTotal = filteredEntries.reduce(
-    (sum, [_, value]) =>
-      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-    0,
-  );
+  // Prioritize explicit key if it exists, otherwise sum all matching keys
+  const isInputSection = title.toLowerCase().includes("input");
+  const isOutputSection = title.toLowerCase().includes("output");
+  const sectionTotal =
+    isInputSection && details.input !== undefined
+      ? details.input
+      : isOutputSection && details.output !== undefined
+        ? details.output
+        : sumValues(filteredEntries);
 
   return (
     <div className="flex flex-col gap-2">
