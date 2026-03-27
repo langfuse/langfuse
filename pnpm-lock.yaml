@@ -230,10 +230,10 @@ importers:
         version: 10.3.0
       langchain:
         specifier: ^1.2.15
-        version: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))
+        version: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))
       langfuse-langchain:
         specifier: 3.38.6
-        version: 3.38.6(langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6)))
+        version: 3.38.6(langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6)))
       lodash:
         specifier: ^4.17.23
         version: 4.17.23
@@ -374,8 +374,8 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@modelcontextprotocol/sdk':
-        specifier: 1.27.1
-        version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+        specifier: 1.28.0
+        version: 1.28.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       '@mui/material':
         specifier: ^7.3.1
         version: 7.3.1(@emotion/react@11.11.4(@types/react@19.2.14)(react@19.2.4))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -609,7 +609,7 @@ importers:
         version: 0.5.9
       langchain:
         specifier: ^1.2.15
-        version: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))
+        version: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))
       langfuse:
         specifier: 3.38.4
         version: 3.38.4
@@ -2900,8 +2900,8 @@ packages:
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
 
-  '@modelcontextprotocol/sdk@1.27.1':
-    resolution: {integrity: sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA==}
+  '@modelcontextprotocol/sdk@1.28.0':
+    resolution: {integrity: sha512-gmloF+i+flI8ouQK7MWW4mOwuMh4RePBuPFAEPC6+pdqyWOUMDOixb6qZ69owLJpz6XmyllCouc4t8YWO+E2Nw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -7881,8 +7881,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.8:
-    resolution: {integrity: sha512-VJCEvtrezO1IAR+kqEYnxUOoStaQPGrCmX3j4wDTNOcD1uRPFpGlwQUIW8niPuvHXaTUxeOUl5MMDGrl+tmO9A==}
+  hono@4.12.9:
+    resolution: {integrity: sha512-wy3T8Zm2bsEvxKZM5w21VdHDDcwVS1yUFFY6i8UobSsKfFceT7TOwhbhfKsDyx7tYQlmRM5FLpIuYvNFyjctiA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -8461,8 +8461,8 @@ packages:
   jose@4.15.9:
     resolution: {integrity: sha512-1vUQX+IdDMVPj4k8kOxgUqlcK518yluMuGZwqlr44FS1ppZB/5GWh4rZG89erpOBOJjU/OBsnCVFfapsRz6nEA==}
 
-  jose@6.1.3:
-    resolution: {integrity: sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ==}
+  jose@6.2.2:
+    resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
 
   jotai@2.15.0:
     resolution: {integrity: sha512-nbp/6jN2Ftxgw0VwoVnOg0m5qYM1rVcfvij+MZx99Z5IK13eGve9FJoCwGv+17JvVthTjhSmNtT5e1coJnr6aw==}
@@ -11539,8 +11539,8 @@ packages:
     peerDependencies:
       zod: 4.3.6
 
-  zod-to-json-schema@3.25.1:
-    resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
+  zod-to-json-schema@3.25.2:
+    resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
     peerDependencies:
       zod: 4.3.6
 
@@ -13410,9 +13410,9 @@ snapshots:
     dependencies:
       react: 19.2.4
 
-  '@hono/node-server@1.19.11(hono@4.12.8)':
+  '@hono/node-server@1.19.11(hono@4.12.9)':
     dependencies:
-      hono: 4.12.8
+      hono: 4.12.9
 
   '@hookform/resolvers@5.1.1(react-hook-form@7.62.0(react@19.2.4))':
     dependencies:
@@ -14065,7 +14065,7 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@langchain/langgraph@1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)':
+  '@langchain/langgraph@1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@langchain/core': 1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))
@@ -14074,12 +14074,12 @@ snapshots:
       uuid: 10.0.0
       zod: 4.3.6
     optionalDependencies:
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - react
       - react-dom
 
-  '@langchain/langgraph@1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)':
+  '@langchain/langgraph@1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@langchain/core': 1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))
@@ -14088,7 +14088,7 @@ snapshots:
       uuid: 10.0.0
       zod: 4.3.6
     optionalDependencies:
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - react
       - react-dom
@@ -14120,9 +14120,9 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.2': {}
 
-  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
+  '@modelcontextprotocol/sdk@1.28.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
     dependencies:
-      '@hono/node-server': 1.19.11(hono@4.12.8)
+      '@hono/node-server': 1.19.11(hono@4.12.9)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -14132,13 +14132,13 @@ snapshots:
       eventsource-parser: 3.0.6
       express: 5.2.1
       express-rate-limit: 8.3.1(express@5.2.1)
-      hono: 4.12.8
-      jose: 6.1.3
+      hono: 4.12.9
+      jose: 6.2.2
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
       zod: 4.3.6
-      zod-to-json-schema: 3.25.1(zod@4.3.6)
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
@@ -19781,7 +19781,7 @@ snapshots:
       react-is: 16.13.1
     optional: true
 
-  hono@4.12.8: {}
+  hono@4.12.9: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
@@ -20600,7 +20600,7 @@ snapshots:
 
   jose@4.15.9: {}
 
-  jose@6.1.3: {}
+  jose@6.2.2: {}
 
   jotai@2.15.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4):
     optionalDependencies:
@@ -20758,10 +20758,10 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6)):
+  langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6)):
     dependencies:
       '@langchain/core': 1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3)
-      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
+      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))
       langsmith: 0.4.12(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(ws@8.18.3)(zod@4.3.6))
       uuid: 10.0.0
@@ -20775,10 +20775,10 @@ snapshots:
       - react-dom
       - zod-to-json-schema
 
-  langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6)):
+  langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6)):
     dependencies:
       '@langchain/core': 1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3)
-      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
+      '@langchain/langgraph': 1.1.2(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))(zod@4.3.6)
       '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))
       langsmith: 0.4.12(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))
       uuid: 10.0.0
@@ -20800,9 +20800,9 @@ snapshots:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.38.6(langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))):
+  langfuse-langchain@3.38.6(langchain@1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))):
     dependencies:
-      langchain: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.1(zod@4.3.6))
+      langchain: 1.2.16(@langchain/core@1.1.34(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(ws@8.18.3))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.0))(openai@6.17.0(ws@8.18.3)(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.3.6))
       langfuse: 3.38.6
       langfuse-core: 3.38.6
 
@@ -24100,7 +24100,7 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  zod-to-json-schema@3.25.1(zod@4.3.6):
+  zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
       zod: 4.3.6
 
