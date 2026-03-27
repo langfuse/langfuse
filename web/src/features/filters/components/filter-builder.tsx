@@ -285,8 +285,8 @@ export function InlineFilterState({
           ? (() => {
               const mode = filter.key ?? "last";
               const label =
-                mode === "root"
-                  ? "root"
+                mode === "first"
+                  ? "1st"
                   : mode === "last"
                     ? "last"
                     : mode === "nthFromStart"
@@ -804,7 +804,7 @@ function FilterBuilderForm({
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="root">1st</SelectItem>
+                            <SelectItem value="first">1st</SelectItem>
                             <SelectItem value="last">last</SelectItem>
                             <SelectItem value="nthFromStart">
                               nth from start

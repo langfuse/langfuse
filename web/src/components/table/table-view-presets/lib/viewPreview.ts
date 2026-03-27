@@ -10,6 +10,7 @@ function formatFilterValue(filter: FilterState[number]) {
   if (filter.type === "null") return "";
 
   if (filter.type === "positionInTrace") {
+    if (filter.key === "first") return "1st";
     return filter.value ? `${filter.key} ${filter.value}` : filter.key;
   }
 
