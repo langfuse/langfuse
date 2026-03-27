@@ -10,6 +10,7 @@ overrides:
   katex: ^0.16.21
   tar-fs: ^2.1.2
   effect: ^3.20.0
+  solid-js: ^1.9.4
   rollup@^4.0.0: ^4.22.4
   '@types/node-fetch': ^2.6.13
   '@types/react-dom': 19.2.3
@@ -547,7 +548,7 @@ importers:
         version: 4.25.8(@babel/runtime@7.29.2)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.2)(@codemirror/state@6.6.0)(@codemirror/view@6.38.8)(@lezer/common@1.5.1))(@codemirror/language@6.12.2)(@codemirror/lint@6.9.5)(@codemirror/search@6.6.0)(@codemirror/state@6.6.0)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.5.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       ai:
         specifier: ^3.4.9
-        version: 3.4.9(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react@19.2.4)(solid-js@1.8.18)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.9.2))(zod@4.3.6)
+        version: 3.4.9(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react@19.2.4)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.9.2))(zod@4.3.6)
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -1060,7 +1061,7 @@ packages:
     resolution: {integrity: sha512-KnfWTt640cS1hM2fFIba8KHSPLpOIWXtEm28pNCHTvqasVKlh2y/zMQANTwE18pF2nuXL9P9F5/dKWaPsaEzQw==}
     engines: {node: '>=18'}
     peerDependencies:
-      solid-js: ^1.7.7
+      solid-js: ^1.9.4
     peerDependenciesMeta:
       solid-js:
         optional: true
@@ -10425,16 +10426,6 @@ packages:
   serialize-query-params@2.0.4:
     resolution: {integrity: sha512-y9WzzDj3BsGgKLCh0ugiinufS//YqOfao/yVJjkXA4VLuyNCfHOLU/cbulGPxs3aeCqhvROw7qPL04JSZnCo0w==}
 
-  seroval-plugins@1.5.1:
-    resolution: {integrity: sha512-4FbuZ/TMl02sqv0RTFexu0SP6V+ywaIe5bAWCCEik0fk17BhALgwvUDVF7e3Uvf9pxmwCEJsRPmlkUE6HdzLAw==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      seroval: ^1.0
-
-  seroval@1.5.1:
-    resolution: {integrity: sha512-OwrZRZAfhHww0WEnKHDY8OM0U/Qs8OTfIDWhUD4BLpNJUfXK4cGmjiagGze086m+mhI+V2nD0gfbHEnJjb9STA==}
-    engines: {node: '>=10'}
-
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
@@ -10527,9 +10518,6 @@ packages:
   socks@2.8.7:
     resolution: {integrity: sha512-HLpt+uLy/pxB+bum/9DzAgiKS8CX1EvbWxI4zlmgGCExImLdiad2iCwXT5Z4c9c3Eq8rP2318mPW2c+QbtjK8A==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
-
-  solid-js@1.8.18:
-    resolution: {integrity: sha512-cpkxDPvO/AuKBugVv6xKFd1C9VC0XZMu4VtF56IlHoux8HgyW44uqNSWbozMnVcpIzHIhS3vVXPAVZYM26jpWw==}
 
   sonner@2.0.7:
     resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==}
@@ -11585,12 +11573,10 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@ai-sdk/solid@0.0.49(solid-js@1.8.18)(zod@4.3.6)':
+  '@ai-sdk/solid@0.0.49(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider-utils': 1.0.20(zod@4.3.6)
       '@ai-sdk/ui-utils': 0.0.46(zod@4.3.6)
-    optionalDependencies:
-      solid-js: 1.8.18
     transitivePeerDependencies:
       - zod
 
@@ -17654,12 +17640,12 @@ snapshots:
       humanize-ms: 1.2.1
     optional: true
 
-  ai@3.4.9(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react@19.2.4)(solid-js@1.8.18)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.9.2))(zod@4.3.6):
+  ai@3.4.9(openai@4.104.0(ws@8.18.3)(zod@4.3.6))(react@19.2.4)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.9.2))(zod@4.3.6):
     dependencies:
       '@ai-sdk/provider': 0.0.24
       '@ai-sdk/provider-utils': 1.0.20(zod@4.3.6)
       '@ai-sdk/react': 0.0.62(react@19.2.4)(zod@4.3.6)
-      '@ai-sdk/solid': 0.0.49(solid-js@1.8.18)(zod@4.3.6)
+      '@ai-sdk/solid': 0.0.49(zod@4.3.6)
       '@ai-sdk/svelte': 0.0.51(svelte@4.2.19)(zod@4.3.6)
       '@ai-sdk/ui-utils': 0.0.46(zod@4.3.6)
       '@ai-sdk/vue': 0.0.54(vue@3.4.27(typescript@5.9.2))(zod@4.3.6)
@@ -22909,14 +22895,6 @@ snapshots:
 
   serialize-query-params@2.0.4: {}
 
-  seroval-plugins@1.5.1(seroval@1.5.1):
-    dependencies:
-      seroval: 1.5.1
-    optional: true
-
-  seroval@1.5.1:
-    optional: true
-
   serve-static@2.2.1:
     dependencies:
       encodeurl: 2.0.0
@@ -23054,13 +23032,6 @@ snapshots:
     dependencies:
       ip-address: 10.1.0
       smart-buffer: 4.2.0
-
-  solid-js@1.8.18:
-    dependencies:
-      csstype: 3.2.3
-      seroval: 1.5.1
-      seroval-plugins: 1.5.1(seroval@1.5.1)
-    optional: true
 
   sonner@2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
