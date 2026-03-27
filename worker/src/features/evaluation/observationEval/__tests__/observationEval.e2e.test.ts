@@ -3,6 +3,7 @@ import { JobExecutionStatus, type Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import { processObservationEval } from "../observationEvalProcessor";
+import { type ObservationEvalSchedulerDeps } from "../types";
 import {
   createTestObservation,
   createTestEvalConfig,
@@ -95,7 +96,7 @@ describe("Observation Eval E2E Pipeline", () => {
       // Track job execution ID
       let capturedJobExecutionId: string | undefined;
       const mockCreateJobExecution = vi
-        .fn()
+        .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockImplementation(async (params) => {
           capturedJobExecutionId = `job-exec-${randomUUID()}`;
           return { id: capturedJobExecutionId };
@@ -162,7 +163,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: {
+        outputDefinition: {
           score: "A number between 0 and 1",
           reasoning: "Explanation",
         },
@@ -320,7 +321,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       const pipeline = createFullyMockedEvalPipeline({ observation });
       pipeline.schedulerDeps.upsertJobExecution = vi
-        .fn()
+        .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValueOnce({ id: "job-1" })
         .mockResolvedValueOnce({ id: "job-2" })
         .mockResolvedValueOnce({ id: "job-3" });
@@ -391,7 +392,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: { score: "0-1", reasoning: "Why" },
+        outputDefinition: { score: "0-1", reasoning: "Why" },
         vars: ["question", "answer"],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -491,7 +492,7 @@ describe("Observation Eval E2E Pipeline", () => {
         model: "gpt-4",
         provider: "openai",
         modelParams: {},
-        outputSchema: { score: "0-1", reasoning: "Why" },
+        outputDefinition: { score: "0-1", reasoning: "Why" },
         vars: ["generated", "expected"],
         createdAt: new Date(),
         updatedAt: new Date(),

@@ -1091,9 +1091,8 @@ describe("Webhook Integration Tests", () => {
       });
 
       // Import the function to test it directly
-      const { getConsecutiveAutomationFailures } = await import(
-        "@langfuse/shared/src/server"
-      );
+      const { getConsecutiveAutomationFailures } =
+        await import("@langfuse/shared/src/server");
 
       // Check that consecutive failures is 0 since there are no executions after the lastFailingExecutionId
       const failures = await getConsecutiveAutomationFailures({

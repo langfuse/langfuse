@@ -47,7 +47,7 @@ function VideoPlayer({ videoSrc }: VideoPlayerProps) {
   return (
     <div
       className={cn(
-        "my-6 w-full max-w-3xl overflow-hidden rounded-lg border border-border",
+        "border-border my-6 w-full max-w-3xl overflow-hidden rounded-lg border",
         {
           hidden: !isLoaded || hasError,
         },

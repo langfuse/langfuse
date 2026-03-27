@@ -43,6 +43,7 @@ describe("extractObservationVariables", () => {
     tool_definitions: { search: '{"description": "Search the web"}' },
     tool_calls: ['{"name": "search", "args": {"query": "test"}}'],
     tool_call_names: ["search"],
+    tool_call_count: 1,
 
     // Usage & Cost
     usage_details: { input: 100, output: 50 },

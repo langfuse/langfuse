@@ -4,7 +4,7 @@ import {
   BooleanConfigFields,
   validateNumericRangeFields,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { type CreateConfig, type UpdateConfig } from "./upsertFormTypes";
 
 const ScoreConfigBaseSchema = z.object({

@@ -1,0 +1,68 @@
+name: Claude Review on Maintainer PRs
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - ready_for_review
+
+jobs:
+  comment:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Check author permission and existing review request
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+            const username = context.payload.pull_request.user.login;
+
+            let permission = "none";
+            try {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner,
+                repo,
+                username,
+              });
+              permission = data.permission;
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            const canWrite = ["write", "admin"].includes(permission);
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const hasReviewRequest = comments.some(
+              (comment) => comment.body?.trim() === "@claude review",
+            );
+
+            core.info(
+              `PR #${issue_number} by ${username}: permission=${permission}, hasReviewRequest=${hasReviewRequest}`,
+            );
+
+            core.setOutput("should_comment", canWrite && !hasReviewRequest ? "true" : "false");
+
+      - name: Add Claude review comment
+        if: steps.check.outputs.should_comment == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: "@claude review",
+            });

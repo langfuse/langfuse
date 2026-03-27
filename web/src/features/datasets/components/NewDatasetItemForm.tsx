@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -270,7 +270,7 @@ export const NewDatasetItemForm = (props: {
         onSubmit={form.handleSubmit(onSubmit)}
         className={cn("flex h-full flex-col gap-6", props.className)}
       >
-        <DialogBody className="grid grid-rows-[auto,1fr]">
+        <DialogBody className="grid grid-rows-[auto_1fr]">
           <div className="flex-none">
             <FormField
               control={form.control}
@@ -332,7 +332,7 @@ export const NewDatasetItemForm = (props: {
                                 />
                                 {dataset.name}
                                 {dataset.id === props.currentDatasetId && (
-                                  <span className="ml-1 text-muted-foreground">
+                                  <span className="text-muted-foreground ml-1">
                                     (current)
                                   </span>
                                 )}
@@ -353,7 +353,7 @@ export const NewDatasetItemForm = (props: {
                           <Badge
                             key={datasetId}
                             variant="secondary"
-                            className="mb-1 mr-1"
+                            className="mr-1 mb-1"
                           >
                             {dataset?.name || datasetId}
                           </Badge>

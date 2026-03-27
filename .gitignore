@@ -9,6 +9,7 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
 
 # database
@@ -72,6 +73,16 @@ node_modules
 .turbo
 
 web/test-results/*
+.playwright-mcp/*
+.codex-artifacts/
+.mcp.json
+.claude/settings.json
+.claude/skills/
+.cursor/mcp.json
+.cursor/environment.json
+.vscode/mcp.json
+.codex/config.toml
+.codex/environments/environment.toml
 
 # local config files
 *.local.*

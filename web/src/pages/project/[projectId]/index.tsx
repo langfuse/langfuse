@@ -196,7 +196,10 @@ export default function Dashboard() {
   const homeSchedulerIdPrefix = `${projectId}:`;
 
   return (
-    <DashboardQuerySchedulerProvider scheduler={scheduler}>
+    <DashboardQuerySchedulerProvider
+      scheduler={scheduler}
+      shouldBucketQueriesByTimeRange={!("from" in timeRange)}
+    >
       <Page
         withPadding
         scrollable
@@ -249,11 +252,11 @@ export default function Dashboard() {
                     id="date"
                     variant={"outline"}
                     className={
-                      "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
+                      "text-primary hover:bg-primary-foreground hover:text-primary-accent group justify-start gap-x-3 text-left font-semibold"
                     }
                   >
                     <BarChart2
-                      className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
+                      className="text-primary group-hover:text-primary-accent hidden h-6 w-6 shrink-0 lg:block"
                       aria-hidden="true"
                     />
                     Request Chart

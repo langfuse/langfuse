@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowUpRight } from "lucide-react";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -155,7 +155,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
         {children}
       </DialogTrigger>
       <DialogContent
-        className="flex flex-col sm:min-w-[32rem] md:min-w-[40rem]"
+        className="flex flex-col sm:min-w-128 md:min-w-160"
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
@@ -246,13 +246,13 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                             variant="outline"
                             size="sm"
                             onClick={prettifyJson}
-                            className="absolute right-3 top-3 text-xs"
+                            className="absolute top-3 right-3 text-xs"
                           >
                             Prettify
                           </Button>
                         </div>
                       </FormControl>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         Parameters must be a valid JSON Schema object
                       </p>
                       <FormMessage />
@@ -262,9 +262,9 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
               </div>
             </DialogBody>
 
-            <DialogFooter className="sticky bottom-0 mt-4 flex flex-col gap-2 border-t bg-background pt-4">
+            <DialogFooter className="bg-background sticky bottom-0 mt-4 flex flex-col gap-2 border-t pt-4">
               <div className="flex w-full flex-col gap-2">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   Note: Changes to tools are reflected to all members of this
                   project.
                 </p>
