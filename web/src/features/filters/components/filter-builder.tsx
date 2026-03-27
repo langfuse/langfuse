@@ -330,18 +330,24 @@ export function InlineFilterBuilder({
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
 
-  // sync filter state, e.g. when we exclude default LF filters on score creation to reflect in UI
-  // Only sync if we don't have any WIP (invalid) filters, to avoid overwriting user's work-in-progress
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a view changes resets filters or default filters are excluded)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
   useEffect(() => {
-    const hasWipFilters = wipFilterState.some(
-      (f) => !singleFilter.safeParse(f).success,
-    );
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from parent state which creates new arrays on change)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
 
-    // Don't sync if we have WIP filters - user is actively editing
-    if (!hasWipFilters) {
-      _setWipFilterState(filterState);
-    }
-  }, [filterState, wipFilterState]);
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      return hasWipFilters ? currentWip : filterState;
+    });
+  }, [filterState]);
 
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
