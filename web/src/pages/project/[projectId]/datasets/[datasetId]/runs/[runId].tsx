@@ -22,6 +22,8 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 
 export default function Dataset() {
   const router = useRouter();
@@ -38,6 +40,50 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    hasSeenExperimentsBetaPopover,
+    setHasSeenExperimentsBetaPopover,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
+
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={setExperimentsBetaEnabled}
+      hasSeenPopover={hasSeenExperimentsBetaPopover}
+      onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: run.data?.name ?? runId,
+          itemType: "DATASET_RUN",
+          breadcrumb: [
+            { name: "Datasets", href: `/project/${projectId}/datasets` },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+            {
+              name: "Runs",
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          actionButtonsRight: betaSwitch,
+        }}
+      >
+        <div className="p-4">
+          Dataset run page (Experiments Beta placeholder)
+        </div>
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -54,6 +100,7 @@ export default function Dataset() {
         ],
         actionButtonsRight: (
           <>
+            {betaSwitch}
             <Link
               href={{
                 pathname: `/project/${projectId}/datasets/${datasetId}/compare`,

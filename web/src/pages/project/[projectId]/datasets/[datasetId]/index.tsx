@@ -36,6 +36,8 @@ import {
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
@@ -74,6 +76,14 @@ export default function Dataset() {
     projectId,
     scope: "promptExperiments:CUD",
   });
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    hasSeenExperimentsBetaPopover,
+    setHasSeenExperimentsBetaPopover,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
 
   const handleExperimentSuccess = async (data?: {
     success: boolean;
@@ -144,6 +154,39 @@ export default function Dataset() {
   const segments = datasetName.split("/").filter((s) => s.trim());
   const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
   const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={setExperimentsBetaEnabled}
+      hasSeenPopover={hasSeenExperimentsBetaPopover}
+      onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: dataset.data?.name ?? "",
+          itemType: "DATASET",
+          breadcrumb: [
+            { name: "Datasets", href: `/project/${projectId}/datasets` },
+            ...breadcrumbItems.map((item) => ({
+              name: item.name,
+              href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
+            })),
+          ],
+          tabsProps: {
+            tabs: getDatasetTabs(projectId, datasetId),
+            activeTab: DATASET_TABS.RUNS,
+          },
+          actionButtonsRight: betaSwitch,
+        }}
+      >
+        <div className="p-4">Dataset page (Experiments Beta placeholder)</div>
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -168,6 +211,7 @@ export default function Dataset() {
         },
         actionButtonsRight: (
           <>
+            {betaSwitch}
             <Dialog
               open={isCreateExperimentDialogOpen}
               onOpenChange={setIsCreateExperimentDialogOpen}
