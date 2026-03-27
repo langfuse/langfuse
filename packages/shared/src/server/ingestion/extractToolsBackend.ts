@@ -218,7 +218,7 @@ function extractToolCallsFromRawOutput(
     }
   }
 
-  // Anthropic tool_use in content array: {content: [{type: "tool_use", ...}]}
+  // Anthropic tool_use in content array: {content: [{type: "tool_use", ...}, {type: "thinking", ...}, {type: "text", ...}]}
   if (Array.isArray(obj.content)) {
     for (const part of obj.content) {
       if (
@@ -234,6 +234,7 @@ function extractToolCallsFromRawOutput(
           type: "tool_use",
         });
       }
+      // Skip thinking and text blocks - they don't contain tool calls
     }
   }
 
@@ -261,7 +262,7 @@ function extractToolCallsFromMessage(
     }
   }
 
-  // Anthropic content array
+  // Anthropic content array: [{type: "tool_use", ...}, {type: "thinking", ...}, {type: "text", ...}]
   if (Array.isArray(msg.content)) {
     for (const part of msg.content) {
       if (
@@ -277,6 +278,7 @@ function extractToolCallsFromMessage(
           type: "tool_use",
         });
       }
+      // Skip thinking and text blocks - they don't contain tool calls
     }
   }
 }
