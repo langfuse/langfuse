@@ -3,6 +3,13 @@
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
+#
+# IMPORTANT: If your DATABASE_URL contains special characters in the username or password
+# (e.g., @, :, /, %), you must URL-encode them to prevent Prisma connection errors.
+# Example: user@domain.com → user%40domain.com, p@ss:w0rd → p%40ss%3Aw0rd
+# Use the helper script: ./scripts/validate-database-url.sh
+# Reference: https://www.prisma.io/docs/orm/reference/connection-urls#special-characters
+
 services:
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
@@ -20,7 +27,7 @@ services:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME: URL-encode special chars in credentials (@, :, /, %) → see top of file
       SALT: ${SALT:-mysalt} # CHANGEME
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
