@@ -11,6 +11,7 @@ interface ResizableDesktopLayoutProps {
   mainContent: ReactNode;
   sidebarContent: ReactNode;
   open: boolean;
+  resizable?: boolean;
   defaultMainSize?: number;
   defaultSidebarSize?: number;
   minMainSize?: number;
@@ -36,6 +37,7 @@ export function ResizableDesktopLayout({
   mainContent,
   sidebarContent,
   open,
+  resizable = true,
   defaultMainSize = 70,
   defaultSidebarSize = 30,
   minMainSize = 30,
@@ -108,7 +110,9 @@ export function ResizableDesktopLayout({
           {sidebarContent}
         </ResizablePanel>
       )}
-      {sidebarPosition === "left" && open && <ResizableHandle withHandle />}
+      {sidebarPosition === "left" && open && resizable && (
+        <ResizableHandle withHandle />
+      )}
       <ResizablePanel
         id={MAIN_PANEL_ID}
         defaultSize={`${defaultMainSize}%`}
@@ -121,7 +125,9 @@ export function ResizableDesktopLayout({
           {mainContent}
         </div>
       </ResizablePanel>
-      {sidebarPosition === "right" && open && <ResizableHandle withHandle />}
+      {sidebarPosition === "right" && open && resizable && (
+        <ResizableHandle withHandle />
+      )}
       {sidebarPosition === "right" && (
         <ResizablePanel
           id={SIDEBAR_PANEL_ID}
