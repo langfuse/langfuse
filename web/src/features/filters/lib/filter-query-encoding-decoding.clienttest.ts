@@ -396,10 +396,17 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       ]);
     });
 
-    it("should drop legacy root position-in-trace filters", () => {
+    it("should interpret legacy root position-in-trace filter as first", () => {
       const decoded = decodeFilters("positionInTrace;positionInTrace;root;=;");
 
-      expect(decoded).toEqual([]);
+      expect(decoded).toEqual([
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ]);
     });
 
     it("should decode stringOptions with empty string value", () => {
