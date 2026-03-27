@@ -56,8 +56,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Lint: `pnpm --filter worker run lint`
 - Lint fix: `pnpm --filter worker run lint:fix`
 - Typecheck: `pnpm --filter worker run typecheck`
-- Tests: `pnpm --filter worker run test -- <file-or-pattern>`
-- Coverage: `pnpm --filter worker run coverage`
+- Tests: `pnpm --filter worker run test <file-or-pattern>`
+- Coverage: `pnpm --filter worker run coverage [file-or-pattern]`
 - Build: `pnpm --filter worker run build`
 
 ## Queue Playbook (Add/Change Queue Processor)
