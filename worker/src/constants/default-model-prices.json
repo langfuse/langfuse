@@ -3185,6 +3185,36 @@
     ]
   },
   {
+    "id": "ad87cdb7-9051-4a79-bfa9-bffd3dade006",
+    "modelName": "claude-haiku-4-5",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-haiku-4-5)$",
+    "createdAt": "2026-03-24T00:00:00.000Z",
+    "updatedAt": "2026-03-24T00:00:00.000Z",
+    "tokenizerId": "claude",
+    "tokenizerConfig": null,
+    "pricingTiers": [
+      {
+        "id": "ad87cdb7-9051-4a79-bfa9-bffd3dade006_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.000001,
+          "input_tokens": 0.000001,
+          "output": 0.000005,
+          "output_tokens": 0.000005,
+          "cache_creation_input_tokens": 0.00000125,
+          "input_cache_creation": 0.00000125,
+          "input_cache_creation_5m": 0.00000125,
+          "input_cache_creation_1h": 0.000002,
+          "cache_read_input_tokens": 1e-7,
+          "input_cache_read": 1e-7
+        }
+      }
+    ]
+  },
+  {
     "id": "cmhymgpym000d04ih34rndvhr",
     "modelName": "gpt-5.1",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.1)$",
