@@ -28,7 +28,9 @@ jobs:
         run: docker compose -f "docker-compose.yml" up -d --build
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2.2.4
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.33.0
 
       - name: Setup Node 18
         uses: actions/setup-node@v4
