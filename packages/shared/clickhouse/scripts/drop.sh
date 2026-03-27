@@ -17,11 +17,16 @@ if [ -z "${CLICKHOUSE_DB}" ]; then
     export CLICKHOUSE_DB="default"
 fi
 
+# URL encode ClickHouse credentials to handle special characters
+# Use Node.js which is available in Langfuse environments
+ENCODED_CLICKHOUSE_USER=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_USER))")
+ENCODED_CLICKHOUSE_PASSWORD=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_PASSWORD))")
+
 # Construct the database URL
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
 else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi
 # Execute the drop command
 migrate -source file://clickhouse/migrations -database "$DATABASE_URL" drop
