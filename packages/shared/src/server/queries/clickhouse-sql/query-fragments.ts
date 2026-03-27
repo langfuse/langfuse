@@ -152,7 +152,6 @@ export const buildScoresAggregationCTE = (
 interface EventsScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
-  hasScoreAggregationFilters?: boolean;
   includeTupleEncoding?: boolean;
 }
 

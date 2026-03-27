@@ -663,7 +663,6 @@ const getExperimentItemsFromEventsGeneric = (params: {
         // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
         eventsScoresAggregation({
           projectId,
-          hasScoreAggregationFilters: true,
         }),
       ),
     )
