@@ -50,6 +50,13 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
+# Prepare clustered migrations by replacing {CLICKHOUSE_CLUSTER_NAME} placeholder with actual cluster name
+CLUSTERED_MIGRATIONS_DIR=$(mktemp -d)
+trap 'rm -rf "$CLUSTERED_MIGRATIONS_DIR"' EXIT
+cp clickhouse/migrations/clustered/*.sql "$CLUSTERED_MIGRATIONS_DIR/"
+sed -i.bak "s|{CLICKHOUSE_CLUSTER_NAME}|'${CLICKHOUSE_CLUSTER_NAME}'|g" "$CLUSTERED_MIGRATIONS_DIR"/*.sql
+rm -f "$CLUSTERED_MIGRATIONS_DIR"/*.bak
+
 # Construct the database URL
 if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
@@ -61,12 +68,12 @@ if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   # Execute the up command
   migrate -source file://clickhouse/migrations/unclustered -database "$DATABASE_URL" up
 else
-if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
+  if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   else
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
 
-  # Execute the up command
-  migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" up
+  # Execute the up command using preprocessed migrations
+  migrate -source "file://${CLUSTERED_MIGRATIONS_DIR}" -database "$DATABASE_URL" up
 fi
