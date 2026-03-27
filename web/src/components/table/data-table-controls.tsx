@@ -407,7 +407,7 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="bg-background sticky top-10 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
