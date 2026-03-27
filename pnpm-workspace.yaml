@@ -4,20 +4,19 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
-onlyBuiltDependencies:
-  - "@prisma/client"
-  - "@prisma/engines"
-  - "@sentry/cli"
-  - esbuild
-  - sharp
-  - unrs-resolver
-ignoredBuiltDependencies:
-  - "@datadog/native-appsec"
-  - "@datadog/native-iast-taint-tracking"
-  - "@datadog/native-metrics"
-  - core-js
-  - dd-trace
-  - msgpackr-extract
-  - msw
-  - prisma
-  - protobufjs
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@sentry/cli": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@datadog/native-appsec": false
+  "@datadog/native-iast-taint-tracking": false
+  "@datadog/native-metrics": false
+  core-js: false
+  dd-trace: false
+  msgpackr-extract: false
+  msw: false
+  prisma: false
+  protobufjs: false
