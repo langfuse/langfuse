@@ -617,6 +617,23 @@ export function useSidebarFilterState(
         const trueLabel = facet.trueLabel ?? "True";
         const falseLabel = facet.falseLabel ?? "False";
         const invert = facet.invertValue ?? false;
+        const hideFalseOption = facet.hideFalseOption ?? false;
+
+        if (hideFalseOption) {
+          if (values.length === 0) return other;
+          if (values.includes(trueLabel)) {
+            return [
+              ...other,
+              {
+                column,
+                type: "boolean" as const,
+                operator: "=" as const,
+                value: invert ? false : true,
+              },
+            ];
+          }
+          return other;
+        }
 
         if (values.length === 0 || values.length === 2) return other;
         if (values.includes(trueLabel)) {
@@ -1299,17 +1316,26 @@ export function useSidebarFilterState(
           const trueLabel = facet.trueLabel ?? "True";
           const falseLabel = facet.falseLabel ?? "False";
           const invert = facet.invertValue ?? false;
-          const availableOptions = [trueLabel, falseLabel];
+          const hideFalseOption = facet.hideFalseOption ?? false;
+          const availableOptions = hideFalseOption
+            ? [trueLabel]
+            : [trueLabel, falseLabel];
           const filterEntry = filterByColumn.get(facet.column);
 
-          let selectedOptions = availableOptions;
+          let selectedOptions = hideFalseOption ? [] : availableOptions;
           if (filterEntry) {
             const boolValue = filterEntry.value as boolean;
             if (invert) {
               // Inverted: filter value=true means falseLabel selected, value=false means trueLabel selected
-              selectedOptions = boolValue === true ? [falseLabel] : [trueLabel];
+              selectedOptions =
+                boolValue === true && !hideFalseOption
+                  ? [falseLabel]
+                  : [trueLabel];
             } else {
-              selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
+              selectedOptions =
+                boolValue === true || hideFalseOption
+                  ? [trueLabel]
+                  : [falseLabel];
             }
           }
           const isActive = selectedOptions.length === 1;
@@ -1322,7 +1348,11 @@ export function useSidebarFilterState(
             const { counts: processedCounts } = processOptions(rawOptions);
             if (processedCounts.size > 0) {
               counts = new Map<string, number>();
-              if (invert) {
+              if (hideFalseOption) {
+                const activeLabel = invert ? falseLabel : trueLabel;
+                const activeCount = processedCounts.get("true") ?? 0;
+                if (activeCount > 0) counts.set(activeLabel, activeCount);
+              } else if (invert) {
                 // Inverted: trueLabel count comes from "false", falseLabel count comes from "true"
                 const falseCount = processedCounts.get("false") ?? 0;
                 const trueCount = processedCounts.get("true") ?? 0;
@@ -1352,6 +1382,15 @@ export function useSidebarFilterState(
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
             onChange: (values: string[]) => {
+              if (hideFalseOption) {
+                if (values.includes(trueLabel)) {
+                  updateFilter(facet.column, [trueLabel]);
+                } else {
+                  updateFilter(facet.column, []);
+                }
+                return;
+              }
+
               if (values.length === 0 || values.length === 2) {
                 updateFilter(facet.column, []);
                 return;

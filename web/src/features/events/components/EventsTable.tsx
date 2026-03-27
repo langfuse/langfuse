@@ -25,6 +25,9 @@ import {
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
+  FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+  FIRST_OBSERVATION_IN_TRACE_UNSUPPORTED_COLUMNS,
+  isFirstObservationInTraceEnabled,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -90,6 +93,34 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  FIRST_OBSERVATION_IN_TRACE_DISABLED_FILTER_REASON,
+  FIRST_OBSERVATION_IN_TRACE_REQUIRES_TIME_RANGE_REASON,
+  hasFirstObservationInTraceTimeFilter,
+  sanitizeFirstObservationInTraceFilters,
+  sanitizeFirstObservationInTraceOrderBy,
+  sanitizeFirstObservationInTraceSearchType,
+} from "@/src/features/events/lib/firstObservationInTrace";
+
+function areFilterStatesEqual(left: FilterState, right: FilterState) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function areSearchTypesEqual(left: string[], right: string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function areOrderByStatesEqual(
+  left: { column: string; order: "ASC" | "DESC" } | null,
+  right: { column: string; order: "ASC" | "DESC" } | null,
+) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return left.column === right.column && left.order === right.order;
+}
 
 export type EventsTableRow = {
   // Identity fields
@@ -364,10 +395,150 @@ export default function ObservationsEventsTable({
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     },
   );
+  const {
+    explicitFilterState: rawExplicitFilterState,
+    effectiveFilterState: rawEffectiveFilterState,
+    setFilterState: setQueryFilterState,
+  } = queryFilter;
+
+  const hasFirstObservationTimeRange = useMemo(
+    () =>
+      Boolean(dateRange?.from) ||
+      hasFirstObservationInTraceTimeFilter(rawExplicitFilterState),
+    [dateRange?.from, rawExplicitFilterState],
+  );
+
+  const sanitizeFilterState = useCallback(
+    (filters: FilterState) =>
+      sanitizeFirstObservationInTraceFilters(filters, {
+        hasTimeRange:
+          hasFirstObservationTimeRange ||
+          hasFirstObservationInTraceTimeFilter(filters),
+      }),
+    [hasFirstObservationTimeRange],
+  );
+
+  const sanitizedExplicitFilterState = useMemo(
+    () => sanitizeFilterState(rawExplicitFilterState),
+    [rawExplicitFilterState, sanitizeFilterState],
+  );
+
+  const sanitizedEffectiveFilterState = useMemo(
+    () => sanitizeFilterState(rawEffectiveFilterState),
+    [rawEffectiveFilterState, sanitizeFilterState],
+  );
+
+  const isFirstObservationInTraceActive = isFirstObservationInTraceEnabled(
+    sanitizedEffectiveFilterState,
+  );
+
+  const effectiveSearchType = useMemo(
+    () =>
+      sanitizeFirstObservationInTraceSearchType(
+        searchType,
+        isFirstObservationInTraceActive,
+      ),
+    [isFirstObservationInTraceActive, searchType],
+  );
+
+  const effectiveOrderByState = useMemo(
+    () =>
+      sanitizeFirstObservationInTraceOrderBy(
+        orderByState,
+        isFirstObservationInTraceActive,
+      ),
+    [isFirstObservationInTraceActive, orderByState],
+  );
+
+  const firstObservationFilters = useMemo(
+    () =>
+      queryFilter.filters.map((filter) => {
+        if (
+          filter.column === FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN &&
+          !hasFirstObservationTimeRange
+        ) {
+          return {
+            ...filter,
+            isDisabled: true,
+            disabledReason:
+              FIRST_OBSERVATION_IN_TRACE_REQUIRES_TIME_RANGE_REASON,
+          };
+        }
+
+        if (
+          isFirstObservationInTraceActive &&
+          filter.column !== FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN &&
+          FIRST_OBSERVATION_IN_TRACE_UNSUPPORTED_COLUMNS.has(filter.column)
+        ) {
+          return {
+            ...filter,
+            isDisabled: true,
+            disabledReason: FIRST_OBSERVATION_IN_TRACE_DISABLED_FILTER_REASON,
+          };
+        }
+
+        return filter;
+      }),
+    [
+      hasFirstObservationTimeRange,
+      isFirstObservationInTraceActive,
+      queryFilter.filters,
+    ],
+  );
+
+  const controlsQueryFilter = useMemo(
+    () => ({
+      ...queryFilter,
+      explicitFilterState: sanitizedExplicitFilterState,
+      effectiveFilterState: sanitizedEffectiveFilterState,
+      filters: firstObservationFilters,
+      isFiltered: sanitizedExplicitFilterState.length > 0,
+      setFilterState: (filters: FilterState) =>
+        setQueryFilterState(sanitizeFilterState(filters)),
+    }),
+    [
+      firstObservationFilters,
+      queryFilter,
+      setQueryFilterState,
+      sanitizeFilterState,
+      sanitizedEffectiveFilterState,
+      sanitizedExplicitFilterState,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      areFilterStatesEqual(rawExplicitFilterState, sanitizedExplicitFilterState)
+    ) {
+      return;
+    }
+
+    setQueryFilterState(sanitizedExplicitFilterState);
+  }, [
+    rawExplicitFilterState,
+    sanitizedExplicitFilterState,
+    setQueryFilterState,
+  ]);
+
+  useEffect(() => {
+    if (areSearchTypesEqual(searchType, effectiveSearchType)) {
+      return;
+    }
+
+    setSearchType(effectiveSearchType);
+  }, [effectiveSearchType, searchType, setSearchType]);
+
+  useEffect(() => {
+    if (areOrderByStatesEqual(orderByState, effectiveOrderByState)) {
+      return;
+    }
+
+    setOrderByState(effectiveOrderByState);
+  }, [effectiveOrderByState, orderByState, setOrderByState]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
-  const queryFilterRef = useRef(queryFilter);
-  queryFilterRef.current = queryFilter;
+  const queryFilterRef = useRef(controlsQueryFilter);
+  queryFilterRef.current = controlsQueryFilter;
 
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
@@ -410,13 +581,16 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const combinedFilterState = queryFilter.effectiveFilterState
+  const combinedFilterState = sanitizedEffectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
   // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const filterState = useMemo(
+    () => sanitizeFilterState(externalFilterState || combinedFilterState),
+    [combinedFilterState, externalFilterState, sanitizeFilterState],
+  );
 
   // Use the custom hook for observations data fetching
   const {
@@ -432,9 +606,9 @@ export default function ObservationsEventsTable({
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
-    orderByState,
+    orderByState: effectiveOrderByState,
     searchQuery,
-    searchType,
+    searchType: effectiveSearchType,
     selectedRows,
     selectAll,
     setSelectedRows,
@@ -1157,7 +1331,7 @@ export default function ObservationsEventsTable({
       columns,
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: sanitizedExplicitFilterState,
     disabled: hideControls,
   });
 
@@ -1270,14 +1444,14 @@ export default function ObservationsEventsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.explicitFilterState}
+            filterState={sanitizedExplicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              searchType,
+              searchType: effectiveSearchType,
               setSearchType,
-              tableAllowsFullTextSearch: true,
+              tableAllowsFullTextSearch: !isFirstObservationInTraceActive,
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.Observations,
@@ -1317,9 +1491,9 @@ export default function ObservationsEventsTable({
                 {...{
                   projectId,
                   filterState,
-                  orderByState,
+                  orderByState: effectiveOrderByState,
                   searchQuery,
-                  searchType,
+                  searchType: effectiveSearchType,
                 }}
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
@@ -1350,14 +1524,17 @@ export default function ObservationsEventsTable({
               pageSize: paginationState.limit,
               pageIndex: paginationState.page - 1,
             }}
-            filterWithAI
+            filterWithAI={!isFirstObservationInTraceActive}
           />
         )}
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              queryFilter={controlsQueryFilter}
+              filterWithAI={!isFirstObservationInTraceActive}
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">

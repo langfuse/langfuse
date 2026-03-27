@@ -701,6 +701,21 @@ describe("Saved view validation", () => {
       }),
     );
   });
+
+  it("should preserve 1st observation in trace filters on the general events table", () => {
+    const filters: FilterState = [
+      {
+        column: "firstObservationInTrace",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ];
+
+    expect(
+      validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
+    ).toEqual(filters);
+  });
 });
 
 describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
