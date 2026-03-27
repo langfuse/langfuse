@@ -326,11 +326,8 @@ export const plainRouter = createTRPCRouter({
       });
 
       // (6) Dual-write: create issue in Pylon (best-effort, blocking)
-      // TEMPORARY: only route clickhouse.com and langfuse.com to Pylon for testing
       let pylonIssueFailed = false;
-      const emailDomain = email.split("@")[1]?.toLowerCase();
-      const pylonTestDomains = ["clickhouse.com", "langfuse.com"];
-      if (env.PYLON_API_KEY && pylonTestDomains.includes(emailDomain ?? "")) {
+      if (env.PYLON_API_KEY) {
         try {
           const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
           const pylonBodyHtml = buildPylonIssueBodyHtml({
