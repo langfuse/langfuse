@@ -24,6 +24,8 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -34,6 +36,12 @@ function DatasetCompareInternal() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [isAnnotationPanelOpen, setIsAnnotationPanelOpen] = useState(false);
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -85,6 +93,42 @@ function DatasetCompareInternal() {
     return <span>Loading...</span>;
   }
 
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={setExperimentsBetaEnabled}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+          breadcrumb: [
+            {
+              name: "Datasets",
+              href: `/project/${projectId}/datasets`,
+            },
+            {
+              name: dataset.data?.name ?? datasetId,
+              href: `/project/${projectId}/datasets/${datasetId}`,
+            },
+          ],
+          tabsProps: {
+            tabs: getDatasetRunCompareTabs(projectId, datasetId),
+            activeTab: DATASET_RUN_COMPARE_TABS.COMPARE,
+          },
+          actionButtonsRight: betaSwitch,
+        }}
+      >
+        <div className="p-4">
+          Dataset compare page (Experiments Beta placeholder)
+        </div>
+      </Page>
+    );
+  }
+
   return (
     <Page
       headerProps={{
@@ -108,6 +152,7 @@ function DatasetCompareInternal() {
         },
         actionButtonsRight: (
           <>
+            {betaSwitch}
             <Dialog
               key="create-experiment-dialog"
               open={isCreateExperimentDialogOpen}
