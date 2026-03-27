@@ -6,7 +6,9 @@ export {
 } from "./createGenerationsQuery";
 export {
   type Filter,
+  type CompiledFilterCollection,
   FilterList,
+  FilterTree,
   StringFilter,
   DateTimeFilter,
   StringOptionsFilter,
@@ -23,7 +25,11 @@ export {
   orderByToClickhouseSql,
   orderByToEntries,
 } from "./clickhouse-sql/orderby-factory";
-export { createFilterFromFilterState } from "./clickhouse-sql/factory";
+export {
+  createFilterFromFilterState,
+  createFilterTreeFromFilterExpression,
+  createFilterTreeFromFilterInput,
+} from "./clickhouse-sql/factory";
 export { clickhouseSearchCondition } from "./clickhouse-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,

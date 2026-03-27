@@ -1,10 +1,13 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type FilterState, type TimeFilter } from "@langfuse/shared";
+import {
+  normalizeFilterExpressionInput,
+  type FilterInput,
+} from "@langfuse/shared";
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
-  oldFilterState: FilterState;
+  oldFilterState: FilterInput;
   hasParentObservation?: boolean;
 };
 
@@ -13,22 +16,40 @@ export function useEventsFilterOptions({
   oldFilterState,
   hasParentObservation,
 }: UseEventsFilterOptionsParams) {
-  // Extract start time filters for filter options query
-  const startTimeFilters = useMemo(() => {
-    return oldFilterState.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    ) as TimeFilter[];
-  }, [oldFilterState]);
+  const filter = useMemo(() => {
+    const normalizedFilter = normalizeFilterExpressionInput(oldFilterState);
+
+    if (hasParentObservation === undefined) {
+      return normalizedFilter;
+    }
+
+    const hasParentObservationFilter = {
+      column: "hasParentObservation",
+      type: "boolean" as const,
+      operator: "=" as const,
+      value: hasParentObservation,
+    };
+
+    if (!normalizedFilter) {
+      return {
+        type: "group" as const,
+        operator: "AND" as const,
+        conditions: [hasParentObservationFilter],
+      };
+    }
+
+    return {
+      type: "group" as const,
+      operator: "AND" as const,
+      conditions: [normalizedFilter, hasParentObservationFilter],
+    };
+  }, [oldFilterState, hasParentObservation]);
 
   // Fetch filter options
   const filterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
-      startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      hasParentObservation,
+      filter,
     },
     {
       trpc: {
