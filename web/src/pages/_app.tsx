@@ -1,4 +1,4 @@
-import { type AppType } from "next/app";
+import type { AppContext, AppProps } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
@@ -10,6 +10,8 @@ import { api } from "@/src/utils/api";
 
 import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
+
+import { NonceProvider } from "@/src/features/security/NonceContext";
 
 import "@/src/styles/globals.css";
 import { AppLayout } from "@/src/components/layouts/app-layout";
@@ -105,10 +107,10 @@ if (
   });
 }
 
-const MyApp: AppType<{ session: Session | null }> = ({
+const MyApp = ({
   Component,
-  pageProps: { session, ...pageProps },
-}) => {
+  pageProps: { session, nonce, ...pageProps },
+}: AppProps<{ session?: Session | null; nonce?: string }>) => {
   const router = useRouter();
 
   useEffect(() => {
@@ -127,45 +129,60 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <QueryParamProvider
-      adapter={NextAdapterPages}
-      options={{ enableBatching: true }}
-    >
-      <TooltipProvider>
-        <CommandMenuProvider>
-          <PostHogProvider client={posthog}>
-            <SessionProvider
-              session={session}
-              refetchOnWindowFocus={true}
-              refetchInterval={5 * 60} // 5 minutes
-              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
-            >
-              <DetailPageListsProvider>
-                <MarkdownContextProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    enableSystem
-                    disableTransitionOnChange
-                  >
-                    <ScoreCacheProvider>
-                      <CorrectionCacheProvider>
-                        <SupportDrawerProvider defaultOpen={false}>
-                          <AppLayout>
-                            <Component {...pageProps} />
-                            <UserTracking />
-                          </AppLayout>
-                        </SupportDrawerProvider>
-                      </CorrectionCacheProvider>
-                    </ScoreCacheProvider>
-                  </ThemeProvider>
-                </MarkdownContextProvider>
-              </DetailPageListsProvider>
-            </SessionProvider>
-          </PostHogProvider>
-        </CommandMenuProvider>
-      </TooltipProvider>
-    </QueryParamProvider>
+    <NonceProvider nonce={nonce ?? ""}>
+      <QueryParamProvider
+        adapter={NextAdapterPages}
+        options={{ enableBatching: true }}
+      >
+        <TooltipProvider>
+          <CommandMenuProvider>
+            <PostHogProvider client={posthog}>
+              <SessionProvider
+                session={session}
+                refetchOnWindowFocus={true}
+                refetchInterval={5 * 60} // 5 minutes
+                basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+              >
+                <DetailPageListsProvider>
+                  <MarkdownContextProvider>
+                    <ThemeProvider
+                      attribute="class"
+                      enableSystem
+                      disableTransitionOnChange
+                    >
+                      <ScoreCacheProvider>
+                        <CorrectionCacheProvider>
+                          <SupportDrawerProvider defaultOpen={false}>
+                            <AppLayout>
+                              <Component {...pageProps} />
+                              <UserTracking />
+                            </AppLayout>
+                          </SupportDrawerProvider>
+                        </CorrectionCacheProvider>
+                      </ScoreCacheProvider>
+                    </ThemeProvider>
+                  </MarkdownContextProvider>
+                </DetailPageListsProvider>
+              </SessionProvider>
+            </PostHogProvider>
+          </CommandMenuProvider>
+        </TooltipProvider>
+      </QueryParamProvider>
+    </NonceProvider>
   );
+};
+
+MyApp.getInitialProps = async (appContext: AppContext) => {
+  const nonceHeader = appContext.ctx.req?.headers["x-nonce"];
+  const nonce = Array.isArray(nonceHeader)
+    ? nonceHeader[0]
+    : (nonceHeader ?? "");
+  return {
+    pageProps: {
+      session: null,
+      nonce,
+    },
+  };
 };
 
 export default api.withTRPC(MyApp);
