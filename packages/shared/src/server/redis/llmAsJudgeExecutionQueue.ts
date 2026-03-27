@@ -60,7 +60,6 @@ export class LLMAsJudgeExecutionQueue {
     }
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

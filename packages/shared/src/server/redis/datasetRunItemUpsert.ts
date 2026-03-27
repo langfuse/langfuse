@@ -19,7 +19,6 @@ export class DatasetRunItemUpsertQueue {
       return DatasetRunItemUpsertQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

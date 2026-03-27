@@ -21,7 +21,6 @@ export class CoreDataS3ExportQueue {
     }
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

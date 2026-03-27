@@ -35,8 +35,9 @@ export class RateLimitService {
         createNewRedisInstance({
           keyPrefix: sharedEnv.REDIS_KEY_PREFIX ?? undefined, // For multi-tenant Redis isolation
           enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
-          enableOfflineQueue: false,
           lazyConnect: true, // Connect when first command is sent
+          commandTimeout: sharedEnv.REDIS_COMMAND_TIMEOUT,
+          socketTimeout: sharedEnv.REDIS_REQUEST_SOCKET_TIMEOUT_MS,
           ...redisQueueRetryOptions,
         });
       RateLimitService.instance = new RateLimitService();
