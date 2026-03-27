@@ -25,8 +25,14 @@ export const getTemplateResultType = (outputDefinition: unknown) => {
     return "Unknown";
   }
 
-  return resolvePersistedEvalOutputDefinition(parsedOutputDefinition.data)
-    .dataType === ScoreDataTypeEnum.CATEGORICAL
-    ? "Categorical"
-    : "Numeric";
+  switch (
+    resolvePersistedEvalOutputDefinition(parsedOutputDefinition.data).dataType
+  ) {
+    case ScoreDataTypeEnum.CATEGORICAL:
+      return "Categorical";
+    case ScoreDataTypeEnum.BOOLEAN:
+      return "Boolean";
+    default:
+      return "Numeric";
+  }
 };

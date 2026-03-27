@@ -11,7 +11,7 @@ RUN npm install turbo@2.8.20 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@9.5.0 --activate
+RUN corepack prepare pnpm@10.33.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove package managers from the runtime image; only build stages need them.
@@ -51,7 +51,7 @@ RUN turbo run build --filter=worker...
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 RUN rm -rf /prod && \
-    pnpm --filter worker deploy --prod /prod/worker && \
+    pnpm --filter worker deploy --legacy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \
