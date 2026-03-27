@@ -286,6 +286,7 @@ type UseSidebarFilterStateOptions = {
    */
   sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+  onExplicitFilterStateChange?: (filters: FilterState) => void;
 };
 
 /**
@@ -351,6 +352,7 @@ export function useSidebarFilterState(
     disableUrlPersistence,
     sessionFilterContextId,
     implicitDefaultConfig,
+    onExplicitFilterStateChange,
   } = hookOptions;
   const peekContext = usePeekTableState();
 
@@ -481,16 +483,21 @@ export function useSidebarFilterState(
           ...peekContext.tableState,
           filters: explicitFilters,
         });
+        onExplicitFilterStateChange?.(explicitFilters);
         return;
       }
 
       // Don't modify URL if persistence is disabled
-      if (disableUrlPersistence) return;
+      if (disableUrlPersistence) {
+        onExplicitFilterStateChange?.(explicitFilters);
+        return;
+      }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
       setStoredFiltersQuery(encoded);
+      onExplicitFilterStateChange?.(explicitFilters);
     },
     [
       setUrlFiltersQuery,
@@ -499,6 +506,7 @@ export function useSidebarFilterState(
       peekContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
+      onExplicitFilterStateChange,
     ],
   );
 

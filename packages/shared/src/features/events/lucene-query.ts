@@ -5,7 +5,11 @@ import luceneParser, {
 } from "./hyperdx-lucene";
 import { InvalidRequestError } from "../../errors";
 import type { TracingSearchType } from "../../interfaces/search";
-import type { FilterCondition, FilterExpression } from "../../types";
+import type {
+  FilterCondition,
+  FilterExpression,
+  FilterState,
+} from "../../types";
 
 export type EventsLuceneFieldKind = "text" | "number" | "datetime";
 
@@ -500,8 +504,47 @@ export function getEventsLuceneFieldKindById(
   return EVENTS_LUCENE_FIELDS.find((field) => field.id === fieldId)!.kind;
 }
 
+export function extractEventsLuceneFlatFilterState(
+  filterExpression: FilterExpression | undefined,
+): FilterState | undefined {
+  const flattenedConditions = extractFlatAndFilterConditions(filterExpression);
+
+  if (!flattenedConditions || flattenedConditions.length === 0) {
+    return undefined;
+  }
+
+  return flattenedConditions;
+}
+
+export function getEventsLuceneSerializableFilterState(
+  filterState: FilterState,
+): FilterState {
+  return filterState.filter((filter) =>
+    isEventsLuceneSerializableFilterCondition(filter),
+  );
+}
+
+export function serializeEventsLuceneFilterState(
+  filterState: FilterState,
+): string | undefined {
+  if (filterState.length === 0) {
+    return undefined;
+  }
+
+  const serializedConditions = filterState.map((filter) =>
+    serializeEventsLuceneFilterCondition(filter),
+  );
+
+  if (serializedConditions.some((condition) => !condition)) {
+    return undefined;
+  }
+
+  return serializedConditions.join(" AND ");
+}
+
 export const EVENTS_LUCENE_QUERY_EXAMPLES = [
   'name:"chat completion" AND level:error',
+  'name:"weather agent" AND (level:ERROR OR level:WARN)',
   "traceId:trace-123 OR sessionId:session-123",
   "metadata.environment:prod AND input:tool*",
   "promptVersion:3 AND startTime:[2025-01-01 TO 2025-01-31]",
@@ -584,8 +627,195 @@ function collapseFilterGroup(
   };
 }
 
+function extractFlatAndFilterConditions(
+  expression: FilterExpression | undefined,
+): FilterState | undefined {
+  if (!expression) {
+    return undefined;
+  }
+
+  if (expression.type !== "group") {
+    return [expression];
+  }
+
+  if (expression.operator === "OR") {
+    return undefined;
+  }
+
+  const flattenedConditions: FilterState = [];
+
+  for (const condition of expression.conditions) {
+    const flattenedCondition = extractFlatAndFilterConditions(condition);
+
+    if (!flattenedCondition) {
+      return undefined;
+    }
+
+    flattenedConditions.push(...flattenedCondition);
+  }
+
+  return flattenedConditions;
+}
+
 function getUnsupportedLuceneFilterError(message: string): InvalidRequestError {
   return getInvalidLuceneQueryError(message);
+}
+
+function getLuceneFieldPathForFilter(
+  filter: FilterCondition,
+): string | undefined {
+  if (filter.type === "stringObject") {
+    if (filter.column !== "metadata") {
+      return undefined;
+    }
+
+    return `metadata.${filter.key}`;
+  }
+
+  if (
+    filter.type === "string" ||
+    filter.type === "number" ||
+    filter.type === "datetime" ||
+    filter.type === "null"
+  ) {
+    const normalizedColumn = filter.column.trim().toLowerCase();
+    const field = EVENTS_LUCENE_FIELDS.find((candidate) =>
+      candidate.aliases.includes(normalizedColumn),
+    );
+
+    return field?.id;
+  }
+
+  return undefined;
+}
+
+function escapeLuceneQuotedValue(value: string): string {
+  return value.replace(/([\\"])/g, "\\$1");
+}
+
+function escapeLuceneBareValue(value: string): string {
+  return value.replace(/([+\-!(){}[\]^"~*?:\\/]|&&|\|\||\s)/g, "\\$1");
+}
+
+function formatLuceneContainsValue(value: string): string {
+  return `"${escapeLuceneQuotedValue(value)}"`;
+}
+
+function formatLuceneWildcardValue(value: string): string | undefined {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return undefined;
+  }
+
+  return escapeLuceneBareValue(trimmedValue);
+}
+
+function serializeEventsLuceneFilterCondition(
+  filter: FilterCondition,
+): string | undefined {
+  const fieldPath = getLuceneFieldPathForFilter(filter);
+
+  if (!fieldPath) {
+    return undefined;
+  }
+
+  if (filter.type === "stringObject") {
+    if (filter.operator === "=") {
+      return undefined;
+    }
+
+    if (filter.operator === "contains") {
+      return `${fieldPath}:${formatLuceneContainsValue(filter.value)}`;
+    }
+
+    if (filter.operator === "does not contain") {
+      return `NOT ${fieldPath}:${formatLuceneContainsValue(filter.value)}`;
+    }
+
+    const wildcardValue = formatLuceneWildcardValue(filter.value);
+
+    if (!wildcardValue) {
+      return undefined;
+    }
+
+    if (filter.operator === "starts with") {
+      return `${fieldPath}:${wildcardValue}*`;
+    }
+
+    if (filter.operator === "ends with") {
+      return `${fieldPath}:*${wildcardValue}`;
+    }
+
+    return undefined;
+  }
+
+  if (filter.type === "string") {
+    if (filter.operator === "=") {
+      return undefined;
+    }
+
+    if (filter.operator === "contains") {
+      return `${fieldPath}:${formatLuceneContainsValue(filter.value)}`;
+    }
+
+    if (filter.operator === "does not contain") {
+      return `NOT ${fieldPath}:${formatLuceneContainsValue(filter.value)}`;
+    }
+
+    const wildcardValue = formatLuceneWildcardValue(filter.value);
+
+    if (!wildcardValue) {
+      return undefined;
+    }
+
+    if (filter.operator === "starts with") {
+      return `${fieldPath}:${wildcardValue}*`;
+    }
+
+    if (filter.operator === "ends with") {
+      return `${fieldPath}:*${wildcardValue}`;
+    }
+
+    return undefined;
+  }
+
+  if (filter.type === "null") {
+    return filter.operator === "is not null"
+      ? `${fieldPath}:*`
+      : `NOT ${fieldPath}:*`;
+  }
+
+  if (filter.type === "number") {
+    if (filter.operator === "=") {
+      return `${fieldPath}:${filter.value}`;
+    }
+
+    const inclusiveStart = filter.operator === ">=" ? "[" : "{";
+    const inclusiveEnd = filter.operator === "<=" ? "]" : "}";
+
+    if (filter.operator === ">" || filter.operator === ">=") {
+      return `${fieldPath}:${inclusiveStart}${filter.value} TO *]`;
+    }
+
+    return `${fieldPath}:[* TO ${filter.value}${inclusiveEnd}`;
+  }
+
+  if (filter.type === "datetime") {
+    const formattedValue = filter.value.toISOString();
+
+    if (filter.operator === ">=" || filter.operator === ">") {
+      return `${fieldPath}:${filter.operator === ">=" ? "[" : "{"}${formattedValue} TO *]`;
+    }
+
+    return `${fieldPath}:[* TO ${formattedValue}${filter.operator === "<=" ? "]" : "}"}`;
+  }
+
+  return undefined;
+}
+
+function isEventsLuceneSerializableFilterCondition(filter: FilterCondition) {
+  return Boolean(serializeEventsLuceneFilterCondition(filter));
 }
 
 function createTextFilterCondition(

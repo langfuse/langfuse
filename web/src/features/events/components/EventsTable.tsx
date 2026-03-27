@@ -3,6 +3,12 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { EventsLuceneSearchInput } from "./EventsLuceneSearchInput";
 import { normalizeEventsLuceneAutocompleteValues } from "./events-lucene-search-utils";
 import {
+  getEventsSidebarDisabledReason,
+  getSyncableEventsLuceneFilterState,
+  planEventsSearchBarFilterSync,
+  planEventsSidebarSearchSync,
+} from "./events-lucene-search-sync";
+import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
@@ -97,6 +103,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import isEqual from "lodash/isEqual";
 
 export type EventsTableRow = {
   // Identity fields
@@ -197,6 +204,14 @@ export default function ObservationsEventsTable({
   const { searchQuery, setSearchQuery } = useFullTextSearch();
   const resolvedSearchQuery = useMemo(
     () => resolveEventsLuceneQueryForApi(searchQuery),
+    [searchQuery],
+  );
+  const syncableSearchBarFilterState = useMemo(
+    () => getSyncableEventsLuceneFilterState(searchQuery),
+    [searchQuery],
+  );
+  const sidebarDisabledReason = useMemo(
+    () => getEventsSidebarDisabledReason(searchQuery),
     [searchQuery],
   );
   const supportedLuceneFields = useMemo(
@@ -401,6 +416,65 @@ export default function ObservationsEventsTable({
     [filterOptions],
   );
 
+  const latestSearchQueryRef = useRef(searchQuery);
+  const previousSyncableSearchBarFilterStateRef = useRef<
+    FilterState | undefined
+  >(syncableSearchBarFilterState);
+
+  useEffect(() => {
+    latestSearchQueryRef.current = searchQuery;
+  }, [searchQuery]);
+
+  const handleEventsSearchQueryUpdate = useCallback(
+    (nextSearchQuery: string) => {
+      const normalizedSearchQuery = nextSearchQuery.trim();
+      const currentExplicitFilters =
+        queryFilterRef.current?.explicitFilterState ?? [];
+      const { nextExplicitFilters, nextSyncedFilters } =
+        planEventsSearchBarFilterSync({
+          currentExplicitFilters,
+          previousSyncedFilters:
+            previousSyncableSearchBarFilterStateRef.current,
+          nextSearchQuery: normalizedSearchQuery,
+          hideControls,
+        });
+
+      latestSearchQueryRef.current = normalizedSearchQuery;
+
+      if (!isEqual(nextExplicitFilters, currentExplicitFilters)) {
+        queryFilterRef.current?.setFilterState(nextExplicitFilters);
+      }
+
+      previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+      setSearchQuery(normalizedSearchQuery || null);
+    },
+    [hideControls, setSearchQuery],
+  );
+
+  const handleExplicitSidebarFilterStateChange = useCallback(
+    (nextExplicitFilters: FilterState) => {
+      const currentSearchQuery = latestSearchQueryRef.current?.trim() ?? "";
+      const { shouldUpdateSearchQuery, nextSearchQuery, nextSyncedFilters } =
+        planEventsSidebarSearchSync({
+          currentSearchQuery: latestSearchQueryRef.current,
+          nextExplicitFilters,
+          hideControls,
+        });
+
+      if (!shouldUpdateSearchQuery) {
+        return;
+      }
+
+      previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+
+      if (currentSearchQuery !== nextSearchQuery) {
+        latestSearchQueryRef.current = nextSearchQuery;
+        setSearchQuery(nextSearchQuery || null);
+      }
+    },
+    [hideControls, setSearchQuery],
+  );
+
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
     filterOptions,
@@ -410,8 +484,11 @@ export default function ObservationsEventsTable({
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      onExplicitFilterStateChange: handleExplicitSidebarFilterStateChange,
     },
   );
+  const explicitSidebarFilterState = queryFilter.explicitFilterState;
+  const setExplicitSidebarFilterState = queryFilter.setFilterState;
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -421,6 +498,27 @@ export default function ObservationsEventsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  useEffect(() => {
+    const { nextExplicitFilters, nextSyncedFilters } =
+      planEventsSearchBarFilterSync({
+        currentExplicitFilters: explicitSidebarFilterState,
+        previousSyncedFilters: previousSyncableSearchBarFilterStateRef.current,
+        nextSearchQuery: searchQuery,
+        hideControls,
+      });
+
+    if (!isEqual(nextExplicitFilters, explicitSidebarFilterState)) {
+      setExplicitSidebarFilterState(nextExplicitFilters);
+    }
+
+    previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+  }, [
+    explicitSidebarFilterState,
+    hideControls,
+    searchQuery,
+    setExplicitSidebarFilterState,
+  ]);
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -468,10 +566,10 @@ export default function ObservationsEventsTable({
     externalFilterState || combinedFilterState;
   const filterInput = useMemo(
     () =>
-      resolvedSearchQuery.isValid
+      resolvedSearchQuery.isValid && !syncableSearchBarFilterState
         ? combineFilterInputs(baseFilterInput, resolvedSearchQuery.filter)
         : combineFilterInputs(baseFilterInput),
-    [baseFilterInput, resolvedSearchQuery],
+    [baseFilterInput, resolvedSearchQuery, syncableSearchBarFilterState],
   );
   const searchValidationError = resolvedSearchQuery.isValid
     ? null
@@ -1223,7 +1321,7 @@ export default function ObservationsEventsTable({
       columns,
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: explicitSidebarFilterState,
     disabled: hideControls,
   });
 
@@ -1336,7 +1434,7 @@ export default function ObservationsEventsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.explicitFilterState}
+            filterState={explicitSidebarFilterState}
             searchConfig={{
               metadataSearchFields: [
                 "ID",
@@ -1348,7 +1446,7 @@ export default function ObservationsEventsTable({
                 "Level",
                 "Model",
               ],
-              updateQuery: setSearchQuery,
+              updateQuery: handleEventsSearchQueryUpdate,
               currentQuery: searchQuery ?? undefined,
               errorMessage: searchValidationError ?? undefined,
               placeholder: "Search events or write Lucene filters...",
@@ -1362,7 +1460,8 @@ export default function ObservationsEventsTable({
                   <p className="text-primary font-normal">
                     Plain text uses the existing full-text search. For Lucene
                     filters, every clause must use an explicit field such as
-                    `name:` or `traceId:`.
+                    `name:` or `traceId:`. You can chain and nest clauses with
+                    `AND`, `OR`, `NOT`, and parentheses.
                   </p>
                   <p className="text-muted-foreground leading-relaxed">
                     Autocomplete suggests fields, boolean operators, and known
@@ -1481,7 +1580,11 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              queryFilter={queryFilter}
+              filterWithAI
+              disabledReason={sidebarDisabledReason}
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">

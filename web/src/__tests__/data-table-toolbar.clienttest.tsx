@@ -95,6 +95,39 @@ describe("DataTableToolbar Lucene search", () => {
     );
   });
 
+  it("accepts nested and chained boolean lucene queries", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+        }}
+      />,
+    );
+
+    const input = screen.getByRole("textbox");
+
+    fireEvent.change(input, {
+      target: {
+        value:
+          "name:weather AND (level:ERROR OR (environment:prod AND NOT sessionId:abc))",
+      },
+    });
+    fireEvent.keyDown(input, {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(updateQuery).toHaveBeenCalledWith(
+      "name:weather AND (level:ERROR OR (environment:prod AND NOT sessionId:abc))",
+    );
+  });
+
   it("shows a validation error for unfielded lucene operators", () => {
     const updateQuery = jest.fn();
 

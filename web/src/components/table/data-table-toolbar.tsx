@@ -258,7 +258,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {searchConfig && (
-          <div className="flex max-w-120 shrink-0 flex-col gap-1 md:min-w-96">
+          <div className="flex min-w-0 basis-full flex-col gap-1 md:min-w-[32rem] md:flex-[999_1_40rem] md:basis-[40rem]">
             <div className="flex items-stretch">
               {searchConfig.renderInput ? (
                 searchConfig.renderInput({

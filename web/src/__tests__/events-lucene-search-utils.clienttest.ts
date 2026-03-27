@@ -12,6 +12,11 @@ describe("events lucene search autocomplete", () => {
     expect(result.items.map((item) => item.label)).toEqual(
       expect.arrayContaining(["environment:", "id:", "name:", "traceId:"]),
     );
+    expect(
+      result.items.find((item) => item.label === "environment:"),
+    ).toMatchObject({
+      section: "Fields",
+    });
   });
 
   it("suggests observed field values for known option fields", () => {
@@ -21,9 +26,10 @@ describe("events lucene search autocomplete", () => {
 
     expect(result.from).toBe(6);
     expect(result.items.map((item) => item.label)).toContain("DEBUG");
-    expect(result.items.find((item) => item.label === "DEBUG")?.apply).toBe(
-      "DEBUG",
-    );
+    expect(result.items.find((item) => item.label === "DEBUG")).toMatchObject({
+      apply: "DEBUG",
+      section: "Observed Values",
+    });
   });
 
   it("keeps quoted completions inside the existing quote context", () => {
@@ -43,6 +49,25 @@ describe("events lucene search autocomplete", () => {
     expect(result.items.map((item) => item.label)).toContain(
       "[2025-01-01 TO 2025-01-31]",
     );
+    expect(
+      result.items.find((item) => item.label === "[2025-01-01 TO 2025-01-31]"),
+    ).toMatchObject({
+      section: "Patterns",
+    });
+  });
+
+  it("groups boolean operators separately after a completed clause", () => {
+    const result = resolveEventsLuceneCompletionItems("level:ERROR ", 12, {});
+
+    expect(result.items.find((item) => item.label === "AND")).toMatchObject({
+      section: "Operators",
+    });
+    expect(
+      result.items.find((item) => item.label === "AND (...)"),
+    ).toMatchObject({
+      apply: "AND (",
+      section: "Patterns",
+    });
   });
 
   it("normalizes sidebar filter options into plain autocomplete values", () => {
@@ -58,19 +83,21 @@ describe("events lucene search autocomplete", () => {
 describe("events lucene search highlighting", () => {
   it("classifies lucene tokens for fields, operators, and values", () => {
     const tokens = tokenizeEventsLuceneQuery(
-      "level:ERROR AND startTime:[2025-01-01 TO *]",
+      "name:weather AND (level:ERROR OR level:WARN)",
     );
 
     expect(tokens).toEqual(
       expect.arrayContaining([
+        { text: "name", token: "propertyName" },
+        { text: "weather", token: "variableName" },
+        { text: "(", token: "bracket" },
         { text: "level", token: "propertyName" },
         { text: ":", token: "punctuation" },
         { text: "ERROR", token: "variableName" },
         { text: "AND", token: "keyword" },
-        { text: "startTime", token: "propertyName" },
-        { text: "[", token: "bracket" },
-        { text: "2025-01-01", token: "number" },
-        { text: "TO", token: "keyword" },
+        { text: "OR", token: "keyword" },
+        { text: "WARN", token: "variableName" },
+        { text: ")", token: "bracket" },
       ]),
     );
   });

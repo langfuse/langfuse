@@ -20,12 +20,19 @@ export type EventsLuceneCompletionItem = {
   type: "property" | "keyword" | "text" | "snippet";
   detail?: string;
   boost?: number;
+  section?: EventsLuceneCompletionSection;
 };
 
 export type EventsLuceneAutocompleteResult = {
   from: number;
   items: EventsLuceneCompletionItem[];
 };
+
+export type EventsLuceneCompletionSection =
+  | "Fields"
+  | "Operators"
+  | "Observed Values"
+  | "Patterns";
 
 type LuceneAutocompleteContext =
   | {
@@ -79,6 +86,7 @@ const BOOLEAN_OPERATOR_ITEMS: EventsLuceneCompletionItem[] = [
     type: "keyword",
     detail: "Require both clauses",
     boost: 40,
+    section: "Operators",
   },
   {
     label: "OR",
@@ -86,6 +94,7 @@ const BOOLEAN_OPERATOR_ITEMS: EventsLuceneCompletionItem[] = [
     type: "keyword",
     detail: "Match either clause",
     boost: 39,
+    section: "Operators",
   },
   {
     label: "NOT",
@@ -93,6 +102,34 @@ const BOOLEAN_OPERATOR_ITEMS: EventsLuceneCompletionItem[] = [
     type: "keyword",
     detail: "Negate the next clause",
     boost: 38,
+    section: "Operators",
+  },
+];
+
+const BOOLEAN_GROUP_SNIPPETS: EventsLuceneCompletionItem[] = [
+  {
+    label: "AND (...)",
+    apply: "AND (",
+    type: "snippet",
+    detail: "Start a nested AND group",
+    boost: 37,
+    section: "Patterns",
+  },
+  {
+    label: "OR (...)",
+    apply: "OR (",
+    type: "snippet",
+    detail: "Start a nested OR group",
+    boost: 36,
+    section: "Patterns",
+  },
+  {
+    label: "NOT (...)",
+    apply: "NOT (",
+    type: "snippet",
+    detail: "Negate a grouped clause",
+    boost: 35,
+    section: "Patterns",
   },
 ];
 
@@ -103,6 +140,7 @@ const TEXT_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Field exists",
     boost: 24,
+    section: "Patterns",
   },
   {
     label: '"quoted phrase"',
@@ -110,6 +148,7 @@ const TEXT_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Exact phrase",
     boost: 16,
+    section: "Patterns",
   },
   {
     label: "value*",
@@ -117,6 +156,7 @@ const TEXT_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Prefix match",
     boost: 14,
+    section: "Patterns",
   },
 ];
 
@@ -127,6 +167,7 @@ const NUMERIC_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Exact numeric value",
     boost: 16,
+    section: "Patterns",
   },
   {
     label: "[1 TO 10]",
@@ -134,6 +175,7 @@ const NUMERIC_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Inclusive numeric range",
     boost: 15,
+    section: "Patterns",
   },
 ];
 
@@ -144,6 +186,7 @@ const DATETIME_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Inclusive date range",
     boost: 16,
+    section: "Patterns",
   },
   {
     label: "[2025-01-01T00:00:00Z TO *]",
@@ -151,6 +194,7 @@ const DATETIME_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     type: "snippet",
     detail: "Open-ended datetime range",
     boost: 15,
+    section: "Patterns",
   },
 ];
 
@@ -302,6 +346,7 @@ export function resolveEventsLuceneCompletionItems(
         type: "text" as const,
         detail: "Observed value",
         boost: 30,
+        section: "Observed Values" as const,
       })) ?? [];
 
     if (fieldKind === "text") {
@@ -343,6 +388,7 @@ export function resolveEventsLuceneCompletionItems(
       type: "property",
       detail: FIELD_DESCRIPTIONS[fieldId],
       boost: 50,
+      section: "Fields",
     }),
   );
 
@@ -352,13 +398,14 @@ export function resolveEventsLuceneCompletionItems(
     type: "property",
     detail: "Metadata field lookup",
     boost: 48,
+    section: "Fields",
   });
 
   if (context.kind === "operator") {
     return {
       from: context.from,
       items: filterAndSortItems(
-        [...BOOLEAN_OPERATOR_ITEMS, ...fieldItems],
+        [...BOOLEAN_OPERATOR_ITEMS, ...BOOLEAN_GROUP_SNIPPETS, ...fieldItems],
         context.query,
       ),
     };
@@ -367,7 +414,7 @@ export function resolveEventsLuceneCompletionItems(
   return {
     from: context.from,
     items: filterAndSortItems(
-      [...fieldItems, ...BOOLEAN_OPERATOR_ITEMS],
+      [...fieldItems, ...BOOLEAN_OPERATOR_ITEMS, ...BOOLEAN_GROUP_SNIPPETS],
       context.query,
       (item) => item.label.replace(/:$/, ""),
     ),

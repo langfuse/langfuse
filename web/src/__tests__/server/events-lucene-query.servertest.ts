@@ -1,5 +1,8 @@
 import {
+  extractEventsLuceneFlatFilterState,
+  getEventsLuceneSerializableFilterState,
   resolveEventsLuceneQueryForApi,
+  serializeEventsLuceneFilterState,
   validateEventsLuceneQuery,
   type EventsLuceneExpression,
 } from "@langfuse/shared";
@@ -190,6 +193,195 @@ describe("resolveEventsLuceneQueryForApi", () => {
         ],
       },
     });
+  });
+
+  it("preserves nested and chained boolean groups in the filter abstraction", () => {
+    expect(
+      resolveEventsLuceneQueryForApi(
+        "name:weather AND (level:ERROR OR (environment:prod AND NOT sessionId:abc))",
+      ),
+    ).toEqual({
+      isValid: true,
+      expression: {
+        type: "group",
+        operator: "AND",
+        conditions: [
+          {
+            type: "text",
+            field: { type: "field", id: "name" },
+            value: "weather",
+            quoted: false,
+            wildcard: false,
+            exists: false,
+          },
+          {
+            type: "group",
+            operator: "OR",
+            conditions: [
+              {
+                type: "text",
+                field: { type: "field", id: "level" },
+                value: "ERROR",
+                quoted: false,
+                wildcard: false,
+                exists: false,
+              },
+              {
+                type: "group",
+                operator: "AND",
+                conditions: [
+                  {
+                    type: "text",
+                    field: { type: "field", id: "environment" },
+                    value: "prod",
+                    quoted: false,
+                    wildcard: false,
+                    exists: false,
+                  },
+                  {
+                    type: "not",
+                    condition: {
+                      type: "text",
+                      field: { type: "field", id: "sessionId" },
+                      value: "abc",
+                      quoted: false,
+                      wildcard: false,
+                      exists: false,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      filter: {
+        type: "group",
+        operator: "AND",
+        conditions: [
+          {
+            type: "string",
+            column: "name",
+            operator: "contains",
+            value: "weather",
+          },
+          {
+            type: "group",
+            operator: "OR",
+            conditions: [
+              {
+                type: "string",
+                column: "level",
+                operator: "contains",
+                value: "ERROR",
+              },
+              {
+                type: "group",
+                operator: "AND",
+                conditions: [
+                  {
+                    type: "string",
+                    column: "environment",
+                    operator: "contains",
+                    value: "prod",
+                  },
+                  {
+                    type: "string",
+                    column: "sessionId",
+                    operator: "does not contain",
+                    value: "abc",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("extracts conjunctive lucene filters for sidebar sync and serializes them back", () => {
+    const resolved = resolveEventsLuceneQueryForApi(
+      'name:"chat completion" AND (NOT level:DEBUG) AND startTime:[2025-01-01 TO *]',
+    );
+
+    expect(resolved.isValid).toBe(true);
+    if (!resolved.isValid) {
+      throw new Error(resolved.error);
+    }
+
+    const flatFilterState = extractEventsLuceneFlatFilterState(resolved.filter);
+
+    expect(flatFilterState).toEqual([
+      {
+        type: "string",
+        column: "name",
+        operator: "contains",
+        value: "chat completion",
+      },
+      {
+        type: "string",
+        column: "level",
+        operator: "does not contain",
+        value: "DEBUG",
+      },
+      {
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+        value: new Date("2025-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    expect(serializeEventsLuceneFilterState(flatFilterState ?? [])).toBe(
+      'name:"chat completion" AND NOT level:"DEBUG" AND startTime:[2025-01-01T00:00:00.000Z TO *]',
+    );
+  });
+
+  it("keeps only lucene-serializable sidebar filters when mirroring state", () => {
+    expect(
+      getEventsLuceneSerializableFilterState([
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["prod"],
+        },
+        {
+          type: "string",
+          column: "statusMessage",
+          operator: "contains",
+          value: "timeout",
+        },
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "tenant",
+          operator: "does not contain",
+          value: "internal",
+        },
+        {
+          type: "number",
+          column: "latency",
+          operator: ">=",
+          value: 2,
+        },
+      ]),
+    ).toEqual([
+      {
+        type: "string",
+        column: "statusMessage",
+        operator: "contains",
+        value: "timeout",
+      },
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "tenant",
+        operator: "does not contain",
+        value: "internal",
+      },
+    ]);
   });
 
   it("rejects lucene operators without explicit fields", () => {

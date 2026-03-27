@@ -103,17 +103,31 @@ export interface QueryFilter {
 interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
+  disabledReason?: string;
 }
 
 export function DataTableControls({
   queryFilter,
   filterWithAI,
+  disabledReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
+  const isDisabled = Boolean(disabledReason);
+  const filters = isDisabled
+    ? queryFilter.filters.map((filter) => ({
+        ...filter,
+        isDisabled: true,
+        disabledReason,
+      }))
+    : queryFilter.filters;
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
+      if (isDisabled) {
+        return;
+      }
+
       // Apply filters
       queryFilter.setFilterState(filters);
 
@@ -130,7 +144,7 @@ export function DataTableControls({
       // Close popover
       setAiPopoverOpen(false);
     },
-    [queryFilter],
+    [isDisabled, queryFilter],
   );
 
   return (
@@ -151,6 +165,7 @@ export function DataTableControls({
                   size="sm"
                   onClick={() => queryFilter.clearAll()}
                   className="h-7 px-2 text-xs"
+                  disabled={isDisabled}
                 >
                   Clear all
                 </Button>
@@ -158,7 +173,7 @@ export function DataTableControls({
               <TooltipContent>Clear all filters</TooltipContent>
             </Tooltip>
           )}
-          {filterWithAI && isLangfuseCloud && (
+          {filterWithAI && isLangfuseCloud && !isDisabled && (
             <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -179,6 +194,14 @@ export function DataTableControls({
           )}
         </div>
       </div>
+      {disabledReason && (
+        <div className="bg-muted/40 text-muted-foreground border-b px-3 py-2 text-xs leading-relaxed">
+          <div className="flex items-start gap-2">
+            <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{disabledReason}</span>
+          </div>
+        </div>
+      )}
       <div className="pb-10">
         <Accordion
           type="multiple"
@@ -186,7 +209,7 @@ export function DataTableControls({
           value={queryFilter.expanded}
           onValueChange={queryFilter.onExpandedChange}
         >
-          {queryFilter.filters.map((filter) => {
+          {filters.map((filter) => {
             if (filter.type === "categorical") {
               return (
                 <CategoricalFacet
