@@ -1,15 +1,19 @@
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { deepParseJson } from "@langfuse/shared";
 import type { Prisma } from "@langfuse/shared";
 
 /**
  * Converts a dataset item field value to a formatted JSON string.
+ * Deep-parses nested JSON strings (e.g. LLM message content fields) so they
+ * display as structured JSON rather than escaped strings, consistent with how
+ * JSONView renders the same data in the overview table.
  * Returns empty string for null/undefined values.
  */
 export const stringifyDatasetItemData = (data: unknown): string => {
   if (!data) return "";
 
   try {
-    return JSON.stringify(data, null, 2);
+    return JSON.stringify(deepParseJson(data), null, 2);
   } catch {
     showErrorToast(
       "Failed to stringify data",
