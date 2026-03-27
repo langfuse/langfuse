@@ -378,8 +378,15 @@ export class QueryBuilder {
         type = "datetime";
       } else if (filter.column === "metadata") {
         clickhouseSelect = "metadata";
-        queryPrefix = clickhouseTableName;
         type = "stringObject";
+        // For views that join to traces (observations, scores), apply metadata filter on
+        // trace metadata so trace-level keys (e.g. sessionName, isTestUser) filter correctly.
+        if (view.tableRelations && "traces" in view.tableRelations) {
+          clickhouseTableName = "traces";
+          queryPrefix = "traces";
+        } else {
+          queryPrefix = clickhouseTableName;
+        }
       } else if (filter.column.endsWith("Name")) {
         // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
         // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
