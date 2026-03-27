@@ -15,6 +15,7 @@ import {
   queryClickhouse,
   QueueJobs,
   redis,
+  resolveMetadata,
   TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -194,13 +195,21 @@ async function processLLMCall(
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
     traceId,
     targetProjectId: config.projectId, // ingest to user project
-    metadata: {
-      dataset_id: datasetItem.datasetId,
-      dataset_item_id: datasetItem.id,
-      structured_output_schema: config.structuredOutputSchema,
-      experiment_name: config.experimentName,
-      experiment_run_name: config.experimentRunName,
-    },
+    metadata: (() => {
+      const base = {
+        dataset_id: datasetItem.datasetId,
+        dataset_item_id: datasetItem.id,
+        structured_output_schema: config.structuredOutputSchema,
+        experiment_name: config.experimentName,
+        experiment_run_name: config.experimentRunName,
+      };
+      const itemMetadata = Object.fromEntries(
+        Object.entries(resolveMetadata(datasetItem.metadata)).filter(
+          ([key]) => !(key in base),
+        ),
+      );
+      return { ...base, ...itemMetadata };
+    })(),
     prompt: config.prompt,
     onGenerationComplete: (details) => {
       generationDetails = details;
