@@ -4,13 +4,17 @@ type PositionInTraceFilter = Extract<
   FilterState[number],
   { type: "positionInTrace" }
 >;
+type PositionInTraceFilterInput = {
+  key?: PositionInTraceFilter["key"];
+  value?: PositionInTraceFilter["value"];
+};
 
 // `positionInTrace` only exists on the Sessions detail filter surface.
 export const normalizeLegacySessionPositionInTraceKey = (key?: string) =>
   key === "root" ? "first" : key;
 
 export const getSessionPositionInTraceFilterMode = (
-  filter: Pick<PositionInTraceFilter, "key">,
+  filter: PositionInTraceFilterInput,
 ) => normalizeLegacySessionPositionInTraceKey(filter.key) ?? "last";
 
 export const normalizeLegacySessionPositionInTraceFilter = (
@@ -33,7 +37,7 @@ export const normalizeLegacySessionPositionInTraceFilters = (
   );
 
 export const formatSessionPositionInTraceFilterValue = (
-  filter: Pick<PositionInTraceFilter, "key" | "value">,
+  filter: PositionInTraceFilterInput,
 ) => {
   const mode = getSessionPositionInTraceFilterMode(filter);
 
