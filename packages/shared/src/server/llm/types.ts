@@ -252,6 +252,7 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  MiniMax = "minimax",
 }
 
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
@@ -487,6 +488,15 @@ export const googleAIStudioModels = [
 
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
+
+// WARNING: The first entry in the array is chosen as the default model to add LLM API keys
+export const minimaxModels = [
+  "MiniMax-M2.7",
+  "MiniMax-M2.7-highspeed",
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+] as const;
+
 export const supportedModels = {
   [LLMAdapter.Anthropic]: anthropicModels,
   [LLMAdapter.OpenAI]: openAIModels,
@@ -494,6 +504,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.MiniMax]: minimaxModels,
 } as const;
 
 export type LLMFunctionCall = {

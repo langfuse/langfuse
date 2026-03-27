@@ -276,7 +276,8 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.OpenAI ||
     adapter === LLMAdapter.Anthropic ||
     adapter === LLMAdapter.VertexAI ||
-    adapter === LLMAdapter.GoogleAIStudio;
+    adapter === LLMAdapter.GoogleAIStudio ||
+    adapter === LLMAdapter.MiniMax;
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -992,6 +993,9 @@ export function CreateLLMApiKeyForm({
                           (excluding /v1/messages)
                         </span>
                       )}
+                      {currentAdapter === LLMAdapter.MiniMax && (
+                        <span>MiniMax default: https://api.minimax.io/v1</span>
+                      )}
                     </FormDescription>
 
                     <FormControl>
@@ -1027,9 +1031,11 @@ export function CreateLLMApiKeyForm({
               )}
 
               {/* Extra Headers */}
-              {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
-                currentAdapter,
-              ) && renderExtraHeadersField()}
+              {[
+                LLMAdapter.OpenAI,
+                LLMAdapter.Anthropic,
+                LLMAdapter.MiniMax,
+              ].includes(currentAdapter) && renderExtraHeadersField()}
 
               {/* With default models */}
               <FormField

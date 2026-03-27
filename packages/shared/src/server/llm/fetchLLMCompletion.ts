@@ -439,6 +439,27 @@ export async function fetchLLMCompletion(
           }
         : {}),
     });
+  } else if (modelParams.adapter === LLMAdapter.MiniMax) {
+    chatModel = new ChatOpenAI({
+      apiKey,
+      model: modelParams.model,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      streamUsage: false,
+      callbacks: finalCallbacks,
+      maxRetries,
+      configuration: {
+        baseURL: baseURL ?? "https://api.minimax.io/v1",
+        timeout: timeoutMs,
+        defaultHeaders: extraHeaders,
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
+      },
+      modelKwargs: modelParams.providerOptions,
+      timeout: timeoutMs,
+    });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
