@@ -52,6 +52,10 @@ import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  formatSessionPositionInTraceFilterValue,
+  getSessionPositionInTraceFilterMode,
+} from "@/src/components/session/session-position-in-trace";
+import {
   InputCommand,
   InputCommandEmpty,
   InputCommandGroup,
@@ -282,18 +286,7 @@ export function InlineFilterState({
           : ""}{" "}
         {filter.operator}{" "}
         {filter.type === "positionInTrace"
-          ? (() => {
-              const mode = filter.key ?? "last";
-              const label =
-                mode === "root"
-                  ? "root"
-                  : mode === "last"
-                    ? "last"
-                    : mode === "nthFromStart"
-                      ? `nth from start ${filter.value ?? ""}`.trim()
-                      : `nth from end ${filter.value ?? ""}`.trim();
-              return label;
-            })()
+          ? formatSessionPositionInTraceFilterValue(filter)
           : filter.type === "datetime"
             ? new Date(filter.value).toLocaleString()
             : filter.type === "stringOptions" || filter.type === "arrayOptions"
@@ -798,13 +791,13 @@ function FilterBuilderForm({
                               i,
                             );
                           }}
-                          value={filter.key ?? "last"}
+                          value={getSessionPositionInTraceFilterMode(filter)}
                         >
                           <SelectTrigger className="min-w-[140px]">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="root">1st</SelectItem>
+                            <SelectItem value="first">1st</SelectItem>
                             <SelectItem value="last">last</SelectItem>
                             <SelectItem value="nthFromStart">
                               nth from start
