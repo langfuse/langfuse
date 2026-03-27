@@ -1,3 +1,5 @@
+import { decodeUnicodeEscapesOnly } from "../../../utils/unicode";
+
 export const stringify = (data: any, key?: string): string => {
   // For comment fields, use pretty-print formatting for better readability
   // Other fields use compact format to reduce file size
@@ -5,8 +7,11 @@ export const stringify = (data: any, key?: string): string => {
 
   return JSON.stringify(
     data,
-    (k, value) =>
-      typeof value === "bigint" ? Number.parseInt(value.toString()) : value,
+    (k, value) => {
+      if (typeof value === "bigint") return Number.parseInt(value.toString());
+      if (typeof value === "string") return decodeUnicodeEscapesOnly(value);
+      return value;
+    },
     indent,
   );
 };
@@ -17,6 +22,6 @@ export const stringify = (data: any, key?: string): string => {
  * are passed through JSON.stringify and then CSV-escaped.
  */
 export const stringifyForCsv = (data: any, key?: string): string => {
-  if (typeof data === "string") return data;
+  if (typeof data === "string") return decodeUnicodeEscapesOnly(data);
   return stringify(data, key);
 };
