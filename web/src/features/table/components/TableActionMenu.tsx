@@ -55,15 +55,23 @@ export function TableActionMenu({
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-50 flex justify-center">
-        <div className="bg-background/95 border-border pointer-events-auto flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg backdrop-blur-sm">
+      <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
+        <div className="bg-background/95 pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-xl">
           <div className="text-sm font-medium">
             {selectedCount !== null ? (
-              <span> `${selectedCount} selected`</span>
+              <span> {`${selectedCount} selected`}</span>
             ) : (
               <LoaderCircle className="h-4 w-4 animate-spin" />
             )}
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onClearSelection}
+          >
+            <X className="h-4 w-4" />
+          </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">
             {actions.map((action) => (
@@ -79,14 +87,6 @@ export function TableActionMenu({
               </Button>
             ))}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={onClearSelection}
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
