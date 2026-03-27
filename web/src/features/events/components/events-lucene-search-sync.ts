@@ -103,16 +103,9 @@ export function planEventsSearchBarFilterSync(params: {
     getSyncableEventsLuceneFilterState(nextSearchQuery);
 
   if (nextSyncableFilters) {
-    const serializableExplicitFilters = getEventsLuceneSerializableFilterState(
-      currentExplicitFilters,
-    );
-
     return {
       nextExplicitFilters: [
-        ...removeMatchingFilters(
-          currentExplicitFilters,
-          serializableExplicitFilters,
-        ),
+        ...removeMatchingFilters(currentExplicitFilters, previousSyncedFilters),
         ...nextSyncableFilters,
       ],
       nextSyncedFilters: nextSyncableFilters,

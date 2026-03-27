@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import luceneParser, {
   type LuceneBinaryNode,
   type LuceneNode,
@@ -11,7 +12,7 @@ import type {
   FilterState,
 } from "../../types";
 
-export type EventsLuceneFieldKind = "text" | "number" | "datetime";
+export type EventsLuceneFieldKind = "text" | "number" | "datetime" | "boolean";
 
 export type EventsLuceneFieldId =
   | "id"
@@ -30,6 +31,19 @@ export type EventsLuceneFieldId =
   | "promptVersion"
   | "startTime"
   | "endTime"
+  | "latency"
+  | "timeToFirstToken"
+  | "inputTokens"
+  | "outputTokens"
+  | "totalTokens"
+  | "inputCost"
+  | "outputCost"
+  | "version"
+  | "traceTags"
+  | "hasParentObservation"
+  | "experimentDatasetId"
+  | "experimentId"
+  | "experimentName"
   | "input"
   | "output";
 
@@ -98,6 +112,7 @@ type EventsLuceneFieldDefinition = {
   aliases: string[];
   kind: EventsLuceneFieldKind;
   bareSearchable: boolean;
+  syncMode: "exactOption" | "arrayOption" | "textSearch";
   description: string;
 };
 
@@ -107,6 +122,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["id", "spanid", "span_id", "observationid", "observation_id"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Observation/span identifier",
   },
   {
@@ -114,6 +130,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["traceid", "trace_id"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Trace identifier",
   },
   {
@@ -121,6 +138,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["name"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Observation name",
   },
   {
@@ -128,6 +146,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["tracename", "trace_name"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Trace name",
   },
   {
@@ -135,6 +154,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["type"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Observation type",
   },
   {
@@ -142,6 +162,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["environment", "env"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Environment",
   },
   {
@@ -149,6 +170,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["userid", "user_id"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Trace user id",
   },
   {
@@ -156,6 +178,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["sessionid", "session_id"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Trace session id",
   },
   {
@@ -163,6 +186,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["level"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Observation level",
   },
   {
@@ -170,6 +194,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["statusmessage", "status_message", "status"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "textSearch",
     description: "Status message",
   },
   {
@@ -177,6 +202,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["modelid", "model_id"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Internal model id",
   },
   {
@@ -184,6 +210,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["providedmodelname", "provided_model_name", "model"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Provided model name",
   },
   {
@@ -191,6 +218,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["promptname", "prompt_name"],
     kind: "text",
     bareSearchable: true,
+    syncMode: "exactOption",
     description: "Prompt name",
   },
   {
@@ -198,6 +226,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["promptversion", "prompt_version"],
     kind: "number",
     bareSearchable: false,
+    syncMode: "textSearch",
     description: "Prompt version",
   },
   {
@@ -205,6 +234,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["starttime", "start_time"],
     kind: "datetime",
     bareSearchable: false,
+    syncMode: "textSearch",
     description: "Observation start time",
   },
   {
@@ -212,13 +242,124 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["endtime", "end_time"],
     kind: "datetime",
     bareSearchable: false,
+    syncMode: "textSearch",
     description: "Observation end time",
+  },
+  {
+    id: "latency",
+    aliases: ["latency"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Observation latency in seconds",
+  },
+  {
+    id: "timeToFirstToken",
+    aliases: ["timetofirsttoken", "time_to_first_token", "ttft"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Time to first token in seconds",
+  },
+  {
+    id: "inputTokens",
+    aliases: ["inputtokens", "input_tokens"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Input token count",
+  },
+  {
+    id: "outputTokens",
+    aliases: ["outputtokens", "output_tokens"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Output token count",
+  },
+  {
+    id: "totalTokens",
+    aliases: ["totaltokens", "total_tokens", "tokens"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Total token count",
+  },
+  {
+    id: "inputCost",
+    aliases: ["inputcost", "input_cost"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Input cost",
+  },
+  {
+    id: "outputCost",
+    aliases: ["outputcost", "output_cost"],
+    kind: "number",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Output cost",
+  },
+  {
+    id: "version",
+    aliases: ["version"],
+    kind: "text",
+    bareSearchable: true,
+    syncMode: "exactOption",
+    description: "Version tag",
+  },
+  {
+    id: "traceTags",
+    aliases: ["tracetags", "trace_tags", "tags"],
+    kind: "text",
+    bareSearchable: false,
+    syncMode: "arrayOption",
+    description: "Trace tags",
+  },
+  {
+    id: "hasParentObservation",
+    aliases: [
+      "hasparentobservation",
+      "has_parent_observation",
+      "isrootobservation",
+      "is_root_observation",
+    ],
+    kind: "boolean",
+    bareSearchable: false,
+    syncMode: "textSearch",
+    description: "Whether the observation has a parent observation",
+  },
+  {
+    id: "experimentDatasetId",
+    aliases: ["experimentdatasetid", "experiment_dataset_id"],
+    kind: "text",
+    bareSearchable: false,
+    syncMode: "exactOption",
+    description: "Experiment dataset identifier",
+  },
+  {
+    id: "experimentId",
+    aliases: ["experimentid", "experiment_id"],
+    kind: "text",
+    bareSearchable: false,
+    syncMode: "exactOption",
+    description: "Experiment identifier",
+  },
+  {
+    id: "experimentName",
+    aliases: ["experimentname", "experiment_name"],
+    kind: "text",
+    bareSearchable: false,
+    syncMode: "exactOption",
+    description: "Experiment name",
   },
   {
     id: "input",
     aliases: ["input"],
     kind: "text",
     bareSearchable: false,
+    syncMode: "textSearch",
     description: "Observation input",
   },
   {
@@ -226,6 +367,7 @@ const EVENTS_LUCENE_FIELDS: EventsLuceneFieldDefinition[] = [
     aliases: ["output"],
     kind: "text",
     bareSearchable: false,
+    syncMode: "textSearch",
     description: "Observation output",
   },
 ] as const;
@@ -321,6 +463,28 @@ function getFieldKind(
 
   return EVENTS_LUCENE_FIELDS.find((candidate) => candidate.id === field.id)!
     .kind;
+}
+
+function getFieldDefinitionById(
+  fieldId: EventsLuceneFieldId,
+): EventsLuceneFieldDefinition {
+  return EVENTS_LUCENE_FIELDS.find((candidate) => candidate.id === fieldId)!;
+}
+
+function getFieldDefinition(
+  field: EventsLuceneFieldRef | null,
+): EventsLuceneFieldDefinition | undefined {
+  if (!field || field.type === "metadata") {
+    return undefined;
+  }
+
+  return getFieldDefinitionById(field.id);
+}
+
+function getFieldSyncMode(
+  field: EventsLuceneFieldRef | null,
+): EventsLuceneFieldDefinition["syncMode"] {
+  return getFieldDefinition(field)?.syncMode ?? "textSearch";
 }
 
 function createGroupExpression(
@@ -464,14 +628,16 @@ function normalizeRawLuceneNode(node: RawLuceneNode): EventsLuceneExpression {
   const exists = node.term === "*";
 
   if (field && !exists && getFieldKind(field) !== "text") {
+    const fieldKind = getFieldKind(field);
+
     if (node.quoted) {
       throw getInvalidLuceneQueryError(
         `Field "${field.type === "field" ? field.id : `metadata.${field.key}`}" does not support quoted values in the Lucene bar.`,
       );
     }
 
-    // Numeric equality is allowed for unquoted exact values only.
-    if (getFieldKind(field) !== "number") {
+    // Numeric and boolean equality are allowed for unquoted exact values only.
+    if (fieldKind !== "number" && fieldKind !== "boolean") {
       throw getInvalidLuceneQueryError(
         `Field "${field.type === "field" ? field.id : `metadata.${field.key}`}" only supports range queries in the Lucene bar.`,
       );
@@ -501,19 +667,25 @@ export function getEventsLuceneBareSearchableFields(): EventsLuceneFieldId[] {
 export function getEventsLuceneFieldKindById(
   fieldId: EventsLuceneFieldId,
 ): EventsLuceneFieldKind {
-  return EVENTS_LUCENE_FIELDS.find((field) => field.id === fieldId)!.kind;
+  return getFieldDefinitionById(fieldId).kind;
 }
 
 export function extractEventsLuceneFlatFilterState(
   filterExpression: FilterExpression | undefined,
 ): FilterState | undefined {
-  const flattenedConditions = extractFlatAndFilterConditions(filterExpression);
+  return extractEventsLuceneSyncableFilterState(filterExpression);
+}
 
-  if (!flattenedConditions || flattenedConditions.length === 0) {
+export function extractEventsLuceneSyncableFilterState(
+  filterExpression: FilterExpression | undefined,
+): FilterState | undefined {
+  const syncableConditions = extractSyncableFilterConditions(filterExpression);
+
+  if (!syncableConditions || syncableConditions.length === 0) {
     return undefined;
   }
 
-  return flattenedConditions;
+  return syncableConditions;
 }
 
 export function getEventsLuceneSerializableFilterState(
@@ -627,7 +799,245 @@ function collapseFilterGroup(
   };
 }
 
-function extractFlatAndFilterConditions(
+function dedupeStringValues(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function mergeStringOptionFilters(
+  left: Extract<FilterCondition, { type: "stringOptions" }>,
+  right: Extract<FilterCondition, { type: "stringOptions" }>,
+): FilterCondition | undefined {
+  const leftValues = dedupeStringValues(left.value);
+  const rightValues = dedupeStringValues(right.value);
+
+  if (left.operator === "none of" && right.operator === "none of") {
+    return {
+      ...left,
+      value: dedupeStringValues([...leftValues, ...rightValues]),
+    };
+  }
+
+  if (left.operator === "any of" && right.operator === "any of") {
+    const intersection = leftValues.filter((value) =>
+      rightValues.includes(value),
+    );
+
+    if (intersection.length === 0) {
+      return undefined;
+    }
+
+    return {
+      ...left,
+      value: intersection,
+    };
+  }
+
+  const anyOfFilter = left.operator === "any of" ? left : right;
+  const noneOfFilter = left.operator === "none of" ? left : right;
+  const allowedValues = anyOfFilter.value.filter(
+    (value) => !noneOfFilter.value.includes(value),
+  );
+
+  if (allowedValues.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...anyOfFilter,
+    operator: "any of",
+    value: allowedValues,
+  };
+}
+
+function mergeArrayOptionFilters(
+  left: Extract<FilterCondition, { type: "arrayOptions" }>,
+  right: Extract<FilterCondition, { type: "arrayOptions" }>,
+): FilterCondition | undefined {
+  const leftValues = dedupeStringValues(left.value);
+  const rightValues = dedupeStringValues(right.value);
+
+  if (left.operator === "none of" && right.operator === "none of") {
+    return {
+      ...left,
+      value: dedupeStringValues([...leftValues, ...rightValues]),
+    };
+  }
+
+  if (left.operator === "all of" && right.operator === "all of") {
+    return {
+      ...left,
+      value: dedupeStringValues([...leftValues, ...rightValues]),
+    };
+  }
+
+  if (left.operator === "any of" && right.operator === "any of") {
+    if (leftValues.length !== 1 || rightValues.length !== 1) {
+      return undefined;
+    }
+
+    const combinedValues = dedupeStringValues([...leftValues, ...rightValues]);
+
+    return {
+      ...left,
+      operator: combinedValues.length > 1 ? "all of" : "any of",
+      value: combinedValues,
+    };
+  }
+
+  return undefined;
+}
+
+function mergeCompatibleSyncableFilters(
+  currentFilters: FilterState,
+  nextFilter: FilterCondition,
+): FilterState | undefined {
+  if (
+    nextFilter.type !== "stringOptions" &&
+    nextFilter.type !== "arrayOptions" &&
+    nextFilter.type !== "boolean"
+  ) {
+    return currentFilters.some((candidateFilter) =>
+      isEqual(candidateFilter, nextFilter),
+    )
+      ? currentFilters
+      : [...currentFilters, nextFilter];
+  }
+
+  const matchingIndex = currentFilters.findIndex(
+    (candidateFilter) =>
+      candidateFilter.column === nextFilter.column &&
+      candidateFilter.type === nextFilter.type,
+  );
+
+  if (matchingIndex < 0) {
+    return [...currentFilters, nextFilter];
+  }
+
+  const matchingFilter = currentFilters[matchingIndex]!;
+
+  if (isEqual(matchingFilter, nextFilter)) {
+    return currentFilters;
+  }
+
+  let mergedFilter: FilterCondition | undefined;
+
+  if (
+    matchingFilter.type === "stringOptions" &&
+    nextFilter.type === "stringOptions"
+  ) {
+    mergedFilter = mergeStringOptionFilters(matchingFilter, nextFilter);
+  } else if (
+    matchingFilter.type === "arrayOptions" &&
+    nextFilter.type === "arrayOptions"
+  ) {
+    mergedFilter = mergeArrayOptionFilters(matchingFilter, nextFilter);
+  } else if (
+    matchingFilter.type === "boolean" &&
+    nextFilter.type === "boolean" &&
+    matchingFilter.operator === nextFilter.operator &&
+    matchingFilter.value === nextFilter.value
+  ) {
+    mergedFilter = matchingFilter;
+  }
+
+  if (!mergedFilter) {
+    return undefined;
+  }
+
+  return currentFilters.map((filter, index) =>
+    index === matchingIndex ? mergedFilter : filter,
+  );
+}
+
+function collapseOrSyncableFilterGroup(expression: {
+  type: "group";
+  operator: "AND" | "OR";
+  conditions: FilterExpression[];
+}): FilterState | undefined {
+  if (expression.operator !== "OR") {
+    return undefined;
+  }
+
+  const syncableChildFilters = expression.conditions.map((condition) =>
+    extractSyncableFilterConditions(condition),
+  );
+
+  if (
+    syncableChildFilters.some(
+      (childFilters) => !childFilters || childFilters.length !== 1,
+    )
+  ) {
+    return undefined;
+  }
+
+  const childFilters = syncableChildFilters.map((filters) => filters![0]!);
+  const firstFilter = childFilters[0];
+
+  if (!firstFilter) {
+    return undefined;
+  }
+
+  if (
+    childFilters.some(
+      (filter) =>
+        filter.type !== firstFilter.type ||
+        filter.column !== firstFilter.column,
+    )
+  ) {
+    return undefined;
+  }
+
+  if (firstFilter.type === "stringOptions") {
+    if (childFilters.some((filter) => filter.operator !== "any of")) {
+      return undefined;
+    }
+
+    return [
+      {
+        ...firstFilter,
+        value: dedupeStringValues(
+          childFilters.flatMap((filter) =>
+            filter.type === "stringOptions" ? filter.value : [],
+          ),
+        ),
+      },
+    ];
+  }
+
+  if (firstFilter.type === "arrayOptions") {
+    if (childFilters.some((filter) => filter.operator !== "any of")) {
+      return undefined;
+    }
+
+    return [
+      {
+        ...firstFilter,
+        value: dedupeStringValues(
+          childFilters.flatMap((filter) =>
+            filter.type === "arrayOptions" ? filter.value : [],
+          ),
+        ),
+      },
+    ];
+  }
+
+  if (firstFilter.type === "boolean") {
+    if (
+      childFilters.every(
+        (filter) =>
+          filter.type === "boolean" &&
+          filter.operator === firstFilter.operator &&
+          filter.value === firstFilter.value,
+      )
+    ) {
+      return [firstFilter];
+    }
+  }
+
+  return undefined;
+}
+
+function extractSyncableFilterConditions(
   expression: FilterExpression | undefined,
 ): FilterState | undefined {
   if (!expression) {
@@ -635,26 +1045,39 @@ function extractFlatAndFilterConditions(
   }
 
   if (expression.type !== "group") {
-    return [expression];
+    return isEventsLuceneSerializableFilterCondition(expression)
+      ? [expression]
+      : undefined;
   }
 
   if (expression.operator === "OR") {
-    return undefined;
+    return collapseOrSyncableFilterGroup(expression);
   }
 
-  const flattenedConditions: FilterState = [];
+  let mergedFilters: FilterState = [];
 
   for (const condition of expression.conditions) {
-    const flattenedCondition = extractFlatAndFilterConditions(condition);
+    const extractedFilters = extractSyncableFilterConditions(condition);
 
-    if (!flattenedCondition) {
+    if (!extractedFilters) {
       return undefined;
     }
 
-    flattenedConditions.push(...flattenedCondition);
+    for (const extractedFilter of extractedFilters) {
+      const nextMergedFilters = mergeCompatibleSyncableFilters(
+        mergedFilters,
+        extractedFilter,
+      );
+
+      if (!nextMergedFilters) {
+        return undefined;
+      }
+
+      mergedFilters = nextMergedFilters;
+    }
   }
 
-  return flattenedConditions;
+  return mergedFilters;
 }
 
 function getUnsupportedLuceneFilterError(message: string): InvalidRequestError {
@@ -673,6 +1096,9 @@ function getLuceneFieldPathForFilter(
   }
 
   if (
+    filter.type === "stringOptions" ||
+    filter.type === "arrayOptions" ||
+    filter.type === "boolean" ||
     filter.type === "string" ||
     filter.type === "number" ||
     filter.type === "datetime" ||
@@ -698,6 +1124,10 @@ function escapeLuceneBareValue(value: string): string {
 }
 
 function formatLuceneContainsValue(value: string): string {
+  return `"${escapeLuceneQuotedValue(value)}"`;
+}
+
+function formatLuceneExactValue(value: string): string {
   return `"${escapeLuceneQuotedValue(value)}"`;
 }
 
@@ -750,9 +1180,55 @@ function serializeEventsLuceneFilterCondition(
     return undefined;
   }
 
+  if (filter.type === "stringOptions") {
+    const serializedValues = dedupeStringValues(filter.value).map(
+      (value) => `${fieldPath}:${formatLuceneExactValue(value)}`,
+    );
+
+    if (serializedValues.length === 0) {
+      return undefined;
+    }
+
+    if (filter.operator === "any of") {
+      return serializedValues.length === 1
+        ? serializedValues[0]
+        : `(${serializedValues.join(" OR ")})`;
+    }
+
+    return serializedValues.length === 1
+      ? `NOT ${serializedValues[0]}`
+      : `NOT (${serializedValues.join(" OR ")})`;
+  }
+
+  if (filter.type === "arrayOptions") {
+    const serializedValues = dedupeStringValues(filter.value).map(
+      (value) => `${fieldPath}:${formatLuceneExactValue(value)}`,
+    );
+
+    if (filter.operator === "all of") {
+      return serializedValues.length === 1
+        ? serializedValues[0]
+        : `(${serializedValues.join(" AND ")})`;
+    }
+
+    if (serializedValues.length === 0) {
+      return undefined;
+    }
+
+    if (filter.operator === "any of") {
+      return serializedValues.length === 1
+        ? serializedValues[0]
+        : `(${serializedValues.join(" OR ")})`;
+    }
+
+    return serializedValues.length === 1
+      ? `NOT ${serializedValues[0]}`
+      : `NOT (${serializedValues.join(" OR ")})`;
+  }
+
   if (filter.type === "string") {
     if (filter.operator === "=") {
-      return undefined;
+      return `${fieldPath}:${formatLuceneExactValue(filter.value)}`;
     }
 
     if (filter.operator === "contains") {
@@ -778,6 +1254,14 @@ function serializeEventsLuceneFilterCondition(
     }
 
     return undefined;
+  }
+
+  if (filter.type === "boolean") {
+    if (filter.operator === "=") {
+      return `${fieldPath}:${String(filter.value)}`;
+    }
+
+    return `${fieldPath}:${String(!filter.value)}`;
   }
 
   if (filter.type === "null") {
@@ -838,6 +1322,51 @@ function createTextFilterCondition(
     column: field.id,
     operator,
     value,
+  };
+}
+
+function createExactOptionFilterCondition(
+  field: Extract<EventsLuceneFieldRef, { type: "field" }>,
+  operator: "any of" | "none of",
+  value: string,
+): FilterCondition {
+  if (getFieldSyncMode(field) === "arrayOption") {
+    return {
+      type: "arrayOptions",
+      column: field.id,
+      operator,
+      value: [value],
+    };
+  }
+
+  return {
+    type: "stringOptions",
+    column: field.id,
+    operator,
+    value: [value],
+  };
+}
+
+function createBooleanFilterCondition(
+  field: Extract<EventsLuceneFieldRef, { type: "field" }>,
+  negated: boolean,
+  rawValue: string,
+): FilterCondition {
+  const normalizedValue = rawValue.trim().toLowerCase();
+
+  if (normalizedValue !== "true" && normalizedValue !== "false") {
+    throw getUnsupportedLuceneFilterError(
+      `Field "${field.id}" expects a boolean value (true or false) in events search filters.`,
+    );
+  }
+
+  const booleanValue = normalizedValue === "true";
+
+  return {
+    type: "boolean",
+    column: field.id,
+    operator: negated ? "<>" : "=",
+    value: booleanValue,
   };
 }
 
@@ -1111,9 +1640,35 @@ function convertTextExpressionToFilter(
       : createNumericEqualityFilter(fieldLabel, expression.value);
   }
 
+  if (fieldKind === "boolean") {
+    if (expression.field.type !== "field") {
+      throw getUnsupportedLuceneFilterError(
+        `Field "${fieldLabel}" expects a boolean value in events search filters.`,
+      );
+    }
+
+    return createBooleanFilterCondition(
+      expression.field,
+      negated,
+      expression.value,
+    );
+  }
+
   if (fieldKind === "datetime") {
     throw getUnsupportedLuceneFilterError(
       `Field "${fieldLabel}" only supports range queries in events search filters.`,
+    );
+  }
+
+  if (
+    expression.field.type === "field" &&
+    !expression.wildcard &&
+    getFieldSyncMode(expression.field) !== "textSearch"
+  ) {
+    return createExactOptionFilterCondition(
+      expression.field,
+      negated ? "none of" : "any of",
+      expression.value,
     );
   }
 

@@ -92,11 +92,14 @@ describe("events lucene query validation", () => {
     });
 
     const fieldValidation = validateEventsLuceneQuery("toolName:weather");
-    expect(fieldValidation).toEqual({
-      isValid: false,
-      error:
-        'Invalid Lucene query: Unsupported field "toolName". Supported fields: id, traceId, name, traceName, type, environment, userId, sessionId, level, statusMessage, modelId, providedModelName, promptName, promptVersion, startTime, endTime, input, output, metadata.<key>.',
-    });
+    expect(fieldValidation.isValid).toBe(false);
+    if (fieldValidation.isValid) {
+      throw new Error("Expected unsupported field validation to fail.");
+    }
+    expect(fieldValidation.error).toContain(
+      'Invalid Lucene query: Unsupported field "toolName". Supported fields:',
+    );
+    expect(fieldValidation.error).toContain("metadata.<key>.");
   });
 });
 
@@ -143,10 +146,10 @@ describe("resolveEventsLuceneQueryForApi", () => {
         operator: "OR",
         conditions: [
           {
-            type: "string",
+            type: "stringOptions",
             column: "name",
-            operator: "contains",
-            value: "chat completion",
+            operator: "any of",
+            value: ["chat completion"],
           },
           {
             type: "stringObject",
@@ -260,36 +263,36 @@ describe("resolveEventsLuceneQueryForApi", () => {
         operator: "AND",
         conditions: [
           {
-            type: "string",
+            type: "stringOptions",
             column: "name",
-            operator: "contains",
-            value: "weather",
+            operator: "any of",
+            value: ["weather"],
           },
           {
             type: "group",
             operator: "OR",
             conditions: [
               {
-                type: "string",
+                type: "stringOptions",
                 column: "level",
-                operator: "contains",
-                value: "ERROR",
+                operator: "any of",
+                value: ["ERROR"],
               },
               {
                 type: "group",
                 operator: "AND",
                 conditions: [
                   {
-                    type: "string",
+                    type: "stringOptions",
                     column: "environment",
-                    operator: "contains",
-                    value: "prod",
+                    operator: "any of",
+                    value: ["prod"],
                   },
                   {
-                    type: "string",
+                    type: "stringOptions",
                     column: "sessionId",
-                    operator: "does not contain",
-                    value: "abc",
+                    operator: "none of",
+                    value: ["abc"],
                   },
                 ],
               },
@@ -314,16 +317,16 @@ describe("resolveEventsLuceneQueryForApi", () => {
 
     expect(flatFilterState).toEqual([
       {
-        type: "string",
+        type: "stringOptions",
         column: "name",
-        operator: "contains",
-        value: "chat completion",
+        operator: "any of",
+        value: ["chat completion"],
       },
       {
-        type: "string",
+        type: "stringOptions",
         column: "level",
-        operator: "does not contain",
-        value: "DEBUG",
+        operator: "none of",
+        value: ["DEBUG"],
       },
       {
         type: "datetime",
@@ -366,8 +369,20 @@ describe("resolveEventsLuceneQueryForApi", () => {
           operator: ">=",
           value: 2,
         },
+        {
+          type: "boolean",
+          column: "hasParentObservation",
+          operator: "=",
+          value: true,
+        },
       ]),
     ).toEqual([
+      {
+        type: "stringOptions",
+        column: "environment",
+        operator: "any of",
+        value: ["prod"],
+      },
       {
         type: "string",
         column: "statusMessage",
@@ -380,6 +395,44 @@ describe("resolveEventsLuceneQueryForApi", () => {
         key: "tenant",
         operator: "does not contain",
         value: "internal",
+      },
+      {
+        type: "number",
+        column: "latency",
+        operator: ">=",
+        value: 2,
+      },
+      {
+        type: "boolean",
+        column: "hasParentObservation",
+        operator: "=",
+        value: true,
+      },
+    ]);
+  });
+
+  it("collapses exact-option OR groups back into syncable sidebar filters", () => {
+    const resolved = resolveEventsLuceneQueryForApi(
+      '(traceName:"trace-1" OR traceName:"trace-2") AND name:"chat-agent"',
+    );
+
+    expect(resolved.isValid).toBe(true);
+    if (!resolved.isValid) {
+      throw new Error(resolved.error);
+    }
+
+    expect(extractEventsLuceneFlatFilterState(resolved.filter)).toEqual([
+      {
+        type: "stringOptions",
+        column: "traceName",
+        operator: "any of",
+        value: ["trace-1", "trace-2"],
+      },
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["chat-agent"],
       },
     ]);
   });

@@ -43,18 +43,18 @@ describe("events lucene search sync", () => {
           value: ["prod"],
         },
         {
-          type: "string",
+          type: "stringOptions",
           column: "name",
-          operator: "contains",
-          value: "weather agent",
+          operator: "any of",
+          value: ["weather agent"],
         },
       ],
       nextSyncedFilters: [
         {
-          type: "string",
+          type: "stringOptions",
           column: "name",
-          operator: "contains",
-          value: "weather agent",
+          operator: "any of",
+          value: ["weather agent"],
         },
       ],
     });
@@ -82,8 +82,14 @@ describe("events lucene search sync", () => {
 
     expect(result).toEqual({
       shouldUpdateSearchQuery: true,
-      nextSearchQuery: 'statusMessage:"timeout"',
+      nextSearchQuery: 'environment:"prod" AND statusMessage:"timeout"',
       nextSyncedFilters: [
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["prod"],
+        },
         {
           type: "string",
           column: "statusMessage",
@@ -118,14 +124,14 @@ describe("events lucene search sync", () => {
   it("extracts only fielded conjunctive queries as syncable sidebar filters", () => {
     expect(
       getSyncableEventsLuceneFilterState(
-        'statusMessage:"timeout" AND startTime:[2025-01-01 TO *]',
+        'traceName:"chat-trace" AND startTime:[2025-01-01 TO *]',
       ),
     ).toEqual([
       {
-        type: "string",
-        column: "statusMessage",
-        operator: "contains",
-        value: "timeout",
+        type: "stringOptions",
+        column: "traceName",
+        operator: "any of",
+        value: ["chat-trace"],
       },
       {
         type: "datetime",
@@ -141,7 +147,20 @@ describe("events lucene search sync", () => {
       getSyncableEventsLuceneFilterState(
         "name:weather AND (level:ERROR OR level:WARN)",
       ),
-    ).toBeUndefined();
+    ).toEqual([
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["weather"],
+      },
+      {
+        type: "stringOptions",
+        column: "level",
+        operator: "any of",
+        value: ["ERROR", "WARN"],
+      },
+    ]);
 
     expect(
       planEventsSearchBarFilterSync({
@@ -165,16 +184,54 @@ describe("events lucene search sync", () => {
         hideControls: false,
       }),
     ).toEqual({
-      nextExplicitFilters: [],
-      nextSyncedFilters: undefined,
+      nextExplicitFilters: [
+        {
+          type: "stringOptions",
+          column: "name",
+          operator: "any of",
+          value: ["weather"],
+        },
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR", "WARN"],
+        },
+      ],
+      nextSyncedFilters: [
+        {
+          type: "stringOptions",
+          column: "name",
+          operator: "any of",
+          value: ["weather"],
+        },
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR", "WARN"],
+        },
+      ],
     });
   });
 
-  it("does not overwrite nested boolean search queries when sidebar filters change", () => {
+  it("merges sidebar filters into grouped same-field lucene queries", () => {
     expect(
       planEventsSidebarSearchSync({
         currentSearchQuery: "name:weather AND (level:ERROR OR level:WARN)",
         nextExplicitFilters: [
+          {
+            type: "stringOptions",
+            column: "name",
+            operator: "any of",
+            value: ["weather"],
+          },
+          {
+            type: "stringOptions",
+            column: "level",
+            operator: "any of",
+            value: ["ERROR", "WARN"],
+          },
           {
             type: "string",
             column: "statusMessage",
@@ -185,16 +242,42 @@ describe("events lucene search sync", () => {
         hideControls: false,
       }),
     ).toEqual({
-      shouldUpdateSearchQuery: false,
-      nextSearchQuery: "name:weather AND (level:ERROR OR level:WARN)",
-      nextSyncedFilters: undefined,
+      shouldUpdateSearchQuery: true,
+      nextSearchQuery:
+        'name:"weather" AND (level:"ERROR" OR level:"WARN") AND statusMessage:"timeout"',
+      nextSyncedFilters: [
+        {
+          type: "stringOptions",
+          column: "name",
+          operator: "any of",
+          value: ["weather"],
+        },
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR", "WARN"],
+        },
+        {
+          type: "string",
+          column: "statusMessage",
+          operator: "contains",
+          value: "timeout",
+        },
+      ],
     });
   });
 
-  it("disables the sidebar for grouped lucene filters that cannot sync into sidebar state", () => {
+  it("disables the sidebar only for lucene groups that cannot sync into sidebar state", () => {
     expect(
       getEventsSidebarDisabledReason(
         "name:weather AND (level:ERROR OR level:WARN)",
+      ),
+    ).toBeUndefined();
+
+    expect(
+      getEventsSidebarDisabledReason(
+        "name:weather AND (level:ERROR OR (environment:prod AND sessionId:abc))",
       ),
     ).toBe(
       "Sidebar filters are disabled while the search bar contains grouped or chained Lucene filters. Simplify to flat AND clauses or clear the search bar to edit sidebar filters.",
@@ -202,7 +285,7 @@ describe("events lucene search sync", () => {
 
     expect(
       getEventsSidebarDisabledReason(
-        'statusMessage:"timeout" AND startTime:[2025-01-01 TO *]',
+        'traceName:"chat-trace" AND startTime:[2025-01-01 TO *]',
       ),
     ).toBeUndefined();
 

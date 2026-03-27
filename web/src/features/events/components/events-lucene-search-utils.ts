@@ -76,6 +76,19 @@ const FIELD_DESCRIPTIONS: Record<EventsLuceneFieldId, string> = {
   promptVersion: "Prompt version",
   startTime: "Observation start time",
   endTime: "Observation end time",
+  latency: "Observation latency",
+  timeToFirstToken: "Time to first token",
+  inputTokens: "Input token count",
+  outputTokens: "Output token count",
+  totalTokens: "Total token count",
+  inputCost: "Input cost",
+  outputCost: "Output cost",
+  version: "Version tag",
+  traceTags: "Trace tags",
+  hasParentObservation: "Has parent observation",
+  experimentDatasetId: "Experiment dataset identifier",
+  experimentId: "Experiment identifier",
+  experimentName: "Experiment name",
   input: "Observation input",
   output: "Observation output",
 };
@@ -175,6 +188,25 @@ const NUMERIC_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
     apply: "[1 TO 10]",
     type: "snippet",
     detail: "Inclusive numeric range",
+    boost: 15,
+    section: "Patterns",
+  },
+];
+
+const BOOLEAN_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
+  {
+    label: "true",
+    apply: "true",
+    type: "snippet",
+    detail: "Boolean true",
+    boost: 16,
+    section: "Patterns",
+  },
+  {
+    label: "false",
+    apply: "false",
+    type: "snippet",
+    detail: "Boolean false",
     boost: 15,
     section: "Patterns",
   },
@@ -391,6 +423,13 @@ export function resolveEventsLuceneCompletionItems(
       return {
         from: context.from,
         items: filterAndSortItems(NUMERIC_VALUE_SNIPPETS, context.query),
+      };
+    }
+
+    if (fieldKind === "boolean") {
+      return {
+        from: context.from,
+        items: filterAndSortItems(BOOLEAN_VALUE_SNIPPETS, context.query),
       };
     }
 

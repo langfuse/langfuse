@@ -19,7 +19,7 @@ import { keymap } from "@codemirror/view";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { Search } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   matchEventsLuceneToken,
   resolveEventsLuceneCompletionItems,
@@ -111,6 +111,18 @@ type EventsLuceneSubmitArgs = {
   onSubmit: (value: string) => void;
 };
 
+type EventsLuceneCompletionTriggerArgs = {
+  doc: string;
+  cursor: number;
+  completionStatus: "active" | "pending" | null;
+  startCompletion: () => void;
+};
+
+type EventsLuceneTooltipLayoutArgs = {
+  container: HTMLElement;
+  tooltip: HTMLElement;
+};
+
 function submitEventsLuceneQuery({
   completionIsActive,
   acceptCompletion,
@@ -122,6 +134,34 @@ function submitEventsLuceneQuery({
   }
 
   onSubmit(getCurrentValue());
+  return true;
+}
+
+const EVENTS_LUCENE_VALUE_COMPLETION_TRIGGER_PATTERN =
+  /(?:^|[\s(])(?:metadata\.[A-Za-z0-9_.-]*|[A-Za-z_][A-Za-z0-9_.-]*):"?$/;
+
+export function maybeOpenEventsLuceneContextualCompletion({
+  doc,
+  cursor,
+  completionStatus,
+  startCompletion,
+}: EventsLuceneCompletionTriggerArgs) {
+  if (completionStatus === "active" || completionStatus === "pending") {
+    return false;
+  }
+
+  if (doc.length === 0) {
+    startCompletion();
+    return true;
+  }
+
+  const prefix = doc.slice(0, cursor);
+
+  if (!EVENTS_LUCENE_VALUE_COMPLETION_TRIGGER_PATTERN.test(prefix)) {
+    return false;
+  }
+
+  startCompletion();
   return true;
 }
 
@@ -144,6 +184,39 @@ export function handleEventsLuceneSubmitKeydown({
     getCurrentValue,
     onSubmit,
   });
+}
+
+export function applyEventsLuceneTooltipLayout({
+  container,
+  tooltip,
+}: EventsLuceneTooltipLayoutArgs) {
+  const offsetParent =
+    tooltip.offsetParent instanceof HTMLElement
+      ? tooltip.offsetParent
+      : tooltip.parentElement;
+
+  if (!(offsetParent instanceof HTMLElement)) {
+    return false;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const offsetParentRect = offsetParent.getBoundingClientRect();
+
+  if (containerRect.width <= 0) {
+    return false;
+  }
+
+  const leftOffset = containerRect.left - offsetParentRect.left;
+  const width = `${containerRect.width}px`;
+
+  tooltip.style.left = `${leftOffset}px`;
+  tooltip.style.right = "auto";
+  tooltip.style.width = width;
+  tooltip.style.minWidth = width;
+  tooltip.style.maxWidth = width;
+  tooltip.style.boxSizing = "border-box";
+
+  return true;
 }
 
 const eventsLuceneLanguage = StreamLanguage.define({
@@ -183,11 +256,93 @@ export function EventsLuceneSearchInput({
 }: EventsLuceneSearchInputProps) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const latestValueRef = useRef(value);
+  const tooltipAnimationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     latestValueRef.current = value;
   }, [value]);
+
+  const alignEventsLuceneTooltip = useCallback(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return false;
+    }
+
+    const tooltip = container.querySelector<HTMLElement>(
+      ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip",
+    );
+
+    if (!tooltip) {
+      return false;
+    }
+
+    return applyEventsLuceneTooltipLayout({
+      container,
+      tooltip,
+    });
+  }, []);
+
+  const scheduleEventsLuceneTooltipAlignment = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (tooltipAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(tooltipAnimationFrameRef.current);
+    }
+
+    tooltipAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      tooltipAnimationFrameRef.current = null;
+      alignEventsLuceneTooltip();
+    });
+  }, [alignEventsLuceneTooltip]);
+
+  useEffect(() => {
+    scheduleEventsLuceneTooltipAlignment();
+  }, [value, scheduleEventsLuceneTooltipAlignment]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            scheduleEventsLuceneTooltipAlignment();
+          });
+    resizeObserver?.observe(container);
+
+    const mutationObserver =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(() => {
+            scheduleEventsLuceneTooltipAlignment();
+          });
+    mutationObserver?.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+
+      if (
+        typeof window !== "undefined" &&
+        tooltipAnimationFrameRef.current !== null
+      ) {
+        window.cancelAnimationFrame(tooltipAnimationFrameRef.current);
+        tooltipAnimationFrameRef.current = null;
+      }
+    };
+  }, [scheduleEventsLuceneTooltipAlignment]);
 
   const completionSource = useMemo(
     () => (context: CompletionContext) => {
@@ -265,9 +420,23 @@ export function EventsLuceneSearchInput({
       }),
       EditorView.domEventHandlers({
         focus: (_event, view) => {
-          if (view.state.doc.length === 0) {
-            startCompletion(view);
-          }
+          maybeOpenEventsLuceneContextualCompletion({
+            doc: view.state.doc.toString(),
+            cursor: view.state.selection.main.head,
+            completionStatus: completionStatus(view.state),
+            startCompletion: () => startCompletion(view),
+          });
+          scheduleEventsLuceneTooltipAlignment();
+          return false;
+        },
+        click: (_event, view) => {
+          maybeOpenEventsLuceneContextualCompletion({
+            doc: view.state.doc.toString(),
+            cursor: view.state.selection.main.head,
+            completionStatus: completionStatus(view.state),
+            startCompletion: () => startCompletion(view),
+          });
+          scheduleEventsLuceneTooltipAlignment();
           return false;
         },
         keydown: (event, view) => {
@@ -279,6 +448,22 @@ export function EventsLuceneSearchInput({
             onSubmit,
           });
         },
+      }),
+      EditorView.updateListener.of((update) => {
+        if (completionStatus(update.state) === "active") {
+          scheduleEventsLuceneTooltipAlignment();
+        }
+
+        if (!update.docChanged || !update.view.hasFocus) {
+          return;
+        }
+
+        maybeOpenEventsLuceneContextualCompletion({
+          doc: update.state.doc.toString(),
+          cursor: update.state.selection.main.head,
+          completionStatus: completionStatus(update.state),
+          startCompletion: () => startCompletion(update.view),
+        });
       }),
       EditorView.theme({
         "&": {
@@ -454,11 +639,12 @@ export function EventsLuceneSearchInput({
           },
       }),
     ],
-    [completionSource, onSubmit],
+    [completionSource, onSubmit, scheduleEventsLuceneTooltipAlignment],
   );
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "border-input bg-background focus-within:border-primary focus-within:ring-primary/10 flex min-h-12 flex-1 items-start overflow-hidden rounded-md border shadow-xs transition-colors focus-within:ring-2",
         error &&
