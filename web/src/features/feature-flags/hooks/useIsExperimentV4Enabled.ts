@@ -1,22 +1,22 @@
-import { useSession } from "next-auth/react";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 
 export default function useIsExperimentV4Enabled(): {
   isEnabled: boolean;
+  isAdmin: boolean;
+  isFeatureEnabledOnUser: boolean;
+  isV4BetaEnabled: boolean;
 } {
-  const session = useSession();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-
-  const isAdmin = session.data?.user?.admin ?? false;
-
-  const isFeatureEnabledOnUser =
-    session.data?.user?.featureFlags["experimentsV4Enabled"] ?? false;
-
-  const { isBetaEnabled } = useV4Beta();
+  const {
+    canAccessExperiments,
+    isAdmin,
+    isFeatureEnabledOnUser,
+    isV4BetaEnabled,
+  } = useExperimentAccess();
 
   return {
-    isEnabled:
-      isLangfuseCloud && isBetaEnabled && (isAdmin || isFeatureEnabledOnUser),
+    isEnabled: canAccessExperiments,
+    isAdmin,
+    isFeatureEnabledOnUser,
+    isV4BetaEnabled,
   };
 }
