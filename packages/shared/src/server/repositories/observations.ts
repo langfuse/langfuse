@@ -1803,11 +1803,12 @@ export const getObservationsForBlobStorageExport = function (
       cost_details,
       completion_start_time,
       prompt_name,
-      prompt_version
+      prompt_version,
+      created_at
     FROM observations FINAL
     WHERE project_id = {projectId: String}
-    AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
+    AND created_at >= {minTimestamp: DateTime64(3)}
+    AND created_at <= {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
