@@ -126,6 +126,7 @@ export default withMiddlewares({
         ...(datasetId && { datasetIds: [datasetId] }),
         sourceTraceId: sourceTraceId ?? undefined,
         sourceObservationId: sourceObservationId ?? undefined,
+        status: "ACTIVE",
       });
       const items = await getDatasetItems({
         projectId: auth.scope.projectId,
