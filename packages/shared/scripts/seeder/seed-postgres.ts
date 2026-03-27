@@ -282,13 +282,23 @@ async function main() {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars
 
     if (OPENAI_API_KEY) {
-      await prisma.llmApiKeys.create({
-        data: {
+      await prisma.llmApiKeys.upsert({
+        where: {
+          projectId_provider: {
+            projectId: project1.id,
+            provider: "openai",
+          },
+        },
+        create: {
           projectId: project1.id,
           secretKey: encrypt(OPENAI_API_KEY),
           displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
           provider: "openai",
           adapter: "openai",
+        },
+        update: {
+          secretKey: encrypt(OPENAI_API_KEY),
+          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
         },
       });
     } else {
@@ -394,6 +404,7 @@ async function main() {
           },
         },
       ],
+      skipDuplicates: true,
     });
   }
 }
@@ -603,8 +614,15 @@ export async function createDatasets(
 
         // Version 1: Initial version
         const v1Time = new Date(baseTime.getTime());
-        await prisma.datasetItem.create({
-          data: {
+        await prisma.datasetItem.upsert({
+          where: {
+            id_projectId_validFrom: {
+              id: itemId,
+              projectId,
+              validFrom: v1Time,
+            },
+          },
+          create: {
             id: itemId,
             projectId,
             datasetId: dataset.id,
@@ -617,6 +635,7 @@ export async function createDatasets(
             validFrom: v1Time,
             isDeleted: false,
           },
+          update: {},
         });
 
         // Version 2: Updated output (2 hours later)
@@ -630,8 +649,15 @@ export async function createDatasets(
             AND valid_from = ${v1Time}
         `;
 
-        await prisma.datasetItem.create({
-          data: {
+        await prisma.datasetItem.upsert({
+          where: {
+            id_projectId_validFrom: {
+              id: itemId,
+              projectId,
+              validFrom: v2Time,
+            },
+          },
+          create: {
             id: itemId,
             projectId,
             datasetId: dataset.id,
@@ -647,6 +673,7 @@ export async function createDatasets(
             validFrom: v2Time,
             isDeleted: false,
           },
+          update: {},
         });
 
         // Version 3: Updated input and output (1 day later)
@@ -660,8 +687,15 @@ export async function createDatasets(
             AND valid_from = ${v2Time}
         `;
 
-        await prisma.datasetItem.create({
-          data: {
+        await prisma.datasetItem.upsert({
+          where: {
+            id_projectId_validFrom: {
+              id: itemId,
+              projectId,
+              validFrom: v3Time,
+            },
+          },
+          create: {
             id: itemId,
             projectId,
             datasetId: dataset.id,
@@ -677,6 +711,7 @@ export async function createDatasets(
             validFrom: v3Time,
             isDeleted: false,
           },
+          update: {},
         });
 
         // Version 4: Current version (2 days after initial)
@@ -690,8 +725,15 @@ export async function createDatasets(
             AND valid_from = ${v3Time}
         `;
 
-        await prisma.datasetItem.create({
-          data: {
+        await prisma.datasetItem.upsert({
+          where: {
+            id_projectId_validFrom: {
+              id: itemId,
+              projectId,
+              validFrom: v4Time,
+            },
+          },
+          create: {
             id: itemId,
             projectId,
             datasetId: dataset.id,
@@ -704,6 +746,7 @@ export async function createDatasets(
             validFrom: v4Time,
             isDeleted: false,
           },
+          update: {},
         });
 
         logger.info(
@@ -724,8 +767,11 @@ async function generateEvalJobExecutions(
         evalJobConfigurations[i % evalJobConfigurations.length];
 
       const isFailed = i % FAILED_EVAL_TRACE_INTERVAL === 0;
-      await prisma.jobExecution.create({
-        data: {
+      const jobExecutionId = `eval-job-execution-${jobConfiguration.id}-${i}-${project.id}`;
+      await prisma.jobExecution.upsert({
+        where: { id: jobExecutionId },
+        create: {
+          id: jobExecutionId,
           projectId: project.id,
           jobTemplateId: jobConfiguration.evalTemplateId,
           jobInputTraceId: generateEvalTraceId(
@@ -750,6 +796,7 @@ async function generateEvalJobExecutions(
             0,
           ),
         },
+        update: {},
       });
     }
   }
@@ -782,7 +829,6 @@ async function generatePrompts(project: Project) {
             name: prompt.name,
             version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -819,7 +865,6 @@ async function generatePrompts(project: Project) {
             name: prompt.name,
             version: prompt.version,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -849,7 +894,6 @@ async function generatePrompts(project: Project) {
           name: version.name,
           version: version.version,
         },
-        id: id,
       },
       create: {
         id: id,
@@ -895,12 +939,19 @@ async function generateConfigsForProject(projects: Project[]) {
 async function createTraceSessions(project1: Project, project2: Project) {
   for (const project of [project1, project2]) {
     for (let i = 0; i < 100; i++) {
-      await prisma.traceSession.create({
-        data: {
+      await prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: `session_${i}`,
+            projectId: project.id,
+          },
+        },
+        create: {
           projectId: project.id,
           id: `session_${i}`,
           createdAt: new Date(),
         },
+        update: {},
       });
     }
   }
