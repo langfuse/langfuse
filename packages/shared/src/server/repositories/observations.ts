@@ -1803,7 +1803,14 @@ export const getObservationsForBlobStorageExport = function (
       cost_details,
       completion_start_time,
       prompt_name,
-      prompt_version
+      prompt_version,
+      total_cost,
+      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
+      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
+      usage_details['input'] as input_usage,
+      usage_details['output'] as output_usage,
+      usage_details['total'] as total_usage,
+      internal_model_id as model_id
     FROM observations FINAL
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
