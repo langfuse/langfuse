@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
   LLMAsJudgeExecutionEventSchema,
@@ -7,9 +7,10 @@ import {
 import {
   observationForEvalSchema,
   observationVariableMappingList,
+  isJobConfigExecutable,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";
@@ -73,6 +74,17 @@ export async function processObservationEval({
     return;
   }
 
+  // Observation eval executions may already be CANCELLED if the evaluator was
+  // blocked after scheduling, or ERROR if a previous attempt already failed and
+  // the processor retried the same queue job.
+  if (job.status === "CANCELLED" || job.status === "ERROR") {
+    logger.debug(
+      `Job execution ${event.jobExecutionId} was cancelled or has an error.`,
+    );
+
+    return;
+  }
+
   // Fetch job configuration
   const evalJobConfig = await prisma.jobConfiguration.findFirst({
     where: {
@@ -88,6 +100,25 @@ export async function processObservationEval({
     throw new UnrecoverableError(
       `Job configuration or template not found for job ${job.id}`,
     );
+  }
+
+  if (!isJobConfigExecutable(evalJobConfig)) {
+    logger.debug(
+      `Job execution ${event.jobExecutionId} is not executable because the evaluator is blocked or inactive.`,
+    );
+
+    await prisma.jobExecution.update({
+      where: {
+        id: job.id,
+        projectId: event.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.CANCELLED,
+        endTime: new Date(),
+      },
+    });
+
+    return;
   }
 
   // Download observation data from S3

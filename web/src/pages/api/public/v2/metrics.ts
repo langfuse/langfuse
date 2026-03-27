@@ -6,7 +6,7 @@ import {
   GetMetricsV2Query,
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
-import { InvalidRequestError, NotImplementedError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   executeQuery,
   validateQuery,
@@ -22,7 +22,7 @@ export default withMiddlewares({
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
-        throw new NotImplementedError(
+        throw new LangfuseNotFoundError(
           "v2 APIs are currently in beta and only available on Langfuse Cloud",
         );
       }

@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { Button } from "@/src/components/ui/button";
@@ -141,19 +141,19 @@ export default function EnterpriseSsoRequiredPage() {
       <Head>
         <title>Enterprise SSO Required | Langfuse</title>
       </Head>
-      <div className="flex min-h-screen-with-banner flex-col justify-center bg-background px-6 py-12 lg:px-8">
+      <div className="min-h-screen-with-banner bg-background flex flex-col justify-center px-6 py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
-          <h1 className="mt-6 text-center text-2xl font-bold text-primary">
+          <h1 className="text-primary mt-6 text-center text-2xl font-bold">
             Use your Enterprise SSO
           </h1>
-          <p className="mt-2 text-center text-sm leading-6 text-muted-foreground">
+          <p className="text-muted-foreground mt-2 text-center text-sm leading-6">
             {description} Enter your company email so we can send you to the
             correct identity provider.
           </p>
         </div>
 
-        <div className="mt-10 rounded-lg border border-border bg-card px-6 py-8 shadow sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="border-border bg-card mt-10 rounded-lg border px-6 py-8 shadow-sm sm:mx-auto sm:w-full sm:max-w-md">
           <Form {...form}>
             <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <FormField
@@ -186,7 +186,7 @@ export default function EnterpriseSsoRequiredPage() {
             </form>
           </Form>
           {error ? (
-            <div className="mt-4 text-center text-sm font-medium text-destructive">
+            <div className="text-destructive mt-4 text-center text-sm font-medium">
               {error}
               <br />
               Contact{" "}
@@ -199,7 +199,7 @@ export default function EnterpriseSsoRequiredPage() {
               if this keeps happening.
             </div>
           ) : null}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="text-muted-foreground mt-6 text-center text-sm">
             <Link
               href="/auth/sign-in"
               className="text-primary-accent hover:text-hover-primary-accent"
@@ -209,7 +209,7 @@ export default function EnterpriseSsoRequiredPage() {
           </div>
         </div>
 
-        <div className="mt-4 text-center text-xs text-muted-foreground">
+        <div className="text-muted-foreground mt-4 text-center text-xs">
           Need help? Contact{" "}
           <a
             href="mailto:support@langfuse.com"

@@ -178,6 +178,7 @@ export const ROUTES: Route[] = [
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
+    label: "Beta",
   },
   {
     title: "Upgrade",
@@ -204,7 +205,7 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "v4 Beta Toggle",
+    title: "Preview (fast)",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
@@ -253,7 +254,7 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded-md border px-1.5 font-mono text-[10px]">
+      <kbd className="pointer-events-none ml-auto inline-flex h-5 items-center gap-1 rounded-md border px-1.5 font-mono text-[10px] select-none">
         {navigator.userAgent.includes("Mac") ? (
           <span className="text-[12px]">⌘</span>
         ) : (

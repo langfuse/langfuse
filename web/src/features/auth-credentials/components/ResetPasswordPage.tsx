@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 import Head from "next/head";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -116,7 +116,7 @@ export function ResetPasswordPage({
           <Link href="/">
             <LangfuseIcon className="mx-auto" />
           </Link>
-          <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
+          <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Reset your password
           </h2>
           {session.status !== "authenticated" && (
@@ -131,7 +131,7 @@ export function ResetPasswordPage({
           )}
         </div>
 
-        <div className="mt-10 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="bg-background mt-10 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="space-y-6">
             <Form {...form}>
               <form
@@ -155,7 +155,7 @@ export function ResetPasswordPage({
                           />
                           {emailVerified.verified && (
                             <span title="Email verified">
-                              <ShieldCheck className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 transform text-muted-green" />
+                              <ShieldCheck className="text-muted-green absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform" />
                             </span>
                           )}
                         </div>
@@ -223,7 +223,7 @@ export function ResetPasswordPage({
               </form>
             </Form>
             {formError ? (
-              <div className="text-center text-sm font-medium text-destructive">
+              <div className="text-destructive text-center text-sm font-medium">
                 {formError}
               </div>
             ) : null}
@@ -241,7 +241,7 @@ export function ResetPasswordPage({
           </div>
         </div>
         {session.status !== "authenticated" && (
-          <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
+          <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
             You will only receive an email if an account with this email exists
             and you have signed up with email and password. If you used an
             authentication provider like Google, Gitlab, Okta, or GitHub, please{" "}

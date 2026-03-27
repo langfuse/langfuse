@@ -26,7 +26,7 @@ export interface AdaptedTraceData {
 export function adaptEventsToTraceFormat(params: {
   events: EventsObservation[];
   traceId: string;
-  rootIO?: { input: unknown; output: unknown } | null;
+  rootIO?: { input: unknown; output: unknown; metadata?: unknown } | null;
 }): AdaptedTraceData {
   const { events, traceId, rootIO } = params;
 
@@ -60,10 +60,10 @@ export function adaptEventsToTraceFormat(params: {
     timestamp: earliest.startTime,
     input: rootIO?.input ? JSON.stringify(rootIO.input) : null,
     output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
-    metadata: JSON.stringify(root?.metadata ?? {}),
+    metadata: JSON.stringify(rootIO?.metadata ?? root?.metadata ?? {}),
     tags: [], // Events have tags on each observation, not trace-level
-    bookmarked: false,
-    public: false,
+    bookmarked: root?.bookmarked ?? false,
+    public: root?.public ?? false,
     release: earliest.version ?? null,
     version: earliest.version ?? null,
     userId: earliest.userId ?? null,

@@ -98,6 +98,7 @@ export function useEventsTraceData(
         : [],
       minStartTime: timeRange?.min ?? new Date(),
       maxStartTime: timeRange?.max ?? new Date(),
+      truncated: false,
     },
     {
       enabled:
@@ -142,7 +143,11 @@ export function useEventsTraceData(
       events: observations,
       traceId,
       rootIO: rootIO
-        ? { input: rootIO.input, output: rootIO.output }
+        ? {
+            input: rootIO.input,
+            output: rootIO.output,
+            metadata: rootIO.metadata,
+          }
         : undefined,
     });
 

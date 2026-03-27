@@ -111,17 +111,91 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.9.5.0
+- Pnpm v.10.33.0
 - Docker to run the database locally
 - Clickhouse client
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
+### Codex Cloud Setup
+
+You can also attach this repository to an OpenAI Codex cloud environment. The
+cloud environment itself is configured in the Codex UI, while the repo-owned
+bootstrap is versioned in:
+
+- `scripts/codex/setup.sh`
+- `scripts/codex/maintenance.sh`
+
+Recommended Codex UI configuration:
+
+1. Create a new cloud environment for this repository in the Codex UI.
+2. Choose a base environment with Node.js 24 support.
+3. Set the setup script to:
+
+   ```bash
+   bash scripts/codex/setup.sh
+   ```
+
+4. Set the maintenance script to:
+
+   ```bash
+   bash scripts/codex/maintenance.sh
+   ```
+
+5. Keep internet access disabled by default, or only allow the minimum domains
+   needed for your task.
+6. Add secrets and environment variables in the Codex UI instead of committing
+   them to the repository.
+
+Notes:
+
+- This Codex setup is intended for repository tasks such as code changes,
+  linting, typechecking, and targeted tests.
+- It does **not** start the full Langfuse stack. Local development still uses
+  Docker and `pnpm run dx` / `pnpm run dev`.
+- Running the full application inside Codex requires external services for
+  PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
+  variables in the Codex UI.
+
+### Shared Agent Setup
+
+This repository keeps the shared agent setup in source control so developers
+using different tools can work against the same instructions, bootstrap, and
+MCP server catalog.
+
+- Canonical shared docs:
+  - `.agents/AGENTS.md`
+- Root discovery symlinks:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+- Shared agent setup overview: `.agents/README.md`
+- Shared skills: `.agents/skills/`
+- Shared tool/bootstrap/MCP config: `.agents/config.json`
+- Tool-specific MCP configs generated locally from that catalog and not committed:
+  - `.mcp.json`
+  - `.cursor/mcp.json`
+  - `.vscode/mcp.json`
+  - `.codex/config.toml`
+- Tool-specific runtime shims generated locally from the shared config and not committed:
+  - `.claude/settings.json`
+  - `.codex/environments/environment.toml`
+  - `.cursor/environment.json`
+- Tool-specific skill projections generated locally and not committed:
+  - `.claude/skills/*`
+- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+
+When you change the shared MCP setup:
+
+1. Edit `.agents/config.json`
+2. Run `pnpm run agents:sync`
+3. Run `pnpm run agents:check`
+4. Do not commit the generated MCP config files or runtime shims
+
 **Steps**
 
 1. Install development dependencies:
    - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
 
 2. Fork the repository and clone it locally
 

@@ -22,7 +22,7 @@ import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 const aiFeaturesSchema = z.object({
   aiFeaturesEnabled: z.boolean(),
@@ -101,7 +101,7 @@ export default function AIFeatureSwitch() {
                 href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="text-primary inline-flex items-center gap-1 hover:underline"
               >
                 More details in the docs here.
                 <ExternalLink className="h-3 w-3" />
@@ -116,7 +116,7 @@ export default function AIFeatureSwitch() {
             />
             {!hasAccess && (
               <span title="No access">
-                <LockIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted" />
+                <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
               </span>
             )}
           </div>
@@ -150,13 +150,13 @@ export default function AIFeatureSwitch() {
                 href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="text-primary inline-flex items-center gap-1 hover:underline"
               >
                 Learn more in the docs.
                 <ExternalLink className="h-3 w-3" />
               </a>
             </span>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-3 text-sm">
               Are you sure you want to proceed?
             </p>
           </DialogBody>

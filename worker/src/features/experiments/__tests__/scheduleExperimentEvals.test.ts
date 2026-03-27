@@ -429,6 +429,7 @@ describe("buildObservationForEval", () => {
       tool_definitions: {},
       tool_calls: [],
       tool_call_names: [],
+      tool_call_count: 0,
     };
   }
 

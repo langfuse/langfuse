@@ -25,7 +25,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "hasParentObservation"],
+  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
 
   facets: [
     {
@@ -61,17 +61,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
-    },
-    {
-      type: "positionInTrace" as const,
-      column: "positionInTrace",
-      label: getEventsColumnName("positionInTrace"),
-      mutuallyExclusiveWith: [
-        "score_categories",
-        "scores_avg",
-        "trace_score_categories",
-        "trace_scores_avg",
-      ],
     },
     {
       type: "categorical" as const,

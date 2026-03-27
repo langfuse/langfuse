@@ -1,10 +1,18 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
   createDatasetItemFilterState,
   ExperimentCreateQueue,
+  getCategoricalScoresGroupedByName,
   getDatasetItems,
+  getEventsGroupedByExperimentDatasetId,
+  getExperimentsCountFromEvents,
+  getExperimentsFromEvents,
+  getExperimentMetricsFromEvents,
+  getNumericScoresGroupedByName,
+  getScoresForExperimentItems,
+  getScoresForExperiments,
   PromptService,
   QueueJobs,
   QueueName,
@@ -24,8 +32,20 @@ import {
   type PromptMessage,
   isPresent,
   type DatasetItemDomain,
+  singleFilter,
+  orderBy,
+  paginationZod,
+  timeFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+
+const ExperimentFilterOptions = z.object({
+  projectId: z.string(),
+  filter: z.array(singleFilter).nullable(),
+  orderBy: orderBy,
+  ...paginationZod,
+});
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -255,6 +275,174 @@ export const experimentsRouter = createTRPCRouter({
         datasetId: input.datasetId,
         runId: datasetRun.id,
         runName: input.runName,
+      };
+    }),
+  all: protectedProjectProcedure
+    .input(ExperimentFilterOptions)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        page: input.page,
+        limit: input.limit,
+      });
+
+      return {
+        data: experiments,
+      };
+    }),
+
+  countAll: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const count = await getExperimentsCountFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+      });
+
+      return {
+        count: count,
+      };
+    }),
+
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentIds: z.array(z.string()),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      if (input.experimentIds.length === 0) {
+        return [];
+      }
+
+      // Fetch metrics (cost, latency) and both score types in parallel
+      const [metrics, itemScores, experimentScores] = await Promise.all([
+        getExperimentMetricsFromEvents({
+          projectId: input.projectId,
+          experimentIds: input.experimentIds,
+        }),
+        getScoresForExperimentItems(input.projectId, input.experimentIds),
+        getScoresForExperiments({
+          projectId: input.projectId,
+          runIds: input.experimentIds, // experiment_id === dataset_run_id
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+      ]);
+
+      return metrics.map((metric) => {
+        // Filter item scores for this experiment
+        const experimentItemScores = itemScores.filter(
+          (s) => s.experimentId === metric.id,
+        );
+
+        return {
+          id: metric.id,
+          totalCost: metric.totalCost,
+          latencyAvg: metric.latencyAvg,
+          // Trace-level item scores (observation_id is null/empty)
+          traceItemScores: aggregateScores(
+            experimentItemScores.filter((s) => !s.observationId),
+          ),
+          // Observation-level item scores (observation_id is present)
+          observationItemScores: aggregateScores(
+            experimentItemScores.filter((s) => Boolean(s.observationId)),
+          ),
+          // Experiment-level scores (direct dataset_run_id match)
+          experimentScores: aggregateScores(
+            experimentScores.filter((s) => s.datasetRunId === metric.id),
+          ),
+        };
+      });
+    }),
+
+  filterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        startTimeFilter: z.array(timeFilter).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      // Map startTimeFilter to Timestamp column for trace queries
+      const traceTimestampFilters =
+        input.startTimeFilter && input.startTimeFilter.length > 0
+          ? input.startTimeFilter.map((f) => ({
+              column: "Timestamp" as const,
+              operator: f.operator,
+              value: f.value,
+              type: "datetime" as const,
+            }))
+          : [];
+
+      const [numericScoreNames, categoricalScoreNames, experimentDatasetIds] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            input.projectId,
+            traceTimestampFilters ?? [],
+          ),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            traceTimestampFilters ?? [],
+          ),
+          getEventsGroupedByExperimentDatasetId(
+            input.projectId,
+            input.startTimeFilter ?? [],
+          ),
+        ]);
+
+      const experimentDatasetIdSet = new Set<string>();
+      for (const { experimentDatasetId } of experimentDatasetIds) {
+        if (experimentDatasetId !== null) {
+          experimentDatasetIdSet.add(experimentDatasetId);
+        }
+      }
+
+      // Return score options for both observation-level and trace-level filters
+      // The same score names are available at both levels
+      const numericScoreOptions = numericScoreNames.map((score) => score.name);
+
+      return {
+        // Observation-level score options (eos.*)
+        obs_scores_avg: numericScoreOptions,
+        obs_score_categories: categoricalScoreNames,
+        // Trace-level score options (ets.*)
+        trace_scores_avg: numericScoreOptions,
+        trace_score_categories: categoricalScoreNames,
+        experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),
 });

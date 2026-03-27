@@ -41,6 +41,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
         />
         <YAxis
           type="number"
@@ -52,7 +53,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
-          className="fill-[--color-metric]"
+          className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
         />
         <ChartTooltip

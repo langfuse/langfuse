@@ -64,13 +64,13 @@ export const SessionAnnotationProcessor: React.FC<
   const leftPanel = (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky Header */}
-      <div className="flex-shrink-0 bg-background">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 px-4">
+      <div className="bg-background shrink-0">
+        <div className="mt-3 grid w-full grid-cols-[auto_auto] items-start justify-between gap-2 px-4">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="SESSION" isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
               {item.objectId}
             </span>
             <CopyIdsPopover
@@ -85,9 +85,9 @@ export const SessionAnnotationProcessor: React.FC<
             </div>
           )}
         </div>
-        <div className="mb-4 mt-2 grid w-full min-w-0 items-center justify-between px-4">
-          <div className="flex min-w-0 max-w-full flex-shrink flex-col">
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+        <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
+          <div className="flex max-w-full min-w-0 shrink flex-col">
+            <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data.environment && (
                 <Badge variant="tertiary">Env: {data.environment}</Badge>
               )}
@@ -107,7 +107,7 @@ export const SessionAnnotationProcessor: React.FC<
             .slice(0, visibleTraces)
             .map((trace: any, index: number) => (
               <Card
-                className="group mb-2 grid gap-2 border-border p-2 shadow-none hover:border-ring"
+                className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
                 key={trace.id}
                 data-trace-index={index}
               >
@@ -118,7 +118,7 @@ export const SessionAnnotationProcessor: React.FC<
                   >
                     Trace: {trace.name} ({trace.id})&nbsp;↗
                   </Link>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {trace.timestamp.toLocaleString()}
                   </div>
                 </div>

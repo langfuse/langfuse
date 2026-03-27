@@ -5,7 +5,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Hallucination",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -17,7 +17,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Helpfulness",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -29,7 +29,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Relevance",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -41,7 +41,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Toxicity",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -53,7 +53,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Correctness",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -65,7 +65,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Contextrelevance",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -77,7 +77,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Contextcorrectness",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -89,7 +89,7 @@
     "updated_at": "2025-05-12T10:15:07.670Z",
     "name": "Conciseness",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -102,7 +102,7 @@
     "name": "Answer Correctness",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -115,7 +115,7 @@
     "name": "Answer Relevance",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -128,7 +128,7 @@
     "name": "Answer Critic",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -141,7 +141,7 @@
     "name": "Context Precision",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Give verdict as '1' if useful and '0' if not",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -154,7 +154,7 @@
     "name": "Context Recall",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -167,7 +167,7 @@
     "name": "Faithfulness",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -180,7 +180,7 @@
     "name": "Goal Accuracy",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -193,7 +193,7 @@
     "name": "Simple Criteria",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -206,7 +206,7 @@
     "name": "SQL Semantic Equivalence",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1 based on the equivalence of the two SQL queries",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -219,7 +219,7 @@
     "name": "Topic Adherence Classification",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1, 1 if the topic falls into any of the given reference topics, 0 otherwise",
       "reasoning": "One sentence reasoning for the score"
     },
@@ -232,7 +232,7 @@
     "name": "Topic Adherence Refusal",
     "partner": "ragas",
     "version": 1,
-    "outputSchema": {
+    "outputDefinition": {
       "score": "Score between 0 and 1. 1 if the AI refused to answer the question about the topic, 0 otherwise",
       "reasoning": "One sentence reasoning for the score"
     },

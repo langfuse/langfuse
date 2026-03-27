@@ -1,5 +1,4 @@
 import {
-  type EvalTemplate,
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
 } from "@langfuse/shared";
@@ -10,12 +9,10 @@ const getPartnerName = (partner: string) => {
   return partnerIdentifierToName.get(partner) ?? "Unknown";
 };
 
-export const getMaintainer = (
-  evalTemplate: Partial<EvalTemplate> & {
-    partner?: string | null;
-    projectId: string | null;
-  },
-) => {
+export const getMaintainer = (evalTemplate: {
+  partner?: string | null;
+  projectId: string | null;
+}) => {
   if (evalTemplate.projectId === null) {
     if (evalTemplate.partner) {
       return `${getPartnerName(evalTemplate.partner)} maintained`;
