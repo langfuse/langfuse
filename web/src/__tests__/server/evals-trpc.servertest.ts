@@ -5,6 +5,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   EvalTargetObject,
@@ -273,6 +274,20 @@ describe("evals trpc", () => {
         },
       });
 
+      const booleanTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "boolean-template",
+          version: 1,
+          prompt: "Judge whether the response satisfies the criteria",
+          outputDefinition: createBooleanEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription:
+              "Return true if the response satisfies the criteria, otherwise false",
+          }),
+        },
+      });
+
       const response = await caller.evals.templateNames({
         projectId: project.id,
         page: 0,
@@ -293,6 +308,13 @@ describe("evals trpc", () => {
             name: "categorical-template",
             outputDefinition: expect.objectContaining({
               dataType: "CATEGORICAL",
+            }),
+          }),
+          expect.objectContaining({
+            latestId: booleanTemplate.id,
+            name: "boolean-template",
+            outputDefinition: expect.objectContaining({
+              dataType: "BOOLEAN",
             }),
           }),
         ]),

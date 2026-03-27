@@ -1029,7 +1029,7 @@ export const InnerEvaluatorForm = (props: {
                                   isTraceTarget(target)
                                     ? ["traceTags", "traceName"]
                                     : isEventTarget(target)
-                                      ? ["tags", "name"]
+                                      ? ["tags", "name", "calledToolNames"]
                                       : undefined
                                 }
                               />

@@ -75,8 +75,10 @@ import {
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { QueryStatusFooter } from "@/src/features/widgets/chart-library/QueryStatusFooter";
-import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -982,6 +984,11 @@ export function WidgetForm({
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
     isError: queryResult.isError,
+  });
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: null,
+    useBackendProgress: false,
   });
 
   // Transform the query results to a consistent format for charts
@@ -1943,20 +1950,14 @@ export function WidgetForm({
                   isLoading={queryResult.isPending}
                 />
                 <ChartLoadingState
-                  isLoading={
-                    chartLoadingState.isLoading && !queryResult.isPending
-                  }
+                  isLoading={chartLoadingState.isLoading}
                   showSpinner={chartLoadingState.showSpinner}
                   showHintImmediately={chartLoadingState.showHintImmediately}
                   hintText={chartLoadingState.hintText}
+                  progress={loadingProgress}
                   className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                  hintClassName="max-w-sm px-4"
                 />
               </div>
-              <QueryStatusFooter
-                isLoading={queryResult.isPending}
-                progress={null}
-              />
             </div>
           ) : (
             <CardContent>
@@ -1967,8 +1968,7 @@ export function WidgetForm({
                     showSpinner={chartLoadingState.showSpinner}
                     showHintImmediately={chartLoadingState.showHintImmediately}
                     hintText={chartLoadingState.hintText}
-                    progress={null}
-                    hintClassName="max-w-sm px-4"
+                    progress={loadingProgress}
                   />
                 ) : (
                   <p className="text-muted-foreground">
