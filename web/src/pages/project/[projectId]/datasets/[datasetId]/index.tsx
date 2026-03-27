@@ -41,6 +41,7 @@ import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/Exp
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { ExperimentsTable } from "@/src/features/experiments/components/table";
 
 export default function Dataset() {
   const router = useRouter();
@@ -93,8 +94,15 @@ export default function Dataset() {
   }) => {
     setIsCreateExperimentDialogOpen(false);
     if (!data) return;
-    void utils.datasets.runsByDatasetId.invalidate();
-    void utils.datasets.baseRunDataByDatasetId.invalidate();
+
+    if (isExperimentsBetaActive) {
+      void utils.experiments.all.invalidate();
+      void utils.experiments.countAll.invalidate();
+    } else {
+      void utils.datasets.runsByDatasetId.invalidate();
+      void utils.datasets.baseRunDataByDatasetId.invalidate();
+    }
+
     showSuccessToast({
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
@@ -180,10 +188,40 @@ export default function Dataset() {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.RUNS,
           },
-          actionButtonsRight: betaSwitch,
+          actionButtonsRight: (
+            <>
+              {betaSwitch}
+              <Dialog
+                open={isCreateExperimentDialogOpen}
+                onOpenChange={setIsCreateExperimentDialogOpen}
+              >
+                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                  <Button
+                    disabled={!hasExperimentWriteAccess}
+                    onClick={() => capture("dataset_run:new_form_open")}
+                  >
+                    <FlaskConical className="h-4 w-4" />
+                    <span className="ml-2 hidden md:block">Run experiment</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                  <CreateExperimentsForm
+                    key={`create-experiment-form-${datasetId}`}
+                    projectId={projectId as string}
+                    setFormOpen={setIsCreateExperimentDialogOpen}
+                    defaultValues={{
+                      datasetId,
+                    }}
+                    handleExperimentSuccess={handleExperimentSuccess}
+                    showSDKRunInfoPage
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          ),
         }}
       >
-        <div className="p-4">Dataset page (Experiments Beta placeholder)</div>
+        <ExperimentsTable projectId={projectId} />
       </Page>
     );
   }
