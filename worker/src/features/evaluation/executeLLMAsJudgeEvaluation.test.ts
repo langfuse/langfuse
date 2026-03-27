@@ -127,7 +127,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   /** Creates a mock for callLLM with a successful response */
   const mockSuccessfulLLMCall = (
-    score: number | string | string[],
+    score: number | boolean | string | string[],
     reasoning: string,
   ) => vi.fn().mockResolvedValue({ score, reasoning });
 
@@ -569,6 +569,50 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).toBe(false);
     });
 
+    it("should pass boolean structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall(
+        false,
+        "The answer does not satisfy the criteria.",
+      );
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.BOOLEAN,
+              reasoning: {
+                description: "Explain the verdict",
+              },
+              score: {
+                description:
+                  "Return true if the answer satisfies the criteria, otherwise false",
+              },
+            },
+          },
+        }),
+      );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: true,
+          reasoning: "The answer satisfies the criteria.",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "true",
+          reasoning: "String values should be rejected.",
+        }).success,
+      ).toBe(false);
+    });
+
     it("should pass model config to LLM", async () => {
       const customModelConfig = {
         provider: "anthropic",
@@ -848,6 +892,80 @@ describe("executeLLMAsJudgeEvaluation", () => {
           }),
         }),
       );
+    });
+
+    it("should persist boolean eval scores", async () => {
+      const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          true,
+          "The answer satisfies the criteria.",
+        ),
+        uploadScore,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.BOOLEAN,
+              reasoning: {
+                description: "Explain the verdict",
+              },
+              score: {
+                description:
+                  "Return true if the answer satisfies the criteria, otherwise false",
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              value: 1,
+              comment: "The answer satisfies the criteria.",
+              dataType: "BOOLEAN",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should fail boolean evals when the model returns a string", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "true",
+          "Strings should not be accepted for boolean evaluators.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.BOOLEAN,
+                reasoning: {
+                  description: "Explain the verdict",
+                },
+                score: {
+                  description:
+                    "Return true if the answer satisfies the criteria, otherwise false",
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
     });
 
     it("should fail categorical evals when the model returns a category outside the allowed set", async () => {
