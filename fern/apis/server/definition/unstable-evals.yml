@@ -1,0 +1,238 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    createEvaluator:
+      docs: |
+        Create an evaluator on the unstable public API.
+
+        Evaluators define reusable scoring logic. This unstable surface may change as the evaluation data model evolves.
+      method: POST
+      path: /evaluators
+      request: CreateEvaluatorRequest
+      response: Evaluator
+
+    listEvaluators:
+      docs: List evaluators on the unstable public API.
+      method: GET
+      path: /evaluators
+      request:
+        name: ListEvaluatorsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page.
+      response: Evaluators
+
+    getEvaluator:
+      docs: Get an evaluator on the unstable public API.
+      method: GET
+      path: /evaluators/{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier.
+      response: Evaluator
+
+    updateEvaluator:
+      docs: Update an evaluator on the unstable public API.
+      method: PATCH
+      path: /evaluators/{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier.
+      request: UpdateEvaluatorRequest
+      response: Evaluator
+
+    deleteEvaluator:
+      docs: Delete an evaluator on the unstable public API.
+      method: DELETE
+      path: /evaluators/{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier.
+      response: DeleteEvaluatorResponse
+
+    createContinuousEvaluation:
+      docs: |
+        Create a continuous evaluation on the unstable public API.
+
+        Continuous evaluations define which observations or experiments should be evaluated during live ingestion.
+      method: POST
+      path: /continuous-evaluations
+      request: CreateContinuousEvaluationRequest
+      response: ContinuousEvaluation
+
+    listContinuousEvaluations:
+      docs: List continuous evaluations on the unstable public API.
+      method: GET
+      path: /continuous-evaluations
+      request:
+        name: ListContinuousEvaluationsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page.
+      response: ContinuousEvaluations
+
+    getContinuousEvaluation:
+      docs: Get a continuous evaluation on the unstable public API.
+      method: GET
+      path: /continuous-evaluations/{continuousEvaluationId}
+      path-parameters:
+        continuousEvaluationId:
+          type: string
+          docs: Continuous evaluation identifier.
+      response: ContinuousEvaluation
+
+    updateContinuousEvaluation:
+      docs: Update a continuous evaluation on the unstable public API.
+      method: PATCH
+      path: /continuous-evaluations/{continuousEvaluationId}
+      path-parameters:
+        continuousEvaluationId:
+          type: string
+          docs: Continuous evaluation identifier.
+      request: UpdateContinuousEvaluationRequest
+      response: ContinuousEvaluation
+
+    deleteContinuousEvaluation:
+      docs: Delete a continuous evaluation on the unstable public API.
+      method: DELETE
+      path: /continuous-evaluations/{continuousEvaluationId}
+      path-parameters:
+        continuousEvaluationId:
+          type: string
+          docs: Continuous evaluation identifier.
+      response: DeleteContinuousEvaluationResponse
+
+types:
+  EvaluatorType:
+    enum:
+      - llm_as_judge
+
+  ContinuousEvaluationTarget:
+    enum:
+      - observation
+      - experiment
+
+  ContinuousEvaluationStatus:
+    enum:
+      - active
+      - inactive
+      - paused
+
+  ContinuousEvaluationMappingSource:
+    enum:
+      - input
+      - output
+      - metadata
+      - expected_output
+
+  EvaluatorModelConfig:
+    properties:
+      provider: string
+      model: string
+      modelParams: optional<nullable<map<string, unknown>>>
+
+  ContinuousEvaluationMapping:
+    properties:
+      variable: string
+      source: ContinuousEvaluationMappingSource
+      jsonPath: optional<string>
+
+  Evaluator:
+    properties:
+      id: string
+      name: string
+      description: nullable<string>
+      type: EvaluatorType
+      prompt: string
+      variables: list<string>
+      outputDefinition: unknown
+      modelConfig: nullable<EvaluatorModelConfig>
+      continuousEvaluationCount: integer
+      createdAt: datetime
+      updatedAt: datetime
+
+  Evaluators:
+    properties:
+      data: list<Evaluator>
+      meta: pagination.MetaResponse
+
+  CreateEvaluatorRequest:
+    properties:
+      name: string
+      description: optional<nullable<string>>
+      prompt: string
+      outputDefinition: unknown
+      modelConfig: optional<nullable<EvaluatorModelConfig>>
+
+  UpdateEvaluatorRequest:
+    properties:
+      name: optional<string>
+      description: optional<nullable<string>>
+      prompt: optional<string>
+      outputDefinition: optional<unknown>
+      modelConfig: optional<nullable<EvaluatorModelConfig>>
+
+  DeleteEvaluatorResponse:
+    properties:
+      message: string
+
+  ContinuousEvaluation:
+    properties:
+      id: string
+      name: string
+      evaluatorId: string
+      target: ContinuousEvaluationTarget
+      enabled: boolean
+      status: ContinuousEvaluationStatus
+      pausedReason: nullable<string>
+      pausedMessage: nullable<string>
+      sampling: double
+      filter: list<map<string, unknown>>
+      mapping: list<ContinuousEvaluationMapping>
+      createdAt: datetime
+      updatedAt: datetime
+
+  ContinuousEvaluations:
+    properties:
+      data: list<ContinuousEvaluation>
+      meta: pagination.MetaResponse
+
+  CreateContinuousEvaluationRequest:
+    properties:
+      name: string
+      evaluatorId: string
+      target: ContinuousEvaluationTarget
+      enabled: boolean
+      sampling: optional<double>
+      filter: optional<list<map<string, unknown>>>
+      mapping: list<ContinuousEvaluationMapping>
+
+  UpdateContinuousEvaluationRequest:
+    properties:
+      name: optional<string>
+      evaluatorId: optional<string>
+      target: optional<ContinuousEvaluationTarget>
+      enabled: optional<boolean>
+      sampling: optional<double>
+      filter: optional<list<map<string, unknown>>>
+      mapping: optional<list<ContinuousEvaluationMapping>>
+
+  DeleteContinuousEvaluationResponse:
+    properties:
+      message: string

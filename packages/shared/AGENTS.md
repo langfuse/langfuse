@@ -30,6 +30,10 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Postgres schema: `prisma/schema.prisma`
+- Public-eval identity for unstable API resources is currently carried on
+  `EvalTemplate` via `evaluatorId` and `description`; preserve that stable
+  grouping field if you touch evaluator versioning before the planned data-model
+  overhaul.
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`

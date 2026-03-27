@@ -6094,6 +6094,508 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/evaluators:
+    post:
+      description: >-
+        Create an evaluator on the unstable public API.
+
+
+        Evaluators define reusable scoring logic. This unstable surface may
+        change as the evaluation data model evolves.
+      operationId: unstableEvals_createEvaluator
+      tags:
+        - UnstableEvals
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvaluatorRequest'
+    get:
+      description: List evaluators on the unstable public API.
+      operationId: unstableEvals_listEvaluators
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Limit of items per page.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluators'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/unstable/evaluators/{evaluatorId}:
+    get:
+      description: Get an evaluator on the unstable public API.
+      operationId: unstableEvals_getEvaluator
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    patch:
+      description: Update an evaluator on the unstable public API.
+      operationId: unstableEvals_updateEvaluator
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEvaluatorRequest'
+    delete:
+      description: Delete an evaluator on the unstable public API.
+      operationId: unstableEvals_deleteEvaluator
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteEvaluatorResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/unstable/continuous-evaluations:
+    post:
+      description: >-
+        Create a continuous evaluation on the unstable public API.
+
+
+        Continuous evaluations define which observations or experiments should
+        be evaluated during live ingestion.
+      operationId: unstableEvals_createContinuousEvaluation
+      tags:
+        - UnstableEvals
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuousEvaluation'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContinuousEvaluationRequest'
+    get:
+      description: List continuous evaluations on the unstable public API.
+      operationId: unstableEvals_listContinuousEvaluations
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Limit of items per page.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuousEvaluations'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/unstable/continuous-evaluations/{continuousEvaluationId}:
+    get:
+      description: Get a continuous evaluation on the unstable public API.
+      operationId: unstableEvals_getContinuousEvaluation
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: continuousEvaluationId
+          in: path
+          description: Continuous evaluation identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuousEvaluation'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    patch:
+      description: Update a continuous evaluation on the unstable public API.
+      operationId: unstableEvals_updateContinuousEvaluation
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: continuousEvaluationId
+          in: path
+          description: Continuous evaluation identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContinuousEvaluation'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContinuousEvaluationRequest'
+    delete:
+      description: Delete a continuous evaluation on the unstable public API.
+      operationId: unstableEvals_deleteContinuousEvaluation
+      tags:
+        - UnstableEvals
+      parameters:
+        - name: continuousEvaluationId
+          in: path
+          description: Continuous evaluation identifier.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteContinuousEvaluationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
 components:
   schemas:
     AnnotationQueueStatus:
@@ -6353,6 +6855,12 @@ components:
           description: >-
             Custom start date for exports (required when exportMode is
             FROM_CUSTOM_DATE)
+        compressed:
+          type: boolean
+          nullable: true
+          description: >-
+            Enable gzip compression for exported files (.csv.gz, .json.gz,
+            .jsonl.gz). Defaults to true.
       required:
         - projectId
         - type
@@ -6399,6 +6907,8 @@ components:
           type: string
           format: date-time
           nullable: true
+        compressed:
+          type: boolean
         nextSyncAt:
           type: string
           format: date-time
@@ -6432,6 +6942,7 @@ components:
         - forcePathStyle
         - fileType
         - exportMode
+        - compressed
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -10923,6 +11434,296 @@ components:
           type: string
       required:
         - id
+    EvaluatorType:
+      title: EvaluatorType
+      type: string
+      enum:
+        - llm_as_judge
+    ContinuousEvaluationTarget:
+      title: ContinuousEvaluationTarget
+      type: string
+      enum:
+        - observation
+        - experiment
+    ContinuousEvaluationStatus:
+      title: ContinuousEvaluationStatus
+      type: string
+      enum:
+        - active
+        - inactive
+        - paused
+    ContinuousEvaluationMappingSource:
+      title: ContinuousEvaluationMappingSource
+      type: string
+      enum:
+        - input
+        - output
+        - metadata
+        - expected_output
+    EvaluatorModelConfig:
+      title: EvaluatorModelConfig
+      type: object
+      properties:
+        provider:
+          type: string
+        model:
+          type: string
+        modelParams:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required:
+        - provider
+        - model
+    ContinuousEvaluationMapping:
+      title: ContinuousEvaluationMapping
+      type: object
+      properties:
+        variable:
+          type: string
+        source:
+          $ref: '#/components/schemas/ContinuousEvaluationMappingSource'
+        jsonPath:
+          type: string
+          nullable: true
+      required:
+        - variable
+        - source
+    Evaluator:
+      title: Evaluator
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          $ref: '#/components/schemas/EvaluatorType'
+        prompt:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+        outputDefinition: {}
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+        continuousEvaluationCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - type
+        - prompt
+        - variables
+        - outputDefinition
+        - continuousEvaluationCount
+        - createdAt
+        - updatedAt
+    Evaluators:
+      title: Evaluators
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evaluator'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    CreateEvaluatorRequest:
+      title: CreateEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        prompt:
+          type: string
+        outputDefinition: {}
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+      required:
+        - name
+        - prompt
+        - outputDefinition
+    UpdateEvaluatorRequest:
+      title: UpdateEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        prompt:
+          type: string
+          nullable: true
+        outputDefinition:
+          nullable: true
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+    DeleteEvaluatorResponse:
+      title: DeleteEvaluatorResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    ContinuousEvaluation:
+      title: ContinuousEvaluation
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        evaluatorId:
+          type: string
+        target:
+          $ref: '#/components/schemas/ContinuousEvaluationTarget'
+        enabled:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/ContinuousEvaluationStatus'
+        pausedReason:
+          type: string
+          nullable: true
+        pausedMessage:
+          type: string
+          nullable: true
+        sampling:
+          type: number
+          format: double
+        filter:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinuousEvaluationMapping'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - evaluatorId
+        - target
+        - enabled
+        - status
+        - sampling
+        - filter
+        - mapping
+        - createdAt
+        - updatedAt
+    ContinuousEvaluations:
+      title: ContinuousEvaluations
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinuousEvaluation'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    CreateContinuousEvaluationRequest:
+      title: CreateContinuousEvaluationRequest
+      type: object
+      properties:
+        name:
+          type: string
+        evaluatorId:
+          type: string
+        target:
+          $ref: '#/components/schemas/ContinuousEvaluationTarget'
+        enabled:
+          type: boolean
+        sampling:
+          type: number
+          format: double
+          nullable: true
+        filter:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinuousEvaluationMapping'
+      required:
+        - name
+        - evaluatorId
+        - target
+        - enabled
+        - mapping
+    UpdateContinuousEvaluationRequest:
+      title: UpdateContinuousEvaluationRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        evaluatorId:
+          type: string
+          nullable: true
+        target:
+          $ref: '#/components/schemas/ContinuousEvaluationTarget'
+          nullable: true
+        enabled:
+          type: boolean
+          nullable: true
+        sampling:
+          type: number
+          format: double
+          nullable: true
+        filter:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContinuousEvaluationMapping'
+          nullable: true
+    DeleteContinuousEvaluationResponse:
+      title: DeleteContinuousEvaluationResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object
