@@ -56,11 +56,8 @@ export const EvalTemplateDetail = () => {
 
   const handleTemplateSelect = (newTemplate: EvalTemplate) => {
     // Update URL without full page reload
-    void router.push(
-      {
-        pathname: `/project/${projectId}/evals/templates/${newTemplate.id}`,
-        query: isEditing ? { mode: "edit" } : undefined,
-      },
+    router.push(
+      `/project/${projectId}/evals/templates/${newTemplate.id}`,
       undefined,
       { shallow: true },
     );
