@@ -1,4 +1,5 @@
 import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
+import { formatSessionPositionInTraceFilterValue } from "@/src/components/session/session-position-in-trace";
 
 function formatFilterLabel(filter: FilterState[number]) {
   return "key" in filter && filter.key
@@ -10,8 +11,7 @@ function formatFilterValue(filter: FilterState[number]) {
   if (filter.type === "null") return "";
 
   if (filter.type === "positionInTrace") {
-    if (filter.key === "first" || filter.key === "root") return "1st";
-    return filter.value ? `${filter.key} ${filter.value}` : filter.key;
+    return formatSessionPositionInTraceFilterValue(filter);
   }
 
   if (filter.type === "datetime") {

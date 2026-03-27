@@ -50,6 +50,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { normalizeLegacySessionPositionInTraceFilters } from "@/src/components/session/session-position-in-trace";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
@@ -769,7 +770,10 @@ export const SessionEventsPage: React.FC<{
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilter.setFilterState(filters),
+    (filters: FilterState) =>
+      queryFilter.setFilterState(
+        normalizeLegacySessionPositionInTraceFilters(filters),
+      ),
     [queryFilter],
   );
 

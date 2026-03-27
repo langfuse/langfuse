@@ -474,7 +474,7 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
-  // root only wor backawrds compat , maps to first
+  // `root` remains only for backward compatibility and maps to `first`.
   // root/first/nthFromStart → ORDER BY start_time ASC
   // last/nthFromEnd         → ORDER BY start_time DESC
   if (positionFilter && "key" in positionFilter) {
