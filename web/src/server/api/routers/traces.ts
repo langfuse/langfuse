@@ -23,6 +23,7 @@ import {
   TracingSearchType,
   type ScoreDomain,
   AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
   ScoreDataTypeEnum,
 } from "@langfuse/shared";
 import {
@@ -371,7 +372,7 @@ export const traceRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
-        dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
+        dataTypes: [...ScoreDataTypeArray],
         onParseError: traceException,
       });
 

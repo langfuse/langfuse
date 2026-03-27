@@ -143,6 +143,8 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
       return "Ⓑ";
     case "CORRECTION":
       return "";
+    case "FREE_FORM":
+      return "Aa";
   }
 };
 

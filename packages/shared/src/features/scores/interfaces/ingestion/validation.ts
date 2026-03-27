@@ -81,4 +81,8 @@ export const ScorePropsAgainstConfig = z.union([
     }),
     dataType: z.literal("BOOLEAN"),
   }),
+  z.object({
+    value: z.string().min(1).max(500),
+    dataType: z.literal("FREE_FORM"),
+  }),
 ]);

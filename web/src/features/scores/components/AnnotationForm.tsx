@@ -39,6 +39,7 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import {
   formatAnnotateDescription,
+  isFreeFormDataType,
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
@@ -487,6 +488,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     handleUpsert(index, numericCategoryValue, stringValue);
   };
 
+  const handleFreeFormUpsert = (index: number) => {
+    const field = controlledFields[index];
+    const config = configs.find((c) => c.id === field.configId);
+
+    if (!config || !field) return;
+    if (!field.stringValue) return;
+
+    handleUpsert(index, 0, field.stringValue);
+  };
+
   const rollbackCommentError = (
     index: number,
     field: (typeof controlledFields)[number],
@@ -676,7 +687,28 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isNumericDataType(score.dataType) ? (
+                          {isFreeFormDataType(score.dataType) ? (
+                            <FormField
+                              control={form.control}
+                              name={`scoreData.${index}.stringValue`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Textarea
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      maxLength={500}
+                                      className="text-xs"
+                                      disabled={isInputDisabled(config)}
+                                      placeholder="Enter free form text..."
+                                      onBlur={() => handleFreeFormUpsert(index)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs" />
+                                </FormItem>
+                              )}
+                            />
+                          ) : isNumericDataType(score.dataType) ? (
                             <FormField
                               control={form.control}
                               name={`scoreData.${index}.value`}

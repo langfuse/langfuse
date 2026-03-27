@@ -965,6 +965,14 @@ async function generateConfigs(project: Project) {
         "Used to indicate if text was harmful or offensive in nature.",
       isArchived: false,
     },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Feedback",
+      dataType: ScoreDataTypeEnum.FREE_FORM,
+      description: "Free-form text feedback on the output quality.",
+      isArchived: false,
+    },
   ];
 
   for (const config of configs) {

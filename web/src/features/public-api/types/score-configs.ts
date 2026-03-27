@@ -1,6 +1,7 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
+  FreeFormConfigFields,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
@@ -52,6 +53,10 @@ const APIScoreConfig = z
     z.object({
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...FreeFormConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);
