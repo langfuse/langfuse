@@ -1251,6 +1251,11 @@ export default function ObservationsEventsTable({
     return Object.keys(selectedRows).filter((id) => rowIds.has(id));
   }, [observations.rows, selectedRows]);
 
+  const selectedObservationCount =
+    selectAll && totalCount !== null
+      ? totalCount
+      : selectedObservationIds.length;
+
   const exampleObservation = useMemo(() => {
     const firstId = selectedObservationIds[0];
     const firstObs = observations.rows?.find((o) => o.id === firstId);
@@ -1330,6 +1335,11 @@ export default function ObservationsEventsTable({
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationBatchEvaluation) {
                       setShowRunEvaluationDialog(true);
@@ -1419,6 +1429,7 @@ export default function ObservationsEventsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}

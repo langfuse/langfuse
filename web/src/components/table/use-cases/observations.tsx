@@ -1286,6 +1286,19 @@ export default function ObservationsTable({
       : [];
   }, [generations]);
 
+  const selectedObservationIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((generationId) =>
+        generations.data?.generations.map((g) => g.id).includes(generationId),
+      ),
+    [selectedRows, generations.data?.generations],
+  );
+
+  const selectedObservationCount =
+    selectAll && totalCount !== null
+      ? totalCount
+      : selectedObservationIds.length;
+
   return (
     <DataTableControlsProvider tableName={observationFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -1341,16 +1354,17 @@ export default function ObservationsTable({
                 tableName={BatchExportTableName.Observations}
                 key="batchExport"
               />,
-              Object.keys(selectedRows).filter((generationId) =>
-                generations.data?.generations
-                  .map((g) => g.id)
-                  .includes(generationId),
-              ).length > 0 ? (
+              selectedObservationIds.length > 0 ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationAddToDataset) {
                       setShowAddToDatasetDialog(true);
@@ -1362,11 +1376,7 @@ export default function ObservationsTable({
             multiSelect={{
               selectAll,
               setSelectAll,
-              selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
-                generations.data?.generations
-                  .map((g) => g.id)
-                  .includes(generationId),
-              ),
+              selectedRowIds: selectedObservationIds,
               setRowSelection: setSelectedRows,
               totalCount,
               ...paginationState,
@@ -1408,6 +1418,7 @@ export default function ObservationsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}
@@ -1454,9 +1465,7 @@ export default function ObservationsTable({
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
           projectId={projectId}
-          selectedObservationIds={Object.keys(selectedRows).filter((id) =>
-            generations.data?.generations.map((g) => g.id).includes(id),
-          )}
+          selectedObservationIds={selectedObservationIds}
           query={{
             filter: backendFilterState,
             orderBy: orderByState,
@@ -1472,9 +1481,7 @@ export default function ObservationsTable({
           }}
           exampleObservation={(() => {
             // Get the first selected observation to use for preview
-            const selectedIds = Object.keys(selectedRows).filter((id) =>
-              generations.data?.generations.map((g) => g.id).includes(id),
-            );
+            const selectedIds = selectedObservationIds;
             const firstId = selectedIds[0];
             const firstGen = generations.data?.generations.find(
               (g) => g.id === firstId,

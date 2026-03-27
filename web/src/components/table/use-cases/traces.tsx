@@ -1299,6 +1299,17 @@ export default function TracesTable({
       : [];
   }, [traces.isSuccess, traceRowData?.rows]);
 
+  const selectedTraceIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((traceId) =>
+        traces.data?.traces.map((t) => t.id).includes(traceId),
+      ),
+    [selectedRows, traces.data?.traces],
+  );
+
+  const selectedTraceCount =
+    selectAll && totalCount !== null ? totalCount : selectedTraceIds.length;
+
   return (
     <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -1323,14 +1334,17 @@ export default function TracesTable({
             }}
             columnsWithCustomSelect={["name", "tags"]}
             actionButtons={[
-              Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              ).length > 0 ? (
+              selectedTraceIds.length > 0 ? (
                 <TableActionMenu
                   key="traces-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Traces}
+                  selectedCount={selectedTraceCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                 />
               ) : null,
               <BatchExportTableButton
@@ -1366,9 +1380,7 @@ export default function TracesTable({
             multiSelect={{
               selectAll,
               setSelectAll,
-              selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              ),
+              selectedRowIds: selectedTraceIds,
               setRowSelection: setSelectedRows,
               totalCount,
               ...paginationState,
@@ -1413,6 +1425,7 @@ export default function TracesTable({
               setOrderBy={setOrderByState}
               orderBy={orderByState}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}
