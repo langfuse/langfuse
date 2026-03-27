@@ -2041,3 +2041,40 @@ export const getCostByEvaluatorIds = async (
     totalCost: Number(row.total_cost),
   }));
 };
+
+export const getObservationsForKubit = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT o.*
+    FROM observations o FINAL
+    WHERE o.project_id = {projectId: String}
+      AND o.start_time >= {minTimestamp: DateTime64(3)}
+      AND o.start_time <= {maxTimestamp: DateTime64(3)}
+      AND o.is_deleted = 0
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "kubit",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  for await (const record of records) {
+    yield { entity_type: "observation" as const, ...record };
+  }
+};

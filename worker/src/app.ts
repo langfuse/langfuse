@@ -28,6 +28,7 @@ import {
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
   MixpanelIntegrationQueue,
+  KubitIntegrationQueue,
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
@@ -58,6 +59,10 @@ import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
 } from "./queues/mixpanelIntegrationQueue";
+import {
+  kubitIntegrationProcessingProcessor,
+  kubitIntegrationProcessor,
+} from "./queues/kubitQueue";
 import {
   blobStorageIntegrationProcessingProcessor,
   blobStorageIntegrationProcessor,
@@ -485,6 +490,34 @@ if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_KUBIT_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  KubitIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.KubitIntegrationQueue,
+    kubitIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.KubitIntegrationProcessingQueue,
+    kubitIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        max: 1,
+        duration: 10_000,
+      },
+      lockDuration: 60000,
+      stalledInterval: 120000,
       maxStalledCount: 3,
     },
   );

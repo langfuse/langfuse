@@ -427,6 +427,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+
+  QUEUE_CONSUMER_KUBIT_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
