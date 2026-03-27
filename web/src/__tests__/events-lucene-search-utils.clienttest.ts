@@ -43,6 +43,18 @@ describe("events lucene search autocomplete", () => {
     ).toBe('chat completion"');
   });
 
+  it("does not add an extra closing quote when one already exists at the cursor", () => {
+    const query = 'traceName:""';
+    const result = resolveEventsLuceneCompletionItems(query, query.length - 1, {
+      traceName: ["ChatCompletion"],
+    });
+
+    expect(result.from).toBe(query.length - 1);
+    expect(
+      result.items.find((item) => item.label === "ChatCompletion")?.apply,
+    ).toBe("ChatCompletion");
+  });
+
   it("suggests datetime snippets for datetime fields", () => {
     const result = resolveEventsLuceneCompletionItems("startTime:", 10, {});
 

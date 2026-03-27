@@ -41,6 +41,7 @@ type LuceneAutocompleteContext =
       from: number;
       query: string;
       quoted: boolean;
+      hasClosingQuoteAfterCursor: boolean;
     }
   | {
       kind: "field";
@@ -214,11 +215,15 @@ function escapeLuceneQuotedValue(value: string) {
   return value.replace(/(["\\])/g, "\\$1");
 }
 
-function formatLuceneValueInsertion(value: string, quoted: boolean) {
+function formatLuceneValueInsertion(
+  value: string,
+  quoted: boolean,
+  hasClosingQuoteAfterCursor = false,
+) {
   const escapedValue = escapeLuceneQuotedValue(value);
 
   if (quoted) {
-    return `${escapedValue}"`;
+    return hasClosingQuoteAfterCursor ? escapedValue : `${escapedValue}"`;
   }
 
   return /[\s()[\]{}]/.test(value) ? `"${escapedValue}"` : escapedValue;
@@ -284,6 +289,8 @@ function getLuceneAutocompleteContext(
       from: cursor - valueQuery.length,
       query: valueQuery,
       quoted: quotedValue !== undefined,
+      hasClosingQuoteAfterCursor:
+        quotedValue !== undefined && query[cursor] === '"',
     };
   }
 
@@ -322,7 +329,11 @@ export function resolveEventsLuceneCompletionItems(
             ...item,
             apply:
               item.label === '"quoted phrase"'
-                ? formatLuceneValueInsertion("quoted phrase", context.quoted)
+                ? formatLuceneValueInsertion(
+                    "quoted phrase",
+                    context.quoted,
+                    context.hasClosingQuoteAfterCursor,
+                  )
                 : item.apply,
           })),
           context.query,
@@ -342,7 +353,11 @@ export function resolveEventsLuceneCompletionItems(
     const optionValues =
       fieldOptions[fieldId]?.slice(0, 20).map((value) => ({
         label: value,
-        apply: formatLuceneValueInsertion(value, context.quoted),
+        apply: formatLuceneValueInsertion(
+          value,
+          context.quoted,
+          context.hasClosingQuoteAfterCursor,
+        ),
         type: "text" as const,
         detail: "Observed value",
         boost: 30,
@@ -359,7 +374,11 @@ export function resolveEventsLuceneCompletionItems(
               ...item,
               apply:
                 item.label === '"quoted phrase"'
-                  ? formatLuceneValueInsertion("quoted phrase", context.quoted)
+                  ? formatLuceneValueInsertion(
+                      "quoted phrase",
+                      context.quoted,
+                      context.hasClosingQuoteAfterCursor,
+                    )
                   : item.apply,
             })),
           ],
