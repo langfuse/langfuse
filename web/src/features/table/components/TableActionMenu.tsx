@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Trash } from "lucide-react";
+import { X, Trash, LoaderCircle } from "lucide-react";
 import { Plus } from "lucide-react";
 import {
   type TableAction,
@@ -14,7 +14,7 @@ type TableActionMenuProps = {
   projectId: string;
   actions: TableAction[];
   tableName: BatchExportTableName;
-  selectedCount: number;
+  selectedCount: number | null;
   onClearSelection: () => void;
   onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
 };
@@ -55,10 +55,14 @@ export function TableActionMenu({
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center">
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-50 flex justify-center">
         <div className="bg-background/95 border-border pointer-events-auto flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg backdrop-blur-sm">
           <div className="text-sm font-medium">
-            {`${selectedCount} selected`}
+            {selectedCount !== null ? (
+              <span> `${selectedCount} selected`</span>
+            ) : (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            )}
           </div>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">

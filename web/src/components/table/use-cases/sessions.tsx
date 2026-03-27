@@ -751,8 +751,9 @@ export default function SessionsTable({
     [selectedRows, sessions.data?.sessions],
   );
 
-  const selectedSessionCount =
-    selectAll && totalCount !== null ? totalCount : selectedSessionIds.length;
+  const selectedSessionCount = selectAll
+    ? totalCount
+    : selectedSessionIds.length;
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Sessions,
@@ -777,7 +778,7 @@ export default function SessionsTable({
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}
           actionButtons={[
-            selectedSessionIds.length > 0 ? (
+            selectedSessionIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="sessions-multi-select-actions"
                 projectId={projectId}

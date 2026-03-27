@@ -1294,10 +1294,9 @@ export default function ObservationsTable({
     [selectedRows, generations.data?.generations],
   );
 
-  const selectedObservationCount =
-    selectAll && totalCount !== null
-      ? totalCount
-      : selectedObservationIds.length;
+  const selectedObservationCount = selectAll
+    ? totalCount
+    : selectedObservationIds.length;
 
   return (
     <DataTableControlsProvider tableName={observationFilterConfig.tableName}>
@@ -1354,7 +1353,7 @@ export default function ObservationsTable({
                 tableName={BatchExportTableName.Observations}
                 key="batchExport"
               />,
-              selectedObservationIds.length > 0 ? (
+              selectedObservationIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}

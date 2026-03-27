@@ -831,10 +831,9 @@ export default function ScoresTable({
     [selectedRows, scores.data?.scores],
   );
 
-  const selectedScoreCount =
-    selectAll && totalCount !== null
-      ? totalCount
-      : visibleSelectedScoreIds.length;
+  const selectedScoreCount = selectAll
+    ? totalCount
+    : visibleSelectedScoreIds.length;
 
   return (
     <DataTableControlsProvider
@@ -856,7 +855,7 @@ export default function ScoresTable({
             controllers: viewControllers,
           }}
           actionButtons={[
-            visibleSelectedScoreIds.length > 0 ? (
+            visibleSelectedScoreIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="scores-multi-select-actions"
                 projectId={projectId}

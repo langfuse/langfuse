@@ -1307,8 +1307,7 @@ export default function TracesTable({
     [selectedRows, traces.data?.traces],
   );
 
-  const selectedTraceCount =
-    selectAll && totalCount !== null ? totalCount : selectedTraceIds.length;
+  const selectedTraceCount = selectAll ? totalCount : selectedTraceIds.length;
 
   return (
     <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
@@ -1334,7 +1333,7 @@ export default function TracesTable({
             }}
             columnsWithCustomSelect={["name", "tags"]}
             actionButtons={[
-              selectedTraceIds.length > 0 ? (
+              selectedTraceIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="traces-multi-select-actions"
                   projectId={projectId}
