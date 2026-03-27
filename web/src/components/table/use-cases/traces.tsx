@@ -291,13 +291,13 @@ export default function TracesTable({
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
-      name:
+      traceName:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
         })) ?? undefined,
       // tags don't have counts
-      tags:
+      traceTags:
         traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
@@ -1321,7 +1321,7 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            columnsWithCustomSelect={["name", "tags"]}
+            columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>
                 traces.data?.traces.map((t) => t.id).includes(traceId),

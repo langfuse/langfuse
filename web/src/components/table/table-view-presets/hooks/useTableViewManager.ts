@@ -196,6 +196,7 @@ export function useTableViewManager({
         validOrderBy = validateOrderBy(
           viewData.orderBy,
           validationContext.columns,
+          validationContext.filterColumnDefinition,
         );
       }
 
