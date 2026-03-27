@@ -336,6 +336,6 @@ _[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0
 1. Langfuse가 어떻게 사용되는지 이해하고, 가장 관련성 높은 기능을 개선할 수 있습니다.
 2. 내부 및 외부(예: 자금 조달) 보고를 위한 전체 사용량을 추적할 수 있습니다.
 
-수집된 데이터는 제3자와 공유되지 않으며 민감한 정보를 포함하지 않습니다. 이에 대해 매우 투명하게 공개하고 있으며, 수집되는 정확한 데이터는 [여기](/web/src/features/telemetry/index.ts)에서 확인할 수 있습니다.
+텔레메트리에는 원시 traces, prompts, observations, scores 또는 데이터셋 내용이 포함되지 않습니다. 수집되는 정확한 필드, 전송 대상, 그리고 구현 참조는 [텔레메트리 문서](https://langfuse.com/self-hosting/security/telemetry)에 문서화되어 있습니다.
 
-환경 변수 `TELEMETRY_ENABLED=false`를 설정하여 옵트아웃할 수 있습니다.
+Langfuse OSS에서는 환경 변수 `TELEMETRY_ENABLED=false`를 설정하여 옵트아웃할 수 있습니다.

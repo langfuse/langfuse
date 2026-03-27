@@ -1993,6 +1993,8 @@ export const getScoresForBlobStorageExport = function (
       environment,
       trace_id,
       observation_id,
+      session_id,
+      dataset_run_id,
       name,
       value,
       source,

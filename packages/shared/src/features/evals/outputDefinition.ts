@@ -4,6 +4,7 @@ import { ScoreDataTypeEnum } from "../../domain/scores";
 export const EvalOutputDataTypeSchema = z.enum([
   ScoreDataTypeEnum.NUMERIC,
   ScoreDataTypeEnum.CATEGORICAL,
+  ScoreDataTypeEnum.BOOLEAN,
 ]);
 export type EvalOutputDataType = z.infer<typeof EvalOutputDataTypeSchema>;
 
@@ -78,6 +79,16 @@ export type NumericEvalOutputDefinitionV2 = z.infer<
   typeof NumericEvalOutputDefinitionV2Schema
 >;
 
+export const BooleanEvalOutputDefinitionV2Schema = z.object({
+  version: z.literal(2),
+  dataType: z.literal(ScoreDataTypeEnum.BOOLEAN),
+  reasoning: EvalOutputFieldDefinitionSchema,
+  score: EvalOutputFieldDefinitionSchema,
+});
+export type BooleanEvalOutputDefinitionV2 = z.infer<
+  typeof BooleanEvalOutputDefinitionV2Schema
+>;
+
 export const CategoricalEvalOutputDefinitionV2Schema = z
   .object({
     version: z.literal(2),
@@ -118,6 +129,7 @@ export type CategoricalEvalOutputDefinitionV2 = z.infer<
 export const PersistedEvalOutputDefinitionSchema = z.union([
   LegacyEvalOutputDefinitionSchema,
   NumericEvalOutputDefinitionV2Schema,
+  BooleanEvalOutputDefinitionV2Schema,
   CategoricalEvalOutputDefinitionV2Schema,
 ]);
 export type PersistedEvalOutputDefinition = z.infer<
@@ -131,6 +143,11 @@ export type ResolvedEvalOutputDefinition =
       scoreDescription: string;
     }
   | {
+      dataType: typeof ScoreDataTypeEnum.BOOLEAN;
+      reasoningDescription: string;
+      scoreDescription: string;
+    }
+  | {
       dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
       reasoningDescription: string;
       scoreDescription: string;
@@ -139,7 +156,7 @@ export type ResolvedEvalOutputDefinition =
     };
 
 type RawEvalOutputResult = {
-  score: number | string | string[];
+  score: number | boolean | string | string[];
   reasoning: string;
 };
 
@@ -147,6 +164,11 @@ export type EvalOutputResult =
   | {
       dataType: typeof ScoreDataTypeEnum.NUMERIC;
       score: number;
+      reasoning: string;
+    }
+  | {
+      dataType: typeof ScoreDataTypeEnum.BOOLEAN;
+      score: boolean;
       reasoning: string;
     }
   | {
@@ -168,9 +190,12 @@ export function resolvePersistedEvalOutputDefinition(
     };
   }
 
-  if (outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
+  if (
+    outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC ||
+    outputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN
+  ) {
     return {
-      dataType: ScoreDataTypeEnum.NUMERIC,
+      dataType: outputDefinition.dataType,
       reasoningDescription: outputDefinition.reasoning.description,
       scoreDescription: outputDefinition.score.description,
     };
@@ -193,6 +218,22 @@ export function createNumericEvalOutputDefinition(params: {
   return NumericEvalOutputDefinitionV2Schema.parse({
     version: 2,
     dataType: ScoreDataTypeEnum.NUMERIC,
+    reasoning: {
+      description: params.reasoningDescription,
+    },
+    score: {
+      description: params.scoreDescription,
+    },
+  });
+}
+
+export function createBooleanEvalOutputDefinition(params: {
+  reasoningDescription: string;
+  scoreDescription: string;
+}) {
+  return BooleanEvalOutputDefinitionV2Schema.parse({
+    version: 2,
+    dataType: ScoreDataTypeEnum.BOOLEAN,
     reasoning: {
       description: params.reasoningDescription,
     },
@@ -225,6 +266,10 @@ export function createCategoricalEvalOutputDefinition(params: {
 function buildResultSchemaForResolvedOutputDefinition(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
+  const reasoningSchema = z
+    .string()
+    .describe(resolvedOutputDefinition.reasoningDescription);
+
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
     const [firstCategory, ...remainingCategories] =
       resolvedOutputDefinition.categories;
@@ -256,17 +301,20 @@ function buildResultSchemaForResolvedOutputDefinition(
       : categoricalValueSchema;
 
     return z.object({
-      reasoning: z
-        .string()
-        .describe(resolvedOutputDefinition.reasoningDescription),
+      reasoning: reasoningSchema,
       score: scoreSchema.describe(resolvedOutputDefinition.scoreDescription),
     });
   }
 
+  if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return z.object({
+      reasoning: reasoningSchema,
+      score: z.boolean().describe(resolvedOutputDefinition.scoreDescription),
+    });
+  }
+
   return z.object({
-    reasoning: z
-      .string()
-      .describe(resolvedOutputDefinition.reasoningDescription),
+    reasoning: reasoningSchema,
     score: z.number().describe(resolvedOutputDefinition.scoreDescription),
   });
 }
@@ -306,6 +354,14 @@ function normalizeValidatedEvalOutputResult(
     return {
       dataType: ScoreDataTypeEnum.NUMERIC,
       score: result.score as number,
+      reasoning: result.reasoning,
+    };
+  }
+
+  if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return {
+      dataType: ScoreDataTypeEnum.BOOLEAN,
+      score: result.score as boolean,
       reasoning: result.reasoning,
     };
   }

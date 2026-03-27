@@ -4,6 +4,7 @@ import {
   buildEvalOutputResultSchema,
   ChatMessageRole,
   ChatMessageType,
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   PersistedEvalOutputDefinitionSchema,
@@ -130,6 +131,40 @@ describe("evaluation helpers", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should validate boolean responses", () => {
+      const schema = buildEvalOutputResultSchema(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: true,
+          reasoning: "The answer satisfies the criteria.",
+        }).success,
+      ).toBe(true);
+    });
+
+    it("should reject string values for boolean responses", () => {
+      const schema = buildEvalOutputResultSchema(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: "true",
+          reasoning: "String booleans should be rejected.",
+        }).success,
+      ).toBe(false);
     });
 
     it("should validate categorical responses against allowed values", () => {
@@ -389,6 +424,25 @@ describe("evaluation helpers", () => {
       expect(result.body.value).toBe("correct");
       expect(result.body.dataType).toBe("CATEGORICAL");
     });
+
+    it("should build boolean score events", () => {
+      const result = buildScoreEvent({
+        eventId: "event-123",
+        scoreId: "score-456",
+        traceId: "trace-789",
+        observationId: null,
+        scoreName: "correctness",
+        scoreValue: 1,
+        reasoning: "The answer meets the criteria.",
+        environment: "production",
+        executionTraceId: "exec-trace-abc",
+        metadata: { job_execution_id: "exec-123" },
+        dataType: ScoreDataTypeEnum.BOOLEAN,
+      });
+
+      expect(result.body.value).toBe(1);
+      expect(result.body.dataType).toBe("BOOLEAN");
+    });
   });
 
   describe("buildEvalScoreWritePayloads", () => {
@@ -416,6 +470,35 @@ describe("evaluation helpers", () => {
           body: expect.objectContaining({
             value: 0.85,
             dataType: ScoreDataTypeEnum.NUMERIC,
+          }),
+        }),
+      });
+    });
+
+    it("should build a single boolean score payload", () => {
+      const result = buildEvalScoreWritePayloads({
+        outputResult: {
+          dataType: ScoreDataTypeEnum.BOOLEAN,
+          score: true,
+          reasoning: "The answer satisfies the criteria",
+        },
+        primaryScoreId: "score-123",
+        traceId: "trace-456",
+        observationId: null,
+        scoreName: "correctness",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        metadata: { job_execution_id: "job-1" },
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        eventId: expect.any(String),
+        scoreId: "score-123",
+        event: expect.objectContaining({
+          body: expect.objectContaining({
+            value: 1,
+            dataType: ScoreDataTypeEnum.BOOLEAN,
           }),
         }),
       });
@@ -565,6 +648,48 @@ describe("evaluation helpers", () => {
       expect(result.success).toBe(false);
     });
 
+    it("should normalize boolean responses", () => {
+      const outputDefinition = createBooleanEvalOutputDefinition({
+        scoreDescription:
+          "Return true if the answer is correct, otherwise false",
+        reasoningDescription: "Why",
+      });
+
+      const result = validateEvalOutputResult({
+        response: { score: false, reasoning: "The answer is incorrect." },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({
+          dataType: ScoreDataTypeEnum.BOOLEAN,
+          score: false,
+          reasoning: "The answer is incorrect.",
+        });
+      }
+    });
+
+    it("should reject invalid boolean responses", () => {
+      const outputDefinition = createBooleanEvalOutputDefinition({
+        scoreDescription:
+          "Return true if the answer is correct, otherwise false",
+        reasoningDescription: "Why",
+      });
+
+      const result = validateEvalOutputResult({
+        response: {
+          score: "false",
+          reasoning: "String booleans are invalid.",
+        },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(false);
+    });
+
     it("should normalize categorical responses to a matches array", () => {
       const outputDefinition = createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose the best matching category",
@@ -699,6 +824,18 @@ describe("evaluation helpers", () => {
           scoreDescription: "Choose the best matching category",
           reasoningDescription: "Explain the selected category",
           categories: ["correct", "partial"],
+        }),
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept versioned boolean schemas", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
         }),
       );
 

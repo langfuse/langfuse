@@ -921,7 +921,9 @@ export async function executeLLMAsJudgeEvaluation({
         `Job ${jobExecutionId} received LLM output: ${
           parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
             ? `score=${parsedLLMOutput.data.score}`
-            : `matches=${parsedLLMOutput.data.matches.join(",")}`
+            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
+              ? `score=${parsedLLMOutput.data.score}`
+              : `matches=${parsedLLMOutput.data.matches.join(",")}`
         }`,
       );
 
@@ -984,7 +986,9 @@ export async function executeLLMAsJudgeEvaluation({
         `Eval job ${job.id} completed with ${
           parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
             ? `score ${parsedLLMOutput.data.score}`
-            : `matches ${parsedLLMOutput.data.matches.join(",")}`
+            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
+              ? `score ${parsedLLMOutput.data.score}`
+              : `matches ${parsedLLMOutput.data.matches.join(",")}`
         }`,
       );
     },

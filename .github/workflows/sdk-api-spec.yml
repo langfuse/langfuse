@@ -22,7 +22,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 9
+          version: 10.33.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -120,7 +120,8 @@ jobs:
           fi
 
           # Install dependencies and format
-          npm install -g pnpm
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
           pnpm install
           pnpm format
 

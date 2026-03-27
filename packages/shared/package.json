@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "license": "MIT",
   "private": true,
+  "files": [
+    "dist/**",
+    "prisma/**",
+    "clickhouse/**",
+    "scripts/cleanup.sql"
+  ],
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "engines": {
@@ -109,7 +115,7 @@
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.11",
     "safe-regex2": "^5.0.0",
-    "undici": "^7.24.0",
+    "undici": "^7.24.6",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
@@ -117,7 +123,7 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/lodash": "^4.17.23",
+    "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
     "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.11.10",

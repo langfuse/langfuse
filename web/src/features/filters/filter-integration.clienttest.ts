@@ -6,6 +6,7 @@
 
 import {
   type FilterState,
+  type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
 } from "@langfuse/shared";
@@ -18,10 +19,15 @@ import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
+import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
 import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
@@ -609,6 +615,91 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+
+  it("should discard stale positionInTrace URL filters on the general events table", () => {
+    const urlFilter = "positionInTrace;positionInTrace;last;=;";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual([]);
+  });
+});
+
+describe("Saved view validation", () => {
+  it("should discard stale positionInTrace filters on the general events table", () => {
+    const filters: FilterState = [
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ];
+
+    expect(
+      validateFilters(filters, observationEventsFilterConfig.columnDefinitions),
+    ).toEqual([]);
+  });
+
+  it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
+    const sessionEventColumns: ColumnDefinition[] = [
+      ...observationEventsFilterConfig.columnDefinitions,
+      {
+        name: "Position in Trace",
+        id: "positionInTrace",
+        type: "positionInTrace",
+        internal: "positionInTrace",
+      },
+    ];
+    const defaultPreset = getSessionDetailPresetToApply({
+      selectedViewId: null,
+      hasFilters: false,
+    });
+    const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "Last Generation in Trace",
+    );
+
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+    expect(lastPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ]);
+    expect(SESSION_DETAIL_SYSTEM_PRESETS).not.toContainEqual(
+      expect.objectContaining({
+        name: "Root Observation",
+      }),
+    );
   });
 });
 
