@@ -1,4 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
+import Link from "next/link";
 import { AlertDescription } from "@/src/components/ui/alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
@@ -83,6 +84,7 @@ import {
   FlaskConical,
   InfoIcon,
   ListTree,
+  ExternalLink,
 } from "lucide-react";
 import {
   isDatasetTarget,
@@ -636,6 +638,36 @@ export const InnerEvaluatorForm = (props: {
 
   const formBody = (
     <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-muted-foreground text-sm">
+          Template:{" "}
+          <span className="text-foreground font-medium">
+            {props.evalTemplate.name}
+          </span>
+        </div>
+        {props.evalTemplate.projectId ? (
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={`/project/${props.projectId}/evals/templates/${props.evalTemplate.id}?mode=edit`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Edit template
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            title="Only user-managed templates can be edited"
+          >
+            Edit template
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
       <FormField
         control={form.control}
         name="scoreName"
