@@ -44,8 +44,6 @@ export default function Dataset() {
     canUseExperimentsBetaToggle,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    hasSeenExperimentsBetaPopover,
-    setHasSeenExperimentsBetaPopover,
     isExperimentsBetaActive,
   } = useExperimentAccess();
 
@@ -53,8 +51,6 @@ export default function Dataset() {
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
       onEnabledChange={setExperimentsBetaEnabled}
-      hasSeenPopover={hasSeenExperimentsBetaPopover}
-      onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
     />
   ) : null;
 

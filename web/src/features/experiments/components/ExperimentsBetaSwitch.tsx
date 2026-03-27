@@ -11,33 +11,24 @@ import { Switch } from "@/src/components/ui/switch";
 export function ExperimentsBetaSwitch({
   enabled,
   onEnabledChange,
-  hasSeenPopover,
-  onSeenPopover,
 }: {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
-  hasSeenPopover: boolean;
-  onSeenPopover: () => void;
 }) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   const handleSwitchChange = (checked: boolean) => {
     onEnabledChange(checked);
 
-    if (checked && !hasSeenPopover) {
+    if (checked) {
       setIsPopoverOpen(true);
     }
-  };
-
-  const handleGotIt = () => {
-    onSeenPopover();
-    setIsPopoverOpen(false);
   };
 
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
-        <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+        <div className="flex items-center gap-2 px-2 py-1">
           <Label htmlFor="experiments-beta-toggle">Experiments Beta</Label>
           <Switch
             id="experiments-beta-toggle"
@@ -56,7 +47,7 @@ export function ExperimentsBetaSwitch({
             </p>
           </div>
           <div className="flex justify-end">
-            <Button size="sm" onClick={handleGotIt}>
+            <Button size="sm" onClick={() => setIsPopoverOpen(false)}>
               Got it
             </Button>
           </div>

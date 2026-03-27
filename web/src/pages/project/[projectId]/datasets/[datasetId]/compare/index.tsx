@@ -40,8 +40,6 @@ function DatasetCompareInternal() {
     canUseExperimentsBetaToggle,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    hasSeenExperimentsBetaPopover,
-    setHasSeenExperimentsBetaPopover,
     isExperimentsBetaActive,
   } = useExperimentAccess();
 
@@ -99,8 +97,6 @@ function DatasetCompareInternal() {
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
       onEnabledChange={setExperimentsBetaEnabled}
-      hasSeenPopover={hasSeenExperimentsBetaPopover}
-      onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
     />
   ) : null;
 

@@ -35,8 +35,6 @@ export default function Experiments() {
     isExperimentsBetaActive,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    hasSeenExperimentsBetaPopover,
-    setHasSeenExperimentsBetaPopover,
   } = useExperimentAccess();
 
   const handleExperimentSuccess = async () => {
@@ -80,8 +78,6 @@ export default function Experiments() {
               <ExperimentsBetaSwitch
                 enabled={isExperimentsBetaEnabled}
                 onEnabledChange={handleBetaSwitchChange}
-                hasSeenPopover={hasSeenExperimentsBetaPopover}
-                onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
               />
             ) : null}
             <Dialog

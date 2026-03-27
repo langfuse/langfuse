@@ -5,8 +5,6 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { getExperimentsAccess } from "@/src/features/experiments/utils/experimentsAccess";
 
 const EXPERIMENTS_BETA_KEY_PREFIX = "experiments-beta-enabled";
-const EXPERIMENTS_BETA_POPOVER_SEEN_KEY_PREFIX =
-  "experiments-beta-popover-seen";
 
 function getStorageKey(prefix: string, userId?: string) {
   return `${prefix}:${userId ?? "anonymous"}`;
@@ -33,11 +31,6 @@ export function useExperimentAccess() {
   const [isExperimentsBetaEnabled, setExperimentsBetaEnabled] =
     useLocalStorage<boolean>(
       getStorageKey(EXPERIMENTS_BETA_KEY_PREFIX, userId),
-      true,
-    );
-  const [hasSeenExperimentsBetaPopover, setHasSeenExperimentsBetaPopover] =
-    useLocalStorage<boolean>(
-      getStorageKey(EXPERIMENTS_BETA_POPOVER_SEEN_KEY_PREFIX, userId),
       false,
     );
 
@@ -49,8 +42,6 @@ export function useExperimentAccess() {
       canAccessExperiments && isExperimentsBetaEnabled && isV4BetaEnabled,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    hasSeenExperimentsBetaPopover,
-    setHasSeenExperimentsBetaPopover,
     isAdmin,
     isFeatureEnabledOnUser,
     hasRoleAccess,

@@ -55,8 +55,6 @@ export default function DatasetCompare() {
     canUseExperimentsBetaToggle,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    hasSeenExperimentsBetaPopover,
-    setHasSeenExperimentsBetaPopover,
     isExperimentsBetaActive,
   } = useExperimentAccess();
 
@@ -96,8 +94,6 @@ export default function DatasetCompare() {
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
       onEnabledChange={setExperimentsBetaEnabled}
-      hasSeenPopover={hasSeenExperimentsBetaPopover}
-      onSeenPopover={() => setHasSeenExperimentsBetaPopover(true)}
     />
   ) : null;
 
