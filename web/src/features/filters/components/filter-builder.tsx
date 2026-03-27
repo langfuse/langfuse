@@ -285,7 +285,7 @@ export function InlineFilterState({
           ? (() => {
               const mode = filter.key ?? "last";
               const label =
-                mode === "first"
+                mode === "first" || mode === "root"
                   ? "1st"
                   : mode === "last"
                     ? "last"
@@ -798,7 +798,11 @@ function FilterBuilderForm({
                               i,
                             );
                           }}
-                          value={filter.key ?? "last"}
+                          value={
+                            filter.key === "root"
+                              ? "first"
+                              : (filter.key ?? "last")
+                          }
                         >
                           <SelectTrigger className="min-w-[140px]">
                             <SelectValue placeholder="" />

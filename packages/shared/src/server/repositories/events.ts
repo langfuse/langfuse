@@ -474,14 +474,15 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
-  // first/nthFromStart → ORDER BY start_time ASC
-  // last/nthFromEnd    → ORDER BY start_time DESC
+  // root only wor backawrds compat , maps to first
+  // root/first/nthFromStart → ORDER BY start_time ASC
+  // last/nthFromEnd         → ORDER BY start_time DESC
   if (positionFilter && "key" in positionFilter) {
     const key = positionFilter.key;
     const isFromEnd = key === "last" || key === "nthFromEnd";
     const direction = isFromEnd ? "DESC" : "ASC";
     const position =
-      key === "last" || key === "first"
+      key === "last" || key === "first" || key === "root"
         ? 1
         : typeof positionFilter.value === "number"
           ? positionFilter.value

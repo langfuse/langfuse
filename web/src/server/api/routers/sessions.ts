@@ -793,7 +793,9 @@ export const sessionRouter = createTRPCRouter({
           positionFilter.key === "last" || positionFilter.key === "nthFromEnd";
         orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
         const rawIndex =
-          positionFilter.key === "last" || positionFilter.key === "first"
+          positionFilter.key === "last" ||
+          positionFilter.key === "first" ||
+          positionFilter.key === "root"
             ? 1
             : (positionFilter.value ?? 1);
         const safeIndex = Math.max(1, rawIndex);
