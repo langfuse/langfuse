@@ -391,7 +391,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   aria-label="delete"
                   itemId={id}
                   projectId={projectId}
-                  redirectUrl={`/project/${projectId}/evals`}
+                  isTableAction
                   deleteConfirmation={row.original.scoreName}
                 />
               </DropdownMenuItem>
