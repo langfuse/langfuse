@@ -113,7 +113,7 @@
     "lodash": "^4.17.23",
     "lossless-json": "^4.1.1",
     "next-auth": "^4.24.13",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^8.0.4",
     "safe-regex2": "^5.0.0",
     "undici": "^7.24.6",
     "uuid": "^9.0.1",
