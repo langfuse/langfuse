@@ -1,4 +1,4 @@
-# Codex Guidelines for Langfuse
+# Agent Guidelines for Langfuse
 
 This is the canonical root agent guide for the repo. The root `AGENTS.md`
 should remain only as a discovery symlink so tools that require that filename
