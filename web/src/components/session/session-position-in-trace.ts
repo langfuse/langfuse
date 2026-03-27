@@ -6,7 +6,7 @@ type PositionInTraceFilter = Extract<
 >;
 type PositionInTraceFilterInput = {
   key?: PositionInTraceFilter["key"];
-  value?: PositionInTraceFilter["value"];
+  value?: string | number | undefined;
 };
 
 // `positionInTrace` only exists on the Sessions detail filter surface.
