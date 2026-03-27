@@ -144,7 +144,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
             ],
           },
         ],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 10,
         offset: 0,
       });
@@ -205,7 +204,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
             ],
           },
         ],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 10,
         offset: 0,
       });
@@ -380,7 +378,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
             ],
           },
         ],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 10,
         offset: 0,
       });
@@ -629,7 +626,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
             ],
           },
         ],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 10,
         offset: 0,
       });
@@ -795,7 +791,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         baseExperimentId: baselineExpId,
         compExperimentIds: [],
         filterByExperiment: [],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 3,
         offset: 0,
       });
@@ -805,7 +800,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         baseExperimentId: baselineExpId,
         compExperimentIds: [],
         filterByExperiment: [],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 3,
         offset: 3,
       });
@@ -815,7 +809,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         baseExperimentId: baselineExpId,
         compExperimentIds: [],
         filterByExperiment: [],
-        orderBy: { column: "itemId", order: "ASC" },
         limit: 3,
         offset: 6,
       });
