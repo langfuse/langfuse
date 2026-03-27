@@ -16,6 +16,9 @@ export const isCategoricalDataType = (dataType: ScoreDataTypeType) =>
 export const isBooleanDataType = (dataType: ScoreDataTypeType) =>
   dataType === ScoreDataTypeEnum.BOOLEAN;
 
+export const isFreeFormDataType = (dataType: ScoreDataTypeType) =>
+  dataType === ScoreDataTypeEnum.FREE_FORM;
+
 export const isScoreUnsaved = (scoreId?: string | null): boolean => !scoreId;
 
 export const toOrderedScoresList = (list: ScoreData[]): ScoreData[] =>

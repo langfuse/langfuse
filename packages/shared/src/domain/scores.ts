@@ -17,12 +17,14 @@ export const ScoreDataTypeArray = [
   "CATEGORICAL",
   "BOOLEAN",
   "CORRECTION",
+  "FREE_FORM",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
   CORRECTION: "CORRECTION",
+  FREE_FORM: "FREE_FORM",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -45,6 +47,11 @@ export const BooleanData = z.object({
 const CorrectionData = z.object({
   stringValue: z.null(),
   dataType: z.literal("CORRECTION"),
+});
+
+export const FreeFormData = z.object({
+  stringValue: z.string().min(1).max(500),
+  dataType: z.literal("FREE_FORM"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -89,6 +96,7 @@ export const ScoreSchema = ScoreFoundationSchema.and(
     CategoricalData,
     BooleanData,
     CorrectionData,
+    FreeFormData,
   ]),
 );
 
@@ -115,6 +123,11 @@ export const AGGREGATABLE_SCORE_TYPES = [
 export type AggregatableScoreDataType =
   (typeof AGGREGATABLE_SCORE_TYPES)[number];
 
+export const LISTABLE_SCORE_TYPES = ScoreDataTypeArray.filter(
+  (type) => type !== "CORRECTION",
+) satisfies readonly ScoreDataTypeType[];
+
+export type ListableScore = ScoresByDataTypes<typeof LISTABLE_SCORE_TYPES>;
 // Type helper for functions that return only aggregatable scores
 export type AggregatableScore = ScoresByDataTypes<
   typeof AGGREGATABLE_SCORE_TYPES

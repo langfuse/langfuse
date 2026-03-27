@@ -173,6 +173,7 @@ function resolveScoreValueAnnotation(
     case ScoreDataTypeEnum.BOOLEAN:
       return body.value;
     case ScoreDataTypeEnum.CATEGORICAL:
+    case ScoreDataTypeEnum.FREE_FORM:
       return body.stringValue;
     case ScoreDataTypeEnum.CORRECTION:
       throw new Error("CORRECTION type not supported in annotation drawer");
