@@ -1,12 +1,6 @@
 import { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Trash } from "lucide-react";
+import { X, Trash, LoaderCircle } from "lucide-react";
 import { Plus } from "lucide-react";
 import {
   type TableAction,
@@ -14,11 +8,15 @@ import {
 } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
+import { numberFormatter } from "@/src/utils/numbers";
 
 type TableActionMenuProps = {
   projectId: string;
   actions: TableAction[];
   tableName: BatchExportTableName;
+  selectedCount: number | null;
+  onClearSelection: () => void;
   onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
 };
 
@@ -33,6 +31,8 @@ export function TableActionMenu({
   projectId,
   actions,
   tableName,
+  selectedCount,
+  onClearSelection,
   onCustomAction,
 }: TableActionMenuProps) {
   const [selectedAction, setSelectedAction] = useState<TableAction | null>(
@@ -56,25 +56,40 @@ export function TableActionMenu({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button>
-            Actions
-            <ChevronDown className="h-5 w-5" />
+      <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
+        <div className="bg-background/95 pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-xl">
+          <div className="text-sm font-medium">
+            {selectedCount !== null ? (
+              <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
+            ) : (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onClearSelection}
+          >
+            <X className="h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action.id}
-              onClick={() => handleActionSelect(action)}
-            >
-              {action.icon || getDefaultIcon(action.type)}
-              <span>{action.label}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <div className="bg-border h-5 w-px" />
+          <div className="flex items-center gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action.id}
+                variant="outline"
+                size="sm"
+                className={cn("h-8")}
+                onClick={() => handleActionSelect(action)}
+              >
+                {action.icon || getDefaultIcon(action.type)}
+                <span>{action.label}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {selectedAction && (
         <TableActionDialog

@@ -743,6 +743,18 @@ export default function SessionsTable({
     columns,
   );
 
+  const selectedSessionIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((sessionId) =>
+        sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+      ),
+    [selectedRows, sessions.data?.sessions],
+  );
+
+  const selectedSessionCount = selectAll
+    ? totalCount
+    : selectedSessionIds.length;
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Sessions,
     projectId,
@@ -766,14 +778,17 @@ export default function SessionsTable({
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}
           actionButtons={[
-            Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ).length > 0 ? (
+            selectedSessionIds.length > 0 || selectAll ? (
               <TableActionMenu
                 key="sessions-multi-select-actions"
                 projectId={projectId}
                 actions={tableActions}
                 tableName={BatchExportTableName.Sessions}
+                selectedCount={selectedSessionCount}
+                onClearSelection={() => {
+                  setSelectedRows({});
+                  setSelectAll(false);
+                }}
               />
             ) : null,
             <BatchExportTableButton
@@ -804,9 +819,7 @@ export default function SessionsTable({
           multiSelect={{
             selectAll,
             setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
-              sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-            ),
+            selectedRowIds: selectedSessionIds,
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
@@ -868,6 +881,7 @@ export default function SessionsTable({
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               help={{
                 description:

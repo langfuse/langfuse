@@ -76,6 +76,7 @@ interface DataTableProps<TData, TValue> {
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -163,6 +164,7 @@ export function DataTable<TData extends object, TValue>({
   hidePagination = false,
   tableName,
   getRowClassName,
+  highlightAllRows = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -413,6 +415,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                highlightAllRows={highlightAllRows}
                 tableSnapshot={{
                   columnVisibility,
                   columnOrder,
@@ -430,6 +433,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                highlightAllRows={highlightAllRows}
               />
             )}
           </Table>
@@ -475,6 +479,7 @@ interface TableBodyComponentProps<TData> {
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -486,11 +491,13 @@ function TableRowComponent<TData>({
   row,
   onRowClick,
   getRowClassName,
+  highlightAllRows = false,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -508,6 +515,7 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
+        (row.getIsSelected() || highlightAllRows) && "bg-accent/50",
         selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
         getRowClassName?.(row.original),
       )}
@@ -527,6 +535,7 @@ function TableBodyComponent<TData>({
   noResultsMessage,
   onRowClick,
   getRowClassName,
+  highlightAllRows,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -546,6 +555,7 @@ function TableBodyComponent<TData>({
             row={row}
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
+            highlightAllRows={highlightAllRows}
           >
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
@@ -646,6 +656,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.highlightAllRows !== next.highlightAllRows) return false;
 
   // Then do more expensive deep equality checks
   if (
