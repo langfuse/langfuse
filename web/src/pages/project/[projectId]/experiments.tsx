@@ -6,13 +6,14 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
-import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { FlaskConical } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
 export default function Experiments() {
@@ -28,7 +29,13 @@ export default function Experiments() {
     scope: "promptExperiments:CUD",
   });
 
-  const { isEnabled } = useIsExperimentV4Enabled();
+  const {
+    canAccessExperiments,
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaActive,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+  } = useExperimentAccess();
 
   const handleExperimentSuccess = async () => {
     setIsCreateExperimentDialogOpen(false);
@@ -37,6 +44,24 @@ export default function Experiments() {
       utils.experiments.countAll.invalidate(),
     ]);
   };
+
+  const handleBetaSwitchChange = (checked: boolean) => {
+    setExperimentsBetaEnabled(checked);
+
+    if (!checked) {
+      void router.push(`/project/${projectId}/datasets`);
+    }
+  };
+
+  useEffect(() => {
+    if (!canAccessExperiments && projectId) {
+      void router.replace(`/project/${projectId}/datasets`);
+    }
+  }, [canAccessExperiments, projectId, router]);
+
+  if (!canAccessExperiments) {
+    return null;
+  }
 
   return (
     <Page
@@ -48,33 +73,41 @@ export default function Experiments() {
           href: "https://langfuse.com/docs/datasets/experiments",
         },
         actionButtonsRight: (
-          <Dialog
-            open={isCreateExperimentDialogOpen}
-            onOpenChange={setIsCreateExperimentDialogOpen}
-          >
-            <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-              <Button
-                disabled={!hasExperimentWriteAccess}
-                onClick={() => capture("dataset_run:new_form_open")}
-              >
-                <FlaskConical className="h-4 w-4" />
-                <span className="ml-2 hidden md:block">Run experiment</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-              <CreateExperimentsForm
-                key="create-experiment-form-project-experiments"
-                projectId={projectId}
-                setFormOpen={setIsCreateExperimentDialogOpen}
-                handleExperimentSuccess={handleExperimentSuccess}
-                showSDKRunInfoPage
+          <div className="flex items-center gap-2">
+            {canUseExperimentsBetaToggle ? (
+              <ExperimentsBetaSwitch
+                enabled={isExperimentsBetaEnabled}
+                onEnabledChange={handleBetaSwitchChange}
               />
-            </DialogContent>
-          </Dialog>
+            ) : null}
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  disabled={!hasExperimentWriteAccess}
+                  onClick={() => capture("dataset_run:new_form_open")}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2 hidden md:block">Run experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                <CreateExperimentsForm
+                  key="create-experiment-form-project-experiments"
+                  projectId={projectId}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  handleExperimentSuccess={handleExperimentSuccess}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         ),
       }}
     >
-      {isEnabled ? (
+      {isExperimentsBetaActive ? (
         <ExperimentsTable projectId={projectId} />
       ) : (
         <div className="p-4">
