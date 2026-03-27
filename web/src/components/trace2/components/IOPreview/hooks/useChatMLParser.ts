@@ -9,6 +9,7 @@ import {
   extractAdditionalInput,
 } from "@/src/utils/chatml";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import { parseToolCallsFromMessage } from "../components/chat-message-utils";
 
 // ChatML message type from schema
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -30,20 +31,6 @@ export interface ChatMLParserResult {
   messageToToolCallNumbers: Map<number, number[]>;
   toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
-}
-
-/**
- * Parse tool calls from a ChatML message.
- * Handles both standard tool_calls array and passthrough json.tool_calls.
- */
-function parseToolCallsFromMessage(
-  message: ReturnType<typeof combineInputOutputMessages>[0],
-) {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
 }
 
 /**
@@ -130,7 +117,8 @@ export function useChatMLParser(
       if (toolCallList.length > 0) {
         const messageToolNumbers: number[] = [];
 
-        for (const toolCall of toolCallList) {
+        for (const tc of toolCallList) {
+          const toolCall = tc as Record<string, unknown>;
           const calledToolName =
             toolCall.name && typeof toolCall.name === "string"
               ? toolCall.name

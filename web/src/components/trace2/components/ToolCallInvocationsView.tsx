@@ -1,11 +1,13 @@
 import { Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import {
+  type ChatMlMessage,
+  parseToolCallsFromMessage,
+} from "@/src/components/trace2/components/IOPreview/components/chat-message-utils";
 
 interface ToolCallInvocationsViewProps {
-  message: z.infer<typeof ChatMlMessageSchema>;
+  message: ChatMlMessage;
   toolCallNumbers?: number[];
   className?: string;
 }
@@ -15,9 +17,13 @@ export function ToolCallInvocationsView({
   toolCallNumbers,
   className,
 }: ToolCallInvocationsViewProps) {
-  const toolCalls = message.tool_calls;
+  const toolCalls = parseToolCallsFromMessage(message) as Array<{
+    id?: unknown;
+    name?: unknown;
+    arguments?: unknown;
+  }>;
 
-  if (!toolCalls || !Array.isArray(toolCalls) || toolCalls.length === 0) {
+  if (toolCalls.length === 0) {
     return null;
   }
 
