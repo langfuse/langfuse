@@ -333,6 +333,9 @@ export const duplicatePrompt = async ({
     });
   });
 
+  const promptService = new PromptService(prisma, redis);
+  await promptService.invalidateCache({ projectId });
+
   // Fetch the created prompt to return
   const createdPrompt = await prisma.prompt.findUnique({
     where: {
@@ -343,8 +346,6 @@ export const duplicatePrompt = async ({
       },
     },
   });
-
-  const promptService = new PromptService(prisma, redis);
 
   await Promise.all(
     promptsToCreate.map(async (prompt) =>
