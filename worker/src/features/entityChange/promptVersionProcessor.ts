@@ -27,7 +27,7 @@ export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
+    logger.debug(
       `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
       { event: JSON.stringify(event, null, 2) },
     );
