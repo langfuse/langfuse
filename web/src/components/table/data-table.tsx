@@ -76,6 +76,7 @@ interface DataTableProps<TData, TValue> {
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
+  topAlignCells?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -163,6 +164,7 @@ export function DataTable<TData extends object, TValue>({
   hidePagination = false,
   tableName,
   getRowClassName,
+  topAlignCells = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -413,6 +415,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                topAlignCells={topAlignCells}
                 tableSnapshot={{
                   columnVisibility,
                   columnOrder,
@@ -430,6 +433,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                topAlignCells={topAlignCells}
               />
             )}
           </Table>
@@ -475,6 +479,7 @@ interface TableBodyComponentProps<TData> {
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  topAlignCells?: boolean;
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -527,6 +532,7 @@ function TableBodyComponent<TData>({
   noResultsMessage,
   onRowClick,
   getRowClassName,
+  topAlignCells = false,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -568,7 +574,9 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      isSmallRowHeight ? "items-center" : "items-start",
+                      isSmallRowHeight && !topAlignCells
+                        ? "items-center"
+                        : "items-start",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}

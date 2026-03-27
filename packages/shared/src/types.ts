@@ -41,4 +41,5 @@ export type TableName =
   | "job_executions"
   | "dataset_runs"
   | "dataset_run_items_by_run"
-  | "experiments";
+  | "experiments"
+  | "experiment-items";

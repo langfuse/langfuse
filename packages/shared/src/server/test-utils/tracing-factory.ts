@@ -112,7 +112,7 @@ export const createTraceScore = (
     id: v4(),
     project_id: v4(),
     trace_id: v4(),
-    observation_id: v4(),
+    observation_id: null, // Trace-level scores must have observation_id as null by default
     environment: "default",
     name: "test-score" + v4(),
     timestamp: Date.now(),

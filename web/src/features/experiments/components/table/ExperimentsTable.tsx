@@ -21,16 +21,9 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { MoreVertical, Columns3 } from "lucide-react";
+import { GitCompareArrows } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -400,32 +393,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
-    {
-      id: "actions",
-      accessorKey: "actions",
-      header: "Actions",
-      size: 70,
-      cell: () => {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only [position:relative]">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem>
-                <Columns3 className="mr-2 h-4 w-4" />
-                <span>Compare</span>
-              </DropdownMenuItem>
-              {/* TODO: handle experiment delete  */}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -461,6 +428,34 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       : [];
   }, [experiments]);
 
+  // Get selected experiment IDs in the order they appear in the table
+  const selectedExperimentIds = useMemo(() => {
+    const selectedIds = Object.keys(selectedRows).filter((id) =>
+      rows.some((row) => row.id === id),
+    );
+    // Sort by table order to ensure first selected = first in table among selected
+    return rows
+      .filter((row) => selectedIds.includes(row.id))
+      .map((row) => row.id);
+  }, [selectedRows, rows]);
+
+  // Handler for comparing selected experiments
+  // First selected becomes baseline, rest become comparisons
+  const handleCompareSelected = useCallback(() => {
+    if (selectedExperimentIds.length === 0) return;
+
+    const [baseline, ...comparisons] = selectedExperimentIds;
+    const params = new URLSearchParams();
+    params.set("baseline", baseline);
+    if (comparisons.length > 0) {
+      params.set("c", comparisons.join(","));
+    }
+
+    void router.push(
+      `/project/${projectId}/experiments/results?${params.toString()}`,
+    );
+  }, [selectedExperimentIds, projectId, router]);
+
   return (
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col">
@@ -495,6 +490,21 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
             pageSize: paginationState.limit,
             pageIndex: paginationState.page - 1,
           }}
+          actionButtons={
+            selectedExperimentIds.length > 0
+              ? [
+                  <Button
+                    key="compare-selected"
+                    variant="outline"
+                    onClick={handleCompareSelected}
+                    className="gap-1"
+                  >
+                    <GitCompareArrows className="h-4 w-4" />
+                    Compare ({selectedExperimentIds.length})
+                  </Button>,
+                ]
+              : undefined
+          }
         />
 
         {/* Content area with sidebar and table */}
@@ -555,14 +565,14 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
                 if (event && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
                   const experimentId = row.id;
-                  const experimentUrl = `/project/${projectId}/experiments/${encodeURIComponent(experimentId)}`;
+                  const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
                   const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
                   window.open(fullUrl, "_blank");
                 }
                 // For normal clicks, navigate to experiment detail page
                 else {
                   void router.push(
-                    `/project/${projectId}/experiments/${encodeURIComponent(row.id)}`,
+                    `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
                   );
                 }
               }}

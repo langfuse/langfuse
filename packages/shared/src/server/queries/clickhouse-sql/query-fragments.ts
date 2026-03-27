@@ -159,6 +159,9 @@ interface EventsScoresAggregationParams {
  * Scores CTE for events table queries.
  * Aggregates numeric and categorical scores for observations.
  *
+ * When hasScoreAggregationFilters is true, uses nested subquery structure
+ * with pre-aggregation to enable proper array filtering on scores_avg/score_categories.
+ *
  * Returns a query and params object that can be passed directly to withCTE.
  */
 export const eventsScoresAggregation = (
@@ -274,6 +277,27 @@ export const eventsExperimentsAggregation = (params: {
     .withStartTimeFrom(params.startTimeFrom)
     .whereRaw("e.experiment_id != ''");
 };
+
+export const eventsExperimentsRootSpans = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  experimentItemIds?: string[];
+}): EventsQueryBuilder =>
+  eventsExperiments({
+    projectId: params.projectId,
+    experimentIds: params.experimentIds,
+  })
+    .whereRaw("e.experiment_item_root_span_id = e.span_id")
+    .when(
+      Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
+      (b) =>
+        b.whereRaw(
+          "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
+          {
+            experimentItemIds: params.experimentItemIds,
+          },
+        ),
+    );
 
 /**
  * Session-level scores aggregation CTE.
