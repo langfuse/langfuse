@@ -9,6 +9,7 @@ import {
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { numberFormatter } from "@/src/utils/numbers";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -59,7 +60,7 @@ export function TableActionMenu({
         <div className="bg-background/95 pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-xl">
           <div className="text-sm font-medium">
             {selectedCount !== null ? (
-              <span> {`${selectedCount} selected`}</span>
+              <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
             ) : (
               <LoaderCircle className="h-4 w-4 animate-spin" />
             )}
