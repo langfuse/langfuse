@@ -1450,6 +1450,7 @@ export default function ObservationsEventsTable({
               currentQuery: searchQuery ?? undefined,
               errorMessage: searchValidationError ?? undefined,
               placeholder: "Search events or write Lucene filters...",
+              applyQueryOnChange: true,
               validateQuery: (query) => {
                 const resolution = resolveEventsLuceneQueryForApi(query);
                 return resolution.isValid ? null : resolution.error;

@@ -68,11 +68,11 @@ const COMPLETION_SECTIONS: Record<
   Patterns: createCompletionSection("Patterns", "Helpful Lucene snippets", 4),
 };
 
-const COMPLETION_BADGE_LABELS: Record<string, string> = {
-  property: "Field",
-  keyword: "Logic",
-  text: "Value",
-  snippet: "Pattern",
+const COMPLETION_MARKERS: Record<string, string> = {
+  property: "@",
+  keyword: "&",
+  text: "A",
+  snippet: "()",
 };
 
 function getCompletionBaseType(type?: string) {
@@ -84,11 +84,12 @@ function getCompletionOptionClass(completion: Completion) {
   return `events-lucene-completion-option events-lucene-completion-option-${baseType}`;
 }
 
-function renderCompletionBadge(completion: Completion) {
+function renderCompletionMarker(completion: Completion) {
   const badge = document.createElement("span");
   const baseType = getCompletionBaseType(completion.type);
-  badge.className = `events-lucene-completion-badge events-lucene-completion-badge-${baseType}`;
-  badge.textContent = COMPLETION_BADGE_LABELS[baseType] ?? "Value";
+  badge.className = `events-lucene-completion-marker events-lucene-completion-marker-${baseType}`;
+  badge.textContent = COMPLETION_MARKERS[baseType] ?? "A";
+  badge.setAttribute("aria-hidden", "true");
   return badge;
 }
 
@@ -387,8 +388,8 @@ export function EventsLuceneSearchInput({
         optionClass: getCompletionOptionClass,
         addToOptions: [
           {
-            position: 65,
-            render: (completion) => renderCompletionBadge(completion),
+            position: 10,
+            render: (completion) => renderCompletionMarker(completion),
           },
         ],
       }),
@@ -498,43 +499,49 @@ export function EventsLuceneSearchInput({
           color: "hsl(var(--muted-foreground))",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip": {
-          border: "1px solid hsl(var(--border))",
+          border: "1px solid hsl(var(--border) / 0.95)",
           backgroundColor: "hsl(var(--popover))",
           color: "hsl(var(--popover-foreground))",
-          borderRadius: "18px",
-          boxShadow: "0 28px 80px -32px rgba(15, 23, 42, 0.45)",
-          padding: "6px",
+          borderRadius: "16px",
+          boxShadow:
+            "0 22px 56px -28px rgba(15, 23, 42, 0.52), 0 12px 28px -22px rgba(15, 23, 42, 0.32)",
+          padding: 0,
           overflow: "hidden",
           minWidth: "min(24rem, calc(100vw - 1.5rem))",
           maxWidth: "min(34rem, calc(100vw - 1.5rem))",
-          backdropFilter: "blur(14px)",
+          backdropFilter: "blur(10px)",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul": {
           fontFamily:
             "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
           fontSize: "13px",
-          padding: "2px",
-          maxHeight: "22rem",
+          padding: 0,
+          maxHeight: "26rem",
           overscrollBehavior: "contain",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li": {
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "1.75rem minmax(0, 1fr) auto",
           alignItems: "center",
-          gap: "0.5rem",
-          margin: "2px 0",
-          padding: "0.7rem 0.8rem",
-          borderRadius: "12px",
+          gap: "0.75rem",
+          margin: 0,
+          padding: "0.85rem 1rem",
+          borderRadius: 0,
           color: "hsl(var(--foreground))",
-          border: "1px solid transparent",
+          borderTop: "1px solid hsl(var(--border) / 0.65)",
           lineHeight: "1.25",
           transition:
-            "background-color 120ms ease, border-color 120ms ease, color 120ms ease",
+            "background-color 120ms ease, color 120ms ease, box-shadow 120ms ease",
         },
+        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li:first-of-type":
+          {
+            borderTop: "none",
+          },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected]":
           {
-            backgroundColor: "hsl(var(--accent))",
+            backgroundColor: "hsl(var(--accent) / 0.72)",
             color: "hsl(var(--accent-foreground))",
-            borderColor: "hsl(var(--border))",
+            boxShadow: "inset 3px 0 0 hsl(var(--primary))",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionLabel":
           {
@@ -543,7 +550,7 @@ export function EventsLuceneSearchInput({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontWeight: "600",
+            fontWeight: "500",
             letterSpacing: "-0.01em",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionMatchedText":
@@ -558,8 +565,13 @@ export function EventsLuceneSearchInput({
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionDetail":
           {
-            flex: "0 0 auto",
+            justifySelf: "end",
+            maxWidth: "16rem",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
             fontSize: "11px",
+            textAlign: "right",
             color: "hsl(var(--muted-foreground))",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .cm-completionDetail":
@@ -568,13 +580,16 @@ export function EventsLuceneSearchInput({
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip ul [role='presentation']":
           {
-            margin: "0.45rem 0.35rem 0.15rem",
-            padding: 0,
+            margin: 0,
+            padding: "0.8rem 1rem 0.45rem",
             listStyle: "none",
+            borderTop: "1px solid hsl(var(--border) / 0.7)",
+            backgroundColor: "hsl(var(--muted) / 0.35)",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip ul [role='presentation']:first-child":
           {
-            marginTop: "0.1rem",
+            borderTop: "none",
+            paddingTop: "0.7rem",
           },
         ".events-lucene-section": {
           display: "list-item",
@@ -583,58 +598,60 @@ export function EventsLuceneSearchInput({
           display: "block",
           fontSize: "10px",
           fontWeight: "700",
-          letterSpacing: "0.14em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "hsl(var(--muted-foreground))",
         },
         ".events-lucene-section-detail": {
           display: "block",
-          marginTop: "0.18rem",
+          marginTop: "0.2rem",
           fontSize: "11px",
           color: "hsl(var(--muted-foreground))",
         },
-        ".events-lucene-completion-badge": {
-          display: "inline-flex",
+        ".events-lucene-completion-marker": {
+          display: "flex",
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "999px",
-          padding: "0.18rem 0.5rem",
+          width: "1.75rem",
+          height: "1.75rem",
           fontSize: "10px",
           fontWeight: "700",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
+          letterSpacing: "0.04em",
           whiteSpace: "nowrap",
-          border: "1px solid transparent",
+          border: "1px solid hsl(var(--border))",
+          backgroundColor: "hsl(var(--muted) / 0.6)",
+          color: "hsl(var(--muted-foreground))",
           flex: "0 0 auto",
         },
-        ".events-lucene-completion-option-property .events-lucene-completion-badge":
+        ".events-lucene-completion-option-property .events-lucene-completion-marker":
           {
             color: "hsl(var(--primary))",
             backgroundColor: "hsl(var(--primary) / 0.08)",
-            borderColor: "hsl(var(--primary) / 0.12)",
+            borderColor: "hsl(var(--primary) / 0.16)",
           },
-        ".events-lucene-completion-option-keyword .events-lucene-completion-badge":
+        ".events-lucene-completion-option-keyword .events-lucene-completion-marker":
           {
-            color: "hsl(var(--secondary-foreground))",
+            color: "hsl(var(--foreground))",
             backgroundColor: "hsl(var(--secondary))",
-            borderColor: "hsl(var(--border))",
+            borderColor: "hsl(var(--border) / 0.9)",
           },
-        ".events-lucene-completion-option-text .events-lucene-completion-badge":
+        ".events-lucene-completion-option-text .events-lucene-completion-marker":
           {
             color: "hsl(var(--muted-foreground))",
             backgroundColor: "hsl(var(--muted))",
-            borderColor: "hsl(var(--border))",
+            borderColor: "hsl(var(--border) / 0.85)",
           },
-        ".events-lucene-completion-option-snippet .events-lucene-completion-badge":
+        ".events-lucene-completion-option-snippet .events-lucene-completion-marker":
           {
-            color: "hsl(var(--accent-foreground))",
-            backgroundColor: "hsl(var(--accent))",
-            borderColor: "hsl(var(--border))",
+            color: "hsl(var(--foreground))",
+            backgroundColor: "hsl(var(--muted))",
+            borderColor: "hsl(var(--border) / 0.85)",
           },
-        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .events-lucene-completion-badge":
+        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .events-lucene-completion-marker":
           {
-            backgroundColor: "hsl(var(--background) / 0.72)",
-            borderColor: "hsl(var(--background) / 0.12)",
+            backgroundColor: "hsl(var(--background) / 0.9)",
+            borderColor: "hsl(var(--border) / 0.85)",
             color: "hsl(var(--foreground))",
           },
       }),

@@ -95,6 +95,57 @@ describe("DataTableToolbar Lucene search", () => {
     );
   });
 
+  it("applies valid Lucene edits immediately when configured", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+          applyQueryOnChange: true,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: 'traceName:"ChatCompletion"' },
+    });
+
+    expect(updateQuery).toHaveBeenCalledWith('traceName:"ChatCompletion"');
+  });
+
+  it("keeps invalid Lucene drafts local when applying on change", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+          applyQueryOnChange: true,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: 'traceName:"ChatCompletion' },
+    });
+
+    expect(updateQuery).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        'Invalid Lucene query: Expected "\\"", "\\\\", or any character but end of input found.',
+      ),
+    ).toBeTruthy();
+  });
+
   it("accepts nested and chained boolean lucene queries", () => {
     const updateQuery = jest.fn();
 

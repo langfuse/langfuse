@@ -73,6 +73,7 @@ interface SearchConfig {
   currentQuery?: string;
   errorMessage?: string;
   placeholder?: string;
+  applyQueryOnChange?: boolean;
   tableAllowsFullTextSearch?: boolean;
   setSearchType?: (newSearchType: TracingSearchType[]) => void;
   searchType?: TracingSearchType[];
@@ -197,7 +198,12 @@ export function DataTableToolbar<TData, TValue>({
       return;
     }
 
-    setSearchError(validateSearchQuery(newValue));
+    const validationError = validateSearchQuery(newValue);
+    setSearchError(validationError);
+
+    if (!validationError && searchConfig?.applyQueryOnChange) {
+      searchConfig.updateQuery(newValue);
+    }
   };
 
   const searchPlaceholder =
