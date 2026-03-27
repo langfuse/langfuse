@@ -25,6 +25,7 @@ export type EventsLuceneCompletionItem = {
 
 export type EventsLuceneAutocompleteResult = {
   from: number;
+  to: number;
   items: EventsLuceneCompletionItem[];
 };
 
@@ -39,6 +40,7 @@ type LuceneAutocompleteContext =
       kind: "value";
       field: string;
       from: number;
+      to: number;
       query: string;
       quoted: boolean;
       hasClosingQuoteAfterCursor: boolean;
@@ -149,14 +151,6 @@ const BOOLEAN_GROUP_SNIPPETS: EventsLuceneCompletionItem[] = [
 
 const TEXT_VALUE_SNIPPETS: EventsLuceneCompletionItem[] = [
   {
-    label: "*",
-    apply: "*",
-    type: "snippet",
-    detail: "Field exists",
-    boost: 24,
-    section: "Patterns",
-  },
-  {
     label: '"quoted phrase"',
     apply: '"quoted phrase"',
     type: "snippet",
@@ -243,6 +237,55 @@ export function normalizeEventsLuceneAutocompleteValues(
     .filter((value): value is string => Boolean(value));
 }
 
+const EVENTS_LUCENE_TRAILING_OPERATOR_PATTERN = /(?:^|[\s(])(AND|OR|NOT)$/i;
+const EVENTS_LUCENE_TRAILING_FIELD_PATTERN =
+  /(?:^|[\s(])([A-Za-z_][A-Za-z0-9_.-]*)$/;
+const EVENTS_LUCENE_UNCLOSED_QUOTED_VALUE_PATTERN =
+  /(?:^|[\s(])(?:metadata\.[A-Za-z0-9_.-]*|[A-Za-z_][A-Za-z0-9_.-]*):"[^"]*$/;
+const EVENTS_LUCENE_SUPPORTED_FIELD_PREFIXES = new Set(
+  getEventsLuceneSupportedFields().map((field) => field.toLowerCase()),
+);
+
+export function shouldApplyEventsLuceneDraftOnChange(query: string): boolean {
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery) {
+    return true;
+  }
+
+  if (
+    trimmedQuery.endsWith(":") ||
+    trimmedQuery.endsWith("(") ||
+    EVENTS_LUCENE_TRAILING_OPERATOR_PATTERN.test(trimmedQuery)
+  ) {
+    return false;
+  }
+
+  const trailingFieldMatch = trimmedQuery.match(
+    EVENTS_LUCENE_TRAILING_FIELD_PATTERN,
+  );
+  const trailingFieldCandidate = trailingFieldMatch?.[1]?.toLowerCase();
+
+  if (!trailingFieldCandidate) {
+    return true;
+  }
+
+  if (trailingFieldCandidate === "metadata") {
+    return false;
+  }
+
+  for (const fieldPrefix of EVENTS_LUCENE_SUPPORTED_FIELD_PREFIXES) {
+    if (
+      fieldPrefix.startsWith(trailingFieldCandidate) ||
+      trailingFieldCandidate.startsWith(fieldPrefix)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function escapeLuceneQuotedValue(value: string) {
   return value.replace(/(["\\])/g, "\\$1");
 }
@@ -251,6 +294,7 @@ function formatLuceneValueInsertion(
   value: string,
   quoted: boolean,
   hasClosingQuoteAfterCursor = false,
+  forceQuoted = false,
 ) {
   const escapedValue = escapeLuceneQuotedValue(value);
 
@@ -258,7 +302,28 @@ function formatLuceneValueInsertion(
     return hasClosingQuoteAfterCursor ? escapedValue : `${escapedValue}"`;
   }
 
+  if (forceQuoted) {
+    return `"${escapedValue}"`;
+  }
+
   return /[\s()[\]{}]/.test(value) ? `"${escapedValue}"` : escapedValue;
+}
+
+export function shouldSuppressEventsLuceneValidationErrorOnChange(
+  query: string,
+): boolean {
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery) {
+    return false;
+  }
+
+  return (
+    trimmedQuery.endsWith(":") ||
+    trimmedQuery.endsWith("(") ||
+    EVENTS_LUCENE_TRAILING_OPERATOR_PATTERN.test(trimmedQuery) ||
+    EVENTS_LUCENE_UNCLOSED_QUOTED_VALUE_PATTERN.test(trimmedQuery)
+  );
 }
 
 function filterAndSortItems(
@@ -314,15 +379,23 @@ function getLuceneAutocompleteContext(
     const quotedValue = valueMatch[2];
     const unquotedValue = valueMatch[3];
     const valueQuery = quotedValue ?? unquotedValue ?? "";
+    const trailingValueSegment = query.slice(cursor);
+    const trailingValueMatch =
+      quotedValue !== undefined
+        ? trailingValueSegment.match(/^[^"]*/)
+        : trailingValueSegment.match(/^[^\s()[\]{}]*/);
+    const trailingValueLength = trailingValueMatch?.[0]?.length ?? 0;
 
     return {
       kind: "value",
       field: rawField,
       from: cursor - valueQuery.length,
+      to: cursor + trailingValueLength,
       query: valueQuery,
       quoted: quotedValue !== undefined,
       hasClosingQuoteAfterCursor:
-        quotedValue !== undefined && query[cursor] === '"',
+        quotedValue !== undefined &&
+        query[cursor + trailingValueLength] === '"',
     };
   }
 
@@ -356,6 +429,7 @@ export function resolveEventsLuceneCompletionItems(
     if (context.field.startsWith("metadata.")) {
       return {
         from: context.from,
+        to: context.to,
         items: filterAndSortItems(
           TEXT_VALUE_SNIPPETS.map((item) => ({
             ...item,
@@ -376,6 +450,7 @@ export function resolveEventsLuceneCompletionItems(
     if (!supportedFields.includes(context.field as EventsLuceneFieldId)) {
       return {
         from: context.from,
+        to: context.to,
         items: [],
       };
     }
@@ -389,6 +464,7 @@ export function resolveEventsLuceneCompletionItems(
           value,
           context.quoted,
           context.hasClosingQuoteAfterCursor,
+          fieldKind === "text",
         ),
         type: "text" as const,
         detail: "Observed value",
@@ -399,6 +475,7 @@ export function resolveEventsLuceneCompletionItems(
     if (fieldKind === "text") {
       return {
         from: context.from,
+        to: context.to,
         items: filterAndSortItems(
           [
             ...optionValues,
@@ -422,6 +499,7 @@ export function resolveEventsLuceneCompletionItems(
     if (fieldKind === "number") {
       return {
         from: context.from,
+        to: context.to,
         items: filterAndSortItems(NUMERIC_VALUE_SNIPPETS, context.query),
       };
     }
@@ -429,12 +507,14 @@ export function resolveEventsLuceneCompletionItems(
     if (fieldKind === "boolean") {
       return {
         from: context.from,
+        to: context.to,
         items: filterAndSortItems(BOOLEAN_VALUE_SNIPPETS, context.query),
       };
     }
 
     return {
       from: context.from,
+      to: context.to,
       items: filterAndSortItems(DATETIME_VALUE_SNIPPETS, context.query),
     };
   }
@@ -462,6 +542,7 @@ export function resolveEventsLuceneCompletionItems(
   if (context.kind === "operator") {
     return {
       from: context.from,
+      to: cursor,
       items: filterAndSortItems(
         [...BOOLEAN_OPERATOR_ITEMS, ...BOOLEAN_GROUP_SNIPPETS, ...fieldItems],
         context.query,
@@ -471,6 +552,7 @@ export function resolveEventsLuceneCompletionItems(
 
   return {
     from: context.from,
+    to: cursor,
     items: filterAndSortItems(
       [...fieldItems, ...BOOLEAN_OPERATOR_ITEMS, ...BOOLEAN_GROUP_SNIPPETS],
       context.query,

@@ -3,6 +3,7 @@ import React, {
   type Dispatch,
   type SetStateAction,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { Input } from "@/src/components/ui/input";
@@ -74,6 +75,11 @@ interface SearchConfig {
   errorMessage?: string;
   placeholder?: string;
   applyQueryOnChange?: boolean;
+  shouldApplyQueryOnChange?: (query: string) => boolean;
+  shouldSuppressValidationErrorOnChange?: (
+    query: string,
+    error: string,
+  ) => boolean;
   tableAllowsFullTextSearch?: boolean;
   setSearchType?: (newSearchType: TracingSearchType[]) => void;
   searchType?: TracingSearchType[];
@@ -176,21 +182,43 @@ export function DataTableToolbar<TData, TValue>({
   const [searchError, setSearchError] = useState<string | null>(
     searchConfig?.errorMessage ?? null,
   );
+  const applyQueryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const capture = usePostHogClientCapture();
   const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
     useDataTableControls();
 
   useEffect(() => {
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
+
     setSearchString(searchConfig?.currentQuery ?? "");
     setSearchError(searchConfig?.errorMessage ?? null);
   }, [searchConfig?.currentQuery, searchConfig?.errorMessage]);
+
+  useEffect(() => {
+    return () => {
+      if (applyQueryTimeoutRef.current) {
+        clearTimeout(applyQueryTimeoutRef.current);
+        applyQueryTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const validateSearchQuery = (value: string) =>
     searchConfig?.validateQuery?.(value) ?? null;
 
   const handleSearchValueChange = (newValue: string) => {
     setSearchString(newValue);
+
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
 
     if (newValue === "") {
       setSearchError(null);
@@ -199,10 +227,24 @@ export function DataTableToolbar<TData, TValue>({
     }
 
     const validationError = validateSearchQuery(newValue);
-    setSearchError(validationError);
+    const shouldSuppressValidationError =
+      validationError &&
+      searchConfig?.shouldSuppressValidationErrorOnChange?.(
+        newValue,
+        validationError,
+      );
 
-    if (!validationError && searchConfig?.applyQueryOnChange) {
-      searchConfig.updateQuery(newValue);
+    setSearchError(shouldSuppressValidationError ? null : validationError);
+
+    if (
+      !validationError &&
+      searchConfig?.applyQueryOnChange &&
+      (searchConfig.shouldApplyQueryOnChange?.(newValue) ?? true)
+    ) {
+      applyQueryTimeoutRef.current = setTimeout(() => {
+        searchConfig.updateQuery(newValue);
+        applyQueryTimeoutRef.current = null;
+      }, 250);
     }
   };
 
@@ -214,6 +256,12 @@ export function DataTableToolbar<TData, TValue>({
 
   const submitSearch = (valueOverride?: string) => {
     const nextSearchString = valueOverride ?? searchString;
+
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
+
     const validationError = validateSearchQuery(nextSearchString);
 
     if (validationError) {

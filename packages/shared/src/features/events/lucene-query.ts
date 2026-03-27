@@ -387,6 +387,8 @@ const SIMPLE_FREE_TEXT_RESERVED_PATTERN = /["()[\]{}*?]/;
 const EXPLICIT_BOOLEAN_OPERATOR_PATTERN = /\b(?:AND|OR|NOT)\b/;
 const LUCENE_FIELD_LOOKING_PATTERN =
   /(^|\s)[A-Za-z_][A-Za-z0-9_.-]*:(?!\/\/)\S+/i;
+const INCOMPLETE_LUCENE_FIELD_PATTERN =
+  /(^|\s)(metadata\.[A-Za-z0-9_.-]+|[A-Za-z_][A-Za-z0-9_.-]*):"?$/i;
 
 type RawLuceneNode = LuceneNode;
 type RawLuceneRangeNode = LuceneRangeNode;
@@ -726,8 +728,43 @@ function isSimpleFreeTextQuery(query: string): boolean {
   return (
     !SIMPLE_FREE_TEXT_RESERVED_PATTERN.test(query) &&
     !EXPLICIT_BOOLEAN_OPERATOR_PATTERN.test(query) &&
-    !LUCENE_FIELD_LOOKING_PATTERN.test(query)
+    !LUCENE_FIELD_LOOKING_PATTERN.test(query) &&
+    !INCOMPLETE_LUCENE_FIELD_PATTERN.test(query)
   );
+}
+
+function getEventsLuceneIncompleteFieldError(
+  query: string,
+): InvalidRequestError | null {
+  const match = query.match(INCOMPLETE_LUCENE_FIELD_PATTERN);
+
+  if (!match) {
+    return null;
+  }
+
+  const rawField = match[2];
+
+  if (!rawField) {
+    return getInvalidLuceneQueryError("Field is missing a value.");
+  }
+
+  try {
+    const resolvedField = resolveEventsLuceneField(rawField);
+
+    if (!resolvedField) {
+      return getInvalidLuceneQueryError("Field is missing a value.");
+    }
+
+    return getInvalidLuceneQueryError(
+      `Field "${getFieldLabel(resolvedField)}" is missing a value.`,
+    );
+  } catch (error) {
+    if (error instanceof InvalidRequestError) {
+      return error;
+    }
+
+    throw error;
+  }
 }
 
 function containsExplicitField(
@@ -1783,6 +1820,16 @@ export function resolveEventsLuceneQueryForApi(
 
   if (!trimmedQuery) {
     return { isValid: true };
+  }
+
+  const incompleteFieldError =
+    getEventsLuceneIncompleteFieldError(trimmedQuery);
+
+  if (incompleteFieldError) {
+    return {
+      isValid: false,
+      error: incompleteFieldError.message,
+    };
   }
 
   if (isSimpleFreeTextQuery(trimmedQuery)) {

@@ -112,6 +112,13 @@ describe("resolveEventsLuceneQueryForApi", () => {
     });
   });
 
+  it("rejects incomplete field prefixes instead of treating them as free text", () => {
+    expect(resolveEventsLuceneQueryForApi("environment:")).toEqual({
+      isValid: false,
+      error: 'Invalid Lucene query: Field "environment" is missing a value.',
+    });
+  });
+
   it("converts fully fielded lucene queries into filter expressions", () => {
     const resolved = resolveEventsLuceneQueryForApi(
       'name:"chat completion" OR metadata.environment:prod',
@@ -194,6 +201,26 @@ describe("resolveEventsLuceneQueryForApi", () => {
             value: 3,
           },
         ],
+      },
+    });
+  });
+
+  it("converts wildcard filters on categorical fields into string prefix filters", () => {
+    expect(resolveEventsLuceneQueryForApi('environment:"prod*"')).toEqual({
+      isValid: true,
+      expression: {
+        type: "text",
+        field: { type: "field", id: "environment" },
+        value: "prod*",
+        quoted: true,
+        wildcard: true,
+        exists: false,
+      },
+      filter: {
+        type: "string",
+        column: "environment",
+        operator: "starts with",
+        value: "prod",
       },
     });
   });

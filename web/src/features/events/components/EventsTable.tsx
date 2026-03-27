@@ -1,8 +1,13 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { EventsLuceneSearchInput } from "./EventsLuceneSearchInput";
-import { normalizeEventsLuceneAutocompleteValues } from "./events-lucene-search-utils";
 import {
+  normalizeEventsLuceneAutocompleteValues,
+  shouldApplyEventsLuceneDraftOnChange,
+  shouldSuppressEventsLuceneValidationErrorOnChange,
+} from "./events-lucene-search-utils";
+import {
+  getEffectiveEventsSearchQueryForSync,
   getEventsSidebarDisabledReason,
   getSyncableEventsLuceneFilterState,
   planEventsSearchBarFilterSync,
@@ -17,11 +22,16 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
 import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
+import {
+  buildEffectiveEnvironmentFilter,
+  buildManagedEnvironmentPolicyConfig,
+} from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -35,7 +45,6 @@ import {
   BatchActionType,
   ActionId,
   EVENTS_LUCENE_QUERY_EXAMPLES,
-  getEventsLuceneSupportedFields,
   resolveEventsLuceneQueryForApi,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
@@ -187,6 +196,22 @@ export type EventsTableProps = {
   sessionId?: string;
 };
 
+function dedupeEventsFilterState(filters: FilterState): FilterState {
+  const dedupedFilters: FilterState = [];
+
+  for (const filter of filters) {
+    if (
+      !dedupedFilters.some((candidateFilter) =>
+        isEqual(candidateFilter, filter),
+      )
+    ) {
+      dedupedFilters.push(filter);
+    }
+  }
+
+  return dedupedFilters;
+}
+
 export default function ObservationsEventsTable({
   projectId,
   userId,
@@ -214,11 +239,6 @@ export default function ObservationsEventsTable({
     () => getEventsSidebarDisabledReason(searchQuery),
     [searchQuery],
   );
-  const supportedLuceneFields = useMemo(
-    () => [...getEventsLuceneSupportedFields(), "metadata.<key>"],
-    [],
-  );
-
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
@@ -353,37 +373,116 @@ export default function ObservationsEventsTable({
 
   const dateRange = externalDateRange ?? tableDateRange;
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "startTime",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const dateRangeFilter = useMemo<FilterState>(
+    () =>
+      dateRange
+        ? [
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: dateRange.from,
+            },
+            ...(dateRange.to
+              ? [
+                  {
+                    column: "startTime",
+                    type: "datetime",
+                    operator: "<=",
+                    value: dateRange.to,
+                  } as const,
+                ]
+              : []),
+          ]
+        : [],
+    [dateRange],
+  );
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  const normalizedInputFilterState = useMemo(
+    () =>
+      normalizeFilterColumnNames(
+        inputFilterState,
+        observationEventsFilterConfig.columnDefinitions,
+      ),
+    [inputFilterState],
+  );
+
+  const managedEnvironmentPolicyConfig = useMemo(
+    () =>
+      buildManagedEnvironmentPolicyConfig(
+        DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      ),
+    [],
+  );
+
+  const userIdFilter = useMemo<FilterState>(
+    () =>
+      userId
+        ? [
+            {
+              column: "userId",
+              type: "string",
+              operator: "=",
+              value: userId,
+            },
+          ]
+        : [],
+    [userId],
+  );
+
+  const sessionIdFilter = useMemo<FilterState>(
+    () =>
+      sessionId
+        ? [
+            {
+              column: "sessionId",
+              type: "string",
+              operator: "=",
+              value: sessionId,
+            },
+          ]
+        : [],
+    [sessionId],
+  );
+
+  const filterOptionsBaseFilterState = useMemo(() => {
+    const scopedExplicitFilters = dedupeEventsFilterState(
+      normalizedInputFilterState.concat(userIdFilter).concat(sessionIdFilter),
+    );
+
+    return dedupeEventsFilterState(
+      scopedExplicitFilters
+        .concat(
+          buildEffectiveEnvironmentFilter({
+            explicitFilters: scopedExplicitFilters,
+            config: managedEnvironmentPolicyConfig,
+          }),
+        )
+        .concat(dateRangeFilter),
+    );
+  }, [
+    dateRangeFilter,
+    managedEnvironmentPolicyConfig,
+    normalizedInputFilterState,
+    sessionIdFilter,
+    userIdFilter,
+  ]);
 
   // Fetch filter options
   const filterOptionsFilterInput = useMemo(
     () =>
-      resolvedSearchQuery.isValid
-        ? (combineFilterInputs(oldFilterState, resolvedSearchQuery.filter) ??
-          oldFilterState)
-        : oldFilterState,
-    [oldFilterState, resolvedSearchQuery],
+      resolvedSearchQuery.isValid && !syncableSearchBarFilterState
+        ? (combineFilterInputs(
+            filterOptionsBaseFilterState,
+            resolvedSearchQuery.filter,
+          ) ?? filterOptionsBaseFilterState)
+        : (combineFilterInputs(filterOptionsBaseFilterState) ??
+          filterOptionsBaseFilterState),
+    [
+      filterOptionsBaseFilterState,
+      resolvedSearchQuery,
+      syncableSearchBarFilterState,
+    ],
   );
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
@@ -420,6 +519,10 @@ export default function ObservationsEventsTable({
   const previousSyncableSearchBarFilterStateRef = useRef<
     FilterState | undefined
   >(syncableSearchBarFilterState);
+  const pendingExplicitSidebarFilterSyncRef = useRef<FilterState | undefined>(
+    undefined,
+  );
+  const pendingSearchQuerySyncRef = useRef<string | null>(null);
 
   useEffect(() => {
     latestSearchQueryRef.current = searchQuery;
@@ -442,10 +545,12 @@ export default function ObservationsEventsTable({
       latestSearchQueryRef.current = normalizedSearchQuery;
 
       if (!isEqual(nextExplicitFilters, currentExplicitFilters)) {
+        pendingExplicitSidebarFilterSyncRef.current = nextExplicitFilters;
         queryFilterRef.current?.setFilterState(nextExplicitFilters);
       }
 
       previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+      pendingSearchQuerySyncRef.current = normalizedSearchQuery;
       setSearchQuery(normalizedSearchQuery || null);
     },
     [hideControls, setSearchQuery],
@@ -453,6 +558,17 @@ export default function ObservationsEventsTable({
 
   const handleExplicitSidebarFilterStateChange = useCallback(
     (nextExplicitFilters: FilterState) => {
+      if (
+        pendingExplicitSidebarFilterSyncRef.current &&
+        isEqual(
+          nextExplicitFilters,
+          pendingExplicitSidebarFilterSyncRef.current,
+        )
+      ) {
+        pendingExplicitSidebarFilterSyncRef.current = undefined;
+        return;
+      }
+
       const currentSearchQuery = latestSearchQueryRef.current?.trim() ?? "";
       const { shouldUpdateSearchQuery, nextSearchQuery, nextSyncedFilters } =
         planEventsSidebarSearchSync({
@@ -468,6 +584,7 @@ export default function ObservationsEventsTable({
       previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
 
       if (currentSearchQuery !== nextSearchQuery) {
+        pendingSearchQuerySyncRef.current = nextSearchQuery;
         latestSearchQueryRef.current = nextSearchQuery;
         setSearchQuery(nextSearchQuery || null);
       }
@@ -500,15 +617,26 @@ export default function ObservationsEventsTable({
   );
 
   useEffect(() => {
+    const effectiveSearchQuery = getEffectiveEventsSearchQueryForSync({
+      latestSearchQuery: latestSearchQueryRef.current,
+      urlSearchQuery: searchQuery,
+    });
+
+    if (effectiveSearchQuery === pendingSearchQuerySyncRef.current) {
+      pendingSearchQuerySyncRef.current = null;
+      return;
+    }
+
     const { nextExplicitFilters, nextSyncedFilters } =
       planEventsSearchBarFilterSync({
         currentExplicitFilters: explicitSidebarFilterState,
         previousSyncedFilters: previousSyncableSearchBarFilterStateRef.current,
-        nextSearchQuery: searchQuery,
+        nextSearchQuery: effectiveSearchQuery,
         hideControls,
       });
 
     if (!isEqual(nextExplicitFilters, explicitSidebarFilterState)) {
+      pendingExplicitSidebarFilterSyncRef.current = nextExplicitFilters;
       setExplicitSidebarFilterState(nextExplicitFilters);
     }
 
@@ -519,6 +647,48 @@ export default function ObservationsEventsTable({
     searchQuery,
     setExplicitSidebarFilterState,
   ]);
+
+  useEffect(() => {
+    if (
+      pendingExplicitSidebarFilterSyncRef.current &&
+      isEqual(
+        explicitSidebarFilterState,
+        pendingExplicitSidebarFilterSyncRef.current,
+      )
+    ) {
+      pendingExplicitSidebarFilterSyncRef.current = undefined;
+      return;
+    }
+
+    const currentSearchQuery = latestSearchQueryRef.current?.trim() ?? "";
+    const { shouldUpdateSearchQuery, nextSearchQuery, nextSyncedFilters } =
+      planEventsSidebarSearchSync({
+        currentSearchQuery: latestSearchQueryRef.current,
+        nextExplicitFilters: explicitSidebarFilterState,
+        hideControls,
+      });
+
+    if (!shouldUpdateSearchQuery) {
+      return;
+    }
+
+    const normalizedNextSearchQuery = nextSearchQuery.trim();
+
+    if (
+      currentSearchQuery === normalizedNextSearchQuery &&
+      isEqual(
+        previousSyncableSearchBarFilterStateRef.current,
+        nextSyncedFilters,
+      )
+    ) {
+      return;
+    }
+
+    previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+    pendingSearchQuerySyncRef.current = normalizedNextSearchQuery;
+    latestSearchQueryRef.current = normalizedNextSearchQuery;
+    setSearchQuery(normalizedNextSearchQuery || null);
+  }, [explicitSidebarFilterState, hideControls, setSearchQuery]);
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -532,29 +702,6 @@ export default function ObservationsEventsTable({
   //         },
   //       ]
   //     : [];
-
-  // Create user ID filter if userId is provided
-  const userIdFilter: FilterState = userId
-    ? [
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ]
-    : [];
-
-  const sessionIdFilter: FilterState = sessionId
-    ? [
-        {
-          column: "Session ID",
-          type: "string",
-          operator: "=",
-          value: sessionId,
-        },
-      ]
-    : [];
 
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
@@ -1451,6 +1598,9 @@ export default function ObservationsEventsTable({
               errorMessage: searchValidationError ?? undefined,
               placeholder: "Search events or write Lucene filters...",
               applyQueryOnChange: true,
+              shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
+              shouldSuppressValidationErrorOnChange: (query) =>
+                shouldSuppressEventsLuceneValidationErrorOnChange(query),
               validateQuery: (query) => {
                 const resolution = resolveEventsLuceneQueryForApi(query);
                 return resolution.isValid ? null : resolution.error;
@@ -1459,18 +1609,11 @@ export default function ObservationsEventsTable({
               helpDescription: (
                 <div className="space-y-2 text-xs">
                   <p className="text-primary font-normal">
-                    Plain text uses the existing full-text search. For Lucene
-                    filters, every clause must use an explicit field such as
-                    `name:` or `traceId:`. You can chain and nest clauses with
-                    `AND`, `OR`, `NOT`, and parentheses.
+                    Plain text searches everything. Lucene filters need fields
+                    like `name:` or `traceId:`.
                   </p>
                   <p className="text-muted-foreground leading-relaxed">
-                    Autocomplete suggests fields, boolean operators, and known
-                    values like environments, levels, models, sessions, and
-                    prompt names.
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Supported fields: {supportedLuceneFields.join(", ")}
+                    Use `AND`, `OR`, `NOT`, and parentheses.
                   </p>
                   <div className="space-y-1">
                     {EVENTS_LUCENE_QUERY_EXAMPLES.map((example) => (

@@ -7,6 +7,19 @@ import {
 } from "@langfuse/shared";
 import isEqual from "lodash/isEqual";
 
+export function getEffectiveEventsSearchQueryForSync(params: {
+  latestSearchQuery: string | null | undefined;
+  urlSearchQuery: string | null | undefined;
+}): string {
+  const latestSearchQuery = params.latestSearchQuery?.trim();
+
+  if (latestSearchQuery !== undefined) {
+    return latestSearchQuery;
+  }
+
+  return params.urlSearchQuery?.trim() ?? "";
+}
+
 function removeMatchingFilters(
   filters: FilterState,
   filtersToRemove: FilterState | undefined,
@@ -73,7 +86,7 @@ export function getEventsSidebarDisabledReason(
     return undefined;
   }
 
-  return "Sidebar filters are disabled while the search bar contains grouped or chained Lucene filters. Simplify to flat AND clauses or clear the search bar to edit sidebar filters.";
+  return "Sidebar is disabled for complex search bar filters.";
 }
 
 export function planEventsSearchBarFilterSync(params: {

@@ -1,4 +1,5 @@
 import {
+  getEffectiveEventsSearchQueryForSync,
   getEventsSidebarDisabledReason,
   getSyncableEventsLuceneFilterState,
   planEventsSearchBarFilterSync,
@@ -6,6 +7,22 @@ import {
 } from "@/src/features/events/components/events-lucene-search-sync";
 
 describe("events lucene search sync", () => {
+  it("prefers the latest intended search query while the URL is still catching up", () => {
+    expect(
+      getEffectiveEventsSearchQueryForSync({
+        latestSearchQuery: 'traceName:"ChatCompletion"',
+        urlSearchQuery: "traceName:",
+      }),
+    ).toBe('traceName:"ChatCompletion"');
+
+    expect(
+      getEffectiveEventsSearchQueryForSync({
+        latestSearchQuery: undefined,
+        urlSearchQuery: 'environment:"prod"',
+      }),
+    ).toBe('environment:"prod"');
+  });
+
   it("applies syncable search-bar filters to sidebar state while preserving non-lucene filters", () => {
     const result = planEventsSearchBarFilterSync({
       currentExplicitFilters: [
@@ -100,6 +117,34 @@ describe("events lucene search sync", () => {
     });
   });
 
+  it("hydrates an empty search query from syncable sidebar filters", () => {
+    const result = planEventsSidebarSearchSync({
+      currentSearchQuery: "",
+      nextExplicitFilters: [
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ],
+      hideControls: false,
+    });
+
+    expect(result).toEqual({
+      shouldUpdateSearchQuery: true,
+      nextSearchQuery: 'environment:"langfuse-evaluation"',
+      nextSyncedFilters: [
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ],
+    });
+  });
+
   it("does not overwrite plain free-text search when sidebar filters change", () => {
     const result = planEventsSidebarSearchSync({
       currentSearchQuery: "customer timeout",
@@ -140,6 +185,43 @@ describe("events lucene search sync", () => {
         value: new Date("2025-01-01T00:00:00.000Z"),
       },
     ]);
+  });
+
+  it("keeps wildcard text filters syncable across the search bar and sidebar", () => {
+    expect(getSyncableEventsLuceneFilterState('environment:"prod*"')).toEqual([
+      {
+        type: "string",
+        column: "environment",
+        operator: "starts with",
+        value: "prod",
+      },
+    ]);
+
+    expect(
+      planEventsSidebarSearchSync({
+        currentSearchQuery: "",
+        nextExplicitFilters: [
+          {
+            type: "string",
+            column: "environment",
+            operator: "starts with",
+            value: "prod",
+          },
+        ],
+        hideControls: false,
+      }),
+    ).toEqual({
+      shouldUpdateSearchQuery: true,
+      nextSearchQuery: "environment:prod*",
+      nextSyncedFilters: [
+        {
+          type: "string",
+          column: "environment",
+          operator: "starts with",
+          value: "prod",
+        },
+      ],
+    });
   });
 
   it("keeps nested boolean queries in the search bar instead of flattening them into sidebar filters", () => {
@@ -279,9 +361,7 @@ describe("events lucene search sync", () => {
       getEventsSidebarDisabledReason(
         "name:weather AND (level:ERROR OR (environment:prod AND sessionId:abc))",
       ),
-    ).toBe(
-      "Sidebar filters are disabled while the search bar contains grouped or chained Lucene filters. Simplify to flat AND clauses or clear the search bar to edit sidebar filters.",
-    );
+    ).toBe("Sidebar is disabled for complex search bar filters.");
 
     expect(
       getEventsSidebarDisabledReason(

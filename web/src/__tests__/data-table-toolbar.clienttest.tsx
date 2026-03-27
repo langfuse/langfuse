@@ -2,12 +2,25 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { resolveEventsLuceneQueryForApi } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
+import {
+  shouldApplyEventsLuceneDraftOnChange,
+  shouldSuppressEventsLuceneValidationErrorOnChange,
+} from "@/src/features/events/components/events-lucene-search-utils";
 
 jest.mock("../features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => jest.fn(),
 }));
 
 describe("DataTableToolbar Lucene search", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
   const validateQuery = (query: string) => {
     const resolution = resolveEventsLuceneQueryForApi(query);
     return resolution.isValid ? null : resolution.error;
@@ -107,6 +120,7 @@ describe("DataTableToolbar Lucene search", () => {
           updateQuery,
           validateQuery,
           applyQueryOnChange: true,
+          shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
         }}
       />,
     );
@@ -114,6 +128,10 @@ describe("DataTableToolbar Lucene search", () => {
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: 'traceName:"ChatCompletion"' },
     });
+
+    expect(updateQuery).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(250);
 
     expect(updateQuery).toHaveBeenCalledWith('traceName:"ChatCompletion"');
   });
@@ -130,6 +148,7 @@ describe("DataTableToolbar Lucene search", () => {
           updateQuery,
           validateQuery,
           applyQueryOnChange: true,
+          shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
         }}
       />,
     );
@@ -144,6 +163,65 @@ describe("DataTableToolbar Lucene search", () => {
         'Invalid Lucene query: Expected "\\"", "\\\\", or any character but end of input found.',
       ),
     ).toBeTruthy();
+  });
+
+  it("does not auto-apply field-name drafts before the user completes the clause", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+          applyQueryOnChange: true,
+          shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "traceName" },
+    });
+
+    expect(updateQuery).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: 'traceName:"ChatCompletion"' },
+    });
+
+    jest.advanceTimersByTime(250);
+
+    expect(updateQuery).toHaveBeenCalledWith('traceName:"ChatCompletion"');
+  });
+
+  it("keeps incomplete field drafts quiet while the user is still typing", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+          applyQueryOnChange: true,
+          shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
+          shouldSuppressValidationErrorOnChange:
+            shouldSuppressEventsLuceneValidationErrorOnChange,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "traceName:" },
+    });
+
+    expect(updateQuery).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Invalid Lucene query:/)).toBeNull();
   });
 
   it("accepts nested and chained boolean lucene queries", () => {
@@ -234,5 +312,52 @@ describe("DataTableToolbar Lucene search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit live value" }));
 
     expect(updateQuery).toHaveBeenCalledWith("traceId:live-value");
+  });
+
+  it("debounces on-change Lucene application while the user is typing", () => {
+    const updateQuery = jest.fn();
+
+    render(
+      <DataTableToolbar
+        columns={[]}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          currentQuery: "",
+          updateQuery,
+          validateQuery,
+          applyQueryOnChange: true,
+          shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
+        }}
+      />,
+    );
+
+    const input = screen.getByRole("textbox");
+
+    fireEvent.change(input, {
+      target: { value: 'level:"DEFAULT"' },
+    });
+    jest.advanceTimersByTime(200);
+
+    expect(updateQuery).not.toHaveBeenCalled();
+
+    fireEvent.change(input, {
+      target: { value: 'level:"DEFAULT" AND' },
+    });
+    jest.advanceTimersByTime(250);
+
+    expect(updateQuery).not.toHaveBeenCalled();
+
+    fireEvent.change(input, {
+      target: { value: 'level:"DEFAULT" AND providedModelName:"gpt-4"' },
+    });
+    jest.advanceTimersByTime(249);
+
+    expect(updateQuery).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(1);
+
+    expect(updateQuery).toHaveBeenCalledWith(
+      'level:"DEFAULT" AND providedModelName:"gpt-4"',
+    );
   });
 });

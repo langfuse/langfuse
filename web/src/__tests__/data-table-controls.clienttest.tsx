@@ -40,15 +40,13 @@ describe("DataTableControls", () => {
       <TooltipProvider>
         <DataTableControls
           queryFilter={queryFilter}
-          disabledReason="Sidebar filters are disabled while the search bar contains grouped or chained Lucene filters. Simplify to flat AND clauses or clear the search bar to edit sidebar filters."
+          disabledReason="Sidebar is disabled for complex search bar filters."
         />
       </TooltipProvider>,
     );
 
     expect(
-      screen.getByText(
-        "Sidebar filters are disabled while the search bar contains grouped or chained Lucene filters. Simplify to flat AND clauses or clear the search bar to edit sidebar filters.",
-      ),
+      screen.getByText("Sidebar is disabled for complex search bar filters."),
     ).toBeTruthy();
     expect(
       (
@@ -61,5 +59,48 @@ describe("DataTableControls", () => {
       (screen.getByRole("textbox").closest("fieldset") as HTMLFieldSetElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it("surfaces synced wildcard text filters in categorical text mode", () => {
+    const queryFilter: QueryFilter = {
+      filters: [
+        {
+          type: "categorical",
+          column: "environment",
+          label: "Environment",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          onReset: jest.fn(),
+          value: [],
+          options: ["default", "production"],
+          counts: new Map(),
+          onChange: jest.fn(),
+          textFilters: [
+            {
+              operator: "starts with",
+              value: "prod",
+            },
+          ],
+          onTextFilterAdd: jest.fn(),
+          onTextFilterRemove: jest.fn(),
+        },
+      ],
+      expanded: ["environment"],
+      onExpandedChange: jest.fn(),
+      clearAll: jest.fn(),
+      isFiltered: true,
+      setFilterState: jest.fn(),
+    };
+
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getAllByText("starts with").length).toBeGreaterThan(0);
+    expect(screen.getByText("prod")).toBeTruthy();
   });
 });

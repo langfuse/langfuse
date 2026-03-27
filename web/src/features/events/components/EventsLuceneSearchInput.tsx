@@ -1,5 +1,4 @@
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { cn } from "@/src/utils/tailwind";
 import { darkTheme } from "@/src/components/editor/dark-theme";
@@ -7,14 +6,15 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import {
   acceptCompletion,
   autocompletion,
+  closeCompletion,
   completionStatus,
   startCompletion,
   type Completion,
-  type CompletionSection,
   type CompletionContext,
 } from "@codemirror/autocomplete";
 import { StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
+import { Prec } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { Search } from "lucide-react";
@@ -24,49 +24,7 @@ import {
   matchEventsLuceneToken,
   resolveEventsLuceneCompletionItems,
   type EventsLuceneAutocompleteOptions,
-  type EventsLuceneCompletionSection,
 } from "./events-lucene-search-utils";
-
-function createCompletionSection(
-  name: EventsLuceneCompletionSection,
-  description: string,
-  rank: number,
-): CompletionSection {
-  return {
-    name,
-    rank,
-    header: () => {
-      const container = document.createElement("div");
-      container.className = "events-lucene-section";
-      container.style.display = "list-item";
-
-      const label = document.createElement("span");
-      label.className = "events-lucene-section-label";
-      label.textContent = name;
-
-      const detail = document.createElement("span");
-      detail.className = "events-lucene-section-detail";
-      detail.textContent = description;
-
-      container.append(label, detail);
-      return container;
-    },
-  };
-}
-
-const COMPLETION_SECTIONS: Record<
-  EventsLuceneCompletionSection,
-  CompletionSection
-> = {
-  Fields: createCompletionSection("Fields", "Filterable event attributes", 1),
-  Operators: createCompletionSection("Operators", "Boolean query logic", 2),
-  "Observed Values": createCompletionSection(
-    "Observed Values",
-    "Popular values from this dataset",
-    3,
-  ),
-  Patterns: createCompletionSection("Patterns", "Helpful Lucene snippets", 4),
-};
 
 const COMPLETION_MARKERS: Record<string, string> = {
   property: "@",
@@ -75,6 +33,8 @@ const COMPLETION_MARKERS: Record<string, string> = {
   snippet: "()",
 };
 
+const EVENTS_LUCENE_DOCS_URL = "https://langfuse.com/docs";
+
 function getCompletionBaseType(type?: string) {
   return type?.split(/\s+/)[0] ?? "text";
 }
@@ -82,6 +42,12 @@ function getCompletionBaseType(type?: string) {
 function getCompletionOptionClass(completion: Completion) {
   const baseType = getCompletionBaseType(completion.type);
   return `events-lucene-completion-option events-lucene-completion-option-${baseType}`;
+}
+
+function hasOpenEventsLuceneCompletion(
+  status: "active" | "pending" | null,
+): boolean {
+  return status === "active" || status === "pending";
 }
 
 function renderCompletionMarker(completion: Completion) {
@@ -93,9 +59,37 @@ function renderCompletionMarker(completion: Completion) {
   return badge;
 }
 
+export function ensureEventsLuceneTooltipFooter(tooltip: HTMLElement) {
+  const existingFooter = tooltip.querySelector<HTMLElement>(
+    ".events-lucene-tooltip-footer",
+  );
+
+  if (existingFooter) {
+    return existingFooter;
+  }
+
+  const footer = document.createElement("div");
+  footer.className = "events-lucene-tooltip-footer";
+
+  const link = document.createElement("a");
+  link.className = "events-lucene-tooltip-footer-link";
+  link.href = EVENTS_LUCENE_DOCS_URL;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = "Docs ↗";
+
+  footer.append(link);
+  tooltip.append(footer);
+
+  return footer;
+}
+
 type EventsLuceneSubmitKeydownArgs = {
   event: {
     key: string;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
     preventDefault: () => void;
     stopPropagation?: () => void;
   };
@@ -124,41 +118,37 @@ type EventsLuceneTooltipLayoutArgs = {
   tooltip: HTMLElement;
 };
 
+export function normalizeEventsLuceneEditorValue(value: string) {
+  return value.replace(/\s*\n+\s*/g, " ");
+}
+
 function submitEventsLuceneQuery({
   completionIsActive,
   acceptCompletion,
   getCurrentValue,
   onSubmit,
 }: EventsLuceneSubmitArgs) {
+  const submitCurrentValue = () => {
+    onSubmit(getCurrentValue());
+  };
+
   if (completionIsActive) {
     acceptCompletion();
+    setTimeout(submitCurrentValue, 0);
+    return true;
   }
 
-  onSubmit(getCurrentValue());
+  submitCurrentValue();
   return true;
 }
 
-const EVENTS_LUCENE_VALUE_COMPLETION_TRIGGER_PATTERN =
-  /(?:^|[\s(])(?:metadata\.[A-Za-z0-9_.-]*|[A-Za-z_][A-Za-z0-9_.-]*):"?$/;
-
 export function maybeOpenEventsLuceneContextualCompletion({
-  doc,
-  cursor,
+  doc: _doc,
+  cursor: _cursor,
   completionStatus,
   startCompletion,
 }: EventsLuceneCompletionTriggerArgs) {
   if (completionStatus === "active" || completionStatus === "pending") {
-    return false;
-  }
-
-  if (doc.length === 0) {
-    startCompletion();
-    return true;
-  }
-
-  const prefix = doc.slice(0, cursor);
-
-  if (!EVENTS_LUCENE_VALUE_COMPLETION_TRIGGER_PATTERN.test(prefix)) {
     return false;
   }
 
@@ -187,35 +177,112 @@ export function handleEventsLuceneSubmitKeydown({
   });
 }
 
+type EventsLuceneAutocompleteKeydownArgs = {
+  event: {
+    key: string;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
+    preventDefault: () => void;
+    stopPropagation?: () => void;
+  };
+  completionIsActive: boolean;
+  acceptCompletion: () => boolean;
+  closeCompletion: () => boolean;
+  openCompletion: () => boolean;
+};
+
+type EventsLuceneTabKeyBindingArgs = {
+  completionIsActive: boolean;
+  acceptCompletion: () => boolean;
+};
+
+export function handleEventsLuceneTabKeyBinding({
+  completionIsActive,
+  acceptCompletion,
+}: EventsLuceneTabKeyBindingArgs) {
+  if (!completionIsActive) {
+    return false;
+  }
+
+  acceptCompletion();
+  return true;
+}
+
+export function handleEventsLuceneAutocompleteKeydown({
+  event,
+  completionIsActive,
+  acceptCompletion,
+  closeCompletion,
+  openCompletion,
+}: EventsLuceneAutocompleteKeydownArgs) {
+  if (event.key === "Tab" && completionIsActive) {
+    event.preventDefault();
+    event.stopPropagation?.();
+    return acceptCompletion();
+  }
+
+  if (event.key === "Escape" && completionIsActive) {
+    event.preventDefault();
+    event.stopPropagation?.();
+    return closeCompletion();
+  }
+
+  const isForceOpenShortcut =
+    (event.ctrlKey || event.metaKey) &&
+    (event.key === " " || event.key === "Spacebar");
+  const isArrowOpenShortcut =
+    !completionIsActive &&
+    (event.key === "ArrowDown" || event.key === "ArrowUp");
+
+  if (!isForceOpenShortcut && !isArrowOpenShortcut) {
+    return false;
+  }
+
+  const didOpen = openCompletion();
+
+  if (!didOpen) {
+    return false;
+  }
+
+  event.preventDefault();
+  event.stopPropagation?.();
+  return true;
+}
+
 export function applyEventsLuceneTooltipLayout({
   container,
   tooltip,
 }: EventsLuceneTooltipLayoutArgs) {
+  const tooltipStyle = window.getComputedStyle(tooltip);
+  const isFixedTooltip = tooltipStyle.position === "fixed";
   const offsetParent =
     tooltip.offsetParent instanceof HTMLElement
       ? tooltip.offsetParent
       : tooltip.parentElement;
 
-  if (!(offsetParent instanceof HTMLElement)) {
+  if (!isFixedTooltip && !(offsetParent instanceof HTMLElement)) {
     return false;
   }
 
   const containerRect = container.getBoundingClientRect();
-  const offsetParentRect = offsetParent.getBoundingClientRect();
+  const offsetParentRect =
+    offsetParent instanceof HTMLElement
+      ? offsetParent.getBoundingClientRect()
+      : null;
 
   if (containerRect.width <= 0) {
     return false;
   }
 
-  const leftOffset = containerRect.left - offsetParentRect.left;
+  const leftOffset = isFixedTooltip
+    ? containerRect.left
+    : containerRect.left - (offsetParentRect?.left ?? 0);
   const width = `${containerRect.width}px`;
+  const left = `${leftOffset}px`;
 
-  tooltip.style.left = `${leftOffset}px`;
-  tooltip.style.right = "auto";
-  tooltip.style.width = width;
-  tooltip.style.minWidth = width;
-  tooltip.style.maxWidth = width;
-  tooltip.style.boxSizing = "border-box";
+  container.style.setProperty("--events-lucene-tooltip-left", left);
+  container.style.setProperty("--events-lucene-tooltip-width", width);
 
   return true;
 }
@@ -258,12 +325,13 @@ export function EventsLuceneSearchInput({
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const latestValueRef = useRef(value);
+  const editorViewRef = useRef<EditorView | null>(null);
+  const latestOnSubmitRef = useRef(onSubmit);
   const tooltipAnimationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    latestValueRef.current = value;
-  }, [value]);
+    latestOnSubmitRef.current = onSubmit;
+  }, [onSubmit]);
 
   const alignEventsLuceneTooltip = useCallback(() => {
     const container = containerRef.current;
@@ -279,6 +347,8 @@ export function EventsLuceneSearchInput({
     if (!tooltip) {
       return false;
     }
+
+    ensureEventsLuceneTooltipFooter(tooltip);
 
     return applyEventsLuceneTooltipLayout({
       container,
@@ -320,20 +390,16 @@ export function EventsLuceneSearchInput({
           });
     resizeObserver?.observe(container);
 
-    const mutationObserver =
-      typeof MutationObserver === "undefined"
-        ? null
-        : new MutationObserver(() => {
-            scheduleEventsLuceneTooltipAlignment();
-          });
-    mutationObserver?.observe(container, {
-      childList: true,
-      subtree: true,
-    });
-
     return () => {
       resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
+
+      if (
+        typeof window !== "undefined" &&
+        tooltipAnimationFrameRef.current !== null
+      ) {
+        window.cancelAnimationFrame(tooltipAnimationFrameRef.current);
+        tooltipAnimationFrameRef.current = null;
+      }
 
       if (
         typeof window !== "undefined" &&
@@ -365,11 +431,11 @@ export function EventsLuceneSearchInput({
           type: item.type,
           detail: item.detail,
           boost: item.boost,
-          section: item.section ? COMPLETION_SECTIONS[item.section] : undefined,
         }));
 
       return {
         from: result.from,
+        to: result.to,
         options: completions,
       };
     },
@@ -393,29 +459,57 @@ export function EventsLuceneSearchInput({
           },
         ],
       }),
-      keymap.of([
-        {
-          key: "Enter",
-          run: (view) =>
-            submitEventsLuceneQuery({
-              completionIsActive: completionStatus(view.state) === "active",
-              acceptCompletion: () => acceptCompletion(view),
-              getCurrentValue: () => view.state.doc.toString(),
-              onSubmit,
-            }),
-        },
-        {
-          key: "Shift-Enter",
-          run: (view) =>
-            submitEventsLuceneQuery({
-              completionIsActive: completionStatus(view.state) === "active",
-              acceptCompletion: () => acceptCompletion(view),
-              getCurrentValue: () => view.state.doc.toString(),
-              onSubmit,
-            }),
-        },
-      ]),
-      EditorView.lineWrapping,
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Tab",
+            run: (view) => {
+              const currentCompletionStatus = completionStatus(view.state);
+
+              return handleEventsLuceneTabKeyBinding({
+                completionIsActive: hasOpenEventsLuceneCompletion(
+                  currentCompletionStatus,
+                ),
+                acceptCompletion: () => acceptCompletion(view),
+              });
+            },
+          },
+          {
+            key: "Enter",
+            run: (view) => {
+              const currentCompletionStatus = completionStatus(view.state);
+
+              return submitEventsLuceneQuery({
+                completionIsActive: hasOpenEventsLuceneCompletion(
+                  currentCompletionStatus,
+                ),
+                acceptCompletion: () => acceptCompletion(view),
+                getCurrentValue: () =>
+                  normalizeEventsLuceneEditorValue(view.state.doc.toString()),
+                onSubmit: (valueOverride) =>
+                  latestOnSubmitRef.current(valueOverride),
+              });
+            },
+          },
+          {
+            key: "Shift-Enter",
+            run: (view) => {
+              const currentCompletionStatus = completionStatus(view.state);
+
+              return submitEventsLuceneQuery({
+                completionIsActive: hasOpenEventsLuceneCompletion(
+                  currentCompletionStatus,
+                ),
+                acceptCompletion: () => acceptCompletion(view),
+                getCurrentValue: () =>
+                  normalizeEventsLuceneEditorValue(view.state.doc.toString()),
+                onSubmit: (valueOverride) =>
+                  latestOnSubmitRef.current(valueOverride),
+              });
+            },
+          },
+        ]),
+      ),
       EditorView.contentAttributes.of({
         "aria-label": "Events Lucene search",
       }),
@@ -441,14 +535,51 @@ export function EventsLuceneSearchInput({
           return false;
         },
         keydown: (event, view) => {
+          const currentCompletionStatus = completionStatus(view.state);
+          const autocompleteHandled = handleEventsLuceneAutocompleteKeydown({
+            event,
+            completionIsActive: hasOpenEventsLuceneCompletion(
+              currentCompletionStatus,
+            ),
+            acceptCompletion: () => acceptCompletion(view),
+            closeCompletion: () => closeCompletion(view),
+            openCompletion: () =>
+              maybeOpenEventsLuceneContextualCompletion({
+                doc: view.state.doc.toString(),
+                cursor: view.state.selection.main.head,
+                completionStatus: completionStatus(view.state),
+                startCompletion: () => startCompletion(view),
+              }),
+          });
+
+          if (autocompleteHandled) {
+            return true;
+          }
+
           return handleEventsLuceneSubmitKeydown({
             event,
-            completionIsActive: completionStatus(view.state) === "active",
+            completionIsActive: hasOpenEventsLuceneCompletion(
+              currentCompletionStatus,
+            ),
             acceptCompletion: () => acceptCompletion(view),
-            getCurrentValue: () => view.state.doc.toString(),
-            onSubmit,
+            getCurrentValue: () =>
+              normalizeEventsLuceneEditorValue(view.state.doc.toString()),
+            onSubmit: (valueOverride) =>
+              latestOnSubmitRef.current(valueOverride),
           });
         },
+      }),
+      EditorView.inputHandler.of((view, from, to, text) => {
+        const normalizedText = normalizeEventsLuceneEditorValue(text);
+
+        if (normalizedText === text) {
+          return false;
+        }
+
+        view.dispatch({
+          changes: { from, to, insert: normalizedText },
+        });
+        return true;
       }),
       EditorView.updateListener.of((update) => {
         if (completionStatus(update.state) === "active") {
@@ -476,88 +607,117 @@ export function EventsLuceneSearchInput({
           outline: "none",
         },
         ".cm-scroller": {
-          overflowX: "hidden",
+          overflowX: "auto",
           overflowY: "hidden",
           fontFamily:
             "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        },
+        ".cm-scroller::-webkit-scrollbar": {
+          display: "none",
         },
         ".cm-editor": {
           minHeight: "3.25rem",
-          height: "auto",
+          height: "3.25rem",
         },
         ".cm-content": {
           padding: "0.7rem 0",
-          whiteSpace: "pre-wrap",
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
+          whiteSpace: "pre",
+          overflowWrap: "normal",
+          wordBreak: "normal",
         },
         ".cm-line": {
           padding: 0,
           lineHeight: "1.5",
+          whiteSpace: "nowrap",
+        },
+        ".cm-keyword": {
+          color: "hsl(var(--primary))",
+          fontWeight: "700",
+          letterSpacing: "0.01em",
+        },
+        ".cm-bracket": {
+          color: "hsl(var(--foreground))",
+          fontWeight: "700",
+        },
+        ".cm-punctuation": {
+          color: "hsl(var(--foreground) / 0.92)",
+          fontWeight: "700",
         },
         ".cm-placeholder": {
           color: "hsl(var(--muted-foreground))",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip": {
+          left: "var(--events-lucene-tooltip-left, 0px) !important",
+          right: "auto !important",
+          width: "var(--events-lucene-tooltip-width, auto) !important",
+          minWidth: "var(--events-lucene-tooltip-width, auto) !important",
+          maxWidth: "var(--events-lucene-tooltip-width, auto) !important",
+          boxSizing: "border-box",
           border: "1px solid hsl(var(--border) / 0.95)",
           backgroundColor: "hsl(var(--popover))",
           color: "hsl(var(--popover-foreground))",
-          borderRadius: "16px",
+          borderRadius: "10px",
           boxShadow:
-            "0 22px 56px -28px rgba(15, 23, 42, 0.52), 0 12px 28px -22px rgba(15, 23, 42, 0.32)",
-          padding: 0,
+            "0 18px 40px -30px rgba(15, 23, 42, 0.5), 0 10px 24px -20px rgba(15, 23, 42, 0.28)",
+          padding: "0.25rem",
           overflow: "hidden",
-          minWidth: "min(24rem, calc(100vw - 1.5rem))",
-          maxWidth: "min(34rem, calc(100vw - 1.5rem))",
           backdropFilter: "blur(10px)",
+          transform: "translateY(24px)",
+          display: "flex",
+          flexDirection: "column",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul": {
+          display: "block",
+          width: "100%",
+          minWidth: "100%",
+          boxSizing: "border-box",
           fontFamily:
             "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
           fontSize: "13px",
-          padding: 0,
-          maxHeight: "26rem",
+          padding: "0.25rem",
+          maxHeight: "calc(24rem - 2.9rem)",
           overscrollBehavior: "contain",
+          flex: "1 1 auto",
         },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li": {
           display: "grid",
-          gridTemplateColumns: "1.75rem minmax(0, 1fr) auto",
+          width: "100%",
+          boxSizing: "border-box",
+          gridTemplateColumns: "1rem minmax(0, 1fr) auto",
           alignItems: "center",
-          gap: "0.75rem",
+          gap: "0.5rem",
           margin: 0,
-          padding: "0.85rem 1rem",
-          borderRadius: 0,
+          padding: "0.375rem 0.5rem",
+          borderRadius: "2px",
           color: "hsl(var(--foreground))",
-          borderTop: "1px solid hsl(var(--border) / 0.65)",
+          borderTop: "none",
           lineHeight: "1.25",
-          transition:
-            "background-color 120ms ease, color 120ms ease, box-shadow 120ms ease",
+          transition: "background-color 120ms ease, color 120ms ease",
+          cursor: "default",
+          userSelect: "none",
         },
-        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li:first-of-type":
-          {
-            borderTop: "none",
-          },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected]":
           {
-            backgroundColor: "hsl(var(--accent) / 0.72)",
+            backgroundColor: "hsl(var(--accent))",
             color: "hsl(var(--accent-foreground))",
-            boxShadow: "inset 3px 0 0 hsl(var(--primary))",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionLabel":
           {
-            flex: "1 1 auto",
             minWidth: 0,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontWeight: "500",
-            letterSpacing: "-0.01em",
+            fontWeight: "400",
+            letterSpacing: "0",
+            fontSize: "0.875rem",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionMatchedText":
           {
             color: "hsl(var(--primary))",
             textDecoration: "none",
-            fontWeight: "700",
+            fontWeight: "600",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .cm-completionMatchedText":
           {
@@ -565,98 +725,74 @@ export function EventsLuceneSearchInput({
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip .cm-completionDetail":
           {
-            justifySelf: "end",
-            maxWidth: "16rem",
+            maxWidth: "20rem",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontSize: "11px",
+            fontSize: "0.75rem",
+            fontWeight: "400",
             textAlign: "right",
             color: "hsl(var(--muted-foreground))",
+            marginLeft: "auto",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .cm-completionDetail":
           {
-            color: "hsl(var(--accent-foreground) / 0.78)",
+            color: "hsl(var(--accent-foreground) / 0.8)",
           },
-        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip ul [role='presentation']":
-          {
-            margin: 0,
-            padding: "0.8rem 1rem 0.45rem",
-            listStyle: "none",
-            borderTop: "1px solid hsl(var(--border) / 0.7)",
-            backgroundColor: "hsl(var(--muted) / 0.35)",
-          },
-        ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip ul [role='presentation']:first-child":
-          {
-            borderTop: "none",
-            paddingTop: "0.7rem",
-          },
-        ".events-lucene-section": {
-          display: "list-item",
-        },
-        ".events-lucene-section-label": {
-          display: "block",
-          fontSize: "10px",
-          fontWeight: "700",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "hsl(var(--muted-foreground))",
-        },
-        ".events-lucene-section-detail": {
-          display: "block",
-          marginTop: "0.2rem",
-          fontSize: "11px",
-          color: "hsl(var(--muted-foreground))",
-        },
         ".events-lucene-completion-marker": {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          borderRadius: "999px",
-          width: "1.75rem",
-          height: "1.75rem",
-          fontSize: "10px",
-          fontWeight: "700",
-          letterSpacing: "0.04em",
+          width: "1rem",
+          height: "1rem",
+          fontSize: "0.75rem",
+          fontWeight: "500",
+          letterSpacing: "0",
           whiteSpace: "nowrap",
-          border: "1px solid hsl(var(--border))",
-          backgroundColor: "hsl(var(--muted) / 0.6)",
           color: "hsl(var(--muted-foreground))",
           flex: "0 0 auto",
         },
         ".events-lucene-completion-option-property .events-lucene-completion-marker":
           {
             color: "hsl(var(--primary))",
-            backgroundColor: "hsl(var(--primary) / 0.08)",
-            borderColor: "hsl(var(--primary) / 0.16)",
           },
         ".events-lucene-completion-option-keyword .events-lucene-completion-marker":
           {
             color: "hsl(var(--foreground))",
-            backgroundColor: "hsl(var(--secondary))",
-            borderColor: "hsl(var(--border) / 0.9)",
           },
         ".events-lucene-completion-option-text .events-lucene-completion-marker":
           {
             color: "hsl(var(--muted-foreground))",
-            backgroundColor: "hsl(var(--muted))",
-            borderColor: "hsl(var(--border) / 0.85)",
           },
         ".events-lucene-completion-option-snippet .events-lucene-completion-marker":
           {
             color: "hsl(var(--foreground))",
-            backgroundColor: "hsl(var(--muted))",
-            borderColor: "hsl(var(--border) / 0.85)",
           },
         ".cm-tooltip.cm-tooltip-autocomplete.events-lucene-tooltip > ul > li[aria-selected] .events-lucene-completion-marker":
           {
-            backgroundColor: "hsl(var(--background) / 0.9)",
-            borderColor: "hsl(var(--border) / 0.85)",
-            color: "hsl(var(--foreground))",
+            color: "hsl(var(--accent-foreground))",
           },
+        ".events-lucene-tooltip-footer": {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          borderTop: "1px solid hsl(var(--border) / 0.8)",
+          padding: "0.5rem 0.75rem 0.625rem",
+          flex: "0 0 auto",
+        },
+        ".events-lucene-tooltip-footer-link": {
+          fontSize: "0.75rem",
+          lineHeight: "1rem",
+          color: "hsl(var(--muted-foreground))",
+          textDecoration: "none",
+          transition: "color 120ms ease",
+        },
+        ".events-lucene-tooltip-footer-link:hover": {
+          color: "hsl(var(--foreground))",
+        },
       }),
     ],
-    [completionSource, onSubmit, scheduleEventsLuceneTooltipAlignment],
+    [completionSource, scheduleEventsLuceneTooltipAlignment],
   );
 
   return (
@@ -672,12 +808,21 @@ export function EventsLuceneSearchInput({
         variant="ghost"
         size="icon"
         className="text-muted-foreground hover:text-foreground mt-2 mr-1 ml-1 h-7 w-7 shrink-0 self-start"
-        onClick={() => onSubmit(latestValueRef.current)}
+        onClick={() =>
+          onSubmit(
+            normalizeEventsLuceneEditorValue(
+              editorViewRef.current?.state.doc.toString() ?? value,
+            ),
+          )
+        }
       >
         <Search className="h-4 w-4" />
       </Button>
       <CodeMirror
         value={value}
+        onCreateEditor={(view) => {
+          editorViewRef.current = view;
+        }}
         theme={codeMirrorTheme}
         basicSetup={{
           lineNumbers: false,
@@ -686,20 +831,13 @@ export function EventsLuceneSearchInput({
         }}
         extensions={extensions}
         onChange={(nextValue) => {
-          const normalizedValue = nextValue.replace(/\s*\n+\s*/g, " ");
-          latestValueRef.current = normalizedValue;
+          const normalizedValue = normalizeEventsLuceneEditorValue(nextValue);
           onChange(normalizedValue);
         }}
         placeholder={placeholder}
         className="min-w-0 flex-1 text-sm"
       />
-      <div className="mt-2 mr-2 hidden shrink-0 items-center gap-2 self-start sm:flex">
-        <Badge
-          variant="secondary"
-          className="h-5 rounded-sm px-1.5 text-[10px]"
-        >
-          Lucene
-        </Badge>
+      <div className="mt-2 mr-2 hidden shrink-0 items-center self-start sm:flex">
         {helpDescription && <DocPopup description={helpDescription} />}
       </div>
       {helpDescription && (

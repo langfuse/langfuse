@@ -1,16 +1,29 @@
 import {
   applyEventsLuceneTooltipLayout,
+  ensureEventsLuceneTooltipFooter,
+  handleEventsLuceneAutocompleteKeydown,
   handleEventsLuceneSubmitKeydown,
+  handleEventsLuceneTabKeyBinding,
   maybeOpenEventsLuceneContextualCompletion,
+  normalizeEventsLuceneEditorValue,
 } from "@/src/features/events/components/EventsLuceneSearchInput";
 
 describe("events lucene search enter handling", () => {
-  it("submits the accepted completion value when enter is pressed with an active suggestion", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  it("accepts an active completion and immediately submits the completed query", async () => {
     const preventDefault = jest.fn();
     const stopPropagation = jest.fn();
     const onSubmit = jest.fn();
 
-    let currentValue = "level:ER";
+    let currentValue = "environment";
 
     const handled = handleEventsLuceneSubmitKeydown({
       event: {
@@ -20,7 +33,7 @@ describe("events lucene search enter handling", () => {
       },
       completionIsActive: true,
       acceptCompletion: () => {
-        currentValue = "level:ERROR";
+        currentValue = 'environment:"prod"';
         return true;
       },
       getCurrentValue: () => currentValue,
@@ -30,7 +43,37 @@ describe("events lucene search enter handling", () => {
     expect(handled).toBe(true);
     expect(preventDefault).toHaveBeenCalled();
     expect(stopPropagation).toHaveBeenCalled();
-    expect(onSubmit).toHaveBeenCalledWith("level:ERROR");
+    jest.runOnlyPendingTimers();
+    expect(onSubmit).toHaveBeenCalledWith('environment:"prod"');
+  });
+
+  it("submits the accepted completion value instead of the stale pre-accept draft", async () => {
+    const preventDefault = jest.fn();
+    const stopPropagation = jest.fn();
+    const onSubmit = jest.fn();
+
+    let currentValue = "providedModelName:";
+
+    const handled = handleEventsLuceneSubmitKeydown({
+      event: {
+        key: "Enter",
+        preventDefault,
+        stopPropagation,
+      },
+      completionIsActive: true,
+      acceptCompletion: () => {
+        setTimeout(() => {
+          currentValue = 'providedModelName:"gpt-4"';
+        }, 0);
+        return true;
+      },
+      getCurrentValue: () => currentValue,
+      onSubmit,
+    });
+
+    expect(handled).toBe(true);
+    jest.runOnlyPendingTimers();
+    expect(onSubmit).toHaveBeenCalledWith('providedModelName:"gpt-4"');
   });
 
   it("prevents shift-enter from inserting a newline by submitting instead", () => {
@@ -76,6 +119,20 @@ describe("events lucene search enter handling", () => {
     const handled = maybeOpenEventsLuceneContextualCompletion({
       doc: "traceName:",
       cursor: "traceName:".length,
+      completionStatus: null,
+      startCompletion,
+    });
+
+    expect(handled).toBe(true);
+    expect(startCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens completions for general editing contexts as well", () => {
+    const startCompletion = jest.fn();
+
+    const handled = maybeOpenEventsLuceneContextualCompletion({
+      doc: 'level:"DEFAULT" AND providedModelName:"gpt-4"',
+      cursor: 'level:"DEFAULT" AND providedModelName:"gpt-4"'.length,
       completionStatus: null,
       startCompletion,
     });
@@ -139,10 +196,141 @@ describe("events lucene search enter handling", () => {
     });
 
     expect(applied).toBe(true);
-    expect(tooltip.style.left).toBe("20px");
-    expect(tooltip.style.width).toBe("1000px");
-    expect(tooltip.style.minWidth).toBe("1000px");
-    expect(tooltip.style.maxWidth).toBe("1000px");
-    expect(tooltip.style.right).toBe("auto");
+    expect(
+      container.style.getPropertyValue("--events-lucene-tooltip-left"),
+    ).toBe("20px");
+    expect(
+      container.style.getPropertyValue("--events-lucene-tooltip-width"),
+    ).toBe("1000px");
+  });
+
+  it("adds a docs footer link to the autocomplete dropdown", () => {
+    const tooltip = document.createElement("div");
+
+    const footer = ensureEventsLuceneTooltipFooter(tooltip);
+    const link = footer.querySelector("a");
+
+    expect(link?.getAttribute("href")).toBe("https://langfuse.com/docs");
+    expect(link?.textContent).toBe("Docs ↗");
+    expect(
+      tooltip.querySelectorAll(".events-lucene-tooltip-footer").length,
+    ).toBe(1);
+
+    ensureEventsLuceneTooltipFooter(tooltip);
+
+    expect(
+      tooltip.querySelectorAll(".events-lucene-tooltip-footer").length,
+    ).toBe(1);
+  });
+
+  it("normalizes line breaks out of editor values", () => {
+    expect(
+      normalizeEventsLuceneEditorValue('level:"ERROR"\nAND name:"foo"'),
+    ).toBe('level:"ERROR" AND name:"foo"');
+  });
+
+  it("accepts the active completion on tab", () => {
+    const preventDefault = jest.fn();
+    const stopPropagation = jest.fn();
+    const acceptCompletion = jest.fn(() => true);
+
+    const handled = handleEventsLuceneAutocompleteKeydown({
+      event: {
+        key: "Tab",
+        preventDefault,
+        stopPropagation,
+      },
+      completionIsActive: true,
+      acceptCompletion,
+      closeCompletion: jest.fn(() => true),
+      openCompletion: jest.fn(() => true),
+    });
+
+    expect(handled).toBe(true);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(acceptCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("swallows tab while completions are open even if acceptance is still pending", () => {
+    const acceptCompletion = jest.fn(() => false);
+
+    const handled = handleEventsLuceneTabKeyBinding({
+      completionIsActive: true,
+      acceptCompletion,
+    });
+
+    expect(handled).toBe(true);
+    expect(acceptCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the active completion on escape", () => {
+    const preventDefault = jest.fn();
+    const stopPropagation = jest.fn();
+    const closeCompletion = jest.fn(() => true);
+
+    const handled = handleEventsLuceneAutocompleteKeydown({
+      event: {
+        key: "Escape",
+        preventDefault,
+        stopPropagation,
+      },
+      completionIsActive: true,
+      acceptCompletion: jest.fn(() => true),
+      closeCompletion,
+      openCompletion: jest.fn(() => true),
+    });
+
+    expect(handled).toBe(true);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(closeCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens completions on arrow-down when the dropdown is closed", () => {
+    const preventDefault = jest.fn();
+    const stopPropagation = jest.fn();
+    const openCompletion = jest.fn(() => true);
+
+    const handled = handleEventsLuceneAutocompleteKeydown({
+      event: {
+        key: "ArrowDown",
+        preventDefault,
+        stopPropagation,
+      },
+      completionIsActive: false,
+      acceptCompletion: jest.fn(() => true),
+      closeCompletion: jest.fn(() => true),
+      openCompletion,
+    });
+
+    expect(handled).toBe(true);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(openCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens completions on ctrl-space when the dropdown is closed", () => {
+    const preventDefault = jest.fn();
+    const stopPropagation = jest.fn();
+    const openCompletion = jest.fn(() => true);
+
+    const handled = handleEventsLuceneAutocompleteKeydown({
+      event: {
+        key: " ",
+        ctrlKey: true,
+        preventDefault,
+        stopPropagation,
+      },
+      completionIsActive: false,
+      acceptCompletion: jest.fn(() => true),
+      closeCompletion: jest.fn(() => true),
+      openCompletion,
+    });
+
+    expect(handled).toBe(true);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(openCompletion).toHaveBeenCalledTimes(1);
   });
 });
