@@ -16,6 +16,10 @@ import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsEx
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { toDatasetCompareUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import {
+  EXPERIMENT_RUN_TABS,
+  getExperimentRunTabs,
+} from "@/src/features/navigation/utils/experiment-run-tabs";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -85,16 +89,15 @@ export default function ExperimentResults() {
     <Page
       headerProps={{
         title: hasBaseline
-          ? (experiment?.name ?? baselineId ?? "Experiment Results")
-          : "Experiment Results",
+          ? (experiment?.name ?? baselineId ?? "Results")
+          : "Results",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
-        help: {
-          description:
-            "View and analyze experiment items with traces, scores, and metrics.",
-          href: "https://langfuse.com/docs/datasets/experiments",
+        tabsProps: {
+          tabs: getExperimentRunTabs(projectId),
+          activeTab: EXPERIMENT_RUN_TABS.RESULTS,
         },
         actionButtonsLeft: canUseExperimentsBetaToggle ? (
           <ExperimentsBetaSwitch

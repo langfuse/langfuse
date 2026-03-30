@@ -82,6 +82,13 @@ function DatasetCompareInternal() {
     setIsAnnotationPanelOpen(!!activeCell);
   }, [activeCell]);
 
+  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  }, [isExperimentsBetaActive, projectId, runIds, router]);
+
   // Clear active cell when panel manually closed
   const handlePanelOpenChange = (open: boolean) => {
     if (!open) {
@@ -225,7 +232,7 @@ function DatasetCompareInternal() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"

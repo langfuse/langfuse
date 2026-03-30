@@ -158,7 +158,7 @@ export default function Experiments() {
         actionButtonsLeft: canUseExperimentsBetaToggle ? (
           <ExperimentsBetaSwitch
             enabled={isExperimentsBetaEnabled}
-            onEnabledChange={setExperimentsBetaEnabled}
+            onEnabledChange={handleBetaSwitchChange}
           />
         ) : undefined,
         actionButtonsRight: (

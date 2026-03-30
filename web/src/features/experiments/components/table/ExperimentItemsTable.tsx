@@ -461,6 +461,7 @@ export default function ExperimentItemsTable({
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
+    isFilterDataPending: allExperimentIds.length === 0,
   });
 
   const {
@@ -475,6 +476,7 @@ export default function ExperimentItemsTable({
     }),
     prefix: "Trace",
     defaultHidden: true,
+    isFilterDataPending: allExperimentIds.length === 0,
   });
 
   const buildExperimentScoreColumns = useCallback(
