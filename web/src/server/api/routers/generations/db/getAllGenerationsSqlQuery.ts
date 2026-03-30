@@ -3,6 +3,7 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
   getObservationsTableWithModelData,
@@ -43,7 +44,7 @@ export async function getAllGenerations({
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });

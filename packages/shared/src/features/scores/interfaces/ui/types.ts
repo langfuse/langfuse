@@ -23,7 +23,15 @@ export type NumericAggregate = BaseAggregate & {
   average: number;
 };
 
-export type AggregatedScoreData = CategoricalAggregate | NumericAggregate;
+export type TextAggregate = BaseAggregate & {
+  type: "TEXT";
+  values: string[];
+};
+
+export type AggregatedScoreData =
+  | CategoricalAggregate
+  | NumericAggregate
+  | TextAggregate;
 
 export type ScoreAggregate = Record<string, AggregatedScoreData>;
 

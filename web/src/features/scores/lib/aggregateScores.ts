@@ -6,7 +6,10 @@ import {
   type ScoreDomain,
   type AggregatableScoreDataType,
   type ScoreDataTypeType,
+  type ListableScore,
+  type ListableScoreDataType,
 } from "@langfuse/shared";
+import { List } from "lodash";
 
 /**
  * Normalizes score names for comparison by converting - and . to _
@@ -52,7 +55,7 @@ export const getScoreLabelFromKey = (key: string): string => {
 
 export type ScoreToAggregate =
   | (Omit<ScoreDomain, "dataType"> & {
-      dataType: AggregatableScoreDataType;
+      dataType: ListableScore["dataType"];
       hasMetadata?: boolean;
     })
   | (ScoreSimplified & {
@@ -65,8 +68,8 @@ export type ScoreToAggregate =
  * aggregation logic (value counting vs numeric averaging).
  */
 export const resolveAggregateType = (
-  dataType: AggregatableScoreDataType,
-): "NUMERIC" | "CATEGORICAL" => {
+  dataType: ListableScoreDataType,
+): "NUMERIC" | "CATEGORICAL" | "TEXT" => {
   return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
 };
 

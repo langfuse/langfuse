@@ -126,12 +126,12 @@ export const getTraceStream = async (props: {
         -- concat encoding for hasAny filter compatibility
         groupArrayIf(
           concat(name, ':', string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
         ) AS score_categories,
         -- tuple encoding for accurate output parsing (names may contain colons)
         groupArrayIf(
           tuple(name, string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
         ) AS score_categories_tuples
       FROM (
         SELECT
@@ -238,7 +238,7 @@ export const getTraceStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (tuples from ClickHouse)
+    // Process categorical / text scores (tuples from ClickHouse)
     const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
       (cat: [string, string | null]) => ({
         name: cat[0],

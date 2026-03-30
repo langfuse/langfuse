@@ -187,12 +187,12 @@ export const getObservationStream = async (props: {
           -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories,
           -- tuple encoding for accurate output parsing (names may contain colons)
           groupArrayIf(
             tuple(name, string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories_tuples
         FROM (
           SELECT
