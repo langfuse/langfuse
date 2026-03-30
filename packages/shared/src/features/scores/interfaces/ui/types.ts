@@ -26,6 +26,7 @@ export type NumericAggregate = BaseAggregate & {
 export type TextAggregate = BaseAggregate & {
   type: "TEXT";
   values: string[];
+  valueCounts: { value: string; count: number }[];
 };
 
 export type AggregatedScoreData =
