@@ -197,6 +197,7 @@ export function DataTableControls({
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
+                  displayByValue={filter.displayByValue}
                   loading={filter.loading}
                   value={filter.value}
                   onChange={filter.onChange}
@@ -344,6 +345,7 @@ interface BaseFacetProps {
 interface CategoricalFacetProps extends BaseFacetProps {
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
@@ -407,7 +409,7 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="bg-background sticky top-10 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
@@ -552,6 +554,7 @@ export function CategoricalFacet({
   loading,
   options,
   counts,
+  displayByValue,
   value,
   onChange,
   onOnlyChange,
@@ -597,11 +600,16 @@ export function CategoricalFacet({
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
 
-  // Filter options by search query
+  // Filter options by search query (check both raw value and display label)
   const filteredOptions = searchQuery
-    ? options.filter((option) =>
-        option.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? options.filter((option) => {
+        const search = searchQuery.toLowerCase();
+        const displayLabel = displayByValue?.get(option) ?? option;
+        return (
+          option.toLowerCase().includes(search) ||
+          displayLabel.toLowerCase().includes(search)
+        );
+      })
     : options;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
@@ -753,26 +761,32 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => (
-                      <FilterValueCheckbox
-                        key={option}
-                        id={`${filterKey}-${option}`}
-                        label={option}
-                        icon={renderIcon?.(option)}
-                        count={counts.get(option) || 0}
-                        checked={value.includes(option)}
-                        onCheckedChange={(checked) => {
-                          const newValues = checked
-                            ? [...value, option]
-                            : value.filter((v: string) => v !== option);
-                          onChange(newValues);
-                        }}
-                        onLabelClick={
-                          onOnlyChange ? () => onOnlyChange(option) : undefined
-                        }
-                        totalSelected={value.length}
-                      />
-                    ))}
+                    {visibleOptions.map((option: string) => {
+                      const displayLabel =
+                        displayByValue?.get(option) ?? option;
+                      return (
+                        <FilterValueCheckbox
+                          key={option}
+                          id={`${filterKey}-${option}`}
+                          label={displayLabel}
+                          icon={renderIcon?.(option)}
+                          count={counts.get(option) || 0}
+                          checked={value.includes(option)}
+                          onCheckedChange={(checked) => {
+                            const newValues = checked
+                              ? [...value, option]
+                              : value.filter((v: string) => v !== option);
+                            onChange(newValues);
+                          }}
+                          onLabelClick={
+                            onOnlyChange
+                              ? () => onOnlyChange(option)
+                              : undefined
+                          }
+                          totalSelected={value.length}
+                        />
+                      );
+                    })}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button

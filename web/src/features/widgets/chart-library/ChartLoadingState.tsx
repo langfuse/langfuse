@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
+import { Button } from "@/src/components/ui/button";
 
 const DEFAULT_HINT_DELAY_MS = 2000;
+const PROGRESS_REVEAL_DELAY_MS = 1000;
 
 type ChartLoadingStateProps = {
   isLoading: boolean;
@@ -20,24 +21,9 @@ type ChartLoadingStateProps = {
   showHintImmediately?: boolean;
   progress?: QueryProgress | null;
   layout?: "default" | "compact" | "tight";
+  onRetry?: () => void;
+  retryLabel?: string;
 };
-
-function ChartLoadingPreview() {
-  return (
-    <div aria-hidden="true" className="space-y-3">
-      <div className="flex items-end gap-2">
-        <Skeleton className="h-12 flex-1 rounded-xl" />
-        <Skeleton className="h-[4.5rem] flex-1 rounded-xl" />
-        <Skeleton className="h-8 flex-1 rounded-xl" />
-        <Skeleton className="h-14 flex-1 rounded-xl" />
-      </div>
-      <div className="flex gap-2">
-        <Skeleton className="h-2 flex-1 rounded-full" />
-        <Skeleton className="h-2 w-[4.5rem] rounded-full" />
-      </div>
-    </div>
-  );
-}
 
 export function ChartLoadingState({
   isLoading,
@@ -51,8 +37,13 @@ export function ChartLoadingState({
   showHintImmediately = false,
   progress,
   layout = "default",
+  onRetry,
+  retryLabel = "Retry",
 }: ChartLoadingStateProps) {
   const [showHint, setShowHint] = useState(false);
+  const [showProgressPhase, setShowProgressPhase] = useState(false);
+  const shouldShowProgress = progress !== undefined;
+  const isPendingProgressState = isLoading && showSpinner && shouldShowProgress;
 
   useEffect(() => {
     if (!isLoading) {
@@ -69,6 +60,21 @@ export function ChartLoadingState({
     };
   }, [hintDelayMs, isLoading]);
 
+  useEffect(() => {
+    if (!isPendingProgressState) {
+      setShowProgressPhase(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowProgressPhase(true);
+    }, PROGRESS_REVEAL_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isPendingProgressState]);
+
   if (!isLoading) {
     return null;
   }
@@ -76,7 +82,39 @@ export function ChartLoadingState({
   const shouldShowHint = showHintImmediately || showHint;
   const isCompact = layout !== "default";
   const isTight = layout === "tight";
-  const statusTitle = showSpinner ? "Loading widget" : "Query needs attention";
+  const isLegacySpinnerOnlyState = showSpinner && !shouldShowProgress;
+  const isTightProgressState = isTight && shouldShowProgress;
+  const shouldRenderStatusTitle = !isTightProgressState;
+  const shouldRenderHint = shouldShowHint && !isTightProgressState;
+  const shouldRenderRetry = Boolean(onRetry) && shouldShowHint && !showSpinner;
+
+  if (
+    isLegacySpinnerOnlyState ||
+    (isPendingProgressState && !showProgressPhase)
+  ) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label={spinnerLabel}
+        className={cn(
+          "text-muted-foreground flex h-full w-full items-center justify-center",
+          className,
+        )}
+      >
+        <div className="flex h-4 w-4 items-center justify-center">
+          <Loader2 className={cn("h-4 w-4 animate-spin", spinnerClassName)} />
+        </div>
+      </div>
+    );
+  }
+
+  const statusTitle =
+    isPendingProgressState || shouldShowProgress
+      ? "Running query"
+      : showSpinner
+        ? "Loading widget"
+        : "Query needs attention";
 
   return (
     <div
@@ -88,72 +126,71 @@ export function ChartLoadingState({
         className,
       )}
     >
-      <div className="m-auto w-full max-w-sm px-4 py-4">
-        <div className={cn("flex flex-col", isCompact ? "gap-3" : "gap-5")}>
-          {!isCompact ? <ChartLoadingPreview /> : null}
-
-          <div
-            className={cn(
-              "flex",
-              isCompact
-                ? "items-start gap-3 text-left"
-                : "flex-col items-center gap-3 text-center",
-            )}
-          >
-            <div
+      <div
+        className={cn(
+          "m-auto w-full",
+          isTightProgressState
+            ? "max-w-[12rem] px-3 py-2"
+            : "max-w-sm px-4 py-4",
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-col",
+            isTightProgressState ? "gap-2" : isCompact ? "gap-3" : "gap-4",
+          )}
+        >
+          {shouldRenderStatusTitle ? (
+            <p
               className={cn(
-                "bg-background/80 border-border/60 flex shrink-0 items-center justify-center rounded-full border shadow-xs",
-                isCompact ? "h-9 w-9" : "h-10 w-10",
+                "text-foreground font-medium",
+                shouldShowProgress ? "text-left" : "text-center",
+                isTight ? "text-xs" : "text-sm",
               )}
             >
-              {showSpinner ? (
-                <Loader2
-                  className={cn(
-                    isCompact ? "h-4 w-4" : "h-5 w-5",
-                    "animate-spin",
-                    spinnerClassName,
-                  )}
-                />
-              ) : (
-                <span
-                  className={cn(
-                    "bg-muted-foreground/60 block rounded-full",
-                    "h-2.5 w-2.5",
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-
-            <div className={cn("space-y-1", isCompact ? "min-w-0 flex-1" : "")}>
-              <p
-                className={cn(
-                  "text-foreground font-medium",
-                  isTight ? "text-xs" : "text-sm",
-                )}
-              >
-                {statusTitle}
-              </p>
-              {shouldShowHint ? (
-                <p
-                  className={cn(
-                    "animate-in fade-in-0 text-muted-foreground duration-300",
-                    isTight
-                      ? "line-clamp-3 text-[11px] leading-4"
-                      : isCompact
-                        ? "line-clamp-4 text-xs leading-4"
-                        : "line-clamp-3 text-xs leading-5",
-                    hintClassName,
-                  )}
-                >
-                  {hintText}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          {progress ? (
+              {statusTitle}
+            </p>
+          ) : null}
+          {shouldShowProgress ? (
             <QueryProgressBar progress={progress} layout={layout} />
+          ) : showSpinner ? (
+            <div className="flex h-4 w-4 items-center justify-center self-center">
+              <Loader2
+                className={cn("h-4 w-4 animate-spin", spinnerClassName)}
+              />
+            </div>
+          ) : null}
+
+          {isTightProgressState ? null : (
+            <p
+              className={cn(
+                "text-muted-foreground",
+                shouldShowProgress ? "text-left" : "text-center",
+                shouldRenderHint ? "animate-in fade-in-0 duration-300" : "",
+                isTight
+                  ? "line-clamp-3 min-h-12 text-[11px] leading-4"
+                  : isCompact
+                    ? "line-clamp-4 min-h-8 text-xs leading-4"
+                    : "line-clamp-3 min-h-10 text-xs leading-5",
+                hintClassName,
+              )}
+            >
+              {shouldRenderHint ? (
+                hintText
+              ) : (
+                <span aria-hidden="true">&nbsp;</span>
+              )}
+            </p>
+          )}
+          {shouldRenderRetry ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              className="w-fit self-center"
+            >
+              {retryLabel}
+            </Button>
           ) : null}
         </div>
       </div>

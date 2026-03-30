@@ -190,6 +190,21 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       ];
       expect(encodeFilters(filters)).toBe("extinct;boolean;;=;true");
     });
+
+    it("should encode first-in-trace filter without a numeric value", () => {
+      const filters: FilterState = [
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ];
+
+      expect(encodeFilters(filters)).toBe(
+        "positionInTrace;positionInTrace;first;=;",
+      );
+    });
   });
 
   describe("Decoding", () => {
@@ -364,6 +379,32 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           type: "boolean",
           operator: "=",
           value: true,
+        },
+      ]);
+    });
+
+    it("should decode first-in-trace filter without a numeric value", () => {
+      const decoded = decodeFilters("positionInTrace;positionInTrace;first;=;");
+
+      expect(decoded).toEqual([
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ]);
+    });
+
+    it("should interpret legacy root position-in-trace filter as first", () => {
+      const decoded = decodeFilters("positionInTrace;positionInTrace;root;=;");
+
+      expect(decoded).toEqual([
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
         },
       ]);
     });

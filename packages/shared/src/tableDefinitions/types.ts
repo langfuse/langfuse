@@ -30,6 +30,10 @@ export type ColumnDefinition =
       type: "number" | "string" | "datetime" | "boolean" | "null";
       internal: string;
       nullable?: boolean;
+      /** Step for number inputs (e.g. 1 for integers). Defaults to 0.01 in UI. */
+      step?: number;
+      /** Minimum value for number inputs. */
+      min?: number;
     }
   | {
       name: string;

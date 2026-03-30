@@ -353,7 +353,6 @@ Langfuseを利用している主要なオープンソースPythonプロジェク
 1. Langfuseの利用状況を把握し、最も重要な機能の改善に役立てる
 2. 内部および外部（例：資金調達）のレポートのために全体の利用状況を追跡する
 
-収集されたデータは第三者と共有されず、機微な情報は一切含まれていません。  
-当社はこの点について極力透明性を保っており、収集される具体的なデータの詳細は[こちら](/web/src/features/telemetry/index.ts)で確認できます。
+テレメトリーには、生の traces、prompts、observations、scores、またはデータセットの内容は含まれません。収集される正確な項目、それらの送信先、および実装上の参照先については、[テレメトリードキュメント](https://langfuse.com/self-hosting/security/telemetry)に記載しています。
 
-`TELEMETRY_ENABLED=false` を設定することで、テレメトリーの報告をオプトアウトできます.
+Langfuse OSS では、`TELEMETRY_ENABLED=false` を設定することで、テレメトリーの報告をオプトアウトできます.

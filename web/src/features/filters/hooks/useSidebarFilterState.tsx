@@ -135,6 +135,7 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   value: string[];
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
@@ -248,9 +249,11 @@ const EMPTY_MAP: Map<string, number> = new Map();
 function processOptions(options: (string | SingleValueOption)[]): {
   values: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
 } {
   const values: string[] = [];
   const counts = new Map<string, number>();
+  const displayByValue = new Map<string, string>();
 
   for (const opt of options) {
     if (typeof opt === "string") {
@@ -260,10 +263,20 @@ function processOptions(options: (string | SingleValueOption)[]): {
       if (opt.count !== undefined) {
         counts.set(opt.value, opt.count);
       }
+      if (
+        typeof opt.displayValue === "string" &&
+        opt.displayValue !== opt.value
+      ) {
+        displayByValue.set(opt.value, opt.displayValue);
+      }
     }
   }
 
-  return { values, counts: counts.size > 0 ? counts : EMPTY_MAP };
+  return {
+    values,
+    counts: counts.size > 0 ? counts : EMPTY_MAP,
+    displayByValue: displayByValue.size > 0 ? displayByValue : undefined,
+  };
 }
 
 type UpdateFilter = (
@@ -1374,11 +1387,13 @@ export function useSidebarFilterState(
           : [];
 
         // Extract counts and values to display along multi-select values
-        const { values: availableValues, counts } = Array.isArray(
-          availableValuesWithOptions,
-        )
+        const {
+          values: availableValues,
+          counts,
+          displayByValue,
+        } = Array.isArray(availableValuesWithOptions)
           ? processOptions(availableValuesWithOptions)
-          : { values: [], counts: EMPTY_MAP };
+          : { values: [], counts: EMPTY_MAP, displayByValue: undefined };
 
         // Check if this column supports operator toggle
         // Only arrayOptions columns get the ANY/ALL toggle
@@ -1478,6 +1493,7 @@ export function useSidebarFilterState(
           value: selectedValues,
           options: availableValues,
           counts,
+          displayByValue,
           loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,

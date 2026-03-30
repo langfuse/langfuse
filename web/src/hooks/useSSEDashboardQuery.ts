@@ -76,10 +76,11 @@ export function useSSEDashboardQuery(
   input: DashboardExecuteQueryInput,
   options: {
     enabled?: boolean;
+    inputKey?: string;
     queryId: string;
   },
 ): SSEQueryResult {
-  const { enabled = true } = options;
+  const { enabled = true, inputKey: inputKeyOverride } = options;
   const [data, setData] = useState<Record<string, unknown>[] | undefined>(
     undefined,
   );
@@ -223,7 +224,7 @@ export function useSSEDashboardQuery(
   );
 
   // Derive a stable key from the input to detect changes
-  const inputKey = JSON.stringify(input);
+  const inputKey = inputKeyOverride ?? JSON.stringify(input);
 
   useEffect(() => {
     if (!enabled) {

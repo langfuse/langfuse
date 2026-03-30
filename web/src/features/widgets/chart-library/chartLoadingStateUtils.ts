@@ -1,4 +1,5 @@
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
+import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
 
 type ChartQueryState = {
   isPending: boolean;
@@ -26,4 +27,20 @@ export function getChartLoadingStateProps({
       ? (errorMessage ?? RESOURCE_LIMIT_ERROR_MESSAGE)
       : undefined,
   };
+}
+
+export function getChartLoadingProgress({
+  isPending,
+  progress,
+  useBackendProgress,
+}: {
+  isPending: boolean;
+  progress: QueryProgress | null;
+  useBackendProgress: boolean;
+}): QueryProgress | null | undefined {
+  if (!isPending || !useBackendProgress) {
+    return undefined;
+  }
+
+  return progress ?? null;
 }

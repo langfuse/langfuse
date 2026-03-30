@@ -53,6 +53,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Package-Local Skills
 
+- Shared browser-review workflow for user-visible frontend changes:
+  [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
@@ -60,7 +62,30 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
-performance, bundle size, or React/Next.js performance patterns.
+performance, bundle size, React/Next.js performance patterns, or browser-based
+signoff of user-visible changes.
+
+## Web Conventions
+- Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
+  components under `src/components/*`.
+- We use tRPC for full-stack web features; register routers in
+  `src/server/api/root.ts`.
+- Authentication and RBAC guidance lives in `src/features/rbac/README.md`.
+- Entitlements guidance lives in `src/features/entitlements/README.md`.
+- Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
+  must be installed, ask the user before doing so.
+- Tailwind is the default styling layer; use the shared palette and globals in
+  `src/styles/globals.css`.
+- When anchoring sticky, fixed, or absolute elements to the viewport, use
+  `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
+  `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
+  the UI.
+- Public API routes should use
+  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
+  response types in `src/features/public-api/types/*`, add server tests, and
+  update Fern sources when the contract changes.
+- Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
+  unique test data over global reset helpers.
 
 ## Quick Commands
 - Dev: `pnpm --filter web run dev`
@@ -93,12 +118,14 @@ performance, bundle size, or React/Next.js performance patterns.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP server before signoff, including a quick functional pass and a visual regression check.
+4. Review the affected user flow in a real browser with the Playwright MCP
+   server before signoff. Use
+   `../.agents/skills/frontend-browser-review/SKILL.md`.
 
 ### Agent browser loop
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
-3. Use the workspace `playwright` MCP server from `.mcp.json` or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
+3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
 4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
 5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 

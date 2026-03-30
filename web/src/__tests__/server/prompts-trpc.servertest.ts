@@ -1387,4 +1387,205 @@ describe("prompts trpc", () => {
       expect(folderSearchResults.prompts.length).toBeGreaterThan(0);
     });
   });
+
+  describe("prompts.duplicateFolder", () => {
+    it("should duplicate a folder when the target path exists as a prompt and keep intra-folder references self-contained", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-self-contained-${v4().slice(0, 8)}`;
+      const folderAPath = `${folderPrefix}/folder-a`;
+      const folderACopyPath = `${folderPrefix}/folder-a-copy`;
+      const solverPromptName = `${folderAPath}/solver-a`;
+      const rubricPromptName = `${folderAPath}/rubric-a`;
+      const copiedSolverPromptName = `${folderACopyPath}/solver-a`;
+      const copiedRubricPromptName = `${folderACopyPath}/rubric-a`;
+
+      const solverPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: solverPromptName,
+          version: 1,
+          type: "text",
+          prompt: `Solve using @@@langfusePrompt:name=${rubricPromptName}|label=production@@@`,
+          createdBy: "test-user",
+          labels: ["latest"],
+        },
+      });
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: folderAPath,
+            version: 1,
+            type: "text",
+            prompt: "prompt with same name as source folder",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: rubricPromptName,
+            version: 1,
+            type: "text",
+            prompt: "rubric latest-labeled content",
+            createdBy: "test-user",
+            labels: ["production", "latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: rubricPromptName,
+            version: 2,
+            type: "text",
+            prompt: "rubric higher-version content",
+            createdBy: "test-user",
+            labels: ["staging"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: folderACopyPath,
+            version: 1,
+            type: "text",
+            prompt: "prompt with same name as target folder",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+        ],
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: solverPrompt.id,
+          childName: rubricPromptName,
+          childLabel: "production",
+        },
+      });
+
+      const result = await caller.prompts.duplicateFolder({
+        projectId: project.id,
+        sourcePath: folderAPath,
+        targetPath: folderACopyPath,
+        isSingleVersion: true,
+        rewritePromptReferences: true,
+      });
+
+      expect(result.copiedCount).toBe(2);
+      expect(result.copiedPromptNames).toEqual(
+        expect.arrayContaining([
+          copiedSolverPromptName,
+          copiedRubricPromptName,
+        ]),
+      );
+
+      const copiedSolverPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: copiedSolverPromptName,
+        },
+        include: {
+          PromptDependency: true,
+        },
+      });
+      expect(copiedSolverPrompt).not.toBeNull();
+      expect(copiedSolverPrompt?.version).toBe(1);
+      expect(copiedSolverPrompt?.prompt).toBe(
+        `Solve using @@@langfusePrompt:name=${copiedRubricPromptName}|label=production@@@`,
+      );
+      expect(copiedSolverPrompt?.PromptDependency).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            childName: copiedRubricPromptName,
+            childLabel: "production",
+            childVersion: null,
+          }),
+        ]),
+      );
+
+      const copiedRubricPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: copiedRubricPromptName,
+        },
+      });
+      expect(copiedRubricPrompt).not.toBeNull();
+      expect(copiedRubricPrompt?.prompt).toBe("rubric latest-labeled content");
+
+      const exactTargetPrompt = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: folderACopyPath,
+        },
+      });
+      expect(exactTargetPrompt).toHaveLength(1);
+      expect(exactTargetPrompt[0].prompt).toBe(
+        "prompt with same name as target folder",
+      );
+    });
+
+    it("should reject when the target path already exists as a folder with prompts", async () => {
+      const { project, caller } = await prepare();
+      const folderPrefix = `dup-folder-conflict-${v4().slice(0, 8)}`;
+      const folderAPath = `${folderPrefix}/folder-a`;
+      const folderACopyPath = `${folderPrefix}/folder-a-copy`;
+
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: v4(),
+            projectId: project.id,
+            name: folderAPath,
+            version: 1,
+            type: "text",
+            prompt: "prompt with same name as source folder",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderAPath}/solver-a`,
+            version: 1,
+            type: "text",
+            prompt: "solver content",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderAPath}/rubric-a`,
+            version: 1,
+            type: "text",
+            prompt: "rubric content",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+          {
+            id: v4(),
+            projectId: project.id,
+            name: `${folderACopyPath}/existing`,
+            version: 1,
+            type: "text",
+            prompt: "existing target folder content",
+            createdBy: "test-user",
+            labels: ["latest"],
+          },
+        ],
+      });
+
+      await expect(
+        caller.prompts.duplicateFolder({
+          projectId: project.id,
+          sourcePath: folderAPath,
+          targetPath: folderACopyPath,
+          isSingleVersion: true,
+        }),
+      ).rejects.toThrow(/already exist/i);
+    });
+  });
 });

@@ -113,6 +113,22 @@ const EVENTS_FIELDS = {
   // Model ID with different alias for exports
   modelId: 'e.model_id as "model_id"',
 
+  // Experiment fields (denormalized on events table)
+  experimentId: 'e.experiment_id as "experiment_id"',
+  experimentName: 'e.experiment_name as "experiment_name"',
+  experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+
+  // Experiment item fields
+  experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
+  experimentItemRootSpanId:
+    'e.experiment_item_root_span_id as "experiment_item_root_span_id"',
+  experimentItemExpectedOutput:
+    'e.experiment_item_expected_output as "experiment_item_expected_output"',
+  experimentItemMetadata:
+    "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
+  experimentItemVersion:
+    'e.experiment_item_version as "experiment_item_version"',
+
   // Calculated fields
   latency:
     "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
@@ -293,6 +309,31 @@ const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
   ],
+
+  // Experiment items field set
+  experimentItems: [
+    "id", // span_id (observation_id)
+    "traceId",
+    "input",
+    "output",
+    "startTime",
+    "level",
+
+    // Experiment metadata
+    "experimentId",
+    "experimentName",
+    "experimentDatasetId",
+
+    // Experiment item metadata
+    "experimentItemId",
+    "experimentItemRootSpanId",
+    "experimentItemVersion",
+    "experimentItemExpectedOutput",
+    "experimentItemMetadata",
+
+    // Event metadata
+    "metadata",
+  ],
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
@@ -331,6 +372,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
   public: "max(public) AS public",
+  experiment_item_id:
+    "argMaxIf(experiment_item_id, event_ts, experiment_item_id <> '') AS experiment_item_id",
 
   // Observation-level aggregations for filtering support
   usage_details: "sumMap(usage_details) as usage_details",
@@ -1578,6 +1621,12 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
 
     // GROUP BY
     parts.push(`GROUP BY ${this.groupByColumn}`);
+
+    // HAVING
+    const havingSection = this.buildHavingSection();
+    if (havingSection) {
+      parts.push(havingSection);
+    }
 
     // ORDER BY
     if (this.orderByClause) {

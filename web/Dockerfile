@@ -11,10 +11,11 @@ RUN npm install turbo@2.8.20 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@9.5.0 --activate
+RUN corepack prepare pnpm@10.33.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# Remove package managers from the runtime image; only build stages need them.
+# Remove build-only package managers. npm stays here because the runner stage
+# uses it to install prisma and optional dd-trace before removing it.
 RUN rm -rf /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 

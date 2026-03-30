@@ -25,6 +25,10 @@ import {
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
 import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
+import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
@@ -641,7 +645,7 @@ describe("Saved view validation", () => {
     ).toEqual([]);
   });
 
-  it("should preserve positionInTrace filters when the session view defines the column", () => {
+  it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
     const sessionEventColumns: ColumnDefinition[] = [
       ...observationEventsFilterConfig.columnDefinitions,
       {
@@ -651,16 +655,51 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
-    const filters: FilterState = [
+    const defaultPreset = getSessionDetailPresetToApply({
+      selectedViewId: null,
+      hasFilters: false,
+    });
+    const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "Last Generation in Trace",
+    );
+
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+    expect(lastPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
       {
         column: "positionInTrace",
         type: "positionInTrace",
         operator: "=",
         key: "last",
       },
-    ];
-
-    expect(validateFilters(filters, sessionEventColumns)).toEqual(filters);
+    ]);
+    expect(SESSION_DETAIL_SYSTEM_PRESETS).not.toContainEqual(
+      expect.objectContaining({
+        name: "Root Observation",
+      }),
+    );
   });
 });
 

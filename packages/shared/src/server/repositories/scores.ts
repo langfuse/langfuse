@@ -162,6 +162,7 @@ export type GetScoresForTracesProps<
 > = {
   projectId: string;
   traceIds: string[];
+  level?: "trace" | "observation" | "all";
   timestamp?: Date;
   limit?: number;
   offset?: number;
@@ -495,6 +496,7 @@ const getScoresForTracesInternal = async <
   const {
     projectId,
     traceIds,
+    level = "all",
     timestamp,
     dataTypes,
     limit,
@@ -506,6 +508,12 @@ const getScoresForTracesInternal = async <
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
+  const levelFilter =
+    level === "trace"
+      ? "AND s.observation_id IS NULL"
+      : level === "observation"
+        ? "AND s.observation_id IS NOT NULL"
+        : "";
 
   const query = `
       select
@@ -515,6 +523,7 @@ const getScoresForTracesInternal = async <
       AND s.trace_id IN ({traceIds: Array(String)})
       ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
       ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+      ${levelFilter}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
