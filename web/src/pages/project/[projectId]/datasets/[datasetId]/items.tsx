@@ -86,11 +86,6 @@ function DatasetItemsView() {
       headerProps={{
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
-        help: dataset.data?.description
-          ? {
-              description: dataset.data.description,
-            }
-          : undefined,
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
         ],
@@ -98,9 +93,9 @@ function DatasetItemsView() {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.ITEMS,
         },
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
-            {betaSwitch}
             {!showOnboarding && (
               <>
                 <NewDatasetItemButton

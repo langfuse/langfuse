@@ -106,7 +106,6 @@ export default function Dataset() {
         actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
-            {betaSwitch}
             <Link
               href={{
                 pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
