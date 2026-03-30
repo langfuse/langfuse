@@ -118,7 +118,7 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
-  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+  LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
