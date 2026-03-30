@@ -153,11 +153,11 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     project_id,
     type,
     parent_observation_id,
+    environment,
     start_time,
     end_time,
     name,
     level,
-    environment,
     status_message,
     version,
     ${includeIO === true ? "input, output, metadata," : ""}
