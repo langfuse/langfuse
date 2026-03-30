@@ -11,7 +11,7 @@ export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
-    layout: withDefault(StringParam, "list"),
+    layout: withDefault(StringParam, "grid"),
     itemVisibility: withDefault(StringParam, "baseline-only"),
   });
 

@@ -10,7 +10,11 @@ export const getExperimentRunTabs = (projectId: string) => [
   {
     value: EXPERIMENT_RUN_TABS.RESULTS,
     label: "Results",
-    href: `/project/${projectId}/experiments/results`,
+    onClick: () => {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        window.history.back();
+      }
+    },
   },
   {
     value: EXPERIMENT_RUN_TABS.ANALYTICS,

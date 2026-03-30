@@ -1,0 +1,45 @@
+import { useRouter } from "next/router";
+import Page from "@/src/components/layouts/page";
+import { FlaskConical } from "lucide-react";
+import {
+  EXPERIMENT_RUN_TABS,
+  getExperimentRunTabs,
+} from "@/src/features/navigation/utils/experiment-run-tabs";
+
+export default function ExperimentAnalytics() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+
+  return (
+    <Page
+      headerProps={{
+        title: "Analytics",
+        itemType: "EXPERIMENT",
+        breadcrumb: [
+          { name: "Experiments", href: `/project/${projectId}/experiments` },
+        ],
+        tabsProps: {
+          tabs: getExperimentRunTabs(projectId),
+          activeTab: EXPERIMENT_RUN_TABS.ANALYTICS,
+        },
+      }}
+    >
+      <div className="flex h-full flex-col items-center justify-center p-8">
+        <div className="border-border bg-card/50 flex max-w-md flex-col items-center gap-4 rounded-xl border p-8 text-center shadow-sm backdrop-blur-sm">
+          <div className="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
+            <FlaskConical className="text-muted-foreground h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold tracking-tight">
+              Analytics Coming Soon
+            </h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              We are working on adding advanced analytics capabilities for
+              experiments.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Page>
+  );
+}

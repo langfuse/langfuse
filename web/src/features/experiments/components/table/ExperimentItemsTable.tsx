@@ -251,7 +251,7 @@ export default function ExperimentItemsTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
-    "s",
+    "l",
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -966,7 +966,7 @@ export default function ExperimentItemsTable({
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
-                  <span className="text-muted-foreground">
+                  <span className="text-muted-foreground text-sm">
                     Please select a baseline experiment.
                   </span>
                 </div>
@@ -991,7 +991,7 @@ export default function ExperimentItemsTable({
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground text-sm">
                       Please select a baseline experiment.
                     </span>
                   ) : undefined
