@@ -153,11 +153,11 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     project_id,
     type,
     parent_observation_id,
-    environment,
     start_time,
     end_time,
     name,
     level,
+    environment,
     status_message,
     version,
     ${includeIO === true ? "input, output, metadata," : ""}
@@ -172,12 +172,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     usage_pricing_tier_id,
     usage_pricing_tier_name,
     completion_start_time,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    tool_definitions,
-    tool_calls,
-    tool_call_names,
+    ${includeIO === true ? "prompt_id, prompt_name, prompt_version, tool_definitions, tool_calls, tool_call_names," : ""}
     created_at,
     updated_at,
     event_ts
