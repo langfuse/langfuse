@@ -13,6 +13,9 @@ import { ExperimentDisplaySettings } from "@/src/features/experiments/components
 import { Button } from "@/src/components/ui/button";
 import { X } from "lucide-react";
 import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { toDatasetCompareUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -38,6 +41,12 @@ export default function ExperimentResults() {
     true,
   );
 
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+  } = useExperimentAccess();
+
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
     {
@@ -56,6 +65,21 @@ export default function ExperimentResults() {
       </Page>
     );
   }
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    // When switching OFF, redirect to old dataset compare view
+    if (!enabled && baselineId && experiment?.datasetId) {
+      void router.push(
+        toDatasetCompareUrl(
+          projectId,
+          experiment.datasetId,
+          baselineId,
+          comparisonIds,
+        ),
+      );
+    }
+  };
 
   return (
     <Page
@@ -72,6 +96,12 @@ export default function ExperimentResults() {
             "View and analyze experiment items with traces, scores, and metrics.",
           href: "https://langfuse.com/docs/datasets/experiments",
         },
+        actionButtonsLeft: canUseExperimentsBetaToggle ? (
+          <ExperimentsBetaSwitch
+            enabled={isExperimentsBetaEnabled}
+            onEnabledChange={handleBetaSwitchChange}
+          />
+        ) : undefined,
         actionButtonsRight: (
           <>
             {hasBaseline && comparisonIds.length > 0 && (

@@ -4,7 +4,7 @@ import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/Da
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { Columns3, MoreVertical } from "lucide-react";
+import { Columns3, MoreVertical, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -24,6 +24,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 export default function Dataset() {
   const router = useRouter();
@@ -47,10 +48,18 @@ export default function Dataset() {
     isExperimentsBetaActive,
   } = useExperimentAccess();
 
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  };
+
   const betaSwitch = canUseExperimentsBetaToggle ? (
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
-      onEnabledChange={setExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
     />
   ) : null;
 
@@ -71,11 +80,11 @@ export default function Dataset() {
               href: `/project/${projectId}/datasets/${datasetId}`,
             },
           ],
-          actionButtonsRight: betaSwitch,
+          actionButtonsLeft: betaSwitch,
         }}
       >
-        <div className="p-4">
-          Dataset run page (Experiments Beta placeholder)
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
       </Page>
     );
@@ -94,6 +103,7 @@ export default function Dataset() {
           },
           { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
         ],
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             {betaSwitch}

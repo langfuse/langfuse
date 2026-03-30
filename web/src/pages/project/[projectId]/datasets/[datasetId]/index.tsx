@@ -184,9 +184,9 @@ export default function Dataset() {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.RUNS,
           },
+          actionButtonsLeft: betaSwitch,
           actionButtonsRight: (
             <>
-              {betaSwitch}
               <Dialog
                 open={isCreateExperimentDialogOpen}
                 onOpenChange={setIsCreateExperimentDialogOpen}
