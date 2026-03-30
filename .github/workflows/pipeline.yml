@@ -250,9 +250,7 @@ jobs:
             ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -343,9 +341,7 @@ jobs:
           cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure no unhealthy status
         run: |
@@ -416,9 +412,7 @@ jobs:
           cp .env.dev.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
         env:
           POSTGRES_VERSION: 15
@@ -504,9 +498,7 @@ jobs:
           which migrate
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
@@ -564,9 +556,7 @@ jobs:
           cp .env.dev.example .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5
-
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
