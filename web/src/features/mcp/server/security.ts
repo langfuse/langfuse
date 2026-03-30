@@ -2,56 +2,16 @@ import { env } from "@/src/env.mjs";
 import { ForbiddenError } from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
-const MCP_ALLOW_METHODS = "GET, POST, DELETE, OPTIONS";
-const MCP_ALLOW_HEADERS =
-  "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID";
-const MCP_EXPOSE_HEADERS = "Mcp-Session-Id";
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
-
-function getSingleHeader(
-  header: string | string[] | undefined,
-): string | undefined {
-  if (!header) {
-    return undefined;
-  }
-
-  return Array.isArray(header) ? header[0] : header;
-}
-
-function parseConfiguredBaseUrl(value: string): URL {
-  if (/^https?:\/\//i.test(value)) {
-    return new URL(value);
-  }
-
-  const protocol = LOCALHOST_HOSTNAMES.some((hostname) =>
-    new RegExp(
-      `^${hostname.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?::|/|$)`,
-    ).test(value),
-  )
-    ? "http"
-    : "https";
-
-  return new URL(`${protocol}://${value}`);
-}
-
-function parseHostname(hostHeader: string): string {
-  try {
-    return new URL(`http://${hostHeader}`).hostname.toLowerCase();
-  } catch {
-    throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
-  }
-}
-
-function parseOrigin(originHeader: string): string {
-  try {
-    return new URL(originHeader).origin.toLowerCase();
-  } catch {
-    throw new ForbiddenError(`Invalid Origin header: ${originHeader}`);
-  }
-}
+const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 function getAllowedMcpOriginsAndHostnames() {
-  const baseUrl = parseConfiguredBaseUrl(env.NEXTAUTH_URL);
+  const rawBaseUrl = env.NEXTAUTH_URL;
+  const baseUrl = new URL(
+    /^https?:\/\//i.test(rawBaseUrl)
+      ? rawBaseUrl
+      : `${LOCALHOST_HOST_PATTERN.test(rawBaseUrl) ? "http" : "https"}://${rawBaseUrl}`,
+  );
   const allowedHostnames = new Set([baseUrl.hostname.toLowerCase()]);
   const allowedOrigins = new Set([baseUrl.origin.toLowerCase()]);
 
@@ -68,32 +28,45 @@ function getAllowedMcpOriginsAndHostnames() {
     }
   }
 
-  return {
-    allowedHostnames,
-    allowedOrigins,
-  };
+  return { allowedHostnames, allowedOrigins };
 }
 
 export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
   const { allowedHostnames, allowedOrigins } =
     getAllowedMcpOriginsAndHostnames();
 
-  const hostHeader = getSingleHeader(req.headers.host);
+  const hostHeader = Array.isArray(req.headers.host)
+    ? req.headers.host[0]
+    : req.headers.host;
   if (!hostHeader) {
     throw new ForbiddenError("Missing Host header");
   }
 
-  const hostname = parseHostname(hostHeader);
+  let hostname: string;
+  try {
+    hostname = new URL(`http://${hostHeader}`).hostname.toLowerCase();
+  } catch {
+    throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
+  }
+
   if (!allowedHostnames.has(hostname)) {
     throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
   }
 
-  const originHeader = getSingleHeader(req.headers.origin);
+  const originHeader = Array.isArray(req.headers.origin)
+    ? req.headers.origin[0]
+    : req.headers.origin;
   if (!originHeader) {
     return null;
   }
 
-  const origin = parseOrigin(originHeader);
+  let origin: string;
+  try {
+    origin = new URL(originHeader).origin.toLowerCase();
+  } catch {
+    throw new ForbiddenError(`Invalid Origin header: ${originHeader}`);
+  }
+
   if (!allowedOrigins.has(origin)) {
     throw new ForbiddenError(`Invalid Origin header: ${originHeader}`);
   }
@@ -110,7 +83,10 @@ export function applyMcpCorsHeaders(
     res.setHeader("Vary", "Origin");
   }
 
-  res.setHeader("Access-Control-Allow-Methods", MCP_ALLOW_METHODS);
-  res.setHeader("Access-Control-Allow-Headers", MCP_ALLOW_HEADERS);
-  res.setHeader("Access-Control-Expose-Headers", MCP_EXPOSE_HEADERS);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
+  );
+  res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 }
