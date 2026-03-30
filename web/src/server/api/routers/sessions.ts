@@ -128,7 +128,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: [...LISTABLE_SCORE_TYPES],
     onParseError: traceException,
   });
 

@@ -493,7 +493,12 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const config = configs.find((c) => c.id === field.configId);
 
     if (!config || !field) return;
-    if (!field.stringValue) return;
+    if (!field.stringValue) {
+      if (field.id) {
+        handleDeleteScore(index);
+      }
+      return;
+    }
 
     handleUpsert(index, 0, field.stringValue);
   };
