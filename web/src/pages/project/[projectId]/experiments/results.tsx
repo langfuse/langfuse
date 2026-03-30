@@ -12,10 +12,13 @@ import { useExperimentResultsState } from "@/src/features/experiments/hooks/useE
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { Button } from "@/src/components/ui/button";
 import { X } from "lucide-react";
+import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
 
 export default function ExperimentResults() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const { isEnabled } = useIsExperimentV4Enabled();
 
   const {
     baselineId,
@@ -42,9 +45,17 @@ export default function ExperimentResults() {
       experimentId: baselineId ?? "",
     },
     {
-      enabled: Boolean(projectId && baselineId),
+      enabled: Boolean(projectId && baselineId) && isEnabled,
     },
   );
+
+  if (!isEnabled) {
+    return (
+      <Page headerProps={{ title: "Experiments" }}>
+        <div className="p-4">Experiments Pages coming soon.</div>
+      </Page>
+    );
+  }
 
   return (
     <Page
