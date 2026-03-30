@@ -72,10 +72,10 @@ export const CategoricalConfigFields = z.object({
   categories: z.array(ScoreConfigCategory).superRefine(validateCategories),
 });
 
-export const FreeFormConfigFields = z.object({
+export const TextConfigFields = z.object({
   maxValue: z.undefined().nullish(),
   minValue: z.undefined().nullish(),
-  dataType: z.literal("FREE_FORM"),
+  dataType: z.literal("TEXT"),
   categories: z.undefined().nullish(),
 });
 
@@ -123,7 +123,7 @@ export const ScoreConfigSchema = z
     }),
     z.object({
       ...ScoreConfigBase.shape,
-      ...FreeFormConfigFields.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);

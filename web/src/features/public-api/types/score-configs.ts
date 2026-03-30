@@ -1,7 +1,7 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
-  FreeFormConfigFields,
+  TextConfigFields,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
@@ -56,7 +56,7 @@ const APIScoreConfig = z
     }),
     z.object({
       ...ScoreConfigBase.shape,
-      ...FreeFormConfigFields.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);

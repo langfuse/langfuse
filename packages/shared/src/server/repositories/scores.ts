@@ -1558,7 +1558,7 @@ export const getScoreStringValues = async (
   );
   const timestampFilterRes = chFilter.apply();
 
-  // exclude FREE_FORM scores as they are arbitrary by nature and hence have high cardinality
+  // exclude TEXT scores as they are arbitrary by nature and hence have high cardinality
   // which in turn can lead to performance issues
   const query = `
       select
@@ -1568,7 +1568,7 @@ export const getScoreStringValues = async (
       WHERE s.project_id = {projectId: String}
       AND string_value IS NOT NULL
       AND string_value != ''
-      AND s.data_type != 'FREE_FORM'
+      AND s.data_type != 'TEXT'
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY string_value
       ORDER BY count() desc

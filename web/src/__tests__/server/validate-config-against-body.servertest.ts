@@ -6,10 +6,10 @@ import {
   type ScoreDomain,
 } from "@langfuse/shared/src/server";
 
-const baseFreeFormConfig: ScoreConfigDomain = {
+const baseTextConfig: ScoreConfigDomain = {
   id: "config-1",
   name: "free-text-config",
-  dataType: "FREE_FORM",
+  dataType: "TEXT",
   isArchived: false,
   description: null,
   createdAt: new Date(),
@@ -20,13 +20,13 @@ const baseFreeFormConfig: ScoreConfigDomain = {
   categories: undefined,
 };
 
-const baseFreeFormScore: ScoreDomain = {
+const baseTextScore: ScoreDomain = {
   id: "score-1",
   projectId: "project-1",
   name: "free-text-config",
   value: 0,
   stringValue: "Some valid free text",
-  dataType: "FREE_FORM",
+  dataType: "TEXT",
   source: "ANNOTATION",
   comment: null,
   metadata: {},
@@ -45,57 +45,57 @@ const baseFreeFormScore: ScoreDomain = {
   longStringValue: "",
 };
 
-describe("validateConfigAgainstBody for FREE_FORM scores", () => {
-  it("should succeed with valid FREE_FORM annotation score", () => {
+describe("validateConfigAgainstBody for TEXT scores", () => {
+  it("should succeed with valid TEXT annotation score", () => {
     expect(() =>
       validateConfigAgainstBody({
-        body: baseFreeFormScore,
-        config: baseFreeFormConfig,
+        body: baseTextScore,
+        config: baseTextConfig,
         context: "ANNOTATION",
       }),
     ).not.toThrow();
   });
 
-  it("should reject empty FREE_FORM text", () => {
+  it("should reject empty TEXT text", () => {
     const emptyScore: ScoreDomain = {
-      ...baseFreeFormScore,
+      ...baseTextScore,
       stringValue: "",
     };
 
     expect(() =>
       validateConfigAgainstBody({
         body: emptyScore,
-        config: baseFreeFormConfig,
+        config: baseTextConfig,
         context: "ANNOTATION",
       }),
     ).toThrow();
   });
 
-  it("should reject FREE_FORM text exceeding 500 characters", () => {
+  it("should reject TEXT text exceeding 500 characters", () => {
     const longScore: ScoreDomain = {
-      ...baseFreeFormScore,
+      ...baseTextScore,
       stringValue: "a".repeat(501),
     };
 
     expect(() =>
       validateConfigAgainstBody({
         body: longScore,
-        config: baseFreeFormConfig,
+        config: baseTextConfig,
         context: "ANNOTATION",
       }),
     ).toThrow();
   });
 
-  it("should accept FREE_FORM text at exactly 500 characters", () => {
+  it("should accept TEXT text at exactly 500 characters", () => {
     const maxLengthScore: ScoreDomain = {
-      ...baseFreeFormScore,
+      ...baseTextScore,
       stringValue: "a".repeat(500),
     };
 
     expect(() =>
       validateConfigAgainstBody({
         body: maxLengthScore,
-        config: baseFreeFormConfig,
+        config: baseTextConfig,
         context: "ANNOTATION",
       }),
     ).not.toThrow();
@@ -103,13 +103,13 @@ describe("validateConfigAgainstBody for FREE_FORM scores", () => {
 
   it("should reject archived config", () => {
     const archivedConfig: ScoreConfigDomain = {
-      ...baseFreeFormConfig,
+      ...baseTextConfig,
       isArchived: true,
     };
 
     expect(() =>
       validateConfigAgainstBody({
-        body: baseFreeFormScore,
+        body: baseTextScore,
         config: archivedConfig,
         context: "ANNOTATION",
       }),
@@ -118,14 +118,14 @@ describe("validateConfigAgainstBody for FREE_FORM scores", () => {
 
   it("should reject name mismatch", () => {
     const mismatchedScore: ScoreDomain = {
-      ...baseFreeFormScore,
+      ...baseTextScore,
       name: "different-name",
     };
 
     expect(() =>
       validateConfigAgainstBody({
         body: mismatchedScore,
-        config: baseFreeFormConfig,
+        config: baseTextConfig,
         context: "ANNOTATION",
       }),
     ).toThrow("Name mismatch");

@@ -39,7 +39,7 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import {
   formatAnnotateDescription,
-  isFreeFormDataType,
+  isTextDataType,
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
@@ -488,7 +488,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     handleUpsert(index, numericCategoryValue, stringValue);
   };
 
-  const handleFreeFormUpsert = (index: number) => {
+  const handleTextUpsert = (index: number) => {
     const field = controlledFields[index];
     const config = configs.find((c) => c.id === field.configId);
 
@@ -692,7 +692,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isFreeFormDataType(score.dataType) ? (
+                          {isTextDataType(score.dataType) ? (
                             <FormField
                               control={form.control}
                               name={`scoreData.${index}.stringValue`}
@@ -706,7 +706,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                       className="text-xs"
                                       disabled={isInputDisabled(config)}
                                       placeholder="Enter free form text..."
-                                      onBlur={() => handleFreeFormUpsert(index)}
+                                      onBlur={() => handleTextUpsert(index)}
                                     />
                                   </FormControl>
                                   <FormMessage className="text-xs" />

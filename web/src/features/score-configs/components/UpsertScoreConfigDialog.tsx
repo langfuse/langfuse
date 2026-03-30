@@ -34,7 +34,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   isBooleanDataType,
   isCategoricalDataType,
-  isFreeFormDataType,
+  isTextDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -198,7 +198,7 @@ export function UpsertScoreConfigDialog({
                           form.clearErrors();
                           if (isNumericDataType(dt)) {
                             form.setValue("categories", undefined);
-                          } else if (isFreeFormDataType(dt)) {
+                          } else if (isTextDataType(dt)) {
                             form.setValue("categories", undefined);
                             form.setValue("minValue", undefined);
                             form.setValue("maxValue", undefined);
@@ -286,7 +286,7 @@ export function UpsertScoreConfigDialog({
                       )}
                     />
                   </>
-                ) : isFreeFormDataType(form.getValues("dataType")) ? null : (
+                ) : isTextDataType(form.getValues("dataType")) ? null : (
                   <div className="grid grid-flow-row gap-2">
                     <FormField
                       control={form.control}

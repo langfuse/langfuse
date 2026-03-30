@@ -17,14 +17,14 @@ export const ScoreDataTypeArray = [
   "CATEGORICAL",
   "BOOLEAN",
   "CORRECTION",
-  "FREE_FORM",
+  "TEXT",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
   CORRECTION: "CORRECTION",
-  FREE_FORM: "FREE_FORM",
+  TEXT: "TEXT",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -49,9 +49,9 @@ const CorrectionData = z.object({
   dataType: z.literal("CORRECTION"),
 });
 
-export const FreeFormData = z.object({
+export const TextData = z.object({
   stringValue: z.string().min(1).max(500),
-  dataType: z.literal("FREE_FORM"),
+  dataType: z.literal("TEXT"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -96,7 +96,7 @@ export const ScoreSchema = ScoreFoundationSchema.and(
     CategoricalData,
     BooleanData,
     CorrectionData,
-    FreeFormData,
+    TextData,
   ]),
 );
 

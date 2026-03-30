@@ -969,7 +969,7 @@ async function generateConfigs(project: Project) {
       id: `config-${v4()}`,
       projectId: project.id,
       name: "Feedback",
-      dataType: ScoreDataTypeEnum.FREE_FORM,
+      dataType: ScoreDataTypeEnum.TEXT,
       description: "Free-form text feedback on the output quality.",
       isArchived: false,
     },

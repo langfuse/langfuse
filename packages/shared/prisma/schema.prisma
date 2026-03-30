@@ -495,7 +495,7 @@ enum ScoreConfigDataType {
   CATEGORICAL
   NUMERIC
   BOOLEAN
-  FREE_FORM
+  TEXT
 }
 
 model AnnotationQueue {
@@ -925,7 +925,7 @@ model EvalTemplate {
   provider         String?
   modelParams      Json?              @map("model_params")
   vars             String[]           @default([])
-  outputDefinition     Json               @map("output_schema")
+  outputDefinition Json               @map("output_schema")
   JobConfiguration JobConfiguration[]
   JobExecution     JobExecution[]
 

@@ -3,7 +3,7 @@ import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
 import {
   BooleanData,
   CategoricalData,
-  FreeFormData,
+  TextData,
   NumericData,
 } from "../../domain";
 
@@ -54,7 +54,7 @@ export const CreateAnnotationScoreData = CreateAnnotationScoreBase.and(
     NumericData,
     CategoricalData,
     BooleanData,
-    FreeFormData,
+    TextData,
   ]),
 );
 
@@ -71,7 +71,7 @@ export const UpdateAnnotationScoreData = UpdateAnnotationScoreBase.and(
     NumericData,
     CategoricalData,
     BooleanData,
-    FreeFormData,
+    TextData,
   ]),
 );
 

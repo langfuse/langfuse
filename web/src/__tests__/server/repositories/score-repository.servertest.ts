@@ -804,8 +804,8 @@ describe("Clickhouse Scores Repository Test", () => {
     });
   });
 
-  describe("FREE_FORM scores", () => {
-    it("should round-trip a FREE_FORM score through ClickHouse", async () => {
+  describe("TEXT scores", () => {
+    it("should round-trip a TEXT score through ClickHouse", async () => {
       const scoreId = v4();
       const traceId = v4();
 
@@ -816,7 +816,7 @@ describe("Clickhouse Scores Repository Test", () => {
         name: "free-form-score",
         value: 0,
         string_value: "This is free text feedback",
-        data_type: "FREE_FORM",
+        data_type: "TEXT",
         source: "ANNOTATION",
       });
 
@@ -824,13 +824,13 @@ describe("Clickhouse Scores Repository Test", () => {
 
       const result = await getScoreById({ projectId, scoreId });
       expect(result).toBeDefined();
-      expect(result!.dataType).toBe("FREE_FORM");
+      expect(result!.dataType).toBe("TEXT");
       expect(result!.stringValue).toBe("This is free text feedback");
       expect(result!.value).toBe(0);
       expect(result!.source).toBe("ANNOTATION");
     });
 
-    it("should exclude FREE_FORM scores from getScoresGroupedByNameSourceType", async () => {
+    it("should exclude TEXT scores from getScoresGroupedByNameSourceType", async () => {
       const isolatedProjectId = v4();
       const traceId = v4();
 
@@ -843,24 +843,24 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "API",
       });
 
-      const freeFormScore = createTraceScore({
+      const TextScore = createTraceScore({
         project_id: isolatedProjectId,
         trace_id: traceId,
         name: "free-form-score",
-        data_type: "FREE_FORM",
+        data_type: "TEXT",
         value: 0,
         string_value: "Some feedback text",
         source: "ANNOTATION",
       });
 
-      await createScoresCh([numericScore, freeFormScore]);
+      await createScoresCh([numericScore, TextScore]);
 
       const result = await getScoresGroupedByNameSourceType({
         projectId: isolatedProjectId,
         filter: [],
       });
 
-      // Only NUMERIC should appear (FREE_FORM excluded by AGGREGATABLE_SCORE_TYPES)
+      // Only NUMERIC should appear (TEXT excluded by AGGREGATABLE_SCORE_TYPES)
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         name: "numeric-score",
@@ -869,7 +869,7 @@ describe("Clickhouse Scores Repository Test", () => {
       });
     });
 
-    it("should exclude FREE_FORM string values from getScoreStringValues", async () => {
+    it("should exclude TEXT string values from getScoreStringValues", async () => {
       const isolatedProjectId = v4();
       const traceId = v4();
 
@@ -883,17 +883,17 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "API",
       });
 
-      const freeFormScore = createTraceScore({
+      const TextScore = createTraceScore({
         project_id: isolatedProjectId,
         trace_id: traceId,
         name: "free-text-score",
-        data_type: "FREE_FORM",
+        data_type: "TEXT",
         value: 0,
         string_value: "This should not appear in filter options",
         source: "ANNOTATION",
       });
 
-      await createScoresCh([categoricalScore, freeFormScore]);
+      await createScoresCh([categoricalScore, TextScore]);
 
       const result = await getScoreStringValues(isolatedProjectId, []);
 
@@ -965,7 +965,7 @@ describe("Clickhouse Scores Repository Test", () => {
           trace_id: traceId,
           observation_id: observationId,
           name: "free-form",
-          data_type: "FREE_FORM",
+          data_type: "TEXT",
           value: 0,
           string_value: "Some feedback",
           source: "ANNOTATION",
@@ -987,7 +987,7 @@ describe("Clickhouse Scores Repository Test", () => {
           project_id: isolatedProjectId,
           session_id: sessionId,
           name: "session-free-form",
-          data_type: "FREE_FORM",
+          data_type: "TEXT",
           value: 0,
           string_value: "Session feedback",
           source: "ANNOTATION",
@@ -1044,10 +1044,10 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(dataTypes).toContain("NUMERIC");
       expect(dataTypes).toContain("CATEGORICAL");
       expect(dataTypes).toContain("BOOLEAN");
-      expect(dataTypes).not.toContain("FREE_FORM");
+      expect(dataTypes).not.toContain("TEXT");
     });
 
-    it("getScoresForExperiments should exclude FREE_FORM scores", async () => {
+    it("getScoresForExperiments should exclude TEXT scores", async () => {
       const dataset = await prisma.dataset.create({
         data: { projectId: isolatedProjectId, name: v4() },
       });
@@ -1071,7 +1071,7 @@ describe("Clickhouse Scores Repository Test", () => {
           project_id: isolatedProjectId,
           dataset_run_id: datasetRun.id,
           name: "run-free-form",
-          data_type: "FREE_FORM",
+          data_type: "TEXT",
           value: 0,
           string_value: "Should be excluded",
         }),
@@ -1087,7 +1087,7 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(result[0].dataType).toBe("NUMERIC");
     });
 
-    it("getTraceScoresForDatasetRuns should exclude FREE_FORM scores", async () => {
+    it("getTraceScoresForDatasetRuns should exclude TEXT scores", async () => {
       const dataset = await prisma.dataset.create({
         data: { projectId: isolatedProjectId, name: v4() },
       });
@@ -1128,7 +1128,7 @@ describe("Clickhouse Scores Repository Test", () => {
           project_id: isolatedProjectId,
           trace_id: runTraceId,
           name: "trace-free-form",
-          data_type: "FREE_FORM",
+          data_type: "TEXT",
           value: 0,
           string_value: "Should be excluded",
         }),

@@ -1,2 +1,2 @@
 -- AlterEnum
-ALTER TYPE "ScoreConfigDataType" ADD VALUE 'FREE_FORM';
+ALTER TYPE "ScoreConfigDataType" ADD VALUE 'TEXT';
