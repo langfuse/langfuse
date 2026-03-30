@@ -315,8 +315,8 @@ export const duplicatePrompt = async ({
   });
 
   // Create all prompts in a single operation
-  const result = await prisma.$transaction(async (tx) => {
-    const promptResult = await tx.prompt.createMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.prompt.createMany({
       data: promptsToCreate,
     });
 
@@ -331,20 +331,21 @@ export const duplicatePrompt = async ({
         })),
       ),
     });
-
-    return promptResult;
-  });
-
-  // Fetch the created prompt to return
-  const createdPrompt = await prisma.prompt.findFirst({
-    where: {
-      name,
-      projectId,
-      version: isSingleVersion ? 1 : result.count,
-    },
   });
 
   const promptService = new PromptService(prisma, redis);
+  await promptService.invalidateCache({ projectId });
+
+  // Fetch the created prompt to return
+  const createdPrompt = await prisma.prompt.findUnique({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name,
+        version: isSingleVersion ? 1 : existingPrompt.version,
+      },
+    },
+  });
 
   await Promise.all(
     promptsToCreate.map(async (prompt) =>
