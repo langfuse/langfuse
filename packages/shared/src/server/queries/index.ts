@@ -38,9 +38,11 @@ export {
   EventsAggregationQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";

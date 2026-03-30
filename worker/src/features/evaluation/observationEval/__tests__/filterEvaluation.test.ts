@@ -6,7 +6,11 @@ import {
   createTestEvalConfig,
   createMockSchedulerDeps,
 } from "./fixtures";
-import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
+import {
+  type ObservationForEval,
+  EvalTargetObject,
+  observationForEvalSchema,
+} from "@langfuse/shared";
 
 // Mock logger to avoid noise in tests
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -27,7 +31,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
   /**
    * Helper to test if an observation matches a filter config.
-   * Returns true if createJobExecution was called (meaning filter matched).
+   * Returns true if upsertJobExecution was called (meaning filter matched).
    */
   async function testFilterMatch(
     observation: ObservationForEval,
@@ -47,10 +51,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       schedulerDeps: deps,
     });
 
-    return (
-      (deps.upsertJobExecution as ReturnType<typeof vi.fn>).mock.calls.length >
-      0
-    );
+    return deps.upsertJobExecution.mock.calls.length > 0;
   }
 
   describe("string filters", () => {
@@ -813,7 +814,7 @@ describe("Filter Evaluation for Observation Evals", () => {
   describe("experiment target object filtering", () => {
     /**
      * Helper to test experiment target object filtering.
-     * Returns true if createJobExecution was called (meaning filter matched).
+     * Returns true if upsertJobExecution was called (meaning filter matched).
      */
     async function testExperimentFilterMatch(
       observation: ObservationForEval,
@@ -834,10 +835,7 @@ describe("Filter Evaluation for Observation Evals", () => {
         schedulerDeps: deps,
       });
 
-      return (
-        (deps.upsertJobExecution as ReturnType<typeof vi.fn>).mock.calls
-          .length > 0
-      );
+      return deps.upsertJobExecution.mock.calls.length > 0;
     }
 
     it("should match when span_id equals experiment_item_root_span_id", async () => {
@@ -957,6 +955,75 @@ describe("Filter Evaluation for Observation Evals", () => {
       const matched = await testExperimentFilterMatch(observation);
 
       // Child spans should not match, only the root span
+      expect(matched).toBe(false);
+    });
+  });
+
+  describe("tool call filters", () => {
+    it("should match when called tool name is in filter list", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        tool_call_names: ["get_weather", "search_web"],
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "calledToolNames",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["get_weather", "send_email"],
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match when no called tool name is in filter list", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        tool_call_names: ["get_weather", "search_web"],
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "calledToolNames",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["send_email"],
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should match when tool call count meets threshold", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        tool_call_names: ["tool_a", "tool_b", "tool_c"],
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "toolCalls",
+          type: "number",
+          operator: ">=",
+          value: 2,
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match when tool call count does not meet threshold", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        tool_call_names: ["tool_a", "tool_b", "tool_c"],
+      });
+
+      const matched = await testFilterMatch(observation, [
+        { column: "toolCalls", type: "number", operator: "=", value: 0 },
+      ]);
+
       expect(matched).toBe(false);
     });
   });
@@ -1083,5 +1150,40 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       expect(matched).toBe(false);
     });
+  });
+});
+
+describe("tool_calls computation", () => {
+  const minimalObs = {
+    span_id: "s1",
+    trace_id: "t1",
+    project_id: "p1",
+    type: "GENERATION",
+    name: "test",
+    provided_usage_details: {},
+    provided_cost_details: {},
+    usage_details: {},
+    cost_details: {},
+  };
+
+  it("should default tool_call_count to 0", () => {
+    const obs = observationForEvalSchema.parse(minimalObs);
+
+    expect(obs.tool_call_count).toBe(0);
+  });
+
+  it("should default tool_call_names to empty array", () => {
+    const obs = observationForEvalSchema.parse(minimalObs);
+
+    expect(obs.tool_call_names).toEqual([]);
+  });
+
+  it("should accept an explicit tool_call_count", () => {
+    const obs = observationForEvalSchema.parse({
+      ...minimalObs,
+      tool_call_count: 3,
+    });
+
+    expect(obs.tool_call_count).toBe(3);
   });
 });

@@ -106,6 +106,10 @@ export function useEvalConfigFilterOptions({
       name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
         value: n.value,
       })),
+      calledToolNames:
+        observationsFilterOptionsResponse.data?.calledToolNames?.map((t) => ({
+          value: t.value,
+        })),
     };
   }, [
     traceFilterOptionsResponse.data,

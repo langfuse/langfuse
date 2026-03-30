@@ -15,6 +15,7 @@ import {
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   EvalOutputDataTypeSchema,
@@ -314,6 +315,7 @@ export const InnerEvalTemplateForm = (props: {
   const useDefaultModel = form.watch("shouldUseDefaultModel");
   const scoreDataType = form.watch("scoreDataType");
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
+  const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
   const categoriesError = form.formState.errors.categories;
   const categoriesErrorMessage =
@@ -326,6 +328,7 @@ export const InnerEvalTemplateForm = (props: {
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
       | typeof ScoreDataTypeEnum.NUMERIC
+      | typeof ScoreDataTypeEnum.BOOLEAN
       | typeof ScoreDataTypeEnum.CATEGORICAL;
     shouldAllowMultipleMatches: boolean;
   }) => {
@@ -410,10 +413,15 @@ export const InnerEvalTemplateForm = (props: {
             categories: values.categories.map((category) => category.value),
             shouldAllowMultipleMatches: values.shouldAllowMultipleMatches,
           })
-        : createNumericEvalOutputDefinition({
-            scoreDescription: values.scoreDescription,
-            reasoningDescription: values.reasoningDescription,
-          });
+        : values.scoreDataType === ScoreDataTypeEnum.BOOLEAN
+          ? createBooleanEvalOutputDefinition({
+              scoreDescription: values.scoreDescription,
+              reasoningDescription: values.reasoningDescription,
+            })
+          : createNumericEvalOutputDefinition({
+              scoreDescription: values.scoreDescription,
+              reasoningDescription: values.reasoningDescription,
+            });
 
     const evalTemplate = {
       name: values.name,
@@ -532,7 +540,22 @@ export const InnerEvalTemplateForm = (props: {
                     <ManageDefaultEvalModel
                       projectId={props.projectId}
                       variant="color-coded"
-                      setUpMessage="No default model set. Set up default evaluation model"
+                      setUpMessage={
+                        <>
+                          No default model set. LLM-as-a-judge evaluations
+                          require an LLM connection for scoring. This default is
+                          used by all templates that don&apos;t specify their
+                          own model.{" "}
+                          <a
+                            href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            Learn more.
+                          </a>
+                        </>
+                      }
                       className="text-sm font-normal"
                     />
                   </FormDescription>
@@ -617,8 +640,8 @@ export const InnerEvalTemplateForm = (props: {
               <FormItem>
                 <FormLabel>Score type</FormLabel>
                 <FormDescription>
-                  Choose whether the evaluator should return a numeric score or
-                  one of a fixed set of categories.
+                  Choose whether the evaluator should return a numeric score, a
+                  boolean verdict, or one of a fixed set of categories.
                 </FormDescription>
                 <Select
                   value={field.value}
@@ -626,6 +649,7 @@ export const InnerEvalTemplateForm = (props: {
                   onValueChange={(value) => {
                     const nextScoreDataType = value as
                       | typeof ScoreDataTypeEnum.NUMERIC
+                      | typeof ScoreDataTypeEnum.BOOLEAN
                       | typeof ScoreDataTypeEnum.CATEGORICAL;
                     const shouldEnableMultipleMatches =
                       nextScoreDataType === ScoreDataTypeEnum.CATEGORICAL
@@ -665,6 +689,9 @@ export const InnerEvalTemplateForm = (props: {
                   <SelectContent>
                     <SelectItem value={ScoreDataTypeEnum.NUMERIC}>
                       Numeric
+                    </SelectItem>
+                    <SelectItem value={ScoreDataTypeEnum.BOOLEAN}>
+                      Boolean
                     </SelectItem>
                     <SelectItem value={ScoreDataTypeEnum.CATEGORICAL}>
                       Categorical
@@ -800,14 +827,18 @@ export const InnerEvalTemplateForm = (props: {
                 <FormLabel>
                   {isCategoricalOutput
                     ? "Category selection prompt"
-                    : "Score output prompt"}
+                    : isBooleanOutput
+                      ? "Boolean verdict prompt"
+                      : "Score output prompt"}
                 </FormLabel>
                 <FormDescription>
                   {isCategoricalOutput
                     ? shouldAllowMultipleMatches
                       ? "Define how the LLM should choose one or more categories from the list below."
                       : "Define how the LLM should choose exactly one category from the list below."
-                    : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
+                    : isBooleanOutput
+                      ? "Define how the LLM should return either true or false based on the evaluation criteria."
+                      : "Define how the LLM should return the evaluation score in natural language. Needs to yield a numeric value."}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} />

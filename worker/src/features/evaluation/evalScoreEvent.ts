@@ -25,6 +25,10 @@ export type BuildScoreEventParams = BuildScoreEventBase &
         scoreValue: number;
       }
     | {
+        dataType: typeof ScoreDataTypeEnum.BOOLEAN;
+        scoreValue: 0 | 1;
+      }
+    | {
         dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
         scoreValue: string;
       }
@@ -35,6 +39,13 @@ type BuildScoreWritePayloadParams =
       Extract<
         BuildScoreEventParams,
         { dataType: typeof ScoreDataTypeEnum.NUMERIC }
+      >,
+      "eventId"
+    >
+  | Omit<
+      Extract<
+        BuildScoreEventParams,
+        { dataType: typeof ScoreDataTypeEnum.BOOLEAN }
       >,
       "eventId"
     >
@@ -88,6 +99,17 @@ export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
     });
   }
 
+  if (params.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return createScoreEventEnvelope({
+      eventId: params.eventId,
+      body: {
+        ...bodyBase,
+        value: params.scoreValue,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
+      },
+    });
+  }
+
   return createScoreEventEnvelope({
     eventId: params.eventId,
     body: {
@@ -111,6 +133,19 @@ function buildScoreWritePayload(
         ...params,
         eventId,
         dataType: ScoreDataTypeEnum.CATEGORICAL,
+        scoreValue: params.scoreValue,
+      }),
+    };
+  }
+
+  if (params.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return {
+      eventId,
+      scoreId: params.scoreId,
+      event: buildScoreEvent({
+        ...params,
+        eventId,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
         scoreValue: params.scoreValue,
       }),
     };
@@ -155,6 +190,17 @@ export function buildEvalScoreWritePayloads(params: {
         scoreId: params.primaryScoreId,
         scoreValue: params.outputResult.score,
         dataType: ScoreDataTypeEnum.NUMERIC,
+      }),
+    ];
+  }
+
+  if (params.outputResult.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return [
+      buildScoreWritePayload({
+        ...commonParams,
+        scoreId: params.primaryScoreId,
+        scoreValue: params.outputResult.score ? 1 : 0,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
       }),
     ];
   }

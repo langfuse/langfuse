@@ -789,26 +789,18 @@ export const sessionRouter = createTRPCRouter({
       let offset: number | undefined;
 
       if (positionFilter) {
-        if (positionFilter.key === "root") {
-          filterState.push({
-            column: "hasParentObservation",
-            type: "boolean",
-            operator: "=",
-            value: false,
-          });
-          orderBy = { column: "startTime", order: "ASC" };
-          limit = 1;
-        } else {
-          const fromEnd =
-            positionFilter.key === "last" ||
-            positionFilter.key === "nthFromEnd";
-          orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
-          const rawIndex =
-            positionFilter.key === "last" ? 1 : (positionFilter.value ?? 1);
-          const safeIndex = Math.max(1, rawIndex);
-          offset = safeIndex - 1;
-          limit = 1;
-        }
+        const fromEnd =
+          positionFilter.key === "last" || positionFilter.key === "nthFromEnd";
+        orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
+        const rawIndex =
+          positionFilter.key === "last" ||
+          positionFilter.key === "first" ||
+          positionFilter.key === "root"
+            ? 1
+            : (positionFilter.value ?? 1);
+        const safeIndex = Math.max(1, rawIndex);
+        offset = safeIndex - 1;
+        limit = 1;
       }
 
       const observations = await getObservationsWithModelDataFromEventsTable({

@@ -91,6 +91,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             exportMode: rest.exportMode,
             exportStartDate: rest.exportStartDate ?? null,
             exportSource: rest.exportSource,
+            compressed: rest.compressed,
           },
         });
       } catch (e) {

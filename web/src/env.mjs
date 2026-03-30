@@ -256,6 +256,9 @@ export const env = createEnv({
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
+      .enum(["true", "false"])
+      .default("false"),
     LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
       .number()
       .int()
@@ -351,6 +354,7 @@ export const env = createEnv({
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
     PLAIN_API_KEY: z.string().optional(),
     PLAIN_CARDS_API_TOKEN: z.string().optional(),
+    PYLON_API_KEY: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
@@ -674,6 +678,7 @@ export const env = createEnv({
     PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
     PLAIN_API_KEY: process.env.PLAIN_API_KEY,
     PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
+    PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
@@ -685,6 +690,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
       process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
+    LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION:
+      process.env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION,
     LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS:
       process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
     // EE ui customization

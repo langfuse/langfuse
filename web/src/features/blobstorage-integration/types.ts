@@ -33,6 +33,7 @@ export const blobStorageIntegrationFormSchema = z.object({
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+  compressed: z.boolean().default(true),
 });
 
 export type BlobStorageIntegrationFormSchema = z.infer<

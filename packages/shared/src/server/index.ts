@@ -100,6 +100,7 @@ export * from "./repositories";
 export * from "./repositories/traces";
 export * from "./repositories/dataset-items";
 export * from "./utils/metadata_conversion";
+export * from "./repositories/experiments";
 export * from "./utils/rendering";
 export * from "./utils/sqlLike";
 export * from "./redis/evalExecutionQueue";
