@@ -142,13 +142,6 @@ function DatasetCompareInternal() {
     );
   }
 
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={setExperimentsBetaEnabled}
-    />
-  ) : null;
-
   if (isExperimentsBetaActive) {
     return (
       <Page

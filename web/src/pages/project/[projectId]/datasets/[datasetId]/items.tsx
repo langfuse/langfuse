@@ -165,11 +165,11 @@ function DatasetItemsView() {
             </DropdownMenu>
             <Button
               variant="outline"
+              size="icon"
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title="Version History"
             >
-              <History className="mr-2 h-4 w-4" />
-              Version History
+              <History className="h-4 w-4" />
             </Button>
           </>
         ),
