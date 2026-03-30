@@ -123,6 +123,7 @@ export const getEventsStream = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",
@@ -400,6 +401,7 @@ export const getEventsStreamForEval = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",
@@ -539,6 +541,7 @@ export const getEventsStreamForDataset = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
+    "trace_name",
     "user_id",
     "session_id",
     "trace_id",

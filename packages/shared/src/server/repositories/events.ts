@@ -447,7 +447,7 @@ async function getObservationsFromEventsTableInternal<T>(
     opts.searchQuery,
     opts.searchType,
     "e",
-    ["span_id", "name", "user_id", "session_id", "trace_id"],
+    ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],
   );
 
   const orderByEntries = orderByToEntries(

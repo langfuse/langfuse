@@ -49,6 +49,10 @@ export function decodeAndNormalizeFilters(
     for (const columnDefinition of columnDefinitions) {
       knownColumns.set(columnDefinition.id, columnDefinition.id);
       knownColumns.set(columnDefinition.name, columnDefinition.id);
+      // Map old column IDs to current canonical ID for backward compat
+      for (const alias of columnDefinition.aliases ?? []) {
+        knownColumns.set(alias, columnDefinition.id);
+      }
     }
 
     // Normalize display names to column IDs immediately after decoding
