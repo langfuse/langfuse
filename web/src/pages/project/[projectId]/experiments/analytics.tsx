@@ -5,10 +5,21 @@ import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
 } from "@/src/features/navigation/utils/experiment-run-tabs";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export default function ExperimentAnalytics() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const [lastResultsUrl] = useSessionStorage<string | null>(
+    "experiment-results-url",
+    null,
+  );
+
+  const handleResultsClick = () => {
+    const fallbackUrl = `/project/${projectId}/experiments/results`;
+    void router.push(lastResultsUrl ?? fallbackUrl);
+  };
 
   return (
     <Page
@@ -19,7 +30,7 @@ export default function ExperimentAnalytics() {
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
         tabsProps: {
-          tabs: getExperimentRunTabs(projectId),
+          tabs: getExperimentRunTabs(projectId, handleResultsClick),
           activeTab: EXPERIMENT_RUN_TABS.ANALYTICS,
         },
       }}

@@ -6,15 +6,17 @@ export const EXPERIMENT_RUN_TABS = {
 export type ExperimentRunTab =
   (typeof EXPERIMENT_RUN_TABS)[keyof typeof EXPERIMENT_RUN_TABS];
 
-export const getExperimentRunTabs = (projectId: string) => [
+export const getExperimentRunTabs = (
+  projectId: string,
+  onResultsClick?: () => void,
+) => [
   {
     value: EXPERIMENT_RUN_TABS.RESULTS,
     label: "Results",
-    onClick: () => {
-      if (typeof window !== "undefined" && window.history.length > 1) {
-        window.history.back();
-      }
-    },
+    href: onResultsClick
+      ? undefined
+      : `/project/${projectId}/experiments/results`,
+    onClick: onResultsClick,
   },
   {
     value: EXPERIMENT_RUN_TABS.ANALYTICS,

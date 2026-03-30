@@ -26,8 +26,8 @@ export function ExperimentsBetaSwitch({
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
               <p className="text-xs">
-                Faster performance, view experiments decoupled from Datasets,
-                and extended filtering. Turn off anytime.
+                View experiments decoupled from Datasets, extended filtering,
+                and faster performance. Turn off anytime.
               </p>
             </TooltipContent>
           </Tooltip>

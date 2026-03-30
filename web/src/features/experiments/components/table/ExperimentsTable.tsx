@@ -465,9 +465,9 @@ export default function ExperimentsTable({
     const [baseline, ...comparisons] = selectedExperimentIds;
     const params = new URLSearchParams();
     params.set("baseline", baseline);
-    if (comparisons.length > 0) {
-      params.set("c", comparisons.join(","));
-    }
+    comparisons.forEach((id) => {
+      params.append("c", id);
+    });
 
     void router.push(
       `/project/${projectId}/experiments/results?${params.toString()}`,

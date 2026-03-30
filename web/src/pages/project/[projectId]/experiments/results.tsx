@@ -9,6 +9,7 @@ import {
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { Button } from "@/src/components/ui/button";
 import { X } from "lucide-react";
@@ -44,6 +45,16 @@ export default function ExperimentResults() {
     "overview-panel-experiment-detail",
     true,
   );
+
+  const [, setLastResultsUrl] = useSessionStorage<string | null>(
+    "experiment-results-url",
+    null,
+  );
+
+  // Store current URL for back navigation from analytics
+  useEffect(() => {
+    setLastResultsUrl(window.location.pathname + window.location.search);
+  }, [setLastResultsUrl]);
 
   const {
     canUseExperimentsBetaToggle,

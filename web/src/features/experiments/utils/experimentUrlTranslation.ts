@@ -7,12 +7,12 @@
  * - /datasets/[datasetId]/runs/[runId]
  *
  * New (beta) URLs:
- * - /experiments/results?baseline=A&c=B,C
+ * - /experiments/results?baseline=A&c=B&c=C
  */
 
 /**
  * Translate old compare/runs URLs to new experiments URL format.
- * First runId becomes baseline, rest become comma-separated comparisons.
+ * First runId becomes baseline, rest become repeated c params.
  */
 export function toExperimentsResultsUrl(
   projectId: string,
@@ -26,9 +26,9 @@ export function toExperimentsResultsUrl(
   const params = new URLSearchParams();
   params.set("baseline", baseline);
 
-  if (comparisons.length > 0) {
-    params.set("c", comparisons.join(","));
-  }
+  comparisons.forEach((id) => {
+    params.append("c", id);
+  });
 
   return `/project/${projectId}/experiments/results?${params.toString()}`;
 }

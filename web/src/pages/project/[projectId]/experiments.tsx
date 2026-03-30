@@ -69,11 +69,6 @@ export default function Experiments() {
       <Page
         headerProps={{
           title: "Experiments",
-          help: {
-            description:
-              "Experiments allow you to compare and analyze different runs of your LLM application. See docs to learn more.",
-            href: "https://langfuse.com/docs/datasets/experiments",
-          },
         }}
       >
         <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
@@ -150,11 +145,6 @@ export default function Experiments() {
     <Page
       headerProps={{
         title: "Experiments",
-        help: {
-          description:
-            "Experiments allow you to compare and analyze different runs of your LLM application. See docs to learn more.",
-          href: "https://langfuse.com/docs/datasets/experiments",
-        },
         actionButtonsLeft: canUseExperimentsBetaToggle ? (
           <ExperimentsBetaSwitch
             enabled={isExperimentsBetaEnabled}
