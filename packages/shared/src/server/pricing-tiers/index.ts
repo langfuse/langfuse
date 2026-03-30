@@ -4,5 +4,8 @@
  */
 
 export type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
+export { toPriceRecord } from "./types";
 
 export { matchPricingTier } from "./matcher";
+
+export { isGraduatedPricing, calculateGraduatedCosts } from "./graduated";

@@ -6,14 +6,20 @@ import { z } from "zod";
  * Used by both Public API and tRPC routes
  */
 
+const MAX_PATTERN_LENGTH = 200;
+const MAX_TIER_NAME_LENGTH = 100;
+const MAX_TIER_PRIORITY = 999;
+
 /**
  * Validates a regex pattern for safety and correctness
  * @throws Error with descriptive message if pattern is invalid
  */
 export function validateRegexPattern(pattern: string): void {
   // Length check
-  if (pattern.length > 200) {
-    throw new Error("Pattern exceeds maximum length of 200 characters");
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    throw new Error(
+      `Pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`,
+    );
   }
 
   // Check for empty pattern
@@ -45,7 +51,10 @@ export const PricingTierConditionSchema = z.object({
   usageDetailPattern: z
     .string()
     .min(1, "Pattern cannot be empty")
-    .max(200, "Pattern exceeds maximum length of 200 characters")
+    .max(
+      MAX_PATTERN_LENGTH,
+      `Pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters`,
+    )
     .refine(
       (pattern) => {
         try {
@@ -75,14 +84,23 @@ export const PricingTierInputSchema = z.object({
   name: z
     .string()
     .min(1, "Name cannot be empty")
-    .max(100, "Name exceeds maximum length of 100 characters"),
+    .max(
+      MAX_TIER_NAME_LENGTH,
+      `Name exceeds maximum length of ${MAX_TIER_NAME_LENGTH} characters`,
+    ),
   isDefault: z.boolean().default(false),
   priority: z
     .number()
     .int("Priority must be an integer")
     .min(0, "Priority must be non-negative")
-    .max(999, "Priority cannot exceed 999"),
+    .max(MAX_TIER_PRIORITY, `Priority cannot exceed ${MAX_TIER_PRIORITY}`),
   conditions: z.array(PricingTierConditionSchema),
+  upTo: z
+    .number()
+    .int("upTo must be an integer")
+    .positive("upTo must be positive")
+    .nullish()
+    .default(null),
   prices: z.record(
     z.string(),
     z.number().nonnegative("Price must be non-negative"),
@@ -176,6 +194,48 @@ export function validatePricingTiers(
           error: `Invalid regex pattern in tier "${tier.name}": ${
             error instanceof Error ? error.message : String(error)
           }`,
+        };
+      }
+    }
+  }
+
+  // Validate graduated pricing tiers (upTo)
+  const tiersWithUpTo = tiers.filter((t) => t.upTo != null);
+  if (tiersWithUpTo.length > 0) {
+    // If any tier uses upTo, all non-final tiers must have upTo set
+    const sortedByPriority = [...tiers].sort((a, b) => a.priority - b.priority);
+    const lastTier = sortedByPriority[sortedByPriority.length - 1];
+
+    for (const tier of sortedByPriority) {
+      if (tier === lastTier) {
+        // Last tier (highest priority) must have upTo=null (unlimited)
+        if (tier.upTo != null) {
+          return {
+            valid: false,
+            error: `The last graduated pricing tier "${tier.name}" (highest priority) must have upTo: null (unlimited)`,
+          };
+        }
+      } else {
+        // All other tiers must have upTo set
+        if (tier.upTo == null) {
+          return {
+            valid: false,
+            error: `Graduated pricing tier "${tier.name}" must have upTo defined (only the last tier can have upTo: null)`,
+          };
+        }
+      }
+    }
+
+    // Validate upTo values are in ascending order by priority
+    const upToValues = sortedByPriority
+      .filter((t) => t.upTo != null)
+      .map((t) => t.upTo!);
+    for (let i = 1; i < upToValues.length; i++) {
+      if (upToValues[i] <= upToValues[i - 1]) {
+        return {
+          valid: false,
+          error:
+            "Graduated pricing tier upTo values must be strictly ascending by priority",
         };
       }
     }

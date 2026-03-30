@@ -866,6 +866,7 @@ model PricingTier {
   isDefault  Boolean @default(false) @map("is_default")
   priority   Int     @map("priority")
   conditions Json    @map("conditions") @db.JsonB
+  upTo       Int?    @map("up_to")
 
   prices Price[]
 

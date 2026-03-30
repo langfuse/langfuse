@@ -1,5 +1,9 @@
 import { PricingTierCondition } from "../../features/model-pricing";
-import type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
+import {
+  toPriceRecord,
+  type PricingTierMatchResult,
+  type PricingTierWithPrices,
+} from "./types";
 
 /**
  * Pricing tier matching algorithm
@@ -100,9 +104,7 @@ export function matchPricingTier(
       return {
         pricingTierId: tier.id,
         pricingTierName: tier.name,
-        prices: Object.fromEntries(
-          tier.prices.map((p) => [p.usageType, p.price]),
-        ),
+        prices: toPriceRecord(tier.prices),
       };
     }
   }
@@ -114,9 +116,7 @@ export function matchPricingTier(
     return {
       pricingTierId: defaultTier.id,
       pricingTierName: defaultTier.name,
-      prices: Object.fromEntries(
-        defaultTier.prices.map((p) => [p.usageType, p.price]),
-      ),
+      prices: toPriceRecord(defaultTier.prices),
     };
   }
 
