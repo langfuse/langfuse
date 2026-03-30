@@ -4,12 +4,10 @@ import {
   type ScoreSimplified,
   type ScoreSourceType,
   type ScoreDomain,
-  type AggregatableScoreDataType,
   type ScoreDataTypeType,
   type ListableScore,
   type ListableScoreDataType,
 } from "@langfuse/shared";
-import { List } from "lodash";
 
 /**
  * Normalizes score names for comparison by converting - and . to _
@@ -69,8 +67,8 @@ export type ScoreToAggregate =
  */
 export const resolveAggregateType = (
   dataType: ListableScoreDataType,
-): "NUMERIC" | "CATEGORICAL" | "TEXT" => {
-  return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
+): "NUMERIC" | "CATEGORICAL" => {
+  return dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL";
 };
 
 export const aggregateScores = <T extends ScoreToAggregate>(

@@ -861,12 +861,19 @@ describe("Clickhouse Scores Repository Test", () => {
       });
 
       // Only NUMERIC should appear (TEXT excluded by AGGREGATABLE_SCORE_TYPES)
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        name: "numeric-score",
-        source: "API",
-        dataType: "NUMERIC",
-      });
+      expect(result).toHaveLength(2);
+      expect(result).toEqual([
+        {
+          name: "free-form-score",
+          source: "ANNOTATION",
+          dataType: "TEXT",
+        },
+        {
+          name: "numeric-score",
+          source: "API",
+          dataType: "NUMERIC",
+        },
+      ]);
     });
 
     it("should exclude TEXT string values from getScoreStringValues", async () => {
@@ -1044,7 +1051,7 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(dataTypes).toContain("NUMERIC");
       expect(dataTypes).toContain("CATEGORICAL");
       expect(dataTypes).toContain("BOOLEAN");
-      expect(dataTypes).not.toContain("TEXT");
+      expect(dataTypes).toContain("TEXT");
     });
 
     it("getScoresForExperiments should exclude TEXT scores", async () => {
