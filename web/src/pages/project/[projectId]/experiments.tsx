@@ -94,14 +94,32 @@ export default function Experiments() {
             </div>
 
             <h2 className="mb-3 text-center text-2xl font-semibold tracking-tight">
-              New Experiments Experience
+              New Experiments Views
             </h2>
 
-            <p className="text-muted-foreground mb-6 text-center">
-              We&apos;ve built a completely redesigned experiments experience
-              with improved performance, better comparisons, and a more
-              intuitive interface. Try it out in public beta!
-            </p>
+            <ul className="text-muted-foreground mb-6 space-y-3 text-sm">
+              <li>
+                <span className="text-foreground block font-medium">
+                  Built on Fast Preview
+                </span>
+                Experiments now leverage our rebuilt observation-centric data
+                model for dramatically faster loading and filtering
+              </li>
+              <li>
+                <span className="text-foreground block font-medium">
+                  Decoupled from Datasets
+                </span>
+                Experiments is now a standalone first-class feature. Experiments
+                run against local data are now visible in UI.
+              </li>
+              <li>
+                <span className="text-foreground block font-medium">
+                  Polished UI/UX with extended filtering
+                </span>
+                More intuitive interface with enhanced filtering capabilities to
+                help you analyze and compare experiments efficiently
+              </li>
+            </ul>
 
             <div className="flex flex-col items-center gap-4">
               <div className="bg-background/50 flex items-center gap-3 rounded-lg border px-4 py-3">
@@ -145,12 +163,6 @@ export default function Experiments() {
         ) : undefined,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
-            {canUseExperimentsBetaToggle ? (
-              <ExperimentsBetaSwitch
-                enabled={isExperimentsBetaEnabled}
-                onEnabledChange={handleBetaSwitchChange}
-              />
-            ) : null}
             <Dialog
               open={isCreateExperimentDialogOpen}
               onOpenChange={setIsCreateExperimentDialogOpen}

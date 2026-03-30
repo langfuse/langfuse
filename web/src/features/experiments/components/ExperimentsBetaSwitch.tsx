@@ -42,8 +42,8 @@ export function ExperimentsBetaSwitch({
           <div className="space-y-1">
             <p className="font-medium">Experiments Beta</p>
             <p className="text-muted-foreground text-sm">
-              Get early-access to our new Experiments experience in Fast
-              Preview. Turn it off anytime.
+              Get early-access to our Experiments views in Fast Preview. Turn it
+              off anytime.
             </p>
           </div>
           <div className="flex justify-end">
