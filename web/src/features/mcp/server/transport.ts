@@ -16,7 +16,7 @@ import { logger } from "@langfuse/shared/src/server";
  * Handle MCP request using Streamable HTTP transport.
  *
  * This function:
- * 1. Sets CORS headers for MCP clients
+ * 1. Validates request headers
  * 2. Creates a StreamableHTTPServerTransport (stateless mode)
  * 3. Connects the server to the transport
  * 4. Routes the request to the transport handler
@@ -38,7 +38,7 @@ export async function handleMcpRequest(
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // Note: CORS headers and OPTIONS handling are now in index.ts (before authentication)
+    // Note: request validation, CORS headers, and OPTIONS handling happen in index.ts
 
     // Validate Accept header for POST requests (per spec)
     if (req.method === "POST") {
@@ -65,7 +65,6 @@ export async function handleMcpRequest(
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode
       enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
-      enableDnsRebindingProtection: true, // CVE-2025-66414: Protect against DNS rebinding attacks
     });
 
     try {
