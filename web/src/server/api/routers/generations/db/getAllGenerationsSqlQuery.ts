@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
-  AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";

@@ -123,6 +123,10 @@ export const ScoresTableCell = ({
     );
   }
 
+  if (aggregate.type === "TEXT") {
+    return <span className="truncate">{aggregate.values.join("; ")}</span>;
+  }
+
   return (
     <div className="group">
       {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (

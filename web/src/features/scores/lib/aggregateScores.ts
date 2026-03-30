@@ -4,12 +4,10 @@ import {
   type ScoreSimplified,
   type ScoreSourceType,
   type ScoreDomain,
-  type AggregatableScoreDataType,
   type ScoreDataTypeType,
   type ListableScore,
   type ListableScoreDataType,
 } from "@langfuse/shared";
-import { List } from "lodash";
 
 /**
  * Normalizes score names for comparison by converting - and . to _
