@@ -801,7 +801,7 @@ export const getScoresGroupedByNameSourceType = async ({
     query: query,
     params: {
       projectId: projectId,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
       ...(fromTimestamp
         ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
@@ -1954,7 +1954,7 @@ export const getDistinctScoreNames = async (p: {
     params: {
       projectId,
       cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
-      dataTypes: LISTABLE_SCORE_TYPES,
+      dataTypes: AGGREGATABLE_SCORE_TYPES,
       ...(scoreTimestampFilter
         ? {
             filterTimestamp: convertDateToClickhouseDateTime(
