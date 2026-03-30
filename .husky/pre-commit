@@ -12,7 +12,8 @@ if [ "$current_branch" = "$protected_branch" ]; then
     read -r answer < /dev/tty
     if [ "$answer" != "${answer#[Yy]}" ]; then
         # Commit approved, check formatting. On files changed, block commit
-        pnpm run format:check
+        pnpm run format
+        pnpm run lint -- --fix
     else
         echo "Commit to $protected_branch branch has been canceled."
         exit 1 # Commit will be blocked
