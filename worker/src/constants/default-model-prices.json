@@ -3191,7 +3191,6 @@
     "createdAt": "2026-03-24T00:00:00.000Z",
     "updatedAt": "2026-03-24T00:00:00.000Z",
     "tokenizerId": "claude",
-    "tokenizerConfig": null,
     "pricingTiers": [
       {
         "id": "ad87cdb7-9051-4a79-bfa9-bffd3dade006_tier_default",
