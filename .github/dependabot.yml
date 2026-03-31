@@ -49,3 +49,15 @@ updates:
       radix-ui:
         patterns:
           - "@radix-ui/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"
