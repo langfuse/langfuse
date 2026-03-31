@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { prisma } from "../../db";
 import { singleFilter } from "../../interfaces/filters";
 
@@ -68,9 +68,7 @@ export const getPublicSessionsFilter = async (
 
   return filter
     ? [
-        ...filter.filter(
-          (f) => f.column !== "⭐️" && f.column !== "bookmarked",
-        ),
+        ...filter.filter((f) => f.column !== "⭐️" && f.column !== "bookmarked"),
         ...additionalBookmarkFilter,
       ]
     : [...additionalBookmarkFilter];

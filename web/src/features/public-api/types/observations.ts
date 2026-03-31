@@ -15,7 +15,7 @@ import {
   OBSERVATION_FIELD_GROUPS,
   type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEventsTableSchema } from "../../query/types";
 
 // Re-export for convenience

@@ -35,7 +35,7 @@ concurrency:
 name: Deploy to ECS
 jobs:
   affected-services:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       services: ${{ steps.affected-services.outputs.result }}
     steps:
@@ -65,7 +65,7 @@ jobs:
             console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       environments: ${{ steps.affected-environments.outputs.result }}
     steps:

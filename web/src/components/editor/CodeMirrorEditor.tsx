@@ -7,11 +7,17 @@ import CodeMirror, {
   type ViewUpdate,
 } from "@uiw/react-codemirror";
 import { RangeSetBuilder } from "@codemirror/state";
+import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import {
+  useState,
+  useCallback,
+  type MutableRefObject,
+  type RefObject,
+} from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
@@ -159,6 +165,44 @@ const bidiSupport = [
   ),
 ];
 
+export function applyCodeMirrorSearchQuery(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
+  searchValue: string,
+) {
+  const view = editorRef?.current?.view;
+  if (!view) {
+    return;
+  }
+
+  view.dispatch({
+    effects: setSearchQuery.of(
+      new SearchQuery({
+        search: searchValue,
+        caseSensitive: false,
+        literal: true,
+      }),
+    ),
+  });
+}
+
+export function selectCodeMirrorRange(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
+  range: { from: number; to: number } | null,
+) {
+  const view = editorRef?.current?.view;
+  if (!view || !range) {
+    return;
+  }
+
+  view.dispatch({
+    selection: {
+      anchor: range.from,
+      head: range.to,
+    },
+    scrollIntoView: true,
+  });
+}
+
 export function CodeMirrorEditor({
   value,
   onChange,
@@ -172,6 +216,8 @@ export function CodeMirrorEditor({
   maxHeight,
   placeholder,
   editorRef,
+  enableSearchKeymap = true,
+  onEditorMount,
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -184,7 +230,9 @@ export function CodeMirrorEditor({
   minHeight?: number | string;
   maxHeight?: number | string;
   placeholder?: string;
-  editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
+  editorRef?: RefObject<ReactCodeMirrorRef | null>;
+  enableSearchKeymap?: boolean;
+  onEditorMount?: () => void;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -193,18 +241,34 @@ export function CodeMirrorEditor({
     !!value && value !== "",
   );
 
+  const handleEditorRef = useCallback(
+    (instance: ReactCodeMirrorRef | null) => {
+      if (editorRef) {
+        (editorRef as MutableRefObject<ReactCodeMirrorRef | null>).current =
+          instance;
+      }
+
+      if (instance) {
+        onEditorMount?.();
+      }
+    },
+    [editorRef, onEditorMount],
+  );
+
   return (
     <CodeMirror
       value={value}
       theme={codeMirrorTheme}
-      ref={editorRef}
+      ref={editorRef || onEditorMount ? handleEditorRef : undefined}
       basicSetup={{
         foldGutter: lineNumbers,
         highlightActiveLine: false,
         lineNumbers: lineNumbers,
+        searchKeymap: enableSearchKeymap,
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        search(),
         // RTL/bidi support - must be early for proper line decoration
         ...bidiSupport,
         // Remove outline if field is focussed

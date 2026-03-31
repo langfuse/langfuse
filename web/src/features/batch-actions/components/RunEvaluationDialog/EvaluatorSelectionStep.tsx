@@ -92,16 +92,16 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1">
         {isQueryLoading ? (
-          <p className="text-sm text-muted-foreground">Loading evaluators...</p>
+          <p className="text-muted-foreground text-sm">Loading evaluators...</p>
         ) : isQueryError ? (
           <Card>
-            <CardContent className="p-4 text-sm text-destructive">
+            <CardContent className="text-destructive p-4 text-sm">
               Failed to load evaluators: {queryErrorMessage}
             </CardContent>
           </Card>
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">
+            <CardContent className="text-muted-foreground p-4 text-sm">
               No observation-scoped evaluators found. Create a new
               observation-scoped evaluator and it will appear here.
             </CardContent>
@@ -123,7 +123,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2"
+                  className="absolute top-1/2 right-1.5 h-7 w-7 -translate-y-1/2"
                   onClick={() => onSearchQueryChange("")}
                   aria-label="Clear evaluator search"
                 >
@@ -149,7 +149,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             <button
                               type="button"
                               aria-label={`Remove ${evaluator.scoreName}`}
-                              className="rounded p-0.5 hover:bg-muted"
+                              className="hover:bg-muted rounded p-0.5"
                               onClick={() => onToggleEvaluator(evaluator.id)}
                             >
                               <X className="h-3 w-3" />
@@ -160,7 +160,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     No evaluators selected
                   </p>
                 )}
@@ -169,7 +169,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
 
             {filteredEvaluators.length === 0 ? (
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-md border">
-                <p className="p-4 text-sm text-muted-foreground">
+                <p className="text-muted-foreground p-4 text-sm">
                   No evaluators match your search.
                 </p>
               </div>
@@ -178,14 +178,14 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                 {filteredEvaluators.map((item, index, array) => (
                   <div key={item.id}>
                     <div
-                      className="flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors hover:bg-muted/50"
+                      className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors"
                       onClick={() => onToggleEvaluator(item.id)}
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {item.scoreName}
                         </p>
-                        <p className="truncate text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground truncate text-[11px]">
                           Template:{" "}
                           {item.evalTemplate?.name ?? "Deleted template"}
                         </p>
@@ -217,7 +217,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       />
                     </div>
                     {index < array.length - 1 ? (
-                      <div className="border-b border-border/50" />
+                      <div className="border-border/50 border-b" />
                     ) : null}
                   </div>
                 ))}

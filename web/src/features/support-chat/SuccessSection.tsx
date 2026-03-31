@@ -17,7 +17,7 @@ export function SuccessSection({
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-600" />
           <div className="space-y-0.5">
             <div className="text-sm font-medium">Thanks for your message</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground text-sm">
               We created a support ticket and will reply via email.
             </div>
           </div>

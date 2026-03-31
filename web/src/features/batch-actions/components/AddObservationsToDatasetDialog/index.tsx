@@ -171,7 +171,7 @@ export function AddObservationsToDatasetDialog(
         {/* Footer with navigation buttons */}
         {step !== "status" && step !== "choice" && (
           <DialogFooter className="flex justify-between">
-            <div className="flex-grow">
+            <div className="grow">
               {showBackButton && (
                 <Button type="button" variant="ghost" onClick={goBack}>
                   <ChevronLeft className="mr-1 h-4 w-4" />

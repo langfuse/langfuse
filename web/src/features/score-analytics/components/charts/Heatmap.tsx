@@ -148,7 +148,7 @@ export function Heatmap({
           {yAxisLabel && (
             <div className="flex items-center justify-center">
               <span
-                className="text-xs font-normal text-muted-foreground"
+                className="text-muted-foreground text-xs font-normal"
                 style={{
                   writingMode: "vertical-rl",
                   transform: "rotate(180deg)",
@@ -163,7 +163,7 @@ export function Heatmap({
             <div
               ref={rowLabelsRef}
               className={cn(
-                "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
+                "text-muted-foreground pr-1 text-right text-[10px] sm:pr-2 sm:text-xs",
                 isDivisionPointMode
                   ? "flex flex-col justify-between self-stretch"
                   : "grid gap-1",
@@ -268,7 +268,7 @@ export function Heatmap({
 
             <div
               className={cn(
-                "w-full flex-1 text-center text-[10px] text-muted-foreground sm:text-xs",
+                "text-muted-foreground w-full flex-1 text-center text-[10px] sm:text-xs",
                 isDivisionPointMode ? "flex justify-between" : "grid gap-1",
               )}
               style={
@@ -332,7 +332,7 @@ export function Heatmap({
 
         {/* X-axis label */}
         {xAxisLabel && (
-          <div className="text-center text-xs font-normal text-muted-foreground">
+          <div className="text-muted-foreground text-center text-xs font-normal">
             {xAxisLabel}
           </div>
         )}

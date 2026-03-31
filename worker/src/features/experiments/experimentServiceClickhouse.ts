@@ -18,7 +18,7 @@ import {
   TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import z from "zod/v4";
+import z from "zod";
 import {
   parseDatasetItemInput,
   replaceVariablesInPrompt,

@@ -100,7 +100,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   };
 
   return (
-    <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
+    <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
       {/* Large Trace indicator - only shown for virtualized mode */}
       {isVirtualized && (
         <HoverCard openDelay={200}>
@@ -115,11 +115,11 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             sideOffset={8}
           >
             <p className="font-medium">Optimized for performance</p>
-            <p className="mt-1.5 text-muted-foreground">
+            <p className="text-muted-foreground mt-1.5">
               This trace has {observationCount?.toLocaleString() ?? "many"}{" "}
               observations. To keep things smooth:
             </p>
-            <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-muted-foreground">
+            <ul className="text-muted-foreground mt-1.5 list-inside list-disc space-y-0.5">
               <li>Content loads as you scroll</li>
               <li>JSON view is disabled</li>
               <li>Download/copy includes I/O for cached observations only</li>
@@ -173,7 +173,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {indentDisabled && (
               <HoverCardContent className="w-56 text-sm" sideOffset={8}>
                 <p className="font-medium">Indentation unavailable</p>
-                <p className="mt-1 text-muted-foreground">
+                <p className="text-muted-foreground mt-1">
                   Disabled for deeply nested trees to maintain readability.
                 </p>
               </HoverCardContent>
@@ -264,13 +264,13 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {isDownloadCacheOnly && !isDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-medium">Cache-only mode</p>
-                <p className="mt-1 text-muted-foreground">
+                <p className="text-muted-foreground mt-1">
                   For large traces, only expanded observations include full I/O
                   data.
                 </p>
                 {loadedObservationCount !== undefined &&
                   observationCount !== undefined && (
-                    <p className="mt-1.5 text-muted-foreground">
+                    <p className="text-muted-foreground mt-1.5">
                       <span className="font-medium">
                         {loadedObservationCount} of {observationCount}
                       </span>{" "}
@@ -314,13 +314,13 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {isDownloadCacheOnly && !isDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-medium">Cache-only mode</p>
-                <p className="mt-1 text-muted-foreground">
+                <p className="text-muted-foreground mt-1">
                   For large traces, only expanded observations include full I/O
                   data.
                 </p>
                 {loadedObservationCount !== undefined &&
                   observationCount !== undefined && (
-                    <p className="mt-1.5 text-muted-foreground">
+                    <p className="text-muted-foreground mt-1.5">
                       <span className="font-medium">
                         {loadedObservationCount} of {observationCount}
                       </span>{" "}

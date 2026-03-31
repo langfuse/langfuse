@@ -131,6 +131,23 @@ describe("createFilterFromFilterState filter type validation", () => {
     },
   );
 
+  it("rejects filter with unrecognized column name", () => {
+    expect(() =>
+      createFilterFromFilterState(
+        [
+          {
+            column: "metadata.deployment_name",
+            type: "string",
+            operator: "=",
+            value: "some-value",
+          } as any,
+        ],
+        Object.values(mappings),
+        columnDefinitions,
+      ),
+    ).toThrow(InvalidRequestError);
+  });
+
   it.each([
     {
       scenario: "matching filter type",

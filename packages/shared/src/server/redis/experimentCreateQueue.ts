@@ -18,7 +18,6 @@ export class ExperimentCreateQueue {
     if (ExperimentCreateQueue.instance) return ExperimentCreateQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

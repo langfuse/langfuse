@@ -5,7 +5,7 @@
  * because web can't import from worker. Also, web tests
  * can't import from shared, so tested FE logic
  */
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   ChatMlArraySchema,
   ChatMlMessageSchema,

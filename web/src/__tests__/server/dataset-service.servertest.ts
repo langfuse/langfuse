@@ -5,7 +5,7 @@ import {
   createTracesCh,
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
-  getScoresForDatasetRuns,
+  getScoresForExperiments,
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsWithoutIOByItemIds,
   createDatasetRunItem,
@@ -247,7 +247,7 @@ describe("Fetch datasets for UI presentation", () => {
       runsWithMetricsIds.length > 0
         ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
         : [],
-      getScoresForDatasetRuns({
+      getScoresForExperiments({
         projectId: projectId,
         runIds: runsWithMetrics.map((run) => run.id),
         includeHasMetadata: true,
@@ -425,7 +425,7 @@ describe("Fetch datasets for UI presentation", () => {
       runsWithMetricsIds.length > 0
         ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
         : [],
-      getScoresForDatasetRuns({
+      getScoresForExperiments({
         projectId: projectId,
         runIds: runsWithMetrics.map((run) => run.id),
         includeHasMetadata: true,

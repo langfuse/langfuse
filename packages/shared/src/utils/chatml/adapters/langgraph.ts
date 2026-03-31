@@ -5,7 +5,7 @@ import {
   parseMetadata,
   isRichToolResult,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Detection schemas for LangChain/LangGraph formats
 
@@ -275,7 +275,7 @@ export const langgraphAdapter: ProviderAdapter = {
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
 
-    // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, and Semantic Kernel formats
+    // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
       // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
       if ("scope" in meta && typeof meta.scope === "object") {
@@ -299,6 +299,8 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+
+        if (scope?.name === "pydantic-ai") return false;
       }
 
       // Check attributes["operation.name"] for AI SDK pattern

@@ -18,7 +18,6 @@ export class WebhookQueue {
     if (WebhookQueue.instance) return WebhookQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

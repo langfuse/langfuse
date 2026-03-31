@@ -40,7 +40,7 @@ import React, {
   useState,
 } from "react";
 import { useForm } from "react-hook-form";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
@@ -472,12 +472,12 @@ export function CommentList({
     return (
       <div
         className={cn(
-          "flex min-h-[5rem] items-center justify-center rounded border border-dashed p-1",
+          "flex min-h-20 items-center justify-center rounded border border-dashed p-1",
           className,
         )}
       >
-        <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground opacity-60">
+        <LoaderCircle className="text-muted-foreground mr-1.5 h-4 w-4 animate-spin" />
+        <span className="text-muted-foreground text-sm opacity-60">
           Loading comments...
         </span>
       </div>
@@ -492,38 +492,38 @@ export function CommentList({
       )}
     >
       {cardView && (
-        <div className="flex-shrink-0 border-b px-2 py-1 text-sm font-medium">
+        <div className="shrink-0 border-b px-2 py-1 text-sm font-medium">
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
         {!cardView && (
-          <div className="flex-shrink-0 border-b">
+          <div className="shrink-0 border-b">
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
               <div className="text-sm font-medium">Comments</div>
               <div className="relative max-w-xs flex-1">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
                   ref={searchInputRef}
                   type="text"
                   placeholder="Search comments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7 pl-7 pr-7 text-xs"
+                  className="h-7 pr-7 pl-7 text-xs"
                 />
                 {searchQuery && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
+                    className="absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2"
                     onClick={() => setSearchQuery("")}
                   >
                     <X className="h-3 w-3" />
                   </Button>
                 )}
                 {!searchQuery && (
-                  <kbd className="pointer-events-none absolute right-1 top-1/2 h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-50 sm:inline-flex">
+                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
                     {typeof navigator !== "undefined" &&
                     navigator.platform.toLowerCase().includes("mac") ? (
                       <>
@@ -536,7 +536,7 @@ export function CommentList({
                 )}
               </div>
             </div>
-            <div className="px-2 pb-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground px-2 pb-1 text-xs">
               {searchQuery.trim()
                 ? filteredComments && filteredComments.length > 0
                   ? `Showing ${filteredComments.length} of ${comments.data?.length ?? 0} comments`
@@ -555,7 +555,7 @@ export function CommentList({
                 key={comment.id}
                 id={`comment-${comment.id}`}
                 className={cn(
-                  "group relative grid grid-cols-[auto,1fr] gap-2.5 rounded-lg border p-3 transition-colors",
+                  "group relative grid grid-cols-[auto_1fr] gap-2.5 rounded-lg border p-3 transition-colors",
                   highlightedCommentId === comment.id
                     ? "border-primary-accent"
                     : "border-border/40 hover:bg-muted/20",
@@ -576,7 +576,7 @@ export function CommentList({
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
-                    <span className="font-medium text-foreground">
+                    <span className="text-foreground font-medium">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
                     </span>
                     <span className="text-muted-foreground/50">·</span>
@@ -601,7 +601,7 @@ export function CommentList({
                         <TooltipTrigger asChild>
                           <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
                             <Badge
-                              className="pointer-events-none px-1.5 py-0 text-[10px] font-medium text-foreground"
+                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-medium"
                               style={{
                                 backgroundColor:
                                   IO_FIELD_COLORS[
@@ -663,7 +663,7 @@ export function CommentList({
 
                 {/* Actions - absolute positioned */}
                 {session.data?.user?.id === comment.authorUserId && (
-                  <div className="absolute right-2 top-2 opacity-50 transition-opacity hover:opacity-100">
+                  <div className="absolute top-2 right-2 opacity-50 transition-opacity hover:opacity-100">
                     <Button
                       type="button"
                       size="icon-xs"
@@ -695,12 +695,12 @@ export function CommentList({
 
         {hasWriteAccess && (
           <>
-            <div className="relative ml-2.5 mr-4 mt-2 flex flex-row items-center justify-between text-xs text-muted-foreground">
+            <div className="text-muted-foreground relative mt-2 mr-4 ml-2.5 flex flex-row items-center justify-between text-xs">
               <span className="sr-only">New comment</span>
               <span></span>
               <span>Markdown and @-mentions support</span>
             </div>
-            <div className="relative mb-2 ml-2 mr-3 mt-0.5 min-h-[70px] flex-shrink-0 rounded-lg border border-border/60 pt-1">
+            <div className="border-border/60 relative mt-0.5 mr-3 mb-2 ml-2 min-h-[70px] shrink-0 rounded-lg border pt-1">
               {/* Visually hidden header for accessibility */}
 
               <Form {...form}>
@@ -725,7 +725,7 @@ export function CommentList({
                                 }
                               }}
                               onKeyDown={handleKeyDown}
-                              className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-xs leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                              className="max-h-[100px] min-h-9 w-full resize-none overflow-hidden border-none py-2 pr-7 text-xs leading-tight focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                               style={{
                                 whiteSpace: "pre-wrap",
                                 wordWrap: "break-word",
@@ -778,7 +778,7 @@ export function CommentList({
                           onClick={() => {
                             form.handleSubmit(onSubmit)();
                           }}
-                          className="absolute bottom-1 right-1"
+                          className="absolute right-1 bottom-1"
                         >
                           <ArrowUpToLine className="h-3 w-3" />
                         </Button>
@@ -790,7 +790,7 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
                             <span className="text-xs">⌘</span>Enter
                           </kbd>
                         </div>

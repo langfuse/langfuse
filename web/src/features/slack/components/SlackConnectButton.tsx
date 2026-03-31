@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Slack } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -14,9 +14,9 @@ interface SlackConnectButtonProps {
   /** Whether the button should be disabled */
   disabled?: boolean;
   /** Button variant */
-  variant?: "default" | "outline" | "ghost" | "secondary";
+  variant?: ButtonProps["variant"];
   /** Button size */
-  size?: "default" | "sm" | "lg";
+  size?: ButtonProps["size"];
   /** Custom button text */
   buttonText?: string;
   /** Callback when connection is successful */

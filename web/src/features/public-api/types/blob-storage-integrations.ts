@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Enums
@@ -45,6 +45,7 @@ export const CreateBlobStorageIntegrationRequest = z
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
+    compressed: z.boolean().optional().default(true),
   })
   .strict()
   .refine(
@@ -74,6 +75,7 @@ export const BlobStorageIntegrationResponse = z
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
+    compressed: z.boolean(),
     nextSyncAt: z.coerce.date().nullable(),
     lastSyncAt: z.coerce.date().nullable(),
     lastError: z.string().nullable(),

@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -164,11 +164,6 @@ export const availableDatasetEvalVariables = [
   },
   ...availableTraceEvalVariables,
 ];
-
-export const OutputSchema = z.object({
-  reasoning: z.string(),
-  score: z.string(),
-});
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 

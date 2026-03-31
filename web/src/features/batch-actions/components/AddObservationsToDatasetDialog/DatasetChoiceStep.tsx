@@ -10,13 +10,13 @@ export function DatasetChoiceStep(props: DatasetChoiceStepProps) {
       <button
         type="button"
         onClick={() => onSelectMode("select")}
-        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-tertiary hover:bg-accent"
+        className="hover:border-tertiary hover:bg-accent flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all"
       >
-        <div className="mb-4 rounded-full bg-primary/10 p-4">
-          <Database className="h-8 w-8 text-primary" />
+        <div className="bg-primary/10 mb-4 rounded-full p-4">
+          <Database className="text-primary h-8 w-8" />
         </div>
         <h3 className="mb-2 text-lg font-semibold">Existing Dataset</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Add to a dataset that already exists
         </p>
       </button>
@@ -25,13 +25,13 @@ export function DatasetChoiceStep(props: DatasetChoiceStepProps) {
       <button
         type="button"
         onClick={() => onSelectMode("create")}
-        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-tertiary hover:bg-accent"
+        className="hover:border-tertiary hover:bg-accent flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all"
       >
-        <div className="mb-4 rounded-full bg-primary/10 p-4">
-          <Plus className="h-8 w-8 text-primary" />
+        <div className="bg-primary/10 mb-4 rounded-full p-4">
+          <Plus className="text-primary h-8 w-8" />
         </div>
         <h3 className="mb-2 text-lg font-semibold">New Dataset</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Create a new dataset for these observations
         </p>
       </button>

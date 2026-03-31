@@ -172,13 +172,13 @@ export const ObservationPreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden @container">
-        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
+      <div className="@container flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
               {preloadedObservation.name}
             </span>
             <CopyIdsPopover
@@ -233,7 +233,7 @@ export const ObservationPreview = ({
                       source="generation"
                       generation={observationWithIO}
                       analyticsEventName="trace_detail:test_in_playground_button_click"
-                      className={cn(isTimeline ? "!hidden" : "")}
+                      className={cn(isTimeline ? "hidden!" : "")}
                       size="sm"
                     />
                   )}
@@ -258,15 +258,15 @@ export const ObservationPreview = ({
           </div>
         </div>
         <div className="grid w-full min-w-0 items-center justify-between px-2">
-          <div className="flex min-w-0 max-w-full flex-shrink flex-col">
-            <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
+          <div className="flex max-w-full min-w-0 shrink flex-col">
+            <div className="mb-1 flex max-w-full min-w-0 flex-wrap items-center gap-1">
               <LocalIsoDate
                 date={preloadedObservation.startTime}
                 accuracy="millisecond"
                 className="text-sm"
               />
             </div>
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+            <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {viewType === "detailed" && (
                 <Fragment>
                   {preloadedObservation.endTime ? (
@@ -483,7 +483,7 @@ export const ObservationPreview = ({
                         checked={jsonBetaEnabled}
                         onCheckedChange={handleBetaToggle}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Beta
                       </span>
                     </div>
@@ -588,7 +588,7 @@ export const ObservationPreview = ({
           {showScoresTab && (
             <TabsBarContent
               value="scores"
-              className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
+              className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
             >
               <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                 <ScoresTable

@@ -1,4 +1,4 @@
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import {
   AGGREGATABLE_SCORE_TYPES,
   type FilterCondition,

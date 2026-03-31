@@ -9,6 +9,7 @@ import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { User } from "next-auth";
 import type { Flag } from "@/src/features/feature-flags/types";
+import { getExperimentsAccess } from "@/src/features/experiments/utils/experimentsAccess";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization = User["organizations"][number] | null | undefined;
@@ -78,13 +79,15 @@ export const filters = {
     if (route.featureFlag === undefined) return route;
 
     if (route.featureFlag && adminOnlyFlags.includes(route.featureFlag)) {
-      if (!ctx.isLangfuseCloud) return null;
+      const access = getExperimentsAccess({
+        isLangfuseCloud: ctx.isLangfuseCloud,
+        isV4BetaEnabled: ctx.session?.user?.v4BetaEnabled === true,
+        isAdmin: ctx.cloudAdmin,
+        isFeatureEnabledOnUser:
+          ctx.session?.user?.featureFlags?.[route.featureFlag] === true,
+      });
 
-      // Only check admin and user flag, skip experimental features
-      return ctx.cloudAdmin ||
-        ctx.session?.user?.featureFlags?.[route.featureFlag] === true
-        ? route
-        : null;
+      return access.isEnabled ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {

@@ -46,7 +46,7 @@ export function ViewModeToggle({
             checked={jsonBetaEnabled}
             onCheckedChange={handleBetaToggle}
           />
-          <span className="text-xs text-muted-foreground">Beta</span>
+          <span className="text-muted-foreground text-xs">Beta</span>
         </div>
       )}
     </div>

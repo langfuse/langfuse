@@ -1,6 +1,10 @@
 import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+} from "@/src/components/ui/markdown-media.utils";
 import { ChatMessage, type ViewMode } from "./ChatMessage";
 import { SectionMedia } from "./SectionMedia";
 import { type ChatMlMessage, shouldRenderMessage } from "./chat-message-utils";
@@ -52,44 +56,79 @@ export function ChatMessageList({
       : null,
   );
 
+  const visibleMessages = useMemo(
+    () =>
+      messagesToRender
+        .map((message, originalIndex) => ({ message, originalIndex }))
+        .filter(
+          ({ originalIndex }) =>
+            !isCollapsed ||
+            originalIndex === 0 ||
+            originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
+        ),
+    [isCollapsed, messagesToRender],
+  );
+
+  const remainingMedia = useMemo(() => {
+    if (!shouldRenderMarkdown) {
+      return media ?? [];
+    }
+
+    const renderedMediaIds = new Set<string>();
+
+    visibleMessages.forEach(({ message }) => {
+      const content = message.content;
+
+      // Queue previews reliably render standalone media tags in strings and
+      // output audio inline, but OpenAI content-part images still fall back to
+      // the shared media strip on this surface.
+      if (typeof content === "string") {
+        getRenderedInlineMediaIds({
+          markdown: content,
+          audio: message.audio,
+        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
+        return;
+      }
+
+      if (message.audio) {
+        getRenderedInlineMediaIds({
+          markdown: "",
+          audio: message.audio,
+        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
+      }
+    });
+
+    return filterAlreadyRenderedMedia(media, renderedMediaIds);
+  }, [media, shouldRenderMarkdown, visibleMessages]);
+
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
-          {messagesToRender
-            .map((message, originalIndex) => ({ message, originalIndex }))
-            .filter(
-              ({ originalIndex }) =>
-                // Show all if not collapsed or null
-                // Show first and last N if collapsed
-                !isCollapsed ||
-                originalIndex === 0 ||
-                originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
-            )
-            .map(({ message, originalIndex }) => (
-              <Fragment key={originalIndex}>
-                <ChatMessage
-                  message={message}
-                  shouldRenderMarkdown={shouldRenderMarkdown}
-                  currentView={currentView}
-                  toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                  isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
-                />
-                {/* Show collapse/expand button after first message */}
-                {isCollapsed !== null && originalIndex === 0 && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setCollapsed((v) => !v)}
-                    className="underline"
-                  >
-                    {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
-                  </Button>
-                )}
-              </Fragment>
-            ))}
+          {visibleMessages.map(({ message, originalIndex }) => (
+            <Fragment key={originalIndex}>
+              <ChatMessage
+                message={message}
+                shouldRenderMarkdown={shouldRenderMarkdown}
+                currentView={currentView}
+                toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
+                isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
+              />
+              {/* Show collapse/expand button after first message */}
+              {isCollapsed !== null && originalIndex === 0 && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setCollapsed((v) => !v)}
+                  className="underline"
+                >
+                  {isCollapsed
+                    ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                    : "Hide history"}
+                </Button>
+              )}
+            </Fragment>
+          ))}
         </div>
 
         {/* Additional input section */}
@@ -102,7 +141,7 @@ export function ChatMessageList({
         )}
 
         {/* Media section */}
-        {media && media.length > 0 && <SectionMedia media={media} />}
+        {remainingMedia.length > 0 && <SectionMedia media={remainingMedia} />}
       </div>
     </div>
   );
