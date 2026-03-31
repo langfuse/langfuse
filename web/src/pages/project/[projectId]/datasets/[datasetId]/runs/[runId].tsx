@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
@@ -56,6 +57,13 @@ export default function Dataset() {
     }
   };
 
+  // Auto-redirect when beta is ON (via direct URL or back navigation)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runId) {
+      void router.push(singleRunToExperimentsUrl(projectId, runId));
+    }
+  }, [isExperimentsBetaActive, projectId, runId, router]);
+
   const betaSwitch = canUseExperimentsBetaToggle ? (
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
@@ -76,7 +84,7 @@ export default function Dataset() {
               href: `/project/${projectId}/datasets/${datasetId}`,
             },
             {
-              name: "Runs",
+              name: "Experiments",
               href: `/project/${projectId}/datasets/${datasetId}`,
             },
           ],
@@ -101,7 +109,10 @@ export default function Dataset() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
         ],
         actionButtonsLeft: betaSwitch,
         actionButtonsRight: (

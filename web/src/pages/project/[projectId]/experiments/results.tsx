@@ -12,11 +12,9 @@ import { useExperimentResultsState } from "@/src/features/experiments/hooks/useE
 import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
-import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
+import { X, Loader2 } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-import { toDatasetCompareUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
@@ -25,8 +23,6 @@ import {
 export default function ExperimentResults() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
-  const { isEnabled } = useIsExperimentV4Enabled();
 
   const {
     baselineId,
@@ -57,9 +53,11 @@ export default function ExperimentResults() {
   }, [setLastResultsUrl]);
 
   const {
+    hasRoleAccess,
     canUseExperimentsBetaToggle,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
   } = useExperimentAccess();
 
   // Fetch experiment to get dataset ID and other details
@@ -69,30 +67,42 @@ export default function ExperimentResults() {
       experimentId: baselineId ?? "",
     },
     {
-      enabled: Boolean(projectId && baselineId) && isEnabled,
+      enabled: Boolean(projectId && baselineId) && isExperimentsBetaActive,
     },
   );
 
-  if (!isEnabled) {
+  // Auto-redirect to datasets page when beta is off
+  useEffect(() => {
+    if (!isExperimentsBetaActive) {
+      void router.push(`/project/${projectId}/datasets`);
+    }
+  }, [isExperimentsBetaActive, projectId, router]);
+
+  if (!hasRoleAccess) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="p-4">Experiments Pages coming soon.</div>
       </Page>
     );
   }
+
+  // Show spinner while redirecting when beta is off
+  if (!isExperimentsBetaActive) {
+    return (
+      <Page headerProps={{ title: "Experiments" }}>
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        </div>
+      </Page>
+    );
+  }
+
   const handleBetaSwitchChange = (enabled: boolean) => {
     setExperimentsBetaEnabled(enabled);
 
-    // When switching OFF, redirect to old dataset compare view
-    if (!enabled && baselineId && experiment?.datasetId) {
-      void router.push(
-        toDatasetCompareUrl(
-          projectId,
-          experiment.datasetId,
-          baselineId,
-          comparisonIds,
-        ),
-      );
+    // When switching OFF, redirect to datasets page
+    if (!enabled) {
+      void router.push(`/project/${projectId}/datasets`);
     }
   };
 

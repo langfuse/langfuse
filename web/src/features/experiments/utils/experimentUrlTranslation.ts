@@ -34,26 +34,6 @@ export function toExperimentsResultsUrl(
 }
 
 /**
- * Translate new experiments URL params to old compare URL format.
- * Baseline + comparisons become runs array.
- */
-export function toDatasetCompareUrl(
-  projectId: string,
-  datasetId: string,
-  baseline: string,
-  comparisons: string[] = [],
-): string {
-  const allRunIds = [baseline, ...comparisons];
-  const params = new URLSearchParams();
-
-  allRunIds.forEach((runId) => {
-    params.append("runs", runId);
-  });
-
-  return `/project/${projectId}/datasets/${datasetId}/compare?${params.toString()}`;
-}
-
-/**
  * Translate single run view to experiments results URL.
  */
 export function singleRunToExperimentsUrl(

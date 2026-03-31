@@ -149,35 +149,6 @@ function DatasetCompareInternal() {
     );
   }
 
-  if (isExperimentsBetaActive) {
-    return (
-      <Page
-        headerProps={{
-          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
-          breadcrumb: [
-            {
-              name: "Datasets",
-              href: `/project/${projectId}/datasets`,
-            },
-            {
-              name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-          ],
-          tabsProps: {
-            tabs: getDatasetRunCompareTabs(projectId, datasetId),
-            activeTab: DATASET_RUN_COMPARE_TABS.COMPARE,
-          },
-          actionButtonsRight: betaSwitch,
-        }}
-      >
-        <div className="p-4">
-          Dataset compare page (Experiments Beta placeholder)
-        </div>
-      </Page>
-    );
-  }
-
   return (
     <Page
       headerProps={{
