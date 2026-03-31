@@ -127,7 +127,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
-    dataTypes: [...LISTABLE_SCORE_TYPES],
+    dataTypes: LISTABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -657,7 +657,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: [...LISTABLE_SCORE_TYPES],
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -701,7 +701,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
-        dataTypes: [...LISTABLE_SCORE_TYPES],
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -747,7 +747,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
-        dataTypes: [...LISTABLE_SCORE_TYPES],
+        dataTypes: LISTABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 

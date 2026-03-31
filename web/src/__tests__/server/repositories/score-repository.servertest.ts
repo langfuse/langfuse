@@ -843,7 +843,7 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "API",
       });
 
-      const TextScore = createTraceScore({
+      const textScore = createTraceScore({
         project_id: isolatedProjectId,
         trace_id: traceId,
         name: "free-form-score",
@@ -853,14 +853,13 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "ANNOTATION",
       });
 
-      await createScoresCh([numericScore, TextScore]);
+      await createScoresCh([numericScore, textScore]);
 
       const result = await getScoresGroupedByNameSourceType({
         projectId: isolatedProjectId,
         filter: [],
       });
 
-      // Only NUMERIC should appear (TEXT excluded by AGGREGATABLE_SCORE_TYPES)
       expect(result).toHaveLength(2);
       expect(result).toEqual([
         {
@@ -890,7 +889,7 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "API",
       });
 
-      const TextScore = createTraceScore({
+      const textScore = createTraceScore({
         project_id: isolatedProjectId,
         trace_id: traceId,
         name: "free-text-score",
@@ -900,7 +899,7 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "ANNOTATION",
       });
 
-      await createScoresCh([categoricalScore, TextScore]);
+      await createScoresCh([categoricalScore, textScore]);
 
       const result = await getScoreStringValues(isolatedProjectId, []);
 
