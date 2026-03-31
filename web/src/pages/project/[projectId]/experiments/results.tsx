@@ -9,16 +9,20 @@ import {
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
-import useIsExperimentV4Enabled from "@/src/features/feature-flags/hooks/useIsExperimentV4Enabled";
+import { X, Loader2 } from "lucide-react";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import {
+  EXPERIMENT_RUN_TABS,
+  getExperimentRunTabs,
+} from "@/src/features/navigation/utils/experiment-run-tabs";
 
 export default function ExperimentResults() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
-  const { isEnabled } = useIsExperimentV4Enabled();
 
   const {
     baselineId,
@@ -38,6 +42,24 @@ export default function ExperimentResults() {
     true,
   );
 
+  const [, setLastResultsUrl] = useSessionStorage<string | null>(
+    "experiment-results-url",
+    `/project/${projectId}/datasets`,
+  );
+
+  // Store current URL for back navigation from analytics
+  useEffect(() => {
+    setLastResultsUrl(window.location.pathname + window.location.search);
+  }, [setLastResultsUrl]);
+
+  const {
+    hasRoleAccess,
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
+
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
     {
@@ -45,11 +67,18 @@ export default function ExperimentResults() {
       experimentId: baselineId ?? "",
     },
     {
-      enabled: Boolean(projectId && baselineId) && isEnabled,
+      enabled: Boolean(projectId && baselineId) && isExperimentsBetaActive,
     },
   );
 
-  if (!isEnabled) {
+  // Auto-redirect to datasets page when beta is off
+  useEffect(() => {
+    if (!isExperimentsBetaActive) {
+      void router.push(`/project/${projectId}/datasets`);
+    }
+  }, [isExperimentsBetaActive, projectId, router]);
+
+  if (!hasRoleAccess) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="p-4">Experiments Pages coming soon.</div>
@@ -57,21 +86,46 @@ export default function ExperimentResults() {
     );
   }
 
+  // Show spinner while redirecting when beta is off
+  if (!isExperimentsBetaActive) {
+    return (
+      <Page headerProps={{ title: "Experiments" }}>
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        </div>
+      </Page>
+    );
+  }
+
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    // When switching OFF, redirect to datasets page
+    if (!enabled) {
+      void router.push(`/project/${projectId}/datasets`);
+    }
+  };
+
   return (
     <Page
       headerProps={{
         title: hasBaseline
-          ? (experiment?.name ?? baselineId ?? "Experiment Results")
-          : "Experiment Results",
+          ? (experiment?.name ?? baselineId ?? "Results")
+          : "Results",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
-        help: {
-          description:
-            "View and analyze experiment items with traces, scores, and metrics.",
-          href: "https://langfuse.com/docs/datasets/experiments",
+        tabsProps: {
+          tabs: getExperimentRunTabs(projectId),
+          activeTab: EXPERIMENT_RUN_TABS.RESULTS,
         },
+        actionButtonsLeft: canUseExperimentsBetaToggle ? (
+          <ExperimentsBetaSwitch
+            enabled={isExperimentsBetaEnabled}
+            onEnabledChange={handleBetaSwitchChange}
+          />
+        ) : undefined,
         actionButtonsRight: (
           <>
             {hasBaseline && comparisonIds.length > 0 && (

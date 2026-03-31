@@ -251,7 +251,7 @@ export default function ExperimentItemsTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
-    "s",
+    "l",
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -261,7 +261,11 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
-  const queryFilter = useSidebarFilterState(experimentItemsFilterConfig, {});
+  const queryFilter = useSidebarFilterState(
+    experimentItemsFilterConfig,
+    {},
+    { disableUrlPersistence: true },
+  );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -461,6 +465,7 @@ export default function ExperimentItemsTable({
     filter: scoreFilters.forExperimentItems({
       experimentIds: allExperimentIds,
     }),
+    isFilterDataPending: allExperimentIds.length === 0,
   });
 
   const {
@@ -475,6 +480,7 @@ export default function ExperimentItemsTable({
     }),
     prefix: "Trace",
     defaultHidden: true,
+    isFilterDataPending: allExperimentIds.length === 0,
   });
 
   const buildExperimentScoreColumns = useCallback(
@@ -964,7 +970,7 @@ export default function ExperimentItemsTable({
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
-                  <span className="text-muted-foreground">
+                  <span className="text-muted-foreground text-sm">
                     Please select a baseline experiment.
                   </span>
                 </div>
@@ -989,7 +995,7 @@ export default function ExperimentItemsTable({
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground text-sm">
                       Please select a baseline experiment.
                     </span>
                   ) : undefined

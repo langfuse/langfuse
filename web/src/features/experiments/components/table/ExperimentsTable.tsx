@@ -45,7 +45,11 @@ import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 
-export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
+export default function ExperimentsTable({
+  projectId,
+  defaultFilter,
+  sessionFilterContextId,
+}: ExperimentsTableProps) {
   const router = useRouter();
 
   const { setDetailPageList } = useDetailPageLists();
@@ -108,8 +112,22 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     filterOptions,
     {
       loading: isFilterOptionsPending,
+      sessionFilterContextId,
     },
   );
+
+  // Apply default filter on mount (only if no existing filter)
+  const hasAppliedDefaultFilter = useRef(false);
+  useEffect(() => {
+    if (
+      defaultFilter &&
+      defaultFilter.length > 0 &&
+      !hasAppliedDefaultFilter.current
+    ) {
+      hasAppliedDefaultFilter.current = true;
+      queryFilter.setFilterState(defaultFilter);
+    }
+  }, [defaultFilter, queryFilter]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -447,9 +465,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     const [baseline, ...comparisons] = selectedExperimentIds;
     const params = new URLSearchParams();
     params.set("baseline", baseline);
-    if (comparisons.length > 0) {
-      params.set("c", comparisons.join(","));
-    }
+    comparisons.forEach((id) => {
+      params.append("c", id);
+    });
 
     void router.push(
       `/project/${projectId}/experiments/results?${params.toString()}`,

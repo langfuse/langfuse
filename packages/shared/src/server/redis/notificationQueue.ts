@@ -18,7 +18,6 @@ export class NotificationQueue {
     if (NotificationQueue.instance) return NotificationQueue.instance;
 
     const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
