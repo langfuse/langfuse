@@ -14,6 +14,7 @@ if [ "$current_branch" = "$protected_branch" ]; then
         # Commit approved, check formatting. On files changed, block commit
         pnpm run format
         pnpm run lint -- --fix
+        pnpm run format:check
     else
         echo "Commit to $protected_branch branch has been canceled."
         exit 1 # Commit will be blocked
