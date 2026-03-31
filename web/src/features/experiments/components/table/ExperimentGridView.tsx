@@ -95,7 +95,7 @@ export const ExperimentGridView = ({
               <Badge
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-2 py-0.5 font-medium"
+                className="shrink-0 font-medium"
               >
                 Baseline
               </Badge>
