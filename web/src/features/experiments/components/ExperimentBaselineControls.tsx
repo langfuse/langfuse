@@ -30,14 +30,14 @@ export function ExperimentBaselineControls({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="w-full max-w-[28rem]">
+      <div className="w-full">
         <Combobox
           options={baselineOptions}
           value={baselineId}
           onValueChange={onBaselineChange}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
           emptyText="No experiments found"
-          searchPlaceholder="Search baselines..."
+          searchPlaceholder="Search experiments..."
           disabled={isLoading}
           className="h-9 text-sm"
         />
