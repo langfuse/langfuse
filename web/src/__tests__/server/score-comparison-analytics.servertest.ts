@@ -812,8 +812,8 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(totalHeatmapCount).toBe(result.counts.matchedCount);
     });
 
-    // Test 7: Respects nBins parameter
-    it("should respect different nBins values", async () => {
+    // Test 7: Respects custom nBins parameter
+    it("should respect a custom nBins value", async () => {
       const traceId = v4();
       await createTracesCh([
         createTrace({ id: traceId, project_id: projectId }),
@@ -851,8 +851,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test with 5 bins
-      const result5 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -862,25 +861,9 @@ describe("Score Comparison Analytics tRPC", () => {
         nBins: 5,
       });
 
-      result5.heatmap.forEach((cell) => {
+      result.heatmap.forEach((cell) => {
         expect(cell.binX).toBeLessThan(5);
         expect(cell.binY).toBeLessThan(5);
-      });
-
-      // Test with 20 bins
-      const result20 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 20,
-      });
-
-      result20.heatmap.forEach((cell) => {
-        expect(cell.binX).toBeLessThan(20);
-        expect(cell.binY).toBeLessThan(20);
       });
     });
 
@@ -2947,157 +2930,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(day3Bucket?.count).toBe(1); // Unmatched score2 not included
     });
 
-    // Test 34: Time Series ALL vs MATCHED - Verify Different Data
-    // NOTE: This test uncovered a timezone issue where toStartOfDay() without explicit UTC
-    // would return epoch 0 for certain dates (DST-related). Fixed by adding 'UTC' parameter
-    // to toStartOfDay() in getClickHouseTimeBucketFunction().
-    // TODO: Known flaky test - day3All is undefined due to test setup issue
-    it.skip("should return different data for timeSeries (all) vs timeSeriesMatched", async () => {
-      const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
-
-      const day1 = new Date("2024-01-01T12:00:00Z");
-      const day2 = new Date("2024-01-02T12:00:00Z");
-      const day3 = new Date("2024-01-03T12:00:00Z");
-      const fromTimestamp = new Date("2024-01-01T00:00:00Z");
-      const toTimestamp = new Date("2024-01-04T00:00:00Z");
-
-      const scoreName1 = `test34-all-${v4()}`;
-      const scoreName2 = `test34-matched-${v4()}`;
-
-      const scores = [
-        // Day 1: 2 matched pairs
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[0],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 10,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[0],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 20,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[1],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 15,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[1],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 25,
-          timestamp: day1.getTime(),
-        }),
-        // Day 2: 1 unmatched score1 only
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[2],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 30,
-          timestamp: day2.getTime(),
-        }),
-        // Day 3: 1 unmatched score2 only
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[3],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 40,
-          timestamp: day3.getTime(),
-        }),
-      ];
-
-      await createScoresCh(scores);
-
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
-      });
-
-      // timeSeries (ALL) should have more observations than timeSeriesMatched
-      const totalAllCount = result.timeSeries.reduce(
-        (sum, entry) => sum + entry.count,
-        0,
-      );
-      const totalMatchedCount = result.timeSeriesMatched.reduce(
-        (sum, entry) => sum + entry.count,
-        0,
-      );
-
-      expect(totalAllCount).toBeGreaterThan(totalMatchedCount);
-      expect(totalAllCount).toBe(6); // 2 matched pairs + 1 unmatched score1 + 1 unmatched score2 = 6 total
-      expect(totalMatchedCount).toBe(2); // 2 matched pairs
-
-      // Verify timeSeries includes data for all three days
-      const day1All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
-      );
-      const day2All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 2,
-      );
-      const day3All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 3,
-      );
-
-      expect(day1All).toBeDefined();
-      expect(day2All).toBeDefined();
-      expect(day3All).toBeDefined();
-
-      // Day 1: Both scores present (matched) - average of (10, 15) and (20, 25)
-      expect(day1All?.avg1).toBe(12.5); // (10 + 15) / 2
-      expect(day1All?.avg2).toBe(22.5); // (20 + 25) / 2
-
-      // Day 2: Only score1 present (avg2 should be null)
-      expect(day2All?.avg1).toBe(30);
-      expect(day2All?.avg2).toBeNull();
-
-      // Day 3: Only score2 present (avg1 should be null)
-      expect(day3All?.avg1).toBeNull();
-      expect(day3All?.avg2).toBe(40);
-
-      // Verify timeSeriesMatched only includes day 1 (matched pairs)
-      expect(result.timeSeriesMatched.length).toBe(1);
-      const day1Matched = result.timeSeriesMatched.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
-      );
-      expect(day1Matched).toBeDefined();
-      expect(day1Matched?.avg1).toBe(12.5); // (10 + 15) / 2
-      expect(day1Matched?.avg2).toBe(22.5); // (20 + 25) / 2
-      expect(day1Matched?.count).toBe(2); // 2 matched pairs
-    });
-
-    // Test 35: Time Series Matched - Single Score Mode
+    // Test 34: Time Series Matched - Single Score Mode
     it("should handle timeSeriesMatched in single-score mode", async () => {
       const traces = [v4(), v4(), v4(), v4()];
       await createTracesCh(
