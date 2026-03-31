@@ -44,7 +44,7 @@ export default function ExperimentResults() {
 
   const [, setLastResultsUrl] = useSessionStorage<string | null>(
     "experiment-results-url",
-    null,
+    `/project/${projectId}/datasets`,
   );
 
   // Store current URL for back navigation from analytics
