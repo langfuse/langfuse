@@ -16,24 +16,24 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - name: Get app name
-        uses: winterjung/split@v2
+        uses: winterjung/split@a211a1c46e35fcdc4097d59dd6282d4a9859651b # v2
         id: split
         with:
           msg: ${{ inputs.service }}
           separator: "-"
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Authenticate with AWS
         # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
         # Probably more painful to configure, but would remove all long-lived credentials.
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
       - name: Login to AWS ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@183a1442edf41672e66566b7fc560e297a290896 # v2
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -61,13 +61,13 @@ jobs:
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1
         with:
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@fc8fc60f3a60ffd500fcb13b209c59d221ac8c8c # v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
           service: ${{ inputs.environment }}-${{ inputs.service }}
