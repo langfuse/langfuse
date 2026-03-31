@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Get affected services
         id: affected-services
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -56,7 +56,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print services to build
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           services: ${{ steps.affected-services.outputs.result }}
         with:
@@ -71,7 +71,7 @@ jobs:
     steps:
       - name: Get affected environments
         id: affected-environments
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -88,7 +88,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print environments to build
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           environments: ${{ steps.affected-environments.outputs.result }}
         with:
