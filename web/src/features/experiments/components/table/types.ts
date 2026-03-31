@@ -1,4 +1,4 @@
-import { type ScoreAggregate } from "@langfuse/shared";
+import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
@@ -52,6 +52,10 @@ export type ExperimentsTableRow = {
 export type ExperimentsTableProps = {
   projectId: string;
   hideControls?: boolean;
+  /** Default filters to apply on mount when no existing filters are set */
+  defaultFilter?: FilterState;
+  /** Unique context ID to isolate filter state from other ExperimentsTable instances */
+  sessionFilterContextId?: string;
 };
 
 /**
