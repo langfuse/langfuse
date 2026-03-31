@@ -271,6 +271,14 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_CONVERSATIONS_PAGE_SIZE: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .optional()
+    .default(100)
+    .describe("How many items per paginated request retrieved (1-200)"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce

@@ -14,6 +14,9 @@ import { env } from "../../env";
 import { prisma } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 // Types for Slack integration
 export interface SlackChannel {
   id: string;
@@ -295,6 +298,97 @@ export class SlackService {
     }
   }
 
+  private parseRetryAfterMs(error: unknown): number | null {
+    if (!error || typeof error !== "object") return null;
+    const e = error as {
+      headers?: Record<string, string | string[] | undefined>;
+    };
+    const h = e.headers;
+    if (!h) return null;
+    const raw = h["retry-after"] ?? h["Retry-After"];
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (v === undefined || v === null) return null;
+    const seconds = parseFloat(String(v));
+    if (Number.isNaN(seconds)) return null;
+    return Math.max(0, Math.floor(seconds * 1000));
+  }
+
+  private isSlackRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const e = error as Record<string, unknown>;
+    if (e.statusCode === 429) return true;
+    if (e.code === "slack_webapi_platform_error") {
+      const data = e.data as { error?: string } | undefined;
+      if (data?.error === "rate_limited") return true;
+    }
+    const msg = String(e.message ?? "");
+    if (msg.includes("rate_limited")) return true;
+    if (msg.includes("statusCode = 429")) return true;
+    return false;
+  }
+
+  private getSlackRetryDelayMs(
+    error: unknown | undefined,
+    attempt: number,
+  ): number {
+    const fromHeader = error ? this.parseRetryAfterMs(error) : null;
+    if (fromHeader !== null) return fromHeader;
+    const base = Math.min(60_000, 1_000 * 2 ** attempt);
+    const jitter = Math.floor(Math.random() * 500);
+    return base + jitter;
+  }
+
+  /**
+   * Slack conversations.list with HTTP 429 / rate_limited handling (Retry-After + exponential backoff).
+   */
+  private async conversationsListWithRetry(
+    client: WebClient,
+    args: Parameters<WebClient["conversations"]["list"]>[0],
+    maxAttempts = 12,
+  ): Promise<Awaited<ReturnType<WebClient["conversations"]["list"]>>> {
+    let attempt = 0;
+    let lastError: unknown;
+    while (attempt < maxAttempts) {
+      try {
+        const result = await client.conversations.list(args);
+        if (result.ok) {
+          return result;
+        }
+        if (result.error === "rate_limited") {
+          const delayMs = this.getSlackRetryDelayMs(undefined, attempt);
+          logger.warn(
+            "Slack conversations.list returned rate_limited, retrying",
+            {
+              attempt: attempt + 1,
+              delayMs,
+              maxAttempts,
+            },
+          );
+          await sleep(delayMs);
+          attempt++;
+          continue;
+        }
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (!this.isSlackRateLimitError(error)) {
+          throw error;
+        }
+        const delayMs = this.getSlackRetryDelayMs(error, attempt);
+        logger.warn("Slack conversations.list hit rate limit, retrying", {
+          attempt: attempt + 1,
+          delayMs,
+          maxAttempts,
+        });
+        await sleep(delayMs);
+        attempt++;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Slack conversations.list failed after rate-limit retries");
+  }
+
   /**
    * Recursively fetch all channels accessible to the bot
    * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination
@@ -305,10 +399,14 @@ export class SlackService {
     fetchedRecords: number = 0,
   ): Promise<SlackChannel[]> {
     try {
-      const result = await client.conversations.list({
+      const pageLimit = Math.min(
+        Math.max(1, Math.floor(env.SLACK_CONVERSATIONS_PAGE_SIZE)),
+        200,
+      );
+      const result = await this.conversationsListWithRetry(client, {
         exclude_archived: true,
         types: "public_channel",
-        limit: 200,
+        limit: pageLimit,
         cursor: cursor,
       });
 
