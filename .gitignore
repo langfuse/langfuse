@@ -92,3 +92,6 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+
+# Clickhouse binary
+clickhouse

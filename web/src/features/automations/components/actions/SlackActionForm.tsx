@@ -16,7 +16,7 @@ import {
   type SlackChannel,
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface SlackActionFormProps {
@@ -47,12 +47,21 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
     scope: "automations:CUD",
   });
 
-  // Handle channel selection
-  const handleChannelSelect = (channel: SlackChannel) => {
-    form.setValue("slack.channelId", channel.id);
-    form.setValue("slack.channelName", channel.name);
-    setSelectedChannel(channel);
-  };
+  // Handle channel selection (stable ref for ChannelSelector debounced lookup effect)
+  const handleChannelSelect = useCallback(
+    (channel: SlackChannel | null) => {
+      if (!channel) {
+        form.setValue("slack.channelId", "");
+        form.setValue("slack.channelName", "");
+        setSelectedChannel(null);
+        return;
+      }
+      form.setValue("slack.channelId", channel.id);
+      form.setValue("slack.channelName", channel.name);
+      setSelectedChannel(channel);
+    },
+    [form],
+  );
 
   // Handle connection status change
   const handleConnectionChange = (connected: boolean) => {

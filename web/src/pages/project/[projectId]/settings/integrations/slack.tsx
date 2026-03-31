@@ -110,6 +110,9 @@ export default function SlackIntegrationSettings() {
               </CardTitle>
               <CardDescription>
                 Test your Slack integration by sending a message to a channel.
+                Enter a public channel name, or use Fetch channels to load the
+                full list (large workspaces may take a while and can hit rate
+                limits).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

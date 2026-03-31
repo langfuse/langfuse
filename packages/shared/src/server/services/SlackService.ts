@@ -7,7 +7,7 @@
  * - Metadata-based project-to-team mapping
  */
 
-import { WebClient } from "@slack/web-api";
+import { WebClient, LogLevel } from "@slack/web-api";
 import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
 import { env } from "../../env";
@@ -36,6 +36,18 @@ export interface SlackMessageResponse {
   messageTs: string;
   channel: string;
 }
+
+/**
+ * Emitted after each paginated `conversations.list` page while loading channels.
+ * Slack does not return a total count; use {@link fetchLimit} as the configured upper bound.
+ */
+export type SlackChannelsFetchProgress = {
+  pageNumber: number;
+  channelsLoadedSoFar: number;
+  lastPageChannelCount: number;
+  hasMore: boolean;
+  fetchLimit: number;
+};
 
 // Interface for Slack installation metadata
 export interface SlackInstallationMetadata {
@@ -93,13 +105,23 @@ export class SlackService {
   private static instance: SlackService | null = null;
   private readonly installer: InstallProvider;
 
+  /** Serialises slot acquisition for the sliding-window limiter (timestamps are not thread-safe). */
+  private slackRateLimitAcquireChain: Promise<void> = Promise.resolve();
+  /** Timestamps (ms) of Slack Web API calls started in the last 1s window. */
+  private slackApiCallTimestamps: number[] = [];
+
   private constructor() {
     this.installer = new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
       installUrlOptions: {
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
+        scopes: [
+          "channels:read",
+          "groups:read",
+          "chat:write",
+          "chat:write.public",
+        ],
       },
       installationStore: {
         storeInstallation: async (installation) => {
@@ -283,7 +305,16 @@ export class SlackService {
         throw new Error("No bot token found for project");
       }
 
-      const client = new WebClient(auth.botToken);
+      const client = new WebClient(auth.botToken, {
+        // One in-flight HTTP per client; avoids burst traffic through the SDK queue.
+        maxRequestConcurrency: 1,
+        // Do not pause the SDK queue for Retry-After — we throttle and retry in this service.
+        rejectRateLimitedCalls: true,
+        // Suppress Slack SDK INFO/WARN spam on every 429 (http request failed / Will retry in N seconds).
+        logLevel: LogLevel.ERROR,
+        // Single HTTP attempt per call; conversationsListWithRetry / sendMessage handle backoff.
+        retryConfig: { retries: 0 },
+      });
       logger.debug("Created WebClient for project", { projectId });
 
       return client;
@@ -298,11 +329,63 @@ export class SlackService {
     }
   }
 
-  private parseRetryAfterMs(error: unknown): number | null {
-    if (!error || typeof error !== "object") return null;
+  /**
+   * Waits until a new Slack Web API request may be started without exceeding
+   * {@link env.SLACK_API_MAX_REQUESTS_PER_SECOND} per rolling second (per process).
+   */
+  private async waitForSlackApiSlot(): Promise<void> {
+    const windowMs = 1000;
+    const maxRps = env.SLACK_API_MAX_REQUESTS_PER_SECOND;
+    for (;;) {
+      const now = Date.now();
+      this.slackApiCallTimestamps = this.slackApiCallTimestamps.filter(
+        (t) => now - t < windowMs,
+      );
+      if (this.slackApiCallTimestamps.length < maxRps) {
+        this.slackApiCallTimestamps.push(now);
+        return;
+      }
+      const oldest = this.slackApiCallTimestamps[0]!;
+      const waitMs = 1 + windowMs - (now - oldest);
+      await sleep(Math.max(1, waitMs));
+    }
+  }
+
+  /**
+   * Enforces the global Slack Web API rate limit and serialises calls so only one
+   * request runs at a time per process (avoids overlapping HTTP while the sliding
+   * window only bounded *starts* per second).
+   */
+  private async withSlackRateLimit<T>(fn: () => Promise<T>): Promise<T> {
+    const prev = this.slackRateLimitAcquireChain;
+    let releaseAcquire!: () => void;
+    this.slackRateLimitAcquireChain = new Promise<void>((resolve) => {
+      releaseAcquire = resolve;
+    });
+    await prev;
+    try {
+      await this.waitForSlackApiSlot();
+      return await fn();
+    } finally {
+      releaseAcquire();
+    }
+  }
+
+  private parseRetryAfterMs(error: unknown, depth = 0): number | null {
+    if (!error || typeof error !== "object" || depth > 4) return null;
     const e = error as {
+      retryAfter?: unknown;
       headers?: Record<string, string | string[] | undefined>;
+      original?: unknown;
+      cause?: unknown;
     };
+    if (typeof e.retryAfter === "number" && !Number.isNaN(e.retryAfter)) {
+      return Math.max(0, Math.floor(e.retryAfter * 1000));
+    }
+    const fromOriginal = this.parseRetryAfterMs(e.original, depth + 1);
+    if (fromOriginal !== null) return fromOriginal;
+    const fromCause = this.parseRetryAfterMs(e.cause, depth + 1);
+    if (fromCause !== null) return fromCause;
     const h = e.headers;
     if (!h) return null;
     const raw = h["retry-after"] ?? h["Retry-After"];
@@ -313,9 +396,10 @@ export class SlackService {
     return Math.max(0, Math.floor(seconds * 1000));
   }
 
-  private isSlackRateLimitError(error: unknown): boolean {
+  private isSlackRateLimitError(error: unknown, depth = 0): boolean {
     if (!error || typeof error !== "object") return false;
     const e = error as Record<string, unknown>;
+    if (e.code === "slack_webapi_rate_limited_error") return true;
     if (e.statusCode === 429) return true;
     if (e.code === "slack_webapi_platform_error") {
       const data = e.data as { error?: string } | undefined;
@@ -324,6 +408,10 @@ export class SlackService {
     const msg = String(e.message ?? "");
     if (msg.includes("rate_limited")) return true;
     if (msg.includes("statusCode = 429")) return true;
+    if (depth < 4) {
+      if (e.original) return this.isSlackRateLimitError(e.original, depth + 1);
+      if (e.cause) return this.isSlackRateLimitError(e.cause, depth + 1);
+    }
     return false;
   }
 
@@ -345,18 +433,21 @@ export class SlackService {
     client: WebClient,
     args: Parameters<WebClient["conversations"]["list"]>[0],
     maxAttempts = 12,
+    onRateLimitBackoff?: (retryAfterSeconds: number) => void,
   ): Promise<Awaited<ReturnType<WebClient["conversations"]["list"]>>> {
     let attempt = 0;
     let lastError: unknown;
     while (attempt < maxAttempts) {
       try {
-        const result = await client.conversations.list(args);
+        const result = await this.withSlackRateLimit(() =>
+          client.conversations.list(args),
+        );
         if (result.ok) {
           return result;
         }
         if (result.error === "rate_limited") {
           const delayMs = this.getSlackRetryDelayMs(undefined, attempt);
-          logger.warn(
+          logger.debug(
             "Slack conversations.list returned rate_limited, retrying",
             {
               attempt: attempt + 1,
@@ -364,6 +455,7 @@ export class SlackService {
               maxAttempts,
             },
           );
+          onRateLimitBackoff?.(Math.max(1, Math.ceil(delayMs / 1000)));
           await sleep(delayMs);
           attempt++;
           continue;
@@ -375,11 +467,12 @@ export class SlackService {
           throw error;
         }
         const delayMs = this.getSlackRetryDelayMs(error, attempt);
-        logger.warn("Slack conversations.list hit rate limit, retrying", {
+        logger.debug("Slack conversations.list hit rate limit, retrying", {
           attempt: attempt + 1,
           delayMs,
           maxAttempts,
         });
+        onRateLimitBackoff?.(Math.max(1, Math.ceil(delayMs / 1000)));
         await sleep(delayMs);
         attempt++;
       }
@@ -395,23 +488,52 @@ export class SlackService {
    */
   private async getChannelsRecursive(
     client: WebClient,
-    cursor?: string,
-    fetchedRecords: number = 0,
+    onProgress: ((p: SlackChannelsFetchProgress) => void) | undefined,
+    onRateLimitBackoff: ((seconds: number) => void) | undefined,
+    cursor: string | undefined,
+    fetchedRecords: number,
+    pageNumber: number,
+    types: "public_channel" | "public_channel,private_channel",
+    slackTeamId: string | undefined,
   ): Promise<SlackChannel[]> {
     try {
       const pageLimit = Math.min(
         Math.max(1, Math.floor(env.SLACK_CONVERSATIONS_PAGE_SIZE)),
         200,
       );
-      const result = await this.conversationsListWithRetry(client, {
-        exclude_archived: true,
-        types: "public_channel",
-        limit: pageLimit,
-        cursor: cursor,
-      });
+      const result = await this.conversationsListWithRetry(
+        client,
+        {
+          exclude_archived: true,
+          types,
+          limit: pageLimit,
+          cursor: cursor,
+          ...(slackTeamId ? { team_id: slackTeamId } : {}),
+        },
+        12,
+        onRateLimitBackoff,
+      );
 
       if (!result.ok) {
-        throw new Error(`Slack API error: ${result.error}`);
+        const err = result.error ?? "unknown_error";
+        if (
+          cursor === undefined &&
+          fetchedRecords === 0 &&
+          pageNumber === 1 &&
+          this.shouldRetryConversationsListPublicOnly(err, types)
+        ) {
+          return this.getChannelsRecursive(
+            client,
+            onProgress,
+            onRateLimitBackoff,
+            undefined,
+            0,
+            1,
+            "public_channel",
+            slackTeamId,
+          );
+        }
+        throw new Error(`Slack API error: ${err}`);
       }
 
       const channels: SlackChannel[] = (result.channels || []).map(
@@ -423,16 +545,31 @@ export class SlackService {
         }),
       );
 
+      const loadedSoFar = fetchedRecords + channels.length;
       const nextCursor = result.response_metadata?.next_cursor;
-      if (
-        nextCursor &&
-        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
-      ) {
+      const hasMore = Boolean(
+        nextCursor && loadedSoFar < env.SLACK_FETCH_LIMIT,
+      );
+
+      onProgress?.({
+        pageNumber,
+        channelsLoadedSoFar: loadedSoFar,
+        lastPageChannelCount: channels.length,
+        hasMore,
+        fetchLimit: env.SLACK_FETCH_LIMIT,
+      });
+
+      if (hasMore) {
         try {
           const nextPageChannels = await this.getChannelsRecursive(
             client,
+            onProgress,
+            onRateLimitBackoff,
             nextCursor,
-            fetchedRecords + channels.length,
+            loadedSoFar,
+            pageNumber + 1,
+            types,
+            slackTeamId,
           );
           return [...channels, ...nextPageChannels];
         } catch (error) {
@@ -452,11 +589,377 @@ export class SlackService {
   }
 
   /**
+   * Normalise a user-entered channel name for comparison (trim, strip #, lowercase).
+   */
+  normalizeSlackChannelName(raw: string): string {
+    return raw.trim().replace(/^#+/u, "").toLowerCase();
+  }
+
+  /** Match user input against Slack's name, name_normalized, and previous_names. */
+  private slackConversationNameMatches(
+    channel: {
+      id?: string;
+      name?: string;
+      name_normalized?: string;
+      previous_names?: (string | null | undefined)[] | null | undefined;
+    },
+    targetLower: string,
+  ): boolean {
+    if (!channel.id) {
+      return false;
+    }
+    const candidates: string[] = [];
+    if (channel.name) {
+      candidates.push(channel.name);
+    }
+    if (channel.name_normalized) {
+      candidates.push(channel.name_normalized);
+    }
+    for (const prev of channel.previous_names ?? []) {
+      if (prev) {
+        candidates.push(prev);
+      }
+    }
+    return candidates.some(
+      (n) => this.normalizeSlackChannelName(n) === targetLower,
+    );
+  }
+
+  private shouldRetryConversationsListPublicOnly(
+    err: string,
+    types: "public_channel" | "public_channel,private_channel",
+  ): boolean {
+    return (
+      types === "public_channel,private_channel" &&
+      (err === "missing_scope" ||
+        err === "not_allowed_token_type" ||
+        err === "invalid_types")
+    );
+  }
+
+  /**
+   * Detect pasted Slack conversation IDs (C/G/D + digit + alphanumerics) without matching
+   * channel names like "general" (second letter is not a digit).
+   */
+  private looksLikeSlackConversationId(raw: string): string | null {
+    const s = raw.trim().replace(/^#+/u, "").toUpperCase();
+    if (!/^[CGD]\d[A-Z0-9]{7,}$/.test(s)) {
+      return null;
+    }
+    return s;
+  }
+
+  private async conversationsInfoWithRetry(
+    client: WebClient,
+    args: Parameters<WebClient["conversations"]["info"]>[0],
+    maxAttempts = 12,
+    onRateLimitBackoff?: (retryAfterSeconds: number) => void,
+  ): Promise<Awaited<ReturnType<WebClient["conversations"]["info"]>>> {
+    let attempt = 0;
+    let lastError: unknown;
+    while (attempt < maxAttempts) {
+      try {
+        const result = await this.withSlackRateLimit(() =>
+          client.conversations.info(args),
+        );
+        if (result.ok) {
+          return result;
+        }
+        if (result.error === "rate_limited") {
+          const delayMs = this.getSlackRetryDelayMs(undefined, attempt);
+          logger.debug(
+            "Slack conversations.info returned rate_limited, retrying",
+            {
+              attempt: attempt + 1,
+              delayMs,
+              maxAttempts,
+            },
+          );
+          onRateLimitBackoff?.(Math.max(1, Math.ceil(delayMs / 1000)));
+          await sleep(delayMs);
+          attempt++;
+          continue;
+        }
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (!this.isSlackRateLimitError(error)) {
+          throw error;
+        }
+        const delayMs = this.getSlackRetryDelayMs(error, attempt);
+        logger.debug("Slack conversations.info hit rate limit, retrying", {
+          attempt: attempt + 1,
+          delayMs,
+          maxAttempts,
+        });
+        onRateLimitBackoff?.(Math.max(1, Math.ceil(delayMs / 1000)));
+        await sleep(delayMs);
+        attempt++;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Slack conversations.info failed after rate-limit retries");
+  }
+
+  private async tryGetChannelByConversationId(
+    client: WebClient,
+    channelId: string,
+    onRateLimitBackoff?: (retryAfterSeconds: number) => void,
+  ): Promise<SlackChannel | null> {
+    const result = await this.conversationsInfoWithRetry(
+      client,
+      { channel: channelId },
+      12,
+      onRateLimitBackoff,
+    );
+    if (!result.ok || !result.channel?.id) {
+      return null;
+    }
+    const c = result.channel;
+    const id = c.id;
+    if (!id) {
+      return null;
+    }
+    return {
+      id,
+      name: c.name?.trim() || c.name_normalized?.trim() || channelId,
+      isPrivate: c.is_private || false,
+      isMember: c.is_member || false,
+    };
+  }
+
+  private async findChannelByNameViaPaginatedList(
+    client: WebClient,
+    targetLower: string,
+    excludeArchived: boolean,
+    options?: {
+      onRateLimitBackoff?: (retryAfterSeconds: number) => void;
+      slackTeamId?: string;
+    },
+  ): Promise<SlackChannel | null> {
+    const pageLimit = Math.min(
+      Math.max(1, Math.floor(env.SLACK_CONVERSATIONS_PAGE_SIZE)),
+      200,
+    );
+    let cursor: string | undefined;
+    let fetched = 0;
+    let types: "public_channel,private_channel" | "public_channel" =
+      "public_channel,private_channel";
+    let retriedPublicOnly = false;
+
+    while (fetched < env.SLACK_FETCH_LIMIT) {
+      const result = await this.conversationsListWithRetry(
+        client,
+        {
+          exclude_archived: excludeArchived,
+          types,
+          limit: pageLimit,
+          cursor,
+          ...(options?.slackTeamId ? { team_id: options.slackTeamId } : {}),
+        },
+        12,
+        options?.onRateLimitBackoff,
+      );
+
+      if (!result.ok) {
+        const err = result.error ?? "unknown_error";
+        if (
+          !retriedPublicOnly &&
+          this.shouldRetryConversationsListPublicOnly(err, types)
+        ) {
+          retriedPublicOnly = true;
+          types = "public_channel";
+          cursor = undefined;
+          fetched = 0;
+          continue;
+        }
+        throw new Error(`Slack API error: ${err}`);
+      }
+
+      const page = result.channels || [];
+      const hit = page.find((c) =>
+        this.slackConversationNameMatches(c, targetLower),
+      );
+      if (hit?.id) {
+        const displayName =
+          hit.name?.trim() || hit.name_normalized?.trim() || targetLower;
+        return {
+          id: hit.id,
+          name: displayName,
+          isPrivate: hit.is_private || false,
+          isMember: hit.is_member || false,
+        };
+      }
+
+      fetched += page.length;
+      const next = result.response_metadata?.next_cursor;
+      if (!next) {
+        break;
+      }
+      cursor = next;
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve a public channel handle when list pagination misses it (e.g. large workspaces).
+   * Slack accepts `#handle` in chat.postMessage for public channels and returns the canonical ID;
+   * we delete the probe immediately.
+   *
+   * We do not use search.all: it requires a user token with search:read, not a bot token.
+   *
+   * Set SLACK_CHANNEL_LOOKUP_DISABLE_POST_MESSAGE_PROBE=true to skip (no transient in-channel
+   * activity; some clients may still briefly notify).
+   */
+  private async findChannelByHandleViaPostMessageProbe(
+    client: WebClient,
+    handleLower: string,
+    onRateLimitBackoff?: (retryAfterSeconds: number) => void,
+  ): Promise<SlackChannel | null> {
+    if (env.SLACK_CHANNEL_LOOKUP_DISABLE_POST_MESSAGE_PROBE === "true") {
+      return null;
+    }
+
+    const postProbe = async (
+      channelSpec: string,
+    ): Promise<Awaited<ReturnType<WebClient["chat"]["postMessage"]>>> => {
+      return await this.withSlackRateLimit(() =>
+        client.chat.postMessage({
+          channel: channelSpec,
+          text: ".",
+          unfurl_links: false,
+          unfurl_media: false,
+        }),
+      );
+    };
+
+    let res = await postProbe(`#${handleLower}`);
+    if (!res.ok && res.error === "channel_not_found") {
+      res = await postProbe(handleLower);
+    }
+
+    if (!res.ok || !res.channel || !res.ts) {
+      return null;
+    }
+
+    const channelId = res.channel;
+    const ts = res.ts;
+
+    try {
+      const del = await this.withSlackRateLimit(() =>
+        client.chat.delete({ channel: channelId, ts }),
+      );
+      if (!del.ok) {
+        logger.warn(
+          "Slack channel lookup: chat.delete failed after probe post",
+          {
+            error: del.error,
+            channelId,
+          },
+        );
+      }
+    } catch (error) {
+      logger.warn("Slack channel lookup: chat.delete threw after probe post", {
+        error,
+        channelId,
+      });
+    }
+
+    return this.tryGetChannelByConversationId(
+      client,
+      channelId,
+      onRateLimitBackoff,
+    );
+  }
+
+  /**
+   * Find a channel the bot can access: by conversation ID (pasted C…/G…/D…), or by exact
+   * handle via paginated conversations.list (archived included on a second pass if needed).
+   */
+  async findChannelByName(
+    client: WebClient,
+    rawName: string,
+    options?: {
+      onRateLimitBackoff?: (retryAfterSeconds: number) => void;
+      /** Encoded Slack team id; required for org-level tokens, ignored for workspace tokens. */
+      slackTeamId?: string;
+    },
+  ): Promise<SlackChannel | null> {
+    const idCandidate = this.looksLikeSlackConversationId(rawName);
+    if (idCandidate) {
+      const byId = await this.tryGetChannelByConversationId(
+        client,
+        idCandidate,
+        options?.onRateLimitBackoff,
+      );
+      if (byId) {
+        return byId;
+      }
+    }
+
+    const target = this.normalizeSlackChannelName(rawName);
+    if (!target) {
+      return null;
+    }
+
+    const listOpts = {
+      onRateLimitBackoff: options?.onRateLimitBackoff,
+      slackTeamId: options?.slackTeamId,
+    };
+
+    const active = await this.findChannelByNameViaPaginatedList(
+      client,
+      target,
+      true,
+      listOpts,
+    );
+    if (active) {
+      return active;
+    }
+
+    const fromListIncludingArchived =
+      await this.findChannelByNameViaPaginatedList(
+        client,
+        target,
+        false,
+        listOpts,
+      );
+    if (fromListIncludingArchived) {
+      return fromListIncludingArchived;
+    }
+
+    return await this.findChannelByHandleViaPostMessageProbe(
+      client,
+      target,
+      options?.onRateLimitBackoff,
+    );
+  }
+
+  /**
    * Get channels accessible to the bot
    */
-  async getChannels(client: WebClient): Promise<SlackChannel[]> {
+  async getChannels(
+    client: WebClient,
+    options?: {
+      onProgress?: (p: SlackChannelsFetchProgress) => void;
+      onRateLimitBackoff?: (retryAfterSeconds: number) => void;
+      /** Encoded Slack team id; required for org-level tokens, ignored for workspace tokens. */
+      slackTeamId?: string;
+    },
+  ): Promise<SlackChannel[]> {
     try {
-      const channels = await this.getChannelsRecursive(client);
+      const channels = await this.getChannelsRecursive(
+        client,
+        options?.onProgress,
+        options?.onRateLimitBackoff,
+        undefined,
+        0,
+        1,
+        "public_channel,private_channel",
+        options?.slackTeamId,
+      );
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,
@@ -476,13 +979,15 @@ export class SlackService {
    */
   async sendMessage(params: SlackMessageParams): Promise<SlackMessageResponse> {
     try {
-      const result = await params.client.chat.postMessage({
-        channel: params.channelId,
-        blocks: params.blocks,
-        text: params.text || "Langfuse Notification",
-        unfurl_links: false,
-        unfurl_media: false,
-      });
+      const result = await this.withSlackRateLimit(() =>
+        params.client.chat.postMessage({
+          channel: params.channelId,
+          blocks: params.blocks,
+          text: params.text || "Langfuse Notification",
+          unfurl_links: false,
+          unfurl_media: false,
+        }),
+      );
 
       if (!result.ok) {
         throw new Error(`Failed to send message: ${result.error}`);
@@ -515,7 +1020,7 @@ export class SlackService {
    */
   async validateClient(client: WebClient): Promise<boolean> {
     try {
-      const result = await client.auth.test();
+      const result = await this.withSlackRateLimit(() => client.auth.test());
       return result.ok || false;
     } catch (error) {
       logger.warn("Client validation failed", { error });

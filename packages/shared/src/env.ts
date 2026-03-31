@@ -279,6 +279,20 @@ const EnvSchema = z.object({
     .optional()
     .default(100)
     .describe("How many items per paginated request retrieved (1-200)"),
+  SLACK_API_MAX_REQUESTS_PER_SECOND: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(1)
+    .describe(
+      "Global cap on Slack Web API calls per second per process (reduces 429s)",
+    ),
+  /** When true, skip chat.postMessage+chat.delete handle resolution (see SlackService.findChannelByName). */
+  SLACK_CHANNEL_LOOKUP_DISABLE_POST_MESSAGE_PROBE: z
+    .enum(["true", "false"])
+    .default("false"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
