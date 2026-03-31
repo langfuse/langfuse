@@ -11,15 +11,21 @@ if [ "$current_branch" = "$protected_branch" ]; then
     echo "🚨 You are about to commit to the $protected_branch branch. Are you sure? (y/n)"
     read -r answer < /dev/tty
     if [ "$answer" != "${answer#[Yy]}" ]; then
-        # Commit approved, check formatting. On files changed, block commit
+        # Commit approved, run checks
+        # We auto-fix formatting and linting issues as much as possible, and check types before allowing the commit
         pnpm run format
         pnpm run lint -- --fix
-        pnpm run format:check
+        pnpm run typecheck
+        git add -u
     else
         echo "Commit to $protected_branch branch has been canceled."
         exit 1 # Commit will be blocked
     fi
 fi
 
-# If not the protected branch, check formatting (on changed files, block)
-pnpm run format:check
+# If not the protected branch, run checks
+# We auto-fix formatting and linting issues as much as possible, and check types before allowing the commit
+pnpm run format
+pnpm run lint -- --fix
+pnpm run typecheck
+git add -u
