@@ -15,7 +15,7 @@ import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 describe("/api/public/v2/scores API Endpoint", () => {
   describe("GET /api/public/v2/scores/:scoreId", () => {

@@ -4,3 +4,19 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@sentry/cli": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@datadog/native-appsec": false
+  "@datadog/native-iast-taint-tracking": false
+  "@datadog/native-metrics": false
+  core-js: false
+  dd-trace: false
+  msgpackr-extract: false
+  msw: false
+  prisma: false
+  protobufjs: false

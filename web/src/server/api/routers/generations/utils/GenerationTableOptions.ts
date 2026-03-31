@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter, TracingSearchType } from "@langfuse/shared";
 import { orderBy } from "@langfuse/shared";
 

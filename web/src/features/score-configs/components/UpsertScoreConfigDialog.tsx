@@ -383,7 +383,16 @@ export function UpsertScoreConfigDialog({
                                   ) && fields.length === 2
                                 }
                                 onClick={() =>
-                                  append({ label: "", value: fields.length })
+                                  append({
+                                    label: "",
+                                    value:
+                                      fields.length > 0
+                                        ? fields.reduce(
+                                            (max, f) => Math.max(max, f.value),
+                                            0,
+                                          ) + 1
+                                        : 0,
+                                  })
                                 }
                               >
                                 Add category

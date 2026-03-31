@@ -9,7 +9,11 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { IngestionService } from "../../IngestionService";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
-const mockAddToClickhouseWriter = vi.fn();
+// vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
+// Without it, the variable would be undefined when the factory executes.
+const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
+  mockAddToClickhouseWriter: vi.fn(),
+}));
 const mockClickhouseClient = {
   query: async () => ({
     json: async () => [],

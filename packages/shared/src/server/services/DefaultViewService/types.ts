@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 
 export const DefaultViewScope = z.enum(["user", "project"]);
 export type DefaultViewScope = z.infer<typeof DefaultViewScope>;

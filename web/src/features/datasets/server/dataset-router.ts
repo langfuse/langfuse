@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -34,7 +34,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
-  getScoresForDatasetRuns,
+  getScoresForExperiments,
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
@@ -564,7 +564,7 @@ export const datasetRouter = createTRPCRouter({
         runsWithMetricsIds.length > 0
           ? getTraceScoresForDatasetRuns(input.projectId, runsWithMetricsIds)
           : [],
-        getScoresForDatasetRuns({
+        getScoresForExperiments({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,

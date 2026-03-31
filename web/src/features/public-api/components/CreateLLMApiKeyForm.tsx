@@ -11,7 +11,7 @@ import {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,

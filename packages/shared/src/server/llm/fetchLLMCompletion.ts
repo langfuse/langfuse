@@ -1,4 +1,4 @@
-import { type ZodSchema, z } from "zod/v4";
+import { type ZodSchema, z } from "zod";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";

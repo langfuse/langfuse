@@ -1,10 +1,9 @@
 import {
   CommentObjectType,
-  CreateCommentData,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -29,12 +28,13 @@ const APIComment = z
 
 // POST /comments
 // Note: Public API does not process mentions or inline comment positioning
-export const PostCommentsV1Body = CreateCommentData.omit({
-  dataField: true,
-  path: true,
-  rangeStart: true,
-  rangeEnd: true,
-})
+export const PostCommentsV1Body = z
+  .object({
+    projectId: z.string(),
+    content: z.string().trim().min(1).max(5000),
+    objectId: z.string(),
+    objectType: z.enum(CommentObjectType),
+  })
   .extend({
     authorUserId: z.string().nullish(),
   })

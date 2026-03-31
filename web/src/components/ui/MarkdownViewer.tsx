@@ -28,7 +28,7 @@ import {
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";

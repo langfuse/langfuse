@@ -6,7 +6,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type views, type metricAggregations } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 export default function EditWidget() {

@@ -17,7 +17,7 @@ import {
 } from "@/src/components/ui/select";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   type ActionDomain,
   type ActionDomainWithSecrets,

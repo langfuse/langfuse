@@ -25,7 +25,7 @@ import {
   type availableDatasetEvalVariables,
   JobConfigState,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -367,8 +367,8 @@ export const InnerEvaluatorForm = (props: {
 
     const mapping = form.getValues("mapping");
 
-    if (mapping.length === 0) {
-      // Initialize mapping for new evaluators
+    if (mapping.length === 0 && props.evalTemplate.vars.length > 0) {
+      // Initialize mapping for new evaluators (only if there are vars to map)
       const target = form.getValues("target");
       form.setValue(
         "mapping",
@@ -1026,9 +1026,11 @@ export const InnerEvaluatorForm = (props: {
                                 }}
                                 disabled={props.disabled}
                                 columnsWithCustomSelect={
-                                  isEventTarget(target) || isTraceTarget(target)
-                                    ? ["tags", "name"]
-                                    : undefined
+                                  isTraceTarget(target)
+                                    ? ["traceTags", "traceName"]
+                                    : isEventTarget(target)
+                                      ? ["tags", "name", "calledToolNames"]
+                                      : undefined
                                 }
                               />
                             )}

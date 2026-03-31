@@ -178,6 +178,7 @@ export const ROUTES: Route[] = [
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
+    label: "Beta",
   },
   {
     title: "Upgrade",

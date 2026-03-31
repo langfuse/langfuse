@@ -1887,4 +1887,67 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       afterCreate.getTime(),
     );
   });
+
+  it("should propagate createdAt to dataset run only when creating new run", async () => {
+    const datasetName = `dataset-run-createdAt-${v4()}`;
+    const runName = `run-createdAt-test-${v4()}`;
+
+    // Create dataset and item
+    await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      { name: datasetName },
+      auth,
+    );
+    const item = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      { datasetName, input: { key: "value" } },
+      auth,
+    );
+
+    // Create first run item with custom createdAt - should create run with that timestamp
+    const customCreatedAt = new Date("2024-06-15T12:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: customCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run was created with the custom timestamp
+    const runAfterFirst = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterFirst?.createdAt).toEqual(customCreatedAt);
+
+    // Create second run item with different createdAt - run already exists, should NOT update
+    const differentCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: differentCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run's createdAt was NOT updated
+    const runAfterSecond = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
+  });
 });

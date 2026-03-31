@@ -27,10 +27,12 @@ export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
-      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
-      { event: JSON.stringify(event, null, 2) },
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+        { event: JSON.stringify(event, null, 2) },
+      );
+    }
 
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({

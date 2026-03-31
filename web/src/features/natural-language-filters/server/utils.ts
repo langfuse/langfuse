@@ -2,7 +2,7 @@ import { LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
 import { env } from "@/src/env.mjs";
 import { type FilterCondition, singleFilter } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 let langfuseClient: Langfuse | null = null;
 

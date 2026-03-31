@@ -5,7 +5,7 @@ import {
   isRichToolResult,
   getNestedProperty,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for Gemini/VertexAI formats
