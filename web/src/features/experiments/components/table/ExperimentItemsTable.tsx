@@ -261,7 +261,11 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
-  const queryFilter = useSidebarFilterState(experimentItemsFilterConfig, {});
+  const queryFilter = useSidebarFilterState(
+    experimentItemsFilterConfig,
+    {},
+    { disableUrlPersistence: true },
+  );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
