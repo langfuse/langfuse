@@ -35,7 +35,6 @@ import {
   createAttachmentUploadUrls,
   createThread as plainCreateSupportThread,
   createThreadEvent,
-  replyToThread,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -292,40 +291,7 @@ export const plainRouter = createTRPCRouter({
         // best-effort; errors are logged in helpers
       }
 
-      // (5) Write user email as part of first reply to trigger email
-      await replyToThread(plain, {
-        threadId,
-        userEmail: email,
-        originalMessage: [
-          "Hi there,",
-          "",
-          " thanks for reaching out! We've received your request and will follow up as soon as possible.",
-          "",
-          "To help us move faster, feel free to reply to this email with:",
-          "- any error messages or screenshots",
-          "- links to where you're seeing the issue (trace, page, dataset)",
-          "- steps to reproduce (if relevant)",
-          "",
-          "Thanks,",
-          "",
-          "Team Langfuse",
-          "",
-          "",
-          "=============================================================================================",
-          "",
-          "",
-          `${email} wrote:`,
-          "",
-          input.message,
-          "",
-          "=============================================================================================",
-          "",
-        ].join("\n"),
-        attachmentIds: input.attachmentIds ?? [],
-        impersonate: false,
-      });
-
-      // (6) Dual-write: create issue in Pylon (best-effort, blocking)
+      // (5) Create issue in Pylon (best-effort, blocking)
       let pylonIssueFailed = false;
       if (env.PYLON_API_KEY) {
         try {
