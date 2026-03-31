@@ -141,6 +141,15 @@ function inflateScoreBody(
     };
   }
 
+  if (relevantDataType === ScoreDataTypeEnum.TEXT) {
+    return {
+      ...scoreProps,
+      value: 0,
+      stringValue: body.value,
+      dataType: ScoreDataTypeEnum.TEXT,
+    };
+  }
+
   return {
     ...scoreProps,
     value: config ? mapStringValueToNumericValue(config, body.value) : 0,
