@@ -2,7 +2,7 @@ import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 import { EvaluatorBlockReason } from "@prisma/client";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { sanitizeEmailSubject } from "../../../../utils/zod";
 import { logger } from "../../../logger";
 import { EvaluatorBlockedEmailTemplate } from "./EvaluatorBlockedEmailTemplate";

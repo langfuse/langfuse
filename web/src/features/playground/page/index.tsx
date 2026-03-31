@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Play, Loader2 } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
@@ -37,6 +37,12 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(window.navigator.userAgent.includes("Mac"));
+  }, []);
+
   const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
@@ -143,10 +149,10 @@ export default function PlaygroundPage() {
           },
           actionButtonsRight: (
             <div className="flex flex-nowrap items-center gap-2">
-              <MessageSearchToolbar className="max-w-[24rem]" />
+              <MessageSearchToolbar className="max-w-96" />
 
               {/* Window Count Display - Hidden on mobile */}
-              <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
+              <div className="text-muted-foreground hidden items-center gap-2 text-sm md:flex">
                 <span className="whitespace-nowrap">
                   {windowIds.length} window
                   {windowIds.length === 1 ? "" : "s"}
@@ -169,7 +175,7 @@ export default function PlaygroundPage() {
                 variant="outline"
                 onClick={handleExecuteAll}
                 disabled={isRunAllDisabled}
-                className="hidden flex-shrink-0 gap-1 md:flex"
+                className="hidden shrink-0 gap-1 md:flex"
                 title={
                   !hasAnyModelConfigured
                     ? "Please configure a model in Project Settings first"
@@ -181,7 +187,17 @@ export default function PlaygroundPage() {
                 ) : (
                   <Play className="h-3 w-3" />
                 )}
-                <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
+                <span className="hidden items-center gap-1 lg:inline-flex">
+                  <span>Run All</span>
+                  <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
+                    {isMac ? (
+                      <span className="text-xs">⌘</span>
+                    ) : (
+                      <span>Ctrl</span>
+                    )}
+                    <span>Enter</span>
+                  </kbd>
+                </span>
               </Button>
 
               {/* Reset Playground Button */}

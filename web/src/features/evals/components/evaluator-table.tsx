@@ -78,7 +78,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
         {status === "ACTIVE" && (
           <Tooltip>
             <TooltipTrigger>
-              <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
+              <Info className="text-dark-yellow ml-1 h-3.5 w-3.5" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[280px]">
               <div className="space-y-1 text-sm">
@@ -90,7 +90,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
                     href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-dark-blue hover:opacity-80"
+                    className="text-dark-blue font-medium hover:opacity-80"
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
@@ -368,7 +368,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 className="h-8 w-8 p-0"
                 aria-label="actions"
               >
-                <span className="sr-only [position:relative]">Open menu</span>
+                <span className="sr-only relative">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -448,7 +448,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-dark-blue hover:opacity-80"
+                className="text-dark-blue font-medium hover:opacity-80"
               >
                 Learn what is changing and how to upgrade
               </Link>
@@ -526,7 +526,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           if (!open) setEditConfigId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit configuration</DialogTitle>
           </DialogHeader>

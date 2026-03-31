@@ -25,7 +25,7 @@ interface SlackDisconnectButtonProps {
   /** Button variant */
   variant?:
     | "default"
-    | "outline"
+    | "outline-solid"
     | "secondary"
     | "destructive"
     | "ghost"
@@ -161,7 +161,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+              <AlertTriangle className="text-destructive h-5 w-5" />
               Disconnect Slack Integration
             </DialogTitle>
             <DialogDescription className="space-y-2">
@@ -169,7 +169,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 Are you sure you want to disconnect your Slack workspace from
                 this project?
               </p>
-              <div className="space-y-2 rounded-md bg-muted p-3">
+              <div className="bg-muted space-y-2 rounded-md p-3">
                 <p className="text-sm font-medium">This will:</p>
                 <ul className="ml-4 space-y-1 text-sm">
                   <li>• Remove the bot from your Slack workspace</li>
@@ -178,7 +178,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                   <li>• Delete stored workspace credentials</li>
                 </ul>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 You can reconnect at any time, but you&apos;ll need to
                 reconfigure your automations.
               </p>

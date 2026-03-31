@@ -27,50 +27,63 @@ export function V4BetaIntroDialog({
             className="w-full rounded-md"
           />
           <ul className="flex flex-col gap-3">
-            <li className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">
-                Welcome to a faster Langfuse.
-              </span>{" "}
-              This is what you can expect:
-            </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
-                Everything loads faster.
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
+                Welcome to a faster Langfuse
               </span>{" "}
               We&apos;ve rebuilt the data model around observations rather than
               traces, which means charts, filters, and APIs are dramatically
-              faster, especially as your data grows.
+              faster.
             </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
-                Your traces are still here.
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
+                New Observations table
               </span>{" "}
-              The default view now shows all observations. To see a table with
-              just your root traces, filter by{" "}
+              Your traces are still here. The default view now shows all
+              observations. To see a table with just your root traces, filter by{" "}
               <span className="font-medium">
                 Is Root Observation &rarr; True
               </span>
-              . Tip: save that as an org-wide saved view so your whole team
-              starts from the same place.
+              .
             </li>
-            <li className="text-sm text-muted-foreground">
-              <span className="block font-medium text-foreground">
-                Saved views are now shared.
+            <li className="text-muted-foreground text-sm">
+              <span className="text-foreground block font-medium">
+                New Saved Table Views
               </span>{" "}
-              You can create and share views across your organization.
+              Save your table filters as an org-wide saved view so your whole
+              team starts from the same place.{" "}
+              <a
+                href="https://langfuse.com/faq/all/explore-observations-in-v4"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium hover:underline"
+              >
+                Best practices &rarr;
+              </a>
             </li>
           </ul>
-          <p className="mt-4 text-sm text-muted-foreground">
-            This is currently in beta. Things may look a little different as we
-            roll it out.
-          </p>
+          <div className="mt-3 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-700 dark:bg-yellow-950">
+            <p className="text-yellow-900 dark:text-yellow-200">
+              <span className="font-medium">Want traces to appear live?</span>{" "}
+              Upgrade your SDK to the latest version. Older SDKs still work but
+              traces may take ~10 minutes to appear.{" "}
+              <a
+                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline hover:no-underline"
+              >
+                Upgrade guide &rarr;
+              </a>
+            </p>
+          </div>
         </DialogBody>
         <DialogFooter className="items-center sm:justify-between">
           <a
             href="https://langfuse.com/docs/v4"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium text-primary hover:underline"
+            className="text-primary text-sm font-medium hover:underline"
           >
             Read the v4 docs &rarr;
           </a>

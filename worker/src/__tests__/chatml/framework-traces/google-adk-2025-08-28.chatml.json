@@ -1,0 +1,244 @@
+{
+  "6d8beb2e6a36b133": {
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "model",
+          "content": "Hello Langfuse 👋!\n",
+          "json": {
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            },
+            "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+            "author": "hello_agent",
+            "actions": {
+              "state_delta": {},
+              "artifact_delta": {},
+              "requested_auth_configs": {}
+            },
+            "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+            "timestamp": 1756366351.22196
+          }
+        }
+      ]
+    }
+  },
+  "86cd4912944ddc41": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "model",
+          "content": "Hello Langfuse 👋!\n",
+          "json": {
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            },
+            "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+            "author": "hello_agent",
+            "actions": {
+              "state_delta": {},
+              "artifact_delta": {},
+              "requested_auth_configs": {}
+            },
+            "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+            "timestamp": 1756366351.22196
+          }
+        }
+      ]
+    }
+  },
+  "bded677884f031ce": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "hi",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ]
+        },
+        {
+          "role": "model",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ],
+          "tool_calls": [
+            {
+              "id": "",
+              "name": "say_hello",
+              "arguments": "{}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "{\"greeting\":\"Hello Langfuse 👋\"}",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "model",
+          "content": "Hello Langfuse 👋!\n",
+          "json": {
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            }
+          }
+        }
+      ]
+    }
+  },
+  "f6e4c65297e40c96": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "hi",
+          "tools": [
+            {
+              "name": "say_hello"
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "model",
+          "tool_calls": [
+            {
+              "id": "",
+              "name": "say_hello",
+              "arguments": "{}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 3,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 3
+                }
+              ],
+              "prompt_token_count": 28,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 28
+                }
+              ],
+              "total_token_count": 31
+            }
+          }
+        }
+      ]
+    }
+  },
+  "04290e4d82aba1bc": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {}
+      ]
+    }
+  }
+}

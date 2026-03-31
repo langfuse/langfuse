@@ -32,16 +32,16 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
         router.push(`/project/${value}`);
       }}
     >
-      <SelectTrigger className="h-8 text-primary ring-transparent focus:ring-0 focus:ring-offset-0">
+      <SelectTrigger className="text-primary h-8 ring-transparent focus:ring-0 focus:ring-offset-0">
         <SelectValue
-          className="text-sm font-semibold text-primary"
+          className="text-primary text-sm font-semibold"
           placeholder={currentProjectId}
         />
       </SelectTrigger>
       <SelectContent className="max-h-60 max-w-80">
         {projects.map((project) => (
           <SelectItem key={project.id} value={project.id}>
-            <div className="flex items-center space-x-2 font-semibold text-primary">
+            <div className="text-primary flex items-center space-x-2 font-semibold">
               <span
                 className={cn(
                   "truncate",
@@ -55,7 +55,7 @@ export const ProjectNavigation: React.FC<ProjectNavigationProps> = ({
               {project.role === "VIEWER" ? (
                 <span
                   className={cn(
-                    "self-center whitespace-nowrap break-keep rounded-sm border px-1 py-0.5 text-xs",
+                    "self-center rounded-sm border px-1 py-0.5 text-xs break-keep whitespace-nowrap",
                     currentProjectId === project.id
                       ? "border-primary text-primary"
                       : "border-border text-muted-foreground group-hover:border-primary group-hover:text-primary",

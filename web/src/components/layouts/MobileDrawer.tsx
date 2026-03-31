@@ -21,12 +21,12 @@ export function MobileDrawer({ children }: PropsWithChildren) {
       <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
         <DrawerContent
           id="support-drawer"
-          className="inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)] min-h-screen-with-banner"
+          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
           size="full"
         >
           <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
             <div className="flex w-full items-center justify-center pt-3">
-              <div className="h-2 w-20 rounded-full bg-muted" />
+              <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
             {/* sr-only for screen readers and accessibility */}
             <DrawerTitle className="sr-only">Support</DrawerTitle>

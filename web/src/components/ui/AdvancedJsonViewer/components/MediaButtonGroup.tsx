@@ -63,7 +63,7 @@ function ImagePreview({ src }: { src?: string }) {
   return (
     <button
       onClick={openInNewTab}
-      className="h-24 w-24 overflow-hidden rounded-md border bg-muted transition-opacity hover:opacity-80"
+      className="bg-muted h-24 w-24 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
       aria-label="Open image in new tab"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -199,7 +199,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
         >
           <PopoverTrigger asChild>
             <button
-              className="relative flex h-6 w-6 items-center justify-center rounded hover:bg-accent"
+              className="hover:bg-accent relative flex h-6 w-6 items-center justify-center rounded"
               title={`${group.items.length} ${group.category} file${
                 group.items.length > 1 ? "s" : ""
               }`}
@@ -250,7 +250,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
             >
               <group.icon className="h-3.5 w-3.5" />
               {group.items.length > 1 && (
-                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
+                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-medium">
                   {group.items.length}
                 </span>
               )}

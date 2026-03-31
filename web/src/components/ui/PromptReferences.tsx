@@ -155,7 +155,7 @@ export const PromptReferenceButton = ({
       <span
         dir="auto"
         style={{ unicodeBidi: "plaintext" }}
-        className="whitespace-pre-wrap break-words"
+        className="wrap-break-word whitespace-pre-wrap"
       >
         {fallbackText}
       </span>
@@ -166,14 +166,14 @@ export const PromptReferenceButton = ({
     <Button
       variant="outline"
       size="sm"
-      className="inline-flex items-center gap-1.5 rounded-sm border-dashed bg-muted/50 px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors hover:bg-muted"
+      className="bg-muted/50 hover:bg-muted inline-flex items-center gap-1.5 rounded-sm border-dashed px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors"
       dir="ltr"
       onClick={() =>
         window.open(getPromptReferenceUrl(projectId, promptRef), "_blank")
       }
       title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
     >
-      <FileCode className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+      <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
       <span className="truncate font-medium">
         {promptRef.name}
         {promptRef.type === "version" ? (
@@ -213,7 +213,7 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
       key={key}
       dir="auto"
       style={{ unicodeBidi: "plaintext" }}
-      className="whitespace-pre-wrap break-words"
+      className="wrap-break-word whitespace-pre-wrap"
     >
       {text}
     </span>

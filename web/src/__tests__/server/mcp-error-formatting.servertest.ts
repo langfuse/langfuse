@@ -16,8 +16,8 @@ jest.mock("@langfuse/shared/src/server", () => {
 });
 
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod/v4";
-import { z } from "zod/v4";
+import { ZodError } from "zod";
+import { z } from "zod";
 import {
   formatErrorForUser,
   wrapErrorHandling,

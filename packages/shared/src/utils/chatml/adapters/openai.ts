@@ -5,7 +5,7 @@ import {
   parseMetadata,
   isRichToolResult,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for OpenAI formats
@@ -369,7 +369,7 @@ export const openAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // REJECTIONS: Explicit rejection of LangGraph/LangChain/Semantic Kernel formats
+    // REJECTIONS: Explicit rejection of LangGraph/LangChain/Semantic/Pydantic Kernel formats
     if (meta && typeof meta === "object") {
       // LangGraph
       if (
@@ -389,6 +389,14 @@ export const openAIAdapter: ProviderAdapter = {
           typeof scope.name === "string" &&
           scope.name.startsWith("Microsoft.SemanticKernel")
         ) {
+          return false;
+        }
+      }
+
+      // Pydantic ai
+      if ("scope" in meta && typeof meta.scope === "object") {
+        const scope = meta.scope as Record<string, unknown>;
+        if (scope.name === "pydantic-ai") {
           return false;
         }
       }

@@ -19,7 +19,7 @@ export default withMiddlewares({
         const queryParams = query.query;
 
         // Log the received query for debugging
-        logger.info("Received metrics query", {
+        logger.debug("Received metrics query", {
           query: queryParams,
           projectId: auth.scope.projectId,
         });

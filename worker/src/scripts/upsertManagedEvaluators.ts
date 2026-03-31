@@ -1,8 +1,11 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import managedEvaluators from "../constants/managed-evaluators.json";
 import { logger } from "@langfuse/shared/src/server";
-import { extractVariables } from "@langfuse/shared";
+import {
+  extractVariables,
+  PersistedEvalOutputDefinitionSchema,
+} from "@langfuse/shared";
 
 const ManagedEvaluatorSchema = z.object({
   id: z.string(),
@@ -11,10 +14,7 @@ const ManagedEvaluatorSchema = z.object({
   name: z.string(),
   partner: z.string().nullish(),
   version: z.number(),
-  outputSchema: z.object({
-    score: z.string(),
-    reasoning: z.string(),
-  }),
+  outputDefinition: PersistedEvalOutputDefinitionSchema,
   prompt: z.string(),
 });
 
@@ -67,7 +67,7 @@ export const upsertManagedEvaluators = async (force = false) => {
         name: evaluator.name,
         partner: evaluator.partner,
         version: evaluator.version,
-        outputSchema: evaluator.outputSchema,
+        outputDefinition: evaluator.outputDefinition,
         prompt: evaluator.prompt,
         updatedAt: evaluator.updated_at,
       };

@@ -188,7 +188,7 @@ export function SupportFormSection({
   );
 
   const createSupportThread = api.plainRouter.createSupportThread.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       form.reset({
         messageType: "Question",
         severity: "Question or feature request",
@@ -197,6 +197,13 @@ export function SupportFormSection({
       });
       setWarnedShortOnce(false);
       setFiles(undefined);
+      if (data.pylonIssueFailed) {
+        showErrorToast(
+          "Pylon Sync Failed",
+          "The support ticket was created but failed to sync to Pylon. Check server logs for details.",
+          "WARNING",
+        );
+      }
       onSuccess();
     },
     onSettled: () => setIsSubmittingLocal(false),
@@ -228,6 +235,38 @@ export function SupportFormSection({
         `Attachment upload failed (${res.status} ${res.statusText}) ${text}`,
       );
     }
+  }
+
+  async function uploadFilesToPylon(filesToUpload: File[]): Promise<string[]> {
+    const filePayloads = await Promise.all(
+      filesToUpload.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            "",
+          ),
+        );
+        return { fileName: file.name, fileBase64: base64 };
+      }),
+    );
+
+    const res = await fetch("/api/support/upload-attachments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: filePayloads }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { error?: string }).error ??
+          "Failed to upload attachments to Pylon.",
+      );
+    }
+
+    const body = (await res.json()) as { attachment_urls: string[] };
+    return body.attachment_urls;
   }
 
   const onSubmit = async (values: SupportFormInput) => {
@@ -262,9 +301,10 @@ export function SupportFormSection({
               customerId: undefined as string | undefined,
             };
 
-      // 2) Upload blobs
+      // 2) Upload blobs to Plain S3 and Pylon in parallel
+      let pylonAttachmentUrls: string[] = [];
       if (files && files.length) {
-        await Promise.all(
+        const plainUploadPromise = Promise.all(
           files.map(async (file, idx) => {
             const plan = uploadPlans.uploads[idx];
             if (!plan) throw new Error("Missing upload plan for a file.");
@@ -275,9 +315,20 @@ export function SupportFormSection({
             );
           }),
         );
+
+        const pylonUploadPromise = uploadFilesToPylon(files).catch((err) => {
+          console.warn("Pylon attachment upload failed (best-effort):", err);
+          return [] as string[];
+        });
+
+        const [, pylonUrls] = await Promise.all([
+          plainUploadPromise,
+          pylonUploadPromise,
+        ]);
+        pylonAttachmentUrls = pylonUrls;
       }
 
-      // 3) Create thread with attachmentIds
+      // 3) Create thread with attachmentIds (Plain) and pylonAttachmentUrls (Pylon)
       const attachmentIds =
         uploadPlans.uploads?.map((u: any) => u.attachmentId) ?? [];
 
@@ -297,6 +348,7 @@ export function SupportFormSection({
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },
         attachmentIds,
+        pylonAttachmentUrls,
       });
     } catch (err: any) {
       console.error(err);
@@ -320,7 +372,7 @@ export function SupportFormSection({
       <div className="flex items-center gap-2 text-base font-semibold">
         E-Mail a Support Engineer
       </div>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Details speed things up. The clearer your request, the quicker you get
         the answer you need.
       </p>
@@ -346,7 +398,9 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={field.value === v ? "default" : "outline"}
+                        variant={
+                          field.value === v ? "default" : "outline-solid"
+                        }
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
@@ -407,7 +461,7 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                        <div className="text-muted-foreground mb-2 text-xs font-medium">
                           Product Features
                         </div>
                         {TopicGroups["Product Features"].map((t) => (
@@ -417,7 +471,7 @@ export function SupportFormSection({
                         ))}
                       </div>
                       <div className="border-t p-2">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                        <div className="text-muted-foreground mb-2 text-xs font-medium">
                           Operations
                         </div>
                         {TopicGroups.Operations.map((t) => (
@@ -469,7 +523,7 @@ export function SupportFormSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Message</FormLabel>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   We will email you at your account address. Replies may take up
                   to one business day.
                 </div>
@@ -505,7 +559,14 @@ export function SupportFormSection({
                   className="mt-1 border-none p-0 text-left"
                   maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                   maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                  onDrop={(accepted) => setFiles(accepted)}
+                  onDrop={(accepted) =>
+                    setFiles((prev) => {
+                      const existing = prev ?? [];
+                      const merged = [...existing, ...accepted];
+                      const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                      return merged.slice(0, maxFiles);
+                    })
+                  }
                   onError={(error) => {
                     const userMessage = formatFileError(error);
                     showErrorToast("File Upload Error", userMessage, "WARNING");
@@ -534,7 +595,7 @@ export function SupportFormSection({
 
                 {files && files.length > 0 && (
                   <div className="p-0 text-left text-sm font-medium">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 text-xs font-medium">
                       Attached files
                     </div>
                     {files?.map((file) => (
@@ -597,7 +658,7 @@ export function SupportFormSection({
           </div>
 
           {isSubmittingLocal && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               This can take a few seconds — hang tight while we submit your
               request.
             </div>

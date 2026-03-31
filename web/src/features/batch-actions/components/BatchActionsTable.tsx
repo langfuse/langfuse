@@ -99,7 +99,7 @@ export function BatchActionsTable(props: { projectId: string }) {
               {processedCount} / {totalCount}
             </div>
             {failedCount > 0 && (
-              <div className="text-xs text-destructive">
+              <div className="text-destructive text-xs">
                 {failedCount} failed
               </div>
             )}
@@ -166,12 +166,12 @@ export function BatchActionsTable(props: { projectId: string }) {
             <Tooltip>
               <TooltipTrigger>
                 <div className="flex items-center gap-1">
-                  <InfoIcon className="h-3 w-3 text-muted-foreground" />
+                  <InfoIcon className="text-muted-foreground h-3 w-3" />
                   <span className="max-w-[250px] truncate text-xs">{log}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
-                <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">
+                <pre className="max-h-60 overflow-auto text-xs whitespace-pre-wrap">
                   {log}
                 </pre>
               </TooltipContent>

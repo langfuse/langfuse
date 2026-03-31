@@ -49,6 +49,7 @@ import {
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 
 type PlaygroundContextType = {
   windowId: string;
@@ -589,8 +590,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         });
 
         if (hasAnyContent) {
-          // Window has content - let it execute and show any validation errors
-          handleSubmit(true).catch((err) => console.error(err));
+          // Read streaming preference from localStorage (same key as SubmitButton in Messages.tsx)
+          const defaultStreaming =
+            env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT ===
+            "true";
+          let streaming = defaultStreaming;
+          try {
+            const raw = localStorage.getItem(STREAMING_PREF_KEY);
+            if (raw !== null) streaming = JSON.parse(raw);
+          } catch {
+            // malformed localStorage value — fall back to default
+          }
+
+          handleSubmit(streaming).catch((err) => console.error(err));
         }
         // If no content, skip silently
       }

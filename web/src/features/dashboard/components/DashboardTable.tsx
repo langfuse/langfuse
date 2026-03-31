@@ -247,7 +247,7 @@ export function DashboardTable() {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 {owner === "PROJECT" && (
                   <DropdownMenuItem asChild>
                     <EditDashboardButton

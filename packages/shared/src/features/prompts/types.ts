@@ -1,5 +1,5 @@
-import { z } from "zod/v4";
-import type { Prompt } from "../../../prisma/generated/types";
+import { z } from "zod";
+import type { Prompt } from "@prisma/client";
 import { jsonSchema } from "../../utils/zod";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,

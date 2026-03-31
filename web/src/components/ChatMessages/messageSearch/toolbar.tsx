@@ -63,11 +63,11 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-1 rounded-md border bg-background p-1",
+        "bg-background flex items-center gap-1 rounded-md border p-1",
         className,
       )}
     >
-      <Search className="ml-1 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+      <Search className="text-muted-foreground ml-1 h-3.5 w-3.5 shrink-0" />
       <Input
         ref={inputRef}
         value={queryInput}
@@ -94,7 +94,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
           }
         }}
       />
-      <div className="min-w-16 px-1 text-right text-xs text-muted-foreground">
+      <div className="text-muted-foreground min-w-16 px-1 text-right text-xs">
         {activeCountText}
       </div>
       <IconButton
@@ -109,7 +109,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         onClick={nextMatch}
         disabled={matches.length === 0}
       />
-      <div className="hidden max-w-48 truncate px-1 text-xs text-muted-foreground lg:block">
+      <div className="text-muted-foreground hidden max-w-48 truncate px-1 text-xs lg:block">
         {activeMatch?.locationLabel ?? "No matches"}
       </div>
       <IconButton icon={X} label="Close search" onClick={closeSearch} />

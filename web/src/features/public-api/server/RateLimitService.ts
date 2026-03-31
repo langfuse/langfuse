@@ -1,5 +1,5 @@
 import { type Redis, type Cluster } from "ioredis";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
@@ -275,6 +275,12 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 50,
+            durationInSec: 86400, // 50 requests per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -337,6 +343,12 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 200,
+            durationInSec: 86400, // 200 requests per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -390,6 +402,12 @@ const getPlanBasedRateLimitConfig = (
         case "trace-delete":
           return {
             resource: "trace-delete",
+            points: 1000,
+            durationInSec: 86400, // 1000 requests per day
+          };
+        case "score-delete":
+          return {
+            resource: "score-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
           };

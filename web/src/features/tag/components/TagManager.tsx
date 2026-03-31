@@ -133,7 +133,7 @@ const TagManager = ({
             <CommandGroup
               heading={filteredTags.length > 0 ? "Available Tags" : ""}
               className={cn(
-                "mt-2 max-h-52 overflow-auto text-sm font-medium [&>[cmdk-group-heading]]:mb-2",
+                "mt-2 max-h-52 overflow-auto text-sm font-medium *:[[cmdk-group-heading]]:mb-2",
                 filteredTags.length > 0 && "mb-2",
               )}
             >

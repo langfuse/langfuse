@@ -1,0 +1,59 @@
+{
+  "shared": {
+    "setupScript": "bash scripts/codex/setup.sh",
+    "devCommand": "pnpm run dev",
+    "devTerminalDescription": "Main development terminal running the development server"
+  },
+  "mcpServers": {
+    "playwright": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--save-trace",
+        "--output-dir",
+        ".playwright-mcp",
+        "--test-id-attribute",
+        "data-testid"
+      ]
+    },
+    "langfuse-docs": {
+      "transport": "http",
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp"
+    }
+  },
+  "claude": {
+    "settings": {
+      "permissions": {
+        "allow": [
+          "Bash(find:*)",
+          "Bash(rg:*)",
+          "Bash(grep:*)",
+          "Bash(ls:*)",
+          "Bash(cat:*)",
+          "Bash(head:*)",
+          "Bash(tail:*)"
+        ],
+        "deny": []
+      },
+      "enableAllProjectMcpServers": true
+    }
+  },
+  "codex": {
+    "environment": {
+      "version": 1,
+      "name": "langfuse"
+    }
+  },
+  "cursor": {
+    "environment": {
+      "agentCanUpdateSnapshot": false
+    }
+  }
+}

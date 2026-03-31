@@ -64,6 +64,17 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 
+/**
+ * Parse a value to a UInt16-compatible number (0–65535).
+ * Returns undefined if the value is nullish or not a valid UInt16 integer.
+ */
+function parseUInt16(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined;
+  const num = parseInt(value, 10);
+  if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
+  return num;
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -345,9 +356,6 @@ export class IngestionService {
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
 
-    // Stringify metadata for the JSON column (Record<string, string>)
-    const metadata = convertRecordValuesToString(eventData.metadata ?? {});
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -388,7 +396,7 @@ export class IngestionService {
       // Prompt
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
-      prompt_version: eventData.promptVersion,
+      prompt_version: parseUInt16(eventData.promptVersion),
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
@@ -420,9 +428,8 @@ export class IngestionService {
       output: eventData.output,
 
       // Metadata
-      metadata,
       metadata_names: metadataNames,
-      metadata_raw_values: metadataValues,
+      metadata_values: metadataValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -465,13 +472,14 @@ export class IngestionService {
   }
 
   /**
-   * Writes an event record directly to the events table.
+   * Writes an event record directly to the events_full table.
+   * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
   }
 
   private async processDatasetRunItemEventList(params: {

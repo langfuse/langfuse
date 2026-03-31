@@ -191,8 +191,8 @@ export const AnnotationQueueItemPage: React.FC<{
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
-          <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
-          <span className="max-w-96 text-wrap text-sm text-muted-foreground">
+          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
+          <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
             unaffected by this action.
@@ -228,12 +228,12 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   return (
-    <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
+    <div className="grid h-full grid-rows-[1fr_auto] gap-4 overflow-hidden">
       {renderContent()}
-      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
+      <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
-            <span className="grid h-9 min-w-16 items-center rounded-md bg-muted p-1 text-center text-sm">
+            <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
             <Button
@@ -272,7 +272,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 Mark Completed
               </Button>
             ) : (
-              <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
+              <div className="text-dark-gree border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
                 Completed
               </div>
             ))}

@@ -11,6 +11,7 @@ import {
   CloudConfigSchema,
   InternalServerError,
   type Organization,
+  type Plan,
   parseDbOrg,
 } from "@langfuse/shared";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -373,6 +375,85 @@ export async function updateOrgBillingCycleAnchor(
   });
 }
 
+type PlanWithoutSpendAlerts =
+  | "oss"
+  | "cloud:hobby"
+  | "self-hosted:pro"
+  | "self-hosted:enterprise";
+
+const DEFAULT_SPEND_ALERT_THRESHOLDS: Record<
+  Exclude<Plan, PlanWithoutSpendAlerts>,
+  number
+> = {
+  "cloud:core": 200,
+  "cloud:pro": 1000,
+  "cloud:team": 1000,
+  "cloud:enterprise": 2000,
+};
+
+export async function createDefaultSpendAlerts({
+  orgId,
+  productId,
+}: {
+  orgId: string;
+  productId: string;
+}) {
+  const plan = mapStripeProductIdToPlan(productId) as Exclude<
+    Plan,
+    PlanWithoutSpendAlerts
+  >;
+  if (!plan) {
+    logger.error(
+      `[Stripe Webhook] createDefaultSpendAlerts: Unknown product ID ${productId}, skipping`,
+    );
+    return;
+  }
+
+  const threshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
+  if (!threshold) {
+    logger.error(
+      `[Stripe Webhook] createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
+    );
+    return;
+  }
+
+  // Skip if org already has spend alerts (idempotency / don't overwrite user-configured alerts)
+  const existingAlerts = await prisma.cloudSpendAlert.findFirst({
+    where: { orgId },
+    select: { id: true },
+  });
+  if (existingAlerts) {
+    logger.info(
+      `[Stripe Webhook] createDefaultSpendAlerts: Org ${orgId} already has spend alerts, skipping`,
+    );
+    return;
+  }
+
+  const alert = await prisma.cloudSpendAlert.create({
+    data: {
+      orgId,
+      title: `Default Spend alert ($${threshold})`,
+      threshold,
+    },
+  });
+
+  await auditLog({
+    session: {
+      user: { id: "stripe-webhook" },
+      orgId,
+    },
+    orgId,
+    resourceType: "cloudSpendAlert",
+    resourceId: alert.id,
+    action: "create",
+    after: alert,
+  });
+
+  logger.info(
+    `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
+  );
+}
+
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
@@ -555,6 +636,22 @@ async function handleSubscriptionChanged(
       // Convert unix timestamp (seconds) to Date object
       const anchorDate = new Date(subscription.billing_cycle_anchor * 1000);
       await updateOrgBillingCycleAnchor(parsedOrg.id, anchorDate);
+    }
+
+    // Auto-create default spend alerts for new subscriptions (best-effort)
+    if (action === "created") {
+      try {
+        await createDefaultSpendAlerts({
+          orgId: parsedOrg.id,
+          productId: productId,
+        });
+      } catch (err) {
+        logger.error(
+          "[Stripe Webhook] Failed to create default spend alerts",
+          err,
+        );
+        traceException(err);
+      }
     }
 
     // Invalidate API keys in Redis for it to be updated

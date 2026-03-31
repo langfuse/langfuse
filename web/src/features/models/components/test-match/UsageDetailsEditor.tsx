@@ -60,7 +60,7 @@ export function UsageDetailsEditor({
     <div className="space-y-4">
       <div>
         <div className="pb-2 text-sm font-medium">Usage Details (optional)</div>
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           Add usage details to test pricing tier matching. Leave empty to match
           the default tier.
         </div>
@@ -68,7 +68,7 @@ export function UsageDetailsEditor({
 
       {/* Template Buttons */}
       <div className="space-y-2">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           Prefill from template:
         </div>
         <div className="flex gap-2">
@@ -105,13 +105,13 @@ export function UsageDetailsEditor({
       {/* Usage Details Table */}
       {entries.length > 0 ? (
         <div className="space-y-2 rounded-lg border p-3">
-          <div className="grid grid-cols-[1fr,1fr,auto] gap-2 text-sm font-medium">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium">
             <div>Usage Type</div>
             <div>Value</div>
             <div className="w-10" />
           </div>
           {entries.map((entry, index) => (
-            <div key={index} className="grid grid-cols-[1fr,1fr,auto] gap-2">
+            <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <Input
                 placeholder="e.g. input"
                 value={entry.key}

@@ -104,8 +104,8 @@ export function useExperimentEvaluatorData({
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
-            outputSchema: config.evalTemplate
-              .outputSchema as EvalTemplate["outputSchema"],
+            outputDefinition: config.evalTemplate
+              .outputDefinition as EvalTemplate["outputDefinition"],
           },
         } as PartialConfig & { evalTemplate: EvalTemplate };
 

@@ -141,7 +141,7 @@ export function CustomMappingEditor({
   };
 
   return (
-    <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+    <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
         <Label className="text-sm font-medium">Target</Label>
         <Tabs
@@ -179,7 +179,7 @@ export function CustomMappingEditor({
                 placeholder="$.path.to.field"
               />
             </div>
-            <p className="p-1 text-xs text-muted-foreground">
+            <p className="text-muted-foreground p-1 text-xs">
               Start with $. to use a JSON path (e.g., $.field)
             </p>
           </div>
@@ -189,7 +189,7 @@ export function CustomMappingEditor({
       {config.type === "keyValueMap" && (
         <div className="max-h-[35vh] space-y-3 overflow-auto">
           <Label className="text-sm font-medium">Key-value mappings</Label>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Build an object with custom keys. Values starting with $ are treated
             as JSON paths.
           </p>
@@ -262,17 +262,17 @@ function KeyValueEntryRow({
 
   return (
     <div
-      className={`space-y-2 rounded-md border bg-background p-3 ${
+      className={`bg-background space-y-2 rounded-md border p-3 ${
         isSchemaField ? "border-primary/30" : ""
       }`}
     >
-      <div className="grid grid-cols-[1fr,auto] gap-2">
+      <div className="grid grid-cols-[1fr_auto] gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">
+          <Label className="text-muted-foreground text-xs">
             Key
-            {isRequired && <span className="ml-1 text-destructive">*</span>}
+            {isRequired && <span className="text-destructive ml-1">*</span>}
             {isSchemaField && (
-              <span className="ml-2 text-primary">(from schema)</span>
+              <span className="text-primary ml-2">(from schema)</span>
             )}
           </Label>
           <Input
@@ -309,9 +309,9 @@ function KeyValueEntryRow({
         </div>
       </div>
 
-      <div className="grid grid-cols-[38fr,62fr] gap-2">
+      <div className="grid grid-cols-[38fr_62fr] gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">Source</Label>
+          <Label className="text-muted-foreground text-xs">Source</Label>
           <div className="mt-1">
             <SourceFieldSelector
               value={entry.sourceField}
@@ -321,7 +321,7 @@ function KeyValueEntryRow({
           </div>
         </div>
         <div>
-          <Label className="text-xs text-muted-foreground">
+          <Label className="text-muted-foreground text-xs">
             Value {!isPath && "(literal)"}
           </Label>
           <div className="mt-1">
@@ -342,7 +342,7 @@ function KeyValueEntryRow({
               />
             )}
 
-            <p className="pt-1 text-xs text-muted-foreground">
+            <p className="text-muted-foreground pt-1 text-xs">
               Start with $. to use a JSON path (e.g., $.field)
             </p>
           </div>

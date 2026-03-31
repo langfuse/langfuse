@@ -93,11 +93,11 @@ export function SelectWidgetDialog({
             {widgets.isPending ? (
               <div className="py-8 text-center">Loading widgets...</div>
             ) : widgets.isError ? (
-              <div className="py-8 text-center text-destructive">
+              <div className="text-destructive py-8 text-center">
                 Error: {widgets.error.message}
               </div>
             ) : widgets.data?.widgets.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
+              <div className="text-muted-foreground py-8 text-center">
                 No widgets found. Create a new widget to get started.
               </div>
             ) : (
@@ -115,7 +115,7 @@ export function SelectWidgetDialog({
                     <TableRow
                       key={widget.id}
                       onClick={() => setSelectedWidgetId(widget.id)}
-                      className={`cursor-pointer hover:bg-muted ${
+                      className={`hover:bg-muted cursor-pointer ${
                         selectedWidgetId === widget.id ? "bg-muted" : ""
                       }`}
                     >

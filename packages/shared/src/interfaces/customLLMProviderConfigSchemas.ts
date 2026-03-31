@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Sentinel value for Bedrock default credential provider chain
 export const BEDROCK_USE_DEFAULT_CREDENTIALS =

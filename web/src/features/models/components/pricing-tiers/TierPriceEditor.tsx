@@ -24,7 +24,7 @@ export function TierPriceEditor({
   return (
     <div className="space-y-3">
       <FormLabel>Prices</FormLabel>
-      <div className="grid grid-cols-2 gap-1 text-sm text-muted-foreground">
+      <div className="text-muted-foreground grid grid-cols-2 gap-1 text-sm">
         <span>Usage type</span>
         <span>Price</span>
       </div>
@@ -48,7 +48,7 @@ export function TierPriceEditor({
               newPrices[newKey] = oldValue;
               form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
             }}
-            className={!isDefault ? "cursor-not-allowed bg-muted" : ""}
+            className={!isDefault ? "bg-muted cursor-not-allowed" : ""}
           />
           <div className="flex gap-1">
             <Input
