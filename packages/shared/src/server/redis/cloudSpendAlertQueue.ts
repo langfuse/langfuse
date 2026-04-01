@@ -21,6 +21,7 @@ export class CloudSpendAlertQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

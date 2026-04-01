@@ -22,6 +22,7 @@ export class CloudFreeTierUsageThresholdQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

@@ -16,6 +16,7 @@ export class DataRetentionProcessingQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

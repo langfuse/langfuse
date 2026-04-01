@@ -18,6 +18,7 @@ export class CreateEvalQueue {
     if (CreateEvalQueue.instance) return CreateEvalQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
