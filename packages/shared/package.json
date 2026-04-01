@@ -109,7 +109,7 @@
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
     "langchain": "^1.2.15",
-    "langfuse-langchain": "3.38.6",
+    "langfuse-langchain": "3.38.20",
     "lodash": "^4.17.23",
     "lossless-json": "^4.1.1",
     "next-auth": "^4.24.13",
