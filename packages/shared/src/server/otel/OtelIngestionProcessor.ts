@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  ObservationType,
   ObservationTypeDomain,
 } from "../../";
 import {
@@ -252,6 +253,13 @@ export class OtelIngestionProcessor {
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
+                const observationType =
+                  observationTypeMapper.mapToObservationType(
+                    spanAttributes,
+                    resourceAttributes,
+                    scopeSpan?.scope,
+                    span.name,
+                  );
                 const traceId = this.parseId(span.traceId);
                 const spanId = this.parseId(span.spanId);
                 const parentSpanId = span?.parentSpanId
@@ -340,6 +348,7 @@ export class OtelIngestionProcessor {
                   this.extractUsageDetails(
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
+                    observationType,
                   ),
                 );
                 if (!usageDetails.success) {
@@ -373,12 +382,7 @@ export class OtelIngestionProcessor {
                   parentSpanId,
 
                   name,
-                  type: observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  ),
+                  type: observationType,
                   environment: this.extractEnvironment(
                     spanAttributes,
                     resourceAttributes,
@@ -955,6 +959,28 @@ export class OtelIngestionProcessor {
       instrumentationScopeName,
     });
 
+    const mappedObservationType = observationTypeMapper.mapToObservationType(
+      attributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+      span.name,
+    );
+    const observationType =
+      mappedObservationType && typeof mappedObservationType === "string"
+        ? mappedObservationType.toLowerCase()
+        : ObservationType.SPAN.toLowerCase();
+
+    const isKnownObservationType =
+      observationType &&
+      ObservationTypeDomain.safeParse(observationType.toUpperCase()).success;
+
+    const getIngestionEventType = (): string => {
+      if (isKnownObservationType) {
+        return `${observationType}-create`;
+      }
+      return "span-create";
+    };
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1008,32 +1034,11 @@ export class OtelIngestionProcessor {
       usageDetails: this.extractUsageDetails(
         attributes,
         instrumentationScopeName,
+        observationType,
       ),
       costDetails: this.extractCostDetails(attributes),
       input,
       output,
-    };
-
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
-      attributes,
-      resourceAttributes,
-      scopeSpan?.scope,
-      span.name,
-    );
-    const observationType =
-      mappedObservationType && typeof mappedObservationType === "string"
-        ? mappedObservationType.toLowerCase()
-        : undefined;
-
-    const isKnownObservationType =
-      observationType &&
-      ObservationTypeDomain.safeParse(observationType.toUpperCase()).success;
-
-    const getIngestionEventType = (): string => {
-      if (isKnownObservationType) {
-        return `${observationType}-create`;
-      }
-      return "span-create";
     };
 
     return {
@@ -2116,7 +2121,16 @@ export class OtelIngestionProcessor {
   private extractUsageDetails(
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
+    observationType: string,
   ): Record<string, unknown> {
+    // Usage / cost are currently supported only on observations of type GENERATION and EMBEDDING
+    if (
+      !(
+        [ObservationType.GENERATION, ObservationType.EMBEDDING] as string[]
+      ).includes(observationType.toUpperCase())
+    )
+      return {};
+
     if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]) {
       try {
         return JSON.parse(
