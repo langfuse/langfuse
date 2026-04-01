@@ -3,8 +3,9 @@ import type { TracingSearchType } from "@langfuse/shared";
 // Helper function to get the current search mode value for the radio group
 export function getSearchMode(
   searchType: TracingSearchType[] | undefined,
+  tableAllowsFullTextSearch = false,
 ): string {
-  if (!searchType) return "metadata";
+  if (!searchType || !tableAllowsFullTextSearch) return "metadata";
   if (searchType.includes("content")) return "metadata_fulltext";
   if (searchType.includes("input")) return "metadata_fulltext_input";
   if (searchType.includes("output")) return "metadata_fulltext_output";

@@ -303,10 +303,11 @@ export function DataTableToolbar<TData, TValue>({
                     className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
                     <span className="flex items-center gap-1 truncate">
-                      {getSearchButtonLabel(
-                        searchConfig.searchType,
-                        searchConfig.customDropdownLabels?.metadata,
-                      )}
+                      {searchConfig.tableAllowsFullTextSearch &&
+                        getSearchButtonLabel(
+                          searchConfig.searchType,
+                          searchConfig.customDropdownLabels?.metadata,
+                        )}
                       <DocPopup
                         description={getSearchDescription(
                           searchConfig.searchType,
@@ -321,8 +322,16 @@ export function DataTableToolbar<TData, TValue>({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuRadioGroup
-                    value={getSearchMode(searchConfig.searchType)}
+                    value={getSearchMode(
+                      searchConfig.searchType,
+                      searchConfig.tableAllowsFullTextSearch,
+                    )}
                     onValueChange={(value) => {
+                      if (
+                        !searchConfig.tableAllowsFullTextSearch &&
+                        value.startsWith("metadata_fulltext")
+                      )
+                        return;
                       searchConfig.setSearchType?.(searchModeToType(value));
                     }}
                   >
@@ -335,9 +344,10 @@ export function DataTableToolbar<TData, TValue>({
                         disabled={!searchConfig.tableAllowsFullTextSearch}
                       >
                         <span className="flex items-center gap-2">
-                          {getSearchMode(searchConfig.searchType).startsWith(
-                            "metadata_fulltext",
-                          ) && (
+                          {getSearchMode(
+                            searchConfig.searchType,
+                            searchConfig.tableAllowsFullTextSearch,
+                          ).startsWith("metadata_fulltext") && (
                             <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
                           )}
                           {searchConfig.customDropdownLabels?.fullText ??
@@ -346,7 +356,10 @@ export function DataTableToolbar<TData, TValue>({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
                         <DropdownMenuRadioGroup
-                          value={getSearchMode(searchConfig.searchType)}
+                          value={getSearchMode(
+                            searchConfig.searchType,
+                            searchConfig.tableAllowsFullTextSearch,
+                          )}
                           onValueChange={(value) => {
                             searchConfig.setSearchType?.(
                               searchModeToType(value),
