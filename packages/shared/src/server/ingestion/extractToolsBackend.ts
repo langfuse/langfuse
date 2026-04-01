@@ -79,12 +79,18 @@ function flattenToolCall(call: unknown): {
   const rawArgs = func?.arguments ?? c.arguments ?? c.args;
   const args =
     typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs ?? {});
+  const rawType = (c.type ?? (func ? "function" : undefined)) as
+    | string
+    | undefined;
 
   return {
     id: (c.id ?? c.toolCallId ?? c.call_id) as string | undefined,
     name,
     arguments: args,
-    type: (c.type ?? (func ? "function" : undefined)) as string | undefined,
+    type:
+      rawType === "tool_call" || rawType === "function_call"
+        ? "function"
+        : rawType,
     index: c.index as number | undefined,
   };
 }
@@ -276,6 +282,19 @@ function extractToolCallsFromMessage(
           arguments: JSON.stringify(p.input ?? {}),
           type: "tool_use",
         });
+      }
+    }
+  }
+
+  // Pydantic AI / OTel GenAI messages: {parts: [{type: "tool_call", ...}]}
+  if (Array.isArray(msg.parts)) {
+    for (const part of msg.parts) {
+      if (
+        part &&
+        typeof part === "object" &&
+        (part as Record<string, unknown>).type === "tool_call"
+      ) {
+        addToolArgument(args, part);
       }
     }
   }

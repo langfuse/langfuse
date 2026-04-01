@@ -348,23 +348,8 @@ export class OtelIngestionProcessor {
                   );
                 }
 
-                let toolDefinitions = undefined;
-                let toolCalls = undefined;
-                let toolCallNames = undefined;
-
-                const { toolDefinitions: rawToolDefinitions, toolArguments } =
-                  extractToolsFromObservation(input, output);
-
-                if (rawToolDefinitions.length > 0) {
-                  toolDefinitions = convertDefinitionsToMap(rawToolDefinitions);
-                }
-
-                if (toolArguments.length > 0) {
-                  const { tool_calls, tool_call_names } =
-                    convertCallsToArrays(toolArguments);
-                  toolCalls = tool_calls;
-                  toolCallNames = tool_call_names;
-                }
+                const { toolDefinitions, toolCalls, toolCallNames } =
+                  this.extractPersistedToolFields(input, output);
 
                 events.push({
                   projectId: this.projectId,
@@ -954,6 +939,8 @@ export class OtelIngestionProcessor {
       attributes,
       instrumentationScopeName,
     });
+    const { toolDefinitions, toolCalls, toolCallNames } =
+      this.extractPersistedToolFields(input, output);
 
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
@@ -1010,6 +997,9 @@ export class OtelIngestionProcessor {
         instrumentationScopeName,
       ),
       costDetails: this.extractCostDetails(attributes),
+      toolDefinitions,
+      toolCalls,
+      toolCallNames,
       input,
       output,
     };
@@ -1566,21 +1556,23 @@ export class OtelIngestionProcessor {
     input = attributes["input"];
     output = attributes["output"];
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: this.normalizeInputWithOtelGenAIContext(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     // Pydantic AI agent/root span: all_messages → input, final_result → output
     if (instrumentationScopeName === "pydantic-ai") {
       input = attributes["pydantic_ai.all_messages"] ?? null;
       output = attributes["final_result"] ?? null;
-      if (input && attributes["gen_ai.system_instructions"]) {
-        input = this.prependSystemInstructions(
-          input,
-          attributes["gen_ai.system_instructions"],
-        );
-      }
       if (input || output) {
-        return { input, output, filteredAttributes };
+        return {
+          input: this.normalizeInputWithOtelGenAIContext(input, attributes),
+          output,
+          filteredAttributes,
+        };
       }
     }
 
@@ -1646,15 +1638,9 @@ export class OtelIngestionProcessor {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
-    if (input && attributes["gen_ai.system_instructions"]) {
-      input = this.prependSystemInstructions(
-        input,
-        attributes["gen_ai.system_instructions"],
-      );
-    }
     if (input || output) {
       return {
-        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        input: this.normalizeInputWithOtelGenAIContext(input, attributes),
         output,
         filteredAttributes,
       };
@@ -1712,6 +1698,53 @@ export class OtelIngestionProcessor {
     }
 
     return mergeToolDefinitions(input) ?? input;
+  }
+
+  private normalizeInputWithOtelGenAIContext(
+    input: unknown,
+    attributes: Record<string, unknown>,
+  ): unknown {
+    let normalizedInput = input;
+
+    if (normalizedInput && attributes["gen_ai.system_instructions"]) {
+      normalizedInput = this.prependSystemInstructions(
+        normalizedInput,
+        attributes["gen_ai.system_instructions"],
+      );
+    }
+
+    return this.appendOtelToolDefinitionsToInput(normalizedInput, attributes);
+  }
+
+  private extractPersistedToolFields(
+    input: unknown,
+    output: unknown,
+  ): {
+    toolDefinitions?: Record<string, string>;
+    toolCalls?: string[];
+    toolCallNames?: string[];
+  } {
+    const { toolDefinitions: rawToolDefinitions, toolArguments } =
+      extractToolsFromObservation(input, output);
+
+    const result: {
+      toolDefinitions?: Record<string, string>;
+      toolCalls?: string[];
+      toolCallNames?: string[];
+    } = {};
+
+    if (rawToolDefinitions.length > 0) {
+      result.toolDefinitions = convertDefinitionsToMap(rawToolDefinitions);
+    }
+
+    if (toolArguments.length > 0) {
+      const { tool_calls, tool_call_names } =
+        convertCallsToArrays(toolArguments);
+      result.toolCalls = tool_calls;
+      result.toolCallNames = tool_call_names;
+    }
+
+    return result;
   }
 
   private extractOtelToolDefinitions(
