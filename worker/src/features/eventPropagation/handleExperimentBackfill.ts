@@ -155,6 +155,9 @@ export async function getDatasetRunItemsSinceLastRun(
       lastRun: convertDateToClickhouseDateTime(lastRun),
       upperBound: convertDateToClickhouseDateTime(upperBound),
     },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
+    },
     tags: {
       feature: "experiment-backfill",
       operation_name: "getDatasetRunItemsSinceLastRun",
