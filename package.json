@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.162.0",
+  "version": "3.163.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -93,15 +93,17 @@
       }
     }
   },
-  "packageManager": "pnpm@9.5.0",
+  "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
       "zod": "4.3.6",
       "nanoid": "^3.3.8",
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",
+      "effect": "^3.20.0",
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
+      "@types/react-dom": "19.2.3",
       "glob": "^10.5.0",
       "qs": "6.14.1"
     },

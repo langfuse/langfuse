@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/ui/switch";
@@ -31,8 +30,8 @@ export const EvalTemplateDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const templateId = router.query.id as string;
-
-  const [isEditing, setIsEditing] = useState(false);
+  const mode = router.query.mode;
+  const isEditing = mode === "edit";
 
   // get the current template by id
   const template = api.evals.templateById.useQuery({
@@ -59,6 +58,29 @@ export const EvalTemplateDetail = () => {
     // Update URL without full page reload
     router.push(
       `/project/${projectId}/evals/templates/${newTemplate.id}`,
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  const setIsEditing = (nextIsEditing: boolean) => {
+    if (!router.isReady) {
+      return;
+    }
+
+    const nextQuery = { ...router.query };
+
+    if (nextIsEditing) {
+      nextQuery.mode = "edit";
+    } else {
+      delete nextQuery.mode;
+    }
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: nextQuery,
+      },
       undefined,
       { shallow: true },
     );

@@ -131,4 +131,5 @@ export * from "./test-utils";
 export * from "./utils/headerUtils";
 export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
+export * from "./deletionGuard";
 export * from "./analytics-integrations/types";

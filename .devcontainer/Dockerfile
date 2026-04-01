@@ -6,8 +6,8 @@ RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/
     chmod +x migrate && \
     mv migrate /usr/local/bin/migrate
 
-# Install pnpm globally
-RUN npm install -g pnpm@9.5.0
+# Activate the repo's pinned pnpm via Corepack
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 # Install Clickhouse
 RUN curl https://clickhouse.com/ | sh && \
