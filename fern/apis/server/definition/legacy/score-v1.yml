@@ -85,11 +85,6 @@ types:
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
           traceId: "cdef-1234-5678-90ab"
-      - value:
-          name: "feedback"
-          value: "Great explanation of the concept"
-          dataType: "TEXT"
-          traceId: "cdef-1234-5678-90ab"
   CreateScoreResponse:
     properties:
       id:

@@ -28,18 +28,15 @@ const ScoreFoundationSchemaV2 = ScoreSchemaExclReferencesAndDates.extend({
   observationId: z.string().nullish(),
   sessionId: z.string().nullish(),
   datasetRunId: z.string().nullish(),
-  // Optional for TEXT scores where value is always 0 and stripped from the API response
-  value: z.number().optional(),
 });
 
-export const APIScoreSchemaV2 = ScoreFoundationSchemaV2.and(
-  z.discriminatedUnion("dataType", [
-    NumericData,
-    CategoricalData,
-    BooleanData,
-    CorrectionData,
-    TextData,
-  ]),
-);
+export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
+  ScoreFoundationSchemaV2.extend(NumericData.shape),
+  ScoreFoundationSchemaV2.extend(CategoricalData.shape),
+  ScoreFoundationSchemaV2.extend(BooleanData.shape),
+  ScoreFoundationSchemaV2.extend(CorrectionData.shape),
+  // a numeric value does not make sense for TEXT scores, so we omit the property
+  ScoreFoundationSchemaV2.omit({ value: true }).extend(TextData.shape),
+]);
 
 export type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;

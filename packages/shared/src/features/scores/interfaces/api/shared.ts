@@ -74,46 +74,66 @@ export const GetScoresQuery = z.object({
 });
 
 // POST /scores
-// Please note that the POST /scores endpoint supports all score types (trace, session, dataset run) across v1 and v2.
 /**
  * PostScoresBody is copied for the ingestion API as `ScoreBody`. Please copy any changes here in `packages/shared/src/features/ingestion/types.ts`
  */
+const NumericScoreBody = z.object({
+  value: z.number(),
+  dataType: z.literal("NUMERIC"),
+  configId: z.string().nullish(),
+});
+const CategoricalScoreBody = z.object({
+  value: z.string(),
+  dataType: z.literal("CATEGORICAL"),
+  configId: z.string().nullish(),
+});
+const BooleanScoreBody = z.object({
+  value: z.number().refine((value) => value === 0 || value === 1, {
+    message:
+      "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
+  }),
+  dataType: z.literal("BOOLEAN"),
+  configId: z.string().nullish(),
+});
+const CorrectionScoreBody = z.object({
+  value: z.string(), // Corrected output text
+  dataType: z.literal("CORRECTION"),
+  configId: z.undefined().nullish(), // Cannot have config
+});
+const TextScoreBody = z.object({
+  value: z.string().min(1).max(500),
+  dataType: z.literal("TEXT"),
+  configId: z.string().nullish(),
+});
+const InferredScoreBody = z.object({
+  value: z.union([z.string(), z.number()]),
+  dataType: z.undefined(),
+  configId: z.string().nullish(),
+});
+
+// v1: excludes TEXT (TEXT scores are only available via v2)
+export const PostScoresBodyV1 = applyScoreValidation(
+  PostScoreBodyFoundationSchema.and(
+    z.discriminatedUnion("dataType", [
+      NumericScoreBody,
+      CategoricalScoreBody,
+      BooleanScoreBody,
+      CorrectionScoreBody,
+      InferredScoreBody,
+    ]),
+  ),
+);
+
+// v2 / ingestion: includes TEXT
 export const PostScoresBody = applyScoreValidation(
   PostScoreBodyFoundationSchema.and(
     z.discriminatedUnion("dataType", [
-      z.object({
-        value: z.number(),
-        dataType: z.literal("NUMERIC"),
-        configId: z.string().nullish(),
-      }),
-      z.object({
-        value: z.string(),
-        dataType: z.literal("CATEGORICAL"),
-        configId: z.string().nullish(),
-      }),
-      z.object({
-        value: z.number().refine((value) => value === 0 || value === 1, {
-          message:
-            "Value must be a number equal to either 0 or 1 for data type BOOLEAN",
-        }),
-        dataType: z.literal("BOOLEAN"),
-        configId: z.string().nullish(),
-      }),
-      z.object({
-        value: z.string(), // Corrected output text
-        dataType: z.literal("CORRECTION"),
-        configId: z.undefined().nullish(), // Cannot have config
-      }),
-      z.object({
-        value: z.string().min(1).max(500),
-        dataType: z.literal("TEXT"),
-        configId: z.string().nullish(),
-      }),
-      z.object({
-        value: z.union([z.string(), z.number()]),
-        dataType: z.undefined(),
-        configId: z.string().nullish(),
-      }),
+      NumericScoreBody,
+      CategoricalScoreBody,
+      BooleanScoreBody,
+      CorrectionScoreBody,
+      TextScoreBody,
+      InferredScoreBody,
     ]),
   ),
 );

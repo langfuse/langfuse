@@ -5,7 +5,7 @@ import {
   DeleteScoreResponse,
   GetScoreQuery,
   GetScoresQuery,
-  PostScoresBody,
+  PostScoresBodyV1 as PostScoresBodyV1Shared,
   PostScoresResponse,
 } from "../shared";
 import { APIScoreSchemaV1 } from "./schemas";
@@ -38,7 +38,7 @@ export const GetScoresResponseV1 = z.object({
   meta: paginationMetaResponseZod,
 });
 
-// POST /scores
-export const PostScoresBodyV1 = PostScoresBody;
+// POST /scores (v1 excludes TEXT scores)
+export const PostScoresBodyV1 = PostScoresBodyV1Shared;
 
 export const PostScoresResponseV1 = PostScoresResponse;
