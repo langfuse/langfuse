@@ -18,6 +18,7 @@ export class ProjectDeleteQueue {
     if (ProjectDeleteQueue.instance) return ProjectDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

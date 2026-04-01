@@ -17,6 +17,7 @@ export class TraceDeleteQueue {
     if (TraceDeleteQueue.instance) return TraceDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

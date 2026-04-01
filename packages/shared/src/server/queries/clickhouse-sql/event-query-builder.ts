@@ -101,6 +101,10 @@ const EVENTS_FIELDS = {
   toolCalls: 'e.tool_calls as "tool_calls"',
   toolCallNames: 'e.tool_call_names as "tool_call_names"',
 
+  // Pricing tier
+  usagePricingTierName:
+    'e.usage_pricing_tier_name as "usage_pricing_tier_name"',
+
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
@@ -278,6 +282,14 @@ const FIELD_SETS = {
     "release",
     "traceName",
     "parentObservationId",
+    "bookmarked",
+    "public",
+    "createdAt",
+    "updatedAt",
+    "toolDefinitions",
+    "toolCalls",
+    "toolCallNames",
+    "usagePricingTierName",
   ],
 
   eval: [
