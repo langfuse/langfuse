@@ -296,69 +296,53 @@ export class SlackService {
   }
 
   /**
-   * Recursively fetch all channels accessible to the bot
-   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination
-   */
-  private async getChannelsRecursive(
-    client: WebClient,
-    cursor?: string,
-    fetchedRecords: number = 0,
-  ): Promise<SlackChannel[]> {
-    try {
-      const result = await client.conversations.list({
-        exclude_archived: true,
-        types: "public_channel",
-        limit: 200,
-        cursor: cursor,
-      });
-
-      if (!result.ok) {
-        throw new Error(`Slack API error: ${result.error}`);
-      }
-
-      const channels: SlackChannel[] = (result.channels || []).map(
-        (channel) => ({
-          id: channel.id!,
-          name: channel.name!,
-          isPrivate: channel.is_private || false,
-          isMember: channel.is_member || false,
-        }),
-      );
-
-      const nextCursor = result.response_metadata?.next_cursor;
-      if (
-        nextCursor &&
-        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
-      ) {
-        try {
-          const nextPageChannels = await this.getChannelsRecursive(
-            client,
-            nextCursor,
-            fetchedRecords + channels.length,
-          );
-          return [...channels, ...nextPageChannels];
-        } catch (error) {
-          logger.error(
-            `Failed to retrieve next page of channels, returning only already fetched`,
-            error,
-          );
-        }
-      }
-      return channels;
-    } catch (error) {
-      logger.error("Failed to fetch channels recursively", { error, cursor });
-      throw new Error(
-        `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
    * Get channels accessible to the bot
    */
   async getChannels(client: WebClient): Promise<SlackChannel[]> {
     try {
-      const channels = await this.getChannelsRecursive(client);
+      const channels: SlackChannel[] = [];
+      let cursor: string | undefined = undefined;
+      let fetchedRecords = 0;
+
+      do {
+        const result = await client.conversations.list({
+          exclude_archived: true,
+          types: "public_channel",
+          limit: 200,
+          cursor: cursor,
+        });
+
+        if (!result.ok) {
+          if (result.response_metadata?.retryAfter) {
+            const retryAfter = result.response_metadata.retryAfter * 1000;
+            logger.warn(
+              `Rate limited by Slack API, retrying after ${retryAfter}ms`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, retryAfter));
+            continue;
+          } else {
+            throw new Error(`Slack API error: ${result.error}`);
+          }
+        }
+
+        const currentChannels: SlackChannel[] = (result.channels || []).map(
+          (channel) => ({
+            id: channel.id!,
+            name: channel.name!,
+            isPrivate: channel.is_private || false,
+            isMember: channel.is_member || false,
+          }),
+        );
+
+        channels.push(...currentChannels);
+        fetchedRecords += currentChannels.length;
+
+        logger.debug(
+          `Retrieved ${currentChannels.length} channels, total fetched: ${fetchedRecords}`,
+        );
+
+        cursor = result.response_metadata?.next_cursor;
+      } while (cursor && fetchedRecords < env.SLACK_FETCH_LIMIT);
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,
