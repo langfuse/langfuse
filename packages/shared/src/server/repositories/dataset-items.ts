@@ -1083,7 +1083,7 @@ function buildDatasetItemsAtVersionQuery(
 
   const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType: searchType,
+    searchType: searchType ?? ["content"],
     metadataColumns: ["id"],
     contentColumns: {
       content: ["input", "expected_output", "metadata"],
