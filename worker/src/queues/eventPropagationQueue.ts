@@ -5,7 +5,7 @@ import {
   instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
-// import { runExperimentBackfill } from "../features/eventPropagation/handleExperimentBackfill";
+import { runExperimentBackfill } from "../features/eventPropagation/handleExperimentBackfill";
 import { SpanKind } from "@opentelemetry/api";
 
 export const eventPropagationProcessor: Processor = async (job) => {
@@ -22,7 +22,7 @@ export const eventPropagationProcessor: Processor = async (job) => {
           // Step 1: Execute the main partition processing
           await handleEventPropagationJob(job);
           // Step 2: Execute experiment backfill with 5-minute throttle
-          // await runExperimentBackfill();
+          await runExperimentBackfill();
         } catch (error) {
           logger.error("Error executing EventPropagationJob", error);
           throw error;

@@ -751,12 +751,21 @@ export async function runExperimentBackfill(): Promise<void> {
     // This ensures we don't process items that might still be receiving data
     const upperBound = new Date(Date.now() - 30 * 1000);
 
-    // Execute backfill
-    logger.info("[EXPERIMENT BACKFILL] Starting backfill process");
-    await processExperimentBackfill(lastRun, upperBound);
+    // Cap each execution to an 8-hour window. The scheduler runs frequently
+    // enough that consecutive jobs will catch up on any larger gap.
+    const maxChunkMs = 8 * 60 * 60 * 1000;
+    const chunkEnd = new Date(
+      Math.min(lastRun.getTime() + maxChunkMs, upperBound.getTime()),
+    );
 
-    // Update timestamp with the upper bound we processed up to
-    await updateBackfillTimestamp(upperBound);
+    logger.info(
+      `[EXPERIMENT BACKFILL] Processing chunk from ${lastRun.toISOString()} to ${chunkEnd.toISOString()}`,
+    );
+    await processExperimentBackfill(lastRun, chunkEnd);
+
+    // Advance the persisted timestamp after successful processing
+    await updateBackfillTimestamp(chunkEnd);
+
     logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
   } catch (error) {
     logger.error("[EXPERIMENT BACKFILL] Failed to run backfill", error);
