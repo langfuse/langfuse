@@ -94,7 +94,7 @@ export function V4BetaPromoBanner() {
         <ZapIcon className="h-4 w-4 shrink-0" />
         <p
           className="flex flex-1 gap-1 overflow-hidden text-sm"
-          title="Enable the Fast (Preview) toggle for a more performant experience."
+          title={`${pageMessage} Enable the Fast (Preview) toggle for a more performant experience.`}
         >
           <span className="truncate">
             <span className="hidden font-semibold md:inline">
