@@ -1,5 +1,5 @@
 import isEmpty from "lodash/isEmpty";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
@@ -221,27 +221,35 @@ export const UsageDetails = z
   ])
   .nullish();
 
-const INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  "Only alphanumeric lower case characters, hyphens, and underscores are allowed";
-
-const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE +
-  " and it must not start with 'langfuse'";
-
 /** Default environment name used when no environment is specified. */
 export const DEFAULT_TRACE_ENVIRONMENT = "default" as const;
 
 const PublicEnvironmentName = z
   .string()
   .toLowerCase()
-  .max(40, "Maximum length is 40 characters")
-  .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
+  .transform((val) => {
+    // Strip leading "langfuse" prefix (with optional separator)
+    const stripped = val.replace(/^langfuse[-_]?/, "");
+    // Truncate to 40 chars, validate allowed chars
+    const truncated = stripped.slice(0, 40);
+    if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
+      return DEFAULT_TRACE_ENVIRONMENT;
+    }
+    return truncated;
+  })
+  .catch(DEFAULT_TRACE_ENVIRONMENT)
   .default(DEFAULT_TRACE_ENVIRONMENT);
 
 const InternalEnvironmentName = z
   .string()
-  .max(40, "Maximum length is 40 characters")
-  .regex(/^[a-z0-9-_]+$/, INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
+  .transform((val) => {
+    const truncated = val.slice(0, 40);
+    if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
+      return DEFAULT_TRACE_ENVIRONMENT;
+    }
+    return truncated;
+  })
+  .catch(DEFAULT_TRACE_ENVIRONMENT)
   .default(DEFAULT_TRACE_ENVIRONMENT);
 
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */

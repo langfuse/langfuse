@@ -79,14 +79,14 @@ export function useCsvImport(options: UseCsvImportOptions) {
   const mutCreateManyDatasetItems =
     api.datasets.createManyDatasetItems.useMutation({});
 
-  const execute = async (wrapSingleColumn: boolean) => {
+  const execute = async (wrapSingleColumn: boolean): Promise<boolean> => {
     const { csvFile, projectId, datasetId, input, expectedOutput, metadata } =
       options;
 
-    if (!csvFile) return;
+    if (!csvFile) return false;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
       showErrorToast("File too large", "Maximum file size is 10MB");
-      return;
+      return false;
     }
 
     setValidationErrors([]);
@@ -219,7 +219,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
             processedItems: 0,
             status: "not-started",
           });
-          return;
+          return false;
         }
 
         processedCount += chunkItems.length;
@@ -248,7 +248,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
           `Please try again starting from row ${processedCount + 1}.`,
         );
       }
-      return;
+      return false;
     }
 
     utils.datasets.invalidate();
@@ -258,6 +258,8 @@ export function useCsvImport(options: UseCsvImportOptions) {
       processedItems: items.length,
       status: "complete",
     });
+
+    return true;
   };
 
   const reset = () => {

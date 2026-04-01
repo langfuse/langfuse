@@ -165,9 +165,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="h-4 w-4 text-muted-foreground" />
+        <Lock className="text-muted-foreground h-4 w-4" />
       ) : (
-        <Hash className="h-4 w-4 text-muted-foreground" />
+        <Hash className="text-muted-foreground h-4 w-4" />
       )}
       <span className="flex-1 truncate">{channel.name}</span>
     </div>
@@ -285,7 +285,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {/* Channel stats */}
       {channelsData?.channels && (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           {filteredChannels.length} of {channelsData.channels.length} channels
           {memberOnly && " (member only)"}
         </div>

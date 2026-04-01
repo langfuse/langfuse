@@ -6,7 +6,7 @@ import {
   MeasuringStrategy,
   DragOverlay,
 } from "@dnd-kit/core";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/ui/progress";
@@ -66,12 +66,34 @@ export function PreviewCsvImport({
     dataset?.expectedOutputSchema,
   );
 
+  // Toggle states for direct mapping mode (per field)
+  const [useDirectMappingForInput, setUseDirectMappingForInput] =
+    useState(false);
+  const [
+    useDirectMappingForExpectedOutput,
+    setUseDirectMappingForExpectedOutput,
+  ] = useState(false);
+
+  // Compute effective schema keys - pass undefined when in direct mapping mode
+  const effectiveInputSchemaKeys = useDirectMappingForInput
+    ? undefined
+    : (inputSchemaKeys ?? undefined);
+  const effectiveExpectedOutputSchemaKeys = useDirectMappingForExpectedOutput
+    ? undefined
+    : (expectedOutputSchemaKeys ?? undefined);
+
   // Mapping state
   const mapping = useCsvMapping({
     preview,
-    inputSchemaKeys: inputSchemaKeys ?? undefined,
-    expectedOutputSchemaKeys: expectedOutputSchemaKeys ?? undefined,
+    inputSchemaKeys: effectiveInputSchemaKeys,
+    expectedOutputSchemaKeys: effectiveExpectedOutputSchemaKeys,
   });
+
+  // Reset mappings when switching modes (avoids stale closure in callback)
+  useEffect(() => {
+    mapping.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useDirectMappingForInput, useDirectMappingForExpectedOutput]);
 
   // Drag and drop
   const dragAndDrop = useCsvDragAndDrop({
@@ -113,10 +135,9 @@ export function PreviewCsvImport({
 
   const handleImport = async () => {
     capture("dataset_item:upload_csv_form_submit");
-    await csvImport.execute(wrapSingleColumn);
+    const success = await csvImport.execute(wrapSingleColumn);
 
-    // Close dialog on success
-    if (csvImport.progress.status === "complete") {
+    if (success) {
       setOpen?.(false);
       setPreview(null);
     }
@@ -146,7 +167,7 @@ export function PreviewCsvImport({
               },
             }}
           >
-            <div className="grid min-h-0 flex-1 grid-cols-[1fr,2fr] gap-4">
+            <div className="grid min-h-0 flex-1 grid-cols-[1fr_2fr] gap-4">
               <CsvColumnsCard
                 columns={preview.columns}
                 columnCount={preview.totalColumns}
@@ -158,23 +179,33 @@ export function PreviewCsvImport({
                 onRemoveInputColumn={mapping.removeColumnFromInput}
                 onRemoveExpectedColumn={mapping.removeColumnFromExpectedOutput}
                 onRemoveMetadataColumn={mapping.removeColumnFromMetadata}
+                inputSchemaKeys={inputSchemaKeys}
+                expectedOutputSchemaKeys={expectedOutputSchemaKeys}
+                useDirectMappingForInput={useDirectMappingForInput}
+                useDirectMappingForExpectedOutput={
+                  useDirectMappingForExpectedOutput
+                }
+                onToggleDirectMappingForInput={setUseDirectMappingForInput}
+                onToggleDirectMappingForExpectedOutput={
+                  setUseDirectMappingForExpectedOutput
+                }
               />
             </div>
             {createPortal(
               <DragOverlay dropAnimation={null} adjustScale={false}>
                 {dragAndDrop.activeColumn ? (
                   dragAndDrop.activeColumn.startsWith("mapped-") ? (
-                    <div className="cursor-grabbing rounded-md bg-accent-dark-blue px-2 py-1 text-sm font-medium text-muted-foreground shadow-xl">
+                    <div className="bg-accent-dark-blue text-muted-foreground cursor-grabbing rounded-md px-2 py-1 text-sm font-medium shadow-xl">
                       {dragAndDrop.activeColumn.replace("mapped-", "")}
                     </div>
                   ) : (
-                    <div className="flex cursor-grabbing items-center gap-2 rounded-md border bg-background p-2 shadow-xl">
-                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/70" />
+                    <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
+                      <GripVertical className="text-muted-foreground/70 h-4 w-4 shrink-0" />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                         <span className="truncate text-sm">
                           {dragAndDrop.activeColumn}
                         </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground shrink-0 text-xs">
                           {
                             preview.columns.find(
                               (col) => col.name === dragAndDrop.activeColumn,
@@ -195,7 +226,10 @@ export function PreviewCsvImport({
         )}
       </DialogBody>
       <DialogFooter>
-        {!isSchemaMode && (
+        {/* Show checkbox in freeform mode OR when using direct mapping for any field */}
+        {(useDirectMappingForInput ||
+          useDirectMappingForExpectedOutput ||
+          !isSchemaMode) && (
           <div className="flex items-center gap-2">
             <Checkbox
               id="wrapSingleColumn"
@@ -212,7 +246,7 @@ export function PreviewCsvImport({
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[300px]">
                 When a single csv column is mapped to a dataset item field, wrap

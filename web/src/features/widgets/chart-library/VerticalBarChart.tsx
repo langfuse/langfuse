@@ -29,7 +29,10 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   subtleFill = false,
 }) => {
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart accessibilityLayer={accessibilityLayer} data={data}>
         <XAxis
           type="category"
@@ -38,6 +41,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
         />
         <YAxis
           type="number"
@@ -49,10 +53,11 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
-          className="fill-[--color-metric]"
+          className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
         />
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           content={({ active, payload, label }) => (
             <ChartTooltipContent

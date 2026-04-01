@@ -37,6 +37,12 @@ export const addToDatasetRouter = createTRPCRouter({
 
         const { projectId, query, config } = input;
 
+        const useEventsTable =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+        const tableName = useEventsTable
+          ? BatchTableNames.Events
+          : BatchTableNames.Observations;
+
         // Check observation count doesn't exceed maximum
         const queryOpts = {
           projectId,
@@ -44,10 +50,9 @@ export const addToDatasetRouter = createTRPCRouter({
           limit: 1,
           offset: 0,
         };
-        const observationCount =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-            ? await getObservationsCountFromEventsTable(queryOpts)
-            : await getObservationsTableCount(queryOpts);
+        const observationCount = useEventsTable
+          ? await getObservationsCountFromEventsTable(queryOpts)
+          : await getObservationsTableCount(queryOpts);
 
         if (observationCount > MAX_BATCH_ADD_TO_DATASET_ITEMS) {
           throw new TRPCError({
@@ -67,7 +72,7 @@ export const addToDatasetRouter = createTRPCRouter({
             projectId,
             userId,
             actionType: ActionId.ObservationAddToDataset,
-            tableName: BatchTableNames.Observations,
+            tableName,
             status: BatchActionStatus.Queued,
             query,
             config,
@@ -95,7 +100,7 @@ export const addToDatasetRouter = createTRPCRouter({
               batchActionId: batchAction.id,
               projectId,
               actionId: ActionId.ObservationAddToDataset,
-              tableName: BatchTableNames.Observations,
+              tableName,
               cutoffCreatedAt: new Date(),
               query,
               config,

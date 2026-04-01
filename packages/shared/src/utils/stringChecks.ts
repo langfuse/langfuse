@@ -1,11 +1,11 @@
 export function getIsCharOrUnderscore(value: string): boolean {
-  const charOrUnderscore = /^[A-Za-z_]+$/;
+  const charOrUnderscore = /^[\p{L}\p{N}_]+$/u;
 
   return charOrUnderscore.test(value);
 }
 
-// Regex for valid variable names (letters, underscores, starting with letter)
-export const VARIABLE_REGEX = /^[a-zA-Z][a-zA-Z_]*$/;
+// Regex for valid variable names (unicode letters, underscores, starting with letter)
+export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
 
 // Regex to find variables in mustache syntax
 export const MUSTACHE_REGEX = /{{([^{}]*)}}+/g;

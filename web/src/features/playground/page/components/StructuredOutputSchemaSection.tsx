@@ -94,7 +94,7 @@ export const StructuredOutputSchemaPopover = () => {
     <Command className="flex flex-col">
       <CommandInput
         placeholder="Search schemas..."
-        className="h-8 border-none py-1 pl-6 pr-1 focus:ring-0 focus:ring-offset-0"
+        className="h-8 border-none py-1 pr-1 pl-6 focus:ring-0 focus:ring-offset-0"
       />
       <CommandList className="max-h-[300px] overflow-y-auto">
         <CommandEmpty>No schemas found.</CommandEmpty>
@@ -106,11 +106,11 @@ export const StructuredOutputSchemaPopover = () => {
               onSelect={() => handleSelectSchema(schema)}
               className="flex items-center justify-between px-1 py-2"
             >
-              <div className="flex items-center gap-2">
-                <BoxIcon className="h-4 w-4 text-muted-foreground" />
-                <div className="flex-1 overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+                <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{schema.name}</div>
-                  <div className="line-clamp-1 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground line-clamp-1 text-xs">
                     {schema.description}
                   </div>
                 </div>
@@ -238,10 +238,10 @@ export const StructuredOutputSchemaSection = () => {
   };
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="max-h-[min(45vh,18rem)]">
       {!structuredOutputSchema ? (
         <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
-          <p className="text-xs text-muted-foreground">No schema provided.</p>
+          <p className="text-muted-foreground text-xs">No schema provided.</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -264,42 +264,42 @@ export const StructuredOutputSchemaSection = () => {
                 : undefined
             }
           >
-            <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
-              <div className="mb-1 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <BoxIcon className="h-4 w-4 text-muted-foreground" />
+            <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-2 right-3 h-6 w-6 p-0"
+                aria-label={`Remove schema ${structuredOutputSchema.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleRemoveSchema();
+                }}
+              >
+                <MinusCircle className="h-4 w-4" />
+              </Button>
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
+                <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0">
                   <h3
-                    className="max-w-[200px] truncate text-ellipsis text-sm font-medium"
+                    className="truncate text-sm font-medium"
                     title={structuredOutputSchema.name}
                   >
                     {structuredOutputSchema.name}
                   </h3>
                   {!isSchemaSaved(structuredOutputSchema) ? (
-                    <span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                    <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
                       Unsaved
                     </span>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveSchema();
-                    }}
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
+                <p
+                  className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
+                  title={structuredOutputSchema.description}
+                >
+                  {structuredOutputSchema.description}
+                </p>
               </div>
-              <p
-                className="line-clamp-2 break-all text-xs text-muted-foreground"
-                title={structuredOutputSchema.description}
-              >
-                {structuredOutputSchema.description}
-              </p>
             </div>
           </CreateOrEditLLMSchemaDialog>
         </div>

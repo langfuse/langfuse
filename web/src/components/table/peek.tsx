@@ -13,6 +13,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -58,9 +59,6 @@ export type DataTablePeekViewProps = {
    * The content to display in the peek view.
    */
   children: React.ReactNode;
-
-  /** The timestamp of the last time the table data was updated */
-  tableDataUpdatedAt: number;
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
@@ -108,11 +106,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         side="right"
         className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
       >
-        <SheetHeader className="flex min-h-11 flex-row flex-nowrap items-center justify-between bg-header px-2 py-1">
-          <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
+        <SheetHeader className="bg-header flex min-h-11 flex-row flex-nowrap items-center justify-between px-2 py-1">
+          <SheetTitle className="mt-0! ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span
-              className="truncate text-sm font-medium focus:outline-none"
+              className="truncate text-sm font-medium focus:outline-hidden"
               tabIndex={0}
             >
               {peekView.customTitlePrefix
@@ -122,7 +120,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </SheetTitle>
           <div
             className={cn(
-              "!mt-0 flex flex-shrink-0 flex-row items-center gap-2",
+              "mt-0! flex shrink-0 flex-row items-center gap-2",
               !canExpand && "mr-8",
             )}
           >
@@ -136,7 +134,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 />
               )}
             {canExpand && (
-              <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
+              <div className="mt-0! mr-8 flex h-full flex-row items-center gap-1 border-l">
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -159,17 +157,16 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </div>
         </SheetHeader>
         <Separator />
-        <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto" key={itemId}>
-            {peekView.children}
+        <PeekTableStateProvider>
+          <div className="flex max-h-full min-h-0 flex-1 flex-col">
+            <div className="flex-1 overflow-auto" key={itemId}>
+              {peekView.children}
+            </div>
           </div>
-        </div>
+        </PeekTableStateProvider>
       </SheetContent>
     </Sheet>
   );
 }
 
-export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
-  // TODO LFE-6627: drop tableDataUpdatedAt and allow memoization to work independently of table data updates
-  return prev.peekView.tableDataUpdatedAt === next.peekView.tableDataUpdatedAt;
-}) as typeof TablePeekViewComponent;
+export const TablePeekView = memo(TablePeekViewComponent);

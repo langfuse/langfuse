@@ -1,4 +1,4 @@
-import { Job } from "bullmq";
+import { Job, Processor } from "bullmq";
 import { JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -7,6 +7,7 @@ import {
   logger,
   traceException,
   EvalExecutionQueue,
+  SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   getCurrentSpan,
@@ -19,6 +20,7 @@ import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
+import { env } from "../env";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -113,156 +115,218 @@ export const evalJobCreatorQueueProcessor = async (
   }
 };
 
-export const evalJobExecutorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>,
-) => {
-  try {
-    logger.info("Executing Evaluation Execution Job", job.data);
+export const evalJobExecutorQueueProcessorBuilder = (
+  enableRedirectToSecondaryQueue: boolean,
+  queueName: string,
+): Processor => {
+  const projectIdsToRedirectToSecondaryQueue =
+    env.LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS?.split(
+      ",",
+    ) ?? [];
 
-    const span = getCurrentSpan();
+  return async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
+    try {
+      logger.info("Executing Evaluation Execution Job", job.data);
 
-    if (span) {
-      span.setAttribute(
-        "messaging.bullmq.job.input.jobExecutionId",
+      // Redirect selected projects to the secondary queue from the primary consumer.
+      if (enableRedirectToSecondaryQueue) {
+        const projectId = job.data.payload.projectId;
+        const shouldRedirectToSecondaryQueue =
+          projectIdsToRedirectToSecondaryQueue.includes(projectId);
+
+        if (shouldRedirectToSecondaryQueue) {
+          logger.debug(
+            `Redirecting evaluation execution job to secondary queue for project ${projectId}`,
+          );
+          const shardingKey = `${projectId}-${job.data.payload.jobExecutionId}`;
+          const secondaryQueue = SecondaryEvalExecutionQueue.getInstance({
+            shardingKey,
+          });
+          if (!secondaryQueue) {
+            throw new Error(
+              "Secondary evaluation execution queue is not available",
+            );
+          }
+
+          await secondaryQueue.add(
+            QueueName.EvaluationExecutionSecondaryQueue,
+            job.data,
+          );
+          return;
+        }
+      }
+
+      const span = getCurrentSpan();
+
+      if (span) {
+        span.setAttribute(
+          "messaging.bullmq.job.input.jobExecutionId",
+          job.data.payload.jobExecutionId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.projectId",
+          job.data.payload.projectId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.retryBaggage.attempt",
+          job.data.retryBaggage?.attempt ?? 0,
+        );
+      }
+
+      await evaluate({ event: job.data.payload });
+      return true;
+    } catch (e) {
+      // ┌─────────────────────────┐
+      // │   Job Fails with Error  │
+      // └───────────┬─────────────┘
+      //             │
+      //             ▼
+      // ┌────────────────────────────────────────┐
+      // │ Is it LLMCompletionError with          │
+      // │ isRetryable=true (429/5xx)?            │
+      // └─────┬──────────────────────────────┬───┘
+      //       │ Yes                          │ No
+      //       ▼                              ▼
+      // ┌──────────────────┐       ┌───────────────────────┐
+      // │ Is job < 24h old?│       │ Is it retryable?      │
+      // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
+      //   Yes │      │ No          └─────┬─────────────┬───┘
+      //       ▼      ▼                Yes│             │No
+      // ┌─────────┐ ┌────────┐          ▼             ▼
+      // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
+      // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
+      // │Retry in │ │Stop    │    │retry    │  │ERROR     │
+      // │1-25 min │ │        │    │w/ exp.  │  │Done      │
+      // └─────────┘ └────────┘    │backoff  │  └──────────┘
+      //                           └─────────┘
+
+      const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
-      span.setAttribute(
-        "messaging.bullmq.job.input.projectId",
-        job.data.payload.projectId,
-      );
-      span.setAttribute(
-        "messaging.bullmq.job.input.retryBaggage.attempt",
-        job.data.retryBaggage?.attempt ?? 0,
-      );
-    }
 
-    await evaluate({ event: job.data.payload });
-    return true;
-  } catch (e) {
-    // ┌─────────────────────────┐
-    // │   Job Fails with Error  │
-    // └───────────┬─────────────┘
-    //             │
-    //             ▼
-    // ┌────────────────────────────────────────┐
-    // │ Is it LLMCompletionError with          │
-    // │ isRetryable=true (429/5xx)?            │
-    // └─────┬──────────────────────────────┬───┘
-    //       │ Yes                          │ No
-    //       ▼                              ▼
-    // ┌──────────────────┐       ┌───────────────────────┐
-    // │ Is job < 24h old?│       │ Is it retryable?      │
-    // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
-    //   Yes │      │ No          └─────┬─────────────┬───┘
-    //       ▼      ▼                Yes│             │No
-    // ┌─────────┐ ┌────────┐          ▼             ▼
-    // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
-    // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
-    // │Retry in │ │Stop    │    │retry    │  │ERROR     │
-    // │1-25 min │ │        │    │w/ exp.  │  │Done      │
-    // └─────────┘ └────────┘    │backoff  │  └──────────┘
-    //                           └─────────┘
+      if (isLLMCompletionError(e) && e.isRetryable) {
+        const queue = queueName.startsWith(
+          QueueName.EvaluationExecutionSecondaryQueue,
+        )
+          ? SecondaryEvalExecutionQueue.getInstance({ shardName: queueName })
+          : EvalExecutionQueue.getInstance({ shardName: queueName });
 
-    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+        await retryLLMRateLimitError(job, {
+          table: "job_executions",
+          idField: "jobExecutionId",
+          queue,
+          queueName,
+          jobName: QueueJobs.EvaluationExecution,
+          delayFn: delayInMs,
+        });
 
-    if (isLLMCompletionError(e) && e.isRetryable) {
-      await retryLLMRateLimitError(job, {
-        table: "job_executions",
-        idField: "jobExecutionId",
-        queue: EvalExecutionQueue.getInstance(),
-        queueName: QueueName.EvaluationExecution,
-        jobName: QueueJobs.EvaluationExecution,
-        delayFn: delayInMs,
-      });
+        // Use the deterministic execution trace ID to update the job execution
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
 
-      // Use the deterministic execution trace ID to update the job execution
+        // Return early as we have already scheduled a delayed retry
+        return;
+      }
+
+      // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
       await prisma.jobExecution.update({
         where: {
           id: job.data.payload.jobExecutionId,
           projectId: job.data.payload.projectId,
         },
         data: {
-          status: JobExecutionStatus.DELAYED,
+          status: JobExecutionStatus.ERROR,
+          endTime: new Date(),
+          // Show user-facing error messages (LLM and config errors)
+          error:
+            isLLMCompletionError(e) || isUnrecoverableError(e)
+              ? e.message
+              : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      // Return early as we have already scheduled a delayed retry
-      return;
+      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+
+      traceException(e);
+      logger.error(
+        `Failed ${queueName} job for id ${job.data.payload.jobExecutionId}`,
+        e,
+      );
+
+      // Retry job by rethrowing error
+      throw e;
     }
-
-    // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
-    await prisma.jobExecution.update({
-      where: {
-        id: job.data.payload.jobExecutionId,
-        projectId: job.data.payload.projectId,
-      },
-      data: {
-        status: JobExecutionStatus.ERROR,
-        endTime: new Date(),
-        // Show user-facing error messages (LLM and config errors)
-        error:
-          isLLMCompletionError(e) || isUnrecoverableError(e)
-            ? e.message
-            : "An internal error occurred",
-        executionTraceId,
-      },
-    });
-
-    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
-
-    traceException(e);
-    logger.error(
-      `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
-      e,
-    );
-
-    // Retry job by rethrowing error
-    throw e;
-  }
+  };
 };
 
-/**
- * Processor for observation-level LLM-as-a-judge evaluation jobs.
- * This handles evals triggered during OTEL ingestion for single observations.
- */
-export const llmAsJudgeExecutionQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>,
-) => {
-  try {
-    logger.debug("Executing LLM-as-Judge Observation Evaluation Job", job.data);
+export const llmAsJudgeExecutionQueueProcessorBuilder =
+  (queueName: string): Processor =>
+  async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
+    try {
+      logger.debug(
+        "Executing LLM-as-Judge Observation Evaluation Job",
+        job.data,
+      );
 
-    const span = getCurrentSpan();
+      const span = getCurrentSpan();
 
-    if (span) {
-      span.setAttribute(
-        "messaging.bullmq.job.input.jobExecutionId",
+      if (span) {
+        span.setAttribute(
+          "messaging.bullmq.job.input.jobExecutionId",
+          job.data.payload.jobExecutionId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.projectId",
+          job.data.payload.projectId,
+        );
+        span.setAttribute(
+          "messaging.bullmq.job.input.retryBaggage.attempt",
+          job.data.retryBaggage?.attempt ?? 0,
+        );
+      }
+
+      await processObservationEval({ event: job.data.payload });
+      return true;
+    } catch (e) {
+      const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
-      span.setAttribute(
-        "messaging.bullmq.job.input.projectId",
-        job.data.payload.projectId,
-      );
-      span.setAttribute(
-        "messaging.bullmq.job.input.retryBaggage.attempt",
-        job.data.retryBaggage?.attempt ?? 0,
-      );
-    }
 
-    await processObservationEval({ event: job.data.payload });
-    return true;
-  } catch (e) {
-    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+      if (isLLMCompletionError(e) && e.isRetryable) {
+        const queue = LLMAsJudgeExecutionQueue.getInstance({
+          shardName: queueName,
+        });
+        await retryLLMRateLimitError(job, {
+          table: "job_executions",
+          idField: "jobExecutionId",
+          queue,
+          queueName,
+          jobName: QueueJobs.LLMAsJudgeExecution,
+          delayFn: delayInMs,
+        });
 
-    if (isLLMCompletionError(e) && e.isRetryable) {
-      await retryLLMRateLimitError(job, {
-        table: "job_executions",
-        idField: "jobExecutionId",
-        queue: LLMAsJudgeExecutionQueue.getInstance(),
-        queueName: QueueName.LLMAsJudgeExecution,
-        jobName: QueueJobs.LLMAsJudgeExecution,
-        delayFn: delayInMs,
-      });
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.DELAYED,
+            executionTraceId,
+          },
+        });
+
+        return;
+      }
 
       await prisma.jobExecution.update({
         where: {
@@ -270,38 +334,24 @@ export const llmAsJudgeExecutionQueueProcessor = async (
           projectId: job.data.payload.projectId,
         },
         data: {
-          status: JobExecutionStatus.DELAYED,
+          status: JobExecutionStatus.ERROR,
+          endTime: new Date(),
+          error:
+            isLLMCompletionError(e) || isUnrecoverableError(e)
+              ? e.message
+              : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      return;
+      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+
+      traceException(e);
+      logger.error(
+        `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
+        e,
+      );
+
+      throw e;
     }
-
-    await prisma.jobExecution.update({
-      where: {
-        id: job.data.payload.jobExecutionId,
-        projectId: job.data.payload.projectId,
-      },
-      data: {
-        status: JobExecutionStatus.ERROR,
-        endTime: new Date(),
-        error:
-          isLLMCompletionError(e) || isUnrecoverableError(e)
-            ? e.message
-            : "An internal error occurred",
-        executionTraceId,
-      },
-    });
-
-    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
-
-    traceException(e);
-    logger.error(
-      `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
-      e,
-    );
-
-    throw e;
-  }
-};
+  };

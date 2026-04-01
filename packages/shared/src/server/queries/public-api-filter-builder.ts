@@ -9,9 +9,12 @@ import {
   NumberFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
-import { z } from "zod/v4";
+import { z } from "zod";
 import type { FilterState } from "../../types";
-import type { UiColumnMappings } from "../../tableDefinitions";
+import type {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
@@ -83,8 +86,8 @@ const TRACES_COLUMN_DEFINITIONS = [
  * Convenience function: Get just the simple filter mappings for public API
  */
 export function createPublicApiTracesColumnMapping(
-  tableName: "traces" | "events",
-  tablePrefix: "t" | "e",
+  tableName: "traces",
+  tablePrefix: "t",
 ): ApiColumnMapping[] {
   const timestampColumn = "timestamp";
   const simpleFilters: ApiColumnMapping[] = [];
@@ -128,7 +131,7 @@ export function createPublicApiTracesColumnMapping(
  * Eliminates duplication between events and observations filter mappings.
  */
 export function createPublicApiObservationsColumnMapping(
-  tableName: "events" | "observations",
+  tableName: "events_proto" | "observations",
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {
@@ -353,10 +356,15 @@ export function deriveFilters<T extends BaseQueryType>(
   filterParamsMapping: ApiColumnMapping[],
   advancedFilters: FilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ): FilterList {
   // Start with advanced filters converted to FilterList
   const filterList = new FilterList(
-    createFilterFromFilterState(advancedFilters ?? [], uiColumnDefinitions),
+    createFilterFromFilterState(
+      advancedFilters ?? [],
+      uiColumnDefinitions,
+      columnDefinitions,
+    ),
   );
 
   // Convert simple parameters to filters

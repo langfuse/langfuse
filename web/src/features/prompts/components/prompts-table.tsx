@@ -9,6 +9,8 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
+import { DeleteFolder } from "@/src/features/prompts/components/delete-folder";
+import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -229,8 +231,10 @@ export function PromptTable() {
   const queryFilter = useSidebarFilterState(
     promptFilterConfig,
     newFilterOptions,
-    projectId,
-    promptFilterOptions.isPending,
+    {
+      loading: promptFilterOptions.isPending,
+      sessionFilterContextId: projectId ?? null,
+    },
   );
 
   useEffect(() => {
@@ -358,9 +362,17 @@ export function PromptTable() {
       header: "Actions",
       size: 70,
       cell: (row) => {
-        if (row.row.original.type === "folder") return null;
+        const rowData = row.row.original;
+        if (rowData.type === "folder") {
+          return (
+            <div className="flex gap-1">
+              <DuplicateFolder folderPath={rowData.fullPath} />
+              <DeleteFolder folderPath={rowData.fullPath} />
+            </div>
+          );
+        }
 
-        const promptPath = row.row.original.fullPath;
+        const promptPath = rowData.fullPath;
         return <DeletePrompt promptName={promptPath} />;
       },
     }),

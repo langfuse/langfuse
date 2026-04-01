@@ -15,6 +15,7 @@ import {
   sessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/sessions-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
@@ -33,7 +34,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -152,9 +153,9 @@ export default function SessionsTable({
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
@@ -240,8 +241,12 @@ export default function SessionsTable({
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -253,7 +258,7 @@ export default function SessionsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );
@@ -340,6 +345,7 @@ export default function SessionsTable({
     {
       projectId,
       sessionIds: sessionsV4.data?.sessions.map((s) => s.id) ?? [],
+      queryFromTimestamp: dateRange?.from ?? null,
     },
     {
       enabled: sessionsV4.data !== undefined && isBetaEnabled,
@@ -352,10 +358,14 @@ export default function SessionsTable({
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
 
-  const sessionRowData = joinTableCoreAndMetrics<
-    SessionCoreOutput,
-    SessionMetricOutput
-  >(sessions.data?.sessions, sessionMetrics.data);
+  const sessionRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+        sessions.data?.sessions,
+        sessionMetrics.data,
+      ),
+    [sessions.data?.sessions, sessionMetrics.data],
+  );
 
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
@@ -746,15 +756,15 @@ export default function SessionsTable({
       columns,
       filterColumnDefinition: sessionFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           actionButtons={[
             Object.keys(selectedRows).filter((sessionId) =>
               sessions.data?.sessions.map((s) => s.id).includes(sessionId),

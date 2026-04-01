@@ -284,6 +284,7 @@ describe("Webhook Integration Tests", () => {
       expect(payload.action).toBe("created");
       expect(payload.prompt.name).toBe("test-prompt");
       expect(payload.prompt.version).toBe(1);
+      expect(payload.prompt.createdBy).toBe("test-user");
       expect(payload.timestamp).toBeDefined();
       expect(payload.prompt.createdAt).toBeDefined();
       expect(payload.prompt.updatedAt).toBeDefined();
@@ -1090,9 +1091,8 @@ describe("Webhook Integration Tests", () => {
       });
 
       // Import the function to test it directly
-      const { getConsecutiveAutomationFailures } = await import(
-        "@langfuse/shared/src/server"
-      );
+      const { getConsecutiveAutomationFailures } =
+        await import("@langfuse/shared/src/server");
 
       // Check that consecutive failures is 0 since there are no executions after the lastFailingExecutionId
       const failures = await getConsecutiveAutomationFailures({
@@ -1242,5 +1242,178 @@ describe("Webhook Integration Tests", () => {
         );
       },
     );
+
+    it("should include user info in webhook payload when provided", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const testUser = {
+        id: "user-123",
+        name: "Test User",
+        email: "test@example.com",
+      };
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+          user: testUser,
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.user).toEqual({
+        name: testUser.name,
+        email: testUser.email,
+      });
+      expect(payload.user.id).toBeUndefined();
+      // Verify prompt is still the last field
+      const payloadKeys = Object.keys(payload);
+      expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
+    });
+
+    it("should omit user field from webhook payload when not provided", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.user).toBeUndefined();
+    });
+
+    it("should include user info in GitHub dispatch payload when provided", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const testUser = {
+        id: "user-456",
+        name: "GitHub User",
+        email: "github@example.com",
+      };
+
+      // Create a GitHub dispatch action
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "prompt-update",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      // Create automation linking trigger and GitHub dispatch action
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Automation",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: promptId,
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+          user: testUser,
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.event_type).toBe("prompt-update");
+      expect(payload.client_payload.user).toEqual({
+        name: testUser.name,
+        email: testUser.email,
+      });
+      expect(payload.client_payload.user.id).toBeUndefined();
+      // Verify prompt is still the last field in client_payload
+      const clientPayloadKeys = Object.keys(payload.client_payload);
+      expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
+    });
   });
 });

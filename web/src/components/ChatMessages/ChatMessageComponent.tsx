@@ -1,6 +1,14 @@
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { memo, useState, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type RefObject,
+} from "react";
+import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -24,6 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import {
+  useOptionalMessageSearchActions,
+  useOptionalMessageSearchPageId,
+} from "./MessageSearch";
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -83,6 +96,17 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   toolCallIds,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
+  const playgroundContext = useOptionalPlaygroundContext();
+  const searchPageId = useOptionalMessageSearchPageId();
+  const messageSearchActions = useOptionalMessageSearchActions();
+  const pageId = playgroundContext?.windowId ?? searchPageId;
+  const registerMessageTarget = messageSearchActions?.registerMessageTarget;
+  const unregisterMessageTarget = messageSearchActions?.unregisterMessageTarget;
+  const shouldUseMessageSearch = Boolean(
+    pageId && registerMessageTarget && unregisterMessageTarget,
+  );
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const {
     attributes,
@@ -92,6 +116,14 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     transition,
     isDragging,
   } = useSortable({ id: message.id });
+
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rowRef.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
 
   const toggleRole = () => {
     // Only allow role toggling for messages that have a role property (not placeholder messages)
@@ -190,16 +222,48 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
+  useEffect(() => {
+    if (!pageId || !registerMessageTarget || !unregisterMessageTarget) {
+      return;
+    }
+
+    registerMessageTarget(pageId, message.id, {
+      rowRef,
+      editorRef,
+    });
+
+    return () => {
+      unregisterMessageTarget(pageId, message.id);
+    };
+  }, [
+    editorRef,
+    message.id,
+    pageId,
+    registerMessageTarget,
+    unregisterMessageTarget,
+  ]);
+
+  const handleEditorMount = useCallback(() => {
+    if (!pageId || !registerMessageTarget) {
+      return;
+    }
+
+    registerMessageTarget(pageId, message.id, {
+      rowRef,
+      editorRef,
+    });
+  }, [message.id, pageId, registerMessageTarget]);
+
   return (
     <Card
-      ref={setNodeRef}
+      ref={setCardRef}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
       }}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "shadow-xs group relative border p-1 transition-shadow duration-200 hover:shadow-sm",
+        "group relative border p-1 shadow-2xs transition-shadow duration-200 hover:shadow-xs",
       )}
     >
       <div className="flex flex-row justify-center">
@@ -213,9 +277,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         <CardContent
           className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
         >
-          <div className="sticky bottom-0 top-0 z-10 flex w-[4rem] flex-shrink-0 flex-col gap-1 bg-background">
+          <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
-              <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
+              <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
                 placeholder
               </span>
             ) : (
@@ -223,7 +287,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 onClick={toggleRole}
                 type="button"
                 variant="ghost"
-                className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-semibold"
               >
                 {capitalize(message.role)}
               </Button>
@@ -245,7 +309,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 >
                   <SelectTrigger
                     title="Select Tool Call ID"
-                    className="h-[25px] w-[96px] border-0 bg-muted text-[9px]"
+                    className="bg-muted h-[25px] w-[96px] border-0 text-[9px]"
                   >
                     <SelectValue placeholder="Select Call ID" />
                   </SelectTrigger>
@@ -263,12 +327,18 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   value={(message as PlaceholderMessage).name || ""}
                   onChange={onPlaceholderNameChange}
                   role={message.type}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               ) : (
                 <MemoizedEditor
                   value={message.content}
                   onChange={onValueChange}
                   role={message.role}
+                  editorRef={editorRef}
+                  onEditorMount={handleEditorMount}
+                  enableSearchKeymap={!shouldUseMessageSearch}
                 />
               )}
             </div>
@@ -281,7 +351,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             type="button"
             size="icon"
             onClick={() => deleteMessage(message.id)}
-            className="h-5 w-5 flex-shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
+            className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
             <MinusCircleIcon size={14} />
@@ -296,8 +366,18 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   value: string;
   role: ChatMessage["role"];
   onChange: (value: string) => void;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+  onEditorMount: () => void;
+  enableSearchKeymap: boolean;
 }) {
-  const { value, role, onChange } = props;
+  const {
+    value,
+    role,
+    onChange,
+    editorRef,
+    onEditorMount,
+    enableSearchKeymap,
+  } = props;
   const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
 
   return (
@@ -305,11 +385,13 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
       value={value}
       onChange={onChange}
       mode="prompt"
-      minHeight="none"
       className="w-full rounded-md border-0"
       editable={true}
       lineNumbers={false}
       placeholder={placeholder}
+      editorRef={editorRef}
+      enableSearchKeymap={enableSearchKeymap}
+      onEditorMount={onEditorMount}
     />
   );
 });

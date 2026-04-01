@@ -3,6 +3,7 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TracingSearchType,
+  tracesTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -93,6 +94,7 @@ export const getTraceStream = async (props: {
         },
       ],
       tracesTableUiColumnDefinitions,
+      tracesTableCols,
     ),
   );
 
@@ -121,11 +123,16 @@ export const getTraceStream = async (props: {
           tuple(name, avg_value, data_type, string_value),
           data_type IN ('NUMERIC', 'BOOLEAN')
         ) AS scores_avg,
-        -- For categorical scores, use name:value format for improved query performance
+        -- concat encoding for hasAny filter compatibility
         groupArrayIf(
           concat(name, ':', string_value),
           data_type = 'CATEGORICAL' AND notEmpty(string_value)
-        ) AS score_categories
+        ) AS score_categories,
+        -- tuple encoding for accurate output parsing (names may contain colons)
+        groupArrayIf(
+          tuple(name, string_value),
+          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+        ) AS score_categories_tuples
       FROM (
         SELECT
           project_id,
@@ -163,7 +170,8 @@ export const getTraceStream = async (props: {
         t.output as output,
         t.metadata as metadata,
         s.scores_avg as scores_avg,
-        s.score_categories as score_categories
+        s.score_categories as score_categories,
+        s.score_categories_tuples as score_categories_tuples
       FROM traces t
         LEFT JOIN scores_agg s ON s.trace_id = t.id AND s.project_id = t.project_id
       WHERE t.project_id = {projectId: String}
@@ -198,6 +206,7 @@ export const getTraceStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null][] | undefined;
   }>({
     query,
     params: {
@@ -229,17 +238,14 @@ export const getTraceStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          stringValue: valueParts.join(":"),
-        };
-      },
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat: [string, string | null]) => ({
+        name: cat[0],
+        value: null,
+        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =

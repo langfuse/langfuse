@@ -24,7 +24,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -37,7 +37,10 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   AnnotationQueueObjectType,
   {
-    actionId: Exclude<ActionId, ActionId.ObservationAddToDataset>;
+    actionId: Exclude<
+      ActionId,
+      ActionId.ObservationAddToDataset | ActionId.ObservationBatchEvaluation
+    >;
     tableName: BatchTableNames;
   }
 > = {

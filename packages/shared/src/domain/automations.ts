@@ -1,6 +1,6 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export enum TriggerEventSource {
   Prompt = "prompt",

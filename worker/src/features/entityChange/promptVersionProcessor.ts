@@ -27,10 +27,12 @@ export const promptVersionProcessor = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
-      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
-      { event: JSON.stringify(event, null, 2) },
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+        { event: JSON.stringify(event, null, 2) },
+      );
+    }
 
     // Get active prompt triggers
     const triggers = await getTriggerConfigurations({
@@ -118,6 +120,7 @@ export const promptVersionProcessor = async (
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
+              user: event.user,
             });
           }),
         );
@@ -146,12 +149,14 @@ async function enqueueAutomationAction({
   triggerId,
   actionId,
   projectId,
+  user,
 }: {
   promptData: PromptResult;
   action: string;
   triggerId: string;
   actionId: string;
   projectId: string;
+  user?: { id: string; name: string | null; email: string | null };
 }): Promise<void> {
   // Get automations for this action
   const automations = await getAutomations({
@@ -207,6 +212,7 @@ async function enqueueAutomationAction({
           prompt: jsonSchemaNullable.parse(promptData.prompt),
           config: jsonSchemaNullable.parse(promptData.config),
         },
+        ...(user ? { user } : {}),
       },
     },
     name: QueueJobs.WebhookJob,

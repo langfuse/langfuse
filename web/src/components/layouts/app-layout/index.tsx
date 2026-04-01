@@ -132,7 +132,9 @@ export function AppLayout(props: PropsWithChildren) {
     if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
       posthog.reset();
     }
-    await signOut({ callbackUrl: `/auth/sign-in` });
+    await signOut({
+      callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
+    });
   };
 
   return (

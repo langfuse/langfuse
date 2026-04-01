@@ -12,7 +12,11 @@ import {
   tracesTableUiColumnDefinitions,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import { AGGREGATABLE_SCORE_TYPES, type OrderByState } from "@langfuse/shared";
+import {
+  AGGREGATABLE_SCORE_TYPES,
+  type OrderByState,
+  tracesTableCols,
+} from "@langfuse/shared";
 import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
@@ -77,6 +81,7 @@ async function buildTracesBaseQuery(
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
+    tracesTableCols,
   );
   const appliedFilter = filter.apply();
 
@@ -244,18 +249,16 @@ async function buildTracesBaseQuery(
   ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
   `;
 
-  const query = select.count
-    ? `${withClause}
-  	SELECT count() as count
-   	${queryMiddle}
-  `
-    : `
-    ${withClause}
+  const paginationClause =
+    props.limit !== undefined && props.page !== undefined
+      ? `LIMIT {limit: Int32} OFFSET {offset: Int32}`
+      : "";
+  const limitByClause = shouldUseSkipIndexes
+    ? "LIMIT 1 by t.id, t.project_id"
+    : "";
 
-    SELECT
-      -- Core fields (always included)
+  const coreSelect = `
       t.id as id,
-      CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
       t.project_id as project_id,
       t.timestamp as timestamp,
       t.name as name,
@@ -268,20 +271,106 @@ async function buildTracesBaseQuery(
       t.public as public,
       t.tags as tags,
       t.created_at as created_at,
-      t.updated_at as updated_at
-      -- IO fields (conditional)
-      ${select.includeIO ? ", t.input as input, t.output as output, t.metadata as metadata" : ""}
-      -- Scores (conditional)
-      ${select.includeScores ? ", s.score_ids as scores" : ""}
-      -- Observations (conditional)
-      ${select.includeObservations ? ", o.observation_ids as observations" : ""}
-      -- Metrics (conditional)
-      ${select.includeMetrics ? ", COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost" : ""}
-    ${queryMiddle}
-    ${chOrderBy}
-    ${shouldUseSkipIndexes ? "LIMIT 1 by t.id, t.project_id" : ""}
-    ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-  `;
+      t.updated_at as updated_at`;
+
+  const scoresSelect = select.includeScores ? ", s.score_ids as scores" : "";
+  const observationsSelect = select.includeObservations
+    ? ", o.observation_ids as observations"
+    : "";
+  const metricsSelect = select.includeMetrics
+    ? ", COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost"
+    : "";
+
+  // Re-apply the user's ORDER BY (or default timestamp desc) after the io LEFT JOIN.
+  // Intentionally omits the event_ts tiebreaker used in the base CTE because it only
+  // serves LIMIT 1 BY dedup; after dedup the base already has one row per (id, project_id).
+  const finalOrderBy =
+    orderByToClickhouseSql(
+      orderBy || [],
+      orderByColumns.map((c) => ({ ...c, queryPrefix: "b" })),
+    ) || "ORDER BY b.timestamp desc";
+
+  let query: string;
+
+  if (select.count) {
+    query = `${withClause}
+      SELECT count() as count
+      ${queryMiddle}
+    `;
+  } else if (select.includeIO) {
+    // Split query: sort/paginate on lightweight columns in base CTE,
+    // then fetch heavy IO columns only for the final result set.
+    ctes.push(`base AS (
+      SELECT ${coreSelect}
+        ${scoresSelect}
+        ${observationsSelect}
+        ${metricsSelect}
+      ${queryMiddle}
+      ${chOrderBy}
+      ${limitByClause}
+      ${paginationClause}
+    )`);
+
+    const ioFinal = shouldUseSkipIndexes ? "" : "FINAL";
+    const ioDedup = shouldUseSkipIndexes
+      ? "ORDER BY event_ts DESC LIMIT 1 BY id, project_id"
+      : "";
+    ctes.push(`io AS (
+      SELECT id as _io_id, project_id as _io_project_id, input, output, metadata
+      FROM traces ${ioFinal}
+      WHERE project_id = {projectId: String}
+      AND (id, project_id) IN (SELECT id, project_id FROM base)
+      ${fromTimeFilter ? "AND timestamp >= {cteFromTimeFilter: DateTime64(3)}" : ""}
+      ${toTimeFilter ? "AND timestamp <= {cteToTimeFilter: DateTime64(3)}" : ""}
+      ${ioDedup}
+    )`);
+
+    query = `WITH ${ctes.join(", ")}
+      SELECT
+        b.id as id,
+        CONCAT('/project/', b.project_id, '/traces/', b.id) as "htmlPath",
+        b.project_id as project_id,
+        b.timestamp as timestamp,
+        b.name as name,
+        b.environment as environment,
+        b.session_id as session_id,
+        b.user_id as user_id,
+        b.release as release,
+        b.version as version,
+        b.bookmarked as bookmarked,
+        b.public as public,
+        b.tags as tags,
+        b.created_at as created_at,
+        b.updated_at as updated_at,
+        i.input as input,
+        i.output as output,
+        i.metadata as metadata
+        ${select.includeScores ? ", b.scores as scores" : ""}
+        ${select.includeObservations ? ", b.observations as observations" : ""}
+        ${select.includeMetrics ? ", b.latency as latency, b.totalCost as totalCost" : ""}
+      FROM base b
+      LEFT JOIN io i ON b.id = i._io_id AND b.project_id = i._io_project_id
+      ${finalOrderBy}
+    `;
+  } else {
+    query = `
+      ${withClause}
+      SELECT
+        ${coreSelect},
+        CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath"
+        ${scoresSelect}
+        ${observationsSelect}
+        ${metricsSelect}
+      ${queryMiddle}
+      ${chOrderBy}
+      ${limitByClause}
+      ${paginationClause}
+    `;
+  }
+
+  const needsCteToTimeFilter =
+    toTimeFilter &&
+    (propagateObservationsTimeBounds || (!select.count && select.includeIO));
 
   const params = {
     ...appliedEnvironmentFilter.params,
@@ -299,7 +388,7 @@ async function buildTracesBaseQuery(
           ),
         }
       : {}),
-    ...(toTimeFilter && propagateObservationsTimeBounds
+    ...(needsCteToTimeFilter
       ? {
           cteToTimeFilter: convertDateToClickhouseDateTime(toTimeFilter.value),
         }
@@ -388,6 +477,7 @@ export const getTracesCountForPublicApi = async ({
     filterParams,
     advancedFilters,
     tracesTableUiColumnDefinitions,
+    tracesTableCols,
   );
   const appliedFilter = filter.apply();
 

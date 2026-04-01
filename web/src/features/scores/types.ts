@@ -1,5 +1,6 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
@@ -10,7 +11,7 @@ import {
   type AggregatableScoreDataType,
   ScoreConfigDataType,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
@@ -89,7 +90,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
     queueId?: string;
     environment?: string;
   };
-  buttonVariant?: "secondary" | "outline";
+  buttonVariant?: ButtonProps["variant"];
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

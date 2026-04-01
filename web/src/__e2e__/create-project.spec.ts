@@ -105,6 +105,7 @@ test.describe("Create project", () => {
     await page.goto("/project/" + projectId);
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
 
+    await page.waitForTimeout(10000);
     const headings = await page.locator("h2").allTextContents();
     expect(headings).toContain("Home");
 

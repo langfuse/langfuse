@@ -61,6 +61,7 @@ describe("IP Blocking Module", () => {
       it("should block IPv6 private addresses", () => {
         expect(isIPBlocked("fc00::1", [], [])).toBe(true);
         expect(isIPBlocked("fd00::1", [], [])).toBe(true);
+        expect(isIPBlocked("fd00:ec2::254", [], [])).toBe(true); // AWS metadata (IPv6)
         expect(isIPBlocked("fe80::1", [], [])).toBe(true);
       });
 
@@ -227,6 +228,8 @@ describe("IP Blocking Module", () => {
     it("should block cloud metadata endpoints", () => {
       expect(isHostnameBlocked("metadata.google.internal")).toBe(true);
       expect(isHostnameBlocked("169.254.169.254")).toBe(true);
+      expect(isHostnameBlocked("fd00:ec2::254")).toBe(true);
+      expect(isHostnameBlocked("[fd00:ec2::254]")).toBe(true);
     });
 
     it("should block Docker internal hostnames", () => {

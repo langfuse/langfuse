@@ -8,11 +8,12 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
-  metricAggregations,
+  type metricAggregations,
+  getValidAggregationsForMeasureType,
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -24,9 +25,12 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
-import { viewDeclarations } from "@/src/features/query/dataModel";
-import { type z } from "zod/v4";
-import { views } from "@/src/features/query/types";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
+import { type z } from "zod";
+import { views, viewsV2 } from "@/src/features/query/types";
+import { type ViewVersion } from "@/src/features/query";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
@@ -45,6 +49,11 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
+  validateQuery,
+  isV2BreakdownChart,
+  buildWidgetOrderBy,
+} from "@/src/features/query/validateQuery";
+import {
   BarChart,
   PieChart,
   LineChart,
@@ -54,6 +63,7 @@ import {
   Table,
   Plus,
   X,
+  AlertCircle,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -64,6 +74,11 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import {
+  getChartLoadingProgress,
+  getChartLoadingStateProps,
+} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -137,6 +152,53 @@ const chartTypes: ChartType[] = [
 ];
 
 /**
+ * Pure function that resolves the correct aggregation and chart type given the
+ * current selections and valid aggregation list. Returns null when no change is
+ * needed.
+ */
+export function resolveAggregationAndChartType(params: {
+  chartType: string;
+  measure: string;
+  currentAgg: string;
+  validAggs: z.infer<typeof metricAggregations>[];
+}): {
+  aggregation?: z.infer<typeof metricAggregations>;
+  chartType?: string;
+} | null {
+  const { chartType, measure, currentAgg, validAggs } = params;
+  const supportsHistogram = validAggs.includes("histogram");
+
+  // HISTOGRAM chart with a measure that doesn't support it — bail out of both
+  if (chartType === "HISTOGRAM" && !supportsHistogram) {
+    return { chartType: "NUMBER", aggregation: validAggs[0] ?? "count" };
+  }
+
+  // HISTOGRAM chart forces histogram aggregation
+  if (chartType === "HISTOGRAM" && currentAgg !== "histogram") {
+    return { aggregation: "histogram" };
+  }
+
+  // Switched away from HISTOGRAM chart but aggregation still histogram
+  if (chartType !== "HISTOGRAM" && currentAgg === "histogram") {
+    return {
+      aggregation: measure === "count" ? "count" : (validAggs[0] ?? "sum"),
+    };
+  }
+
+  // "count" measure always uses "count" aggregation (outside HISTOGRAM charts)
+  if (measure === "count" && currentAgg !== "count") {
+    return { aggregation: "count" };
+  }
+
+  // Current aggregation is not valid for the measure type
+  if (!validAggs.includes(currentAgg as z.infer<typeof metricAggregations>)) {
+    return { aggregation: validAggs[0] ?? "count" };
+  }
+
+  return null;
+}
+
+/**
  * Interface for representing a selected metric combination
  * Combines measure and aggregation into a single selectable entity
  */
@@ -170,6 +232,7 @@ export function WidgetForm({
     // Support for complete widget data (editing mode)
     metrics?: { measure: string; agg: string }[];
     dimensions?: { field: string }[];
+    minVersion?: number;
   };
   projectId: string;
   onSave: (widgetData: {
@@ -181,9 +244,12 @@ export function WidgetForm({
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: ChartConfig;
+    minVersion: number;
   }) => void;
   widgetId?: string;
 }) {
+  const { isBetaEnabled } = useV4Beta();
+
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
@@ -199,6 +265,15 @@ export function WidgetForm({
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
+
+  // Form definitions follow beta toggle, or v2 if widget already requires it.
+  // Traces view is excluded from beta-v2 because it has no v2-only fields.
+  const viewVersion: ViewVersion =
+    (isBetaEnabled && selectedView !== "traces") ||
+    (initialValues.minVersion ?? 1) >= 2
+      ? "v2"
+      : "v1";
+  const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
   const [selectedMeasure, setSelectedMeasure] = useState<string>(
@@ -232,6 +307,9 @@ export function WidgetForm({
   const [selectedDimension, setSelectedDimension] = useState<string>(
     initialValues.dimension,
   );
+
+  const selectedViewRef = useRef(selectedView);
+  selectedViewRef.current = selectedView;
 
   // Pivot table dimensions state (for PIVOT_TABLE chart type)
   const [pivotDimensions, setPivotDimensions] = useState<string[]>(
@@ -311,6 +389,32 @@ export function WidgetForm({
       return filter;
     }) ?? [],
   );
+
+  // When beta is toggled on while "traces" is selected (and not editing an
+  // existing widget), auto-switch to "observations" and reset dependent fields.
+  // selectedView is read via ref to avoid re-triggering on view changes.
+  useEffect(() => {
+    if (
+      isBetaEnabled &&
+      selectedViewRef.current === "traces" &&
+      !isExistingWidget
+    ) {
+      setSelectedView("observations");
+      setSelectedMeasure("count");
+      setSelectedAggregation("count");
+      setSelectedDimension("none");
+      setPivotDimensions([]);
+      setSelectedMetrics([
+        {
+          id: "count_count",
+          measure: "count",
+          aggregation: "count" as z.infer<typeof metricAggregations>,
+          label: "Count Count",
+        },
+      ]);
+      setUserFilterState([]);
+    }
+  }, [isBetaEnabled, isExistingWidget]);
 
   // Static sort state for pivot table preview (non-interactive)
   const previewSortState = useMemo(
@@ -466,6 +570,12 @@ export function WidgetForm({
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
+  const observationLevelOptions = [
+    { value: "DEBUG" },
+    { value: "DEFAULT" },
+    { value: "WARNING" },
+    { value: "ERROR" },
+  ];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -548,6 +658,13 @@ export function WidgetForm({
       options: modelOptions,
       internal: "internalValue",
     });
+    filterColumns.push({
+      name: "Level",
+      id: "level",
+      type: "stringOptions",
+      options: observationLevelOptions,
+      internal: "internalValue",
+    });
   }
   if (selectedView === "scores-categorical") {
     filterColumns.push({
@@ -592,80 +709,40 @@ export function WidgetForm({
     }
   }, [selectedChartType, selectedMetrics]);
 
-  // When chart type does not support breakdown, wipe the breakdown dimension
-  useEffect(() => {
-    if (
-      chartTypes.find((c) => c.value === selectedChartType)
-        ?.supportsBreakdown === false &&
-      selectedDimension !== "none"
-    ) {
-      setSelectedDimension("none");
-    }
-  }, [selectedChartType, selectedDimension]);
+  // Resolve valid aggregations for the currently selected measure
+  const validAggregationsForMeasure = useMemo(() => {
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure]
+        ?.type;
+    return getValidAggregationsForMeasureType(measureType);
+  }, [viewVersion, selectedView, selectedMeasure]);
 
-  // Set aggregation based on chart type and metric, with histogram chart type taking priority
-  useEffect(() => {
-    // Histogram chart type always takes priority
-    if (
-      selectedChartType === "HISTOGRAM" &&
-      selectedAggregation !== "histogram"
-    ) {
-      setSelectedAggregation("histogram");
-    }
-    // If switching away from histogram chart type and aggregation is still histogram, reset to appropriate default
-    else if (
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation === "histogram"
-    ) {
-      if (selectedMeasure === "count") {
-        setSelectedAggregation("count");
-      } else {
-        setSelectedAggregation("sum"); // Default aggregation for non-count metrics
-      }
-    }
-    // Only set to "count" for count metric if not using histogram chart type
-    else if (
-      selectedMeasure === "count" &&
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation !== "count"
-    ) {
-      setSelectedAggregation("count");
-    }
-  }, [selectedMeasure, selectedAggregation, selectedChartType]);
+  const measureSupportsHistogram =
+    validAggregationsForMeasure.includes("histogram");
 
-  // Set aggregation based on chart type and metric, with histogram chart type taking priority
+  // Sync aggregation and chart type when selections change
   useEffect(() => {
-    // Histogram chart type always takes priority
-    if (
-      selectedChartType === "HISTOGRAM" &&
-      selectedAggregation !== "histogram"
-    ) {
-      setSelectedAggregation("histogram");
+    const resolved = resolveAggregationAndChartType({
+      chartType: selectedChartType,
+      measure: selectedMeasure,
+      currentAgg: selectedAggregation,
+      validAggs: validAggregationsForMeasure,
+    });
+    if (!resolved) return;
+    if (resolved.chartType) setSelectedChartType(resolved.chartType);
+    if (resolved.aggregation) {
+      setSelectedAggregation(resolved.aggregation);
     }
-    // If switching away from histogram chart type and aggregation is still histogram, reset to appropriate default
-    else if (
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation === "histogram"
-    ) {
-      if (selectedMeasure === "count") {
-        setSelectedAggregation("count");
-      } else {
-        setSelectedAggregation("sum"); // Default aggregation for non-count metrics
-      }
-    }
-    // Only set to "count" for count metric if not using histogram chart type
-    else if (
-      selectedMeasure === "count" &&
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation !== "count"
-    ) {
-      setSelectedAggregation("count");
-    }
-  }, [selectedMeasure, selectedAggregation, selectedChartType]);
+  }, [
+    selectedMeasure,
+    selectedAggregation,
+    selectedChartType,
+    validAggregationsForMeasure,
+  ]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
-    const viewDeclaration = viewDeclarations.v1[selectedView];
+    const viewDeclaration = viewDeclarations[viewVersion][selectedView];
 
     // For pivot tables, only show measures that still have available aggregations
     if (selectedChartType === "PIVOT_TABLE") {
@@ -681,12 +758,13 @@ export function WidgetForm({
             .filter((m) => m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const availableAggregationsForMeasure =
-            metricAggregations.options.filter(
-              (agg) =>
-                agg !== "histogram" &&
-                !selectedAggregationsForMeasure.includes(agg),
-            );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const availableAggregationsForMeasure = validAggs.filter(
+            (agg) =>
+              agg !== "histogram" &&
+              !selectedAggregationsForMeasure.includes(agg),
+          );
 
           return availableAggregationsForMeasure.length > 0;
         })
@@ -708,15 +786,18 @@ export function WidgetForm({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
       );
-  }, [selectedView, selectedChartType, selectedMetrics]);
+  }, [selectedView, selectedChartType, selectedMetrics, viewVersion]);
 
   // Get available aggregations for a specific metric index in pivot tables
   const getAvailableAggregations = (
     metricIndex: number,
     measureKey: string,
   ): z.infer<typeof metricAggregations>[] => {
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey]?.type;
+    const validAggs = getValidAggregationsForMeasureType(measureType);
     if (selectedChartType === "PIVOT_TABLE" && measureKey) {
-      return metricAggregations.options.filter(
+      return validAggs.filter(
         (agg) =>
           !selectedMetrics.some(
             (m, idx) =>
@@ -726,13 +807,13 @@ export function WidgetForm({
           ),
       ) as z.infer<typeof metricAggregations>[];
     }
-    return metricAggregations.options as z.infer<typeof metricAggregations>[];
+    return validAggs as z.infer<typeof metricAggregations>[];
   };
 
   // Get available metrics for a specific metric index in pivot tables
   const getAvailableMetrics = (metricIndex: number) => {
     if (selectedChartType === "PIVOT_TABLE") {
-      const viewDeclaration = viewDeclarations.v1[selectedView];
+      const viewDeclaration = viewDeclarations[viewVersion][selectedView];
       return Object.entries(viewDeclaration.measures)
         .filter(([measureKey]) => {
           // For count, there's only one aggregation option
@@ -747,12 +828,13 @@ export function WidgetForm({
             .filter((m, idx) => idx !== metricIndex && m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const availableAggregationsForMeasure =
-            metricAggregations.options.filter(
-              (agg) =>
-                agg !== "histogram" &&
-                !selectedAggregationsForMeasure.includes(agg),
-            );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const availableAggregationsForMeasure = validAggs.filter(
+            (agg) =>
+              agg !== "histogram" &&
+              !selectedAggregationsForMeasure.includes(agg),
+          );
 
           return availableAggregationsForMeasure.length > 0;
         })
@@ -769,8 +851,9 @@ export function WidgetForm({
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
-    const viewDeclaration = viewDeclarations.v1[selectedView];
+    const viewDeclaration = viewDeclarations[viewVersion][selectedView];
     return Object.entries(viewDeclaration.dimensions)
+      .filter(([_, dim]) => !dim.uiHidden)
       .map(([key]) => ({
         value: key,
         label: startCase(key),
@@ -778,7 +861,7 @@ export function WidgetForm({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
       );
-  }, [selectedView]);
+  }, [selectedView, viewVersion]);
 
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(() => {
@@ -812,6 +895,37 @@ export function WidgetForm({
             },
           ];
 
+    // For v2 non-timeseries breakdown charts, auto-sort desc by metric for top-N
+    const needsTopN = isV2BreakdownChart({
+      version: viewVersion,
+      hasDimension: selectedDimension !== "none",
+      isTimeSeries: isTimeSeriesChart(
+        selectedChartType as DashboardWidgetChartType,
+      ),
+      chartType: selectedChartType,
+    });
+
+    const orderBy = buildWidgetOrderBy({
+      chartType: selectedChartType,
+      sortState: previewSortState,
+      needsTopN,
+      firstMetric: {
+        aggregation: selectedAggregation,
+        measure: selectedMeasure,
+      },
+    });
+
+    // Only query-engine fields (type, bins, row_limit) — rendering fields
+    // (dimensions, defaultSort) go via handleSaveWidget / Chart component
+    let chartConfig: QueryType["chartConfig"];
+    if (selectedChartType === "HISTOGRAM") {
+      chartConfig = { type: selectedChartType, bins: histogramBins };
+    } else if (selectedChartType === "PIVOT_TABLE" || needsTopN) {
+      chartConfig = { type: selectedChartType, row_limit: rowLimit };
+    } else {
+      chartConfig = { type: selectedChartType };
+    }
+
     return {
       view: selectedView,
       dimensions: queryDimensions,
@@ -824,34 +938,8 @@ export function WidgetForm({
         : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
-      orderBy:
-        selectedChartType === "PIVOT_TABLE" && previewSortState
-          ? [
-              {
-                field: previewSortState.column,
-                direction: previewSortState.order.toLowerCase() as
-                  | "asc"
-                  | "desc",
-              },
-            ]
-          : null,
-      chartConfig:
-        selectedChartType === "HISTOGRAM"
-          ? { type: selectedChartType, bins: histogramBins }
-          : selectedChartType === "PIVOT_TABLE"
-            ? {
-                type: selectedChartType,
-                dimensions: pivotDimensions,
-                row_limit: rowLimit,
-                defaultSort:
-                  defaultSortColumn && defaultSortColumn !== "none"
-                    ? {
-                        column: defaultSortColumn,
-                        order: defaultSortOrder,
-                      }
-                    : undefined,
-              }
-            : { type: selectedChartType },
+      orderBy,
+      chartConfig,
     };
   }, [
     selectedView,
@@ -865,15 +953,20 @@ export function WidgetForm({
     histogramBins,
     pivotDimensions,
     rowLimit,
-    defaultSortColumn,
-    defaultSortOrder,
     previewSortState,
+    viewVersion,
   ]);
+
+  const queryValidation = useMemo(
+    () => validateQuery(query, viewVersion),
+    [query, viewVersion],
+  );
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
       query,
+      version: viewVersion,
     },
     {
       trpc: {
@@ -881,8 +974,22 @@ export function WidgetForm({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
+      enabled: queryValidation.valid,
     },
   );
+
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: queryResult.isPending,
+    isError: queryResult.isError,
+  });
+  const loadingProgress = getChartLoadingProgress({
+    isPending: queryResult.isPending,
+    progress: null,
+    useBackendProgress: false,
+  });
 
   // Transform the query results to a consistent format for charts
   const transformedData: DataPoint[] = useMemo(
@@ -932,6 +1039,11 @@ export function WidgetForm({
   );
 
   const handleSaveWidget = () => {
+    if (!queryValidation.valid) {
+      showErrorToast("Invalid query", queryValidation.reason);
+      return;
+    }
+
     if (!widgetName.trim()) {
       showErrorToast("Error", "Widget name is required");
       return;
@@ -949,28 +1061,31 @@ export function WidgetForm({
       return;
     }
 
+    const saveDimensions =
+      selectedChartType === "PIVOT_TABLE"
+        ? pivotDimensions.map((field) => ({ field }))
+        : selectedDimension !== "none"
+          ? [{ field: selectedDimension }]
+          : [];
+    const saveMetrics =
+      selectedChartType === "PIVOT_TABLE"
+        ? validMetrics.map((metric) => ({
+            measure: metric.measure,
+            agg: metric.aggregation,
+          }))
+        : [
+            {
+              measure: selectedMeasure,
+              agg: selectedAggregation,
+            },
+          ];
+
     onSave({
       name: widgetName,
       description: widgetDescription,
       view: selectedView,
-      dimensions:
-        selectedChartType === "PIVOT_TABLE"
-          ? pivotDimensions.map((field) => ({ field }))
-          : selectedDimension !== "none"
-            ? [{ field: selectedDimension }]
-            : [],
-      metrics:
-        selectedChartType === "PIVOT_TABLE"
-          ? validMetrics.map((metric) => ({
-              measure: metric.measure,
-              agg: metric.aggregation,
-            }))
-          : [
-              {
-                measure: selectedMeasure,
-                agg: selectedAggregation,
-              },
-            ],
+      dimensions: saveDimensions,
+      metrics: saveMetrics,
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
       chartType: selectedChartType as DashboardWidgetChartType,
       chartConfig: isTimeSeriesChart(
@@ -998,6 +1113,13 @@ export function WidgetForm({
                 type: selectedChartType as DashboardWidgetChartType,
                 row_limit: rowLimit,
               },
+      minVersion: requiresV2({
+        view: selectedView,
+        dimensions: saveDimensions,
+        measures: saveMetrics.map((m) => ({ measure: m.measure })),
+      })
+        ? 2
+        : 1,
     });
   };
 
@@ -1098,6 +1220,22 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
+            {isBetaEnabled && selectedView === "traces" && (
+              <Alert
+                variant="default"
+                className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+              >
+                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+                  Traces view is not available in v4
+                </AlertTitle>
+                <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+                  This widget uses the traces view which is not supported in v4.
+                  It will continue to use v3 definitions. To use v4, change the
+                  view to observations or scores.
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Data Selection Section */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold">Data Selection</h3>
@@ -1110,7 +1248,8 @@ export function WidgetForm({
                   onValueChange={(value) => {
                     if (value !== selectedView) {
                       const newView = value as z.infer<typeof views>;
-                      const newViewDeclaration = viewDeclarations.v1[newView];
+                      const newViewDeclaration =
+                        viewDeclarations[viewVersion][newView];
 
                       // Reset regular chart fields
                       setSelectedMeasure("count");
@@ -1167,12 +1306,14 @@ export function WidgetForm({
                     <SelectValue placeholder="Select a view" />
                   </SelectTrigger>
                   <SelectContent>
-                    {views.options.map((view) => (
+                    {availableViewOptions.options.map((view) => (
                       <WidgetPropertySelectItem
                         key={view}
                         value={view}
                         label={startCase(view)}
-                        description={viewDeclarations.v1[view].description}
+                        description={
+                          viewDeclarations[viewVersion][view].description
+                        }
                       />
                     ))}
                   </SelectContent>
@@ -1222,7 +1363,7 @@ export function WidgetForm({
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => removeMetricSlot(index)}
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                  className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -1257,8 +1398,9 @@ export function WidgetForm({
                                   <SelectContent>
                                     {metricsForIndex.map((metric) => {
                                       const meta =
-                                        viewDeclarations.v1[selectedView]
-                                          ?.measures?.[metric.value];
+                                        viewDeclarations[viewVersion][
+                                          selectedView
+                                        ]?.measures?.[metric.value];
                                       return (
                                         <WidgetPropertySelectItem
                                           key={metric.value}
@@ -1341,9 +1483,8 @@ export function WidgetForm({
                       <SelectContent>
                         {availableMetrics.map((metric) => {
                           const meta =
-                            viewDeclarations.v1[selectedView]?.measures?.[
-                              metric.value
-                            ];
+                            viewDeclarations[viewVersion][selectedView]
+                              ?.measures?.[metric.value];
                           return (
                             <WidgetPropertySelectItem
                               key={metric.value}
@@ -1372,7 +1513,7 @@ export function WidgetForm({
                             <SelectValue placeholder="Select Aggregation" />
                           </SelectTrigger>
                           <SelectContent>
-                            {metricAggregations.options.map((aggregation) => (
+                            {validAggregationsForMeasure.map((aggregation) => (
                               <SelectItem key={aggregation} value={aggregation}>
                                 {startCase(aggregation)}
                               </SelectItem>
@@ -1380,7 +1521,7 @@ export function WidgetForm({
                           </SelectContent>
                         </Select>
                         {selectedChartType === "HISTOGRAM" && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             Aggregation is automatically set to
                             &quot;histogram&quot; for histogram charts
                           </p>
@@ -1428,9 +1569,8 @@ export function WidgetForm({
                         <SelectItem value="none">None</SelectItem>
                         {availableDimensions.map((dimension) => {
                           const meta =
-                            viewDeclarations.v1[selectedView]?.dimensions?.[
-                              dimension.value
-                            ];
+                            viewDeclarations[viewVersion][selectedView]
+                              ?.dimensions?.[dimension.value];
                           return (
                             <WidgetPropertySelectItem
                               key={dimension.value}
@@ -1454,7 +1594,7 @@ export function WidgetForm({
                     <h4 className="mb-2 text-sm font-semibold">
                       Row Dimensions
                     </h4>
-                    <p className="mb-3 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mb-3 text-xs">
                       Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions
                       for pivot table rows. Each dimension creates groupings
                       with subtotals.
@@ -1503,7 +1643,7 @@ export function WidgetForm({
                                 )
                                 .map((dimension) => {
                                   const meta =
-                                    viewDeclarations.v1[selectedView]
+                                    viewDeclarations[viewVersion][selectedView]
                                       ?.dimensions?.[dimension.value];
                                   return (
                                     <WidgetPropertySelectItem
@@ -1532,7 +1672,7 @@ export function WidgetForm({
                     <h4 className="mb-2 text-sm font-semibold">
                       Default Sort Configuration
                     </h4>
-                    <p className="mb-3 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mb-3 text-xs">
                       Configure the default sort order for the pivot table. This
                       will be applied when the widget is first loaded.
                     </p>
@@ -1653,7 +1793,14 @@ export function WidgetForm({
                       {chartTypes
                         .filter((item) => item.group === "total-value")
                         .map((chart) => (
-                          <SelectItem key={chart.value} value={chart.value}>
+                          <SelectItem
+                            key={chart.value}
+                            value={chart.value}
+                            disabled={
+                              chart.value === "HISTOGRAM" &&
+                              !measureSupportsHistogram
+                            }
+                          >
                             <div className="flex items-center">
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",
@@ -1743,7 +1890,7 @@ export function WidgetForm({
       </div>
       {/* Right column - Chart */}
       <div className="w-2/3">
-        <Card className={"aspect-video"}>
+        <Card className="flex aspect-video flex-col">
           <CardHeader>
             <CardTitle className="truncate" title={widgetName}>
               {widgetName}
@@ -1752,49 +1899,82 @@ export function WidgetForm({
               {widgetDescription}
             </CardDescription>
           </CardHeader>
-          {queryResult.data ? (
-            <Chart
-              chartType={selectedChartType as DashboardWidgetChartType}
-              data={transformedData}
-              rowLimit={rowLimit}
-              chartConfig={
-                selectedChartType === "PIVOT_TABLE"
-                  ? {
-                      type: selectedChartType as DashboardWidgetChartType,
-                      dimensions: pivotDimensions,
-                      row_limit: rowLimit,
-                      metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
-                      defaultSort:
-                        defaultSortColumn && defaultSortColumn !== "none"
-                          ? {
-                              column: defaultSortColumn,
-                              order: defaultSortOrder,
-                            }
-                          : undefined,
-                    }
-                  : selectedChartType === "HISTOGRAM"
-                    ? {
-                        type: selectedChartType as DashboardWidgetChartType,
-                        bins: histogramBins,
-                      }
-                    : {
-                        type: selectedChartType as DashboardWidgetChartType,
-                        row_limit: rowLimit,
-                      }
-              }
-              sortState={
-                selectedChartType === "PIVOT_TABLE"
-                  ? previewSortState
-                  : undefined
-              }
-              onSortChange={undefined}
-            />
+          {!queryValidation.valid ? (
+            <CardContent>
+              <div className="flex h-[300px] items-center justify-center">
+                <Alert variant="destructive" className="max-w-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Invalid query</AlertTitle>
+                  <AlertDescription>{queryValidation.reason}</AlertDescription>
+                </Alert>
+              </div>
+            </CardContent>
+          ) : queryResult.data || chartLoadingState.isLoading ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="relative min-h-0 flex-1">
+                <Chart
+                  chartType={selectedChartType as DashboardWidgetChartType}
+                  data={transformedData}
+                  rowLimit={rowLimit}
+                  chartConfig={
+                    selectedChartType === "PIVOT_TABLE"
+                      ? {
+                          type: selectedChartType as DashboardWidgetChartType,
+                          dimensions: pivotDimensions,
+                          row_limit: rowLimit,
+                          metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
+                          defaultSort:
+                            defaultSortColumn && defaultSortColumn !== "none"
+                              ? {
+                                  column: defaultSortColumn,
+                                  order: defaultSortOrder,
+                                }
+                              : undefined,
+                        }
+                      : selectedChartType === "HISTOGRAM"
+                        ? {
+                            type: selectedChartType as DashboardWidgetChartType,
+                            bins: histogramBins,
+                          }
+                        : {
+                            type: selectedChartType as DashboardWidgetChartType,
+                            row_limit: rowLimit,
+                          }
+                  }
+                  sortState={
+                    selectedChartType === "PIVOT_TABLE"
+                      ? previewSortState
+                      : undefined
+                  }
+                  onSortChange={undefined}
+                  isLoading={queryResult.isPending}
+                />
+                <ChartLoadingState
+                  isLoading={chartLoadingState.isLoading}
+                  showSpinner={chartLoadingState.showSpinner}
+                  showHintImmediately={chartLoadingState.showHintImmediately}
+                  hintText={chartLoadingState.hintText}
+                  progress={loadingProgress}
+                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                />
+              </div>
+            </div>
           ) : (
             <CardContent>
               <div className="flex h-[300px] items-center justify-center">
-                <p className="text-muted-foreground">
-                  Waiting for Input / Loading...
-                </p>
+                {chartLoadingState.isLoading ? (
+                  <ChartLoadingState
+                    isLoading={chartLoadingState.isLoading}
+                    showSpinner={chartLoadingState.showSpinner}
+                    showHintImmediately={chartLoadingState.showHintImmediately}
+                    hintText={chartLoadingState.hintText}
+                    progress={loadingProgress}
+                  />
+                ) : (
+                  <p className="text-muted-foreground">
+                    Waiting for Input / Loading...
+                  </p>
+                )}
               </div>
             </CardContent>
           )}

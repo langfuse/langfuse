@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -63,7 +64,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                   type="button"
                   onClick={() => handleLegendClick(dimension)}
                   className={cn(
-                    "flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs transition-opacity",
+                    "flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap transition-opacity",
                     "cursor-pointer hover:opacity-80",
                     isMuted && "opacity-40",
                   )}
@@ -94,6 +95,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
+            interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis
             type="number"
@@ -101,6 +104,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
+            niceTicks="auto"
             tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
           {dimensions.map((dimension, index) => {
@@ -125,6 +129,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               />
             );
           })}
+          <ChartActiveReferenceLine />
           <ChartTooltip
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (
@@ -132,6 +137,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 active={active}
                 payload={payload}
                 label={label}
+                indicator="line"
                 valueFormatter={tooltipFormatter}
                 sortPayloadByValue="desc"
               />

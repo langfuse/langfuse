@@ -169,14 +169,14 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
-              <div className="text-sm font-medium text-muted-foreground">
+              <div className="text-muted-foreground text-sm font-medium">
                 Match Pattern
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
-              <div className="text-sm font-medium text-muted-foreground">
+              <div className="text-muted-foreground text-sm font-medium">
                 Maintained by
               </div>
               <div className="mt-1 text-sm">
@@ -185,7 +185,7 @@ export default function ModelDetailPage() {
             </div>
 
             <div>
-              <div className="text-sm font-medium text-muted-foreground">
+              <div className="text-muted-foreground text-sm font-medium">
                 Tokenizer
               </div>
               <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
@@ -193,10 +193,10 @@ export default function ModelDetailPage() {
 
             {model.tokenizerId && (
               <div>
-                <div className="text-sm font-medium text-muted-foreground">
+                <div className="text-muted-foreground text-sm font-medium">
                   Tokenizer Config
                 </div>
-                <pre className="mt-1 rounded bg-muted p-2 text-sm">
+                <pre className="bg-muted mt-1 rounded p-2 text-sm">
                   <JSONView json={model.tokenizerConfig} />
                 </pre>
               </div>
@@ -210,7 +210,7 @@ export default function ModelDetailPage() {
               <CardTitle>Pricing</CardTitle>
               {model.pricingTiers.length > 1 && (
                 <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="text-muted-foreground text-sm font-medium">
                     Pricing Tier
                   </label>
                   <Select
@@ -233,7 +233,7 @@ export default function ModelDetailPage() {
                       <HoverCardTrigger asChild>
                         <Button
                           variant="ghost"
-                          className="inline-flex h-auto items-center gap-1.5 p-0 text-xs text-muted-foreground hover:bg-transparent hover:text-accent-foreground"
+                          className="text-muted-foreground hover:text-accent-foreground inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
                           size="sm"
                         >
                           <InfoIcon className="h-3 w-3" />
@@ -247,7 +247,7 @@ export default function ModelDetailPage() {
                         <p className="text-sm font-medium">
                           Pricing Tier Conditions
                         </p>
-                        <p className="pt-2 text-sm text-muted-foreground">
+                        <p className="text-muted-foreground pt-2 text-sm">
                           This tier is applied when the following conditions are
                           met:
                         </p>
@@ -260,7 +260,6 @@ export default function ModelDetailPage() {
                               2,
                             )}
                             onChange={() => {}} // Read-only
-                            minHeight="none"
                             className="max-h-[250px] overflow-y-auto"
                             editable={false}
                           />
@@ -274,7 +273,7 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-2 gap-2 border-b border-border text-sm font-medium text-muted-foreground">
+              <div className="border-border text-muted-foreground grid grid-cols-2 gap-2 border-b text-sm font-medium">
                 <span>Usage Type</span>
                 <span className="flex items-center gap-2">
                   <span>Price {priceUnit}</span>

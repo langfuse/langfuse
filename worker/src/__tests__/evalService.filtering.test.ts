@@ -3,11 +3,7 @@ import {
   singleFilter,
   EvalTargetObject,
 } from "@langfuse/shared";
-import {
-  JobConfiguration,
-  kyselyPrisma,
-  prisma,
-} from "@langfuse/shared/src/db";
+import { JobConfiguration, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
@@ -18,10 +14,9 @@ import {
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { afterAll, test as baseTest, beforeAll, describe } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { createEvalJobs } from "../features/evaluation/evalService";
 import { OpenAIServer } from "./network";
-import { pruneDatabase } from "./utils";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // Check for both OPENAI_API_KEY and LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -39,7 +34,6 @@ const openAIServer = new OpenAIServer({
 
 beforeAll(openAIServer.setup);
 beforeAll(async () => {
-  await pruneDatabase();
   openAIServer.respondWithDefault();
 });
 afterAll(openAIServer.teardown);
@@ -55,11 +49,9 @@ type TraceRecordOmitProjectIdAndId = Partial<
 >;
 
 const __getJobs = (projectId: string) =>
-  kyselyPrisma.$kysely
-    .selectFrom("job_executions")
-    .selectAll()
-    .where("project_id", "=", projectId)
-    .execute();
+  prisma.jobExecution.findMany({
+    where: { projectId },
+  });
 
 type JobExecutions = Awaited<ReturnType<typeof __getJobs>>;
 
@@ -129,7 +121,7 @@ const test = baseTest.extend<{
         provider: "openai",
         modelParams: { temperature: 0 },
         vars: [],
-        outputSchema: {
+        outputDefinition: {
           type: "object",
           properties: { score: { type: "number" } },
         },
@@ -216,7 +208,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1); // Only the production environment trace should have a job
+    expect(jobs[0].jobInputTraceId).toBe(traceId1); // Only the production environment trace should have a job
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -253,7 +245,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1); // Only the important-trace should have a job
+    expect(jobs[0].jobInputTraceId).toBe(traceId1); // Only the important-trace should have a job
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -283,7 +275,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -345,7 +337,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -382,7 +374,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -419,7 +411,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -457,7 +449,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -494,7 +486,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -531,7 +523,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -588,7 +580,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -625,7 +617,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 
@@ -662,7 +654,7 @@ describe.concurrent("test eval filtering", () => {
     const jobs = await getJobs();
 
     expect(jobs.length).toBe(1);
-    expect(jobs[0].job_input_trace_id).toBe(traceId1);
+    expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
 });

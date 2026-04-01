@@ -171,7 +171,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "countRuns",
-      header: "Runs",
+      header: "Experiments",
       id: "countRuns",
       enableHiding: true,
       size: 60,
@@ -270,7 +270,7 @@ export function DatasetsTable(props: { projectId: string }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="flex flex-col [&>*]:w-full [&>*]:justify-start"
+              className="flex flex-col *:w-full *:justify-start"
             >
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem asChild>

@@ -1,5 +1,5 @@
 import { StringNoHTML } from "@langfuse/shared";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 const organizationTypeOptions = [
   "Personal",

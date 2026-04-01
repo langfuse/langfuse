@@ -5,8 +5,11 @@ import {
   StringParam,
   ArrayParam,
 } from "use-query-params";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 export const useFullTextSearch = () => {
+  const peekContext = usePeekTableState();
+
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -19,6 +22,31 @@ export const useFullTextSearch = () => {
     "searchType",
     withDefault(ArrayParam, ["id"]),
   );
+
+  if (peekContext) {
+    const { query, type } = peekContext.tableState.search;
+
+    const setSearchQuery = (newQuery: string | null) => {
+      peekContext.setTableState({
+        ...peekContext.tableState,
+        search: { ...peekContext.tableState.search, query: newQuery },
+      });
+    };
+
+    const setSearchType = (newType: string[]) => {
+      peekContext.setTableState({
+        ...peekContext.tableState,
+        search: { ...peekContext.tableState.search, type: newType },
+      });
+    };
+
+    return {
+      searchQuery: query,
+      searchType: type as TracingSearchType[],
+      setSearchQuery,
+      setSearchType,
+    };
+  }
 
   const setSearchType = (newSearchType: TracingSearchType[]) => {
     handleSearchTypeChange(newSearchType);

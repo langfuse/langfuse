@@ -3,26 +3,29 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^2.7.6 --global
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
+# Pin turbo to avoid nondeterministic prune output from future patch releases.
+RUN npm install turbo@2.8.20 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@9.5.0 --activate
+RUN corepack prepare pnpm@10.33.0 --activate
 
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
+# Remove package managers from the runtime image; only build stages need them.
+RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm && \
+    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
 WORKDIR /app
 
 COPY . .
 RUN turbo prune --scope=worker --docker
 
-
-
-FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
 WORKDIR /app
 
@@ -45,7 +48,24 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
+FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
+
+RUN rm -rf /prod && \
+    pnpm --filter worker deploy --legacy --prod /prod/worker && \
+    builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
+    deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
+    builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \
+    deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
+    rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
+    mkdir -p "$(dirname "$deployed_prisma_client_dir")" && \
+    cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    # @langfuse/shared currently brings auth-only Next.js packages that the worker never executes.
+    find /prod/worker/node_modules \
+      \( -path '*/node_modules/next' -o -path '*/node_modules/next-auth' -o -path '*/.bin/next' \) \
+      -exec rm -rf {} +
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -65,10 +85,10 @@ ARG UID=1001
 ARG GID=1001
 RUN addgroup --system --gid ${GID} expressjs
 RUN adduser --system --uid ${UID} expressjs
-USER expressjs
-COPY --from=builder --chown=expressjs:expressjs /app .
-COPY --chown=expressjs:expressjs ./worker/entrypoint.sh ./worker/entrypoint.sh
+
+COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
 RUN chmod +x ./worker/entrypoint.sh
+USER expressjs
 
 EXPOSE 3030
 ENV PORT=3030

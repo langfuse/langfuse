@@ -1,7 +1,5 @@
-import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
@@ -13,10 +11,12 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -26,7 +26,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp,
   agg,
   isLoading = false,
-  isDashboardChartsBeta = false,
+  metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -35,8 +36,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
+  const isV2 = metricsVersion === "v2";
+
   const tracesQuery: QueryType = {
     view: "traces",
     dimensions: [],
@@ -51,10 +55,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: tracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -62,7 +67,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
-      enabled: !isLoading,
+      queryId: `${schedulerId ?? "home:traces-time-series"}:traces`,
+      enabled: !isLoading && !isV2,
     },
   );
 
@@ -98,10 +104,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const observations = api.dashboard.executeQuery.useQuery(
+  const observations = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: observationsQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -109,6 +116,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces-time-series"}:observations`,
       enabled: !isLoading,
     },
   );
@@ -145,26 +153,37 @@ export const TracesAndObservationsTimeSeriesChart = ({
     return acc + Number(item.count_count);
   }, 0);
 
-  const data = [
-    {
-      tabTitle: "Traces",
-      data: transformedTraces,
-      totalMetric: total,
-      metricDescription: `Traces tracked`,
-    },
-    {
-      tabTitle: "Observations by Level",
-      data: transformedObservations,
-      totalMetric: totalObservations,
-      metricDescription: `Observations tracked`,
-    },
-  ];
+  const data = isV2
+    ? [
+        {
+          tabTitle: "Observations by Level",
+          data: transformedObservations,
+          totalMetric: totalObservations,
+          metricDescription: `Observations tracked`,
+        },
+      ]
+    : [
+        {
+          tabTitle: "Traces",
+          data: transformedTraces,
+          totalMetric: total,
+          metricDescription: `Traces tracked`,
+        },
+        {
+          tabTitle: "Observations by Level",
+          data: transformedObservations,
+          totalMetric: totalObservations,
+          metricDescription: `Observations tracked`,
+        },
+      ];
 
   return (
     <DashboardCard
       className={className}
-      title="Traces by time"
-      isLoading={isLoading || traces.isPending}
+      title={isV2 ? "Observations by time" : "Traces by time"}
+      isLoading={
+        isLoading || observations.isPending || (!isV2 && traces.isPending)
+      }
       cardContentClassName="flex flex-col content-end "
     >
       <TabComponent
@@ -182,34 +201,25 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   }
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  isDashboardChartsBeta ? (
-                    <div className="h-80 w-full shrink-0">
-                      <Chart
-                        chartType="AREA_TIME_SERIES"
-                        data={timeSeriesToDataPoints(item.data, agg)}
-                        rowLimit={100}
-                        chartConfig={{
-                          type: "AREA_TIME_SERIES",
-                          show_data_point_dots: false,
-                          subtle_fill: true,
-                        }}
-                        legendPosition="above"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-80 w-full shrink-0">
-                      <BaseTimeSeriesChart
-                        className="h-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                        agg={agg}
-                        data={item.data}
-                        connectNulls={true}
-                        chartType="area"
-                      />
-                    </div>
-                  )
+                  <div className="h-80 w-full shrink-0">
+                    <Chart
+                      chartType="LINE_TIME_SERIES"
+                      data={timeSeriesToDataPoints(item.data, agg)}
+                      rowLimit={100}
+                      chartConfig={{
+                        type: "LINE_TIME_SERIES",
+                        show_data_point_dots: false,
+                      }}
+                      legendPosition="above"
+                    />
+                  </div>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || traces.isPending}
+                    isLoading={
+                      isLoading ||
+                      observations.isPending ||
+                      (!isV2 && traces.isPending)
+                    }
                     description="Traces contain details about LLM applications and can be created using the SDK."
                     href="https://langfuse.com/docs/observability/overview"
                   />

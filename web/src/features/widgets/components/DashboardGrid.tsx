@@ -36,6 +36,7 @@ export function DashboardGrid({
   filterState,
   onDeleteWidget,
   dashboardOwner,
+  getWidgetSchedulerId,
 }: {
   widgets: WidgetPlacement[];
   onChange: (widgets: WidgetPlacement[]) => void;
@@ -46,6 +47,7 @@ export function DashboardGrid({
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
+  getWidgetSchedulerId?: (widgetPlacementId: string) => string;
 }) {
   const [rowHeight, setRowHeight] = useState(150);
 
@@ -104,6 +106,7 @@ export function DashboardGrid({
     return (
       <div className="flex w-full flex-col gap-4">
         {widgets
+          .slice()
           .sort((a, b) => a.y - b.y || a.x - b.x) // Sort by position for consistent order
           .map((widget) => (
             <div
@@ -119,6 +122,7 @@ export function DashboardGrid({
                 filterState={filterState}
                 onDeleteWidget={onDeleteWidget}
                 dashboardOwner={dashboardOwner || "PROJECT"}
+                schedulerId={getWidgetSchedulerId?.(widget.id)}
               />
             </div>
           ))}
@@ -152,6 +156,7 @@ export function DashboardGrid({
             filterState={filterState}
             onDeleteWidget={onDeleteWidget}
             dashboardOwner={dashboardOwner || "PROJECT"}
+            schedulerId={getWidgetSchedulerId?.(widget.id)}
           />
         </div>
       ))}

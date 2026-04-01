@@ -48,7 +48,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
       <HoverCardTrigger asChild>
         <Button
           variant="ghost"
-          className="inline-flex items-center gap-1.5 rounded p-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
           aria-label={`View ${title}`}
           size="sm"
         >
@@ -61,13 +61,13 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
         collisionPadding={20}
       >
         <p className="text-sm font-medium">{title}</p>
-        <p className="pt-2 text-sm text-muted-foreground">
+        <p className="text-muted-foreground pt-2 text-sm">
           Learn more about{" "}
           <a
             href="https://json-schema.org/learn/miscellaneous-examples"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center underline hover:text-foreground"
+            className="hover:text-foreground inline-flex items-center underline"
           >
             JSON Schema
             <ArrowUpRight className="ml-0.5 h-3 w-3" />
@@ -78,7 +78,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
             mode="json"
             value={schemaString}
             onChange={() => {}} // Read-only
-            minHeight="none"
             className="max-h-[250px] overflow-y-auto"
             editable={false}
           />
@@ -106,7 +105,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
               <CodeMirrorEditor
                 mode="json"
                 value={exampleObject}
-                minHeight="none"
                 className="max-h-[250px] overflow-y-auto"
                 editable={false}
               />

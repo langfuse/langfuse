@@ -93,44 +93,88 @@ export class IngestionQueue {
 }
 
 export class SecondaryIngestionQueue {
-  private static instance: Queue<
-    TQueueJobTypes[QueueName.IngestionSecondaryQueue]
-  > | null = null;
+  private static instances: Map<
+    number,
+    Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]> | null
+  > = new Map();
 
-  public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.IngestionSecondaryQueue]
-  > | null {
-    if (SecondaryIngestionQueue.instance)
-      return SecondaryIngestionQueue.instance;
+  public static getShardNames() {
+    return Array.from(
+      { length: env.LANGFUSE_INGESTION_SECONDARY_QUEUE_SHARD_COUNT },
+      (_, i) => `${QueueName.IngestionSecondaryQueue}${i > 0 ? `-${i}` : ""}`,
+    );
+  }
+
+  static getShardIndexFromShardName(
+    shardName: string | undefined,
+  ): number | null {
+    if (!shardName) return null;
+
+    const shardIndex =
+      shardName === QueueName.IngestionSecondaryQueue
+        ? 0
+        : parseInt(
+            shardName.replace(`${QueueName.IngestionSecondaryQueue}-`, ""),
+            10,
+          );
+
+    if (isNaN(shardIndex)) return null;
+    return shardIndex;
+  }
+
+  /**
+   * Get the secondary ingestion queue instance for the given sharding key or shard name.
+   * @param shardingKey - ShardingKey is being hashed and randomly allocated to a shard. Should be `projectId-eventBodyId`.
+   * @param shardName - Name of the shard. Should be `secondary-ingestion-queue-${shardIndex}` or plainly `secondary-ingestion-queue` for the first shard.
+   */
+  public static getInstance({
+    shardingKey,
+    shardName,
+  }: {
+    shardingKey?: string;
+    shardName?: string;
+  } = {}): Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]> | null {
+    const shardIndex =
+      SecondaryIngestionQueue.getShardIndexFromShardName(shardName) ??
+      (env.REDIS_CLUSTER_ENABLED === "true" && shardingKey
+        ? getShardIndex(
+            shardingKey,
+            env.LANGFUSE_INGESTION_SECONDARY_QUEUE_SHARD_COUNT,
+          )
+        : 0);
+
+    if (SecondaryIngestionQueue.instances.has(shardIndex)) {
+      return SecondaryIngestionQueue.instances.get(shardIndex) || null;
+    }
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    SecondaryIngestionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>(
-          QueueName.IngestionSecondaryQueue,
-          {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.IngestionSecondaryQueue),
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 100_000,
-              attempts: 5,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
-              },
+    const name = `${QueueName.IngestionSecondaryQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
+    const queueInstance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>(name, {
+          connection: newRedis,
+          prefix: getQueuePrefix(name),
+          defaultJobOptions: {
+            removeOnComplete: true,
+            removeOnFail: 100_000,
+            attempts: 5,
+            backoff: {
+              type: "exponential",
+              delay: 5000,
             },
           },
-        )
+        })
       : null;
 
-    SecondaryIngestionQueue.instance?.on("error", (err) => {
-      logger.error("SecondaryIngestionQueue error", err);
+    queueInstance?.on("error", (err) => {
+      logger.error(`SecondaryIngestionQueue shard ${shardIndex} error`, err);
     });
 
-    return SecondaryIngestionQueue.instance;
+    SecondaryIngestionQueue.instances.set(shardIndex, queueInstance);
+
+    return queueInstance;
   }
 }

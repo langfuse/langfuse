@@ -2,6 +2,7 @@ import { type ObservationForEval } from "./types";
 import {
   observationEvalVariableColumns,
   type ObservationVariableMapping,
+  deepParseJson,
 } from "@langfuse/shared";
 import { JSONPath } from "jsonpath-plus";
 import { logger } from "@langfuse/shared/src/server";
@@ -28,8 +29,10 @@ interface ExtractVariablesParams {
  * 2. Optionally applies JSON selector if provided
  * 3. Returns an array of extracted variables compatible with executeLLMAsJudgeEvaluation()
  *
- * Column internals are typed as keyof ObservationForEval (see observationEvalVariableColumns),
- * ensuring compile-time safety when adding new columns.
+ * JSON string parsing (via deepParseJson) is lazy:
+ * - Only happens if at least one mapping has a JSON selector
+ * - Only parses fields that have selectors (not all fields)
+ * - Each field is parsed once, regardless of how many mappings access it
  *
  * Note: Environment is passed directly to executeLLMAsJudgeEvaluation() by the caller,
  * not embedded in variables.
@@ -41,8 +44,29 @@ export function extractObservationVariables(
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
 
+  // Find which fields have JSON selectors - we'll parse these once upfront
+  const fieldsWithSelectors = new Set<string>();
   for (const mapping of variableMapping) {
-    // Direct property access - columnId is typed as keyof ObservationForEval
+    if (mapping.jsonSelector) {
+      fieldsWithSelectors.add(mapping.selectedColumnId);
+    }
+  }
+
+  // Parse fields with selectors once (lazy - skip if no selectors)
+  const parsedFields = new Map<string, unknown>();
+  for (const fieldId of fieldsWithSelectors) {
+    const internal = columns.find((col) => col.id === fieldId)?.internal;
+    if (internal && observation[internal] !== undefined) {
+      try {
+        parsedFields.set(fieldId, deepParseJson(observation[internal]));
+      } catch {
+        // If parsing fails, use raw value
+        parsedFields.set(fieldId, observation[internal]);
+      }
+    }
+  }
+
+  for (const mapping of variableMapping) {
     const internal = columns.find(
       (col) => col.id === mapping.selectedColumnId,
     )?.internal;
@@ -58,11 +82,17 @@ export function extractObservationVariables(
       continue;
     }
 
-    const rawValue = observation[internal];
+    // Use pre-parsed value if this field was parsed, otherwise use raw value
+    const fieldValue = parsedFields.has(mapping.selectedColumnId)
+      ? parsedFields.get(mapping.selectedColumnId)
+      : observation[internal];
 
     const extractedValue = mapping.jsonSelector
-      ? applyJsonSelector({ value: rawValue, selector: mapping.jsonSelector })
-      : rawValue;
+      ? applyJsonSelector({
+          value: fieldValue,
+          selector: mapping.jsonSelector,
+        })
+      : fieldValue;
 
     variables.push({
       var: mapping.templateVariable,
@@ -80,7 +110,7 @@ interface ApplyJsonSelectorParams {
 
 /**
  * Applies a JSONPath selector to extract a nested value.
- * Falls back to the original value if JSON parsing fails.
+ * Assumes value is already parsed via deepParseJson.
  */
 function applyJsonSelector(params: ApplyJsonSelectorParams): unknown {
   const { value, selector } = params;
@@ -89,12 +119,17 @@ function applyJsonSelector(params: ApplyJsonSelectorParams): unknown {
     return value;
   }
 
-  try {
-    const jsonValue = typeof value === "string" ? JSON.parse(value) : value;
+  if (typeof value !== "object") {
+    logger.debug(
+      `Can't apply JSONPath to primitive value for selector "${selector}". Falling back to original value.`,
+    );
+    return value; // Can't apply JSONPath to primitives
+  }
 
+  try {
     return JSONPath({
       path: selector,
-      json: jsonValue,
+      json: value,
     });
   } catch (error) {
     logger.debug(

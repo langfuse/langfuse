@@ -50,19 +50,17 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageEntry) {
-        void router.push(
-          props.path({
-            id: encodeURIComponent(previousPageEntry.id),
-            params: previousPageEntry.params,
-          }),
-        );
+        const newPath = props.path({
+          id: encodeURIComponent(previousPageEntry.id),
+          params: previousPageEntry.params,
+        });
+        void router.push(newPath);
       } else if (event.key === "j" && nextPageEntry) {
-        void router.push(
-          props.path({
-            id: encodeURIComponent(nextPageEntry.id),
-            params: nextPageEntry.params,
-          }),
-        );
+        const newPath = props.path({
+          id: encodeURIComponent(nextPageEntry.id),
+          params: nextPageEntry.params,
+        });
+        void router.push(newPath);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -92,14 +90,14 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronUp className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
                 K
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
               k
             </InputCommandShortcut>
           </TooltipContent>
@@ -125,14 +123,14 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronDown className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
                 J
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
               j
             </InputCommandShortcut>
           </TooltipContent>

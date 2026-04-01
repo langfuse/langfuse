@@ -250,6 +250,7 @@ export function useScoreAnalyticsQuery(
     const { mode, isSameScore } = apiData.metadata;
     const dataType = apiData.metadata.dataType as DataType;
     const isNumeric = dataType === "NUMERIC";
+    const isBoolean = dataType === "BOOLEAN";
 
     // ========================================================================
     // 1. Extract categories (categorical/boolean only)
@@ -260,10 +261,46 @@ export function useScoreAnalyticsQuery(
       stackedDistribution: apiData.stackedDistribution,
     });
 
+    const normalizeBooleanCategory = (
+      value: string,
+    ): "False" | "True" | null => {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") return "True";
+      if (normalized === "false" || normalized === "0") return "False";
+      return null;
+    };
+
+    const buildBooleanDistribution = (
+      timeSeries: Array<{ category: string; count: number }>,
+      distributionCategories: string[],
+    ) => {
+      const countByCategory = new Map<string, number>(
+        distributionCategories.map((category) => [category, 0]),
+      );
+
+      timeSeries.forEach((item) => {
+        const normalizedCategory = normalizeBooleanCategory(item.category);
+        if (!normalizedCategory || !countByCategory.has(normalizedCategory)) {
+          return;
+        }
+
+        countByCategory.set(
+          normalizedCategory,
+          (countByCategory.get(normalizedCategory) ?? 0) + item.count,
+        );
+      });
+
+      return distributionCategories.map((category, index) => ({
+        binIndex: index,
+        count: countByCategory.get(category) ?? 0,
+      }));
+    };
+
     // Extract score2 categories for proper binning
     // When comparing two different categorical scores, score2 may have different categories
-    const score2Categories =
-      apiData.score2Categories && apiData.score2Categories.length > 0
+    const score2Categories = isBoolean
+      ? categories
+      : apiData.score2Categories && apiData.score2Categories.length > 0
         ? apiData.score2Categories
         : mode === "two" && categories
           ? categories // Fallback to score1 categories if score2Categories empty
@@ -275,40 +312,74 @@ export function useScoreAnalyticsQuery(
     // fillDistributionBins() already returns sorted data for categorical/boolean
     // For numeric, we sort to handle non-deterministic ClickHouse row ordering
     // ========================================================================
-    const distribution1 = categories
-      ? fillDistributionBins(apiData.distribution1, categories)
-      : apiData.distribution1.slice().sort((a, b) => a.binIndex - b.binIndex);
+    const booleanCategories = categories ?? ["False", "True"];
+    const booleanScore2Categories = score2Categories ?? booleanCategories;
+    const booleanTimeSeries2 =
+      isBoolean && isSameScore && mode === "two"
+        ? apiData.timeSeriesCategorical1
+        : apiData.timeSeriesCategorical2;
+    const booleanTimeSeries2Matched =
+      isBoolean && isSameScore && mode === "two"
+        ? apiData.timeSeriesCategorical1Matched
+        : apiData.timeSeriesCategorical2Matched;
 
-    const distribution2 =
-      categories && mode === "two"
+    const distribution1 = isBoolean
+      ? buildBooleanDistribution(
+          apiData.timeSeriesCategorical1,
+          booleanCategories,
+        )
+      : categories
+        ? fillDistributionBins(apiData.distribution1, categories)
+        : apiData.distribution1.slice().sort((a, b) => a.binIndex - b.binIndex);
+
+    const distribution2 = isBoolean
+      ? buildBooleanDistribution(booleanTimeSeries2, booleanScore2Categories)
+      : categories && mode === "two"
         ? fillDistributionBins(apiData.distribution2, categories)
         : apiData.distribution2.slice().sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution1Individual = categories
-      ? fillDistributionBins(apiData.distribution1Individual, categories)
-      : apiData.distribution1Individual
-          .slice()
-          .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution1Individual = isBoolean
+      ? distribution1
+      : categories
+        ? fillDistributionBins(apiData.distribution1Individual, categories)
+        : apiData.distribution1Individual
+            .slice()
+            .sort((a, b) => a.binIndex - b.binIndex);
 
     // Use score2Categories for score2Individual (not score1 categories)
-    const distribution2Individual = score2Categories
-      ? fillDistributionBins(apiData.distribution2Individual, score2Categories)
-      : apiData.distribution2Individual
-          .slice()
-          .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution2Individual = isBoolean
+      ? distribution2
+      : score2Categories
+        ? fillDistributionBins(
+            apiData.distribution2Individual,
+            score2Categories,
+          )
+        : apiData.distribution2Individual
+            .slice()
+            .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution1Matched = categories
-      ? fillDistributionBins(apiData.distribution1Matched, categories)
-      : apiData.distribution1Matched
-          .slice()
-          .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution1Matched = isBoolean
+      ? buildBooleanDistribution(
+          apiData.timeSeriesCategorical1Matched,
+          booleanCategories,
+        )
+      : categories
+        ? fillDistributionBins(apiData.distribution1Matched, categories)
+        : apiData.distribution1Matched
+            .slice()
+            .sort((a, b) => a.binIndex - b.binIndex);
 
     // Use score2Categories for score2Matched (not score1 categories)
-    const distribution2Matched = score2Categories
-      ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
-      : apiData.distribution2Matched
-          .slice()
-          .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution2Matched = isBoolean
+      ? buildBooleanDistribution(
+          booleanTimeSeries2Matched,
+          booleanScore2Categories,
+        )
+      : score2Categories
+        ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
+        : apiData.distribution2Matched
+            .slice()
+            .sort((a, b) => a.binIndex - b.binIndex);
 
     // ========================================================================
     // 3. Generate bin labels (numeric only)
@@ -406,7 +477,7 @@ export function useScoreAnalyticsQuery(
     // ========================================================================
     const score1ModeMetrics = !isNumeric
       ? calculateModeMetrics({
-          distribution: apiData.distribution1,
+          distribution: isBoolean ? distribution1 : apiData.distribution1,
           timeSeries: apiData.timeSeriesCategorical1,
           totalCount: apiData.counts.score1Total,
         })
@@ -417,12 +488,12 @@ export function useScoreAnalyticsQuery(
       !isNumeric && mode === "two"
         ? isSameScore
           ? calculateModeMetrics({
-              distribution: apiData.distribution1, // Reuse Score 1 data
+              distribution: isBoolean ? distribution1 : apiData.distribution1, // Reuse Score 1 data
               timeSeries: apiData.timeSeriesCategorical1, // Reuse Score 1 data
               totalCount: apiData.counts.score2Total,
             })
           : calculateModeMetrics({
-              distribution: apiData.distribution2,
+              distribution: isBoolean ? distribution2 : apiData.distribution2,
               timeSeries: apiData.timeSeriesCategorical2,
               totalCount: apiData.counts.score2Total,
             })
@@ -615,12 +686,7 @@ export function useScoreAnalyticsQuery(
         // (e.g., boolean scores always have ["False", "True"])
         // We need this populated so the UI can correctly display score2's categories
         // when viewing the "score2" tab in the distribution card
-        score2Categories:
-          apiData.score2Categories && apiData.score2Categories.length > 0
-            ? apiData.score2Categories
-            : mode === "two" && categories
-              ? categories
-              : undefined,
+        score2Categories,
       },
       timeSeries: {
         numeric: {

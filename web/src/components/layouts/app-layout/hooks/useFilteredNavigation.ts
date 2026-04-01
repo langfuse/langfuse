@@ -103,6 +103,7 @@ export function useFilteredNavigation(
       ),
       entitlements,
       uiCustomization,
+      isLangfuseCloud,
       currentPath: router.asPath,
     }),
     [

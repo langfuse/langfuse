@@ -15,8 +15,11 @@ export const EvaluatorForm = (props: {
   shouldWrapVariables?: boolean;
   templateId?: string;
   hideTargetSection?: boolean;
+  hideTargetSelection?: boolean;
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
+  defaultRunOnLive?: boolean;
+  hidePreviewTable?: boolean;
 }) => {
   const evalCapabilities = useEvalCapabilities(props.projectId);
 
@@ -43,11 +46,14 @@ export const EvaluatorForm = (props: {
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
           hideTargetSection={props.hideTargetSection}
+          hideTargetSelection={props.hideTargetSelection}
           mode={props.mode}
           preventRedirect={props.preventRedirect ?? true}
           preprocessFormValues={props.preprocessFormValues}
           useDialog={props.useDialog}
           evalCapabilities={evalCapabilities}
+          defaultRunOnLive={props.defaultRunOnLive}
+          hidePreviewTable={props.hidePreviewTable}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { paginationMetaResponseZod } from "../../../../../utils/zod";
 import { GetScoreQuery, GetScoresQuery } from "../shared";
 import { APIScoreSchemaV2 } from "./schemas";
@@ -29,6 +29,7 @@ export const GetScoreResponseDataV2 = z
           userId: z.string().nullish(),
           tags: z.array(z.string()).nullish(),
           environment: z.string().nullish(),
+          sessionId: z.string().nullish(),
         })
         .nullish(),
     }),

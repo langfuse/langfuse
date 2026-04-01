@@ -1,6 +1,131 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source("..");
+
+@source "../../node_modules/@ferrucc-io/emoji-picker/dist";
+
+@plugin "@tailwindcss/forms";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --spacing-banner-offset: var(--banner-offset);
+  --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
+
+  --color-primary-accent: hsl(var(--primary-accent));
+  --color-hover-primary-accent: hsl(var(--hover-primary-accent));
+  --color-muted-magenta: hsl(var(--muted-magenta));
+  --color-muted-blue: hsl(var(--muted-blue));
+  --color-muted-green: hsl(var(--muted-green));
+  --color-muted-gray: hsl(var(--muted-gray));
+  --color-accent-light-green: hsl(var(--accent-light-green));
+  --color-accent-dark-green: hsl(var(--accent-dark-green));
+  --color-light-red: hsl(var(--light-red));
+  --color-dark-red: hsl(var(--dark-red));
+  --color-light-yellow: hsl(var(--light-yellow));
+  --color-dark-yellow: hsl(var(--dark-yellow));
+  --color-light-green: hsl(var(--light-green));
+  --color-dark-green: hsl(var(--dark-green));
+  --color-light-blue: hsl(var(--light-blue));
+  --color-dark-blue: hsl(var(--dark-blue));
+  --color-accent-light-blue: hsl(var(--accent-light-blue));
+  --color-accent-dark-blue: hsl(var(--accent-dark-blue));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-tertiary: hsl(var(--tertiary));
+  --color-tertiary-foreground: hsl(var(--tertiary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-header: hsl(var(--header));
+  --color-header-foreground: hsl(var(--header-foreground));
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --text-xs: 0.7rem;
+  --text-sm: 0.825rem;
+  --text-base: 0.9rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.3rem;
+  --text-3xl: 1.5rem;
+
+  --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes rainbow {
+    0% {
+      background-position: 0%;
+    }
+
+    100% {
+      background-position: 200%;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 @layer base {
   :root {
@@ -185,15 +310,16 @@
     --color-4: oklch(80.2% 0.134 225);
     --color-5: oklch(90.7% 0.231 133);
   }
-
-  .theme {
-    --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
-  }
 }
 
 @layer base {
   * {
     @apply border-border;
+  }
+
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 
   html,
@@ -230,35 +356,25 @@
   }
 }
 
-/* Custom styles for react-grid-layout resize handle */
-.react-resizable-handle {
-  position: absolute;
-  bottom: 5px !important;
-  right: 5px !important;
-  background-image: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: hsl(var(--muted-foreground));
-}
+@layer utilities {
+  /* Custom styles for react-grid-layout resize handle */
+  .react-resizable-handle {
+    position: absolute;
+    bottom: 5px !important;
+    right: 5px !important;
+    background-image: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+  }
 
-.react-resizable-handle::after {
-  content: "";
-  width: 10px !important;
-  height: 10px !important;
-  border-right: 2px solid currentColor !important;
-  border-bottom: 2px solid currentColor !important;
-}
-
-@theme inline {
-  @keyframes rainbow {
-    0% {
-      background-position: 0%;
-    }
-
-    100% {
-      background-position: 200%;
-    }
+  .react-resizable-handle::after {
+    content: "";
+    width: 10px !important;
+    height: 10px !important;
+    border-right: 2px solid currentColor !important;
+    border-bottom: 2px solid currentColor !important;
   }
 }
 

@@ -4,6 +4,7 @@ import {
   type SingleValueOption,
 } from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
+import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
 
 // Escape pipe characters in values to avoid conflicts with the delimiter
 // Uses backslash escaping: | → \|, and \ → \\
@@ -133,6 +134,10 @@ export function decodeFiltersGeneric(query: string): FilterState {
 
     const decodedOperator = decodeURIComponent(operator);
     const decodedKey = key ? decodeURIComponent(key) : "";
+    const normalizedKey =
+      type === "positionInTrace"
+        ? normalizeLegacySessionPositionInTraceKey(decodedKey)
+        : decodedKey;
     const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
@@ -151,9 +156,11 @@ export function decodeFiltersGeneric(query: string): FilterState {
       // Split on unescaped pipe characters only, then unescape each value
       parsedValue = decodedValue
         ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
-        : decodedValue === ""
-          ? [""] // allow empty strings (i.e, filter for empty trace name)
-          : [decodedValue];
+        : type === "arrayOptions"
+          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
+          : decodedValue === ""
+            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
+            : [decodedValue];
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {
@@ -169,14 +176,14 @@ export function decodeFiltersGeneric(query: string): FilterState {
     };
 
     // Add key field for types that need it
-    if (decodedKey) {
+    if (normalizedKey) {
       if (
         type === "categoryOptions" ||
         type === "numberObject" ||
         type === "stringObject" ||
         type === "positionInTrace"
       ) {
-        filter.key = decodedKey;
+        filter.key = normalizedKey;
       }
     }
 

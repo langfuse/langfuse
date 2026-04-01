@@ -12,11 +12,19 @@
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import {
+  type TraceDomain,
+  type ScoreDomain,
+  ObservationLevel,
+} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode, type TraceSearchListItem } from "../lib/types";
-import { buildTraceUiData } from "../lib/tree-building";
+import {
+  buildTraceUiData,
+  getObservationLevels,
+  removeHiddenNodes,
+} from "../lib/tree-building";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 
@@ -74,9 +82,38 @@ export function TraceDataProvider({
 }: TraceDataProviderProps) {
   const { minObservationLevel } = useViewPreferences();
 
+  // Build full tree (no level filtering) — only rebuilds when data changes
   const uiData = useMemo(() => {
-    return buildTraceUiData(trace, observations, minObservationLevel);
-  }, [trace, observations, minObservationLevel]);
+    return buildTraceUiData(trace, observations);
+  }, [trace, observations]);
+
+  // Apply level filtering as a cheap post-processing step
+  const { filteredRoots, filteredSearchItems, hiddenObservationsCount } =
+    useMemo(() => {
+      const allowedLevels = getObservationLevels(minObservationLevel);
+      const isAllLevels = allowedLevels.includes(ObservationLevel.DEBUG);
+
+      if (isAllLevels) {
+        return {
+          filteredRoots: uiData.roots,
+          filteredSearchItems: uiData.searchItems,
+          hiddenObservationsCount: 0,
+        };
+      }
+
+      const allowedSet = new Set<string>(allowedLevels);
+      const isHidden = (node: TreeNode) =>
+        node.type !== "TRACE" && !!node.level && !allowedSet.has(node.level);
+
+      const filteredRoots = removeHiddenNodes(uiData.roots, isHidden);
+      const filteredSearchItems = uiData.searchItems.filter(
+        (item) => !isHidden(item.node),
+      );
+      const hiddenObservationsCount =
+        uiData.searchItems.length - filteredSearchItems.length;
+
+      return { filteredRoots, filteredSearchItems, hiddenObservationsCount };
+    }, [uiData, minObservationLevel]);
 
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
@@ -95,10 +132,10 @@ export function TraceDataProvider({
       serverScores: serverScores,
       mergedScores,
       corrections,
-      roots: uiData.roots,
+      roots: filteredRoots,
       nodeMap: uiData.nodeMap,
-      searchItems: uiData.searchItems,
-      hiddenObservationsCount: uiData.hiddenObservationsCount,
+      searchItems: filteredSearchItems,
+      hiddenObservationsCount,
       comments,
     }),
     [
@@ -107,7 +144,10 @@ export function TraceDataProvider({
       serverScores,
       mergedScores,
       corrections,
-      uiData,
+      filteredRoots,
+      filteredSearchItems,
+      hiddenObservationsCount,
+      uiData.nodeMap,
       comments,
     ],
   );

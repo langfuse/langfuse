@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
 import { BooleanData, CategoricalData, NumericData } from "../../domain";
 

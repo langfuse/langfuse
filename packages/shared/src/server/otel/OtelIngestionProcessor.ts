@@ -40,6 +40,9 @@ export interface OtelIngestionProcessorConfig {
   publicKey?: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
+  sdkName?: string;
+  sdkVersion?: string;
+  ingestionVersion?: string;
 }
 
 interface CreateTraceEventParams {
@@ -72,6 +75,18 @@ interface CreateObservationEventParams {
   endTimeISO: string;
 }
 
+type NanoTimestamp =
+  | number
+  | string
+  | {
+      high: number;
+      low: number;
+    }
+  | null
+  | undefined;
+
+type TimestampField = "start_time" | "end_time" | "unknown";
+
 export interface ResourceSpan {
   resource?: {
     attributes?: Array<{ key: string; value: any }>;
@@ -88,8 +103,8 @@ export interface ResourceSpan {
       parentSpanId?: { data?: Buffer } | Buffer;
       name: string;
       kind: number;
-      startTimeUnixNano: number | { low: number; high: number };
-      endTimeUnixNano: number | { low: number; high: number };
+      startTimeUnixNano?: NanoTimestamp;
+      endTimeUnixNano?: NanoTimestamp;
       attributes?: Array<{ key: string; value: any }>;
       events?: any[];
       status?: { code?: number; message?: string };
@@ -106,7 +121,28 @@ const observationTypeMapper = new ObservationTypeMapperRegistry();
  * Manages trace deduplication internally and provides a clean interface
  * for converting OTEL spans to Langfuse events.
  */
+const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
+  "user_speaking",
+  "eou_detection",
+  "llm_request_run",
+  "tts_node",
+  "tts_request",
+  "tts_request_run",
+  "tts_stream_adapter",
+  "agent_speaking",
+  "drain_agent_activity",
+  "on_exit",
+  "on_enter",
+  "llm_fallback_adapter",
+  "tts_fallback_adapter",
+  "start_agent_activity",
+  "on_enter",
+]);
+
 export class OtelIngestionProcessor {
+  private static readonly OTEL_CONVERSION_FAILURE_METRIC =
+    "langfuse.ingestion.otel.conversion_failure";
+
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
   private traceEventCounts = {
@@ -118,12 +154,18 @@ export class OtelIngestionProcessor {
   private readonly publicKey?: string;
   private readonly orgId?: string;
   private readonly propagatedHeaders?: Record<string, string>;
+  private readonly sdkName?: string;
+  private readonly sdkVersion?: string;
+  private readonly ingestionVersion?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
     this.publicKey = config.publicKey;
     this.orgId = config.orgId;
     this.propagatedHeaders = config.propagatedHeaders;
+    this.sdkName = config.sdkName;
+    this.sdkVersion = config.sdkVersion;
+    this.ingestionVersion = config.ingestionVersion;
   }
 
   /**
@@ -147,7 +189,9 @@ export class OtelIngestionProcessor {
     ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
 
     // Add queue job
-    const queue = OtelIngestionQueue.getInstance({});
+    const queue = OtelIngestionQueue.getInstance({
+      shardingKey: `${this.projectId}-${fileKey}`,
+    });
     return queue
       ? queue.add(QueueJobs.OtelIngestionJob, {
           id: randomUUID(),
@@ -167,6 +211,9 @@ export class OtelIngestionProcessor {
               },
             },
             propagatedHeaders: this.propagatedHeaders,
+            sdkName: this.sdkName,
+            sdkVersion: this.sdkVersion,
+            ingestionVersion: this.ingestionVersion,
           },
         })
       : Promise.reject("Failed to instantiate otel ingestion queue");
@@ -205,25 +252,20 @@ export class OtelIngestionProcessor {
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
-                // For LiteLLM spans, use langfuse.trace.id from attributes if provided
-                const isLiteLLMSpan = scopeSpan?.scope?.name === "litellm";
-                const traceId =
-                  isLiteLLMSpan && spanAttributes["langfuse.trace.id"]
-                    ? (spanAttributes["langfuse.trace.id"] as string)
-                    : this.parseId(span.traceId);
+                const traceId = this.parseId(span.traceId);
                 const spanId = this.parseId(span.spanId);
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
                   : null;
-                const name = span.name;
-                const startTimeISO =
-                  OtelIngestionProcessor.convertNanoTimestampToISO(
-                    span.startTimeUnixNano,
-                  );
-                const endTimeISO =
-                  OtelIngestionProcessor.convertNanoTimestampToISO(
-                    span.endTimeUnixNano,
-                  );
+                const name = this.extractName(span.name, spanAttributes);
+                const { startTimeISO, endTimeISO } =
+                  OtelIngestionProcessor.resolveSpanTimestamps({
+                    startTimeUnixNano: span.startTimeUnixNano,
+                    endTimeUnixNano: span.endTimeUnixNano,
+                  });
+
+                const isLangfuseSDKSpans =
+                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
 
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
@@ -235,19 +277,27 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
-                // Extract input/output (filteredAttributes not needed as metadata.attributes is commented out)
-                // Add filteredAttributes in case spanAttributes are included in the metadata block.
-                const { input, output } = this.extractInputAndOutput({
-                  events: span?.events ?? [],
-                  attributes: spanAttributes,
-                  instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                });
+                const { input, output, filteredAttributes } =
+                  this.extractInputAndOutput({
+                    events: span?.events ?? [],
+                    attributes: spanAttributes,
+                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                  });
 
                 // Construct metadata object with the specified structure
+                // Match v3 path: store full scope object (name, version, attributes)
                 const metadata = {
-                  // attributes: filteredAttributes,
+                  ...(isLangfuseSDKSpans
+                    ? {}
+                    : { attributes: filteredAttributes }),
                   resourceAttributes: resourceAttributes,
-                  scopeAttributes: scopeAttributes,
+                  scope: {
+                    ...(scopeSpan.scope || {}),
+                    attributes: scopeAttributes,
+                  },
+                  // Note: top-level user metadata can overwrite `scope` here.
+                  // This preserves the v3 behavior/shape, even though it means
+                  // the instrumentation scope object is not guaranteed to win.
                   ...spanMetadata,
                   ...traceMetadata,
                 };
@@ -327,6 +377,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     resourceAttributes,
                     scopeSpan?.scope,
+                    span.name,
                   ),
                   environment: this.extractEnvironment(
                     spanAttributes,
@@ -346,7 +397,10 @@ export class OtelIngestionProcessor {
                     ] ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
-                      : ObservationLevel.DEFAULT),
+                      : scopeSpan?.scope?.name === "livekit-agents" &&
+                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                        ? ObservationLevel.DEBUG
+                        : ObservationLevel.DEFAULT),
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -677,12 +731,7 @@ export class OtelIngestionProcessor {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
 
-    // For LiteLLM spans, use langfuse.trace.id from attributes if provided
-    const isLiteLLMSpan = scopeSpan?.scope?.name === "litellm";
-    const traceId =
-      isLiteLLMSpan && attributes["langfuse.trace.id"]
-        ? (attributes["langfuse.trace.id"] as string)
-        : this.parseId(span.traceId?.data ?? span.traceId);
+    const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
       ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
       : null;
@@ -695,12 +744,11 @@ export class OtelIngestionProcessor {
       resourceAttributes,
       "trace",
     );
-    const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
-      span.startTimeUnixNano,
-    );
-    const endTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
-      span.endTimeUnixNano,
-    );
+    const { startTimeISO, endTimeISO } =
+      OtelIngestionProcessor.resolveSpanTimestamps({
+        startTimeUnixNano: span.startTimeUnixNano,
+        endTimeUnixNano: span.endTimeUnixNano,
+      });
 
     const isRootSpan =
       !parentObservationId ||
@@ -930,7 +978,10 @@ export class OtelIngestionProcessor {
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
-          : ObservationLevel.DEFAULT),
+          : scopeSpan?.scope?.name === "livekit-agents" &&
+              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+            ? ObservationLevel.DEBUG
+            : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -967,6 +1018,7 @@ export class OtelIngestionProcessor {
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
+      span.name,
     );
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
@@ -1193,6 +1245,9 @@ export class OtelIngestionProcessor {
       "events",
       // LiveKit
       "lk.input_text",
+      "lk.user_transcript",
+      "lk.chat_ctx",
+      "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
       // MLFlow
@@ -1204,6 +1259,11 @@ export class OtelIngestionProcessor {
       // SmolAgents
       "input.value",
       "output.value",
+      // Pydantic AI agent/root span
+      "final_result",
+      "pydantic_ai.all_messages",
+      // OpenTelemetry system instructions
+      "gen_ai.system_instructions",
       // Pydantic and Pipecat
       "input",
       "output",
@@ -1212,6 +1272,9 @@ export class OtelIngestionProcessor {
       "gen_ai.output.messages",
       "gen_ai.tool.call.arguments",
       "gen_ai.tool.call.result",
+      // Genkit
+      "genkit:input",
+      "genkit:output",
     ];
 
     // Delete simple keys
@@ -1219,13 +1282,17 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, and llm.output_messages.* keys
+    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
+    // and metadata blob keys (already extracted into top-level metadata by extractMetadata())
     Object.keys(attributes).forEach((key) => {
       if (
         key.startsWith("gen_ai.prompt") ||
         key.startsWith("gen_ai.completion") ||
         key.startsWith("llm.input_messages") ||
-        key.startsWith("llm.output_messages")
+        key.startsWith("llm.output_messages") ||
+        key.startsWith("langfuse.trace.metadata") ||
+        key.startsWith("langfuse.observation.metadata") ||
+        key.startsWith("ai.telemetry.metadata")
       ) {
         delete rawFilteredAttributes[key];
       }
@@ -1240,10 +1307,6 @@ export class OtelIngestionProcessor {
       ]),
     );
 
-    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
-    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
-    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
-
     // Langfuse
     input =
       domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
@@ -1255,6 +1318,25 @@ export class OtelIngestionProcessor {
         : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
     if (input != null || output != null) {
+      return { input, output, filteredAttributes };
+    }
+
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitInput =
+        this.parseJsonPayload(attributes["genkit:input"]) ??
+        attributes["genkit:input"];
+      const genkitOutput =
+        this.parseJsonPayload(attributes["genkit:output"]) ??
+        attributes["genkit:output"];
+
+      if (genkitInput != null || genkitOutput != null) {
+        // For model spans prefer messages[] as input and message object as output.
+        // For flow/util spans there is no messages/message wrapper, so fall back to the full object
+        input = genkitInput?.messages ?? genkitInput;
+        output = genkitOutput?.message ?? genkitOutput;
+      }
+
       return { input, output, filteredAttributes };
     }
 
@@ -1421,7 +1503,10 @@ export class OtelIngestionProcessor {
     }
 
     // LiveKit
-    input = attributes["lk.input_text"];
+    input =
+      attributes["lk.input_text"] ??
+      attributes["lk.user_transcript"] ??
+      attributes["lk.chat_ctx"];
     output =
       attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
@@ -1482,6 +1567,21 @@ export class OtelIngestionProcessor {
     output = attributes["output"];
     if (input || output) {
       return { input, output, filteredAttributes };
+    }
+
+    // Pydantic AI agent/root span: all_messages → input, final_result → output
+    if (instrumentationScopeName === "pydantic-ai") {
+      input = attributes["pydantic_ai.all_messages"] ?? null;
+      output = attributes["final_result"] ?? null;
+      if (input && attributes["gen_ai.system_instructions"]) {
+        input = this.prependSystemInstructions(
+          input,
+          attributes["gen_ai.system_instructions"],
+        );
+      }
+      if (input || output) {
+        return { input, output, filteredAttributes };
+      }
     }
 
     // Pydantic-AI uses tool_arguments and tool_response for tool call input/output
@@ -1546,8 +1646,18 @@ export class OtelIngestionProcessor {
     // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
+    if (input && attributes["gen_ai.system_instructions"]) {
+      input = this.prependSystemInstructions(
+        input,
+        attributes["gen_ai.system_instructions"],
+      );
+    }
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: this.appendOtelToolDefinitionsToInput(input, attributes),
+        output,
+        filteredAttributes,
+      };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
@@ -1558,6 +1668,124 @@ export class OtelIngestionProcessor {
     }
 
     return { input: null, output: null, filteredAttributes };
+  }
+
+  private appendOtelToolDefinitionsToInput(
+    input: unknown,
+    attributes: Record<string, unknown>,
+  ): unknown {
+    const toolDefinitions = this.extractOtelToolDefinitions(attributes);
+
+    if (!toolDefinitions || input == null) {
+      return input;
+    }
+
+    const mergeToolDefinitions = (value: unknown): unknown => {
+      if (Array.isArray(value)) {
+        return { messages: value, tools: toolDefinitions };
+      }
+
+      if (typeof value !== "object" || value == null) {
+        return null;
+      }
+
+      const inputObject = value as Record<string, unknown>;
+
+      if (inputObject.tools != null) {
+        return inputObject;
+      }
+
+      return {
+        ...inputObject,
+        tools: toolDefinitions,
+      };
+    };
+
+    if (typeof input === "string") {
+      try {
+        const parsedInput = JSON.parse(input);
+        const mergedInput = mergeToolDefinitions(parsedInput);
+        return mergedInput == null ? input : JSON.stringify(mergedInput);
+      } catch {
+        return input;
+      }
+    }
+
+    return mergeToolDefinitions(input) ?? input;
+  }
+
+  private extractOtelToolDefinitions(
+    attributes: Record<string, unknown>,
+  ): unknown[] | null {
+    const parseJsonString = (value: unknown): unknown => {
+      if (typeof value !== "string") {
+        return value;
+      }
+
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const modelRequestParameters = parseJsonString(
+      attributes["model_request_parameters"],
+    ) as Record<string, unknown> | null;
+
+    const toolDefinitions = parseJsonString(
+      attributes["gen_ai.tool.definitions"] ??
+        modelRequestParameters?.function_tools,
+    );
+
+    return Array.isArray(toolDefinitions) ? toolDefinitions : null;
+  }
+
+  /**
+   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
+   * consistent with how gen_ai.system.message events are mapped.
+   * No-ops if messages already contain a system message.
+   */
+  private prependSystemInstructions(
+    input: unknown,
+    systemInstructions: unknown,
+  ): unknown {
+    try {
+      const messages = typeof input === "string" ? JSON.parse(input) : input;
+      if (!Array.isArray(messages)) return input;
+
+      const hasSystemMessage = messages.some(
+        (msg: Record<string, unknown>) => msg?.role === "system",
+      );
+      if (hasSystemMessage) return input;
+
+      let content: string;
+      try {
+        const parsed =
+          typeof systemInstructions === "string"
+            ? JSON.parse(systemInstructions)
+            : systemInstructions;
+        if (Array.isArray(parsed)) {
+          content = parsed
+            .map((p: Record<string, unknown>) =>
+              typeof p === "object" && p?.content
+                ? String(p.content)
+                : String(p),
+            )
+            .join("\n");
+        } else {
+          content = String(parsed);
+        }
+      } catch {
+        content = String(systemInstructions);
+      }
+
+      const systemMessage = { role: "system", content };
+      const merged = [systemMessage, ...messages];
+      return typeof input === "string" ? JSON.stringify(merged) : merged;
+    } catch {
+      return input;
+    }
   }
 
   private extractEnvironment(
@@ -1591,6 +1819,11 @@ export class OtelIngestionProcessor {
       return typeof attributes["gen_ai.tool.name"] === "string"
         ? (attributes["gen_ai.tool.name"] as string)
         : JSON.stringify(attributes["gen_ai.tool.name"]);
+    }
+
+    // Genkit
+    if ("genkit:name" in attributes) {
+      return attributes["genkit:name"] as string;
     }
 
     // Logfire message for pydantic AI
@@ -1750,6 +1983,17 @@ export class OtelIngestionProcessor {
       }
     }
 
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitConfig =
+        this.parseJsonPayload(attributes["genkit:input"])?.config ??
+        this.parseJsonPayload(attributes["genkit:output"])?.request?.config;
+
+      if (genkitConfig) {
+        return this.sanitizeModelParams(genkitConfig);
+      }
+    }
+
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
       return {
@@ -1854,6 +2098,12 @@ export class OtelIngestionProcessor {
       "llm.model_name",
       "model",
     ];
+
+    // Genkit: genkit:name is the model identifier only on model-subtype spans
+    if (attributes["genkit:metadata:subtype"] === "model") {
+      modelNameKeys.push("genkit:name");
+    }
+
     for (const key of modelNameKeys) {
       if (attributes[key]) {
         return typeof attributes[key] === "string"
@@ -1876,6 +2126,29 @@ export class OtelIngestionProcessor {
         );
       } catch {
         // Fallthrough
+      }
+    }
+
+    // Genkit
+    if (instrumentationScopeName === "genkit-tracer") {
+      const genkitOutput = this.parseJsonPayload(attributes["genkit:output"]);
+      const usage = genkitOutput?.usage as Record<string, number>;
+
+      if (usage) {
+        const {
+          inputTokens: input,
+          thoughtsTokens: thoughts,
+          outputTokens: output,
+          totalTokens: total,
+        } = usage;
+
+        const usageDetails: Record<string, number> = {};
+        if (input) usageDetails.input = input;
+        if (output) usageDetails.output = Math.max(output - (thoughts ?? 0), 0);
+        if (total) usageDetails.total = total;
+        if (thoughts) usageDetails.output_reasoning = thoughts;
+
+        return usageDetails;
       }
     }
 
@@ -1955,13 +2228,46 @@ export class OtelIngestionProcessor {
           if ("anthropic" in parsed && "usage" in parsed["anthropic"]) {
             const anthropicMetadata = parsed["anthropic"]["usage"] as Record<
               string,
-              number
+              unknown
             >;
 
-            usageDetails["input_cache_creation"] ??=
-              anthropicMetadata["cache_creation_input_tokens"];
-            usageDetails["input_cached_tokens"] ??=
-              anthropicMetadata["cache_read_input_tokens"];
+            usageDetails["input_cache_creation"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_creation_input_tokens"];
+            usageDetails["input_cached_tokens"] ??= (
+              anthropicMetadata as Record<string, number>
+            )["cache_read_input_tokens"];
+
+            // Extract cache creation duration breakdown (5m and 1h TTLs)
+            if (
+              typeof anthropicMetadata["cache_creation"] === "object" &&
+              anthropicMetadata["cache_creation"] !== null
+            ) {
+              const cacheCreation = anthropicMetadata[
+                "cache_creation"
+              ] as Record<string, number>;
+
+              if (
+                typeof cacheCreation["ephemeral_5m_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_5m"] ??=
+                  cacheCreation["ephemeral_5m_input_tokens"];
+              }
+              if (
+                typeof cacheCreation["ephemeral_1h_input_tokens"] === "number"
+              ) {
+                usageDetails["input_cache_creation_1h"] ??=
+                  cacheCreation["ephemeral_1h_input_tokens"];
+              }
+
+              // Subtract duration-specific counts from total to avoid double counting
+              usageDetails["input_cache_creation"] = Math.max(
+                (usageDetails["input_cache_creation"] ?? 0) -
+                  (usageDetails["input_cache_creation_5m"] ?? 0) -
+                  (usageDetails["input_cache_creation_1h"] ?? 0),
+                0,
+              );
+            }
           }
 
           // Bedrock provider metadata extraction
@@ -1993,6 +2299,8 @@ export class OtelIngestionProcessor {
           (usageDetails["input"] ?? 0) -
             (usageDetails["input_cached_tokens"] ?? 0) -
             (usageDetails["input_cache_creation"] ?? 0) -
+            (usageDetails["input_cache_creation_5m"] ?? 0) -
+            (usageDetails["input_cache_creation_1h"] ?? 0) -
             (usageDetails["input_cache_read"] ?? 0),
           0,
         );
@@ -2280,6 +2588,23 @@ export class OtelIngestionProcessor {
       // Fallthrough
     }
   }
+
+  /**
+   * Parses a payload (object or JSON string) and returns the object
+   * or `undefined` if invalid.
+   */
+  private parseJsonPayload = (payload: unknown): any => {
+    if (payload && typeof payload === "object") return payload;
+    if (typeof payload === "string") {
+      try {
+        return JSON.parse(payload);
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  };
+
   /**
    * Get a set of trace IDs that have been seen recently (from Redis cache).
    * Returns a Set of trace IDs that should not trigger new trace creation.
@@ -2343,20 +2668,52 @@ export class OtelIngestionProcessor {
    * Handles various timestamp formats: string, number, or object with high/low bits.
    */
   public static convertNanoTimestampToISO(
-    timestamp:
-      | number
-      | string
-      | {
-          high: number;
-          low: number;
-        },
-  ): string {
+    timestamp: NanoTimestamp,
+    field: TimestampField = "unknown",
+  ): string | undefined {
     try {
-      if (typeof timestamp === "string") {
-        return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+      if (timestamp == null) {
+        OtelIngestionProcessor.recordConversionFailure(
+          "timestamp_missing",
+          field,
+        );
+        return undefined;
       }
+
+      if (typeof timestamp === "string") {
+        if (timestamp.trim() === "") {
+          OtelIngestionProcessor.recordConversionFailure(
+            "timestamp_invalid_empty_string",
+            field,
+          );
+          return undefined;
+        }
+
+        const millisBigInt = BigInt(timestamp) / BigInt(1_000_000);
+        return new Date(Number(millisBigInt)).toISOString();
+      }
+
       if (typeof timestamp === "number") {
+        if (!Number.isFinite(timestamp)) {
+          OtelIngestionProcessor.recordConversionFailure(
+            "timestamp_invalid_number",
+            field,
+          );
+          return undefined;
+        }
+
         return new Date(timestamp / 1e6).toISOString();
+      }
+
+      if (
+        typeof timestamp.high !== "number" ||
+        typeof timestamp.low !== "number"
+      ) {
+        OtelIngestionProcessor.recordConversionFailure(
+          "timestamp_invalid_object",
+          field,
+        );
+        return undefined;
       }
 
       // Convert high and low to BigInt
@@ -2374,8 +2731,64 @@ export class OtelIngestionProcessor {
         timestamp,
         error: e,
       });
-      throw e;
+      OtelIngestionProcessor.recordConversionFailure(
+        typeof timestamp === "string"
+          ? "timestamp_invalid_string"
+          : "timestamp_conversion_exception",
+        field,
+      );
+      return undefined;
     }
+  }
+
+  /**
+   * Ensure a stable time range for spans even if a timestamp is missing.
+   * If one edge is missing, use the other edge. If both are missing, use current time.
+   */
+  private static resolveSpanTimestamps(params: {
+    startTimeUnixNano?: NanoTimestamp;
+    endTimeUnixNano?: NanoTimestamp;
+  }): { startTimeISO: string; endTimeISO: string } {
+    const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      params.startTimeUnixNano,
+      "start_time",
+    );
+    const endTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      params.endTimeUnixNano,
+      "end_time",
+    );
+    const fallbackISO = new Date().toISOString();
+
+    if (!startTimeISO && endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_start_from_end",
+        "start_time",
+      );
+    } else if (startTimeISO && !endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_end_from_start",
+        "end_time",
+      );
+    } else if (!startTimeISO && !endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_both_missing",
+      );
+    }
+
+    return {
+      startTimeISO: startTimeISO ?? endTimeISO ?? fallbackISO,
+      endTimeISO: endTimeISO ?? startTimeISO ?? fallbackISO,
+    };
+  }
+
+  private static recordConversionFailure(
+    failureType: string,
+    field: TimestampField = "unknown",
+  ): void {
+    recordIncrement(OtelIngestionProcessor.OTEL_CONVERSION_FAILURE_METRIC, 1, {
+      failure_type: failureType,
+      timestamp_field: field,
+    });
   }
 
   /**

@@ -10,10 +10,13 @@ export const useIsAuthenticatedAndProjectMember = (
 
   if (projectId === "") return false;
 
+  const isAdmin = session.data?.user?.admin ?? false;
+
   return (
-    session.status === "authenticated" &&
-    !!session.data?.user?.organizations
-      .flatMap((org) => org.projects)
-      .find(({ id }) => id === projectId)
+    isAdmin ||
+    (session.status === "authenticated" &&
+      !!session.data?.user?.organizations
+        .flatMap((org) => org.projects)
+        .find(({ id }) => id === projectId))
   );
 };

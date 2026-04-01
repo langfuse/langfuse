@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   FormControl,
   FormField,
@@ -20,13 +20,22 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import {
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandList,
+  InputCommand,
+  InputCommandItem,
+} from "@/src/components/ui/input-command";
+import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Info, CircleCheck } from "lucide-react";
+import { Info, CircleCheck, ChevronDown, CheckIcon } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { api } from "@/src/utils/api";
@@ -46,6 +55,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
     validationResult,
   } = datasetState;
   const { selectedPromptName, selectedPromptVersion } = promptInfo;
+  const [datasetPopoverOpen, setDatasetPopoverOpen] = useState(false);
 
   // Fetch dataset versions when a dataset is selected
   const { data: datasetVersions } = api.datasets.listDatasetVersions.useQuery(
@@ -72,24 +82,61 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
           <FormItem>
             <FormLabel>Dataset</FormLabel>
             <div className="flex items-center gap-2">
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                value={field.value}
+              <Popover
+                open={datasetPopoverOpen}
+                onOpenChange={setDatasetPopoverOpen}
               >
-                <FormControl>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select a dataset" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {(datasets ?? []).map((dataset) => (
-                    <SelectItem key={dataset.id} value={dataset.id}>
-                      {dataset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={datasetPopoverOpen}
+                    className="flex-1 justify-between px-2 font-normal"
+                  >
+                    {field.value
+                      ? datasets?.find((d) => d.id === field.value)?.name
+                      : "Select a dataset"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
+                  align="start"
+                >
+                  <InputCommand>
+                    <InputCommandInput
+                      placeholder="Search datasets..."
+                      className="h-9"
+                      variant="bottom"
+                    />
+                    <InputCommandList>
+                      <InputCommandEmpty>No dataset found.</InputCommandEmpty>
+                      <InputCommandGroup>
+                        {(datasets ?? []).map((dataset) => (
+                          <InputCommandItem
+                            key={dataset.id}
+                            onSelect={() => {
+                              field.onChange(dataset.id);
+                              form.clearErrors("datasetId");
+                              setDatasetPopoverOpen(false);
+                            }}
+                          >
+                            {dataset.name}
+                            <CheckIcon
+                              className={cn(
+                                "ml-auto h-4 w-4",
+                                dataset.id === field.value
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                          </InputCommandItem>
+                        ))}
+                      </InputCommandGroup>
+                    </InputCommandList>
+                  </InputCommand>
+                </PopoverContent>
+              </Popover>
 
               {selectedPromptName && selectedPromptVersion !== null && (
                 <Popover>
@@ -100,10 +147,10 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   </PopoverTrigger>
                   <PopoverContent className="w-80">
                     <div className="space-y-2">
-                      <h4 className="font-medium leading-none">
+                      <h4 className="leading-none font-medium">
                         Expected Dataset Structure
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-muted-foreground text-sm">
                         Based on prompt {selectedPromptName} v
                         {selectedPromptVersion}
                       </p>
@@ -181,9 +228,9 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
       {selectedDatasetId && (
         <>
           {validationResult?.isValid === false && (
-            <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-dark-yellow bg-light-yellow relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
+                <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
                   <Info className="h-4 w-4" />
                 </CardTitle>
@@ -194,9 +241,9 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
             </Card>
           )}
           {validationResult?.isValid === true && (
-            <Card className="relative overflow-hidden rounded-md border-dark-green bg-light-green shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-dark-green bg-light-green relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="flex items-center justify-between text-sm text-dark-green">
+                <CardTitle className="text-dark-green flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
                   <CircleCheck className="h-4 w-4" />
                 </CardTitle>

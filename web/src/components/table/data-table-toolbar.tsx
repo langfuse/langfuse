@@ -7,7 +7,7 @@ import {
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
-  type TableViewPresetDomain,
+  type TableViewPresetState,
   type TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
@@ -90,7 +90,7 @@ interface SearchConfig {
 }
 
 interface TableViewControllers {
-  applyViewState: (viewData: TableViewPresetDomain) => void;
+  applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
@@ -145,37 +145,36 @@ function getSearchDescription(
   searchType: TracingSearchType[] | undefined,
   metadataFields: string[] | undefined,
   hidePerformanceWarning: boolean | undefined,
+  tableAllowsFullTextSearch: boolean | undefined,
 ): React.ReactNode {
   const fields = metadataFields?.join(", ") ?? "";
   const performanceWarning = !hidePerformanceWarning
     ? " For improved performance, please filter the table down."
     : "";
 
-  if (!searchType || searchType.includes("id")) {
-    if (searchType?.includes("content")) {
-      return (
-        <p className="text-xs font-normal text-primary">
-          Searches in Input/Output and {fields}.{performanceWarning}
-        </p>
-      );
-    }
-    if (searchType?.includes("input")) {
-      return (
-        <p className="text-xs font-normal text-primary">
-          Searches in Input and {fields}.{performanceWarning}
-        </p>
-      );
-    }
-    if (searchType?.includes("output")) {
-      return (
-        <p className="text-xs font-normal text-primary">
-          Searches in Output and {fields}.{performanceWarning}
-        </p>
-      );
-    }
+  if (tableAllowsFullTextSearch && searchType?.includes("content")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Input/Output and {fields}.{performanceWarning}
+      </p>
+    );
+  }
+  if (tableAllowsFullTextSearch && searchType?.includes("input")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Input and {fields}.{performanceWarning}
+      </p>
+    );
+  }
+  if (tableAllowsFullTextSearch && searchType?.includes("output")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Output and {fields}.{performanceWarning}
+      </p>
+    );
   }
   return (
-    <p className="text-xs font-normal text-primary">Searches in {fields}.</p>
+    <p className="text-primary text-xs font-normal">Searches in {fields}.</p>
   );
 }
 
@@ -216,7 +215,7 @@ export function DataTableToolbar<TData, TValue>({
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
-      <div className="my-2 flex flex-wrap items-center gap-2 @container">
+      <div className="@container my-2 flex flex-wrap items-center gap-2">
         {hasNewSidebar && (
           <Button
             variant="outline"
@@ -237,11 +236,23 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </Button>
         )}
+        {!!columnVisibility && !!columnOrder && !!viewConfig && (
+          <TableViewPresetsDrawer
+            viewConfig={viewConfig}
+            currentState={{
+              orderBy: orderByState ?? null,
+              filters: filterState ?? [],
+              columnOrder,
+              columnVisibility,
+              searchQuery: searchString,
+            }}
+          />
+        )}
         {searchConfig && (
-          <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
+          <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
             <div
               className={cn(
-                "flex h-8 flex-1 items-center border border-input bg-background pl-2",
+                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
                 searchConfig.setSearchType
                   ? "rounded-l-md rounded-r-none border-r-0"
                   : "rounded-l-md rounded-r-md",
@@ -280,7 +291,7 @@ export function DataTableToolbar<TData, TValue>({
                     searchConfig.updateQuery(searchString);
                   }
                 }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:outline-none focus-visible:ring-0"
+                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
               />
             </div>
             {searchConfig.setSearchType && (
@@ -289,7 +300,7 @@ export function DataTableToolbar<TData, TValue>({
                   <Button
                     variant="outline"
                     size="default"
-                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
+                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
                     <span className="flex items-center gap-1 truncate">
                       {getSearchButtonLabel(
@@ -301,6 +312,7 @@ export function DataTableToolbar<TData, TValue>({
                           searchConfig.searchType,
                           searchConfig.metadataSearchFields,
                           searchConfig.hidePerformanceWarning,
+                          searchConfig.tableAllowsFullTextSearch,
                         )}
                       />
                     </span>
@@ -407,18 +419,6 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-          {!!columnVisibility && !!columnOrder && !!viewConfig && (
-            <TableViewPresetsDrawer
-              viewConfig={viewConfig}
-              currentState={{
-                orderBy: orderByState ?? null,
-                filters: filterState ?? [],
-                columnOrder,
-                columnVisibility,
-                searchQuery: searchString,
-              }}
-            />
-          )}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

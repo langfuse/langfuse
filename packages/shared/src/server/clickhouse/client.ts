@@ -107,7 +107,7 @@ export class ClickHouseClientManager {
 
       const cloudOptions: Record<string, unknown> = {};
       if (
-        ["STAGING", "EU", "US", "HIPAA"].includes(
+        ["STAGING", "EU", "US", "HIPAA", "JP"].includes(
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
         )
       ) {

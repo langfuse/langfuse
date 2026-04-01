@@ -1,5 +1,5 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});
@@ -128,6 +128,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
 
@@ -141,6 +142,7 @@ export const CreateWidgetInputSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list response

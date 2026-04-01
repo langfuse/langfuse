@@ -24,12 +24,15 @@ import { CommentableJsonView } from "@/src/features/comments/components/Commenta
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
-import { type ScoreDomain } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps {
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
@@ -72,6 +75,9 @@ export interface IOPreviewJSONProps {
  * because it skips all ChatML processing.
  */
 function IOPreviewJSONInner({
+  input,
+  output,
+  metadata,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -114,18 +120,36 @@ function IOPreviewJSONInner({
     [isDark],
   );
 
-  const showInput = !hideInput && !(hideIfNull && parsedInput === undefined);
-  const showOutput = !hideOutput && !(hideIfNull && parsedOutput === undefined);
-  const showMetadata = !(hideIfNull && parsedMetadata === undefined);
+  // Fall back to raw values when caller does not provide pre-parsed fields
+  // (e.g. session events rows in v4 mode).
+  const effectiveInput = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedInput ?? deepParseJson(input);
+  }, [parsedInput, input, isParsing]);
+
+  const effectiveOutput = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedOutput ?? deepParseJson(output);
+  }, [parsedOutput, output, isParsing]);
+
+  const effectiveMetadata = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedMetadata ?? deepParseJson(metadata);
+  }, [parsedMetadata, metadata, isParsing]);
+
+  const showInput = !hideInput && !(hideIfNull && effectiveInput === undefined);
+  const showOutput =
+    !hideOutput && !(hideIfNull && effectiveOutput === undefined);
+  const showMetadata = !(hideIfNull && effectiveMetadata === undefined);
 
   // Count rows for each section to determine if virtualization is needed
   const rowCounts = useMemo(() => {
     return {
-      input: countJsonRows(parsedInput),
-      output: countJsonRows(parsedOutput),
-      metadata: countJsonRows(parsedMetadata),
+      input: countJsonRows(effectiveInput),
+      output: countJsonRows(effectiveOutput),
+      metadata: countJsonRows(effectiveMetadata),
     };
-  }, [parsedInput, parsedOutput, parsedMetadata]);
+  }, [effectiveInput, effectiveOutput, effectiveMetadata]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
@@ -196,18 +220,18 @@ function IOPreviewJSONInner({
 
   const handleCopy = useCallback(() => {
     const dataObj: Record<string, unknown> = {};
-    if (showInput) dataObj.input = parsedInput;
-    if (showOutput) dataObj.output = parsedOutput;
-    if (showMetadata) dataObj.metadata = parsedMetadata;
+    if (showInput) dataObj.input = effectiveInput;
+    if (showOutput) dataObj.output = effectiveOutput;
+    if (showMetadata) dataObj.metadata = effectiveMetadata;
     const jsonString = JSON.stringify(dataObj, null, 2);
     void navigator.clipboard.writeText(jsonString);
   }, [
     showInput,
     showOutput,
     showMetadata,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
+    effectiveInput,
+    effectiveOutput,
+    effectiveMetadata,
   ]);
 
   const wrapIcon = useMemo(
@@ -217,7 +241,7 @@ function IOPreviewJSONInner({
       ) : stringWrapMode === "wrap" ? (
         <WrapText size={14} />
       ) : (
-        <ChevronDown size={14} className="rotate-[-90deg]" />
+        <ChevronDown size={14} className="-rotate-90" />
       ),
     [stringWrapMode],
   );
@@ -229,7 +253,7 @@ function IOPreviewJSONInner({
       result.push({
         key: "input",
         title: "Input",
-        data: parsedInput,
+        data: effectiveInput,
         backgroundColor: inputBgColor,
         minHeight: "200px",
       });
@@ -238,7 +262,7 @@ function IOPreviewJSONInner({
       result.push({
         key: "output",
         title: "Output",
-        data: parsedOutput,
+        data: effectiveOutput,
         backgroundColor: outputBgColor,
         minHeight: "200px",
       });
@@ -254,7 +278,7 @@ function IOPreviewJSONInner({
         // Add corrected output as footer when corrections are enabled
         renderFooter: () => (
           <CorrectedOutputField
-            actualOutput={parsedOutput}
+            actualOutput={effectiveOutput}
             existingCorrection={outputCorrection}
             observationId={observationId}
             projectId={projectId}
@@ -269,7 +293,7 @@ function IOPreviewJSONInner({
       result.push({
         key: "metadata",
         title: "Metadata",
-        data: parsedMetadata,
+        data: effectiveMetadata,
         backgroundColor: metadataBgColor,
         minHeight: "200px",
       });
@@ -279,9 +303,9 @@ function IOPreviewJSONInner({
     showInput,
     showOutput,
     showMetadata,
-    parsedInput,
-    parsedOutput,
-    parsedMetadata,
+    effectiveInput,
+    effectiveOutput,
+    effectiveMetadata,
     inputBgColor,
     outputBgColor,
     metadataBgColor,
@@ -296,9 +320,9 @@ function IOPreviewJSONInner({
   // Wait for parsing to complete before rendering to avoid flicker
   if (isParsing) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+      <div className="flex min-h-0 flex-1 flex-col border-t border-b">
         <div className="flex h-full items-center justify-center">
-          <div className="text-sm text-muted-foreground">Parsing data...</div>
+          <div className="text-muted-foreground text-sm">Parsing data...</div>
         </div>
       </div>
     );
@@ -331,14 +355,14 @@ function IOPreviewJSONInner({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+    <div className="flex min-h-0 flex-1 flex-col border-t border-b">
       {/* Inline comment bubble - shows when text is selected */}
       {enableInlineComments && (
         <InlineCommentBubble onAddComment={handleAddComment} />
       )}
 
       {/* Header - matches LogViewToolbar styling */}
-      <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
+      <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
         {/* Search input - expands to fill available width */}
         <Command className="flex-1 rounded-none border-0 bg-transparent">
           <CommandInput
@@ -364,7 +388,7 @@ function IOPreviewJSONInner({
 
         {/* Match counter - inline text (only when searching) */}
         {searchQuery && (
-          <span className="whitespace-nowrap text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs whitespace-nowrap">
             {searchMatchCount > 0
               ? `${currentMatchIndex + 1} of ${searchMatchCount}`
               : "No matches"}
@@ -419,32 +443,32 @@ function IOPreviewJSONInner({
       </div>
 
       {/* Section navigation hint bar */}
-      <div className="flex h-6 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
-        <span className="text-xs text-muted-foreground">Jump to:</span>
+      <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
+        <span className="text-muted-foreground text-xs">Jump to:</span>
         {sections.map((section, index) => (
           <span key={section.key} className="flex items-center">
             <button
               onClick={() => handleScrollToSection(section.key)}
-              className="cursor-pointer text-xs text-primary hover:underline"
+              className="text-primary cursor-pointer text-xs hover:underline"
             >
               {section.title}
             </button>
             {index < sections.length - 1 && (
-              <span className="text-xs text-muted-foreground">,&nbsp;</span>
+              <span className="text-muted-foreground text-xs">,&nbsp;</span>
             )}
           </span>
         ))}
         {needsVirtualization && (
           <HoverCard>
             <HoverCardTrigger asChild>
-              <span className="ml-auto cursor-help rounded bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-medium">
                 Virtualized
               </span>
             </HoverCardTrigger>
             <HoverCardContent className="w-80" side="bottom" align="end">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Virtualized View</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   This view is using virtualization due to a large number of
                   keys ({rowCounts.input.toLocaleString()} input,{" "}
                   {rowCounts.output.toLocaleString()} output,{" "}

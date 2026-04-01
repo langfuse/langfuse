@@ -28,7 +28,7 @@ import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
+} from "@/src/hooks/useEnvironmentFilter";
 import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {
@@ -91,7 +91,7 @@ export default function UsersPage() {
                 href="https://langfuse.com/docs/observability/features/users"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline decoration-primary/30 hover:decoration-primary"
+                className="decoration-primary/30 hover:decoration-primary underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 docs

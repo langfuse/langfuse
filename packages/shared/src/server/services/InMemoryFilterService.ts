@@ -374,7 +374,9 @@ export class InMemoryFilterService {
   ): boolean {
     switch (operator) {
       case "is null":
-        return fieldValue === null || fieldValue === undefined;
+        return (
+          fieldValue === null || fieldValue === undefined || fieldValue === ""
+        );
       case "is not null":
         return fieldValue !== null && fieldValue !== undefined;
       default:

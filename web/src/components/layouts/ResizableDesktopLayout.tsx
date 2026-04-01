@@ -1,9 +1,10 @@
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useId, useLayoutEffect } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-  type ImperativePanelHandle,
+  useDefaultLayout,
+  usePanelRef,
 } from "@/src/components/ui/resizable";
 
 interface ResizableDesktopLayoutProps {
@@ -14,10 +15,18 @@ interface ResizableDesktopLayoutProps {
   defaultSidebarSize?: number;
   minMainSize?: number;
   maxSidebarSize?: number;
-  autoSaveId?: string;
   className?: string;
   sidebarPosition?: "left" | "right";
+  persistId?: string;
 }
+
+const MAIN_PANEL_ID = "main";
+const SIDEBAR_PANEL_ID = "sidebar";
+
+const NOOP_LAYOUT_STORAGE = {
+  getItem: () => null,
+  setItem: () => {},
+};
 
 /**
  * Reusable component to show/hide resizable panels with a consistent DOM tree.
@@ -31,49 +40,79 @@ export function ResizableDesktopLayout({
   defaultSidebarSize = 30,
   minMainSize = 30,
   maxSidebarSize = 60,
-  autoSaveId,
   className = "flex h-full w-full",
   sidebarPosition = "right",
+  persistId,
 }: ResizableDesktopLayoutProps) {
-  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
-  const mainPanelRef = useRef<ImperativePanelHandle>(null);
+  const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const groupId = persistId
+    ? `resizable-layout-${persistId}`
+    : `resizable-layout-${instanceId}`;
+
+  const storage =
+    persistId && typeof window !== "undefined"
+      ? sessionStorage
+      : NOOP_LAYOUT_STORAGE;
+
+  const panelIds =
+    sidebarPosition === "left"
+      ? [SIDEBAR_PANEL_ID, MAIN_PANEL_ID]
+      : [MAIN_PANEL_ID, SIDEBAR_PANEL_ID];
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: groupId,
+    panelIds,
+    storage,
+  });
+
+  const sidebarPanelRef = usePanelRef();
 
   useLayoutEffect(() => {
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+
     if (open) {
-      sidebarPanelRef.current?.resize(defaultSidebarSize);
-      mainPanelRef.current?.resize(defaultMainSize);
+      // v4 react-resizable-panel `expand()` depends on internal collapsed bookkeeping.
+      // Fallback to default size if the panel remains effectively closed.
+      if (panel.isCollapsed()) {
+        panel.expand();
+      }
+      if (panel.getSize().asPercentage < 2) {
+        panel.resize(`${defaultSidebarSize}%`);
+      }
     } else {
-      sidebarPanelRef.current?.resize(0);
-      mainPanelRef.current?.resize(100);
+      panel.collapse();
     }
-  }, [open, defaultMainSize, defaultSidebarSize]);
+  }, [open, sidebarPanelRef, defaultSidebarSize]);
 
   return (
     <ResizablePanelGroup
-      direction="horizontal"
+      id={groupId}
+      orientation="horizontal"
       className={className}
-      autoSaveId={autoSaveId}
-      storage={autoSaveId ? sessionStorage : undefined}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={persistId ? onLayoutChanged : undefined}
     >
       {sidebarPosition === "left" && (
         <ResizablePanel
-          ref={sidebarPanelRef}
-          defaultSize={0}
-          minSize={0}
-          maxSize={maxSidebarSize}
+          id={SIDEBAR_PANEL_ID}
+          panelRef={sidebarPanelRef}
+          defaultSize={`${defaultSidebarSize}%`}
+          minSize="0%"
+          maxSize={`${maxSidebarSize}%`}
           collapsible={true}
-          collapsedSize={0}
+          collapsedSize="0%"
           className={open ? "visible" : "invisible"}
           style={{ overscrollBehaviorY: "none" }}
         >
           {sidebarContent}
         </ResizablePanel>
       )}
-      {open && <ResizableHandle withHandle />}
+      {sidebarPosition === "left" && open && <ResizableHandle withHandle />}
       <ResizablePanel
-        ref={mainPanelRef}
-        defaultSize={defaultMainSize}
-        minSize={minMainSize}
+        id={MAIN_PANEL_ID}
+        defaultSize={`${defaultMainSize}%`}
+        minSize={`${minMainSize}%`}
       >
         <div
           className="relative h-full w-full overflow-scroll"
@@ -82,14 +121,16 @@ export function ResizableDesktopLayout({
           {mainContent}
         </div>
       </ResizablePanel>
+      {sidebarPosition === "right" && open && <ResizableHandle withHandle />}
       {sidebarPosition === "right" && (
         <ResizablePanel
-          ref={sidebarPanelRef}
-          defaultSize={0}
-          minSize={0}
-          maxSize={maxSidebarSize}
+          id={SIDEBAR_PANEL_ID}
+          panelRef={sidebarPanelRef}
+          defaultSize={`${defaultSidebarSize}%`}
+          minSize="0%"
+          maxSize={`${maxSidebarSize}%`}
           collapsible={true}
-          collapsedSize={0}
+          collapsedSize="0%"
           className={open ? "visible" : "invisible"}
           style={{ overscrollBehaviorY: "none" }}
         >

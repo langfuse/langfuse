@@ -6,6 +6,7 @@ import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
+import { hasOwnRole } from "./hasOwnRole";
 
 type HasProjectAccessParams = (
   | {
@@ -53,15 +54,14 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
+  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const projectRole: Role | undefined =
-    "role" in p
-      ? p.role
-      : p.session?.user?.organizations
-          .flatMap((org) => org.projects)
-          .find((project) => project.id === p.projectId)?.role;
+  const projectRole: Role | undefined = hasOwnRole(p)
+    ? p.role
+    : p.session?.user?.organizations
+        .flatMap((org) => org.projects)
+        .find((project) => project.id === p.projectId)?.role;
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);

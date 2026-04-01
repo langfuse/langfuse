@@ -47,9 +47,12 @@ import {
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
+import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 
 type PlaygroundContextType = {
+  windowId: string;
   promptVariables: PromptVariable[];
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
@@ -65,6 +68,7 @@ type PlaygroundContextType = {
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
 
   output: string;
+  outputReasoning: string;
   outputJson: string;
   outputToolCalls: LLMToolCall[];
 
@@ -87,10 +91,13 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
+export const useOptionalPlaygroundContext = () => useContext(PlaygroundContext);
+
 export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
   windowId,
 }) => {
+  const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
@@ -99,6 +106,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     PlaceholderMessageFillIn[]
   >([]);
   const [output, setOutput] = useState("");
+  const [outputReasoning, setOutputReasoning] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -231,6 +239,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [messages]);
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
+  useSyncMessageSearchMessages(effectiveWindowId, messages);
 
   const addMessage: PlaygroundContextType["addMessage"] = useCallback(
     (message) => {
@@ -310,6 +319,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       try {
         setIsStreaming(true);
         setOutput("");
+        setOutputReasoning("");
         setOutputJson("");
         setOutputToolCalls([]);
 
@@ -363,6 +373,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
           setOutput(displayContent);
           setOutputToolCalls(completion.tool_calls);
+          if (completion.reasoning) setOutputReasoning(completion.reasoning);
 
           response = JSON.stringify(completion, null, 2);
         } else if (structuredOutputSchema) {
@@ -388,12 +399,14 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
               setOutput(response);
             }
           } else {
-            response = await getChatCompletionNonStreaming(
+            const result = await getChatCompletionNonStreaming(
               projectId,
               finalMessages,
               modelParams,
             );
-            setOutput(response);
+            response = result.content;
+            setOutput(result.content);
+            if (result.reasoning) setOutputReasoning(result.reasoning);
           }
         }
 
@@ -547,7 +560,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   // This effect registers the window with the global coordination system
   // and sets up event listeners for global actions like "Run All" and "Stop All"
   useEffect(() => {
-    const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
     const playgroundEventBus = getPlaygroundEventBus();
 
     const playgroundHandle: PlaygroundHandle = {
@@ -578,8 +590,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         });
 
         if (hasAnyContent) {
-          // Window has content - let it execute and show any validation errors
-          handleSubmit(true).catch((err) => console.error(err));
+          // Read streaming preference from localStorage (same key as SubmitButton in Messages.tsx)
+          const defaultStreaming =
+            env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT ===
+            "true";
+          let streaming = defaultStreaming;
+          try {
+            const raw = localStorage.getItem(STREAMING_PREF_KEY);
+            if (raw !== null) streaming = JSON.parse(raw);
+          } catch {
+            // malformed localStorage value — fall back to default
+          }
+
+          handleSubmit(streaming).catch((err) => console.error(err));
         }
         // If no content, skip silently
       }
@@ -614,7 +637,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       );
     };
   }, [
-    windowId,
+    effectiveWindowId,
     handleSubmit,
     registerWindow,
     unregisterWindow,
@@ -632,12 +655,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           isStreaming,
         },
       }),
     );
-  }, [windowId, isStreaming]);
+  }, [effectiveWindowId, isStreaming]);
 
   // Notify when model configuration changes
   useEffect(() => {
@@ -645,18 +668,19 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE, {
         detail: {
-          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          windowId: effectiveWindowId,
           hasModel: Boolean(
             modelParams.provider.value && modelParams.model.value,
           ),
         },
       }),
     );
-  }, [windowId, modelParams.provider.value, modelParams.model.value]);
+  }, [effectiveWindowId, modelParams.provider.value, modelParams.model.value]);
 
   return (
     <PlaygroundContext.Provider
       value={{
+        windowId: effectiveWindowId,
         promptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
@@ -684,6 +708,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         providerModelCombinations,
 
         output,
+        outputReasoning,
         outputJson,
         outputToolCalls,
         handleSubmit,
@@ -704,7 +729,7 @@ async function getChatCompletionWithTools(
   modelParams: UIModelParams,
   tools: unknown[],
   streaming: boolean = false,
-): Promise<ToolCallResponse> {
+): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
   const body = JSON.stringify({
@@ -737,7 +762,10 @@ async function getChatCompletionWithTools(
         JSON.stringify(responseData, null, 2),
     );
 
-  return parsed.data;
+  return {
+    ...parsed.data,
+    ...(responseData.reasoning ? { reasoning: responseData.reasoning } : {}),
+  };
 }
 
 async function getChatCompletionWithStructuredOutput(
@@ -846,7 +874,7 @@ async function getChatCompletionNonStreaming(
   projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-): Promise<string> {
+): Promise<{ content: string; reasoning?: string }> {
   if (!projectId) {
     throw new Error("Project ID is not set");
   }
@@ -880,7 +908,10 @@ async function getChatCompletionNonStreaming(
   }
 
   const responseData = await result.json();
-  return responseData.content || "";
+  return {
+    content: responseData.content || "",
+    reasoning: responseData.reasoning,
+  };
 }
 
 function getFinalMessages(

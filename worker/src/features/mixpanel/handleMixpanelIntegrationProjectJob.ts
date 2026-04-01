@@ -7,6 +7,7 @@ import {
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
+  getEventsForAnalyticsIntegrations,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -15,10 +16,12 @@ import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
   transformScoreForMixpanel,
+  transformEventForMixpanel,
 } from "./transformers";
 
 type MixpanelExecutionConfig = {
   projectId: string;
+  projectName: string;
   minTimestamp: Date;
   maxTimestamp: Date;
   decryptedMixpanelProjectToken: string;
@@ -28,6 +31,7 @@ type MixpanelExecutionConfig = {
 const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
   const traces = getTracesForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -63,6 +67,7 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
 const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
   const generations = getGenerationsForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -98,6 +103,7 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
 const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   const scores = getScoresForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -130,6 +136,42 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   );
 };
 
+const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
+  const events = getEventsForAnalyticsIntegrations(
+    config.projectId,
+    config.projectName,
+    config.minTimestamp,
+    config.maxTimestamp,
+  );
+
+  logger.info(
+    `[MIXPANEL] Sending events for project ${config.projectId} to Mixpanel`,
+  );
+
+  const mixpanel = new MixpanelClient({
+    projectToken: config.decryptedMixpanelProjectToken,
+    region: config.mixpanelRegion,
+  });
+
+  let count = 0;
+  for await (const analyticsEvent of events) {
+    count++;
+    const event = transformEventForMixpanel(analyticsEvent, config.projectId);
+    mixpanel.addEvent(event);
+
+    if (count % 1000 === 0) {
+      await mixpanel.flush();
+      logger.info(
+        `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
+      );
+    }
+  }
+  await mixpanel.flush();
+  logger.info(
+    `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
+  );
+};
+
 export const handleMixpanelIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.MixpanelIntegrationProcessingQueue]>,
 ) => {
@@ -151,6 +193,11 @@ export const handleMixpanelIntegrationProjectJob = async (
       projectId,
       enabled: true,
     },
+    include: {
+      project: {
+        select: { name: true },
+      },
+    },
   });
 
   if (!mixpanelIntegration) {
@@ -160,9 +207,17 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
+  if (!mixpanelIntegration.project) {
+    logger.warn(
+      `[MIXPANEL] Project not found for Mixpanel integration ${projectId}`,
+    );
+    return;
+  }
+
   // Fetch relevant data and send it to Mixpanel
   const executionConfig: MixpanelExecutionConfig = {
     projectId,
+    projectName: mixpanelIntegration.project.name,
     // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
     minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
     maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
@@ -173,11 +228,31 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
-    await Promise.all([
-      processMixpanelTraces(executionConfig),
-      processMixpanelGenerations(executionConfig),
-      processMixpanelScores(executionConfig),
-    ]);
+    const processPromises: Promise<void>[] = [];
+
+    // Always include scores
+    processPromises.push(processMixpanelScores(executionConfig));
+
+    // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(
+        processMixpanelTraces(executionConfig),
+        processMixpanelGenerations(executionConfig),
+      );
+    }
+
+    // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      mixpanelIntegration.exportSource === "EVENTS" ||
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(processMixpanelEvents(executionConfig));
+    }
+
+    await Promise.all(processPromises);
 
     // Update the last run information for the mixpanelIntegration record.
     await prisma.mixpanelIntegration.update({

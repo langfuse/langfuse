@@ -133,3 +133,27 @@ export function buildWidgetDescription({
 
   return sentence;
 }
+
+/**
+ * Returns the default view for the new widget form.
+ * When v4 beta is enabled, defaults to "observations" because "traces"
+ * is excluded from viewsV2 (no v2-specific API support).
+ */
+export function getDefaultView(
+  isBetaEnabled: boolean,
+): "traces" | "observations" {
+  return isBetaEnabled ? "observations" : "traces";
+}
+
+/**
+ * SSE progress is only enabled on the v4 beta dashboard query path.
+ */
+export function shouldUseWidgetSSE({
+  isV4BetaEnabled,
+  version,
+}: {
+  isV4BetaEnabled: boolean;
+  version: "v1" | "v2";
+}): boolean {
+  return isV4BetaEnabled && version === "v2";
+}

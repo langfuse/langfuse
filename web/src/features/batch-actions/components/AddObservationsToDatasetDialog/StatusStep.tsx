@@ -61,8 +61,8 @@ export function StatusStep({
         {/* Status Icon and Title */}
         <div className="flex flex-col items-center text-center">
           {!isComplete && (
-            <div className="mb-4 rounded-full bg-primary/10 p-6">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="bg-primary/10 mb-4 rounded-full p-6">
+              <Loader2 className="text-primary h-12 w-12 animate-spin" />
             </div>
           )}
           {isSuccess && (
@@ -81,7 +81,7 @@ export function StatusStep({
             {isSuccess && "Successfully Added!"}
             {isComplete && !isSuccess && "Completed with Issues"}
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {!isComplete &&
               `Adding ${totalCount} observations to ${dataset.name}`}
             {isSuccess &&
@@ -91,7 +91,7 @@ export function StatusStep({
               `${processedCount} observations added, ${failedCount} failed`}
           </p>
           {!isComplete && (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-sm">
               You can safely close this dialog. The action is running in the
               background and you can track its progress in the{" "}
               <Link
@@ -133,7 +133,7 @@ export function StatusStep({
                     <Progress value={progressPercent} className="h-2" />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-3 text-sm">
+                  <div className="bg-muted/50 grid grid-cols-2 gap-4 rounded-lg p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Processed</span>
                       <span className="font-semibold">{processedCount}</span>
@@ -151,7 +151,7 @@ export function StatusStep({
               )}
 
               {isComplete && failedCount > 0 && (
-                <div className="rounded-lg bg-muted/50 p-4 text-sm">
+                <div className="bg-muted/50 rounded-lg p-4 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
                       Successfully processed
@@ -160,7 +160,7 @@ export function StatusStep({
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-muted-foreground">Failed</span>
-                    <span className="font-semibold text-destructive">
+                    <span className="text-destructive font-semibold">
                       {failedCount}
                     </span>
                   </div>
@@ -168,11 +168,11 @@ export function StatusStep({
               )}
 
               {status.data?.log && (
-                <div className="space-y-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3">
-                  <p className="text-xs font-medium text-destructive">
+                <div className="border-destructive/50 bg-destructive/5 space-y-2 rounded-lg border p-3">
+                  <p className="text-destructive text-xs font-medium">
                     Error Summary:
                   </p>
-                  <pre className="max-h-32 overflow-auto text-[10px] text-muted-foreground">
+                  <pre className="text-muted-foreground max-h-32 overflow-auto text-[10px]">
                     {status.data.log}
                   </pre>
                 </div>

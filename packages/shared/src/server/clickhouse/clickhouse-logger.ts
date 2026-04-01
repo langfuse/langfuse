@@ -8,11 +8,11 @@ import { logger as winstonLogger } from "../logger";
  */
 export class ClickHouseLogger implements Logger {
   trace({ module, message, args }: LogParams): void {
-    winstonLogger.info(`[${module}] ${message}`, args);
+    winstonLogger.debug(`[${module}] ${message}`, args);
   }
 
   debug({ module, message, args }: LogParams): void {
-    winstonLogger.info(`[${module}] ${message}`, args);
+    winstonLogger.debug(`[${module}] ${message}`, args);
   }
 
   info({ module, message, args }: LogParams): void {

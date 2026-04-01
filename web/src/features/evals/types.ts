@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
 
 export enum EvalReferencedEvaluators {
@@ -19,6 +19,7 @@ export type PartialConfig = Pick<
   | "sampling"
   | "delay"
   | "timeScope"
+  | "status"
 > & { id?: string };
 
 export const RAGAS_TEMPLATE_PREFIX = "__ragas__";

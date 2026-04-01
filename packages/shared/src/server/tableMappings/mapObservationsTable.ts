@@ -17,6 +17,12 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 't."user_id"',
   },
   {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: 't."session_id"',
+  },
+  {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -31,10 +31,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           return null;
         }
 
-        const { encryptedMixpanelProjectToken, ...config } = dbConfig;
+        const { encryptedMixpanelProjectToken, exportSource, ...config } =
+          dbConfig;
 
         return {
           ...config,
+          exportSource,
           mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
         };
       } catch (e) {
@@ -86,11 +88,13 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           mixpanelRegion: config.mixpanelRegion,
           encryptedMixpanelProjectToken,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
         update: {
           encryptedMixpanelProjectToken,
           mixpanelRegion: config.mixpanelRegion,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
       });
     }),

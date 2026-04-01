@@ -21,8 +21,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
 
-// Mock ClickhouseWriter to avoid actual database writes
-const mockAddToClickhouseWriter = vi.fn();
+// Mock ClickhouseWriter to avoid actual database writes.
+// vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
+// Without it, the variable would be undefined when the factory executes.
+const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
+  mockAddToClickhouseWriter: vi.fn(),
+}));
 vi.mock("../../services/ClickhouseWriter", async (importOriginal) => {
   const original = (await importOriginal()) as object;
   return {
@@ -1508,6 +1512,55 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
       expect(obs.tool_definitions).toBeDefined();
       expect(obs.tool_calls).toBeDefined();
       expect(obs.tool_call_names).toBeDefined();
+
+      // tool_call_count is derived from tool_call_names
+      expect(obs.tool_call_count).toBe(obs.tool_call_names.length);
+    });
+
+    it("should set tool_call_count to 0 when no tool calls are present", async () => {
+      const noToolsSpan = {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: "langfuse-sdk", version: "3.0.0" },
+            spans: [
+              {
+                traceId: createBufferId("123456789012345678901234567890ab"),
+                spanId: createBufferId("00b001567890abcd"),
+                name: "no-tools-test",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242387865000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738242389310000000),
+                ),
+                attributes: [
+                  {
+                    key: "langfuse.observation.type",
+                    value: { stringValue: "generation" },
+                  },
+                  {
+                    key: "langfuse.observation.input",
+                    value: { stringValue: '"Hello"' },
+                  },
+                  {
+                    key: "langfuse.observation.output",
+                    value: { stringValue: '"Hi there"' },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const observations =
+        await processOtelSpanToObservationForEval(noToolsSpan);
+
+      expect(observations).toHaveLength(1);
+      expect(observations[0].tool_call_count).toBe(0);
     });
   });
 });

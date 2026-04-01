@@ -4,12 +4,8 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  StringParam,
-} from "use-query-params";
+import { useQueryParams, withDefault, StringParam } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -68,9 +64,9 @@ const modelConfigDescriptions = {
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [queryParams, setQueryParams] = useQueryParams({
     search: withDefault(StringParam, ""),

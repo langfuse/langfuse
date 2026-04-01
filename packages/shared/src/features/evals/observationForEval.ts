@@ -1,12 +1,16 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
 import { ObservationLevel, ObservationType } from "../../domain";
+import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 
-const flexibleUsageCostSchema = z.record(z.string(), z.number().nullable());
+const flexibleUsageCostSchema = z.record(
+  z.string(),
+  z.coerce.number().nullable(),
+);
 
 export const observationForEvalSchema = z.object({
   // Identifiers
@@ -50,6 +54,7 @@ export const observationForEvalSchema = z.object({
   tool_definitions: z.record(z.string(), z.unknown()).default({}),
   tool_calls: z.array(z.unknown()).default([]),
   tool_call_names: z.array(z.string()).default([]),
+  tool_call_count: z.number().default(0),
 
   // Experiment
   experiment_id: z.string().nullish(),
@@ -71,7 +76,17 @@ export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 export function convertEventRecordToObservationForEval(
   record: EventRecordBaseType,
 ): ObservationForEval {
-  return observationForEvalSchema.parse(record);
+  const metadata = metadataArraysToRecord(
+    record.metadata_names,
+    record.metadata_values,
+  );
+
+  const toolCallNames = record.tool_call_names ?? [];
+  return observationForEvalSchema.parse({
+    ...record,
+    metadata,
+    tool_call_count: toolCallNames.length,
+  });
 }
 
 export type ObservationEvalFilterColumnInternal =
@@ -89,6 +104,9 @@ export type ObservationEvalFilterColumnInternal =
     | "tags"
     | "experiment_dataset_id"
     | "metadata"
+    | "parent_span_id"
+    | "tool_call_names"
+    | "tool_call_count"
   >;
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
@@ -146,7 +164,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 export const availableObservationEvalVariableColumns = [
   ...observationEvalVariableColumns,
   {
-    id: "toolCalls",
+    id: "toolCalls", // Needs to match the `ID` from `mapObservationsTable.ts`
     name: "Tool Calls",
     description: "Tool calls",
     internal: "tool_calls",
@@ -270,6 +288,28 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     type: "stringObject",
     internal: "metadata",
   },
+  {
+    name: "Parent Observation",
+    id: "parentObservationId",
+    type: "null",
+    internal: "parent_span_id",
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "tool_call_names",
+    options: [], // to be filled at runtime
+  },
+  {
+    name: "Tool Call Count",
+    id: "toolCalls",
+    type: "number",
+    internal: "tool_call_count",
+    step: 1,
+    min: 0,
+  },
 ];
 
 export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
@@ -293,6 +333,7 @@ export type ObservationEvalOptions = {
   tags?: Array<SingleValueOption>;
   traceName?: Array<SingleValueOption>;
   name?: Array<SingleValueOption>;
+  calledToolNames?: Array<SingleValueOption>;
 };
 
 export type ExperimentEvalOptions = {
@@ -315,6 +356,9 @@ export function observationEvalFilterColsWithOptions(
     }
     if (col.id === "name") {
       return formatColumnOptions(col, options?.name ?? []);
+    }
+    if (col.id === "calledToolNames") {
+      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     return col;
   });

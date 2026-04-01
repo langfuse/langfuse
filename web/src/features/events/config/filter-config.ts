@@ -1,6 +1,7 @@
 import { eventsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -24,7 +25,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
 
   facets: [
     {
@@ -36,6 +37,15 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
+      renderIcon: renderFilterIcon,
+    },
+    {
+      type: "boolean" as const,
+      column: "hasParentObservation",
+      label: "Is Root Observation",
+      tooltip:
+        "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
+      invertValue: true, // "True" = hasParentObservation=false (is root)
     },
     {
       type: "categorical" as const,
@@ -179,6 +189,30 @@ export const observationEventsFilterConfig: FilterConfig = {
       unit: "$",
     },
     {
+      type: "categorical" as const,
+      column: "toolNames",
+      label: "Tool Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "calledToolNames",
+      label: "Tool Names (Called)",
+    },
+    {
+      type: "numeric" as const,
+      column: "toolDefinitions",
+      label: "Available Tools",
+      min: 0,
+      max: 25,
+    },
+    {
+      type: "numeric" as const,
+      column: "toolCalls",
+      label: "Tool Calls",
+      min: 0,
+      max: 25,
+    },
+    {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
@@ -187,6 +221,28 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "keyValue" as const,
+      column: "trace_score_categories",
+      label: "Trace Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "trace_scores_avg",
+      label: "Trace Numeric Scores",
+    },
+    {
+      type: "numeric" as const,
+      column: "commentCount",
+      label: "Comment Count",
+      min: 0,
+      max: 100,
+    },
+    {
+      type: "string" as const,
+      column: "commentContent",
+      label: "Comment Content",
     },
   ],
 };

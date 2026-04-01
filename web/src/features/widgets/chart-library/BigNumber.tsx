@@ -221,7 +221,7 @@ export const BigNumber: React.FC<ChartProps> = ({
         {displayValue.unit && (
           <span
             className={cn(
-              "font-bold text-muted-foreground",
+              "text-muted-foreground font-bold",
               fontSize === "text-8xl"
                 ? "text-4xl"
                 : fontSize === "text-7xl"

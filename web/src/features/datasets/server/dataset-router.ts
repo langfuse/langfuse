@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -6,7 +6,6 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DB } from "@/src/server/db";
 import {
   paginationZod,
   singleFilter,
@@ -35,7 +34,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
-  getScoresForDatasetRuns,
+  getScoresForExperiments,
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
@@ -65,6 +64,7 @@ import {
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
   getDatasetVersionForRun,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -78,7 +78,7 @@ import { v4 } from "uuid";
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
 
 /**
- * Adds a case-insensitive search condition to a Kysely query
+ * Adds a case-insensitive search condition to a query
  * @param searchQuery The search term (optional)
  * @returns The search condition
  */
@@ -87,6 +87,15 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
 
   // Add case-insensitive search condition
   return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+};
+
+const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
+  if (!pathPrefix) {
+    return Prisma.empty;
+  }
+
+  const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
+  return Prisma.sql` AND (d.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR d.name = ${pathPrefix})`;
 };
 
 /**
@@ -305,17 +314,7 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       // pathFilter: SQL WHERE clause to filter datasets by folder (e.g., "AND d.name LIKE 'folder/%'")
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            // Escape backslashes and other LIKE special characters for pattern matching
-            const escapedPrefix = prefix
-              .replace(/\\/g, "\\\\")
-              .replace(/%/g, "\\%")
-              .replace(/_/g, "\\_");
-            return Prisma.sql` AND (d.name LIKE ${`${escapedPrefix}/%`} OR d.name = ${escapedPrefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = resolveSearchCondition(input.searchQuery);
 
@@ -374,30 +373,20 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics
-      const query = DB.selectFrom("datasets")
-        .leftJoin("dataset_runs", (join) =>
-          join
-            .onRef("datasets.id", "=", "dataset_runs.dataset_id")
-            .on("dataset_runs.project_id", "=", input.projectId),
-        )
-        .select(({ eb }) => [
-          "datasets.id",
-          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
-          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
-        ])
-        .where("datasets.project_id", "=", input.projectId)
-        .where("datasets.id", "in", input.datasetIds)
-        .groupBy("datasets.id");
-
-      const compiledQuery = query.compile();
-
-      const runsMetrics = await ctx.prisma.$queryRawUnsafe<
+      const runsMetrics = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
           countDatasetRuns: number;
           lastRunAt: Date | null;
         }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
+      >`
+        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+        FROM datasets d
+        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+        WHERE d.project_id = ${input.projectId}
+        AND d.id IN (${Prisma.join(input.datasetIds)})
+        GROUP BY d.id
+      `;
 
       // Get dataset items count for all datasets
       const itemsCounts = await getDatasetItemsCountGrouped({
@@ -575,7 +564,7 @@ export const datasetRouter = createTRPCRouter({
         runsWithMetricsIds.length > 0
           ? getTraceScoresForDatasetRuns(input.projectId, runsWithMetricsIds)
           : [],
-        getScoresForDatasetRuns({
+        getScoresForExperiments({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
@@ -1338,13 +1327,10 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter,
-          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
-          // CH run items are created in reverse order as postgres execution path
-          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
-              order: "ASC",
+              order: "DESC",
             },
             { column: "datasetItemId", order: "DESC" },
           ],
@@ -1437,7 +1423,7 @@ export const datasetRouter = createTRPCRouter({
           orderBy: [
             {
               column: "createdAt",
-              order: "ASC",
+              order: "DESC",
             },
             { column: "datasetItemId", order: "DESC" },
           ],
@@ -1779,12 +1765,14 @@ export const datasetRouter = createTRPCRouter({
             datasetName: dataset.name,
             payload: input.payload ?? dataset.remoteExperimentPayload,
           }),
-          signal: AbortSignal.timeout(10000), // 10 second timeout
+          signal: AbortSignal.timeout(20000), // 20 second timeout
         });
 
         if (!response.ok) {
+          logger.info(`Remote server returned error (${response.status})`);
           return {
             success: false,
+            error: `Remote server returned error (${response.status})`,
           };
         }
 
@@ -1793,8 +1781,13 @@ export const datasetRouter = createTRPCRouter({
         };
       } catch (error) {
         if (error instanceof Error) {
+          logger.info(`Failed to trigger remote experiment: ${error.name}`);
           return {
             success: false,
+            error:
+              error.name === "AbortError"
+                ? "Request timed out"
+                : "Failed to connect to remote server",
           };
         }
         return {

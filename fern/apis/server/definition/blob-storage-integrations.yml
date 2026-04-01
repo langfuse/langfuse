@@ -19,6 +19,14 @@ service:
       request: CreateBlobStorageIntegrationRequest
       response: BlobStorageIntegrationResponse
 
+    getBlobStorageIntegrationStatus:
+      docs: Get the sync status of a blob storage integration by integration ID (requires organization-scoped API key)
+      method: GET
+      path: "/{id}"
+      path-parameters:
+        id: string
+      response: BlobStorageIntegrationStatusResponse
+
     deleteBlobStorageIntegration:
       docs: Delete a blob storage integration by ID (requires organization-scoped API key)
       method: DELETE
@@ -88,6 +96,9 @@ types:
       exportStartDate:
         type: optional<datetime>
         docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+      compressed:
+        type: optional<boolean>
+        docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -95,24 +106,65 @@ types:
       projectId: string
       type: BlobStorageIntegrationType
       bucketName: string
-      endpoint: optional<string>
+      endpoint: nullable<string>
       region: string
-      accessKeyId: optional<string>
+      accessKeyId: nullable<string>
       prefix: string
       exportFrequency: BlobStorageExportFrequency
       enabled: boolean
       forcePathStyle: boolean
       fileType: BlobStorageIntegrationFileType
       exportMode: BlobStorageExportMode
-      exportStartDate: optional<datetime>
-      nextSyncAt: optional<datetime>
-      lastSyncAt: optional<datetime>
+      exportStartDate: nullable<datetime>
+      compressed: boolean
+      nextSyncAt: nullable<datetime>
+      lastSyncAt: nullable<datetime>
+      lastError: nullable<string>
+      lastErrorAt: nullable<datetime>
       createdAt: datetime
       updatedAt: datetime
 
   BlobStorageIntegrationsResponse:
     properties:
       data: list<BlobStorageIntegrationResponse>
+
+  BlobStorageSyncStatus:
+    docs: |
+      Sync status of the blob storage integration:
+      - `disabled` — integration is not enabled
+      - `error` — last export failed (see `lastError` for details)
+      - `idle` — enabled but has never exported yet
+      - `queued` — next export is overdue (`nextSyncAt` is in the past) and waiting to be picked up by the worker
+      - `up_to_date` — all available data has been exported; next export is scheduled for the future
+
+      **ETL usage**: poll this endpoint and check for `up_to_date` status. Compare `lastSyncAt` against your
+      ETL bookmark to determine if new data is available. Note that exports run with a 30-minute lag buffer,
+      so `lastSyncAt` will always be at least 30 minutes behind real-time.
+    enum:
+      - idle
+      - queued
+      - up_to_date
+      - disabled
+      - error
+
+  BlobStorageIntegrationStatusResponse:
+    properties:
+      id: string
+      projectId: string
+      syncStatus: BlobStorageSyncStatus
+      enabled: boolean
+      lastSyncAt:
+        type: nullable<datetime>
+        docs: End of the last successfully exported time window. Compare against your ETL bookmark to determine if new data is available. Null if the integration has never synced.
+      nextSyncAt:
+        type: nullable<datetime>
+        docs: When the next export is scheduled. Null if no sync has occurred yet.
+      lastError:
+        type: nullable<string>
+        docs: Raw error message from the storage provider (S3/Azure/GCS) if the last export failed. Cleared on successful export.
+      lastErrorAt:
+        type: nullable<datetime>
+        docs: When the last error occurred. Cleared on successful export.
 
   BlobStorageIntegrationDeletionResponse:
     properties:

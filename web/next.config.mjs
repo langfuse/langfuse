@@ -5,7 +5,6 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-import bundleAnalyzer from "@next/bundle-analyzer";
 
 /**
  * CSP headers
@@ -50,6 +49,8 @@ const reportToHeader = {
 const nextConfig = {
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
+  allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,
@@ -60,26 +61,19 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
-    "kysely",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
-      // this is an ugly hack to get turbopack to work with react-resizable, used in the
-      // web/src/features/widgets/components/DashboardGrid.tsx file. This **only** affects
-      // the dev server. The CSS is included in the non-turbopack based prod build anyways.
-      // Also not needed for the non-turbopack based dev server.
-      "react-resizable/css/styles.css":
-        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/react-resizable/css/styles.css",
     },
   },
+  logging: {
+    browserToTerminal: true,
+  },
   experimental: {
-    browserDebugInfoInTerminal: true, // Logs browser logs to terminal
-    // TODO: enable with new next version! 15.6
-    // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
-    // turbopackPersistentCaching: true,
+    turbopackFileSystemCacheForBuild: true,
   },
 
   /**
@@ -246,10 +240,4 @@ const sentryConfig = withSentryConfig(nextConfig, {
   automaticVercelMonitors: false,
 });
 
-// Enable bundle analyzer in analyze mode, otherwise use standard config
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: true, // Open analyzer in browser
-});
-
-export default withBundleAnalyzer(sentryConfig);
+export default sentryConfig;

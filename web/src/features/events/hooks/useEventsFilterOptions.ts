@@ -58,6 +58,16 @@ export function useEventsFilterOptions({
       ) ?? undefined;
 
     const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const traceScoreCategories =
+      filterOptions.data?.trace_score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) ?? undefined;
+    const traceScoresNumeric =
+      filterOptions.data?.trace_scores_avg ?? undefined;
 
     return {
       environment: filterOptions.data?.environment ?? undefined,
@@ -75,6 +85,12 @@ export function useEventsFilterOptions({
       experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
       experimentId: filterOptions.data?.experimentId ?? undefined,
       experimentName: filterOptions.data?.experimentName ?? undefined,
+      hasParentObservation:
+        filterOptions.data?.hasParentObservation ?? undefined,
+      toolNames: filterOptions.data?.toolNames ?? undefined,
+      calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
+      toolDefinitions: [],
+      toolCalls: [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -86,6 +102,8 @@ export function useEventsFilterOptions({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      trace_score_categories: traceScoreCategories,
+      trace_scores_avg: traceScoresNumeric,
     };
   }, [filterOptions.data]);
 

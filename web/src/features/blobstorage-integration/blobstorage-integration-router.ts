@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -6,8 +6,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { encrypt } from "@langfuse/shared/encryption";
 import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
+import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { TRPCError } from "@trpc/server";
 import {
   logger,
@@ -18,11 +18,9 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
-  type BlobStorageIntegration,
   BlobStorageIntegrationType,
-  BlobStorageExportMode,
+  InvalidRequestError,
 } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -73,107 +71,38 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           resourceId: input.projectId,
         });
 
-        // Extract data from input
-        const {
-          accessKeyId,
-          secretAccessKey,
-          type,
-          bucketName,
-          endpoint,
-          region,
-          prefix,
-          exportFrequency,
-          enabled,
-          forcePathStyle,
-          fileType,
-          exportMode,
-          exportStartDate,
-        } = input;
+        const { projectId, ...rest } = input;
 
-        const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-        const canUseHostCredentials =
-          isSelfHosted && type === BlobStorageIntegrationType.S3;
-        const isUsingHostCredentials =
-          canUseHostCredentials && (!accessKeyId || !secretAccessKey);
-
-        if (!canUseHostCredentials && !accessKeyId) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Access Key ID and Secret Access Key are required",
-          });
-        }
-
-        // Determine the export start date based on export mode
-        let finalExportStartDate: Date | null = null;
-        if (exportMode === BlobStorageExportMode.FROM_TODAY) {
-          finalExportStartDate = new Date();
-        } else if (exportMode === BlobStorageExportMode.FROM_CUSTOM_DATE) {
-          finalExportStartDate = exportStartDate || new Date();
-        }
-        // For FULL_HISTORY mode, exportStartDate remains null
-
-        const data: Partial<BlobStorageIntegration> = {
-          type,
-          bucketName,
-          endpoint: endpoint || null,
-          region,
-          prefix: prefix ?? "",
-          exportFrequency,
-          enabled,
-          accessKeyId,
-          forcePathStyle: forcePathStyle || false,
-          fileType,
-          exportMode,
-          exportStartDate: finalExportStartDate,
-        };
-
-        // Use a transaction to check if record exists, then create or update
-        return await ctx.prisma.$transaction(async (prisma) => {
-          // Check if a record exists for this project
-          const existingConfig = await prisma.blobStorageIntegration.findUnique(
-            {
-              where: {
-                projectId: input.projectId,
-              },
-            },
-          );
-
-          if (existingConfig) {
-            if (secretAccessKey) {
-              data.secretAccessKey = encrypt(secretAccessKey);
-            }
-
-            return await prisma.blobStorageIntegration.update({
-              where: {
-                projectId: input.projectId,
-              },
-              data,
-            });
-          } else {
-            // Record doesn't exist, perform create
-            if (!isUsingHostCredentials && !secretAccessKey) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message:
-                  "Secret access key is required for new configuration when not using host credentials",
-              });
-            }
-
-            return await prisma.blobStorageIntegration.create({
-              data: {
-                ...(data as BlobStorageIntegration),
-                projectId: input.projectId,
-                accessKeyId,
-                secretAccessKey: secretAccessKey
-                  ? encrypt(secretAccessKey)
-                  : undefined,
-              },
-            });
-          }
+        return await upsertBlobStorageIntegration({
+          prisma: ctx.prisma,
+          projectId,
+          data: {
+            type: rest.type,
+            bucketName: rest.bucketName,
+            endpoint: rest.endpoint || null,
+            region: rest.region,
+            accessKeyId: rest.accessKeyId ?? null,
+            secretAccessKey: rest.secretAccessKey ?? null,
+            prefix: rest.prefix ?? "",
+            exportFrequency: rest.exportFrequency,
+            enabled: rest.enabled,
+            forcePathStyle: rest.forcePathStyle,
+            fileType: rest.fileType,
+            exportMode: rest.exportMode,
+            exportStartDate: rest.exportStartDate ?? null,
+            exportSource: rest.exportSource,
+            compressed: rest.compressed,
+          },
         });
       } catch (e) {
         if (e instanceof TRPCError) {
           throw e;
+        }
+        if (e instanceof InvalidRequestError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message,
+          });
         }
         logger.error(`Failed to update blob storage integration`, e);
         throw new TRPCError({

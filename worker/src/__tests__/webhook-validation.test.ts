@@ -149,6 +149,11 @@ describe("Webhook URL Validation", () => {
       await expect(
         validateWebhookURL("http://metadata.google.internal/hook"),
       ).rejects.toThrow("Blocked hostname detected");
+      await expect(
+        validateWebhookURL("http://[fd00:ec2::254]/hook"),
+      ).rejects.toThrow(
+        /Blocked hostname detected|Blocked IP address detected/,
+      );
     });
 
     it("should handle malformed URL encoding", async () => {

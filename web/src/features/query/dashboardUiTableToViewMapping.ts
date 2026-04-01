@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
 
@@ -87,6 +87,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "providedModelName",
     },
     {
+      uiTableName: "Level",
+      viewName: "level",
+    },
+    {
       uiTableName: "Tool Names",
       viewName: "toolNames",
     },
@@ -114,6 +118,11 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     },
     {
       uiTableName: "Score Value",
+      viewName: "value",
+    },
+    {
+      // Legacy column name from dashboardColumnDefinitions (uiTableName: "value")
+      uiTableName: "value",
       viewName: "value",
     },
     {

@@ -50,62 +50,33 @@ import { Switch } from "@/src/components/ui/switch";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { normalizeLegacySessionPositionInTraceFilters } from "@/src/components/session/session-position-in-trace";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import {
+  buildSidebarFilterQueryStorageKey,
+  readPersistedSidebarFilterQuery,
+} from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  TableViewPresetsDrawer,
-  type SystemFilterPreset,
-  SYSTEM_PRESET_ID_PREFIX,
-} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
   type ColumnOrderState,
 } from "@tanstack/react-table";
+import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  type SessionDetailSystemPreset,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
 const USERS_PER_PAGE_IN_POPOVER = 50;
-
-const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
-  {
-    id: `${SYSTEM_PRESET_ID_PREFIX}last_generation__`,
-    name: "Last Generation in Trace",
-    description: "Shows only the last generation in each trace",
-    filters: [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["GENERATION"],
-      },
-      {
-        column: "positionInTrace",
-        type: "positionInTrace",
-        operator: "=",
-        key: "last",
-      },
-    ] satisfies FilterState,
-  },
-  {
-    id: `${SYSTEM_PRESET_ID_PREFIX}root_observation__`,
-    name: "Root Observation",
-    description: "Shows only the root observation of each trace",
-    filters: [
-      {
-        column: "positionInTrace",
-        type: "positionInTrace",
-        operator: "=",
-        key: "root",
-      },
-    ] satisfies FilterState,
-  },
-];
 
 const areDetailPageListsEqual = (
   left: ListEntry[] | undefined,
@@ -171,7 +142,7 @@ export function SessionUsers({
                     <Link
                       key={userId}
                       href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                      className="block hover:bg-accent"
+                      className="hover:bg-accent block"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -193,7 +164,7 @@ export function SessionUsers({
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   Page {page + 1} of{" "}
                   {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
                 </span>
@@ -462,7 +433,7 @@ export const SessionPage: React.FC<{
                 onCheckedChange={setShowCorrections}
                 className="scale-75"
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 Show corrections
               </span>
             </div>
@@ -471,7 +442,7 @@ export const SessionPage: React.FC<{
       }}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="sticky top-0 z-40 flex flex-wrap gap-2 border-b bg-background p-4">
+        <div className="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4">
           {session.data?.users?.length ? (
             <SessionUsers projectId={projectId} users={session.data.users} />
           ) : null}
@@ -541,7 +512,6 @@ export const SessionPage: React.FC<{
           expandPeek,
           resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
-          tableDataUpdatedAt: session.dataUpdatedAt,
         }}
       />
     </Page>
@@ -558,7 +528,6 @@ export const SessionEventsPage: React.FC<{
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
-  // TODO: introduce saved default views
   // Reset default preset flag when session changes (e.g., navigating between sessions)
   useEffect(() => {
     defaultPresetAppliedRef.current = false;
@@ -645,25 +614,11 @@ export const SessionEventsPage: React.FC<{
     detailPagelists.traces,
   ]);
 
-  // Decode time filters from URL for scoping filter options
-  const [filtersQuery] = useQueryParam("filter", withDefault(StringParam, ""));
-  const timeFiltersForOptions = React.useMemo(() => {
-    const allFilters = decodeAndNormalizeFilters(
-      filtersQuery,
-      observationEventsFilterConfig.columnDefinitions,
-    );
-    return allFilters.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    );
-  }, [filtersQuery]);
-
-  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
-    projectId,
-    oldFilterState: timeFiltersForOptions,
+  const sessionEventsTableName = "session-events";
+  const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
+    tableName: sessionEventsTableName,
+    contextId: projectId,
   });
-
   const positionInTraceColumn: ColumnDefinition = React.useMemo(
     () => ({
       name: "Position in Trace",
@@ -673,11 +628,10 @@ export const SessionEventsPage: React.FC<{
     }),
     [],
   );
-
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
-      tableName: "session-events",
+      tableName: sessionEventsTableName,
       columnDefinitions: [
         ...observationEventsFilterConfig.columnDefinitions,
         positionInTraceColumn,
@@ -687,7 +641,35 @@ export const SessionEventsPage: React.FC<{
           facet.column !== "sessionId" && facet.column !== "environment",
       ),
     };
-  }, [positionInTraceColumn]);
+  }, [positionInTraceColumn, sessionEventsTableName]);
+  const [urlFiltersQuery] = useQueryParam("filter", StringParam);
+  const filtersQuery = React.useMemo(
+    () =>
+      urlFiltersQuery ??
+      readPersistedSidebarFilterQuery({
+        storageKey: sessionFilterStorageKey,
+        contextId: projectId,
+      }),
+    [urlFiltersQuery, sessionFilterStorageKey, projectId],
+  );
+
+  // Decode time filters from URL/session filter state for scoping filter options
+  const timeFiltersForOptions = React.useMemo(() => {
+    const allFilters = decodeAndNormalizeFilters(
+      filtersQuery,
+      sessionEventsFilterConfig.columnDefinitions,
+    );
+    return allFilters.filter(
+      (f) =>
+        (f.column === "Start Time" || f.column === "startTime") &&
+        f.type === "datetime",
+    );
+  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
+
+  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
+    projectId,
+    oldFilterState: timeFiltersForOptions,
+  });
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
@@ -760,8 +742,10 @@ export const SessionEventsPage: React.FC<{
   const queryFilter = useSidebarFilterState(
     sessionEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
+    {
+      loading: isFilterOptionsPending,
+      sessionFilterContextId: projectId,
+    },
   );
 
   const visibleFilterState = React.useMemo(
@@ -786,7 +770,10 @@ export const SessionEventsPage: React.FC<{
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilter.setFilterState(filters),
+    (filters: FilterState) =>
+      queryFilter.setFilterState(
+        normalizeLegacySessionPositionInTraceFilters(filters),
+      ),
     [queryFilter],
   );
 
@@ -806,7 +793,7 @@ export const SessionEventsPage: React.FC<{
   });
 
   const applySystemPreset = useCallback(
-    (preset: SystemFilterPreset) => {
+    (preset: SessionDetailSystemPreset) => {
       viewControllers.handleSetViewId(preset.id);
       queryFilter.setFilterState(preset.filters);
     },
@@ -817,21 +804,15 @@ export const SessionEventsPage: React.FC<{
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
 
-    // Check if selectedViewId is a system preset
-    const systemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (p) => p.id === viewControllers.selectedViewId,
-    );
-
-    // If it's a non-system saved view, let the view manager handle it
-    if (viewControllers.selectedViewId && !systemPreset) return;
-
-    // If filters already match a system preset, we're done
-    if (queryFilter.filterState.length > 0) return;
+    const presetToApply = getSessionDetailPresetToApply({
+      selectedViewId: viewControllers.selectedViewId,
+      hasFilters: queryFilter.filterState.length > 0,
+    });
+    if (!presetToApply) return;
 
     defaultPresetAppliedRef.current = true;
-
-    // Apply the stored system preset or default to first one
-    const presetToApply = systemPreset ?? SESSION_DETAIL_SYSTEM_PRESETS[0];
+    // Sessions intentionally default to the first generation in each trace
+    // when opened without explicit filters or a saved view.
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
@@ -943,7 +924,7 @@ export const SessionEventsPage: React.FC<{
                 onCheckedChange={setShowCorrections}
                 className="scale-75"
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 Show corrections
               </span>
             </div>
@@ -952,7 +933,7 @@ export const SessionEventsPage: React.FC<{
       }}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background p-4">
+        <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
           {/* Saved Views */}
           <TableViewPresetsDrawer
             viewConfig={{
@@ -1056,7 +1037,6 @@ export const SessionEventsPage: React.FC<{
           expandPeek,
           resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
-          tableDataUpdatedAt: tracesQuery.dataUpdatedAt,
         }}
       />
     </Page>
@@ -1117,7 +1097,7 @@ export const SessionIO = ({
           showCorrections={showCorrections}
         />
       ) : (
-        <div className="p-2 text-xs text-muted-foreground">
+        <div className="text-muted-foreground p-2 text-xs">
           This trace has no input or output.
         </div>
       )}

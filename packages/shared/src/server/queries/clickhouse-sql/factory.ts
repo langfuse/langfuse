@@ -1,9 +1,13 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
+import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
-import { UiColumnMappings } from "../../../tableDefinitions";
+import {
+  type ColumnDefinition,
+  type UiColumnMappings,
+} from "../../../tableDefinitions";
 import {
   StringFilter,
   DateTimeFilter,
@@ -25,12 +29,28 @@ export class QueryBuilderError extends Error {
   }
 }
 
+// Maps each ColumnDefinition.type to the filter types that are structurally compatible
+// at the ClickHouse level. string/stringOptions both operate on String columns,
+// and stringOptions "any of" works on Array columns too.
+const COMPATIBLE_FILTER_TYPES: Record<string, string[]> = {
+  string: ["string", "stringOptions"],
+  stringOptions: ["string", "stringOptions"],
+  arrayOptions: ["arrayOptions", "stringOptions"],
+  datetime: ["datetime"],
+  number: ["number"],
+  boolean: ["boolean"],
+  stringObject: ["stringObject"],
+  numberObject: ["numberObject"],
+  categoryOptions: ["categoryOptions", "stringOptions"],
+};
+
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ) => {
   const applicableFilters = filter.filter(
     (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
@@ -40,6 +60,18 @@ export const createFilterFromFilterState = (
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
 
+    if (columnDefinitions && frontEndFilter.type !== "null") {
+      const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
+      if (colDef) {
+        const compatible = COMPATIBLE_FILTER_TYPES[colDef.type];
+        if (compatible && !compatible.includes(frontEndFilter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter type '${frontEndFilter.type}' for column '${frontEndFilter.column}'. Expected filter type '${colDef.type}'.`,
+          );
+        }
+      }
+    }
+
     switch (frontEndFilter.type) {
       case "string":
         return new StringFilter({
@@ -48,6 +80,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "datetime":
         return new DateTimeFilter({
@@ -64,6 +97,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       case "categoryOptions":
         return new CategoryOptionsFilter({
@@ -118,34 +152,12 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       case "null":
-        // Events table uses empty string instead of NULL for parent_span_id
-        if (
-          frontEndFilter.column === "parentObservationId" &&
-          column.clickhouseTableName === "events"
-        ) {
-          const isNull = frontEndFilter.operator === "is null";
-          const fieldWithPrefix = column.queryPrefix
-            ? `${column.queryPrefix}.${column.clickhouseSelect}`
-            : column.clickhouseSelect;
-
-          // Create an inline filter for empty string comparison
-          return {
-            clickhouseTable: column.clickhouseTableName,
-            field: column.clickhouseSelect,
-            operator: isNull ? ("=" as const) : ("!=" as const),
-            tablePrefix: column.queryPrefix,
-            apply: () => ({
-              query: `${fieldWithPrefix} ${isNull ? "=" : "!="} ''`,
-              params: {},
-            }),
-          };
-        }
-
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
+          emptyEqualsNull: column.emptyEqualsNull,
         });
       default:
         // eslint-disable-next-line no-case-declarations
@@ -175,7 +187,7 @@ const matchAndVerifyTracesUiColumn = (
         (col) => col.uiTableId ?? col.uiTableName,
       ),
     });
-    throw new QueryBuilderError(errorMessage);
+    throw new InvalidRequestError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

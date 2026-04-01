@@ -21,13 +21,14 @@ import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
   MediaReferenceStringSchema,
+  PromptDependencyRegex,
   type OpenAIContentParts,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -38,6 +39,19 @@ import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
+import {
+  getPromptReferenceMarkdownHref,
+  getPromptReferenceMarkdownLabel,
+  parsePromptDependencyInnerContent,
+  parsePromptReferenceMarkdownHref,
+  PromptReferenceButton,
+  usePromptReferenceProjectId,
+} from "@/src/components/ui/PromptReferences";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+  getStandaloneMediaReferenceStrings,
+} from "@/src/components/ui/markdown-media.utils";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -109,6 +123,108 @@ const isImageNode = (node?: ReactMarkdownNode): boolean =>
       "tagName" in child && child.tagName === "img",
   );
 
+const getNodeTextContent = (node: ReactNode): string => {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(getNodeTextContent).join("");
+  }
+
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return getNodeTextContent(node.props.children);
+  }
+
+  return "";
+};
+
+type MarkdownAstNode = {
+  type: string;
+  value?: string;
+  url?: string;
+  children?: MarkdownAstNode[];
+};
+
+const splitTextNodeWithPromptReferences = (
+  node: MarkdownAstNode,
+): MarkdownAstNode[] => {
+  const value = node.value;
+  if (!value) return [node];
+
+  const promptRegex = new RegExp(PromptDependencyRegex.source, "g");
+  const parts: MarkdownAstNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = promptRegex.exec(value)) !== null) {
+    const index = match.index ?? 0;
+    const fullMatch = match[0];
+    const innerContent = match[1];
+
+    if (typeof innerContent !== "string") continue;
+
+    const tag = parsePromptDependencyInnerContent(innerContent, index);
+    if (!tag) continue;
+
+    if (index > lastIndex) {
+      parts.push({
+        type: "text",
+        value: value.slice(lastIndex, index),
+      });
+    }
+
+    parts.push({
+      type: "link",
+      url: getPromptReferenceMarkdownHref(tag),
+      children: [
+        {
+          type: "text",
+          value: getPromptReferenceMarkdownLabel(tag),
+        },
+      ],
+    });
+
+    lastIndex = index + fullMatch.length;
+  }
+
+  if (parts.length === 0) return [node];
+
+  if (lastIndex < value.length) {
+    parts.push({
+      type: "text",
+      value: value.slice(lastIndex),
+    });
+  }
+
+  return parts;
+};
+
+const transformPromptReferenceNodes = (node: MarkdownAstNode): void => {
+  if (!Array.isArray(node.children)) return;
+  if (
+    node.type === "code" ||
+    node.type === "inlineCode" ||
+    node.type === "link" ||
+    node.type === "linkReference"
+  ) {
+    return;
+  }
+
+  node.children = node.children.flatMap((child) => {
+    if (child.type === "text") {
+      return splitTextNodeWithPromptReferences(child);
+    }
+
+    transformPromptReferenceNodes(child);
+    return [child];
+  });
+};
+
+const remarkPromptReferences = () => (tree: MarkdownAstNode) => {
+  transformPromptReferenceNodes(tree);
+};
+
 function MarkdownRenderer({
   markdown,
   theme,
@@ -120,6 +236,8 @@ function MarkdownRenderer({
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
+  const promptReferenceProjectId = usePromptReferenceProjectId();
+
   // Try to parse markdown content
 
   try {
@@ -127,12 +245,16 @@ function MarkdownRenderer({
     return (
       <div
         className={cn(
-          "space-y-2 overflow-x-auto break-words text-sm",
+          "space-y-2 overflow-x-auto text-sm wrap-break-word",
           className,
         )}
       >
         <MemoizedReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={
+            promptReferenceProjectId
+              ? [remarkGfm, remarkPromptReferences]
+              : [remarkGfm]
+          }
           components={{
             p({ children, node }) {
               if (isImageNode(node)) {
@@ -143,6 +265,16 @@ function MarkdownRenderer({
               );
             },
             a({ children, href }) {
+              const promptReference = parsePromptReferenceMarkdownHref(href);
+              if (promptReference) {
+                return (
+                  <PromptReferenceButton
+                    promptRef={promptReference}
+                    fallbackText={getNodeTextContent(children)}
+                  />
+                );
+              }
+
               // Handle mention links
               if (href?.startsWith(MENTION_USER_PREFIX)) {
                 const userId = href.replace(MENTION_USER_PREFIX, "");
@@ -226,7 +358,7 @@ function MarkdownRenderer({
                 />
               ) : (
                 // inline code
-                <code className="rounded border bg-secondary px-0.5">
+                <code className="bg-secondary rounded border px-0.5">
                   {codeContent}
                 </code>
               );
@@ -258,7 +390,7 @@ function MarkdownRenderer({
             },
             tbody({ children }) {
               return (
-                <tbody className="divide-y divide-border">{children}</tbody>
+                <tbody className="divide-border divide-y">{children}</tbody>
               );
             },
             tr({ children }) {
@@ -266,14 +398,14 @@ function MarkdownRenderer({
             },
             th({ children }) {
               return (
-                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-xs font-medium tracking-wider uppercase">
                   {children}
                 </th>
               );
             },
             td({ children }) {
               return (
-                <td className="whitespace-nowrap px-4 py-2">{children}</td>
+                <td className="px-4 py-2 whitespace-nowrap">{children}</td>
               );
             },
           }}
@@ -287,7 +419,7 @@ function MarkdownRenderer({
 
     return (
       <>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
           <Info className="h-3 w-3" />
           Markdown parsing failed. Displaying raw JSON.
         </div>
@@ -362,6 +494,15 @@ export function MarkdownView({
     });
   };
 
+  const inlineMediaReferenceStrings =
+    typeof markdown === "string"
+      ? getStandaloneMediaReferenceStrings(markdown)
+      : [];
+  const remainingMedia = filterAlreadyRenderedMedia(
+    media,
+    getRenderedInlineMediaIds({ markdown, audio }),
+  );
+
   return (
     <div className={cn("overflow-hidden")} key={theme}>
       {title ? (
@@ -391,27 +532,38 @@ export function MarkdownView({
       >
         {typeof markdown === "string" ? (
           // plain string
-          <>
-            <MarkdownRenderer
-              markdown={
-                shouldBeCollapsible && isCollapsed ? truncatedContent : markdown
-              }
-              theme={theme}
-              customCodeHeaderClassName={customCodeHeaderClassName}
-            />
-            {shouldBeCollapsible && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={toggleCollapsed}
-                className="w-fit text-xs underline"
-              >
-                {isCollapsed
-                  ? "Expand system prompt"
-                  : "Collapse system prompt"}
-              </Button>
-            )}
-          </>
+          inlineMediaReferenceStrings.length > 0 ? (
+            inlineMediaReferenceStrings.map((referenceString, index) => (
+              <LangfuseMediaView
+                key={`${referenceString}-${index}`}
+                mediaReferenceString={referenceString}
+              />
+            ))
+          ) : (
+            <>
+              <MarkdownRenderer
+                markdown={
+                  shouldBeCollapsible && isCollapsed
+                    ? truncatedContent
+                    : markdown
+                }
+                theme={theme}
+                customCodeHeaderClassName={customCodeHeaderClassName}
+              />
+              {shouldBeCollapsible && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={toggleCollapsed}
+                  className="w-fit text-xs underline"
+                >
+                  {isCollapsed
+                    ? "Expand system prompt"
+                    : "Collapse system prompt"}
+                </Button>
+              )}
+            </>
+          )
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>
@@ -433,7 +585,7 @@ export function MarkdownView({
                   mediaReferenceString={content.image_url.url}
                 />
               ) : (
-                <div className="grid grid-cols-[auto,1fr] items-center gap-2">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
@@ -462,13 +614,13 @@ export function MarkdownView({
           </>
         ) : null}
       </div>
-      {media && media.length > 0 && (
+      {remainingMedia.length > 0 && (
         <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
-            {media.map((m) => (
+            {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
                 asFileIcon={true}

@@ -88,6 +88,7 @@ describe("observationForEvalSchema", () => {
       tool_definitions: { search: '{"description": "Search"}' },
       tool_calls: ['{"name": "search"}'],
       tool_call_names: ["search"],
+      tool_call_count: 1,
       usage_details: { input: 100, output: 50 },
       cost_details: { total: 0.01 },
       provided_usage_details: {},
@@ -199,6 +200,7 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("environment");
       expect(columnIds).toContain("level");
       expect(columnIds).toContain("version");
+      expect(columnIds).toContain("parentObservationId");
 
       // Trace-level properties
       expect(columnIds).toContain("traceName");

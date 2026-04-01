@@ -278,7 +278,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                         <Textarea
                           {...field}
                           placeholder="Add description..."
-                          className="text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                          className="text-xs focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                         />
                       </FormControl>
                       <FormMessage />
@@ -300,7 +300,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                           placeholder="Value"
                           align="end"
                           variant="outline"
-                          className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+                          className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
                           onValueChange={handleOnValueChange}
                           options={configs
                             .filter((config) => !config.isArchived)
@@ -368,9 +368,9 @@ export const CreateOrEditAnnotationQueueButton = ({
                             >
                               <div className="flex items-center gap-2">
                                 {isAdvancedOpen ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  <ChevronDown className="text-muted-foreground h-4 w-4" />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  <ChevronRight className="text-muted-foreground h-4 w-4" />
                                 )}
                                 <span className="text-sm font-medium">
                                   User Assignment
@@ -378,7 +378,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                               </div>
                             </Button>
                           </CollapsibleTrigger>
-                          <CollapsibleContent className="border-t border-border/20 px-3 pb-3 pt-1">
+                          <CollapsibleContent className="border-border/20 border-t px-3 pt-1 pb-3">
                             {hasQueueAssignmentsReadAccess && (
                               <>
                                 <FormControl>

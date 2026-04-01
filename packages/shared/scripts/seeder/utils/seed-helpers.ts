@@ -36,8 +36,10 @@ export const generateEvalObservationId = (
   evalTemplateId: string,
   index: number,
   projectId: string,
+  observationIndex?: number,
 ) => {
-  return `observation-eval-${evalTemplateId}-${projectId.slice(-8)}-${index}`;
+  const suffix = observationIndex != null ? `-${observationIndex}` : "";
+  return `observation-eval-${evalTemplateId}-${projectId.slice(-8)}-${index}${suffix}`;
 };
 
 export const generateEvalScoreId = (

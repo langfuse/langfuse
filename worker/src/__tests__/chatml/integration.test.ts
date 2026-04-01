@@ -1,38 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-
-vi.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
-
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
+import { readFileSync, existsSync, writeFileSync, readdirSync } from "fs";
+import path from "path";
 
 import {
   normalizeInput,
@@ -40,7 +8,10 @@ import {
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
+  ChatMlArraySchema,
 } from "@langfuse/shared/src/utils/chatml";
+
+import { deepParseJson } from "@langfuse/shared";
 
 describe("ChatML Integration", () => {
   it("should handle OpenAI multimodal format", () => {
@@ -527,3 +498,131 @@ describe("ChatML Integration", () => {
     expect(allMessages).toHaveLength(4);
   });
 });
+
+const tracesDir = path.resolve(__dirname, "framework-traces");
+const traceFiles = readdirSync(tracesDir).filter((f) =>
+  f.endsWith(".trace.json"),
+);
+// use this to update the expected mapping result when changing/fixing the mapping logic
+const updateExpectedFilesOnFailure = false;
+
+describe("ChatML adaption tests against real observations", () => {
+  it.each(traceFiles)(
+    "should adapt observations from trace file %s ",
+    (traceFile: string) => {
+      //load trace file
+      const fileDir = path.resolve(__dirname, "framework-traces");
+      const traceFilePath = path.join(fileDir, traceFile);
+      const traceContent = readFileSync(traceFilePath, "utf-8");
+      const observations = JSON.parse(traceContent).observations;
+
+      //load expected file
+      const expectedFile = traceFile.replace(/\.trace\.json$/, ".chatml.json");
+      const expectedFilePath = path.join(fileDir, expectedFile);
+
+      //in update mode, create the chatML file is needed
+      if (updateExpectedFilesOnFailure && !existsSync(expectedFilePath)) {
+        writeFileSync(expectedFilePath, JSON.stringify({}, null, 2), "utf-8");
+      }
+      let errorMessage = `File ${expectedFilePath} should exist`;
+      expect(existsSync(expectedFilePath), errorMessage).toBe(true);
+
+      const expectedContent = readFileSync(expectedFilePath, "utf-8");
+      const expected = JSON.parse(expectedContent) as Record<
+        string,
+        {
+          input?: ReturnType<typeof ChatMlArraySchema.safeParse>;
+          output?: ReturnType<typeof ChatMlArraySchema.safeParse>;
+        }
+      >;
+
+      //check if data has at least one observation with a non undefined input
+      errorMessage = `File should have at least one observation with input and output`;
+      const hasFilledObs = observations.some((o: any) => o.input && o.output);
+      expect(hasFilledObs, errorMessage).toBe(true);
+
+      //test each observation with an input and/or output
+      for (const obs of observations) {
+        if (obs.input) {
+          const expectedInput = expected[obs.id]?.input;
+          if (!updateExpectedFilesOnFailure) {
+            errorMessage = `Observation ${obs.id} should have an expected input`;
+            expect(expectedInput, errorMessage).not.toBeUndefined();
+          }
+
+          const inResult = normalizeInput(deepParseJson(obs.input), {
+            metadata: deepParseJson(obs.metadata),
+            observationName: obs.name,
+          });
+          const normalizedInResult = JSON.parse(JSON.stringify(inResult));
+          errorMessage = `Observation ${obs.id}'s input should be mapped as expected`;
+          try {
+            expect(normalizedInResult, errorMessage).toEqual(expectedInput);
+          } catch (err) {
+            if (updateExpectedFilesOnFailure)
+              writeToExpectedFile(
+                expectedFile,
+                obs.id,
+                "input",
+                normalizedInResult,
+              );
+            else throw err;
+          }
+        }
+        if (obs.output) {
+          const expectedOutput = expected[obs.id]?.output;
+          if (!updateExpectedFilesOnFailure) {
+            errorMessage = `Observation ${obs.id} should have an expected output`;
+            expect(expectedOutput, errorMessage).not.toBeUndefined();
+          }
+
+          const outResult = normalizeOutput(deepParseJson(obs.output), {
+            metadata: deepParseJson(obs.metadata),
+            observationName: obs.name,
+          });
+          const normalizedOutResult = JSON.parse(JSON.stringify(outResult));
+          errorMessage = `Observation ${obs.id}'s output should be mapped as expected`;
+          try {
+            expect(normalizedOutResult, errorMessage).toEqual(expectedOutput);
+          } catch (err) {
+            if (updateExpectedFilesOnFailure)
+              writeToExpectedFile(
+                expectedFile,
+                obs.id,
+                "output",
+                normalizedOutResult,
+              );
+            else throw err;
+          }
+        }
+      }
+    },
+  );
+});
+
+/**
+ * Helper function to write normalized input/output to expected file for a given observation ID and type (input/output).
+ */
+function writeToExpectedFile(
+  expectedFileName: string,
+  observationId: string,
+  type: "input" | "output",
+  data: any,
+) {
+  const fileDir = path.resolve(__dirname, "framework-traces");
+  const expectedFilePath = path.join(fileDir, expectedFileName);
+
+  let expected: Record<string, any> = {};
+  if (existsSync(expectedFilePath)) {
+    const expectedContent = readFileSync(expectedFilePath, "utf-8");
+    expected = JSON.parse(expectedContent);
+  } else {
+    //create empty file
+    writeFileSync(expectedFilePath, JSON.stringify({}, null, 2), "utf-8");
+  }
+
+  expected[observationId] = expected[observationId] || {};
+  expected[observationId][type] = data;
+
+  writeFileSync(expectedFilePath, JSON.stringify(expected, null, 2), "utf-8");
+}

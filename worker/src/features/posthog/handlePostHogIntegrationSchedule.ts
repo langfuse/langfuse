@@ -32,11 +32,6 @@ export const handlePostHogIntegrationSchedule = async () => {
     `[POSTHOG] Scheduling ${postHogIntegrationProjects.length} PostHog integrations for sync`,
   );
 
-  // Include an hourly key in the jobId so that failed jobs from a previous hour
-  // don't permanently block re-queuing (BullMQ skips adds when a job with the
-  // same ID already exists in a failed state).
-  const hourKey = new Date().toISOString().slice(0, 13); // e.g. "2026-02-11T08"
-
   await postHogIntegrationProcessingQueue.addBulk(
     postHogIntegrationProjects.map((integration) => ({
       name: QueueJobs.PostHogIntegrationProcessingJob,
@@ -49,8 +44,11 @@ export const handlePostHogIntegrationSchedule = async () => {
         },
       },
       opts: {
-        jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}-${hourKey}`,
-        removeOnFail: { count: 5 },
+        // Deduplicate by projectId + lastSyncAt so the same project isn't queued
+        // twice for the same sync window. removeOnFail ensures failed jobs are
+        // immediately cleaned up so they don't block re-queuing on the next cycle.
+        jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}`,
+        removeOnFail: true,
       },
     })),
   );

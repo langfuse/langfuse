@@ -22,6 +22,7 @@ import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getTraceStream } from "../database-read-stream/trace-stream";
+import { getEventsStream } from "../database-read-stream/event-stream";
 
 // Map table names to comment object types for preprocessing
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
@@ -175,6 +176,7 @@ export const handleBatchExportJob = async (
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
           filter: processedFilter,
+          fileFormat: jobDetails.format as BatchExportFileFormat,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
@@ -183,12 +185,19 @@ export const handleBatchExportJob = async (
             ...parsedQuery.data,
             filter: processedFilter,
           })
-        : await getDatabaseReadStreamPaginated({
-            projectId,
-            cutoffCreatedAt: jobDetails.createdAt,
-            ...parsedQuery.data,
-            filter: processedFilter,
-          });
+        : parsedQuery.data.tableName === BatchExportTableName.Events
+          ? await getEventsStream({
+              projectId,
+              cutoffCreatedAt: jobDetails.createdAt,
+              ...parsedQuery.data,
+              filter: processedFilter,
+            })
+          : await getDatabaseReadStreamPaginated({
+              projectId,
+              cutoffCreatedAt: jobDetails.createdAt,
+              ...parsedQuery.data,
+              filter: processedFilter,
+            });
 
   // Transform data to desired format
   let rowCount = 0;
@@ -228,13 +237,13 @@ export const handleBatchExportJob = async (
   const expiresInSeconds =
     env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600;
 
-  // Stream upload results to S3
+  // Stream upload results to blob storage
   const bucketName = env.LANGFUSE_S3_BATCH_EXPORT_BUCKET;
   if (!bucketName) {
     throw new Error("No S3 bucket configured for exports.");
   }
 
-  const { signedUrl } = await StorageServiceFactory.getInstance({
+  const storageParams = {
     bucketName,
     accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
     secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
@@ -244,17 +253,24 @@ export const handleBatchExportJob = async (
     forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
     awsSse: env.LANGFUSE_S3_BATCH_EXPORT_SSE,
     awsSseKmsKeyId: env.LANGFUSE_S3_BATCH_EXPORT_SSE_KMS_KEY_ID,
-  }).uploadWithSignedUrl({
+  };
+
+  const storageService = StorageServiceFactory.getInstance(storageParams);
+
+  await storageService.uploadFileBuffered({
     fileName,
     fileType:
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
-    expiresInSeconds,
-    partSize: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
-    queueSize: 4,
+    partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
   });
 
-  logger.info(`Batch export file ${fileName} uploaded to S3`);
+  const signedUrl = await storageService.getSignedUrl(
+    fileName,
+    expiresInSeconds,
+  );
+
+  logger.info(`Batch export file ${fileName} uploaded`);
 
   // Update job status
   await prisma.batchExport.update({

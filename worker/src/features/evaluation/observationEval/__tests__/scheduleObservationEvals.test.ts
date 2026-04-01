@@ -6,7 +6,11 @@ import {
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { EvalTargetObject, JobExecutionStatus } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  JobConfigState,
+  JobExecutionStatus,
+} from "@langfuse/shared";
 import { createW3CTraceId } from "../../../utils";
 
 describe("scheduleObservationEvals", () => {
@@ -47,6 +51,7 @@ describe("scheduleObservationEvals", () => {
     tool_definitions: {},
     tool_calls: [],
     tool_call_names: [],
+    tool_call_count: 0,
 
     // Usage & Cost
     usage_details: { input: 100, output: 50 },
@@ -80,16 +85,21 @@ describe("scheduleObservationEvals", () => {
     scoreName: "quality",
     variableMapping: [],
     targetObject: EvalTargetObject.EVENT,
-    delay: 0,
+    status: JobConfigState.ACTIVE,
+    blockedAt: null,
     ...overrides,
   });
 
   const createMockSchedulerDeps = (): ObservationEvalSchedulerDeps => ({
-    upsertJobExecution: vi.fn().mockResolvedValue({ id: "job-exec-1" }),
+    upsertJobExecution: vi
+      .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
+      .mockResolvedValue({ id: "job-exec-1" }),
     uploadObservationToS3: vi
-      .fn()
+      .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
       .mockResolvedValue("observations/project-789/obs-123.json"),
-    enqueueEvalJob: vi.fn().mockResolvedValue(undefined),
+    enqueueEvalJob: vi
+      .fn<ObservationEvalSchedulerDeps["enqueueEvalJob"]>()
+      .mockResolvedValue(undefined),
   });
 
   beforeEach(() => {
@@ -104,6 +114,32 @@ describe("scheduleObservationEvals", () => {
       await scheduleObservationEvals({
         observation,
         configs: [],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("executability", () => {
+    it("should skip paused and inactive configs before uploading to S3", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "paused-config",
+            blockedAt: new Date(),
+          }),
+          createMockConfig({
+            id: "inactive-config",
+            status: JobConfigState.INACTIVE,
+          }),
+        ],
         schedulerDeps,
       });
 
@@ -285,7 +321,7 @@ describe("scheduleObservationEvals", () => {
     it("should enqueue job with correct parameters", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       schedulerDeps.uploadObservationToS3 = vi
-        .fn()
+        .fn<ObservationEvalSchedulerDeps["uploadObservationToS3"]>()
         .mockResolvedValue("observations/project-789/obs-123.json");
       const observation = createMockObservation();
       const config = createMockConfig();
@@ -312,7 +348,7 @@ describe("scheduleObservationEvals", () => {
     it("should process multiple matching configs independently", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       schedulerDeps.upsertJobExecution = vi
-        .fn()
+        .fn<ObservationEvalSchedulerDeps["upsertJobExecution"]>()
         .mockResolvedValueOnce({ id: "job-exec-1" })
         .mockResolvedValueOnce({ id: "job-exec-2" })
         .mockResolvedValueOnce({ id: "job-exec-3" });

@@ -11,7 +11,7 @@ import {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -339,7 +339,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => append({ value: "" })}
             className="w-full"
           >
-            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
             Add custom model name
           </Button>
         </FormItem>
@@ -392,7 +392,7 @@ export function CreateLLMApiKeyForm({
             onClick={() => appendHeader({ key: "", value: "" })}
             className="w-full"
           >
-            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
             Add Header
           </Button>
         </FormItem>
@@ -635,7 +635,7 @@ export function CreateLLMApiKeyForm({
                         (existingKey.config as BedrockConfig).region && (
                           <span className="text-sm">
                             Current:{" "}
-                            <code className="rounded bg-muted px-1 py-0.5">
+                            <code className="bg-muted rounded px-1 py-0.5">
                               {(existingKey.config as BedrockConfig).region}
                             </code>
                           </span>
@@ -665,7 +665,7 @@ export function CreateLLMApiKeyForm({
                     <FormLabel>
                       AWS Access Key ID
                       {!isLangfuseCloud && (
-                        <span className="font-normal text-muted-foreground">
+                        <span className="text-muted-foreground font-normal">
                           {" "}
                           (optional)
                         </span>
@@ -705,7 +705,7 @@ export function CreateLLMApiKeyForm({
                     <FormLabel>
                       AWS Secret Access Key
                       {!isLangfuseCloud && (
-                        <span className="font-normal text-muted-foreground">
+                        <span className="text-muted-foreground font-normal">
                           {" "}
                           (optional)
                         </span>
@@ -734,7 +734,7 @@ export function CreateLLMApiKeyForm({
                 )}
               />
               {!isLangfuseCloud && (
-                <div className="space-y-2 border-l-2 border-blue-200 pl-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
                   <p>
                     <strong>Default credential provider chain:</strong> When AWS
                     credentials are omitted, the system will automatically check
@@ -857,7 +857,7 @@ export function CreateLLMApiKeyForm({
               {!isLangfuseCloud &&
                 form.watch("secretKey") ===
                   VERTEXAI_USE_DEFAULT_CREDENTIALS && (
-                  <div className="space-y-2 border-l-2 border-blue-200 pl-4 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
                     <p>
                       <strong>Application Default Credentials (ADC):</strong>{" "}
                       When enabled, the system will automatically check for
@@ -1027,8 +1027,9 @@ export function CreateLLMApiKeyForm({
               )}
 
               {/* Extra Headers */}
-              {currentAdapter === LLMAdapter.OpenAI &&
-                renderExtraHeadersField()}
+              {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
+                currentAdapter,
+              ) && renderExtraHeadersField()}
 
               {/* With default models */}
               <FormField
