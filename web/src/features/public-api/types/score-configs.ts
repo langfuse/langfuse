@@ -97,6 +97,15 @@ export const PostScoreConfigBody = z
         categories: z.undefined(),
       }).shape,
     }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...z.object({
+        dataType: z.literal("TEXT"),
+        categories: z.undefined(),
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
+      }).shape,
+    }),
   ])
   .superRefine(validateNumericRangeFields);
 

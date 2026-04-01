@@ -526,21 +526,21 @@ const createAllIngestionSchemas = ({
 
   const ScoreBody = applyScoreValidation(
     z.discriminatedUnion("dataType", [
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.number(),
           dataType: z.literal("NUMERIC"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.string(),
           dataType: z.literal("CATEGORICAL"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.number().refine((value) => value === 0 || value === 1, {
             message:
@@ -548,21 +548,28 @@ const createAllIngestionSchemas = ({
           }),
           dataType: z.literal("BOOLEAN"),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
         z.object({
           value: z.string(),
           dataType: z.literal("CORRECTION"),
           configId: z.undefined().nullish(), // Cannot have config
-        }),
+        }).shape,
       ),
-      BaseScoreBody.merge(
+      BaseScoreBody.extend(
+        z.object({
+          value: z.string().min(1).max(500),
+          dataType: z.literal("TEXT"),
+          configId: z.string().nullish(),
+        }).shape,
+      ),
+      BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
           dataType: z.undefined(),
           configId: z.string().nullish(),
-        }),
+        }).shape,
       ),
     ]),
   );

@@ -15,8 +15,8 @@ export class ScoresApiService {
 
   /**
    * Get a specific score by ID
-   * v1: Only returns aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION
-   * v2: Returns all score types including CORRECTION
+   * v1: Only returns aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION and TEXT
+   * v2: Returns all score types including CORRECTION and TEXT
    */
   async getScoreById({
     projectId,
@@ -46,8 +46,8 @@ export class ScoresApiService {
 
   /**
    * Get list of scores with version-aware filtering
-   * v1: Only returns aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION
-   * v2: Returns all score types including CORRECTION
+   * v1: Only returns aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION and TEXT
+   * v2: Returns all score types including CORRECTION and TEXT
    */
   async generateScoresForPublicApi(props: ScoreQueryType) {
     return _handleGenerateScoresForPublicApi({
@@ -60,8 +60,8 @@ export class ScoresApiService {
 
   /**
    * Get count of scores with version-aware filtering
-   * v1: Only counts aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION
-   * v2: Counts all score types including CORRECTION
+   * v1: Only counts aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION and TEXT
+   * v2: Counts all score types including CORRECTION and TEXT
    */
   async getScoresCountForPublicApi(props: ScoreQueryType) {
     return _handleGetScoresCountForPublicApi({

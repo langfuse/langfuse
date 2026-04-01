@@ -2,6 +2,7 @@ import {
   BooleanData,
   CategoricalData,
   NumericData,
+  TextData,
   ScoreSchemaExclReferencesAndDates,
 } from "../../../../../domain";
 import z from "zod";
@@ -27,6 +28,8 @@ const ScoreFoundationSchemaV2 = ScoreSchemaExclReferencesAndDates.extend({
   observationId: z.string().nullish(),
   sessionId: z.string().nullish(),
   datasetRunId: z.string().nullish(),
+  // Optional for TEXT scores where value is always 0 and stripped from the API response
+  value: z.number().optional(),
 });
 
 export const APIScoreSchemaV2 = ScoreFoundationSchemaV2.and(
@@ -35,6 +38,7 @@ export const APIScoreSchemaV2 = ScoreFoundationSchemaV2.and(
     CategoricalData,
     BooleanData,
     CorrectionData,
+    TextData,
   ]),
 );
 

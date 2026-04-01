@@ -21,17 +21,25 @@ import {
 /**
  * Converts a ScoreDomain object to API format.
  * For CORRECTION scores, moves longStringValue to stringValue for API compatibility.
+ * For TEXT scores, removes longStringValue and value (always 0, not meaningful).
  * For other score types, removes longStringValue.
  */
-export const convertScoreToPublicApi = <T extends ScoreDomain>(
-  score: T,
-): Omit<T, "longStringValue"> & { stringValue?: string | null } => {
+export const convertScoreToPublicApi = (
+  score: ScoreDomain,
+): Omit<ScoreDomain, "longStringValue" | "value"> & {
+  stringValue?: string | null;
+  value?: number;
+} => {
   if (score.dataType === ScoreDataTypeEnum.CORRECTION) {
     const { longStringValue, ...rest } = score;
     return {
       ...rest,
       stringValue: longStringValue,
     };
+  }
+
+  if (score.dataType === ScoreDataTypeEnum.TEXT) {
+    return removeObjectKeys(score, ["longStringValue", "value"]);
   }
 
   return removeObjectKeys(score, ["longStringValue"]);

@@ -516,6 +516,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the correction content
+  TextScore:
+    extends: BaseScore
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
     union:
@@ -531,6 +537,9 @@ types:
       CORRECTION:
         type: CorrectionScore
         docs: "Score with CORRECTION data type"
+      TEXT:
+        type: TextScore
+        docs: "Score with TEXT data type"
 
   CreateScoreValue:
     discriminated: false
@@ -932,6 +941,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - TEXT
 
   ScoreDataType:
     enum:
@@ -939,6 +949,7 @@ types:
       - BOOLEAN
       - CATEGORICAL
       - CORRECTION
+      - TEXT
 
 errors:
   Error:

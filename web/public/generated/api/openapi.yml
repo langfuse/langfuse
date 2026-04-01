@@ -6353,6 +6353,12 @@ components:
           description: >-
             Custom start date for exports (required when exportMode is
             FROM_CUSTOM_DATE)
+        compressed:
+          type: boolean
+          nullable: true
+          description: >-
+            Enable gzip compression for exported files (.csv.gz, .json.gz,
+            .jsonl.gz). Defaults to true.
       required:
         - projectId
         - type
@@ -6399,6 +6405,8 @@ components:
           type: string
           format: date-time
           nullable: true
+        compressed:
+          type: boolean
         nextSyncAt:
           type: string
           format: date-time
@@ -6432,6 +6440,7 @@ components:
         - forcePathStyle
         - fileType
         - exportMode
+        - compressed
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -7460,6 +7469,17 @@ components:
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
+    TextScore:
+      title: TextScore
+      type: object
+      properties:
+        stringValue:
+          type: string
+          description: The text content of the score (1-500 characters)
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     Score:
       title: Score
       oneOf:
@@ -7505,6 +7525,17 @@ components:
                   enum:
                     - CORRECTION
             - $ref: '#/components/schemas/CorrectionScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScore'
           required:
             - dataType
     CreateScoreValue:
@@ -8235,6 +8266,7 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+        - TEXT
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -8243,6 +8275,7 @@ components:
         - BOOLEAN
         - CATEGORICAL
         - CORRECTION
+        - TEXT
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -10821,6 +10854,15 @@ components:
           nullable: true
       allOf:
         - $ref: '#/components/schemas/CorrectionScore'
+    GetScoresResponseDataText:
+      title: GetScoresResponseDataText
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/TextScore'
     GetScoresResponseData:
       title: GetScoresResponseData
       oneOf:
@@ -10866,6 +10908,17 @@ components:
                   enum:
                     - CORRECTION
             - $ref: '#/components/schemas/GetScoresResponseDataCorrection'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/GetScoresResponseDataText'
           required:
             - dataType
     GetScoresResponse:
