@@ -106,10 +106,22 @@ export const promptRouter = createTRPCRouter({
       // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
       const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
-      const searchFilter = buildPromptSearchFilter(
-        input.searchQuery,
-        input.searchType,
-      );
+      const additionalConditions = input.searchType?.includes("id")
+        ? [
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+          ]
+        : [];
+
+      const searchCondition = postgresSearchCondition({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tablePrefix: "p",
+        metadataColumns: ["name"],
+        contentColumns: {
+          content: ["prompt::text"],
+        },
+        additionalConditions,
+      });
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
@@ -133,7 +145,7 @@ export const promptRouter = createTRPCRouter({
             input.limit,
             input.page,
             pathFilter, // SQL WHERE clause: filters DB to only prompts in current folder, derived from prefix.
-            searchFilter,
+            searchCondition,
             input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
           ),
         ),
@@ -147,7 +159,7 @@ export const promptRouter = createTRPCRouter({
             1, // limit
             0, // input.page,
             pathFilter,
-            searchFilter,
+            searchCondition,
             input.pathPrefix,
           ),
         ),
@@ -187,10 +199,22 @@ export const promptRouter = createTRPCRouter({
 
       const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
-      const searchFilter = buildPromptSearchFilter(
-        input.searchQuery,
-        input.searchType,
-      );
+      const additionalConditions = input.searchType?.includes("id")
+        ? [
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+          ]
+        : [];
+
+      const searchCondition = postgresSearchCondition({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tablePrefix: "p",
+        metadataColumns: ["name"],
+        contentColumns: {
+          content: ["prompt::text"],
+        },
+        additionalConditions,
+      });
 
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
@@ -201,7 +225,7 @@ export const promptRouter = createTRPCRouter({
           1, // limit
           0, // page
           pathFilter,
-          searchFilter,
+          searchCondition,
           input.pathPrefix,
         ),
       );
