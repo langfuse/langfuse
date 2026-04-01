@@ -345,7 +345,7 @@ export class OtelIngestionProcessor {
                 const spanContext = {
                   spanId,
                   traceId,
-                  source: "ingestion" as const,
+                  source: "event" as const,
                 };
 
                 const usageDetails = UsageDetails.safeParse(
@@ -975,7 +975,7 @@ export class OtelIngestionProcessor {
     const observationContext = {
       spanId: observationSpanId,
       traceId,
-      source: "event" as const,
+      source: "ingestion" as const,
     };
 
     const observation = {
