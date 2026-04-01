@@ -431,6 +431,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  TextScoreV1:
+    extends: BaseScoreV1
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   ScoreV1:
     discriminant: "dataType"
     union:
@@ -443,6 +449,9 @@ types:
       BOOLEAN:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
+      TEXT:
+        type: TextScoreV1
+        docs: "Score with TEXT data type"
 
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
@@ -950,14 +959,6 @@ types:
       - CATEGORICAL
       - CORRECTION
       - TEXT
-
-  # v1 POST /scores does not support TEXT — use this enum for the v1 create endpoint
-  CreateScoreDataTypeV1:
-    enum:
-      - NUMERIC
-      - BOOLEAN
-      - CATEGORICAL
-      - CORRECTION
 
 errors:
   Error:

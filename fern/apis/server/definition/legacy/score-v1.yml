@@ -41,7 +41,7 @@ types:
         type: optional<string>
         docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       dataType:
-        type: optional<commons.CreateScoreDataTypeV1>
+        type: optional<commons.ScoreDataType>
         docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
       configId:
         type: optional<string>
@@ -84,6 +84,11 @@ types:
           value: 1
           dataType: "BOOLEAN"
           configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "feedback"
+          value: "Great explanation of the concept"
+          dataType: "TEXT"
           traceId: "cdef-1234-5678-90ab"
   CreateScoreResponse:
     properties:

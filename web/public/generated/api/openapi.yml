@@ -7292,6 +7292,17 @@ components:
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScoreV1'
+    TextScoreV1:
+      title: TextScoreV1
+      type: object
+      properties:
+        stringValue:
+          type: string
+          description: The text content of the score (1-500 characters)
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
     ScoreV1:
       title: ScoreV1
       oneOf:
@@ -7326,6 +7337,17 @@ components:
                   enum:
                     - BOOLEAN
             - $ref: '#/components/schemas/BooleanScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScoreV1'
           required:
             - dataType
     BaseScore:
@@ -8276,14 +8298,6 @@ components:
         - CATEGORICAL
         - CORRECTION
         - TEXT
-    CreateScoreDataTypeV1:
-      title: CreateScoreDataTypeV1
-      type: string
-      enum:
-        - NUMERIC
-        - BOOLEAN
-        - CATEGORICAL
-        - CORRECTION
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -9253,7 +9267,7 @@ components:
             The annotation queue referenced by the score. Indicates if score was
             initially created while processing annotation queue.
         dataType:
-          $ref: '#/components/schemas/CreateScoreDataTypeV1'
+          $ref: '#/components/schemas/ScoreDataType'
           nullable: true
           description: >-
             The data type of the score. When passing a configId this field is
