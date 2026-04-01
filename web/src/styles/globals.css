@@ -199,6 +199,10 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
+    --find-match-background: 60 60% 85%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
+
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -294,6 +298,10 @@
     --sidebar-accent-foreground: 210 40% 86%;
     --sidebar-border: 217.2 32.6% 26.5%;
     --sidebar-ring: 224.3 76.3% 46%;
+
+    --find-match-background: 60 100% 20%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
 
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
