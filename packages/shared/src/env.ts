@@ -43,17 +43,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(5000),
-  REDIS_COMMAND_TIMEOUT: z.coerce.number().int().positive().default(2000),
-  REDIS_REQUEST_SOCKET_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5000),
-  REDIS_BLOCKING_SOCKET_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(30000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),

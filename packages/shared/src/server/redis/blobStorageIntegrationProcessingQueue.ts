@@ -16,6 +16,7 @@ export class BlobStorageIntegrationProcessingQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
