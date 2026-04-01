@@ -298,6 +298,12 @@ type UseSidebarFilterStateOptions = {
    */
   disableUrlPersistence?: boolean;
   /**
+   * If true, prevents filter state from being persisted to/read from session storage.
+   * URL persistence remains active. Use this when you want filters in the URL but
+   * don't want them to persist across page navigations within the same session.
+   */
+  disableSessionPersistence?: boolean;
+  /**
    * Optional context identifier (for example projectId) to guard against
    * carrying persisted filters across contexts.
    */
@@ -366,6 +372,7 @@ export function useSidebarFilterState(
   const {
     loading,
     disableUrlPersistence,
+    disableSessionPersistence,
     sessionFilterContextId,
     implicitDefaultConfig,
   } = hookOptions;
@@ -429,7 +436,9 @@ export function useSidebarFilterState(
   );
   const filtersQuery = disableUrlPersistence
     ? ""
-    : (pendingFiltersQuery ?? urlFiltersQuery ?? storedFiltersQuery);
+    : (pendingFiltersQuery ??
+      urlFiltersQuery ??
+      (disableSessionPersistence ? "" : storedFiltersQuery));
   const urlFilterState: FilterState = useMemo(() => {
     // If URL persistence is disabled, return empty filter state
     if (disableUrlPersistence) return [];
@@ -507,12 +516,15 @@ export function useSidebarFilterState(
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
-      setStoredFiltersQuery(encoded);
+      if (!disableSessionPersistence) {
+        setStoredFiltersQuery(encoded);
+      }
     },
     [
       setUrlFiltersQuery,
       setStoredFiltersQuery,
       disableUrlPersistence,
+      disableSessionPersistence,
       peekContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
@@ -553,17 +565,24 @@ export function useSidebarFilterState(
         setUrlFiltersQuery(canonicalFiltersQuery || null);
       }
 
-      if (storedFiltersQuery !== canonicalFiltersQuery) {
+      if (
+        !disableSessionPersistence &&
+        storedFiltersQuery !== canonicalFiltersQuery
+      ) {
         setStoredFiltersQuery(canonicalFiltersQuery);
       }
       return;
     }
 
-    if (storedFiltersQuery !== canonicalFiltersQuery) {
+    if (
+      !disableSessionPersistence &&
+      storedFiltersQuery !== canonicalFiltersQuery
+    ) {
       setStoredFiltersQuery(canonicalFiltersQuery);
     }
   }, [
     disableUrlPersistence,
+    disableSessionPersistence,
     peekContext,
     pendingFiltersQuery,
     urlFiltersQuery,
@@ -576,6 +595,7 @@ export function useSidebarFilterState(
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
     if (disableUrlPersistence) return;
+    if (disableSessionPersistence) return;
     if (peekContext) return;
     if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
@@ -587,6 +607,7 @@ export function useSidebarFilterState(
     setStoredFiltersQuery(urlFiltersQuery);
   }, [
     disableUrlPersistence,
+    disableSessionPersistence,
     peekContext,
     pendingFiltersQuery,
     urlFiltersQuery,

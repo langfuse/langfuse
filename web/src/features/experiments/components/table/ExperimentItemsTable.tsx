@@ -264,7 +264,7 @@ export default function ExperimentItemsTable({
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     {},
-    { disableUrlPersistence: true },
+    { disableSessionPersistence: true },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
