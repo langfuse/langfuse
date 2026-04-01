@@ -172,7 +172,10 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     usage_pricing_tier_id,
     usage_pricing_tier_name,
     completion_start_time,
-    ${includeIO === true ? "prompt_id, prompt_name, prompt_version, tool_definitions, tool_calls, tool_call_names," : ""}
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    ${includeIO === true ? "tool_definitions, tool_calls, tool_call_names," : ""}
     created_at,
     updated_at,
     event_ts
