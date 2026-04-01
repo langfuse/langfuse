@@ -963,7 +963,7 @@ function buildStatefulDatasetItemsQuery(
 
   const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType: searchType,
+    searchType: searchType ?? ["content"],
     tablePrefix: "di",
     metadataColumns: ["id"],
     contentColumns: {
@@ -1018,7 +1018,7 @@ function buildStatefulDatasetItemsCountQuery(
 
   const searchCondition = postgresSearchCondition({
     searchQuery,
-    searchType: searchType,
+    searchType: searchType ?? ["content"],
     tablePrefix: "di",
     metadataColumns: ["id"],
     contentColumns: {

@@ -118,7 +118,7 @@ export const promptRouter = createTRPCRouter({
         tablePrefix: "p",
         metadataColumns: ["name"],
         contentColumns: {
-          content: ["prompt::text"],
+          content: ["prompt"],
         },
         additionalConditions,
       });
@@ -211,7 +211,7 @@ export const promptRouter = createTRPCRouter({
         tablePrefix: "p",
         metadataColumns: ["name"],
         contentColumns: {
-          content: ["prompt::text"],
+          content: ["prompt"],
         },
         additionalConditions,
       });
