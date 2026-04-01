@@ -55,6 +55,7 @@ minimumReleaseAgeExclude:
   - "@vitest/expect@4.1.2"
   - "vitest@4.1.2"
   - "@vitest/coverage-v8@4.1.2"
+  - "path-to-regexp@0.1.13"
   - "path-to-regexp@8.3.0"
   - "lodash@4.17.23"
   - "zod-to-json-schema@3.25.2"
