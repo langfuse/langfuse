@@ -8276,6 +8276,14 @@ components:
         - CATEGORICAL
         - CORRECTION
         - TEXT
+    CreateScoreDataTypeV1:
+      title: CreateScoreDataTypeV1
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
+        - CORRECTION
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -9245,7 +9253,7 @@ components:
             The annotation queue referenced by the score. Indicates if score was
             initially created while processing annotation queue.
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/CreateScoreDataTypeV1'
           nullable: true
           description: >-
             The data type of the score. When passing a configId this field is

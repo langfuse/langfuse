@@ -951,6 +951,14 @@ types:
       - CORRECTION
       - TEXT
 
+  # v1 POST /scores does not support TEXT — use this enum for the v1 create endpoint
+  CreateScoreDataTypeV1:
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
+      - CORRECTION
+
 errors:
   Error:
     status-code: 400

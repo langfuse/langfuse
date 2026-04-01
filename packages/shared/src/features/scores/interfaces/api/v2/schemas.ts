@@ -2,14 +2,20 @@ import {
   BooleanData,
   CategoricalData,
   NumericData,
-  TextData,
   ScoreSchemaExclReferencesAndDates,
 } from "../../../../../domain";
 import z from "zod";
 
+// Response-only schemas without input validation constraints (e.g. length limits).
+// Input constraints are enforced at write time; response schemas must accept any stored value.
 const CorrectionData = z.object({
   stringValue: z.string(),
   dataType: z.literal("CORRECTION"),
+});
+
+const TextData = z.object({
+  stringValue: z.string(),
+  dataType: z.literal("TEXT"),
 });
 
 /**

@@ -111,7 +111,7 @@ const InferredScoreBody = z.object({
   configId: z.string().nullish(),
 });
 
-// v1: excludes TEXT (TEXT scores are only available via v2)
+// v1: excludes TEXT (TEXT scores can only be created via the ingestion API)
 export const PostScoresBodyV1 = applyScoreValidation(
   PostScoreBodyFoundationSchema.and(
     z.discriminatedUnion("dataType", [

@@ -41,7 +41,7 @@ types:
         type: optional<string>
         docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       dataType:
-        type: optional<commons.ScoreDataType>
+        type: optional<commons.CreateScoreDataTypeV1>
         docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
       configId:
         type: optional<string>
