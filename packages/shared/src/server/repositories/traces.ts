@@ -658,6 +658,7 @@ export const getTracesGroupedByName = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -731,6 +732,7 @@ export const getTracesGroupedBySessionId = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -804,6 +806,7 @@ export const getTracesGroupedByUsers = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -858,6 +861,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });

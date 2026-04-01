@@ -826,6 +826,7 @@ export const getScoresGroupedByNameSourceType = async ({
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -882,6 +883,7 @@ export const getNumericScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows;
@@ -934,6 +936,7 @@ export const getCategoricalScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Get score names from ClickHouse results to query score configs
