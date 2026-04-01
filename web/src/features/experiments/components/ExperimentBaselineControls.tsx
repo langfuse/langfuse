@@ -39,7 +39,7 @@ export function ExperimentBaselineControls({
           emptyText="No experiments found"
           searchPlaceholder="Search experiments..."
           disabled={isLoading}
-          className="h-9 text-sm"
+          className="h-9"
         />
       </div>
 
