@@ -1,0 +1,1863 @@
+{
+  "trace": {
+    "id": "7a38edd8123db47ad8dcb8aa4c5e3926",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "name": "joke-generator",
+    "timestamp": "2025-12-04T14:51:22.053Z",
+    "environment": "default",
+    "tags": [
+      "example",
+      "joke-generator"
+    ],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": false,
+    "input": "\"{\\\"args\\\": [\\\"programming\\\"], \\\"kwargs\\\": {}}\"",
+    "output": "\"Why do programmers hate nature?  \\nIt has too many bugs!\"",
+    "createdAt": "2025-12-04T14:51:25.697Z",
+    "updatedAt": "2025-12-04T14:51:29.610Z",
+    "metadata": "{\"environment\":\"development\",\"topic\":\"programming\",\"iterations\":1,\"evaluation\":{\"quality\":\"good\",\"feedback\":\"The joke is clever and plays on the double meaning of 'bugs' in programming and nature. It's relatable for those in the tech field, making it effective. To enhance it, consider adding a punchline that builds on the setup for an even stronger impact.\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.38.0\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.10.5\",\"attributes\":{\"public_key\":\"pk-lf-1234567890\"}}}",
+    "scores": [],
+    "latency": 7.424
+  },
+  "observations": [
+    {
+      "id": "00d3f40ee8e3b716",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:22.049Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": null,
+      "type": "SPAN",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:29.473Z",
+      "name": "run_joke_generator",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.586Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 7424,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.10.5",
+          "attributes": {
+            "public_key": "pk-lf-1234567890"
+          }
+        }
+      },
+      "input": {
+        "args": [
+          "programming"
+        ],
+        "kwargs": {}
+      },
+      "output": {
+        "joke": "Why do programmers hate nature?  \nIt has too many bugs!",
+        "evaluation": {
+          "quality": "good",
+          "feedback": "The joke is clever and plays on the double meaning of 'bugs' in programming and nature. It's relatable for those in the tech field, making it effective. To enhance it, consider adding a punchline that builds on the setup for an even stronger impact."
+        },
+        "iterations": 1,
+        "success": true
+      }
+    },
+    {
+      "id": "49ae06cbfa06611f",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:26.132Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "00d3f40ee8e3b716",
+      "type": "SPAN",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:27.417Z",
+      "name": "joke_agent run",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.586Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1285,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "model_name": "gpt-4o-mini",
+          "agent_name": "joke_agent",
+          "gen_ai.agent.name": "joke_agent",
+          "logfire.msg": "joke_agent run",
+          "final_result": "Why do programmers hate nature?  \nIt has too many bugs!",
+          "gen_ai.usage.input_tokens": "502",
+          "gen_ai.usage.output_tokens": "14",
+          "pydantic_ai.all_messages": [
+            {
+              "role": "system",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received."
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "Select and call THREE of the available tools to get joke suggestions about 'programming'."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "tool_call",
+                  "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+                  "name": "get_pun_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                },
+                {
+                  "type": "tool_call",
+                  "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+                  "name": "get_dad_joke_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                },
+                {
+                  "type": "tool_call",
+                  "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+                  "name": "get_one_liner_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                }
+              ],
+              "finish_reason": "tool_call"
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "tool_call_response",
+                  "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+                  "name": "get_pun_suggestion",
+                  "result": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+                },
+                {
+                  "type": "tool_call_response",
+                  "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+                  "name": "get_dad_joke_suggestion",
+                  "result": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+                },
+                {
+                  "type": "tool_call_response",
+                  "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+                  "name": "get_one_liner_suggestion",
+                  "result": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)"
+                }
+              ],
+              "finish_reason": "stop"
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "Now write a funny joke about 'programming' based on the suggestions you received. Just output the joke, nothing else."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "Why do programmers hate nature?  \nIt has too many bugs!"
+                }
+              ],
+              "finish_reason": "stop"
+            }
+          ],
+          "pydantic_ai.new_message_index": "4",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "pydantic_ai.all_messages": {
+                "type": "array"
+              },
+              "pydantic_ai.new_message_index": {},
+              "final_result": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "00d2804abb764b1b",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:24.423Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "5b5c52d029f28206",
+      "type": "GENERATION",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:26.130Z",
+      "name": "chat gpt-4o-mini",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.585Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "internalModelId": "clyrjpbe20000t0mzcbwc42rg",
+      "modelParameters": {
+        "temperature": 0.7
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1707,
+      "timeToFirstToken": null,
+      "usageDetails": {
+        "input": 417,
+        "output": 53,
+        "total": 470
+      },
+      "costDetails": {
+        "input": 0.00006255,
+        "output": 0.0000318,
+        "total": 0.00009435
+      },
+      "providedCostDetails": {},
+      "inputCost": 0.00006255,
+      "outputCost": 0.0000318,
+      "totalCost": 0.00009435,
+      "inputUsage": 417,
+      "outputUsage": 53,
+      "totalUsage": 470,
+      "usagePricingTierId": "clyrjpbe20000t0mzcbwc42rg_tier_default",
+      "usagePricingTierName": "Standard",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "server.address": "api.openai.com",
+          "model_request_parameters": {
+            "function_tools": [
+              {
+                "name": "get_pun_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a pun-style joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_dad_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a dad joke style suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_one_liner_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a one-liner joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_car_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a car-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_tree_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a tree-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              }
+            ],
+            "builtin_tools": [],
+            "output_mode": "text",
+            "output_object": null,
+            "output_tools": [],
+            "prompted_output_template": null,
+            "allow_text_output": true,
+            "allow_image_output": false
+          },
+          "gen_ai.request.temperature": "0.7",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "gen_ai.input.messages": {
+                "type": "array"
+              },
+              "gen_ai.output.messages": {
+                "type": "array"
+              },
+              "model_request_parameters": {
+                "type": "object"
+              }
+            }
+          },
+          "gen_ai.usage.input_tokens": "417",
+          "gen_ai.usage.output_tokens": "53",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "operation.cost": "0.00009435",
+          "gen_ai.response.id": "chatcmpl-Cj4xwF0fLMbLL7cj2PpKMa69vdqgM",
+          "gen_ai.response.finish_reasons": [
+            "stop"
+          ]
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": [
+        {
+          "role": "system",
+          "parts": [
+            {
+              "type": "text",
+              "content": "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Select and call THREE of the available tools to get joke suggestions about 'programming'."
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+              "name": "get_pun_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+              "name": "get_dad_joke_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              "name": "get_one_liner_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            }
+          ],
+          "finish_reason": "tool_call"
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "tool_call_response",
+              "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+              "name": "get_pun_suggestion",
+              "result": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+            },
+            {
+              "type": "tool_call_response",
+              "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+              "name": "get_dad_joke_suggestion",
+              "result": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+            },
+            {
+              "type": "tool_call_response",
+              "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              "name": "get_one_liner_suggestion",
+              "result": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)"
+            }
+          ],
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    {
+      "id": "eb0cc14cf7943ad5",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:27.422Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "227eb5c856efa3d3",
+      "type": "GENERATION",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:29.472Z",
+      "name": "chat gpt-4o-mini",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.585Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "internalModelId": "clyrjpbe20000t0mzcbwc42rg",
+      "modelParameters": {
+        "temperature": 0
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2050,
+      "timeToFirstToken": null,
+      "usageDetails": {
+        "input": 131,
+        "output": 69,
+        "total": 200
+      },
+      "costDetails": {
+        "input": 0.00001965,
+        "output": 0.0000414,
+        "total": 0.000061049999
+      },
+      "providedCostDetails": {},
+      "inputCost": 0.00001965,
+      "outputCost": 0.0000414,
+      "totalCost": 0.000061049999,
+      "inputUsage": 131,
+      "outputUsage": 69,
+      "totalUsage": 200,
+      "usagePricingTierId": "clyrjpbe20000t0mzcbwc42rg_tier_default",
+      "usagePricingTierName": "Standard",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "server.address": "api.openai.com",
+          "model_request_parameters": {
+            "function_tools": [],
+            "builtin_tools": [],
+            "output_mode": "tool",
+            "output_object": null,
+            "output_tools": [
+              {
+                "name": "final_result",
+                "parameters_json_schema": {
+                  "properties": {
+                    "quality": {
+                      "description": "Rate the joke quality: 'good' if funny and well-crafted, 'okay' if decent but needs refinement, 'bad' if not funny",
+                      "enum": [
+                        "good",
+                        "okay",
+                        "bad"
+                      ],
+                      "type": "string"
+                    },
+                    "feedback": {
+                      "description": "Specific feedback on how to improve the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "quality",
+                    "feedback"
+                  ],
+                  "type": "object",
+                  "additionalProperties": false
+                },
+                "description": "The final response which ends this conversation",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "output",
+                "metadata": null
+              }
+            ],
+            "prompted_output_template": null,
+            "allow_text_output": false,
+            "allow_image_output": false
+          },
+          "gen_ai.request.temperature": "0",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "gen_ai.input.messages": {
+                "type": "array"
+              },
+              "gen_ai.output.messages": {
+                "type": "array"
+              },
+              "model_request_parameters": {
+                "type": "object"
+              }
+            }
+          },
+          "gen_ai.usage.input_tokens": "131",
+          "gen_ai.usage.output_tokens": "69",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "operation.cost": "0.00006105",
+          "gen_ai.response.id": "chatcmpl-Cj4xzvxxhTcFqIdven62KgHXNPUCI",
+          "gen_ai.response.finish_reasons": [
+            "tool_call"
+          ]
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": [
+        {
+          "role": "system",
+          "parts": [
+            {
+              "type": "text",
+              "content": "You are a joke critic. Evaluate if the joke is funny and well-crafted."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Rate this joke:\n\nWhy do programmers hate nature?  \nIt has too many bugs!"
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": "call_ZuzwalMMtvv9BC6xlVe3fiBP",
+              "name": "final_result",
+              "arguments": {
+                "quality": "good",
+                "feedback": "The joke is clever and plays on the double meaning of 'bugs' in programming and nature. It's relatable for those in the tech field, making it effective. To enhance it, consider adding a punchline that builds on the setup for an even stronger impact."
+              }
+            }
+          ],
+          "finish_reason": "tool_call"
+        }
+      ]
+    },
+    {
+      "id": "5b5c52d029f28206",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:22.050Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "00d3f40ee8e3b716",
+      "type": "SPAN",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:26.131Z",
+      "name": "joke_agent run",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.585Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4081,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "model_name": "gpt-4o-mini",
+          "agent_name": "joke_agent",
+          "gen_ai.agent.name": "joke_agent",
+          "logfire.msg": "joke_agent run",
+          "final_result": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)",
+          "gen_ai.usage.input_tokens": "682",
+          "gen_ai.usage.output_tokens": "126",
+          "pydantic_ai.all_messages": [
+            {
+              "role": "system",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received."
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "Select and call THREE of the available tools to get joke suggestions about 'programming'."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "tool_call",
+                  "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+                  "name": "get_pun_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                },
+                {
+                  "type": "tool_call",
+                  "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+                  "name": "get_dad_joke_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                },
+                {
+                  "type": "tool_call",
+                  "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+                  "name": "get_one_liner_suggestion",
+                  "arguments": {
+                    "topic": "programming"
+                  }
+                }
+              ],
+              "finish_reason": "tool_call"
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "tool_call_response",
+                  "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+                  "name": "get_pun_suggestion",
+                  "result": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+                },
+                {
+                  "type": "tool_call_response",
+                  "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+                  "name": "get_dad_joke_suggestion",
+                  "result": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+                },
+                {
+                  "type": "tool_call_response",
+                  "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+                  "name": "get_one_liner_suggestion",
+                  "result": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)"
+                }
+              ],
+              "finish_reason": "stop"
+            }
+          ],
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "pydantic_ai.all_messages": {
+                "type": "array"
+              },
+              "final_result": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "8976b072313c51f2",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:26.133Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "49ae06cbfa06611f",
+      "type": "GENERATION",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:27.416Z",
+      "name": "chat gpt-4o-mini",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.584Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "internalModelId": "clyrjpbe20000t0mzcbwc42rg",
+      "modelParameters": {
+        "temperature": 0.7
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1283,
+      "timeToFirstToken": null,
+      "usageDetails": {
+        "input": 502,
+        "output": 14,
+        "total": 516
+      },
+      "costDetails": {
+        "input": 0.0000753,
+        "output": 0.0000084,
+        "total": 0.0000837
+      },
+      "providedCostDetails": {},
+      "inputCost": 0.0000753,
+      "outputCost": 0.0000084,
+      "totalCost": 0.0000837,
+      "inputUsage": 502,
+      "outputUsage": 14,
+      "totalUsage": 516,
+      "usagePricingTierId": "clyrjpbe20000t0mzcbwc42rg_tier_default",
+      "usagePricingTierName": "Standard",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "server.address": "api.openai.com",
+          "model_request_parameters": {
+            "function_tools": [
+              {
+                "name": "get_pun_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a pun-style joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_dad_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a dad joke style suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_one_liner_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a one-liner joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_car_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a car-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_tree_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a tree-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              }
+            ],
+            "builtin_tools": [],
+            "output_mode": "text",
+            "output_object": null,
+            "output_tools": [],
+            "prompted_output_template": null,
+            "allow_text_output": true,
+            "allow_image_output": false
+          },
+          "gen_ai.request.temperature": "0.7",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "gen_ai.input.messages": {
+                "type": "array"
+              },
+              "gen_ai.output.messages": {
+                "type": "array"
+              },
+              "model_request_parameters": {
+                "type": "object"
+              }
+            }
+          },
+          "gen_ai.usage.input_tokens": "502",
+          "gen_ai.usage.output_tokens": "14",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "operation.cost": "0.0000837",
+          "gen_ai.response.id": "chatcmpl-Cj4xysdHxD1EWQ6YHKdnqZ9dcX90X",
+          "gen_ai.response.finish_reasons": [
+            "stop"
+          ]
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": [
+        {
+          "role": "system",
+          "parts": [
+            {
+              "type": "text",
+              "content": "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Select and call THREE of the available tools to get joke suggestions about 'programming'."
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+              "name": "get_pun_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+              "name": "get_dad_joke_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              "name": "get_one_liner_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            }
+          ],
+          "finish_reason": "tool_call"
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "tool_call_response",
+              "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+              "name": "get_pun_suggestion",
+              "result": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+            },
+            {
+              "type": "tool_call_response",
+              "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+              "name": "get_dad_joke_suggestion",
+              "result": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+            },
+            {
+              "type": "tool_call_response",
+              "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              "name": "get_one_liner_suggestion",
+              "result": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)"
+            }
+          ],
+          "finish_reason": "stop"
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Now write a funny joke about 'programming' based on the suggestions you received. Just output the joke, nothing else."
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Why do programmers hate nature?  \nIt has too many bugs!"
+            }
+          ],
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    {
+      "id": "227eb5c856efa3d3",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:27.420Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "00d3f40ee8e3b716",
+      "type": "SPAN",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:29.473Z",
+      "name": "evaluator_agent run",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:29.574Z",
+      "updatedAt": "2025-12-04T14:51:29.583Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2053,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "model_name": "gpt-4o-mini",
+          "agent_name": "evaluator_agent",
+          "gen_ai.agent.name": "evaluator_agent",
+          "logfire.msg": "evaluator_agent run",
+          "final_result": {
+            "quality": "good",
+            "feedback": "The joke is clever and plays on the double meaning of 'bugs' in programming and nature. It's relatable for those in the tech field, making it effective. To enhance it, consider adding a punchline that builds on the setup for an even stronger impact."
+          },
+          "gen_ai.usage.input_tokens": "131",
+          "gen_ai.usage.output_tokens": "69",
+          "pydantic_ai.all_messages": [
+            {
+              "role": "system",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "You are a joke critic. Evaluate if the joke is funny and well-crafted."
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "text",
+                  "content": "Rate this joke:\n\nWhy do programmers hate nature?  \nIt has too many bugs!"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "parts": [
+                {
+                  "type": "tool_call",
+                  "id": "call_ZuzwalMMtvv9BC6xlVe3fiBP",
+                  "name": "final_result",
+                  "arguments": {
+                    "quality": "good",
+                    "feedback": "The joke is clever and plays on the double meaning of 'bugs' in programming and nature. It's relatable for those in the tech field, making it effective. To enhance it, consider adding a punchline that builds on the setup for an even stronger impact."
+                  }
+                }
+              ],
+              "finish_reason": "tool_call"
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "type": "tool_call_response",
+                  "id": "call_ZuzwalMMtvv9BC6xlVe3fiBP",
+                  "name": "final_result",
+                  "result": "Final result processed."
+                }
+              ]
+            }
+          ],
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "pydantic_ai.all_messages": {
+                "type": "array"
+              },
+              "final_result": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "be64c23f44dd98be",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:22.053Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "5b5c52d029f28206",
+      "type": "GENERATION",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:24.415Z",
+      "name": "chat gpt-4o-mini",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:25.691Z",
+      "updatedAt": "2025-12-04T14:51:25.729Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "internalModelId": "clyrjpbe20000t0mzcbwc42rg",
+      "modelParameters": {
+        "temperature": 0.7
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2362,
+      "timeToFirstToken": null,
+      "usageDetails": {
+        "input": 265,
+        "output": 73,
+        "total": 338
+      },
+      "costDetails": {
+        "input": 0.00003975,
+        "output": 0.0000438,
+        "total": 0.00008355
+      },
+      "providedCostDetails": {},
+      "inputCost": 0.00003975,
+      "outputCost": 0.0000438,
+      "totalCost": 0.00008355,
+      "inputUsage": 265,
+      "outputUsage": 73,
+      "totalUsage": 338,
+      "usagePricingTierId": "clyrjpbe20000t0mzcbwc42rg_tier_default",
+      "usagePricingTierName": "Standard",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "server.address": "api.openai.com",
+          "model_request_parameters": {
+            "function_tools": [
+              {
+                "name": "get_pun_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a pun-style joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_dad_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a dad joke style suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_one_liner_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a one-liner joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_car_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a car-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              },
+              {
+                "name": "get_tree_joke_suggestion",
+                "parameters_json_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "topic": {
+                      "description": "The topic for the joke",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "topic"
+                  ],
+                  "type": "object"
+                },
+                "description": "Get a tree-themed joke suggestion for the given topic.",
+                "outer_typed_dict_key": null,
+                "strict": true,
+                "sequential": false,
+                "kind": "function",
+                "metadata": null
+              }
+            ],
+            "builtin_tools": [],
+            "output_mode": "text",
+            "output_object": null,
+            "output_tools": [],
+            "prompted_output_template": null,
+            "allow_text_output": true,
+            "allow_image_output": false
+          },
+          "gen_ai.request.temperature": "0.7",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "gen_ai.input.messages": {
+                "type": "array"
+              },
+              "gen_ai.output.messages": {
+                "type": "array"
+              },
+              "model_request_parameters": {
+                "type": "object"
+              }
+            }
+          },
+          "gen_ai.usage.input_tokens": "265",
+          "gen_ai.usage.output_tokens": "73",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "operation.cost": "0.00008355",
+          "gen_ai.response.id": "chatcmpl-Cj4xu0Nus6lKWVVmxlb7TZTsMizLD",
+          "gen_ai.response.finish_reasons": [
+            "tool_call"
+          ]
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": [
+        {
+          "role": "system",
+          "parts": [
+            {
+              "type": "text",
+              "content": "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Select and call THREE of the available tools to get joke suggestions about 'programming'."
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+              "name": "get_pun_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+              "name": "get_dad_joke_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            },
+            {
+              "type": "tool_call",
+              "id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              "name": "get_one_liner_suggestion",
+              "arguments": {
+                "topic": "programming"
+              }
+            }
+          ],
+          "finish_reason": "tool_call"
+        }
+      ]
+    },
+    {
+      "id": "02d7769b76595f0b",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:24.417Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "93d5543f7340c2e6",
+      "type": "TOOL",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:24.422Z",
+      "name": "running tool: get_dad_joke_suggestion",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:25.691Z",
+      "updatedAt": "2025-12-04T14:51:25.729Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 5,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "gen_ai.tool.name": "get_dad_joke_suggestion",
+          "gen_ai.tool.call.id": "call_WxZcCvSDhGT4RJHlcU01k10x",
+          "tool_arguments": {
+            "topic": "programming"
+          },
+          "logfire.msg": "running tool: get_dad_joke_suggestion",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "tool_arguments": {
+                "type": "object"
+              },
+              "tool_response": {
+                "type": "object"
+              },
+              "gen_ai.tool.name": {},
+              "gen_ai.tool.call.id": {}
+            }
+          },
+          "tool_response": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": {
+        "topic": "programming"
+      },
+      "output": "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist"
+    },
+    {
+      "id": "199eff9980ea8b99",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:24.417Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "93d5543f7340c2e6",
+      "type": "TOOL",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:24.422Z",
+      "name": "running tool: get_one_liner_suggestion",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:25.691Z",
+      "updatedAt": "2025-12-04T14:51:25.729Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 5,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "gen_ai.tool.name": "get_one_liner_suggestion",
+          "gen_ai.tool.call.id": "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+          "tool_arguments": {
+            "topic": "programming"
+          },
+          "logfire.msg": "running tool: get_one_liner_suggestion",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "tool_arguments": {
+                "type": "object"
+              },
+              "tool_response": {
+                "type": "object"
+              },
+              "gen_ai.tool.name": {},
+              "gen_ai.tool.call.id": {}
+            }
+          },
+          "tool_response": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": {
+        "topic": "programming"
+      },
+      "output": "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence"
+    },
+    {
+      "id": "93d5543f7340c2e6",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:24.416Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "5b5c52d029f28206",
+      "type": "SPAN",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:24.422Z",
+      "name": "running 3 tools",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:25.691Z",
+      "updatedAt": "2025-12-04T14:51:25.728Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 6,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "tools": [
+            "get_pun_suggestion",
+            "get_dad_joke_suggestion",
+            "get_one_liner_suggestion"
+          ],
+          "logfire.msg": "running 3 tools"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": null,
+      "output": null
+    },
+    {
+      "id": "99ec63d0b5ecdbf5",
+      "traceId": "7a38edd8123db47ad8dcb8aa4c5e3926",
+      "startTime": "2025-12-04T14:51:24.416Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "parentObservationId": "93d5543f7340c2e6",
+      "type": "TOOL",
+      "environment": "default",
+      "endTime": "2025-12-04T14:51:24.422Z",
+      "name": "running tool: get_pun_suggestion",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "createdAt": "2025-12-04T14:51:25.691Z",
+      "updatedAt": "2025-12-04T14:51:25.726Z",
+      "model": null,
+      "internalModelId": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 6,
+      "timeToFirstToken": null,
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "usagePricingTierId": null,
+      "usagePricingTierName": null,
+      "metadata": {
+        "attributes": {
+          "gen_ai.tool.name": "get_pun_suggestion",
+          "gen_ai.tool.call.id": "call_X0OSgjUukT5inyEQvuZQnHrk",
+          "tool_arguments": {
+            "topic": "programming"
+          },
+          "logfire.msg": "running tool: get_pun_suggestion",
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "tool_arguments": {
+                "type": "object"
+              },
+              "tool_response": {
+                "type": "object"
+              },
+              "gen_ai.tool.name": {},
+              "gen_ai.tool.call.id": {}
+            }
+          },
+          "tool_response": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "1.26.0",
+          "attributes": {}
+        }
+      },
+      "input": {
+        "topic": "programming"
+      },
+      "output": "Pun idea: Play on words related to 'programming' - think about homophones or double meanings"
+    }
+  ]
+}

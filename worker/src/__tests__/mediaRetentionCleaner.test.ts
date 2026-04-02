@@ -3,7 +3,6 @@ import { randomUUID } from "crypto";
 import {
   createOrgProjectAndApiKey,
   getS3MediaStorageClient,
-  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { MediaRetentionCleaner } from "../features/media-retention-cleaner";

@@ -46,7 +46,7 @@ export function TracePanelDetail() {
       if (!observationData) {
         return (
           <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Observation not found
             </p>
           </div>
@@ -74,6 +74,6 @@ export function TracePanelDetail() {
   }, [selectedNodeId, nodeMap, trace, observations, scores, corrections]);
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-background">{content}</div>
+    <div className="bg-background h-full w-full overflow-y-auto">{content}</div>
   );
 }

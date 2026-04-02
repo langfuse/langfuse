@@ -227,7 +227,7 @@ export function AdvancedJsonViewer({
   if (isLoading) {
     return (
       <div className={className} style={{ padding: "16px" }}>
-        <div className="text-sm text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground text-sm">Loading...</div>
       </div>
     );
   }
@@ -237,7 +237,7 @@ export function AdvancedJsonViewer({
     const errorMessage = typeof error === "string" ? error : error.message;
     return (
       <div className={className} style={{ padding: "16px" }}>
-        <div className="text-sm text-destructive">Error: {errorMessage}</div>
+        <div className="text-destructive text-sm">Error: {errorMessage}</div>
       </div>
     );
   }
@@ -246,7 +246,7 @@ export function AdvancedJsonViewer({
   if (buildError) {
     return (
       <div className={className} style={{ padding: "16px" }}>
-        <div className="text-sm text-destructive">
+        <div className="text-destructive text-sm">
           Error building tree: {buildError}
         </div>
       </div>
@@ -257,7 +257,7 @@ export function AdvancedJsonViewer({
   if (isBuilding && !tree) {
     return (
       <div className={className} style={{ padding: "16px" }}>
-        <div className="text-sm text-muted-foreground">Processing JSON...</div>
+        <div className="text-muted-foreground text-sm">Processing JSON...</div>
       </div>
     );
   }

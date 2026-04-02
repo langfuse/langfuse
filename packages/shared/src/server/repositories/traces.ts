@@ -432,6 +432,9 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         {
           query,
           params: input.params,
+          clickhouseConfigs: {
+            request_timeout: 120000, // 2 minutes timeout
+          },
           tags: input.tags,
         },
       );
@@ -655,6 +658,7 @@ export const getTracesGroupedByName = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -728,6 +732,7 @@ export const getTracesGroupedBySessionId = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -801,6 +806,7 @@ export const getTracesGroupedByUsers = async (
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -855,6 +861,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -1369,7 +1376,9 @@ export const getTracesForBlobStorageExport = function (
       bookmarked as bookmarked,
       tags,
       input as input,
-      output as output
+      output as output,
+      created_at,
+      updated_at
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}

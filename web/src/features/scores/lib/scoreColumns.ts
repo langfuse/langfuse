@@ -105,6 +105,20 @@ export const scoreFilters = {
       value: datasetId,
     },
   ],
+
+  // Filter for experiment item scores (trace-based scores via events_core)
+  forExperimentItems: ({
+    experimentIds,
+  }: {
+    experimentIds: string[];
+  }): FilterCondition[] => [
+    {
+      type: "stringOptions",
+      column: "experimentIds",
+      operator: "any of",
+      value: experimentIds,
+    },
+  ],
 };
 
 export const addPrefixToScoreKeys = (

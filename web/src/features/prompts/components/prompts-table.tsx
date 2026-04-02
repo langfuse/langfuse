@@ -10,6 +10,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
 import { DeleteFolder } from "@/src/features/prompts/components/delete-folder";
+import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -363,7 +364,12 @@ export function PromptTable() {
       cell: (row) => {
         const rowData = row.row.original;
         if (rowData.type === "folder") {
-          return <DeleteFolder folderPath={rowData.fullPath} />;
+          return (
+            <div className="flex gap-1">
+              <DuplicateFolder folderPath={rowData.fullPath} />
+              <DeleteFolder folderPath={rowData.fullPath} />
+            </div>
+          );
         }
 
         const promptPath = rowData.fullPath;
@@ -401,6 +407,11 @@ export function PromptTable() {
               fullText: "Full Text",
             },
             hidePerformanceWarning: true,
+            availableSearchTypes: {
+              content: true,
+              input: false,
+              output: false,
+            },
           }}
         />
 

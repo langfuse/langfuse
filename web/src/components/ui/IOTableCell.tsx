@@ -32,7 +32,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate px-2 py-1",
+        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto px-2 py-1",
         className,
       )}
     >
@@ -53,7 +53,7 @@ const IOTableCellContent = ({
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
-      <div className="text-xs text-muted-foreground">
+      <div className="text-muted-foreground text-xs">
         Content was truncated.
       </div>
     </div>

@@ -101,7 +101,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               apiKeys.data?.data.map((apiKey) => (
                 <TableRow
                   key={apiKey.id}
-                  className="cursor-default hover:bg-primary-foreground"
+                  className="hover:bg-primary-foreground cursor-default"
                   onClick={() => setEditingKeyId(apiKey.id)}
                 >
                   <TableCell className="font-mono">{apiKey.provider}</TableCell>

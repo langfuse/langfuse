@@ -212,6 +212,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalDefaultModel:CUD",
     "llmApiKeys:read",
     "llmSchemas:read",
+    "llmTools:CUD",
     "llmTools:read",
     "batchExports:create",
     "batchExports:read",

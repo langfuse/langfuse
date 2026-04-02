@@ -48,7 +48,7 @@ export function StatisticsCard() {
           <CardDescription>Loading statistics...</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </CardContent>
       </Card>
     );
@@ -62,7 +62,7 @@ export function StatisticsCard() {
           <CardTitle>Statistics</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+        <CardContent className="text-muted-foreground py-12 text-center text-sm">
           Select a score to view statistics
         </CardContent>
       </Card>

@@ -108,7 +108,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         <DropdownMenuContent className="w-80">
           <DropdownMenuLabel>Export</DropdownMenuLabel>
           {warningMessage && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            <div className="text-muted-foreground px-2 py-1.5 text-xs">
               <div className="flex items-start gap-1.5">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{warningMessage}</span>

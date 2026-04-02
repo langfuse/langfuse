@@ -35,10 +35,10 @@ const ScoreDetailRow = ({
   value: React.ReactNode;
 }) => (
   <div className="flex justify-between gap-2">
-    <span className="w-14 font-medium text-muted-foreground">{label}</span>
+    <span className="text-muted-foreground w-14 font-medium">{label}</span>
     <div className="min-w-0 flex-1 text-right">
       {typeof value === "string" ? (
-        <span className="break-words">{value}</span>
+        <span className="wrap-break-word">{value}</span>
       ) : (
         value
       )}
@@ -54,7 +54,7 @@ const ScoreValueSection = ({
   diff?: BaselineDiff;
 }) => {
   return (
-    <div className="flex flex-shrink-0 items-center gap-1">
+    <div className="flex shrink-0 items-center gap-1">
       {aggregate ? (
         <>
           <span className="line-clamp-1 font-medium">
@@ -65,7 +65,7 @@ const ScoreValueSection = ({
           )}
         </>
       ) : (
-        <span className="text-sm text-muted-foreground">-</span>
+        <span className="text-muted-foreground text-sm">-</span>
       )}
       {aggregate?.comment && (
         <div className="flex h-3 w-3 items-center justify-center">
@@ -111,7 +111,7 @@ export const ScoreRow = ({
   if (!aggregate) {
     return (
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 flex-shrink-0 truncate text-muted-foreground">
+        <span className="text-muted-foreground w-32 shrink-0 truncate">
           {name}
         </span>
         <ScoreValueSection aggregate={aggregate} diff={diff} />
@@ -122,7 +122,7 @@ export const ScoreRow = ({
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 flex-shrink-0 truncate font-medium">{name}</span>
+        <span className="w-32 shrink-0 truncate font-medium">{name}</span>
         <HoverCardTrigger asChild>
           <div className="cursor-pointer">
             <ScoreValueSection aggregate={aggregate} diff={diff} />
@@ -150,7 +150,7 @@ export const ScoreRow = ({
                 value={
                   <span
                     title={aggregate.comment}
-                    className="line-clamp-[10] max-h-[240px] overflow-hidden break-words"
+                    className="line-clamp-10 max-h-[240px] overflow-hidden wrap-break-word"
                     style={{
                       textAlign: "justify",
                       textAlignLast: "right",
@@ -180,7 +180,7 @@ export const ScoreRow = ({
                         })()}
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent className="w-[400px] break-words text-xs">
+                    <TooltipContent className="w-[400px] text-xs wrap-break-word">
                       {metadata && Object.keys(metadata).length > 0 ? (
                         <JSONView
                           codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"

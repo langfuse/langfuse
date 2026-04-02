@@ -1811,4 +1811,143 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       dataset_version: experimentVersion.toISOString(),
     });
   }, 90000);
+
+  it("should return createdAt timestamp when creating a dataset run item", async () => {
+    const datasetName = `dataset-createdAt-test-${v4()}`;
+
+    // Create dataset
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset for createdAt test",
+      },
+      auth,
+    );
+    expect(dataset.status).toBe(200);
+
+    // Create dataset item
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        input: { key: "value" },
+      },
+      auth,
+    );
+    expect(datasetItem.status).toBe(200);
+
+    // Test 1: Create run item with custom createdAt
+    const customCreatedAt = new Date("2024-01-15T10:30:00.000Z");
+    const runItemWithCustomTimestamp = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName: "test-run-with-timestamp",
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+        createdAt: customCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    expect(runItemWithCustomTimestamp.status).toBe(200);
+    expect(runItemWithCustomTimestamp.body).toHaveProperty("createdAt");
+    expect(new Date(runItemWithCustomTimestamp.body.createdAt)).toEqual(
+      customCreatedAt,
+    );
+
+    // Test 2: Create run item without custom createdAt (should use current time)
+    const beforeCreate = new Date();
+    const runItemWithoutTimestamp = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName: "test-run-without-timestamp",
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+      },
+      auth,
+    );
+    const afterCreate = new Date();
+
+    expect(runItemWithoutTimestamp.status).toBe(200);
+    expect(runItemWithoutTimestamp.body).toHaveProperty("createdAt");
+    const returnedCreatedAt = new Date(runItemWithoutTimestamp.body.createdAt);
+    expect(returnedCreatedAt.getTime()).toBeGreaterThanOrEqual(
+      beforeCreate.getTime(),
+    );
+    expect(returnedCreatedAt.getTime()).toBeLessThanOrEqual(
+      afterCreate.getTime(),
+    );
+  });
+
+  it("should propagate createdAt to dataset run only when creating new run", async () => {
+    const datasetName = `dataset-run-createdAt-${v4()}`;
+    const runName = `run-createdAt-test-${v4()}`;
+
+    // Create dataset and item
+    await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      { name: datasetName },
+      auth,
+    );
+    const item = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      { datasetName, input: { key: "value" } },
+      auth,
+    );
+
+    // Create first run item with custom createdAt - should create run with that timestamp
+    const customCreatedAt = new Date("2024-06-15T12:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: customCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run was created with the custom timestamp
+    const runAfterFirst = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterFirst?.createdAt).toEqual(customCreatedAt);
+
+    // Create second run item with different createdAt - run already exists, should NOT update
+    const differentCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: differentCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run's createdAt was NOT updated
+    const runAfterSecond = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
+  });
 });

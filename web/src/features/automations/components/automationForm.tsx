@@ -18,7 +18,7 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -371,7 +371,7 @@ export const AutomationForm = ({
                         placeholder="Automation name"
                         {...field}
                         disabled={!hasAccess || !isEditing}
-                        className="rounded-none border-0 border-b border-border bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                     </FormControl>
                     <FormMessage />
@@ -588,7 +588,7 @@ export const AutomationForm = ({
                 />
               </div>
             )}
-            <div className="flex-grow"></div>
+            <div className="grow"></div>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={handleCancel}>
                 Cancel

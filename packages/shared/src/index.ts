@@ -1,4 +1,5 @@
 export * from "./constants";
+export { decodeUnicodeEscapesOnly } from "./utils/unicode";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
@@ -31,8 +32,10 @@ export * from "./server/llm/types";
 
 // evals
 export * from "./features/evals/types";
+export * from "./features/evals/outputDefinition";
 export * from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
+export * from "./features/evals/evalConfigBlocking";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
@@ -76,7 +79,6 @@ export {
 
 // export db types only
 export * from "@prisma/client";
-export { type DB } from "../prisma/generated/types";
 export * from "./server/repositories/types";
 
 // metadata conversion

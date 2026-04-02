@@ -12,7 +12,7 @@ export const SSOSettings = () => {
   const commonContent = (
     <>
       <Header title="SSO Configuration" />
-      <p className="mb-4 text-sm text-muted-foreground">
+      <p className="text-muted-foreground mb-4 text-sm">
         Configure Single Sign-On (SSO) for your organization. SSO allows your
         team to use your existing identity provider for authentication, e.g.
         Okta, AzureAD/EntraID. Alternatively, you can enforce the use of a

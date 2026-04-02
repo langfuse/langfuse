@@ -11,7 +11,7 @@ import {
   PromptType,
 } from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
-import { generateId, nanoid } from "ai";
+import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
@@ -544,7 +544,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
       const { auth } = await createOrgProjectAndApiKey();
-      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const promptName = `prompt-name-message-placeholders${nanoid()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
         {
@@ -1860,6 +1860,37 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const body = response.body as Prompt;
       expect(body.labels).toContain("production");
       expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return the raw prompt when resolve=false even if a dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent =
+        "Parent: @@@langfusePrompt:name=missing-child-prompt|version=1@@@";
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.prompt).toBe(parentContent);
+      expect(body.resolutionGraph).toBeNull();
     });
   });
 });

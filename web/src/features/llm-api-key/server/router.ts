@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   CreateLlmApiKey,
@@ -20,6 +20,8 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  EvaluatorBlockReason,
+  getEvaluatorBlockMetadata,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -28,6 +30,9 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
+  blockEvaluatorConfigsInTx,
+  EvaluatorBlockSource,
+  finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -226,34 +231,79 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         // Check if the llm api key is used for the default evaluation model
-        // If so, it will be deleted and we must invalidate all eval jobs that rely on it
         const defaultModel = await tx.defaultLlmModel.findFirst({
           where: {
             projectId: input.projectId,
           },
+          select: {
+            llmApiKeyId: true,
+          },
         });
 
+        const providerBlockedJobConfigIds = new Set<string>();
+        const defaultModelBlockedJobConfigIds = new Set<string>();
+
+        if (llmApiKey?.provider) {
+          const evalTemplates = await tx.evalTemplate.findMany({
+            where: {
+              OR: [{ projectId: input.projectId }, { projectId: null }],
+              provider: llmApiKey.provider,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          const providerBlockResult = await blockEvaluatorConfigsInTx({
+            tx,
+            projectId: input.projectId,
+            where: {
+              evalTemplateId: {
+                in: evalTemplates.map((template) => template.id),
+              },
+            },
+            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+            blockMessage: getEvaluatorBlockMetadata(
+              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+            ).message,
+          });
+
+          for (const configId of providerBlockResult.blockedJobConfigIds) {
+            providerBlockedJobConfigIds.add(configId);
+          }
+        }
+
         if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          // Invalidate all eval jobs that rely on the default model
           const evalTemplates = await tx.evalTemplate.findMany({
             where: {
               OR: [{ projectId: input.projectId }, { projectId: null }],
               provider: null,
               model: null,
             },
+            select: {
+              id: true,
+            },
           });
 
-          await tx.jobConfiguration.updateMany({
+          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
+            tx,
+            projectId: input.projectId,
             where: {
-              evalTemplateId: { in: evalTemplates.map((et) => et.id) },
-              projectId: input.projectId,
+              evalTemplateId: {
+                in: evalTemplates.map((template) => template.id),
+              },
             },
-            data: {
-              status: "INACTIVE",
-            },
+            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+            blockMessage: getEvaluatorBlockMetadata(
+              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+            ).message,
           });
+
+          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
+            defaultModelBlockedJobConfigIds.add(configId);
+          }
         }
 
         await tx.llmApiKeys.delete({
@@ -271,8 +321,26 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return { success: true };
+        return {
+          providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
+          defaultModelBlockedJobConfigIds: Array.from(
+            defaultModelBlockedJobConfigIds,
+          ),
+        };
       });
+
+      await finalizeBlockedEvaluatorConfigBlocks({
+        projectId: input.projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        blockedByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
+            result.providerBlockedJobConfigIds,
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
+            result.defaultModelBlockedJobConfigIds,
+        },
+      });
+
+      return { success: true };
     }),
   all: protectedProjectProcedure
     .input(

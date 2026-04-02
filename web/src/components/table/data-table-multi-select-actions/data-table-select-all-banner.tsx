@@ -12,7 +12,7 @@ export function DataTableSelectAllBanner({
   const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
 
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm bg-input p-2 @container">
+    <div className="bg-input @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
       {selectAll ? (
         <span className="text-sm">
           All{" "}
@@ -22,7 +22,7 @@ export function DataTableSelectAllBanner({
           items are selected.{" "}
           <Button
             variant="ghost"
-            className="h-auto p-0 font-semibold text-accent-dark-blue hover:text-accent-dark-blue/80"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
             onClick={() => {
               setSelectAll(false);
               setRowSelection({});
@@ -37,7 +37,7 @@ export function DataTableSelectAllBanner({
           page are selected.{" "}
           <Button
             variant="ghost"
-            className="h-auto p-0 font-semibold text-accent-dark-blue hover:text-accent-dark-blue/80"
+            className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"
             onClick={() => {
               setSelectAll(true);
             }}

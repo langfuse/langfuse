@@ -80,7 +80,7 @@ export function DeletePromptVersion({
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action deletes the prompt version. Requests of version{" "}
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+          <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {version}
           </code>
           of this prompt will return an error.

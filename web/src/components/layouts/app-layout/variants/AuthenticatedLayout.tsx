@@ -49,6 +49,18 @@ const V4BetaEnabledBanner = dynamic(
   },
 );
 
+const V4BetaPromoBanner = dynamic(
+  () =>
+    import("@/src/features/events/components/V4BetaPromoBanner").then(
+      (mod) => ({
+        default: mod.V4BetaPromoBanner,
+      }),
+    ),
+  {
+    ssr: false,
+  },
+);
+
 /** Grouped navigation structure returned by processNavigation */
 type GroupedNavigation = {
   ungrouped: NavigationItem[];
@@ -129,7 +141,8 @@ export function AuthenticatedLayout({
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
             <V4BetaEnabledBanner />
-            <div className="flex min-h-0 flex-1 pt-banner-offset">
+            <V4BetaPromoBanner />
+            <div className="pt-banner-offset flex min-h-0 flex-1">
               <AppSidebar
                 navItems={navigation.mainNavigation}
                 secondaryNavItems={navigation.secondaryNavigation}

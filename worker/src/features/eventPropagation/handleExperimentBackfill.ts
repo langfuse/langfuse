@@ -115,7 +115,7 @@ export async function getDatasetRunItemsSinceLastRun(
   const query = `
     WITH prefiltered_events as (
       select distinct project_id, trace_id
-      from events
+      from events_core
       where start_time > {lastRun: DateTime64(3)} - interval 1 day
       and project_id in (
         select distinct project_id
@@ -155,11 +155,13 @@ export async function getDatasetRunItemsSinceLastRun(
       lastRun: convertDateToClickhouseDateTime(lastRun),
       upperBound: convertDateToClickhouseDateTime(upperBound),
     },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
+    },
     tags: {
       feature: "experiment-backfill",
       operation_name: "getDatasetRunItemsSinceLastRun",
     },
-    allowLegacyEventsRead: true,
   });
 
   logger.info(
@@ -476,7 +478,7 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events table using IngestionService.writeEventRecord().
+ * Write enriched spans to the events_full table using IngestionService.writeEventRecord().
  * Converts EnrichedSpan to EventInput format.
  */
 export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
@@ -583,7 +585,7 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events table via IngestionService`,
+    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table via IngestionService`,
   );
 }
 
@@ -749,12 +751,21 @@ export async function runExperimentBackfill(): Promise<void> {
     // This ensures we don't process items that might still be receiving data
     const upperBound = new Date(Date.now() - 30 * 1000);
 
-    // Execute backfill
-    logger.info("[EXPERIMENT BACKFILL] Starting backfill process");
-    await processExperimentBackfill(lastRun, upperBound);
+    // Cap each execution to an 8-hour window. The scheduler runs frequently
+    // enough that consecutive jobs will catch up on any larger gap.
+    const maxChunkMs = 8 * 60 * 60 * 1000;
+    const chunkEnd = new Date(
+      Math.min(lastRun.getTime() + maxChunkMs, upperBound.getTime()),
+    );
 
-    // Update timestamp with the upper bound we processed up to
-    await updateBackfillTimestamp(upperBound);
+    logger.info(
+      `[EXPERIMENT BACKFILL] Processing chunk from ${lastRun.toISOString()} to ${chunkEnd.toISOString()}`,
+    );
+    await processExperimentBackfill(lastRun, chunkEnd);
+
+    // Advance the persisted timestamp after successful processing
+    await updateBackfillTimestamp(chunkEnd);
+
     logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
   } catch (error) {
     logger.error("[EXPERIMENT BACKFILL] Failed to run backfill", error);
@@ -882,7 +893,7 @@ async function processExperimentBackfill(
       }
     }
 
-    // Write enriched spans to events table
+    // Write enriched spans to events_full table
     if (allEnrichedSpans.length > 0) {
       await writeEnrichedSpans(allEnrichedSpans);
     }

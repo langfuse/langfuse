@@ -14,7 +14,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
@@ -110,7 +110,7 @@ export default function ProtectedLabelsSettings({
     <div>
       <Header title="Protected Prompt Labels" />
       <Card className="mb-4 p-3">
-        <p className="mb-4 text-sm text-primary">
+        <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
           labels from prompts.

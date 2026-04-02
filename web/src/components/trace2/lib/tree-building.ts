@@ -384,6 +384,17 @@ function buildTraceTree(
 
   // Events-based traces (rootObservationType set): return observations as roots directly
   if (trace.rootObservationType) {
+    // In v3, trace.latency lives on the TRACE wrapper node. In v4 there's no
+    // wrapper, so propagate it to the primary root observation for timeline
+    // duration calculation.
+    if (trace.latency != null && trace.rootObservationId) {
+      const primaryRoot = rootTreeNodes.find(
+        (r) => r.id === trace.rootObservationId,
+      );
+      if (primaryRoot) {
+        primaryRoot.latency = trace.latency;
+      }
+    }
     return { roots: rootTreeNodes, nodeMap };
   }
 

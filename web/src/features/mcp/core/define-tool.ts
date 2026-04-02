@@ -5,7 +5,7 @@
  * Handles the conversion from Zod schemas to JSON Schema for MCP compatibility.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ServerContext } from "../types";
 

@@ -23,7 +23,7 @@ const NoData = ({
   return (
     <div
       className={cn(
-        "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-md border border-dashed",
+        "flex h-3/4 min-h-36 w-full items-center justify-center rounded-md border border-dashed",
         className,
       )}
     >
@@ -43,7 +43,7 @@ export function NoDataOrLoading({
     return (
       <div
         className={cn(
-          "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-md",
+          "flex h-3/4 min-h-36 w-full items-center justify-center rounded-md",
           className,
         )}
       >

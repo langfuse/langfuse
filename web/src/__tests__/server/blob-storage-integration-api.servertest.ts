@@ -5,7 +5,7 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
   createAndAddApiKeysToDb,
@@ -29,6 +29,7 @@ const BlobStorageIntegrationResponseSchema = z.object({
   fileType: z.enum(["JSON", "CSV", "JSONL"]),
   exportMode: z.enum(["FULL_HISTORY", "FROM_TODAY", "FROM_CUSTOM_DATE"]),
   exportStartDate: z.coerce.date().nullable(),
+  compressed: z.boolean(),
   nextSyncAt: z.coerce.date().nullable(),
   lastSyncAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
@@ -496,6 +497,49 @@ describe("Blob Storage Integrations API", () => {
 
       // Verify the encrypted value can be decrypted back to the original
       expect(decrypt(savedIntegration!.secretAccessKey!)).toBe(testSecretKey);
+    });
+
+    it("should create integration with compressed=true by default", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+      };
+      // Do not pass compressed — should default to true
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.compressed).toBe(true);
+    });
+
+    it("should create integration with compressed=false when specified", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        compressed: false,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.compressed).toBe(false);
+
+      const savedIntegration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(savedIntegration?.compressed).toBe(false);
     });
   });
 

@@ -68,7 +68,6 @@ export const CreateExperimentsForm = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
-
   const datasetId = defaultValues.datasetId;
 
   const existingRemoteExperiment = api.datasets.getRemoteExperiment.useQuery(
@@ -125,7 +124,7 @@ export const CreateExperimentsForm = ({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
                   <li>Compare prompt versions</li>
                   <li>Compare model configurations</li>
                   <li>No code required</li>
@@ -165,7 +164,7 @@ export const CreateExperimentsForm = ({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
                   <li>Full control over dataset run execution</li>
                   <li>Custom evaluation logic</li>
                   <li>Integration with your codebase</li>
@@ -209,7 +208,7 @@ export const CreateExperimentsForm = ({
                   <Button
                     variant="outline"
                     title="Set up remote dataset run in UI trigger"
-                    className="h-8 w-8 flex-shrink-0"
+                    className="h-8 w-8 shrink-0"
                     size="icon"
                     onClick={() => setShowRemoteExperimentUpsertForm(true)}
                   >

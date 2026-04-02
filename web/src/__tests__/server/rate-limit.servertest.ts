@@ -311,4 +311,31 @@ describe("RateLimitService", () => {
     expect(result?.res).toBeUndefined();
     expect(result?.isRateLimited()).toBe(false);
   });
+
+  it("should apply score-delete rate limits for hobby plan", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId: "test-project-id",
+      accessLevel: "project" as const,
+      rateLimitOverrides: [],
+    };
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+    const result = await rateLimitService.rateLimitRequest(
+      scope,
+      "score-delete",
+    );
+
+    expect(result?.res).toEqual({
+      scope: scope,
+      resource: "score-delete",
+      points: 50,
+      remainingPoints: 49,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+    expect(result?.isRateLimited()).toBe(false);
+  });
 });

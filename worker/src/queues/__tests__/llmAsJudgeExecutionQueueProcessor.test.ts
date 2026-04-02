@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { Job } from "bullmq";
 import { JobExecutionStatus } from "@prisma/client";
-import { llmAsJudgeExecutionQueueProcessor } from "../evalQueue";
+import { llmAsJudgeExecutionQueueProcessorBuilder } from "../evalQueue";
 import { QueueName, type TQueueJobTypes } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
@@ -61,6 +61,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import {
+  LLMAsJudgeExecutionQueue,
   isLLMCompletionError,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -71,6 +72,9 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "job-exec-456";
   const observationS3Path = "evals/test/observation.json";
+  const queueName = `${QueueName.LLMAsJudgeExecution}-1`;
+  const llmAsJudgeExecutionQueueProcessor =
+    llmAsJudgeExecutionQueueProcessorBuilder(queueName);
 
   const createMockJob = (
     overrides: Partial<TQueueJobTypes[QueueName.LLMAsJudgeExecution]> = {},
@@ -151,8 +155,12 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         expect.objectContaining({
           table: "job_executions",
           idField: "jobExecutionId",
+          queueName,
         }),
       );
+      expect(LLMAsJudgeExecutionQueue.getInstance).toHaveBeenCalledWith({
+        shardName: queueName,
+      });
 
       expect(prisma.jobExecution.update).toHaveBeenCalledWith({
         where: {

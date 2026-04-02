@@ -251,7 +251,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
       {/* Empty state */}
       {rowCount === 0 && (
         <div
-          className="flex items-center justify-center p-8 text-muted-foreground"
+          className="text-muted-foreground flex items-center justify-center p-8"
           style={{ fontSize: theme.fontSize }}
         >
           No data to display

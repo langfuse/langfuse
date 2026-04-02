@@ -41,7 +41,7 @@ export function LegacyEvalCallout({
                 `/project/${projectId}/evals/remap?evaluator=${evalConfigId}`,
               )
             }
-            className="h-7 text-xs text-dark-blue hover:opacity-80"
+            className="text-dark-blue h-7 text-xs hover:opacity-80"
           >
             Upgrade this evaluator
           </Button>
