@@ -253,14 +253,13 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
     );
   });
 
-  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
   const llmAsJudgeShardNames = LLMAsJudgeExecutionQueue.getShardNames();
   llmAsJudgeShardNames.forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,
       llmAsJudgeExecutionQueueProcessorBuilder(shardName),
       {
-        concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
