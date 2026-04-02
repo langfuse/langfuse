@@ -121,6 +121,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
