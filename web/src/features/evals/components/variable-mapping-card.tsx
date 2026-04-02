@@ -98,7 +98,7 @@ export const VariableMappingCard = ({
     projectId,
     form,
     disabled,
-    isPeekView ? selectedPreviewIds : undefined,
+    isPeekView ? (selectedPreviewIds ?? {}) : undefined,
   );
 
   useEffect(() => {
@@ -210,7 +210,7 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="ml-1 h-4 w-4" />
             </Button>
           )}
         </div>
