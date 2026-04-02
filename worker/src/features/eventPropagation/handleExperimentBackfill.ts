@@ -177,6 +177,7 @@ export async function getRelevantObservations(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
+  maxTime: Date,
 ): Promise<SpanRecord[]> {
   if (projectIds.length === 0 || traceIds.length === 0) {
     return [];
@@ -231,6 +232,7 @@ export async function getRelevantObservations(
     WHERE o.project_id IN {projectIds: Array(String)}
       AND o.trace_id IN {traceIds: Array(String)}
       AND o.start_time >= {minTime: DateTime64(3)} - interval 4 hour
+      AND o.start_time <= {maxTime: DateTime64(3)} + interval 7 day
     ORDER BY o.event_ts DESC
     LIMIT 1 BY o.project_id, o.id
   `;
@@ -241,6 +243,7 @@ export async function getRelevantObservations(
       projectIds,
       traceIds,
       minTime: convertDateToClickhouseDateTime(minTime),
+      maxTime: convertDateToClickhouseDateTime(maxTime),
     },
     tags: {
       feature: "experiment-backfill",
@@ -256,6 +259,7 @@ export async function getRelevantTraces(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
+  maxTime: Date,
 ): Promise<SpanRecord[]> {
   if (projectIds.length === 0 || traceIds.length === 0) {
     return [];
@@ -305,6 +309,7 @@ export async function getRelevantTraces(
     WHERE t.project_id IN {projectIds: Array(String)}
       AND t.id IN {traceIds: Array(String)}
       AND t.timestamp >= {minTime: DateTime64(3)} - interval 4 hour
+      AND t.timestamp <= {maxTime: DateTime64(3)} + interval 7 day
     ORDER BY t.event_ts DESC
     LIMIT 1 BY t.project_id, t.id
   `;
@@ -315,6 +320,7 @@ export async function getRelevantTraces(
       projectIds,
       traceIds,
       minTime: convertDateToClickhouseDateTime(minTime),
+      maxTime: convertDateToClickhouseDateTime(maxTime),
     },
     tags: {
       feature: "experiment-backfill",
@@ -830,8 +836,8 @@ async function processExperimentBackfill(
 
     // Fetch observations and traces
     const [observations, traces] = await Promise.all([
-      getRelevantObservations(projectIds, traceIds, lastRun),
-      getRelevantTraces(projectIds, traceIds, lastRun),
+      getRelevantObservations(projectIds, traceIds, lastRun, upperBound),
+      getRelevantTraces(projectIds, traceIds, lastRun, upperBound),
     ]);
 
     logger.info(
