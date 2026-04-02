@@ -555,7 +555,7 @@ types:
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
   # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:

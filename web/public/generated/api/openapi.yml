@@ -7567,8 +7567,8 @@ components:
           format: double
         - type: string
       description: >-
-        The value of the score. Must be passed as string for categorical scores,
-        and numeric for boolean and numeric scores
+        The value of the score. Must be passed as string for categorical and
+        text scores, and numeric for boolean and numeric scores
     Comment:
       title: Comment
       type: object
