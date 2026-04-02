@@ -46,6 +46,7 @@ export const getEnvironmentsForProject = async (
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   // Always add default environment to list
   results.push({ environment: "default" });
