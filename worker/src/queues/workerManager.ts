@@ -92,6 +92,15 @@ export class WorkerManager {
             },
           );
         }),
+        queue?.getActiveCount().then((count) => {
+          recordGauge(
+            convertQueueNameToMetricName(queueName) + ".active",
+            count,
+            {
+              unit: "records",
+            },
+          );
+        }),
       ]).catch((err) => {
         logger.error("Failed to record queue length", err);
       });
