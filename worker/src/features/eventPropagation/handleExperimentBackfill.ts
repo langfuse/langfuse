@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   clickhouseClient,
   flattenJsonToPathArrays,
+  recordGauge,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
@@ -113,15 +114,12 @@ export async function getDatasetRunItemsSinceLastRun(
   upperBound: Date,
 ): Promise<DatasetRunItem[]> {
   const query = `
-    WITH prefiltered_events as (
-      select distinct project_id, trace_id
-      from events_core
-      where start_time > {lastRun: DateTime64(3)} - interval 1 day
-      and project_id in (
-        select distinct project_id
-        from dataset_run_items_rmt
-        where created_at > {lastRun: DateTime64(3)}
-      )
+    WITH candidate_dris AS (
+      SELECT project_id, trace_id
+      FROM dataset_run_items_rmt
+      WHERE created_at > {lastRun: DateTime64(3)}
+        AND created_at <= {upperBound: DateTime64(3)}
+      GROUP BY project_id, trace_id
     )
 
     SELECT
@@ -140,11 +138,12 @@ export async function getDatasetRunItemsSinceLastRun(
       dri.dataset_item_metadata,
       dri.created_at
     FROM dataset_run_items_rmt AS dri
-    LEFT ANTI JOIN prefiltered_events AS pe
-    ON dri.project_id = pe.project_id
-      AND dri.trace_id = pe.trace_id
+    LEFT ANTI JOIN events_core AS ec
+      ON dri.project_id = ec.project_id
+      AND dri.trace_id = ec.trace_id
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
+      AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
     ORDER BY dri.created_at DESC
     LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
   `;
@@ -741,6 +740,13 @@ export async function runExperimentBackfill(): Promise<void> {
     // Initialize cutoff timestamp (first-run protection)
     const lastRun = await initializeBackfillCutoff();
 
+    // Track how far behind the backfill cursor is, even if we skip due to throttle
+    const lastRunDelaySeconds = (Date.now() - lastRun.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.last_run_delay_seconds",
+      lastRunDelaySeconds,
+    );
+
     // Check 5-minute throttle
     if (!(await shouldRunBackfill(lastRun))) {
       logger.debug("[EXPERIMENT BACKFILL] Skipping due to throttle");
@@ -765,6 +771,13 @@ export async function runExperimentBackfill(): Promise<void> {
 
     // Advance the persisted timestamp after successful processing
     await updateBackfillTimestamp(chunkEnd);
+
+    // Track remaining delay after processing this chunk
+    const remainingDelaySeconds = (Date.now() - chunkEnd.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.remaining_delay_seconds",
+      remainingDelaySeconds,
+    );
 
     logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
   } catch (error) {
