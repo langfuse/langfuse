@@ -1519,6 +1519,7 @@ export const getEventsGroupedByModel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res.map((r) => ({ model: r.name, count: r.count }));
 };
@@ -1562,6 +1563,7 @@ export const getEventsGroupedByModelId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res.map((r) => ({ modelId: r.modelId, count: r.count }));
 };
@@ -1605,6 +1607,7 @@ export const getEventsGroupedByName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1651,6 +1654,7 @@ export const getEventsGroupedByTraceName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1719,6 +1723,7 @@ export const getEventsGroupedByTraceTags = async (
           kind: "analytic",
           projectId,
         },
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1764,6 +1769,7 @@ export const getEventsGroupedByPromptName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res.filter((r) => Boolean(r.promptName));
@@ -1808,6 +1814,7 @@ export const getEventsGroupedByType = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1856,6 +1863,7 @@ export const getEventsGroupedByUserId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1901,6 +1909,7 @@ export const getEventsGroupedByVersion = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1946,6 +1955,7 @@ export const getEventsGroupedBySessionId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1991,6 +2001,7 @@ export const getEventsGroupedByLevel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2036,6 +2047,7 @@ export const getEventsGroupedByEnvironment = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2085,6 +2097,7 @@ export const getEventsGroupedByExperimentDatasetId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2128,6 +2141,7 @@ export const getEventsGroupedByExperimentId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2171,6 +2185,7 @@ export const getEventsGroupedByExperimentName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2214,6 +2229,7 @@ export const getEventsGroupedByHasParentObservation = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -2257,6 +2273,7 @@ export const getEventsGroupedByToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2304,6 +2321,7 @@ export const getEventsGroupedByCalledToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
