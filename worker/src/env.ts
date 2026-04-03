@@ -271,6 +271,12 @@ const EnvSchema = z.object({
     .positive()
     .default(5 * 60 * 1000), // 5 minutes
 
+  // Comma-separated list of project IDs to exclude from experiment backfill processing
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])

@@ -809,7 +809,26 @@ async function processExperimentBackfill(
     upperBound,
   );
 
-  if (allDatasetRunItems.length === 0) {
+  // Filter out excluded project IDs
+  const excludeProjectIds =
+    env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS;
+  const datasetRunItems =
+    excludeProjectIds && excludeProjectIds.length > 0
+      ? allDatasetRunItems.filter(
+          (dri) => !excludeProjectIds.includes(dri.project_id),
+        )
+      : allDatasetRunItems;
+
+  if (excludeProjectIds && excludeProjectIds.length > 0) {
+    const excludedCount = allDatasetRunItems.length - datasetRunItems.length;
+    if (excludedCount > 0) {
+      logger.info(
+        `[EXPERIMENT BACKFILL] Excluded ${excludedCount} items from ${excludeProjectIds.length} excluded project(s)`,
+      );
+    }
+  }
+
+  if (datasetRunItems.length === 0) {
     logger.info(
       "[EXPERIMENT BACKFILL] No dataset run items to process, skipping",
     );
@@ -818,10 +837,10 @@ async function processExperimentBackfill(
 
   // Step 2: Process in chunks
   const chunkSize = env.LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE;
-  const chunks = chunk(allDatasetRunItems, chunkSize);
+  const chunks = chunk(datasetRunItems, chunkSize);
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Processing ${allDatasetRunItems.length} items in ${chunks.length} chunks of ${chunkSize}`,
+    `[EXPERIMENT BACKFILL] Processing ${datasetRunItems.length} items in ${chunks.length} chunks of ${chunkSize}`,
   );
 
   for (let i = 0; i < chunks.length; i++) {
@@ -919,6 +938,6 @@ async function processExperimentBackfill(
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Completed backfill process for ${allDatasetRunItems.length} items`,
+    `[EXPERIMENT BACKFILL] Completed backfill process for ${datasetRunItems.length} items`,
   );
 }
