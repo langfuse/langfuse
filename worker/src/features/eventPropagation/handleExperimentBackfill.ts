@@ -937,7 +937,7 @@ async function processExperimentBackfill(
 
     // Write enriched spans to events_full table
     if (allEnrichedSpans.length > 0) {
-      await writeEnrichedSpans(allEnrichedSpans);
+      writeEnrichedSpans(allEnrichedSpans);
     }
   }
 
