@@ -432,8 +432,20 @@ export class ClickhouseWriter {
       });
 
       if (droppedCount > 0) {
+        const droppedIds = queueItems
+          .filter((item) => item.attempts >= this.maxAttempts)
+          .map((item) => {
+            const r = item.data as Record<string, unknown>;
+            return {
+              project_id: r.project_id,
+              trace_id: r.trace_id ?? r.id,
+              id: r.id,
+            };
+          });
+
         logger.error(
           `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+          { droppedIds },
         );
       }
     }
