@@ -265,7 +265,7 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
-    .default(200),
+    .default(100),
   LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
     .number()
     .positive()

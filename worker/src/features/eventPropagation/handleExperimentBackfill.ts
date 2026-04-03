@@ -142,7 +142,7 @@ export async function getDatasetRunItemsSinceLastRun(
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
       AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
-    ORDER BY dri.created_at DESC
+    ORDER BY dri.created_at ASC
     LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
   `;
 
@@ -243,6 +243,9 @@ export async function getRelevantObservations(
       minTime: convertDateToClickhouseDateTime(minTime),
       maxTime: convertDateToClickhouseDateTime(maxTime),
     },
+    clickhouseConfigs: {
+      request_timeout: 60_000,
+    },
     tags: {
       feature: "experiment-backfill",
       operation_name: "getRelevantObservations",
@@ -319,6 +322,9 @@ export async function getRelevantTraces(
       traceIds,
       minTime: convertDateToClickhouseDateTime(minTime),
       maxTime: convertDateToClickhouseDateTime(maxTime),
+    },
+    clickhouseConfigs: {
+      request_timeout: 60_000,
     },
     tags: {
       feature: "experiment-backfill",
@@ -779,9 +785,6 @@ export async function runExperimentBackfill(): Promise<void> {
     );
     await processExperimentBackfill(lastRun, chunkEnd);
 
-    // Advance the persisted timestamp after successful processing
-    await updateBackfillTimestamp(chunkEnd);
-
     // Track remaining delay after processing this chunk
     const remainingDelaySeconds = (Date.now() - chunkEnd.getTime()) / 1000;
     recordGauge(
@@ -939,6 +942,14 @@ async function processExperimentBackfill(
     if (allEnrichedSpans.length > 0) {
       writeEnrichedSpans(allEnrichedSpans);
     }
+
+    // Advance cursor after each successful chunk (items are ASC ordered by created_at)
+    const lastItemInChunk = driChunk[driChunk.length - 1];
+    const chunkCursor =
+      i === chunks.length - 1
+        ? upperBound // Final chunk: advance past the entire window
+        : new Date(lastItemInChunk.created_at);
+    await updateBackfillTimestamp(chunkCursor);
   }
 
   logger.info(
