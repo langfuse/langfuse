@@ -30,13 +30,23 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
         if (!profile.email) {
           // If the user does not have a public email, get another via the GitHub API
           // See https://docs.github.com/en/rest/users/emails#list-email-addresses-for-the-authenticated-user
-          const res = await fetch(`${apiBaseUrl}/user/emails`, {
-            headers: { Authorization: `token ${tokens.access_token}` },
-          });
+          try {
+            const res = await fetch(`${apiBaseUrl}/user/emails`, {
+              headers: { Authorization: `token ${tokens.access_token}` },
+            });
 
-          if (res.ok) {
-            const emails = (await res.json()) as GithubEmail[];
-            profile.email = (emails.find((e) => e.primary) ?? emails[0]).email;
+            if (res.ok) {
+              const emails = (await res.json()) as GithubEmail[];
+              if (Array.isArray(emails) && emails.length > 0) {
+                profile.email =
+                  (emails.find((e) => e.primary) ?? emails[0])?.email ??
+                  undefined;
+              }
+            }
+          } catch {
+            // Network errors should not block login entirely; the profile
+            // will proceed with email undefined and NextAuth will surface
+            // a sign-in error if an email is required by the adapter.
           }
         }
 
