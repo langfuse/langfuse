@@ -14,7 +14,7 @@ import { chunk } from "lodash";
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
 const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
-const LOCK_TTL_SECONDS = 300; // 5 minutes
+const LOCK_TTL_SECONDS = 600; // 10 minutes
 
 export interface DatasetRunItem {
   id: string;
