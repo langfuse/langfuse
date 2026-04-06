@@ -333,13 +333,26 @@ export class OtelIngestionProcessor {
                   },
                 );
 
+                this.logOversizedSpan(span, spanAttributes, {
+                  spanId,
+                  traceId,
+                  eventBytes,
+                });
+
                 const experimentFields =
                   this.extractExperimentFields(spanAttributes);
+
+                const spanContext = {
+                  spanId,
+                  traceId,
+                  source: "event" as const,
+                };
 
                 const usageDetails = UsageDetails.safeParse(
                   this.extractUsageDetails(
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
+                    spanContext,
                   ),
                 );
                 if (!usageDetails.success) {
@@ -438,7 +451,10 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(spanAttributes),
+                  providedCostDetails: this.extractCostDetails(
+                    spanAttributes,
+                    spanContext,
+                  ),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -955,6 +971,13 @@ export class OtelIngestionProcessor {
       instrumentationScopeName,
     });
 
+    const observationSpanId = this.tryParseSpanId(span);
+    const observationContext = {
+      spanId: observationSpanId,
+      traceId,
+      source: "ingestion" as const,
+    };
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1008,8 +1031,9 @@ export class OtelIngestionProcessor {
       usageDetails: this.extractUsageDetails(
         attributes,
         instrumentationScopeName,
+        observationContext,
       ),
-      costDetails: this.extractCostDetails(attributes),
+      costDetails: this.extractCostDetails(attributes, observationContext),
       input,
       output,
     };
@@ -1106,6 +1130,144 @@ export class OtelIngestionProcessor {
         return acc;
       }, {}) ?? {}
     );
+  }
+
+  private static isPlainObject(
+    value: unknown,
+  ): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private tryParseSpanId(span: any): string {
+    try {
+      if (span?.spanId != null) {
+        return this.parseId(span.spanId?.data ?? span.spanId);
+      }
+    } catch {
+      // Intentionally swallowed — return "unknown" below
+    }
+    return "unknown";
+  }
+
+  /**
+   * Parses a JSON-encoded attribute expected to be a plain object.
+   * Returns the parsed object on success, {} if present but wrong type (logged),
+   * null if absent or unparsable (signals caller to try fallback paths).
+   */
+  private parseJsonObjectAttribute(
+    attributes: Record<string, unknown>,
+    key: string,
+    context: { spanId: string; traceId: string; source: string },
+  ): Record<string, unknown> | null {
+    const raw = attributes[key];
+    if (!raw) return null;
+
+    const logContext = {
+      spanId: context.spanId,
+      traceId: context.traceId,
+      projectId: this.projectId,
+      attribute: key,
+      source: context.source,
+    };
+    const metricTags = {
+      attribute: key,
+      project_id: this.projectId,
+      source: context.source,
+    };
+
+    if (typeof raw !== "string") {
+      logger.warn("OTEL parseJsonObjectAttribute: non-string value", {
+        ...logContext,
+        reason: "non_string",
+        valueType: typeof raw,
+      });
+      recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+        ...metricTags,
+        reason: "non_string",
+      });
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!OtelIngestionProcessor.isPlainObject(parsed)) {
+        logger.warn("OTEL parseJsonObjectAttribute: non-object parsed value", {
+          ...logContext,
+          reason: "not_plain_object",
+          parsedType: typeof parsed,
+        });
+        recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+          ...metricTags,
+          reason: "not_plain_object",
+        });
+        return {};
+      }
+      return parsed;
+    } catch {
+      logger.warn("OTEL parseJsonObjectAttribute: invalid JSON", {
+        ...logContext,
+        reason: "invalid_json",
+      });
+      recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+        ...metricTags,
+        reason: "invalid_json",
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Logs details about spans that exceed the size threshold.
+   * Does NOT reject — just logs for observability.
+   */
+  private logOversizedSpan(
+    span: any,
+    spanAttributes: Record<string, unknown>,
+    context: { spanId: string; traceId: string; eventBytes: number },
+  ): void {
+    const maxBytes = env.LANGFUSE_OTEL_MAX_SPAN_BYTES;
+    if (context.eventBytes <= maxBytes) return;
+
+    const fieldThreshold = 1_000_000; // 1MB
+    const largeFields: Record<string, number> = {};
+
+    // Check extracted span attributes
+    for (const [key, value] of Object.entries(spanAttributes)) {
+      if (typeof value === "string") {
+        const bytes = Buffer.byteLength(value, "utf8");
+        if (bytes > fieldThreshold) {
+          largeFields[key] = bytes;
+        }
+      }
+    }
+
+    // Check span events (gen_ai.user.message, gen_ai.choice, etc.)
+    // Prompts and completions following OTel GenAI semantic conventions
+    // live in span.events[], not in span attributes.
+    for (const event of span?.events ?? []) {
+      for (const attr of event?.attributes ?? []) {
+        const val = attr?.value?.stringValue;
+        if (typeof val === "string") {
+          const bytes = Buffer.byteLength(val, "utf8");
+          if (bytes > fieldThreshold) {
+            const fieldKey = `events[${event.name ?? "?"}].${attr.key}`;
+            largeFields[fieldKey] = bytes;
+          }
+        }
+      }
+    }
+
+    logger.warn("OTEL oversized span detected", {
+      spanId: context.spanId,
+      traceId: context.traceId,
+      projectId: this.projectId,
+      eventBytes: context.eventBytes,
+      maxBytes,
+      largeFields,
+    });
+    recordIncrement("langfuse.ingestion.otel.oversized_span", 1, {
+      project_id: this.projectId,
+    });
   }
 
   private convertValueToPlainJavascript(value: Record<string, any>): any {
@@ -2116,18 +2278,14 @@ export class OtelIngestionProcessor {
   private extractUsageDetails(
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
+    context: { spanId: string; traceId: string; source: string },
   ): Record<string, unknown> {
-    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]) {
-      try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS
-          ] as string,
-        );
-      } catch {
-        // Fallthrough
-      }
-    }
+    const fromAttribute = this.parseJsonObjectAttribute(
+      attributes,
+      LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
+      context,
+    );
+    if (fromAttribute !== null) return fromAttribute;
 
     // Genkit
     if (instrumentationScopeName === "genkit-tracer") {
@@ -2367,18 +2525,14 @@ export class OtelIngestionProcessor {
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
+    context: { spanId: string; traceId: string; source: string },
   ): Record<string, unknown> {
-    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]) {
-      try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS
-          ] as string,
-        );
-      } catch {
-        // Fallthrough
-      }
-    }
+    const fromAttribute = this.parseJsonObjectAttribute(
+      attributes,
+      LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
+      context,
+    );
+    if (fromAttribute !== null) return fromAttribute;
 
     if (attributes["gen_ai.usage.cost"]) {
       return { total: attributes["gen_ai.usage.cost"] };

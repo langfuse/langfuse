@@ -826,6 +826,7 @@ export const getScoresGroupedByNameSourceType = async ({
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -882,6 +883,7 @@ export const getNumericScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows;
@@ -934,6 +936,7 @@ export const getCategoricalScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Get score names from ClickHouse results to query score configs
@@ -2000,7 +2003,9 @@ export const getScoresForBlobStorageExport = function (
       source,
       comment,
       data_type,
-      string_value
+      string_value,
+      created_at,
+      updated_at
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
