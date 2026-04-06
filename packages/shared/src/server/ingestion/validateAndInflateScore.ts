@@ -64,7 +64,7 @@ export async function validateAndInflateScore(
 
   if (!validation.success) {
     throw new InvalidRequestError(
-      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, and string values for categorical scores.`,
+      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, string values for categorical scores, and string values of 1-500 characters for text scores.`,
     );
   }
 
