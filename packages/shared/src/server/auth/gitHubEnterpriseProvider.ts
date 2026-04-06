@@ -43,10 +43,11 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
                   undefined;
               }
             }
-          } catch {
+          } catch (_e) {
             // Network errors should not block login entirely; the profile
             // will proceed with email undefined and NextAuth will surface
             // a sign-in error if an email is required by the adapter.
+            void _e;
           }
         }
 
