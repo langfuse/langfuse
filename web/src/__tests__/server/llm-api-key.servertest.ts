@@ -471,4 +471,44 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
   });
+
+  it("should reject switching OCI auth mode to IAM without OCI IAM credentials", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-oci-test",
+      provider: "oci-prod",
+      adapter: LLMAdapter.Oci,
+      baseURL:
+        "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+      customModels: ["xai.grok-4-fast"],
+      withDefaultModels: false,
+    });
+
+    const [createdKey] = await prisma.llmApiKeys.findMany({
+      where: {
+        projectId,
+        provider: "oci-prod",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: createdKey.id,
+        projectId,
+        provider: "oci-prod",
+        adapter: LLMAdapter.Oci,
+        baseURL:
+          "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+        customModels: ["xai.grok-4-fast"],
+        withDefaultModels: false,
+        config: {
+          authMode: "iam",
+          compartmentId:
+            "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+        },
+      }),
+    ).rejects.toThrow(
+      "OCI IAM credentials must be valid JSON with tenancyId, userId, fingerprint, and privateKey.",
+    );
+  });
 });

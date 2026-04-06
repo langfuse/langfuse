@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockConfig,
   type BedrockCredential,
+  type OciConfig,
+  type OciAuthMode,
   type VertexAIConfig,
   LLMAdapter,
   type LlmApiKeys,
@@ -23,6 +25,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -42,7 +45,9 @@ import { env } from "@/src/env.mjs";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const isCustomModelsRequired = (adapter: LLMAdapter) =>
-  adapter === LLMAdapter.Azure || adapter === LLMAdapter.Bedrock;
+  adapter === LLMAdapter.Azure ||
+  adapter === LLMAdapter.Bedrock ||
+  adapter === LLMAdapter.Oci;
 
 const createFormSchema = (mode: "create" | "update") =>
   z
@@ -63,6 +68,8 @@ const createFormSchema = (mode: "create" | "update") =>
       awsSecretAccessKey: z.string().optional(),
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
+      ociAuthMode: z.enum(["api_key", "iam"]).default("api_key"),
+      ociCompartmentId: z.string().optional(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -147,6 +154,51 @@ const createFormSchema = (mode: "create" | "update") =>
       },
     )
     .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.Oci || data.ociAuthMode !== "iam") {
+          return true;
+        }
+
+        return Boolean(data.ociCompartmentId?.trim());
+      },
+      {
+        message: "OCI compartment ID is required for IAM authentication.",
+        path: ["ociCompartmentId"],
+      },
+    )
+    .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.Oci || data.ociAuthMode !== "iam") {
+          return true;
+        }
+
+        if (mode === "update" && !data.secretKey) {
+          return true;
+        }
+
+        if (!data.secretKey) {
+          return false;
+        }
+
+        try {
+          const parsed = JSON.parse(data.secretKey);
+          return (
+            typeof parsed?.tenancyId === "string" &&
+            typeof parsed?.userId === "string" &&
+            typeof parsed?.fingerprint === "string" &&
+            typeof parsed?.privateKey === "string"
+          );
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "OCI IAM credentials must be valid JSON with tenancyId, userId, fingerprint, and privateKey.",
+        path: ["secretKey"],
+      },
+    )
+    .refine(
       (data) =>
         data.adapter === LLMAdapter.Bedrock ||
         data.adapter === LLMAdapter.VertexAI ||
@@ -159,11 +211,12 @@ const createFormSchema = (mode: "create" | "update") =>
     )
     .refine(
       (data) => {
-        if (data.adapter !== LLMAdapter.Azure) return true;
+        if (![LLMAdapter.Azure, LLMAdapter.Oci].includes(data.adapter))
+          return true;
         return data.baseURL && data.baseURL.trim() !== "";
       },
       {
-        message: "API Base URL is required for Azure connections.",
+        message: "API Base URL is required for this adapter.",
         path: ["baseURL"],
       },
     );
@@ -215,6 +268,8 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlOpenAI ?? "";
       case LLMAdapter.Azure:
         return customization?.defaultBaseUrlAzure ?? "";
+      case LLMAdapter.Oci:
+        return "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
       default:
@@ -248,6 +303,16 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            ociAuthMode:
+              existingKey.adapter === LLMAdapter.Oci &&
+              existingKey.config &&
+              (existingKey.config as OciConfig).authMode === "iam"
+                ? "iam"
+                : "api_key",
+            ociCompartmentId:
+              existingKey.adapter === LLMAdapter.Oci && existingKey.config
+                ? ((existingKey.config as OciConfig).compartmentId ?? "")
+                : "",
             awsRegion:
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
@@ -264,6 +329,8 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "global",
+            ociAuthMode: "api_key" as OciAuthMode,
+            ociCompartmentId: "",
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -271,6 +338,7 @@ export function CreateLLMApiKeyForm({
   });
 
   const currentAdapter = form.watch("adapter");
+  const currentOciAuthMode = form.watch("ociAuthMode");
 
   const hasAdvancedSettings = (adapter: LLMAdapter) =>
     adapter === LLMAdapter.OpenAI ||
@@ -314,6 +382,14 @@ export function CreateLLMApiKeyForm({
             <FormDescription className="text-dark-yellow">
               {
                 "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
+              }
+            </FormDescription>
+          )}
+
+          {currentAdapter === LLMAdapter.Oci && (
+            <FormDescription className="text-dark-yellow">
+              {
+                "For OCI, use the model ID exposed by OCI Generative AI, for example 'xai.grok-4-1-fast-non-reasoning' or 'xai.grok-4-fast'."
               }
             </FormDescription>
           )}
@@ -431,7 +507,7 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | VertexAIConfig | undefined;
+    let config: BedrockConfig | VertexAIConfig | OciConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       // In update mode, only update credentials if provided
@@ -481,14 +557,30 @@ export function CreateLLMApiKeyForm({
       // In create mode, secretKey is already set from values.secretKey
 
       // Build config with location only (projectId removed for security - ADC auto-detects)
-      config = {};
+      const vertexAiConfig: VertexAIConfig = {};
       if (values.vertexAILocation?.trim()) {
-        config.location = values.vertexAILocation.trim();
+        vertexAiConfig.location = values.vertexAILocation.trim();
       }
       // If config is empty, set to undefined
-      if (Object.keys(config).length === 0) {
+      if (Object.keys(vertexAiConfig).length === 0) {
         config = undefined;
+      } else {
+        config = vertexAiConfig;
       }
+    } else if (currentAdapter === LLMAdapter.Oci) {
+      if (mode === "update" && !values.secretKey) {
+        secretKey = undefined;
+      }
+
+      config =
+        values.ociAuthMode === "iam"
+          ? {
+              authMode: "iam",
+              compartmentId: values.ociCompartmentId?.trim(),
+            }
+          : undefined;
+    } else if (mode === "update" && !values.secretKey) {
+      secretKey = undefined;
     }
 
     const extraHeaders =
@@ -502,10 +594,8 @@ export function CreateLLMApiKeyForm({
           )
         : undefined;
 
-    const newLlmApiKey = {
-      id: existingKey?.id ?? "",
+    const llmApiKeyPayload = {
       projectId,
-      secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
       baseURL: values.baseURL || undefined,
@@ -519,11 +609,22 @@ export function CreateLLMApiKeyForm({
       extraHeaders,
     };
 
+    const createPayload = {
+      ...llmApiKeyPayload,
+      secretKey: secretKey ?? "",
+    };
+
+    const updatePayload = {
+      id: existingKey?.id ?? "",
+      ...llmApiKeyPayload,
+      ...(secretKey !== undefined ? { secretKey } : {}),
+    };
+
     try {
       const testResult =
         mode === "create"
-          ? await mutTestLLMApiKey.mutateAsync(newLlmApiKey)
-          : await mutTestUpdateLLMApiKey.mutateAsync(newLlmApiKey);
+          ? await mutTestLLMApiKey.mutateAsync(createPayload)
+          : await mutTestUpdateLLMApiKey.mutateAsync(updatePayload);
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -538,8 +639,12 @@ export function CreateLLMApiKeyForm({
       return;
     }
 
-    return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
-      .mutateAsync(newLlmApiKey)
+    const savePromise =
+      mode === "create"
+        ? mutCreateLlmApiKey.mutateAsync(createPayload)
+        : mutUpdateLlmApiKey.mutateAsync(updatePayload);
+
+    return savePromise
       .then(() => {
         form.reset();
         onSuccess();
@@ -889,38 +994,145 @@ export function CreateLLMApiKeyForm({
                 )}
             </>
           ) : (
-            <FormField
-              control={form.control}
-              name="secretKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API Key</FormLabel>
-                  <FormDescription>
-                    {isLangfuseCloud
-                      ? "Your API keys are stored encrypted on our servers."
-                      : "Your API keys are stored encrypted in your database."}
-                  </FormDescription>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder={
-                        mode === "update"
-                          ? existingKey?.displaySecretKey
-                          : undefined
-                      }
-                      autoComplete="off"
-                      spellCheck="false"
-                      autoCapitalize="off"
+            <>
+              {currentAdapter === LLMAdapter.Oci && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="ociAuthMode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>OCI Authentication</FormLabel>
+                        <FormDescription>
+                          Choose between a Generative AI API key or IAM request
+                          signing.
+                        </FormDescription>
+                        <Select
+                          defaultValue={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(value as OciAuthMode)
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select OCI auth mode" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="api_key">OCI API Key</SelectItem>
+                            <SelectItem value="iam">OCI IAM</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {currentOciAuthMode === "iam" && (
+                    <FormField
+                      control={form.control}
+                      name="ociCompartmentId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>OCI Compartment ID</FormLabel>
+                          <FormDescription>
+                            Required for OCI IAM requests. Langfuse sends it as
+                            the `opc-compartment-id` header.
+                          </FormDescription>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="ocid1.compartment.oc1..example"
+                              autoComplete="off"
+                              spellCheck="false"
+                              autoCapitalize="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                  )}
+                </>
               )}
-            />
+
+              <FormField
+                control={form.control}
+                name="secretKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {currentAdapter === LLMAdapter.Oci
+                        ? currentOciAuthMode === "iam"
+                          ? "OCI IAM Credentials (JSON)"
+                          : "OCI Generative AI API Key"
+                        : "API Key"}
+                    </FormLabel>
+                    <FormDescription>
+                      {currentAdapter === LLMAdapter.Oci
+                        ? currentOciAuthMode === "iam"
+                          ? mode === "update"
+                            ? "Paste OCI IAM credentials JSON, or leave blank to keep the existing credentials."
+                            : "Paste OCI IAM credentials JSON with tenancyId, userId, fingerprint, and privateKey. You can omit region if it is already encoded in the base URL."
+                          : mode === "update"
+                            ? "Use an OCI Generative AI API Key secret, or leave blank to keep the existing key."
+                            : "Use an OCI Generative AI API Key secret."
+                        : isLangfuseCloud
+                          ? "Your API keys are stored encrypted on our servers."
+                          : "Your API keys are stored encrypted in your database."}
+                    </FormDescription>
+                    {currentAdapter === LLMAdapter.Oci &&
+                      currentOciAuthMode === "iam" && (
+                        <FormDescription className="text-dark-yellow">
+                          Example JSON:
+                          <pre className="text-xs">
+                            {`{
+  "tenancyId": "ocid1.tenancy.oc1..example",
+  "userId": "ocid1.user.oc1..example",
+  "fingerprint": "12:34:56:78:90:ab:cd:ef",
+  "privateKey": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----"
+}`}
+                          </pre>
+                        </FormDescription>
+                      )}
+                    <FormControl>
+                      {currentAdapter === LLMAdapter.Oci &&
+                      currentOciAuthMode === "iam" ? (
+                        <Textarea
+                          {...field}
+                          rows={8}
+                          placeholder={
+                            mode === "update"
+                              ? "Leave blank to preserve the existing OCI IAM credentials."
+                              : '{"tenancyId":"...","userId":"...","fingerprint":"...","privateKey":"-----BEGIN PRIVATE KEY-----\\n..."}'
+                          }
+                          autoComplete="off"
+                          spellCheck="false"
+                          autoCapitalize="off"
+                        />
+                      ) : (
+                        <Input
+                          {...field}
+                          placeholder={
+                            mode === "update"
+                              ? existingKey?.displaySecretKey
+                              : undefined
+                          }
+                          autoComplete="off"
+                          spellCheck="false"
+                          autoCapitalize="off"
+                        />
+                      )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
           )}
 
-          {/* Azure Base URL - Always required for Azure */}
-          {currentAdapter === LLMAdapter.Azure && (
+          {/* Adapter Base URL - required for Azure and OCI */}
+          {[LLMAdapter.Azure, LLMAdapter.Oci].includes(currentAdapter) && (
             <FormField
               control={form.control}
               name="baseURL"
@@ -928,14 +1140,18 @@ export function CreateLLMApiKeyForm({
                 <FormItem>
                   <FormLabel>API Base URL</FormLabel>
                   <FormDescription>
-                    Please add the base URL in the following format (or
-                    compatible API):
-                    https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                    {currentAdapter === LLMAdapter.Azure
+                      ? "Please add the base URL in the following format (or compatible API): https://{instanceName}.openai.azure.com/openai/deployments"
+                      : "Provide an OCI OpenAI-compatible endpoint URL, for example https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/v1 or https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1."}
                   </FormDescription>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="https://your-instance.openai.azure.com/openai/deployments"
+                      placeholder={
+                        currentAdapter === LLMAdapter.Azure
+                          ? "https://your-instance.openai.azure.com/openai/deployments"
+                          : "https://inference.generativeai.<region>.oci.oraclecloud.com/20231130/actions/v1"
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -944,11 +1160,12 @@ export function CreateLLMApiKeyForm({
             />
           )}
 
-          {/* Custom models: top-level for Azure/Bedrock */}
+          {/* Custom models: top-level for adapters without default model catalogs */}
           {isCustomModelsRequired(currentAdapter) && renderCustomModelsField()}
 
-          {/* Extra headers - show for Azure in main section (Azure has no advanced settings) */}
-          {currentAdapter === LLMAdapter.Azure && renderExtraHeadersField()}
+          {/* Extra headers - show for adapters without advanced settings */}
+          {[LLMAdapter.Azure, LLMAdapter.Oci].includes(currentAdapter) &&
+            renderExtraHeadersField()}
 
           {hasAdvancedSettings(currentAdapter) && (
             <div className="flex items-center">

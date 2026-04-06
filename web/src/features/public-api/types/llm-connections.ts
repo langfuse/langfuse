@@ -1,6 +1,16 @@
 import { z } from "zod";
-import { paginationZod, LLMAdapter, type JSONValue } from "@langfuse/shared";
-import { BedrockConfigSchema, VertexAIConfigSchema } from "@langfuse/shared";
+import {
+  getOciBaseUrlValidationError,
+  paginationZod,
+  LLMAdapter,
+  type JSONValue,
+} from "@langfuse/shared";
+import {
+  BedrockConfigSchema,
+  OciConfigSchema,
+  OciIAMCredentialSchema,
+  VertexAIConfigSchema,
+} from "@langfuse/shared";
 
 // Base LLM connection response schema - strict to prevent secret leakage
 export const LlmConnectionResponse = z
@@ -84,6 +94,71 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
             code: z.ZodIssueCode.custom,
             message: `Invalid VertexAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { location: string }`,
             path: ["config"],
+          });
+        }
+      }
+    } else if (adapter === LLMAdapter.Oci) {
+      if (!data.baseURL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Base URL is required for OCI adapter.",
+          path: ["baseURL"],
+        });
+      } else {
+        const baseUrlError = getOciBaseUrlValidationError(data.baseURL);
+        if (baseUrlError) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: baseUrlError,
+            path: ["baseURL"],
+          });
+        }
+      }
+
+      if (!data.customModels?.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "At least one custom model name is required for OCI adapter.",
+          path: ["customModels"],
+        });
+      }
+
+      if (config) {
+        const result = OciConfigSchema.safeParse(config);
+        if (!result.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'Invalid OCI config: expected { authMode?: "api_key" | "iam", compartmentId?: string }',
+            path: ["config"],
+          });
+          return;
+        }
+      }
+
+      if (config?.authMode === "iam") {
+        let parsedSecretKey: unknown;
+        try {
+          parsedSecretKey = JSON.parse(data.secretKey);
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "OCI IAM credentials must be valid JSON with tenancyId, userId, fingerprint, and privateKey.",
+            path: ["secretKey"],
+          });
+          return;
+        }
+
+        const credentialsResult =
+          OciIAMCredentialSchema.safeParse(parsedSecretKey);
+        if (!credentialsResult.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "OCI IAM credentials must include tenancyId, userId, fingerprint, and privateKey.",
+            path: ["secretKey"],
           });
         }
       }
