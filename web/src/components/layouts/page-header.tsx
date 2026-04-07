@@ -49,6 +49,7 @@ export type PageHeaderProps = {
   tabsProps?: PageTabsProps;
   className?: string;
   showSidebarTrigger?: boolean;
+  showTopRow?: boolean;
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
   breadcrumbBadges?: ReactNode;
@@ -66,6 +67,7 @@ const PageHeader = ({
   container = false,
   className,
   showSidebarTrigger = true,
+  showTopRow = true,
   leadingControl,
   titleBadges,
   breadcrumbBadges,
@@ -80,30 +82,31 @@ const PageHeader = ({
       id="page-header"
     >
       <div className="flex flex-col justify-center">
-        {/* Top Row */}
-        <div className="border-b">
-          <div
-            className={cn(
-              "flex min-h-11 items-center gap-3 px-3 py-2",
-              container && containerLayoutClassName,
-            )}
-          >
-            {showSidebarTrigger ? (
-              <SidebarTrigger />
-            ) : (
-              leadingControl && (
-                <div className="flex items-center">{leadingControl}</div>
-              )
-            )}
-            <div>
-              <EnvLabel />
-            </div>
-            <div className="flex items-center gap-2">
-              <BreadcrumbComponent items={breadcrumb} />
-              {breadcrumbBadges}
+        {showTopRow ? (
+          <div className="border-b">
+            <div
+              className={cn(
+                "flex min-h-11 items-center gap-3 px-3 py-2",
+                container && containerLayoutClassName,
+              )}
+            >
+              {showSidebarTrigger ? (
+                <SidebarTrigger />
+              ) : (
+                leadingControl && (
+                  <div className="flex items-center">{leadingControl}</div>
+                )
+              )}
+              <div>
+                <EnvLabel />
+              </div>
+              <div className="flex items-center gap-2">
+                <BreadcrumbComponent items={breadcrumb} />
+                {breadcrumbBadges}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {/* Bottom Row */}
         <div className="bg-header">

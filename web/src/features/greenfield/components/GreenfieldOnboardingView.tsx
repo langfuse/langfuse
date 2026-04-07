@@ -17,6 +17,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -27,55 +28,31 @@ import {
 } from "../lib/greenfieldOnboardingData";
 
 type GreenfieldOnboardingViewProps = {
-  firstName: string;
   projectId: string;
   organizationId?: string | null;
 };
 
 export function GreenfieldOnboardingView({
-  firstName,
   projectId,
   organizationId,
 }: GreenfieldOnboardingViewProps) {
   const data = getGreenfieldOnboardingData({ projectId, organizationId });
+  const defaultOpenPillars = data.pillars
+    .filter((pillar) => pillar.status === "active")
+    .map((pillar) => pillar.id);
 
   return (
-    <div className="flex min-h-full justify-center px-2 py-4 sm:px-4 sm:py-6">
-      <div className="w-full max-w-[44rem] space-y-6">
-        <header className="bg-background flex flex-wrap items-start justify-between gap-4 rounded-3xl border px-5 py-5 shadow-xs sm:px-6">
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-sm font-medium">
-              Greenfield onboarding
-            </p>
-            <h1 className="max-w-[18ch] text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              You&apos;re on your way, {firstName}
-            </h1>
-            <p className="text-muted-foreground max-w-[54ch] text-base text-pretty">
-              This is a source-inspired scaffold for the new onboarding flow. It
-              preserves the structure of the reference while leaving the product
-              logic easy to replace later.
-            </p>
-          </div>
-          <div className="bg-muted/20 flex items-center gap-4 rounded-2xl border px-4 py-3">
-            <div className="space-y-1">
-              <p className="text-muted-foreground text-sm font-medium">
-                Completion
-              </p>
-              <p className="text-xl font-semibold tabular-nums">
-                {data.completedTracks} of {data.totalTracks}
-              </p>
-            </div>
-            <CircularProgress
-              value={(data.completedTracks / data.totalTracks) * 100}
-            />
-          </div>
-        </header>
-
-        <div className="space-y-4">
+    <div className="w-full py-3">
+      <div className="mx-auto w-full max-w-screen-xl px-12 sm:px-16 lg:px-24">
+        <Accordion
+          type="multiple"
+          defaultValue={defaultOpenPillars}
+          className="space-y-3"
+        >
           {data.pillars.map((pillar) => (
             <PillarSection key={pillar.id} pillar={pillar} />
           ))}
-        </div>
+        </Accordion>
       </div>
     </div>
   );
@@ -88,54 +65,62 @@ function PillarSection({ pillar }: { pillar: GreenfieldPillar }) {
     .map((quest) => quest.id);
 
   return (
-    <section className="bg-muted/20 rounded-[1.75rem] border p-2.5">
-      <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl px-3 py-2 sm:px-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div
-            className={cn(
-              "flex size-10 items-center justify-center rounded-2xl border",
-              pillar.status === "active"
-                ? "border-primary/15 bg-primary/10 text-primary"
-                : "border-border bg-background text-muted-foreground",
-            )}
-          >
-            <PillarIcon className="size-[1.125rem]" />
-          </div>
-          <div className="min-w-0">
-            <h2
+    <AccordionItem
+      value={pillar.id}
+      className={cn(
+        "bg-card overflow-hidden rounded-lg border shadow-xs",
+        pillar.status === "locked" && "bg-muted/10",
+      )}
+    >
+      <AccordionTrigger className="[&>svg]:text-muted-foreground gap-4 px-4 py-4 hover:no-underline [&>svg]:mr-1">
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
               className={cn(
-                "text-lg font-semibold",
-                pillar.status === "locked" && "text-muted-foreground",
+                "flex size-10 shrink-0 items-center justify-center rounded-md border",
+                pillar.status === "active"
+                  ? "border-primary/15 bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground border-transparent",
               )}
             >
-              {pillar.title}
-            </h2>
-            <p className="text-muted-foreground text-sm tabular-nums">
-              {pillar.quests.length} quests
-            </p>
+              <PillarIcon className="size-[1.125rem]" />
+            </div>
+            <div className="min-w-0 space-y-1 text-left">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold">{pillar.title}</h2>
+                <Badge
+                  variant={
+                    pillar.status === "locked" ? "outline-solid" : "secondary"
+                  }
+                >
+                  {pillar.status === "locked" ? "Locked" : "Not started"}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground max-w-[52ch] text-sm text-pretty">
+                {getPillarDescription(pillar.id)}
+              </p>
+            </div>
           </div>
+          <Badge variant="outline-solid">{pillar.quests.length} quests</Badge>
         </div>
-        {pillar.status === "locked" ? (
-          <div className="bg-background text-muted-foreground flex size-9 items-center justify-center rounded-xl">
-            <Lock className="size-4" />
-          </div>
-        ) : null}
-      </div>
+      </AccordionTrigger>
 
-      <Accordion
-        type="multiple"
-        defaultValue={defaultOpenQuests}
-        className="space-y-2"
-      >
-        {pillar.quests.map((quest) =>
-          quest.status === "locked" ? (
-            <LockedQuestCard key={quest.id} quest={quest} />
-          ) : (
-            <QuestAccordionItem key={quest.id} quest={quest} />
-          ),
-        )}
-      </Accordion>
-    </section>
+      <AccordionContent className="border-t px-4 pt-4 pb-4">
+        <Accordion
+          type="multiple"
+          defaultValue={defaultOpenQuests}
+          className="space-y-2"
+        >
+          {pillar.quests.map((quest) =>
+            quest.status === "locked" ? (
+              <LockedQuestCard key={quest.id} quest={quest} />
+            ) : (
+              <QuestAccordionItem key={quest.id} quest={quest} />
+            ),
+          )}
+        </Accordion>
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 
@@ -144,13 +129,19 @@ function QuestAccordionItem({ quest }: { quest: GreenfieldQuest }) {
     (task) => task.status === "completed",
   ).length;
   const totalTasks = quest.tasks?.length ?? 0;
+  const questState =
+    completedTasks === totalTasks && totalTasks > 0
+      ? "complete"
+      : completedTasks > 0
+        ? "active"
+        : "not-started";
 
   return (
     <AccordionItem
       value={quest.id}
-      className="bg-background overflow-hidden rounded-2xl border shadow-xs"
+      className="bg-background overflow-hidden rounded-lg border px-0 shadow-xs"
     >
-      <AccordionTrigger className="[&>svg]:text-muted-foreground gap-4 px-4 py-4 hover:no-underline [&>svg]:mt-1">
+      <AccordionTrigger className="[&>svg]:text-muted-foreground gap-4 px-4 py-4 hover:no-underline [&>svg]:mt-1 [&>svg]:mr-1">
         <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <QuestStatusIcon status="active" />
@@ -163,19 +154,9 @@ function QuestAccordionItem({ quest }: { quest: GreenfieldQuest }) {
               </p>
             </div>
           </div>
-          <QuestStatusPill
-            label={completedTasks === totalTasks ? "Done" : "In progress"}
-            variant={completedTasks === totalTasks ? "complete" : "active"}
-          />
+          <QuestStatusPill state={questState} />
         </div>
       </AccordionTrigger>
-
-      <div className="px-4 pb-4">
-        <SegmentedProgress
-          completeCount={completedTasks ?? 0}
-          totalCount={totalTasks}
-        />
-      </div>
 
       <AccordionContent className="px-4 pb-4">
         <ul role="list" className="space-y-2">
@@ -190,7 +171,7 @@ function QuestAccordionItem({ quest }: { quest: GreenfieldQuest }) {
 
 function LockedQuestCard({ quest }: { quest: GreenfieldQuest }) {
   return (
-    <div className="bg-background rounded-2xl border px-4 py-4 opacity-75 shadow-xs">
+    <div className="bg-background rounded-lg border px-4 py-4 opacity-75 shadow-xs">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <QuestStatusIcon status="locked" />
@@ -203,7 +184,7 @@ function LockedQuestCard({ quest }: { quest: GreenfieldQuest }) {
             </p>
           </div>
         </div>
-        <QuestStatusPill label="Not started" variant="locked" />
+        <QuestStatusPill state="locked" />
       </div>
     </div>
   );
@@ -215,7 +196,7 @@ function TaskRow({ task }: { task: GreenfieldTask }) {
   return (
     <li
       className={cn(
-        "rounded-2xl border px-4 py-3",
+        "rounded-lg border px-4 py-3",
         isComplete
           ? "border-border/60 bg-muted/20"
           : "border-primary/15 bg-primary/5",
@@ -276,102 +257,38 @@ function TaskRow({ task }: { task: GreenfieldTask }) {
 function QuestStatusIcon({ status }: { status: "active" | "locked" }) {
   if (status === "locked") {
     return (
-      <div className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
+      <div className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md">
         <Lock className="size-4" />
       </div>
     );
   }
 
   return (
-    <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-2xl">
+    <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-md">
       <CircleDashed className="size-4" />
     </div>
   );
 }
 
 function QuestStatusPill({
-  label,
-  variant,
+  state,
 }: {
-  label: string;
-  variant: "active" | "complete" | "locked";
+  state: "active" | "complete" | "not-started" | "locked";
 }) {
+  const config = {
+    active: { label: "In progress", variant: "warning" as const },
+    complete: { label: "Done", variant: "success" as const },
+    "not-started": { label: "Not started", variant: "outline-solid" as const },
+    locked: { label: "Locked", variant: "outline-solid" as const },
+  }[state];
+
   return (
-    <span
-      className={cn(
-        "inline-flex h-7 items-center rounded-full px-3 text-sm font-medium whitespace-nowrap",
-        variant === "active" && "bg-primary/10 text-primary",
-        variant === "complete" && "bg-primary/10 text-primary",
-        variant === "locked" && "bg-muted text-muted-foreground",
-      )}
+    <Badge
+      variant={config.variant}
+      className="rounded-full px-3 py-1 text-[11px]"
     >
-      {label}
-    </span>
-  );
-}
-
-function SegmentedProgress({
-  completeCount,
-  totalCount,
-}: {
-  completeCount: number;
-  totalCount: number;
-}) {
-  return (
-    <div className="flex gap-2">
-      {Array.from({ length: totalCount }).map((_, index) => (
-        <div
-          key={index}
-          className={cn(
-            "h-1.5 flex-1 rounded-full transition-colors",
-            index < completeCount ? "bg-primary" : "bg-muted",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function CircularProgress({ value }: { value: number }) {
-  const radius = 18;
-  const circumference = 2 * Math.PI * radius;
-  const clampedValue = Math.max(0, Math.min(100, value));
-  const offset = circumference - (clampedValue / 100) * circumference;
-
-  return (
-    <div className="relative flex size-12 items-center justify-center">
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 48 48"
-        className="-rotate-90 transform"
-      >
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          stroke="currentColor"
-          strokeWidth="5"
-          fill="none"
-          className="text-primary/10"
-        />
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          stroke="currentColor"
-          strokeWidth="5"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="text-primary transition-all duration-300"
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums">
-        {Math.round(clampedValue)}%
-      </span>
-    </div>
+      {config.label}
+    </Badge>
   );
 }
 
@@ -383,6 +300,17 @@ function getPillarIcon(pillarId: GreenfieldPillar["id"]) {
       return FlaskConical;
     default:
       return FilePen;
+  }
+}
+
+function getPillarDescription(pillarId: GreenfieldPillar["id"]) {
+  switch (pillarId) {
+    case "iterate":
+      return "Set up the first prompt workflow and bring the right people into it.";
+    case "evaluate":
+      return "Add the dataset and quality loop once the prompt flow is in motion.";
+    default:
+      return "Complete the next onboarding steps.";
   }
 }
 

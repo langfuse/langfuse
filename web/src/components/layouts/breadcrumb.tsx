@@ -92,6 +92,8 @@ const BreadcrumbComponent = ({
         )
       : `/organization/${orgId}`;
 
+  const hasContextBreadcrumb = Boolean(organization || project);
+
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
@@ -284,9 +286,11 @@ const BreadcrumbComponent = ({
         )}
         {items?.map((item, index) => (
           <Fragment key={index}>
-            <BreadcrumbSeparator>
-              <Slash />
-            </BreadcrumbSeparator>
+            {(hasContextBreadcrumb || index > 0) && (
+              <BreadcrumbSeparator>
+                <Slash />
+              </BreadcrumbSeparator>
+            )}
             <BreadcrumbItem key={index}>
               {item.href ? (
                 <BreadcrumbLink asChild>

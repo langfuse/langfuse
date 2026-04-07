@@ -63,7 +63,7 @@ importers:
         version: 16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -243,7 +243,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nodemailer:
         specifier: ^7.0.11
         version: 7.0.11
@@ -539,6 +539,9 @@ importers:
       '@uiw/react-codemirror':
         specifier: ^4.25.8
         version: 4.25.8(@babel/runtime@7.29.2)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.38.8)(@lezer/common@1.5.1))(@codemirror/language@6.12.3)(@codemirror/lint@6.9.5)(@codemirror/search@6.6.0)(@codemirror/state@6.6.0)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.5.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      agentation:
+        specifier: ^3.0.2
+        version: 3.0.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -619,7 +622,7 @@ importers:
         version: 16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-auth:
         specifier: ^4.24.13
-        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(use-query-params@2.2.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
@@ -5952,6 +5955,17 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  agentation@3.0.2:
+    resolution: {integrity: sha512-iGzBxFVTuZEIKzLY6AExSLAQH6i6SwxV4pAu7v7m3X6bInZ7qlZXAwrEqyc4+EfP4gM7z2RXBF6SF4DeH0f2lA==}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -13835,7 +13849,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.17.1(prisma@6.17.1(magicast@0.5.2)(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))':
     dependencies:
       '@prisma/client': 6.17.1(prisma@6.17.1(magicast@0.5.2)(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next-auth: 4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   '@next/env@16.2.1': {}
 
@@ -17112,6 +17126,11 @@ snapshots:
 
   agent-base@7.1.4: {}
 
+  agentation@3.0.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    optionalDependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
   ajv-formats@2.1.1(ajv@8.18.0):
     optionalDependencies:
       ajv: 8.18.0
@@ -18374,7 +18393,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -21013,7 +21032,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next-auth@4.24.13(patch_hash=7b301d2607ee3cd8bba4f6978ba8cdd7a616b59d6e414191da3b38950ce08e66)(next@16.2.1(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@7.0.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@babel/runtime': 7.28.4
       '@panva/hkdf': 1.2.1

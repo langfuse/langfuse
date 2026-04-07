@@ -69,12 +69,12 @@ export const getGreenfieldOnboardingData = ({
             {
               id: "choose-model",
               title: "Choose a model",
-              status: "completed",
+              status: "active",
             },
             {
               id: "write-prompt",
               title: "Write a simple prompt",
-              status: "completed",
+              status: "active",
             },
             {
               id: "run-playground",

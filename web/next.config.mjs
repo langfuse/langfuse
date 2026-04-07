@@ -64,11 +64,6 @@ const nextConfig = {
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
-  turbopack: {
-    resolveAlias: {
-      "@langfuse/shared": "./packages/shared/src",
-    },
-  },
   logging: {
     browserToTerminal: true,
   },

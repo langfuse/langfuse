@@ -1,4 +1,3 @@
-import { useSession } from "next-auth/react";
 import Page from "@/src/components/layouts/page";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import {
@@ -6,13 +5,7 @@ import {
   greenfieldReferenceGaps,
 } from "../components/GreenfieldOnboardingView";
 
-function getFirstName(name?: string | null) {
-  if (!name) return "there";
-  return name.trim().split(/\s+/)[0] || "there";
-}
-
 export default function GreenfieldOnboardingPage() {
-  const { data: session } = useSession();
   const { project, organization } = useQueryProject();
 
   if (!project) {
@@ -45,7 +38,6 @@ export default function GreenfieldOnboardingPage() {
       }}
     >
       <GreenfieldOnboardingView
-        firstName={getFirstName(session?.user.name)}
         projectId={project.id}
         organizationId={organization?.id}
       />
