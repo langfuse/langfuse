@@ -3295,7 +3295,7 @@
     "modelName": "claude-sonnet-4-6",
     "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-04-26T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
