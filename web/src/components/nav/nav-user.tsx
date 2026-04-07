@@ -57,7 +57,7 @@ export function NavUser({ user, items }: UserNavigationProps) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-foreground rounded-xl data-[state=open]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -65,13 +65,16 @@ export function NavUser({ user, items }: UserNavigationProps) {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.name}</span>
-                <span className="truncate text-xs" title={user.email}>
+              <div className="grid min-w-0 flex-1 text-left">
+                <p className="truncate text-sm font-medium">{user.name}</p>
+                <p
+                  className="text-sidebar-foreground/60 truncate text-[0.8125rem]"
+                  title={user.email}
+                >
                   {user.email}
-                </span>
+                </p>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
+              <ChevronsUpDown className="text-sidebar-foreground/50 ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -81,18 +84,21 @@ export function NavUser({ user, items }: UserNavigationProps) {
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+              <div className="flex items-center gap-2 px-1 py-1.5 text-left">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="rounded-lg">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
-                  <span className="truncate text-xs" title={user.email}>
+                <div className="grid min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-medium">{user.name}</p>
+                  <p
+                    className="text-muted-foreground truncate text-[0.8125rem]"
+                    title={user.email}
+                  >
                     {user.email}
-                  </span>
+                  </p>
                 </div>
               </div>
             </DropdownMenuLabel>

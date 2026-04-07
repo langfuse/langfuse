@@ -48,22 +48,21 @@ export function AppSidebar({
 }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-sidebar-border/70 border-b">
         <div className="flex min-h-9 items-center gap-2 py-2 pr-0 pl-2 group-data-[collapsible=icon]:p-3">
           <LangfuseLogo version />
         </div>
-        <div className="h-1 flex-1 border-b" />
         <DemoBadge />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="pb-2">
         <NavMain items={navItems} />
         <div className="flex-1" />
-        <div className="flex flex-col gap-2 p-2">
+        <div className="border-sidebar-border/70 mt-2 border-t pt-2 group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:pt-0">
+          <NavMain items={secondaryNavItems} />
           <SidebarNotifications />
         </div>
-        <NavMain items={secondaryNavItems} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-sidebar-border/70 border-t px-2 pt-2 pb-2">
         <NavUser {...userNavProps} />
       </SidebarFooter>
       <SidebarRail />
@@ -87,8 +86,10 @@ const DemoBadge = () => {
     return null;
 
   return (
-    <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+    <SidebarGroup className="mx-2 rounded-xl border border-amber-200/70 bg-amber-50/80 px-2 py-2 text-amber-950 group-data-[collapsible=icon]:hidden dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100">
+      <SidebarGroupLabel className="mb-1 h-auto px-0 text-amber-900/70 dark:text-amber-100/70">
+        Demo Project (view only)
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>

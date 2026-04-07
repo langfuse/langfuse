@@ -21,8 +21,8 @@ import {
 import { Portal } from "@radix-ui/react-tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
-const SIDEBAR_WIDTH = "11.5rem";
-const SIDEBAR_WIDTH_MOBILE = "12rem";
+const SIDEBAR_WIDTH = "13rem";
+const SIDEBAR_WIDTH_MOBILE = "14rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
@@ -436,7 +436,7 @@ const SidebarGroup = React.forwardRef<
       ref={ref}
       data-sidebar="group"
       className={cn(
-        "relative flex w-full min-w-0 flex-col py-1 first:pt-0",
+        "relative flex w-full min-w-0 flex-col px-2 py-1 first:pt-0",
         "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
         className,
       )}
@@ -457,9 +457,8 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center px-[9px] text-xs font-medium whitespace-nowrap outline-hidden transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground/55 ring-sidebar-ring mb-1 flex h-6 shrink-0 items-center px-0 text-[0.6875rem] font-medium whitespace-nowrap outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:hidden",
-        "-mb-2",
         className,
       )}
       {...props}
@@ -511,8 +510,9 @@ const SidebarMenu = React.forwardRef<
   <ul
     ref={ref}
     data-sidebar="menu"
+    role="list"
     className={cn(
-      "flex w-full min-w-0 flex-col gap-0.5 pt-1",
+      "flex w-full min-w-0 flex-col gap-1 pt-0.5",
       "group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:pt-0",
       className,
     )}
@@ -535,13 +535,13 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden group-data-[collapsible=icon]:rounded-sm p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button text-sidebar-foreground/80 relative flex w-full items-center gap-2 overflow-hidden rounded-lg p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent/70 hover:text-sidebar-foreground focus-visible:ring-2 active:bg-sidebar-accent/80 active:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent/80 data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 before:absolute before:top-2 before:bottom-2 before:left-1 before:w-px before:rounded-full before:bg-transparent data-[active=true]:before:bg-sidebar-primary/70 group-data-[collapsible=icon]:before:hidden",
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        default: "",
         outline:
-          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent/80 hover:text-sidebar-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
         cta: "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/80 active:text-primary-foreground",
       },
       size: {
@@ -715,6 +715,7 @@ const SidebarMenuSub = React.forwardRef<
   <ul
     ref={ref}
     data-sidebar="menu-sub"
+    role="list"
     className={cn(
       "border-sidebar-border flex min-w-0 translate-x-px flex-col py-0.5",
       "group-data-[collapsible=icon]:hidden",

@@ -76,12 +76,12 @@ export function SidebarNotifications() {
       {activeNotifications.map((notification) => (
         <Card
           key={notification.id}
-          className="bg-opacity-50 relative max-h-60 overflow-hidden rounded-md shadow-none"
+          className="border-sidebar-border/70 bg-sidebar-accent/25 relative max-h-60 overflow-hidden rounded-xl shadow-none"
         >
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
+            className="absolute top-2 right-2 h-6 w-6 rounded-full p-0"
             onClick={() => {
               capture("notification:dismiss_notification", {
                 notification_id: notification.id,
@@ -92,13 +92,15 @@ export function SidebarNotifications() {
           >
             <X className="h-3.5 w-3.5" />
           </Button>
-          <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
-            <CardTitle className="text-sm">{notification.title}</CardTitle>
-            <CardDescription className="mt-1">
+          <CardHeader className="px-3 pt-3 pr-8 pb-0">
+            <CardTitle className="text-sm font-medium">
+              {notification.title}
+            </CardTitle>
+            <CardDescription className="text-sidebar-foreground/70 mt-1 text-sm">
               {notification.description}
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-3 pt-1.5 pb-2.5">
+          <CardContent className="px-3 pt-2 pb-3">
             {notification.link &&
               (notification.linkContent ? (
                 <Link
