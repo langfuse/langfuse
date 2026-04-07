@@ -50,8 +50,8 @@ export type WorkspacePreviewNode = {
 export const PROMPT_STAGES: PromptStage[] = [
   "iterate",
   "evaluate",
-  "monitor",
   "deploy",
+  "monitor",
 ];
 
 export const PLACEHOLDER_COPY = {
