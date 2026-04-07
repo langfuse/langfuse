@@ -277,7 +277,7 @@ export default function ObservationsEventsTable({
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-events-${projectId}`,
-      60_000,
+      null,
     );
 
   // Validate session storage value against allowed intervals
