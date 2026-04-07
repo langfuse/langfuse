@@ -1856,7 +1856,7 @@ export const getAggregatedScoresForPrompts = async (
   });
 
   return rows.map((row) => ({
-    ...convertScoreAggregation<AggregatableScoreDataType>(row),
+    ...convertScoreAggregation<ListableScoreDataType>(row),
     promptId: row.prompt_id,
     hasMetadata: !!row.has_metadata,
   }));
