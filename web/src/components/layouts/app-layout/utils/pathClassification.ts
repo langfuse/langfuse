@@ -9,7 +9,7 @@ export const PATH_CONSTANTS = {
   public: ["/dev"] as const,
   // DEV ONLY: public routes that render their own full app shell and should
   // not inherit MinimalLayout padding/chrome.
-  publicFullBleed: ["/dev/greenfield", "/dev/dashboard"] as const,
+  publicFullBleed: ["/dev/"] as const,
   unauthenticated: [
     "/auth/sign-in",
     "/auth/sign-up",

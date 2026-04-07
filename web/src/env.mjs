@@ -453,6 +453,7 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+    NEXT_PUBLIC_DEV_SKIP_AUTH: z.enum(["true", "false"]).default("true"),
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT: z
       .enum(["true", "false"])
       .optional()
@@ -474,6 +475,7 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    NEXT_PUBLIC_DEV_SKIP_AUTH: process.env.NEXT_PUBLIC_DEV_SKIP_AUTH,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,

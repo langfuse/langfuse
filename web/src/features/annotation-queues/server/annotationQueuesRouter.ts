@@ -16,6 +16,12 @@ import {
 import { getObservationById, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import {
+  getMockAnnotationQueueNamesAndIds,
+  getMockAnnotationQueues,
+  getMockAnnotationQueuesHasAny,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -25,6 +31,10 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockAnnotationQueuesHasAny(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -49,6 +59,10 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockAnnotationQueues(input.projectId, input);
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -146,6 +160,10 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockAnnotationQueueNamesAndIds(input.projectId);
+      }
+
       try {
         const queueNamesAndIds = await ctx.prisma.annotationQueue.findMany({
           where: {

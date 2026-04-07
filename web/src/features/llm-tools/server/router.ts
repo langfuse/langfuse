@@ -13,6 +13,10 @@ import {
   DeleteLlmToolInput,
   UpdateLlmToolInput,
 } from "../validation";
+import {
+  getMockLlmTools,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 export const llmToolRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -79,6 +83,10 @@ export const llmToolRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockLlmTools(input.projectId);
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,

@@ -40,6 +40,14 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import {
+  getMockPromptCount,
+  getMockPromptFilterOptions,
+  getMockPromptMetrics,
+  getMockPrompts,
+  getMockPromptsHasAny,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -67,6 +75,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptsHasAny(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -86,6 +98,10 @@ export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPrompts(input.projectId, input);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -182,6 +198,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptCount(input.projectId, input.searchQuery);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -242,6 +262,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptMetrics(input.projectId, input.promptNames);
+      }
+
       if (input.promptNames.length === 0) return [];
       const res = await getObservationsWithPromptName(
         input.projectId,
@@ -425,6 +449,10 @@ export const promptRouter = createTRPCRouter({
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptFilterOptions(input.projectId);
+      }
+
       const [names, tags, labels] = await Promise.all([
         ctx.prisma.prompt.groupBy({
           where: {

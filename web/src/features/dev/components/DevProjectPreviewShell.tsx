@@ -8,6 +8,7 @@ import {
   Grid2X2,
   Home,
   LayoutDashboard,
+  Lightbulb,
   ListTree,
   Settings,
   SquarePercent,
@@ -18,25 +19,18 @@ import dynamic from "next/dynamic";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import Page from "@/src/components/layouts/page";
 import { RouteGroup } from "@/src/components/layouts/routes";
-import { Badge } from "@/src/components/ui/badge";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { DEV_PATHS } from "../lib/devPages";
 
 const Agentation = dynamic(
   () => import("agentation").then((mod) => mod.Agentation),
   { ssr: false },
 );
 
-const DEV_ROUTES = {
-  home: "/dev/dashboard",
-  organizations: "/dev/organization-overview",
-  greenfield: "/dev/greenfield",
-} as const;
-
 type DevProjectPreviewShellProps = {
   currentPath: string;
   title: string;
-  helpDescription: ReactNode;
   children: ReactNode;
 };
 
@@ -46,7 +40,6 @@ type DevProjectPreviewShellProps = {
 export function DevProjectPreviewShell({
   currentPath,
   title,
-  helpDescription,
   children,
 }: DevProjectPreviewShellProps) {
   const previewNavigation = {
@@ -54,82 +47,88 @@ export function DevProjectPreviewShell({
       ungrouped: [
         {
           title: "Organizations",
-          url: DEV_ROUTES.organizations,
+          url: DEV_PATHS.organizations,
           icon: Grid2X2,
-          isActive: currentPath === DEV_ROUTES.organizations,
+          isActive: currentPath === DEV_PATHS.organizations,
         },
         {
           title: "Home",
-          url: DEV_ROUTES.home,
+          url: DEV_PATHS.home,
           icon: Home,
-          isActive: currentPath === DEV_ROUTES.home,
+          isActive: currentPath === DEV_PATHS.home,
         },
         {
           title: "Dashboards",
-          url: DEV_ROUTES.home,
+          url: DEV_PATHS.dashboard,
           icon: LayoutDashboard,
-          isActive: currentPath === DEV_ROUTES.home,
+          isActive: currentPath === DEV_PATHS.dashboard,
         },
       ],
       grouped: {
         [RouteGroup.Observability]: [
           {
             title: "Tracing",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.tracing,
             icon: ListTree,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.tracing,
           },
           {
             title: "Sessions",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.sessions,
             icon: Clock,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.sessions,
           },
           {
             title: "Users",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.users,
             icon: UsersIcon,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.users,
           },
         ],
         [RouteGroup.PromptManagement]: [
           {
             title: "Prompts",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.prompts,
             icon: FileJson,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.prompts,
           },
           {
             title: "Playground",
-            url: DEV_ROUTES.greenfield,
+            url: DEV_PATHS.playground,
             icon: TerminalIcon,
-            isActive: currentPath === DEV_ROUTES.greenfield,
+            isActive: currentPath === DEV_PATHS.playground,
           },
         ],
         [RouteGroup.Evaluation]: [
           {
             title: "Scores",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.scores,
             icon: SquarePercent,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.scores,
+          },
+          {
+            title: "LLM-as-a-Judge",
+            url: DEV_PATHS.evals,
+            icon: Lightbulb,
+            isActive: currentPath === DEV_PATHS.evals,
           },
           {
             title: "Human Annotation",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.humanAnnotation,
             icon: ClipboardPen,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.humanAnnotation,
           },
           {
             title: "Datasets",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.datasets,
             icon: Database,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.datasets,
           },
           {
             title: "Experiments",
-            url: DEV_ROUTES.home,
+            url: DEV_PATHS.experiments,
             icon: Beaker,
-            isActive: false,
+            isActive: currentPath === DEV_PATHS.experiments,
             label: "Beta",
           },
         ],
@@ -139,9 +138,9 @@ export function DevProjectPreviewShell({
       ungrouped: [
         {
           title: "Settings",
-          url: DEV_ROUTES.home,
+          url: DEV_PATHS.settings,
           icon: Settings,
-          isActive: false,
+          isActive: currentPath === DEV_PATHS.settings,
         },
       ],
       grouped: null,
@@ -158,8 +157,8 @@ export function DevProjectPreviewShell({
               secondaryNavItems={previewNavigation.secondaryNavigation}
               userNavProps={{
                 user: {
-                  name: "Design Preview",
-                  email: "preview@langfuse.local",
+                  name: "Evren Dombak",
+                  email: "evren@langfuse.local",
                   avatar: "",
                 },
                 items: [
@@ -168,7 +167,6 @@ export function DevProjectPreviewShell({
                     onClick: () => {},
                     content: <ThemeToggle />,
                   },
-                  { name: "Auth bypass active" },
                 ],
               }}
             />
@@ -182,14 +180,6 @@ export function DevProjectPreviewShell({
                     { name: "langofuso", href: "/" },
                     { name: "langfuse-redesign" },
                   ],
-                  titleBadges: (
-                    <Badge variant="warning" size="sm">
-                      DEV ONLY: Auth bypass active
-                    </Badge>
-                  ),
-                  help: {
-                    description: helpDescription,
-                  },
                 }}
               >
                 {children}

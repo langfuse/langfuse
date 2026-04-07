@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -15,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { DevProjectPreviewShell } from "@/src/features/dev/components/DevProjectPreviewShell";
 import { OrganizationOverviewView } from "@/src/features/organizations/components/OrganizationOverviewView";
 import {
   organizationOverviewPlaygroundScenarios,
@@ -24,6 +26,7 @@ import {
 const defaultScenario = organizationOverviewPlaygroundScenarios[0];
 
 export default function OrganizationOverviewDevPage() {
+  const router = useRouter();
   const [scenario, setScenario] =
     useState<OrganizationOverviewPlaygroundScenario>(defaultScenario);
   const [search, setSearch] = useState(defaultScenario.initialSearch ?? "");
@@ -33,38 +36,40 @@ export default function OrganizationOverviewDevPage() {
   }, [scenario]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization Overview Playground</CardTitle>
-          <CardDescription>
-            Dev-only design sandbox. Switch between mocked states without auth,
-            backend data, or session dependencies.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {organizationOverviewPlaygroundScenarios.map((item) => (
-            <Button
-              key={item.key}
-              variant={scenario.key === item.key ? "default" : "secondary"}
-              onClick={() => setScenario(item)}
-            >
-              {item.label}
-            </Button>
-          ))}
-          <p className="text-muted-foreground basis-full text-sm">
-            {scenario.description}
-          </p>
-        </CardContent>
-      </Card>
+    <DevProjectPreviewShell currentPath={router.pathname} title="Organizations">
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Organization Overview Playground</CardTitle>
+            <CardDescription>
+              Switch between seeded states while iterating on the organization
+              landing experience.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {organizationOverviewPlaygroundScenarios.map((item) => (
+              <Button
+                key={item.key}
+                variant={scenario.key === item.key ? "default" : "secondary"}
+                onClick={() => setScenario(item)}
+              >
+                {item.label}
+              </Button>
+            ))}
+            <p className="text-muted-foreground basis-full text-sm">
+              {scenario.description}
+            </p>
+          </CardContent>
+        </Card>
 
-      <OrganizationOverviewView
-        organizations={scenario.organizations}
-        canCreateOrg={scenario.canCreateOrg}
-        search={search}
-        selectedOrganizationId={scenario.selectedOrganizationId}
-        onSearchChange={setSearch}
-      />
-    </div>
+        <OrganizationOverviewView
+          organizations={scenario.organizations}
+          canCreateOrg={scenario.canCreateOrg}
+          search={search}
+          selectedOrganizationId={scenario.selectedOrganizationId}
+          onSearchChange={setSearch}
+        />
+      </div>
+    </DevProjectPreviewShell>
   );
 }

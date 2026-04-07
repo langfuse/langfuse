@@ -1,15 +1,12 @@
 import Link from "next/link";
 import {
-  Braces,
   ChevronRight,
   CircleCheck,
   CircleDashed,
   ExternalLink,
   FilePen,
   FlaskConical,
-  ImagePlus,
   Lock,
-  Users,
 } from "lucide-react";
 import {
   Accordion,
@@ -313,17 +310,3 @@ function getPillarDescription(pillarId: GreenfieldPillar["id"]) {
       return "Complete the next onboarding steps.";
   }
 }
-
-export const greenfieldReferenceGaps = [
-  "The source artifact does not define a real quest or task schema, so this page uses typed mock data.",
-  "Quest locking is visual only for now because no dependency graph or completion rules exist in the current codebase.",
-  "Completion math is static at the summary level because the source does not expose how top-level progress should be derived.",
-  "CTA destinations are partially inferred from existing Langfuse routes, not provided by the source itself.",
-  "The original token system is absent from Langfuse, so the surface styling is translated into the repo's existing Tailwind theme.",
-] as const;
-
-export const greenfieldReferenceIcons = {
-  images: ImagePlus,
-  invite: Users,
-  variables: Braces,
-};

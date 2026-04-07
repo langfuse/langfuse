@@ -78,6 +78,10 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  devAuthBasePath,
+  isDevAuthBypassEnabled,
+} from "@/src/features/auth/lib/devAuthBypass";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -136,9 +140,13 @@ const MyApp: AppType<{ session: Session | null }> = ({
           <PostHogProvider client={posthog}>
             <SessionProvider
               session={session}
-              refetchOnWindowFocus={true}
-              refetchInterval={5 * 60} // 5 minutes
-              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+              refetchOnWindowFocus={!isDevAuthBypassEnabled}
+              refetchInterval={isDevAuthBypassEnabled ? 0 : 5 * 60} // 5 minutes
+              basePath={
+                isDevAuthBypassEnabled
+                  ? devAuthBasePath
+                  : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`
+              }
             >
               <DetailPageListsProvider>
                 <MarkdownContextProvider>

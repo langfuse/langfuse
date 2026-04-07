@@ -30,6 +30,7 @@ import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
+import { isDevAuthBypassEnabled } from "@/src/features/auth/lib/devAuthBypass";
 
 /**
  * Main layout component
@@ -131,6 +132,10 @@ export function AppLayout(props: PropsWithChildren) {
     sessionStorage.clear();
     if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
       posthog.reset();
+    }
+    if (isDevAuthBypassEnabled) {
+      await router.push("/");
+      return;
     }
     await signOut({
       callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,

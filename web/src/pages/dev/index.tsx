@@ -1,7 +1,7 @@
 /**
  * DEV ONLY
  *
- * Auth-free index for design sandboxes. Keep experimental pages linked here
+ * Auth-free index for design previews. Keep experimental pages linked here
  * so work stays under /dev and away from production routes.
  */
 
@@ -31,7 +31,7 @@ const devPages = [
   {
     href: "/dev/organization-overview",
     title: "Organization Overview",
-    description: "Design sandbox for the organization landing experience.",
+    description: "Design preview for the organization landing experience.",
   },
 ] as const;
 
@@ -40,7 +40,7 @@ export default function DevIndexPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Dev Sandbox</CardTitle>
+          <CardTitle>Dev Previews</CardTitle>
           <CardDescription>
             Experimental pages live under <code>/dev</code> so design work stays
             isolated from product routes.

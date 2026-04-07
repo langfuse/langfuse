@@ -64,6 +64,10 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import {
+  getDevBypassSession,
+  isDevAuthBypassEnabled,
+} from "@/src/server/devAuth";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -977,6 +981,16 @@ export const getServerAuthSession = async (ctx: {
   req: GetServerSidePropsContext["req"];
   res: GetServerSidePropsContext["res"];
 }) => {
+  if (isDevAuthBypassEnabled) {
+    ctx.res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    ctx.res.setHeader("Pragma", "no-cache");
+    ctx.res.setHeader("Expires", "0");
+    return await getDevBypassSession();
+  }
+
   const authOptions = await getAuthOptions();
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself

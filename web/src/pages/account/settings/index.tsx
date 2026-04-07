@@ -33,6 +33,7 @@ import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { env } from "@/src/env.mjs";
+import { isDevAuthBypassEnabled } from "@/src/features/auth/lib/devAuthBypass";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -153,6 +154,10 @@ function DeleteAccountButton() {
         description: "Your account has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (isDevAuthBypassEnabled) {
+        await router.push("/");
+        return;
+      }
       await signOut();
     } catch (error) {
       console.error(error);

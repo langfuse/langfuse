@@ -15,6 +15,12 @@ import {
   hasAnyUser,
   hasAnyUserFromEventsTable,
 } from "@langfuse/shared/src/server";
+import {
+  getMockUserMetrics,
+  getMockUsers,
+  getMockUsersHasAny,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -37,12 +43,20 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUsersHasAny(input.projectId);
+      }
+
       return await hasAnyUser(input.projectId);
     }),
 
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUsers(input.projectId, input);
+      }
+
       const [users, totalUsers] = await Promise.all([
         getTracesGroupedByUsers(
           ctx.session.projectId,
@@ -77,6 +91,10 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUserMetrics(input.projectId, input.userIds);
+      }
+
       if (input.userIds.length === 0) {
         return [];
       }
@@ -133,12 +151,20 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUsersHasAny(input.projectId);
+      }
+
       return await hasAnyUserFromEventsTable(input.projectId);
     }),
 
   allFromEvents: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUsers(input.projectId, input);
+      }
+
       const [users, totalUsers] = await Promise.all([
         getUsersFromEventsTable(
           ctx.session.projectId,
@@ -172,6 +198,10 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockUserMetrics(input.projectId, input.userIds);
+      }
+
       if (input.userIds.length === 0) {
         return [];
       }
