@@ -297,7 +297,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.stringValue`, previousScore.stringValue);
     form.setValue(`scoreData.${index}.comment`, previousScore.comment);
     form.setValue(`scoreData.${index}.timestamp`, previousScore.timestamp);
-    form.setError(`scoreData.${index}.value`, {
+    const errorField = isTextDataType(field.dataType)
+      ? `scoreData.${index}.stringValue`
+      : `scoreData.${index}.value`;
+    form.setError(errorField, {
       type: "server",
       message: "Failed to delete score",
     });
@@ -316,7 +319,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     // Optimistically clear form
-    form.clearErrors(`scoreData.${index}.value`);
+    const clearField = isTextDataType(field.dataType)
+      ? `scoreData.${index}.stringValue`
+      : `scoreData.${index}.value`;
+    form.clearErrors(clearField);
     update(index, {
       name: field.name,
       dataType: field.dataType,
@@ -351,7 +357,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   ) => {
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
+    const errorField = isTextDataType(controlledFields[index]?.dataType)
+      ? `scoreData.${index}.stringValue`
+      : `scoreData.${index}.value`;
+    form.setError(errorField, {
       type: "server",
       message: "Failed to update score",
     });
@@ -368,7 +377,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
+    const errorField = isTextDataType(controlledFields[index]?.dataType)
+      ? `scoreData.${index}.stringValue`
+      : `scoreData.${index}.value`;
+    form.setError(errorField, {
       type: "server",
       message: "Failed to create score",
     });
