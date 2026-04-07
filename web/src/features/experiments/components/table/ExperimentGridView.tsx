@@ -92,7 +92,11 @@ export const ExperimentGridView = ({
               {expName}
             </span>
             {isBaseline && useExperimentColors && (
-              <Badge variant="outline" className="shrink-0 text-xs">
+              <Badge
+                variant="secondary"
+                size="sm"
+                className="shrink-0 font-medium"
+              >
                 Baseline
               </Badge>
             )}

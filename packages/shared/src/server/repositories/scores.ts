@@ -828,6 +828,7 @@ export const getScoresGroupedByNameSourceType = async ({
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
@@ -839,22 +840,20 @@ export const getScoresGroupedByNameSourceType = async ({
 
 export const getNumericScoresGroupedByName = async (
   projectId: string,
-  timestampFilter?: FilterState,
+  filter?: FilterState,
 ) => {
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
+  // Despite the historical name of some callers, this accepts any score-table
+  // compatible filter. Trace tables use this to scope discovery to scores that
+  // roll up into trace aggregates, not just direct trace-level scores.
+  const chFilter = filter
+    ? createFilterFromFilterState(
+        filter,
+        scoresColumnsTableUiColumnDefinitions,
+        scoresTableCols,
+      )
     : undefined;
 
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
@@ -864,7 +863,7 @@ export const getNumericScoresGroupedByName = async (
       from scores s
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc
       LIMIT 1000;
@@ -876,7 +875,7 @@ export const getNumericScoresGroupedByName = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      ...(filterRes ? filterRes.params : {}),
     },
     tags: {
       feature: "tracing",
@@ -884,6 +883,7 @@ export const getNumericScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows;
@@ -891,22 +891,19 @@ export const getNumericScoresGroupedByName = async (
 
 export const getCategoricalScoresGroupedByName = async (
   projectId: string,
-  timestampFilter?: FilterState,
+  filter?: FilterState,
 ) => {
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
+  // Mirrors `getNumericScoresGroupedByName`: callers can provide any score
+  // scope filters, not just timestamp predicates.
+  const chFilter = filter
+    ? createFilterFromFilterState(
+        filter,
+        scoresColumnsTableUiColumnDefinitions,
+        scoresTableCols,
+      )
     : undefined;
 
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
 
   const query = `
     SELECT
@@ -915,7 +912,7 @@ export const getCategoricalScoresGroupedByName = async (
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.data_type = 'CATEGORICAL'
-    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+    ${filterRes?.query ? `AND ${filterRes.query}` : ""}
     GROUP BY name
     ORDER BY count() DESC
     LIMIT 1000;
@@ -928,7 +925,7 @@ export const getCategoricalScoresGroupedByName = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      ...(filterRes ? filterRes.params : {}),
     },
     tags: {
       feature: "tracing",
@@ -936,6 +933,7 @@ export const getCategoricalScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Get score names from ClickHouse results to query score configs
@@ -2005,7 +2003,9 @@ export const getScoresForBlobStorageExport = function (
       source,
       comment,
       data_type,
-      string_value
+      string_value,
+      created_at,
+      updated_at
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}

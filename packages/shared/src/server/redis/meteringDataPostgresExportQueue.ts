@@ -21,6 +21,7 @@ export class MeteringDataPostgresExportQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

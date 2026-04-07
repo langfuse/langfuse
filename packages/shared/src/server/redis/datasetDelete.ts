@@ -18,6 +18,7 @@ export class DatasetDeleteQueue {
     if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

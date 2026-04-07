@@ -43,17 +43,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(5000),
-  REDIS_COMMAND_TIMEOUT: z.coerce.number().int().positive().default(2000),
-  REDIS_REQUEST_SOCKET_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5000),
-  REDIS_BLOCKING_SOCKET_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(30000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
@@ -108,6 +97,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_MAX_SPAN_BYTES: z.coerce.number().positive().default(9_500_000), // 9.5MB — just under ClickHouse's 10MB min_chunk_bytes_for_parallel_parsing default
   LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()

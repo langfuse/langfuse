@@ -471,7 +471,7 @@ export default function ObservationsEventsTable({
     useScoreColumns<EventsTableRow>({
       scoreColumnKey: "traceScores",
       projectId,
-      filter: scoreFilters.forTraces(),
+      filter: scoreFilters.forTraceLevel(),
       fromTimestamp: dateRange?.from,
       prefix: "Trace",
     });

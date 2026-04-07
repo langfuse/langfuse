@@ -805,8 +805,6 @@ export function CategoricalFacet({
                 options.length === 1 &&
                 options[0]?.toLowerCase() === "default" ? (
                   <div className="text-muted-foreground mt-2 px-2 text-xs">
-                    Environments help you separate traces from different
-                    contexts (e.g. production, staging).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/environments"
                       target="_blank"

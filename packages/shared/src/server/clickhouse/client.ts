@@ -1,5 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../../env";
+import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
@@ -117,6 +118,7 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        application: `langfuse/${VERSION.replace("v", "")}`,
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },

@@ -18,6 +18,7 @@ export class BatchActionQueue {
     if (BatchActionQueue.instance) return BatchActionQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

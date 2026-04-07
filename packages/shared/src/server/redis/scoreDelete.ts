@@ -17,6 +17,7 @@ export class ScoreDeleteQueue {
     if (ScoreDeleteQueue.instance) return ScoreDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 

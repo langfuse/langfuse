@@ -16,6 +16,7 @@ export class DeadLetterRetryQueue {
     }
 
     const newRedis = createNewRedisInstance({
+      enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
