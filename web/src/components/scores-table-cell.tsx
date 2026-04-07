@@ -74,12 +74,15 @@ export const ScoresTableCell = ({
 
     return (
       <span
-        className={cn("flex flex-row gap-0.5 rounded-sm", COLOR_MAP.get(value))}
+        className={cn(
+          "flex min-w-0 flex-row gap-0.5 rounded-sm",
+          COLOR_MAP.get(value),
+        )}
       >
-        {value}
+        <span className="truncate">{value}</span>
         {aggregate.comment && (
           <HoverCard>
-            <HoverCardTrigger className="inline-block cursor-pointer">
+            <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
             <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">

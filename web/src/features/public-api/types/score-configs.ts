@@ -1,6 +1,7 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
+  TextConfigFields,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
@@ -53,6 +54,10 @@ const APIScoreConfig = z
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
     }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
+    }),
   ])
   .superRefine(validateNumericRangeFields);
 
@@ -90,6 +95,15 @@ export const PostScoreConfigBody = z
       ...z.object({
         dataType: z.literal("BOOLEAN"),
         categories: z.undefined(),
+      }).shape,
+    }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...z.object({
+        dataType: z.literal("TEXT"),
+        categories: z.undefined(),
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
       }).shape,
     }),
   ])
