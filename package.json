@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.163.0",
+  "version": "3.164.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -64,6 +64,10 @@
     "plugins": {
       "@release-it/bumper": {
         "out": [
+          {
+            "file": "./packages/shared/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
           {
             "file": "./web/src/constants/VERSION.ts",
             "type": "application/typescript"
