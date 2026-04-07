@@ -74,7 +74,7 @@ interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
   /**
    * When true, adds an extra `score_categories_tuples` column with
-   * `tuple(name, string_value)` encoding alongside the default concat-encoded
+   * `tuple(name, string_value, data_type)` encoding alongside the default concat-encoded
    * `score_categories`. The tuple column is safe for programmatic parsing
    * (e.g. batch exports) when score names may contain colons.
    * The concat column is always present for hasAny filter compatibility.
