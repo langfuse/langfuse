@@ -800,6 +800,28 @@ describe("automations trpc", () => {
       ).rejects.toThrow("Name is required");
     });
 
+    it("should reject invalid eventAction values", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation({
+          projectId: project.id,
+          name: "Test Automation",
+          eventSource: "prompt",
+          eventAction: ["invalid-action"] as any,
+          filter: [],
+          status: JobConfigState.ACTIVE,
+          actionType: "WEBHOOK",
+          actionConfig: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            requestHeaders: {},
+            apiVersion: { prompt: "v1" },
+          },
+        }),
+      ).rejects.toThrow();
+    });
+
     it("should create a new Slack automation", async () => {
       const { project, caller } = await prepare();
 

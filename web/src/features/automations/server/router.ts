@@ -31,7 +31,7 @@ export const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
-  eventAction: z.array(z.string()),
+  eventAction: z.array(z.enum(["created", "updated", "deleted"])),
   filter: z.array(singleFilter).nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
