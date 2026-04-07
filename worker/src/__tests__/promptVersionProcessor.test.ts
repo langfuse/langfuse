@@ -36,6 +36,12 @@ describe("promptVersionChangeWorker", () => {
       expected: 1,
     },
     {
+      description: "should execute webhook for matching prompt deleted event",
+      trigger: { eventActions: ["deleted"], nameFilter: null },
+      event: { promptName: "test-prompt", action: "deleted" as const },
+      expected: 1,
+    },
+    {
       description: "should not execute when action filter doesn't match",
       trigger: { eventActions: ["deleted"], nameFilter: null },
       event: { promptName: "test-prompt", action: "created" as const },
