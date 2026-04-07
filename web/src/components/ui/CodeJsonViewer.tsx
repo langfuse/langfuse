@@ -217,9 +217,15 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
   title?: string;
   scrollable?: boolean;
+  /** Message to display after the content was successfully copied to the clipboard */
+  clipboardMessage?: string;
 }) {
+  const { clipboardMessage } = props;
+
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
+
+  const copySuccessStateDuration = clipboardMessage ? 2_000 : 1_000;
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -230,13 +236,26 @@ export function CodeView(props: {
         ? props.content
         : (props.content?.join("\n") ?? ""));
     void copyTextToClipboard(content);
-    setTimeout(() => setIsCopied(false), 1000);
+    setTimeout(() => setIsCopied(false), copySuccessStateDuration);
 
     // Keep focus on the copy button to prevent focus shifting
     event.currentTarget.focus();
   };
 
   const handleShowAll = () => setCollapsed(!isCollapsed);
+
+  const CopySuccessIcon = useMemo(() => {
+    return (
+      <div className="animate-appear relative h-3">
+        <Check className="h-3 w-3" />
+        {clipboardMessage && (
+          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+            {clipboardMessage}
+          </div>
+        )}
+      </div>
+    );
+  }, [clipboardMessage]);
 
   return (
     <div
@@ -256,11 +275,7 @@ export function CodeView(props: {
               onClick={handleCopy}
               className=""
             >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
+              {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
             </Button>
           </div>
         ) : undefined}
@@ -278,11 +293,7 @@ export function CodeView(props: {
             onClick={handleCopy}
             className="absolute top-2 right-2 z-10"
           >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+            {isCopied ? CopySuccessIcon : <Copy className="h-3 w-3" />}
           </Button>
         )}
         <code
