@@ -61,6 +61,7 @@ minimumReleaseAgeExclude:
   - "langfuse@3.38.20"
   - "langfuse-langchain@3.38.20"
   - "langfuse-core@3.38.20"
+  - "@modelcontextprotocol/sdk@1.29.0"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
