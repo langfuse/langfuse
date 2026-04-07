@@ -1,7 +1,6 @@
 import {
   BatchExportFileFormat,
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
@@ -142,12 +141,12 @@ export const getObservationStream = async (props: {
           -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories,
           -- tuple encoding for accurate output parsing (names may contain colons)
           groupArrayIf(
-            tuple(name, string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            tuple(name, string_value, data_type),
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories_tuples
         FROM (
           SELECT
@@ -235,7 +234,7 @@ export const getObservationStream = async (props: {
           }[]
         | undefined;
       score_categories: string[] | undefined;
-      score_categories_tuples: [string, string | null][] | undefined;
+      score_categories_tuples: [string, string | null, string][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -277,7 +276,7 @@ export const getObservationStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null][] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -306,7 +305,7 @@ export const getObservationStream = async (props: {
       (cat) => ({
         name: cat[0],
         value: null,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        dataType: cat[2],
         stringValue: cat[1],
       }),
     );

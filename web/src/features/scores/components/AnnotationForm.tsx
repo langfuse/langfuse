@@ -25,6 +25,7 @@ import {
   type ScoreConfigCategoryDomain,
   type UpdateAnnotationScoreData,
   type CreateAnnotationScoreData,
+  TEXT_SCORE_MAX_LENGTH,
 } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -39,6 +40,7 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import {
   formatAnnotateDescription,
+  isTextDataType,
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
@@ -487,6 +489,21 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     handleUpsert(index, numericCategoryValue, stringValue);
   };
 
+  const handleTextUpsert = (index: number) => {
+    const field = controlledFields[index];
+    const config = configs.find((c) => c.id === field.configId);
+
+    if (!config || !field) return;
+    if (!field.stringValue) {
+      if (field.id) {
+        handleDeleteScore(index);
+      }
+      return;
+    }
+
+    handleUpsert(index, 0, field.stringValue);
+  };
+
   const rollbackCommentError = (
     index: number,
     field: (typeof controlledFields)[number],
@@ -676,7 +693,28 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isNumericDataType(score.dataType) ? (
+                          {isTextDataType(score.dataType) ? (
+                            <FormField
+                              control={form.control}
+                              name={`scoreData.${index}.stringValue`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Textarea
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      maxLength={TEXT_SCORE_MAX_LENGTH}
+                                      className="text-xs"
+                                      disabled={isInputDisabled(config)}
+                                      placeholder="Enter free form text..."
+                                      onBlur={() => handleTextUpsert(index)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs" />
+                                </FormItem>
+                              )}
+                            />
+                          ) : isNumericDataType(score.dataType) ? (
                             <FormField
                               control={form.control}
                               name={`scoreData.${index}.value`}

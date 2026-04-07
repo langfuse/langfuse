@@ -141,6 +141,15 @@ function inflateScoreBody(
     };
   }
 
+  if (relevantDataType === ScoreDataTypeEnum.TEXT) {
+    return {
+      ...scoreProps,
+      value: 0,
+      stringValue: body.value,
+      dataType: ScoreDataTypeEnum.TEXT,
+    };
+  }
+
   return {
     ...scoreProps,
     value: config ? mapStringValueToNumericValue(config, body.value) : 0,
@@ -173,6 +182,7 @@ function resolveScoreValueAnnotation(
     case ScoreDataTypeEnum.BOOLEAN:
       return body.value;
     case ScoreDataTypeEnum.CATEGORICAL:
+    case ScoreDataTypeEnum.TEXT:
       return body.stringValue;
     case ScoreDataTypeEnum.CORRECTION:
       throw new Error("CORRECTION type not supported in annotation drawer");
