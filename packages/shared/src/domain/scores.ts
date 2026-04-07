@@ -130,9 +130,12 @@ export type AggregatableScore = ScoresByDataTypes<
   typeof AGGREGATABLE_SCORE_TYPES
 >;
 
-export const LISTABLE_SCORE_TYPES = ScoreDataTypeArray.filter(
-  (type) => type !== "CORRECTION",
-) satisfies readonly ScoreDataTypeType[];
+export const LISTABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+  "TEXT",
+] as const satisfies readonly ScoreDataTypeType[];
 
 export type ListableScoreDataType = (typeof LISTABLE_SCORE_TYPES)[number];
 export type ListableScore = ScoresByDataTypes<typeof LISTABLE_SCORE_TYPES>;
