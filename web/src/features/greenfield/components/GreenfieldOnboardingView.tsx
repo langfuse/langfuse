@@ -19,6 +19,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
   getGreenfieldOnboardingData,
+  type GreenfieldOnboardingData,
   type GreenfieldPillar,
   type GreenfieldQuest,
   type GreenfieldTask,
@@ -48,23 +49,186 @@ export function GreenfieldOnboardingView({
     .map((pillar) => pillar.id);
 
   return (
-    <div className="w-full py-3">
-      <div className="mx-auto w-full max-w-screen-xl px-12 sm:px-16 lg:px-24">
-        <Accordion
-          type="multiple"
-          defaultValue={defaultOpenPillars}
-          className="space-y-3"
-        >
-          {data.pillars.map((pillar) => (
-            <PillarSection key={pillar.id} pillar={pillar} />
-          ))}
-        </Accordion>
+    <div className="w-full py-4">
+      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 xl:px-10">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[22rem_minmax(0,1fr)]">
+          <GreenfieldSidebar data={data} />
+
+          <Accordion
+            type="multiple"
+            defaultValue={defaultOpenPillars}
+            className="space-y-4"
+          >
+            {data.pillars.map((pillar, index) => (
+              <PillarSection key={pillar.id} pillar={pillar} index={index} />
+            ))}
+          </Accordion>
+        </div>
       </div>
     </div>
   );
 }
 
-function PillarSection({ pillar }: { pillar: GreenfieldPillar }) {
+function GreenfieldSidebar({ data }: { data: GreenfieldOnboardingData }) {
+  const activePillar =
+    data.pillars.find((pillar) => pillar.status === "active") ??
+    data.pillars[0];
+  const totalQuests = data.pillars.reduce(
+    (count, pillar) => count + pillar.quests.length,
+    0,
+  );
+
+  return (
+    <aside className="lg:sticky lg:top-6 lg:self-start">
+      <div className="border-border/60 bg-background overflow-hidden rounded-[1.75rem] border">
+        <div className="border-border/60 border-b px-5 pt-5 pb-4">
+          <p className="text-muted-foreground text-sm font-medium">
+            Greenfield onboarding
+          </p>
+          <h1 className="mt-2 max-w-[14ch] text-2xl font-semibold tracking-tight text-balance">
+            Stand up a reliable prompt workflow
+          </h1>
+          <p className="text-muted-foreground mt-3 max-w-[30ch] text-base text-pretty sm:text-sm">
+            Start with one high-signal prompt loop, then unlock evaluation once
+            the workflow is moving.
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-2 px-5 py-4">
+          <div className="pr-4">
+            <dt className="text-muted-foreground text-sm font-medium">
+              Tracks live
+            </dt>
+            <dd className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+              {data.completedTracks}/{data.totalTracks}
+            </dd>
+          </div>
+          <div className="border-border/60 border-l pl-4">
+            <dt className="text-muted-foreground text-sm font-medium">
+              Active now
+            </dt>
+            <dd className="mt-1 max-w-[12ch] text-base font-medium text-pretty">
+              {activePillar?.title ?? "No active track"}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="border-border/60 bg-background mt-4 overflow-hidden rounded-[1.5rem] border">
+        <div className="border-border/60 border-b px-5 py-4">
+          <p className="text-base font-medium sm:text-sm">Track map</p>
+          <p className="text-muted-foreground mt-1 text-base text-pretty sm:text-sm">
+            Move through each pillar in order. Locked work opens once the
+            earlier steps are in motion.
+          </p>
+        </div>
+
+        <div className="space-y-1.5 p-2">
+          {data.pillars.map((pillar, index) => (
+            <SidebarPillarLink
+              key={pillar.id}
+              pillar={pillar}
+              index={index}
+              isCurrent={pillar.id === activePillar?.id}
+            />
+          ))}
+        </div>
+
+        <div className="border-border/60 border-t px-5 py-4">
+          <p className="text-muted-foreground text-sm font-medium">
+            Quest coverage
+          </p>
+          <p className="mt-1 text-base font-medium tabular-nums">
+            {totalQuests} quests across {data.totalTracks} tracks
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarPillarLink({
+  pillar,
+  index,
+  isCurrent,
+}: {
+  pillar: GreenfieldPillar;
+  index: number;
+  isCurrent: boolean;
+}) {
+  const PillarIcon = getPillarIcon(pillar.id);
+  const activeQuestCount = pillar.quests.filter(
+    (quest) => quest.status === "active",
+  ).length;
+
+  return (
+    <Link
+      href={`#pillar-${pillar.id}`}
+      className={cn(
+        "group flex items-start gap-3 rounded-[1.25rem] px-3 py-3 transition-colors",
+        isCurrent
+          ? "bg-primary/6 ring-primary/15 ring-1 ring-inset"
+          : "hover:bg-muted/40",
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-xl border",
+          pillar.status === "locked"
+            ? "border-border/60 bg-muted/40 text-muted-foreground"
+            : isCurrent
+              ? "border-primary/20 bg-primary/10 text-primary"
+              : "border-border/60 bg-background text-foreground",
+        )}
+      >
+        {pillar.status === "locked" ? (
+          <span className="text-sm font-medium tabular-nums">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+        ) : (
+          <PillarIcon className="size-4" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-base font-medium sm:text-sm">{pillar.title}</p>
+          <Badge
+            variant={
+              pillar.status === "locked"
+                ? "outline-solid"
+                : isCurrent
+                  ? "secondary"
+                  : "outline-solid"
+            }
+            className="rounded-full px-2.5 py-0.5 text-[11px]"
+          >
+            {pillar.status === "locked"
+              ? "Locked"
+              : isCurrent
+                ? "Active"
+                : "Ready"}
+          </Badge>
+        </div>
+        <p className="text-muted-foreground mt-1 text-base text-pretty sm:text-sm">
+          {getPillarDescription(pillar.id)}
+        </p>
+        <p className="text-muted-foreground mt-2 text-sm tabular-nums">
+          {activeQuestCount} active quest{activeQuestCount === 1 ? "" : "s"} ·{" "}
+          {pillar.quests.length} total
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function PillarSection({
+  pillar,
+  index,
+}: {
+  pillar: GreenfieldPillar;
+  index: number;
+}) {
   const PillarIcon = getPillarIcon(pillar.id);
   const defaultOpenQuests = pillar.quests
     .filter((quest) => quest.defaultOpen)
@@ -73,49 +237,57 @@ function PillarSection({ pillar }: { pillar: GreenfieldPillar }) {
   return (
     <AccordionItem
       value={pillar.id}
+      id={`pillar-${pillar.id}`}
       className={cn(
-        "bg-card overflow-hidden rounded-lg border shadow-xs",
+        "bg-card border-border/60 scroll-mt-6 overflow-hidden rounded-[1.75rem] border shadow-xs",
         pillar.status === "locked" && "bg-muted/10",
       )}
     >
-      <AccordionTrigger className="[&>svg]:text-muted-foreground gap-4 px-4 py-4 hover:no-underline [&>svg]:mr-1">
+      <AccordionTrigger className="[&>svg]:text-muted-foreground gap-4 px-5 py-5 hover:no-underline [&>svg]:mr-1">
         <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div
               className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-md border",
+                "flex size-11 shrink-0 items-center justify-center rounded-xl border",
                 pillar.status === "active"
                   ? "border-primary/15 bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground border-transparent",
+                  : "border-border/60 bg-muted/40 text-muted-foreground",
               )}
             >
               <PillarIcon className="size-[1.125rem]" />
             </div>
             <div className="min-w-0 space-y-1 text-left">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold">{pillar.title}</h2>
+                <p className="text-muted-foreground text-sm font-medium tabular-nums">
+                  {String(index + 1).padStart(2, "0")}
+                </p>
+                <h2 className="text-base font-semibold sm:text-lg">
+                  {pillar.title}
+                </h2>
                 <Badge
                   variant={
                     pillar.status === "locked" ? "outline-solid" : "secondary"
                   }
                 >
-                  {pillar.status === "locked" ? "Locked" : "Not started"}
+                  {pillar.status === "locked" ? "Locked" : "Ready to start"}
                 </Badge>
               </div>
-              <p className="text-muted-foreground max-w-[52ch] text-sm text-pretty">
+              <p className="text-muted-foreground max-w-[52ch] text-base text-pretty sm:text-sm">
                 {getPillarDescription(pillar.id)}
               </p>
             </div>
           </div>
-          <Badge variant="outline-solid">{pillar.quests.length} quests</Badge>
+          <Badge variant="outline-solid" className="tabular-nums">
+            {pillar.quests.length} quests
+          </Badge>
         </div>
       </AccordionTrigger>
 
-      <AccordionContent className="border-t px-4 pt-4 pb-4">
+      <AccordionContent className="border-border/60 border-t px-5 pt-4 pb-5">
         <Accordion
           type="multiple"
           defaultValue={defaultOpenQuests}
-          className="space-y-2"
+          className="space-y-3"
         >
           {pillar.quests.map((quest) =>
             quest.status === "locked" ? (

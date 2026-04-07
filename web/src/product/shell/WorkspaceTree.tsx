@@ -73,18 +73,21 @@ function WorkspaceTreeNode({
         : false,
     ),
   );
+  const isNested = depth > 0;
 
   return (
-    <div className="space-y-1">
+    <div className={cn(isNested ? "space-y-0.5" : "space-y-1")}>
       <Link
         href={getNodeHref(projectId, node)}
         className={cn(
-          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm transition-colors",
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center transition-colors",
+          isNested
+            ? "min-h-8 gap-1.5 rounded-md px-1.5 text-sm"
+            : "min-h-9 gap-2 rounded-lg px-2 text-sm",
           isActive &&
             "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
           !isActive && hasActiveChild && "text-foreground",
         )}
-        style={{ paddingLeft: `${depth * 14 + 8}px` }}
       >
         {node.kind === "folder" ? (
           <ChevronDown className="text-sidebar-foreground/55 h-3.5 w-3.5 shrink-0" />
@@ -95,7 +98,7 @@ function WorkspaceTreeNode({
         <span className="truncate">{humanizeSegment(node.name)}</span>
       </Link>
       {node.children?.length ? (
-        <div className="border-sidebar-border/60 ml-4 space-y-1 border-l pl-1">
+        <div className="border-sidebar-border/60 ml-3 space-y-0.5 border-l pl-0.5">
           {node.children.map((child) => (
             <WorkspaceTreeNode
               key={child.pathSegments.join("/")}
