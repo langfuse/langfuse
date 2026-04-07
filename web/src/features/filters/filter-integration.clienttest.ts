@@ -25,6 +25,10 @@ import {
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
 import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  getSessionDetailPresetToApply,
+} from "@/src/components/session/session-detail-presets";
+import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
@@ -303,9 +307,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // This is what useTableViewManager does: validates then applies
     const validated = validateFilters(oldSavedView, tracesTableCols);
 
-    // Should pass through unchanged - no env/timestamp to validate
-    expect(validated).toEqual(oldSavedView);
+    // "name" is normalized to "traceName" via alias
     expect(validated).toHaveLength(2);
+    expect(validated[0]?.column).toBe("traceName");
+    expect(validated[1]?.column).toBe("latency");
   });
 
   it("should save new view with environment filter and restore it correctly", () => {
@@ -331,10 +336,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // 2. RESTORE: Later, load from database and validate
     const validated = validateFilters(savedToDB, tracesTableCols);
 
-    // Should restore with environment filter intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with environment filter intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("environment"); // ✅ Environment preserved
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should save new view with timestamp filter and restore it correctly", () => {
@@ -363,10 +368,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // SAVE → RESTORE cycle
     const validated = validateFilters(newFilterState, tracesTableCols);
 
-    // Should restore with timestamp filters intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with timestamp filters intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(3);
     expect(validated[0]?.column).toBe("timestamp"); // ✅ Timestamp preserved
+    expect(validated[2]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should demonstrate BUG: restore fails with filtered column definitions", () => {
@@ -397,7 +402,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     // BUG: environment filter incorrectly removed during restore!
     expect(validated).toHaveLength(1); // ❌ Lost environment filter
-    expect(validated[0]?.column).toBe("name");
+    expect(validated[0]?.column).toBe("traceName");
     // This would show error toast: "Outdated view - Some filters were ignored"
   });
 
@@ -426,9 +431,12 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(mixedView, tracesTableCols);
 
-    // Should remove deletedColumn, keep environment and name
+    // Should remove deletedColumn, keep environment and name (name normalized to traceName via alias)
     expect(validated).toHaveLength(2);
-    expect(validated.map((f) => f.column)).toEqual(["environment", "name"]);
+    expect(validated.map((f) => f.column)).toEqual([
+      "environment",
+      "traceName",
+    ]);
   });
 
   it("should normalize old display names to column IDs", () => {
@@ -450,10 +458,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(oldViewWithDisplayNames, tracesTableCols);
 
-    // Should normalize "User ID" to "userId", keep "name" as-is
+    // Should normalize "User ID" to "userId", normalize "name" to "traceName" via alias
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("userId"); // Normalized!
-    expect(validated[1]?.column).toBe("name"); // Already correct
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias!
   });
 
   it("should handle old saved view metadata filter with column name metadata key", () => {
@@ -596,8 +604,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     });
   });
 
-  it("should handle backend column remapping from URL", () => {
-    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+  it("should normalize legacy tags filter from URL to the canonical traceTags column", () => {
     const urlFilter = "tags;arrayOptions;;any of;tag1";
 
     const normalized = decodeAndNormalizeFilters(
@@ -605,9 +612,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
       traceFilterConfig.columnDefinitions,
     );
 
-    const result = transformFiltersForBackend(normalized, {
-      tags: "traceTags",
-    });
+    const result = transformFiltersForBackend(normalized, {});
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
@@ -641,7 +646,7 @@ describe("Saved view validation", () => {
     ).toEqual([]);
   });
 
-  it("should preserve positionInTrace filters when the session view defines the column", () => {
+  it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
     const sessionEventColumns: ColumnDefinition[] = [
       ...observationEventsFilterConfig.columnDefinitions,
       {
@@ -651,16 +656,51 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
-    const filters: FilterState = [
+    const defaultPreset = getSessionDetailPresetToApply({
+      selectedViewId: null,
+      hasFilters: false,
+    });
+    const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "Last Generation in Trace",
+    );
+
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+    expect(lastPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
       {
         column: "positionInTrace",
         type: "positionInTrace",
         operator: "=",
         key: "last",
       },
-    ];
-
-    expect(validateFilters(filters, sessionEventColumns)).toEqual(filters);
+    ]);
+    expect(SESSION_DETAIL_SYSTEM_PRESETS).not.toContainEqual(
+      expect.objectContaining({
+        name: "Root Observation",
+      }),
+    );
   });
 });
 

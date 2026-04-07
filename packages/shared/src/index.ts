@@ -1,4 +1,5 @@
 export * from "./constants";
+export { decodeUnicodeEscapesOnly } from "./utils/unicode";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";

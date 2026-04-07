@@ -5,19 +5,45 @@ import {
   type ScoreSourceType,
 } from "@langfuse/shared";
 
+const traceLevelScoreFilter = (): FilterCondition[] => [
+  {
+    type: "null",
+    column: "traceId",
+    operator: "is not null",
+    value: "",
+  },
+  {
+    type: "null",
+    column: "observationId",
+    operator: "is null",
+    value: "",
+  },
+];
+
+/**
+ * Scope helpers for score discovery.
+ *
+ * - Trace-level: scores written directly to the trace. These have a `traceId`
+ *   and no `observationId`.
+ * - Trace-scoped: any score row attached to a trace. This includes trace-level
+ *   scores plus observation-level scores whose observations belong to the
+ *   trace.
+ * - Aggregate: the UI groups all score rows returned for a given scope by
+ *   `name/source/dataType` and renders one aggregate column per group.
+ */
 export const scoreFilters = {
-  // Filter for trace level scores
-  forTraces: (): FilterCondition[] => [
+  // Scores written directly to the trace itself.
+  forTraceLevel: traceLevelScoreFilter,
+
+  // Historical alias for trace-level semantics. Prefer `forTraceLevel`.
+  forTraces: traceLevelScoreFilter,
+
+  // Any score row that rolls up into a trace aggregate column.
+  forTraceScopedAggregates: (): FilterCondition[] => [
     {
       type: "null",
       column: "traceId",
       operator: "is not null",
-      value: "",
-    },
-    {
-      type: "null",
-      column: "observationId",
-      operator: "is null",
       value: "",
     },
   ],
@@ -143,6 +169,8 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
       return "Ⓑ";
     case "CORRECTION":
       return "";
+    case "TEXT":
+      return "Aa";
   }
 };
 
