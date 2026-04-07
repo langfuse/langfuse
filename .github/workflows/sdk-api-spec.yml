@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'fern/**'
+      - "fern/**"
   workflow_dispatch:
 
 concurrency:
@@ -67,7 +67,7 @@ jobs:
           rm -rf langfuse/api/tests
 
           # Install dependencies and format
-          uv sync --all-extras
+          uv sync --all-extras --frozen
           uv run ruff format langfuse/api
 
           # Check for changes and show diff for debugging
