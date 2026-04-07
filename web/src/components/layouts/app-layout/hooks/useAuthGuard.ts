@@ -47,7 +47,10 @@ export function useAuthGuard(
     const isUnauthPath = PATH_CONSTANTS.unauthenticated.some((p) =>
       pathname.startsWith(p),
     );
-    const isPublicPath = pathname.startsWith("/public/");
+    // DEV ONLY: explicit public preview routes can bypass auth.
+    const isPublicPath =
+      pathname.startsWith("/public/") ||
+      PATH_CONSTANTS.public.some((path) => pathname.startsWith(path));
 
     // Check if path is publishable (can be accessed without authentication)
     const isPublishable = PATH_CONSTANTS.publishable.some((path) => {

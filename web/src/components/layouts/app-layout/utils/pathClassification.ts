@@ -5,6 +5,8 @@
 
 export const PATH_CONSTANTS = {
   withoutNavigation: ["/onboarding", "/auth/reset-password"] as const,
+  // DEV ONLY: auth-free preview routes for local design work.
+  public: ["/dev/organization-overview", "/dev/greenfield"] as const,
   unauthenticated: [
     "/auth/sign-in",
     "/auth/sign-up",
@@ -32,6 +34,8 @@ export type LayoutType =
 export type PathClassification = {
   /** Whether this is an auth page (sign-in, sign-up, etc.) */
   isAuthPage: boolean;
+  /** Whether this is intentionally public/minimal (e.g. dev preview) */
+  isPublicPath: boolean;
   /** Whether navigation should be hidden (public, onboarding, auth pages) */
   hideNavigation: boolean;
   /** Whether this path can be accessed without authentication (shared traces/sessions) */
@@ -47,7 +51,9 @@ export function classifyPath(
   pathname: string,
   _asPath: string,
 ): PathClassification {
-  const isPublicPath = pathname.startsWith("/public/");
+  const isPublicPath =
+    pathname.startsWith("/public/") ||
+    PATH_CONSTANTS.public.some((path) => pathname.startsWith(path));
   const isWithoutNavigation = PATH_CONSTANTS.withoutNavigation.some((path) =>
     pathname.startsWith(path),
   );
@@ -78,6 +84,7 @@ export function classifyPath(
 
   return {
     isAuthPage,
+    isPublicPath,
     hideNavigation,
     isPublishable,
   };

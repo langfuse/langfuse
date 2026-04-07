@@ -38,10 +38,8 @@ export function useLayoutConfiguration(
   const router = useRouter();
 
   return useMemo(() => {
-    const { isAuthPage, hideNavigation, isPublishable } = classifyPath(
-      router.pathname,
-      router.asPath,
-    );
+    const { isAuthPage, isPublicPath, hideNavigation, isPublishable } =
+      classifyPath(router.pathname, router.asPath);
 
     // Determine the layout variant based on path and session
     let variant: LayoutType = "authenticated";
@@ -49,6 +47,9 @@ export function useLayoutConfiguration(
     if (isAuthPage) {
       // Auth pages always use unauthenticated layout
       variant = "unauthenticated";
+    } else if (isPublicPath) {
+      // Explicit public/minimal routes such as dev design previews
+      variant = "minimal";
     } else if (session === null && !isPublishable) {
       // Unauthenticated user on protected route - will be redirected by authGuard
       // but we set variant for the brief moment before redirect
