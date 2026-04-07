@@ -612,6 +612,108 @@ const mockUsers = designModeUsers.map((user) => ({
   image: avatarForUser(user.id),
 }));
 
+type MutablePromptRecord = {
+  id: string;
+  projectId: string;
+  name: string;
+  version: number;
+  label: string;
+  labels: string[];
+  tags: string[];
+  type: "text" | "chat";
+  prompt: unknown;
+  model: string;
+  updatedAt: string;
+  createdBy: string;
+  commitMessage?: string;
+  config: Record<string, unknown>;
+};
+
+type MutableLlmToolRecord = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type MutableLlmSchemaRecord = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function sanitizeIdFragment(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
+
+function defaultPromptCommitMessage(prompt: { name: string; version: number }) {
+  return `Update ${prompt.name} v${prompt.version}`;
+}
+
+let mutablePrompts: MutablePromptRecord[] = designModePrompts.map((prompt) => ({
+  ...prompt,
+  version: parseVersion(prompt.version),
+  labels: [...prompt.labels],
+  tags: [...prompt.tags],
+  prompt: deepClone(prompt.prompt),
+  createdBy:
+    "createdBy" in prompt && typeof prompt.createdBy === "string"
+      ? prompt.createdBy
+      : (designModeUsers[0]?.id ?? "API"),
+  commitMessage:
+    "commitMessage" in prompt && typeof prompt.commitMessage === "string"
+      ? prompt.commitMessage
+      : defaultPromptCommitMessage({
+          name: prompt.name,
+          version: parseVersion(prompt.version),
+        }),
+  config:
+    "config" in prompt && prompt.config && typeof prompt.config === "object"
+      ? deepClone(prompt.config as Record<string, unknown>)
+      : {},
+}));
+
+let mutableLlmTools: MutableLlmToolRecord[] = designModeLlmTools.map(
+  (tool) => ({
+    ...tool,
+    parameters: deepClone(tool.parameters as Record<string, unknown>),
+    createdAt: parseRelativeDate(tool.createdAt, 720),
+    updatedAt: parseRelativeDate(tool.updatedAt, 25),
+  }),
+);
+
+let mutableLlmSchemas: MutableLlmSchemaRecord[] = designModeLlmSchemas.map(
+  (schema) => ({
+    ...schema,
+    schema: deepClone(schema.schema as Record<string, unknown>),
+    createdAt: parseRelativeDate(schema.createdAt, 720),
+    updatedAt: parseRelativeDate(schema.updatedAt, 25),
+  }),
+);
+
+const mutableProtectedLabelsByProject = new Map<string, string[]>([
+  ["test", ["production", "legal-review"]],
+  ["prompt-studio", ["production"]],
+]);
+
+const promptCommentCountById = new Map<string, number>(
+  mutablePrompts.map((prompt, index) => [
+    prompt.id,
+    prompt.labels.includes("production") ? 3 + (index % 3) : 1 + (index % 2),
+  ]),
+);
+
 function getProjectTraces(projectId: string) {
   return mockTraces.filter((trace) => trace.projectId === projectId);
 }
@@ -621,7 +723,15 @@ function getProjectSessions(projectId: string) {
 }
 
 function getProjectPrompts(projectId: string) {
-  return designModePrompts.filter((prompt) => prompt.projectId === projectId);
+  return mutablePrompts
+    .filter((prompt) => prompt.projectId === projectId)
+    .sort((left, right) => {
+      if (left.name !== right.name) {
+        return left.name.localeCompare(right.name);
+      }
+
+      return right.version - left.version;
+    });
 }
 
 function getProjectDatasets(projectId: string) {
@@ -1431,6 +1541,152 @@ export function getMockPromptsHasAny(projectId: string) {
   return getProjectPrompts(projectId).length > 0;
 }
 
+function getPromptCreatorName(createdBy: string) {
+  if (createdBy === "API") {
+    return "API";
+  }
+
+  return mockUsers.find((user) => user.id === createdBy)?.name ?? createdBy;
+}
+
+function getPromptCreatedAt(prompt: MutablePromptRecord, index: number) {
+  return parseRelativeDate(prompt.updatedAt, 240 + index * 37);
+}
+
+function toMockPromptRow(prompt: MutablePromptRecord, index: number) {
+  return {
+    id: prompt.id,
+    name: prompt.name,
+    version: prompt.version,
+    projectId: prompt.projectId,
+    prompt: deepClone(prompt.prompt),
+    type: prompt.type,
+    updatedAt: parseRelativeDate(prompt.updatedAt, 5 + index * 7),
+    createdAt: getPromptCreatedAt(prompt, index),
+    labels: [...prompt.labels],
+    tags: [...prompt.tags],
+    config: deepClone(prompt.config),
+    commitMessage: prompt.commitMessage,
+    createdBy: prompt.createdBy,
+    row_type: "prompt" as const,
+  };
+}
+
+function getPromptById(projectId: string, id: string) {
+  return getProjectPrompts(projectId).find((prompt) => prompt.id === id);
+}
+
+function getPromptObservationCount(
+  projectId: string,
+  prompt: MutablePromptRecord,
+) {
+  const traces = getProjectTraces(projectId);
+  const baseCount = 6 + prompt.version * 4;
+
+  return (
+    baseCount +
+    traces.filter((trace) => {
+      const traceName = trace.name.toLowerCase();
+      const promptName = prompt.name.toLowerCase().replace(/-/g, " ");
+
+      return traceName.includes(promptName.split(" ")[0] ?? prompt.name);
+    }).length
+  );
+}
+
+function buildMockAggregatedPromptScores(
+  projectId: string,
+  prompt: MutablePromptRecord,
+  scoreScope: "trace" | "observation",
+) {
+  const projectScores = getProjectScores(projectId).slice(0, 2);
+  const seedOffset = scoreScope === "trace" ? 0.03 : 0.01;
+
+  return aggregateScores(
+    projectScores.map((score, index) => ({
+      id: `${scoreScope}_${prompt.id}_${score.id}`,
+      name: score.name,
+      source:
+        scoreScope === "trace" ? ("ANNOTATION" as const) : ("API" as const),
+      dataType: score.dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL",
+      value:
+        score.dataType === "NUMERIC"
+          ? Number(
+              (Number(score.value ?? 0.85) - seedOffset + index * 0.01).toFixed(
+                2,
+              ),
+            )
+          : undefined,
+      stringValue:
+        score.dataType === "NUMERIC"
+          ? undefined
+          : (score.stringValue ?? "pass"),
+      comment: score.comment ?? undefined,
+      timestamp: parseRelativeDate(prompt.updatedAt, 15 + index * 9),
+      hasMetadata: true,
+    })),
+  );
+}
+
+const promptReferencePattern =
+  /@@@langfusePrompt:name=([^|]+)\|(label=([^@|]+)|version=(\d+))@@@/g;
+
+function resolvePromptReference(
+  projectId: string,
+  currentPrompt: MutablePromptRecord,
+  seen: Set<string>,
+  dependencyMap: Record<
+    string,
+    Array<{ id: string; name: string; version: number }>
+  >,
+): unknown {
+  if (seen.has(currentPrompt.id)) {
+    return currentPrompt.prompt;
+  }
+
+  seen.add(currentPrompt.id);
+
+  if (typeof currentPrompt.prompt !== "string") {
+    seen.delete(currentPrompt.id);
+    return deepClone(currentPrompt.prompt);
+  }
+
+  const resolved = currentPrompt.prompt.replace(
+    promptReferencePattern,
+    (referenceString, name, _selector, label, version) => {
+      const dependency = getProjectPrompts(projectId).find((prompt) => {
+        if (prompt.name !== name) {
+          return false;
+        }
+
+        if (label) {
+          return prompt.labels.includes(label);
+        }
+
+        return prompt.version === Number(version);
+      });
+
+      if (!dependency || typeof dependency.prompt !== "string") {
+        return referenceString;
+      }
+
+      dependencyMap[currentPrompt.id] ??= [];
+      dependencyMap[currentPrompt.id].push({
+        id: dependency.id,
+        name: dependency.name,
+        version: dependency.version,
+      });
+
+      return String(
+        resolvePromptReference(projectId, dependency, seen, dependencyMap),
+      );
+    },
+  );
+
+  seen.delete(currentPrompt.id);
+  return resolved;
+}
+
 export function getMockPrompts(
   projectId: string,
   input: {
@@ -1446,19 +1702,9 @@ export function getMockPrompts(
   );
 
   return {
-    prompts: paginate(rows, input.page, input.limit).map((prompt, index) => ({
-      id: prompt.id,
-      name: prompt.name,
-      version: parseVersion(prompt.version),
-      projectId: prompt.projectId,
-      prompt: prompt.prompt,
-      type: prompt.type,
-      updatedAt: parseRelativeDate(prompt.updatedAt, 5 + index * 7),
-      createdAt: parseRelativeDate(prompt.updatedAt, 65 + index * 13),
-      labels: prompt.labels,
-      tags: prompt.tags,
-      row_type: "prompt" as const,
-    })),
+    prompts: paginate(rows, input.page, input.limit).map((prompt, index) =>
+      toMockPromptRow(prompt, index),
+    ),
     totalCount: rows.length,
   };
 }
@@ -1482,9 +1728,12 @@ export function getMockPromptMetrics(projectId: string, promptNames: string[]) {
   return promptNames.map((promptName) => ({
     promptName,
     observationCount:
-      getProjectTraces(projectId).filter((trace) =>
-        promptName.includes(trace.name.split(" ")[0]?.toLowerCase() ?? ""),
-      ).length + 8,
+      getProjectPrompts(projectId)
+        .filter((prompt) => prompt.name === promptName)
+        .reduce(
+          (sum, prompt) => sum + getPromptObservationCount(projectId, prompt),
+          0,
+        ) || 8,
   }));
 }
 
@@ -1492,16 +1741,337 @@ export function getMockPromptFilterOptions(projectId: string) {
   const prompts = getProjectPrompts(projectId);
 
   return {
-    name: unique(prompts.map((prompt) => prompt.name)).map((value) => ({
-      value,
-    })),
-    labels: unique(prompts.flatMap((prompt) => prompt.labels)).map((value) => ({
-      value,
-    })),
-    tags: unique(prompts.flatMap((prompt) => prompt.tags)).map((value) => ({
-      value,
-    })),
+    name: unique(prompts.map((prompt) => prompt.name))
+      .sort((left, right) => left.localeCompare(right))
+      .map((value) => ({
+        value,
+        count: prompts.filter((prompt) => prompt.name === value).length,
+      })),
+    labels: unique(prompts.flatMap((prompt) => prompt.labels))
+      .sort((left, right) => left.localeCompare(right))
+      .map((value) => ({
+        value,
+        count: prompts.filter((prompt) => prompt.labels.includes(value)).length,
+      })),
+    tags: unique(prompts.flatMap((prompt) => prompt.tags))
+      .sort((left, right) => left.localeCompare(right))
+      .map((value) => ({
+        value,
+        count: prompts.filter((prompt) => prompt.tags.includes(value)).length,
+      })),
   };
+}
+
+export function getMockPromptById(projectId: string, id: string) {
+  const prompt = getPromptById(projectId, id);
+  if (!prompt) {
+    return null;
+  }
+
+  return {
+    ...toMockPromptRow(prompt, 0),
+    row_type: undefined,
+  };
+}
+
+export function createMockPrompt(params: {
+  projectId: string;
+  name: string;
+  type: "text" | "chat";
+  prompt: unknown;
+  config?: Record<string, unknown>;
+  labels?: string[];
+  createdBy?: string;
+  commitMessage?: string;
+}) {
+  const existingVersions = getProjectPrompts(params.projectId)
+    .filter((prompt) => prompt.name === params.name)
+    .map((prompt) => prompt.version);
+
+  const nextVersion =
+    existingVersions.length > 0 ? Math.max(...existingVersions) + 1 : 1;
+  const nextLabels = [...new Set(params.labels ?? [])];
+
+  if (nextLabels.length > 0) {
+    mutablePrompts = mutablePrompts.map((prompt) =>
+      prompt.projectId === params.projectId && prompt.name === params.name
+        ? {
+            ...prompt,
+            labels: prompt.labels.filter(
+              (label) => !nextLabels.includes(label),
+            ),
+          }
+        : prompt,
+    );
+  }
+
+  const createdPrompt: MutablePromptRecord = {
+    id: `prompt_${sanitizeIdFragment(params.name)}_v${nextVersion}`,
+    projectId: params.projectId,
+    name: params.name,
+    version: nextVersion,
+    label: nextLabels[0] ?? "draft",
+    labels: nextLabels,
+    tags: [],
+    type: params.type,
+    prompt: deepClone(params.prompt),
+    model: "gpt-4.1",
+    updatedAt: "just now",
+    createdBy: params.createdBy ?? designModeUsers[0]?.id ?? "API",
+    commitMessage:
+      params.commitMessage ?? `Create ${params.name} v${nextVersion}`,
+    config: deepClone(params.config ?? {}),
+  };
+
+  mutablePrompts.unshift(createdPrompt);
+  promptCommentCountById.set(createdPrompt.id, 0);
+
+  return getMockPromptById(params.projectId, createdPrompt.id);
+}
+
+export function updateMockPromptTags(
+  projectId: string,
+  promptName: string,
+  tags: string[],
+) {
+  const nextTags = [...new Set(tags)];
+
+  mutablePrompts = mutablePrompts.map((prompt) =>
+    prompt.projectId === projectId && prompt.name === promptName
+      ? {
+          ...prompt,
+          tags: nextTags,
+          updatedAt: "just now",
+        }
+      : prompt,
+  );
+
+  return getProjectPrompts(projectId).filter(
+    (prompt) => prompt.name === promptName,
+  );
+}
+
+export function updateMockPromptLabels(
+  projectId: string,
+  promptId: string,
+  labels: string[],
+) {
+  const targetPrompt = getPromptById(projectId, promptId);
+  if (!targetPrompt) {
+    return null;
+  }
+
+  const nextLabels = [...new Set(labels)];
+  mutablePrompts = mutablePrompts.map((prompt) => {
+    if (prompt.projectId !== projectId || prompt.name !== targetPrompt.name) {
+      return prompt;
+    }
+
+    if (prompt.id === promptId) {
+      return {
+        ...prompt,
+        labels: nextLabels,
+        label: nextLabels[0] ?? prompt.label,
+        updatedAt: "just now",
+      };
+    }
+
+    return {
+      ...prompt,
+      labels: prompt.labels.filter((label) => !nextLabels.includes(label)),
+    };
+  });
+
+  return getMockPromptById(projectId, promptId);
+}
+
+export function getMockAllPromptLabels(projectId: string) {
+  return unique(
+    getProjectPrompts(projectId).flatMap((prompt) => prompt.labels),
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+export function getMockPromptNames(projectId: string, type?: "text" | "chat") {
+  const prompts = getProjectPrompts(projectId).filter((prompt) =>
+    type ? prompt.type === type : true,
+  );
+  const latestByName = new Map<string, MutablePromptRecord>();
+
+  for (const prompt of prompts) {
+    const current = latestByName.get(prompt.name);
+    if (!current || current.version < prompt.version) {
+      latestByName.set(prompt.name, prompt);
+    }
+  }
+
+  return Array.from(latestByName.values())
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((prompt) => ({
+      id: prompt.id,
+      name: prompt.name,
+    }));
+}
+
+export function getMockPromptLinkOptions(projectId: string) {
+  const textPrompts = getProjectPrompts(projectId).filter(
+    (prompt) => prompt.type === "text",
+  );
+  const grouped = new Map<
+    string,
+    { name: string; versions: number[]; labels: string[] }
+  >();
+
+  for (const prompt of textPrompts) {
+    const current = grouped.get(prompt.name) ?? {
+      name: prompt.name,
+      versions: [],
+      labels: [],
+    };
+
+    current.versions.push(prompt.version);
+    current.labels.push(...prompt.labels);
+    grouped.set(prompt.name, current);
+  }
+
+  return Array.from(grouped.values())
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((prompt) => ({
+      name: prompt.name,
+      versions: unique(prompt.versions).sort((left, right) => right - left),
+      labels: unique(prompt.labels).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    }));
+}
+
+export function getMockAllPromptMeta(projectId: string) {
+  return getProjectPrompts(projectId).map((prompt, index) => ({
+    id: prompt.id,
+    name: prompt.name,
+    version: prompt.version,
+    type: prompt.type,
+    prompt: deepClone(prompt.prompt),
+    labels: [...prompt.labels],
+    createdAt: getPromptCreatedAt(prompt, index),
+    updatedAt: parseRelativeDate(prompt.updatedAt, 5 + index * 7),
+    projectId: prompt.projectId,
+    config: deepClone(prompt.config),
+    tags: [...prompt.tags],
+  }));
+}
+
+export function getMockPromptVersions(
+  projectId: string,
+  name: string,
+  pagination?: { page?: number; limit?: number },
+) {
+  const rows = getProjectPrompts(projectId).filter(
+    (prompt) => prompt.name === name,
+  );
+  const totalCount = rows.length;
+  const page = pagination?.page ?? 0;
+  const limit = pagination?.limit ?? totalCount;
+
+  return {
+    promptVersions: paginate(rows, page, limit).map((prompt, index) => ({
+      ...toMockPromptRow(prompt, index),
+      creator: getPromptCreatorName(prompt.createdBy),
+    })),
+    totalCount,
+  };
+}
+
+export function getMockPromptVersionMetrics(
+  projectId: string,
+  promptIds: string[],
+) {
+  return getProjectPrompts(projectId)
+    .filter((prompt) => promptIds.includes(prompt.id))
+    .map((prompt, index) => ({
+      id: prompt.id,
+      observationCount: BigInt(getPromptObservationCount(projectId, prompt)),
+      firstUsed: parseRelativeDate(prompt.updatedAt, 1_440 + index * 90),
+      lastUsed: parseRelativeDate(prompt.updatedAt, 12 + index * 5),
+      medianOutputTokens: 180 + prompt.version * 22 + index * 14,
+      medianInputTokens: 620 + prompt.version * 38 + index * 33,
+      medianTotalCost: Number((0.0021 + prompt.version * 0.0004).toFixed(4)),
+      medianLatency: 780 + prompt.version * 65 + index * 40,
+      observationScores: buildMockAggregatedPromptScores(
+        projectId,
+        prompt,
+        "observation",
+      ),
+      traceScores: buildMockAggregatedPromptScores(projectId, prompt, "trace"),
+    }));
+}
+
+export function getMockResolvedPromptGraph(
+  projectId: string,
+  promptId: string,
+) {
+  const prompt = getPromptById(projectId, promptId);
+  if (!prompt) {
+    return null;
+  }
+
+  const dependencies: Record<
+    string,
+    Array<{ id: string; name: string; version: number }>
+  > = {};
+  const resolvedPrompt = resolvePromptReference(
+    projectId,
+    prompt,
+    new Set<string>(),
+    dependencies,
+  );
+
+  return {
+    graph:
+      Object.keys(dependencies).length > 0
+        ? {
+            root: {
+              id: prompt.id,
+              name: prompt.name,
+              version: prompt.version,
+            },
+            dependencies,
+          }
+        : null,
+    resolvedPrompt,
+  };
+}
+
+export function getMockProtectedLabels(projectId: string) {
+  return [...(mutableProtectedLabelsByProject.get(projectId) ?? [])].sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+export function addMockProtectedLabel(projectId: string, label: string) {
+  const current = new Set(mutableProtectedLabelsByProject.get(projectId) ?? []);
+  current.add(label);
+  mutableProtectedLabelsByProject.set(projectId, Array.from(current));
+  return getMockProtectedLabels(projectId);
+}
+
+export function removeMockProtectedLabel(projectId: string, label: string) {
+  const current = (mutableProtectedLabelsByProject.get(projectId) ?? []).filter(
+    (currentLabel) => currentLabel !== label,
+  );
+  mutableProtectedLabelsByProject.set(projectId, current);
+  return getMockProtectedLabels(projectId);
+}
+
+export function getMockCommentCountsByObjectIds(
+  _projectId: string,
+  objectIds: string[],
+) {
+  return new Map(
+    objectIds.map((objectId) => [
+      objectId,
+      promptCommentCountById.get(objectId) ?? 0,
+    ]),
+  );
 }
 
 export function getMockScores(
@@ -1551,17 +2121,13 @@ export function getMockScoreFilterOptions(projectId: string) {
       (value) => ({ value }),
     ),
     traceName: unique(
-      scores
-        .map((score) => score.traceName)
-        .filter((value): value is string => Boolean(value)),
+      scores.flatMap((score) => (score.traceName ? [score.traceName] : [])),
     ).map((value) => ({
       value,
       count: scores.filter((score) => score.traceName === value).length,
     })),
     userId: unique(
-      scores
-        .map((score) => score.traceUserId)
-        .filter((value): value is string => Boolean(value)),
+      scores.flatMap((score) => (score.traceUserId ? [score.traceUserId] : [])),
     ).map((value) => ({
       value,
       count: scores.filter((score) => score.traceUserId === value).length,
@@ -1814,21 +2380,163 @@ export function getMockLlmApiKeys(projectId: string) {
 }
 
 export function getMockLlmTools(projectId: string) {
-  return designModeLlmTools
+  return mutableLlmTools
     .filter((tool) => tool.projectId === projectId)
     .map((tool) => ({
       ...tool,
-      createdAt: parseRelativeDate(tool.createdAt, 720),
-      updatedAt: parseRelativeDate(tool.updatedAt, 25),
+      parameters: deepClone(tool.parameters),
     }));
 }
 
+export function createMockLlmTool(input: {
+  projectId: string;
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}) {
+  const now = new Date();
+  const tool: MutableLlmToolRecord = {
+    id: `tool_${sanitizeIdFragment(input.name)}_${now.getTime()}`,
+    projectId: input.projectId,
+    name: input.name,
+    description: input.description,
+    parameters: deepClone(input.parameters),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  mutableLlmTools = [tool, ...mutableLlmTools];
+  return { ...tool, parameters: deepClone(tool.parameters) };
+}
+
+export function updateMockLlmTool(input: {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}) {
+  let updatedTool: MutableLlmToolRecord | null = null;
+
+  mutableLlmTools = mutableLlmTools.map((tool) => {
+    if (tool.id !== input.id || tool.projectId !== input.projectId) {
+      return tool;
+    }
+
+    updatedTool = {
+      ...tool,
+      name: input.name,
+      description: input.description,
+      parameters: deepClone(input.parameters),
+      updatedAt: new Date(),
+    };
+
+    return updatedTool;
+  });
+
+  if (!updatedTool) {
+    return null;
+  }
+
+  return {
+    ...updatedTool,
+    parameters: deepClone(updatedTool.parameters),
+  };
+}
+
+export function deleteMockLlmTool(projectId: string, id: string) {
+  const existingTool = mutableLlmTools.find(
+    (tool) => tool.id === id && tool.projectId === projectId,
+  );
+  mutableLlmTools = mutableLlmTools.filter(
+    (tool) => !(tool.id === id && tool.projectId === projectId),
+  );
+
+  return existingTool
+    ? {
+        ...existingTool,
+        parameters: deepClone(existingTool.parameters),
+      }
+    : null;
+}
+
 export function getMockLlmSchemas(projectId: string) {
-  return designModeLlmSchemas
+  return mutableLlmSchemas
     .filter((schema) => schema.projectId === projectId)
     .map((schema) => ({
       ...schema,
-      createdAt: parseRelativeDate(schema.createdAt, 720),
-      updatedAt: parseRelativeDate(schema.updatedAt, 25),
+      schema: deepClone(schema.schema),
     }));
+}
+
+export function createMockLlmSchema(input: {
+  projectId: string;
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+}) {
+  const now = new Date();
+  const llmSchema: MutableLlmSchemaRecord = {
+    id: `schema_${sanitizeIdFragment(input.name)}_${now.getTime()}`,
+    projectId: input.projectId,
+    name: input.name,
+    description: input.description,
+    schema: deepClone(input.schema),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  mutableLlmSchemas = [llmSchema, ...mutableLlmSchemas];
+  return { ...llmSchema, schema: deepClone(llmSchema.schema) };
+}
+
+export function updateMockLlmSchema(input: {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+}) {
+  let updatedSchema: MutableLlmSchemaRecord | null = null;
+
+  mutableLlmSchemas = mutableLlmSchemas.map((schema) => {
+    if (schema.id !== input.id || schema.projectId !== input.projectId) {
+      return schema;
+    }
+
+    updatedSchema = {
+      ...schema,
+      name: input.name,
+      description: input.description,
+      schema: deepClone(input.schema),
+      updatedAt: new Date(),
+    };
+
+    return updatedSchema;
+  });
+
+  if (!updatedSchema) {
+    return null;
+  }
+
+  return {
+    ...updatedSchema,
+    schema: deepClone(updatedSchema.schema),
+  };
+}
+
+export function deleteMockLlmSchema(projectId: string, id: string) {
+  const existingSchema = mutableLlmSchemas.find(
+    (schema) => schema.id === id && schema.projectId === projectId,
+  );
+  mutableLlmSchemas = mutableLlmSchemas.filter(
+    (schema) => !(schema.id === id && schema.projectId === projectId),
+  );
+
+  return existingSchema
+    ? {
+        ...existingSchema,
+        schema: deepClone(existingSchema.schema),
+      }
+    : null;
 }

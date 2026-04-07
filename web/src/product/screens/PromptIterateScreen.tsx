@@ -72,15 +72,15 @@ import {
   resolvePromptPreviewSlug,
 } from "../shell/product-manifest";
 
-type PromptMessageRole = "System" | "User" | "Assistant";
+export type PromptMessageRole = "System" | "User" | "Assistant";
 
-type PromptMessage = {
+export type PromptMessage = {
   id: string;
   role: PromptMessageRole;
   content: string;
 };
 
-type PreviewModel = {
+export type PreviewModel = {
   id: string;
   label: string;
   provider: string;
@@ -132,7 +132,7 @@ type PreviewHistorySnapshot = {
   }>;
 };
 
-const PREVIEW_MODELS: PreviewModel[] = [
+export const PREVIEW_MODELS: PreviewModel[] = [
   {
     id: "openai::gpt-4.1-mini",
     label: "openai::gpt-4.1-mini",
@@ -247,7 +247,7 @@ const PREVIEW_TOOL_LIBRARY = [
   "priority_router",
 ] as const;
 
-const PREVIEW_TOOL_CHIPS = PREVIEW_TOOL_LIBRARY.slice(0, 2);
+export const PREVIEW_TOOL_CHIPS = PREVIEW_TOOL_LIBRARY.slice(0, 2);
 
 const PREVIEW_TOOL_TEMPLATE = `{
   "type": "function",
@@ -323,7 +323,7 @@ const PREVIEW_MODEL_SETTINGS: PreviewModelSetting[] = [
   },
 ] as const;
 
-const PREVIEW_PROMPT_MESSAGES: PromptMessage[] = [
+export const PREVIEW_PROMPT_MESSAGES: PromptMessage[] = [
   {
     id: "message-system",
     role: "System",
@@ -819,7 +819,7 @@ export default function PromptIterateScreen() {
   );
 }
 
-function PromptDraftPane({
+export function PromptDraftPane({
   selectedModel,
   toolChips,
   messages,

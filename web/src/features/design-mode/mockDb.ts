@@ -434,11 +434,27 @@ export const designModePrompts = [
     labels: ["production"],
     tags: ["support", "customer"],
     type: "chat",
-    prompt:
-      "You are a helpful support copilot. Answer clearly and cite the source article IDs.",
+    prompt: [
+      {
+        role: "system",
+        content:
+          "You are a helpful Langfuse support copilot. Answer clearly, stay factual, and cite the relevant article IDs.",
+      },
+      {
+        role: "user",
+        content:
+          "Customer issue: {{ticket_summary}}\n\nRetrieved context:\n{{retrieved_context}}\n\nDraft the final reply.",
+      },
+    ],
     model: "gpt-4.1",
     updatedAt: "5 min ago",
     projectId: "test",
+    createdBy: "user_nora",
+    commitMessage: "Tighten support-answer production template",
+    config: {
+      temperature: 0.2,
+      maxTokens: 700,
+    },
   },
   {
     id: "prompt_support_answer_v5",
@@ -448,11 +464,203 @@ export const designModePrompts = [
     labels: ["candidate"],
     tags: ["support", "rewrite"],
     type: "chat",
-    prompt:
-      "Draft a concise support response, then include optional escalation guidance.",
+    prompt: [
+      {
+        role: "system",
+        content:
+          "You are the candidate Langfuse support copilot. Draft a concise reply first, then suggest escalation guidance only when it materially helps.",
+      },
+      {
+        role: "user",
+        content:
+          "Customer issue: {{ticket_summary}}\n\nRetrieved context:\n{{retrieved_context}}\n\nRespond in a calm tone and include next steps.",
+      },
+    ],
     model: "gpt-4.1",
     updatedAt: "11 min ago",
     projectId: "test",
+    createdBy: "user_evren",
+    commitMessage: "Explore shorter support tone with optional escalation",
+    config: {
+      temperature: 0.35,
+      maxTokens: 820,
+    },
+  },
+  {
+    id: "prompt_support_router_v2",
+    name: "support-router",
+    version: "v2",
+    label: "preview",
+    labels: ["preview"],
+    tags: ["support", "routing", "triage"],
+    type: "chat",
+    prompt: [
+      {
+        role: "system",
+        content:
+          "Classify the support ticket, assign the owning queue, and justify the routing decision in one sentence.",
+      },
+      {
+        role: "user",
+        content:
+          "Ticket payload:\n{{ticket_payload}}\n\nReturn category, queue, priority, and reasoning.",
+      },
+    ],
+    model: "gpt-4.1-mini",
+    updatedAt: "19 min ago",
+    projectId: "test",
+    createdBy: "user_liam",
+    commitMessage: "Add queue assignment and priority fields",
+    config: {
+      temperature: 0,
+      responseFormat: "json",
+    },
+  },
+  {
+    id: "prompt_incident_bridge_summary_v2",
+    name: "incident-bridge-summary",
+    version: "v2",
+    label: "staging",
+    labels: ["staging"],
+    tags: ["support", "incident", "summary"],
+    type: "chat",
+    prompt: [
+      {
+        role: "system",
+        content:
+          "Summarize the incident bridge transcript into status, customer impact, owners, and next update time.",
+      },
+      {
+        role: "user",
+        content:
+          "Bridge notes:\n{{bridge_notes}}\n\nReturn a status update suitable for Slack and Statuspage.",
+      },
+    ],
+    model: "claude-3.7-sonnet",
+    updatedAt: "37 min ago",
+    projectId: "test",
+    createdBy: "user_zoe",
+    commitMessage: "Add structured incident status output",
+    config: {
+      temperature: 0.1,
+      maxTokens: 900,
+    },
+  },
+  {
+    id: "prompt_response_style_guide_v1",
+    name: "response-style-guide",
+    version: "v1",
+    label: "production",
+    labels: ["production"],
+    tags: ["support", "style"],
+    type: "text",
+    prompt:
+      "Write in a calm, direct voice. Start with the answer, avoid filler, and only mention uncertainty when it is real.",
+    model: "gpt-4.1-mini",
+    updatedAt: "42 min ago",
+    projectId: "test",
+    createdBy: "user_evren",
+    commitMessage: "Extract reusable support writing style guide",
+    config: {
+      temperature: 0,
+    },
+  },
+  {
+    id: "prompt_citation_style_guide_v1",
+    name: "citation-style-guide",
+    version: "v1",
+    label: "production",
+    labels: ["production"],
+    tags: ["support", "citations"],
+    type: "text",
+    prompt:
+      "When you reference internal guidance, cite the source in brackets like [KB-1042] and keep citation count under three.",
+    model: "gpt-4.1-mini",
+    updatedAt: "49 min ago",
+    projectId: "test",
+    createdBy: "user_nora",
+    commitMessage: "Standardize citation formatting for support answers",
+    config: {
+      temperature: 0,
+    },
+  },
+  {
+    id: "prompt_escalation_policy_v1",
+    name: "escalation-policy",
+    version: "v1",
+    label: "production",
+    labels: ["production"],
+    tags: ["support", "escalation"],
+    type: "text",
+    prompt:
+      "Escalate when data loss is possible, billing impact exceeds 500 EUR, or the workaround requires backend intervention.",
+    model: "gpt-4.1-mini",
+    updatedAt: "57 min ago",
+    projectId: "test",
+    createdBy: "user_liam",
+    commitMessage: "Document current escalation thresholds",
+    config: {
+      temperature: 0,
+    },
+  },
+  {
+    id: "prompt_support_response_template_v2",
+    name: "support-response-template",
+    version: "v2",
+    label: "production",
+    labels: ["production"],
+    tags: ["support", "template", "references"],
+    type: "text",
+    prompt:
+      "Compose the final customer reply using the following instructions.\n\nTone:\n@@@langfusePrompt:name=response-style-guide|label=production@@@\n\nCitation rules:\n@@@langfusePrompt:name=citation-style-guide|label=production@@@\n\nEscalation policy:\n@@@langfusePrompt:name=escalation-policy|version=1@@@\n\nCustomer issue:\n{{ticket_summary}}\n\nRetrieved context:\n{{retrieved_context}}\n",
+    model: "claude-3.7-sonnet",
+    updatedAt: "1 hr ago",
+    projectId: "test",
+    createdBy: "user_evren",
+    commitMessage: "Compose reusable support response template from references",
+    config: {
+      temperature: 0.25,
+      maxTokens: 900,
+    },
+  },
+  {
+    id: "prompt_support_response_template_v3",
+    name: "support-response-template",
+    version: "v3",
+    label: "candidate",
+    labels: ["candidate", "legal-review"],
+    tags: ["support", "template", "references"],
+    type: "text",
+    prompt:
+      "Prepare the next-gen support reply.\n\nVoice:\n@@@langfusePrompt:name=response-style-guide|label=production@@@\n\nEvidence rules:\n@@@langfusePrompt:name=citation-style-guide|label=production@@@\n\nEscalation rules:\n@@@langfusePrompt:name=escalation-policy|version=1@@@\n\nIf refund or contractual risk appears, explicitly mark for manual review.\n\nCustomer issue:\n{{ticket_summary}}\n\nRetrieved context:\n{{retrieved_context}}\n",
+    model: "claude-3.7-sonnet",
+    updatedAt: "1 hr ago",
+    projectId: "test",
+    createdBy: "user_zoe",
+    commitMessage: "Add legal review guardrail to support template",
+    config: {
+      temperature: 0.3,
+      maxTokens: 1000,
+    },
+  },
+  {
+    id: "prompt_release_summary_v2",
+    name: "release-summary",
+    version: "v2",
+    label: "preview",
+    labels: ["preview"],
+    tags: ["support", "release", "summary"],
+    type: "text",
+    prompt:
+      "Summarize release notes into highlights, migration risk, and rollout guidance for customer-facing teams.",
+    model: "gpt-4.1-mini",
+    updatedAt: "2 hrs ago",
+    projectId: "test",
+    createdBy: "user_daniel",
+    commitMessage: "Create release summary helper for support enablement",
+    config: {
+      temperature: 0.15,
+    },
   },
   {
     id: "prompt_redesign_brief_v2",
@@ -1212,6 +1420,30 @@ export const designModeLlmApiKeys = [
     config: null,
   },
   {
+    id: "llm_key_google_test",
+    projectId: "test",
+    provider: "Google AI Studio",
+    adapter: "google-ai-studio",
+    displaySecretKey: "AIza...7T3Q",
+    baseURL: null,
+    customModels: ["gemini-2.5-pro", "gemini-2.0-flash"],
+    withDefaultModels: true,
+    extraHeaderKeys: [],
+    config: null,
+  },
+  {
+    id: "llm_key_openrouter",
+    projectId: "test",
+    provider: "OpenRouter",
+    adapter: "openai",
+    displaySecretKey: "sk-or-...3HT9",
+    baseURL: "https://openrouter.ai/api/v1",
+    customModels: ["openai/gpt-4.1-mini", "anthropic/claude-3.7-sonnet"],
+    withDefaultModels: false,
+    extraHeaderKeys: ["HTTP-Referer"],
+    config: null,
+  },
+  {
     id: "llm_key_google",
     projectId: "eval-lab",
     provider: "Google AI Studio",
@@ -1254,6 +1486,37 @@ export const designModeLlmTools = [
     },
     createdAt: "5 days ago",
     updatedAt: "1 hr ago",
+  },
+  {
+    id: "tool_lookup_ticket_history",
+    projectId: "test",
+    name: "lookup_ticket_history",
+    description:
+      "Fetch the last five tickets and outcomes for the current account.",
+    parameters: {
+      type: "object",
+      properties: {
+        accountId: { type: "string" },
+      },
+      required: ["accountId"],
+    },
+    createdAt: "4 days ago",
+    updatedAt: "44 min ago",
+  },
+  {
+    id: "tool_check_statuspage",
+    projectId: "test",
+    name: "check_statuspage",
+    description:
+      "Read the latest incident or maintenance updates from Statuspage.",
+    parameters: {
+      type: "object",
+      properties: {
+        component: { type: "string" },
+      },
+    },
+    createdAt: "7 days ago",
+    updatedAt: "2 hrs ago",
   },
   {
     id: "tool_dataset_probe",
@@ -1307,6 +1570,44 @@ export const designModeLlmSchemas = [
     },
     createdAt: "8 days ago",
     updatedAt: "2 hrs ago",
+  },
+  {
+    id: "schema_agent_handoff",
+    projectId: "test",
+    name: "AgentHandoff",
+    description:
+      "Structured handoff payload for escalating a support conversation.",
+    schema: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        severity: { type: "string" },
+        ownerTeam: { type: "string" },
+        missingInformation: { type: "array", items: { type: "string" } },
+      },
+      required: ["summary", "severity", "ownerTeam"],
+    },
+    createdAt: "6 days ago",
+    updatedAt: "1 hr ago",
+  },
+  {
+    id: "schema_incident_summary",
+    projectId: "test",
+    name: "IncidentSummary",
+    description:
+      "Status summary for incident bridges with owner and ETA fields.",
+    schema: {
+      type: "object",
+      properties: {
+        status: { type: "string" },
+        customerImpact: { type: "string" },
+        nextUpdateAt: { type: "string" },
+        owners: { type: "array", items: { type: "string" } },
+      },
+      required: ["status", "customerImpact"],
+    },
+    createdAt: "9 days ago",
+    updatedAt: "3 hrs ago",
   },
   {
     id: "schema_eval_report",

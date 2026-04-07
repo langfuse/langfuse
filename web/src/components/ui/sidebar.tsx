@@ -436,7 +436,7 @@ const SidebarGroup = React.forwardRef<
       ref={ref}
       data-sidebar="group"
       className={cn(
-        "relative flex w-full min-w-0 flex-col px-2 py-1 first:pt-0",
+        "relative flex w-full min-w-0 flex-col px-2 py-2 first:pt-2",
         "group-data-[collapsible=icon]:p-2 first:group-data-[collapsible=icon]:pt-2",
         className,
       )}
@@ -512,7 +512,7 @@ const SidebarMenu = React.forwardRef<
     data-sidebar="menu"
     role="list"
     className={cn(
-      "flex w-full min-w-0 flex-col gap-1 pt-0.5",
+      "flex w-full min-w-0 flex-col gap-1 pt-0",
       "group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:pt-0",
       className,
     )}

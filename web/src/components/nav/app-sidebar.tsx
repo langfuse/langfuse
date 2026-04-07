@@ -49,7 +49,7 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader className="border-sidebar-border/70 border-b">
-        <div className="flex min-h-9 items-center gap-2 py-2 pr-0 pl-2 group-data-[collapsible=icon]:p-3">
+        <div className="flex min-h-9 items-center gap-2 py-3 pr-0 pl-3 group-data-[collapsible=icon]:p-3">
           <LangfuseLogo version />
         </div>
         <DemoBadge />

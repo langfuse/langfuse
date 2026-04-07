@@ -31,6 +31,7 @@ import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
 import { isDevAuthBypassEnabled } from "@/src/features/auth/lib/devAuthBypass";
+import { AgentationSurface } from "@/src/features/agentation/components/AgentationSurface";
 
 /**
  * Main layout component
@@ -150,6 +151,7 @@ export function AppLayout(props: PropsWithChildren) {
       onSignOut={handleSignOut}
     >
       {props.children}
+      <AgentationSurface />
     </AuthenticatedLayout>
   );
 }

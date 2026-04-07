@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AgentationSurface } from "@/src/features/agentation/components/AgentationSurface";
+import { cn } from "@/src/utils/tailwind";
 import { type ShellBreadcrumbItem } from "./Breadcrumbs";
 import { ProductHeader } from "./Header";
 import {
@@ -16,6 +17,7 @@ type ProductAppShellProps = {
   organizationId?: string;
   projectId?: string;
   activeSection?: ProjectPrimarySection | "organization";
+  className?: string;
   title: string;
   titleContent?: ReactNode;
   breadcrumbs: ShellBreadcrumbItem[];
@@ -30,6 +32,7 @@ export function ProductAppShell({
   organizationId,
   projectId,
   activeSection,
+  className,
   title,
   titleContent,
   breadcrumbs,
@@ -40,7 +43,7 @@ export function ProductAppShell({
 }: ProductAppShellProps) {
   return (
     <SidebarProvider>
-      <div className="bg-background flex h-dvh w-full">
+      <div className={cn("bg-background flex h-dvh w-full", className)}>
         <ProductSidebar
           scope={scope}
           organizationId={organizationId}

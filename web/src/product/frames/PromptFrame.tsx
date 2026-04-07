@@ -23,6 +23,7 @@ export function PromptFrame({
 }) {
   return (
     <ProductAppShell
+      className="greenfield-pretext"
       scope="project"
       projectId={projectId}
       title={title}

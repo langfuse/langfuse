@@ -15,18 +15,13 @@ import {
   TerminalIcon,
   UsersIcon,
 } from "lucide-react";
-import dynamic from "next/dynamic";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import Page from "@/src/components/layouts/page";
 import { RouteGroup } from "@/src/components/layouts/routes";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
+import { AgentationSurface } from "@/src/features/agentation/components/AgentationSurface";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { DEV_PATHS } from "../lib/devPages";
-
-const Agentation = dynamic(
-  () => import("agentation").then((mod) => mod.Agentation),
-  { ssr: false },
-);
 
 type DevProjectPreviewShellProps = {
   currentPath: string;
@@ -184,7 +179,7 @@ export function DevProjectPreviewShell({
               >
                 {children}
               </Page>
-              <Agentation />
+              <AgentationSurface />
             </SidebarInset>
           </div>
         </div>
