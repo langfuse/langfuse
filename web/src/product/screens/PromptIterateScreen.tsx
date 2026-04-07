@@ -4,19 +4,33 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import { extractVariables } from "@langfuse/shared";
 import {
+  AlignVerticalJustifyStart,
+  ArrowUpRight,
   Check,
   Brackets,
+  ChevronsDown,
   ChevronDown,
+  CircleParking,
   CircleMinus,
   CirclePlus,
-  Cpu,
   FilePlus,
   ImagePlus,
+  Lightbulb,
+  ListPlus,
+  MoreHorizontal,
+  OctagonX,
   Play,
+  Plug,
+  Ruler,
   SquareFunction,
   Terminal,
+  Thermometer,
+  Type,
   Variable,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -26,8 +40,16 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/src/components/ui/command";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -38,7 +60,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
+import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { PromptFrame } from "../frames/PromptFrame";
 import {
@@ -73,6 +97,22 @@ type PreviewModel = {
     latencyValue: number;
     blendedPriceValue: number;
   };
+};
+
+type PreviewModelSetting = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+type PreviewProvider = {
+  id: string;
+  label: string;
+  icon: string;
+  apiKeyHref: string;
+  apiKeyLabel: string;
+  helper: string;
+  placeholder: string;
 };
 
 const PREVIEW_MODELS: PreviewModel[] = [
@@ -160,13 +200,28 @@ const PREVIEW_MODELS: PreviewModel[] = [
   },
 ];
 
-const PREVIEW_MODEL_GROUPS = Object.entries(
-  PREVIEW_MODELS.reduce<Record<string, PreviewModel[]>>((groups, model) => {
-    groups[model.providerLabel] ??= [];
-    groups[model.providerLabel]!.push(model);
-    return groups;
-  }, {}),
-);
+const PREVIEW_PROVIDERS: PreviewProvider[] = [
+  {
+    id: "openai",
+    label: "OpenAI",
+    icon: "/providers/openai/light.svg",
+    apiKeyHref: "https://platform.openai.com/api-keys",
+    apiKeyLabel: "Get OpenAI API key",
+    helper:
+      "Connect an OpenAI project key to unlock GPT models for this prompt thread.",
+    placeholder: "sk-proj-...",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    icon: "/providers/anthropic/light.svg",
+    apiKeyHref: "https://platform.claude.com/settings/keys",
+    apiKeyLabel: "Get Anthropic API key",
+    helper:
+      "Connect an Anthropic key to switch this thread onto Claude models without leaving the picker.",
+    placeholder: "sk-ant-...",
+  },
+] as const;
 
 const PREVIEW_TOOL_LIBRARY = [
   "issue_classifier",
@@ -176,6 +231,80 @@ const PREVIEW_TOOL_LIBRARY = [
 ] as const;
 
 const PREVIEW_TOOL_CHIPS = PREVIEW_TOOL_LIBRARY.slice(0, 2);
+
+const PREVIEW_TOOL_TEMPLATE = `{
+  "type": "function",
+  "definition": {
+    "schema": {
+      "name": "name_of_function",
+      "description": "Consider this description a mini-prompt for the LLM to use when calling this function. The more detailed the description, the better the LLM will understand the function.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "param1": {
+            "type": "string",
+            "description": "A mini-prompt for the LLM to better understand the parameter."
+          },
+          "param2": {
+            "type": "number",
+            "description": "A mini-prompt for the LLM to better understand the parameter."
+          }
+        },
+        "required": [
+          "param1"
+        ]
+      }
+    }
+  }
+}`;
+
+const PREVIEW_MODEL_SETTINGS: PreviewModelSetting[] = [
+  {
+    id: "temperature",
+    label: "Temperature",
+    icon: Thermometer,
+  },
+  {
+    id: "max-tokens",
+    label: "Max tokens",
+    icon: Ruler,
+  },
+  {
+    id: "stop-sequence",
+    label: "Stop sequence",
+    icon: OctagonX,
+  },
+  {
+    id: "top-p",
+    label: "Top p",
+    icon: CircleParking,
+  },
+  {
+    id: "top-k",
+    label: "Top k",
+    icon: AlignVerticalJustifyStart,
+  },
+  {
+    id: "tool-choice",
+    label: "Tool choice",
+    icon: Wrench,
+  },
+  {
+    id: "mcp",
+    label: "Mcp",
+    icon: Plug,
+  },
+  {
+    id: "reasoning-enabled",
+    label: "Reasoning enabled",
+    icon: Lightbulb,
+  },
+  {
+    id: "max-reasoning-tokens",
+    label: "Max reasoning tokens",
+    icon: Ruler,
+  },
+] as const;
 
 const PREVIEW_PROMPT_MESSAGES: PromptMessage[] = [
   {
@@ -236,15 +365,17 @@ const PREVIEW_VARIABLES = [
   },
 ] as const;
 
+function getShortModelLabel(model: PreviewModel) {
+  return model.label.split("::").at(1) ?? model.label;
+}
+
 export default function PromptIterateScreen() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
   const { promptPath } = resolvePromptPreviewSlug(router.query.slug);
   const promptName = getWorkspaceSelectionLabel(promptPath);
   const [selectedModelId, setSelectedModelId] = useState(PREVIEW_MODELS[0]!.id);
-  const [toolChips, setToolChips] = useState<
-    (typeof PREVIEW_TOOL_LIBRARY)[number][]
-  >([...PREVIEW_TOOL_CHIPS]);
+  const [toolChips, setToolChips] = useState<string[]>([...PREVIEW_TOOL_CHIPS]);
   const [promptMessages, setPromptMessages] = useState<PromptMessage[]>(
     PREVIEW_PROMPT_MESSAGES,
   );
@@ -335,7 +466,14 @@ export default function PromptIterateScreen() {
     );
   };
 
-  const addTool = () => {
+  const addTool = (toolLabel?: string) => {
+    if (toolLabel) {
+      setToolChips((current) =>
+        current.includes(toolLabel) ? current : [...current, toolLabel],
+      );
+      return;
+    }
+
     const nextTool = PREVIEW_TOOL_LIBRARY.find(
       (tool) => !toolChips.includes(tool),
     );
@@ -363,6 +501,7 @@ export default function PromptIterateScreen() {
         >
           <ResizablePanel defaultSize="30%" minSize="24%">
             <PromptDraftPane
+              threadTitle={promptName}
               selectedModel={selectedModel}
               toolChips={toolChips}
               messages={promptMessages}
@@ -411,6 +550,7 @@ export default function PromptIterateScreen() {
         <div className="flex min-h-0 w-full flex-col divide-y lg:hidden">
           <div className="min-h-[24rem] overflow-hidden">
             <PromptDraftPane
+              threadTitle={promptName}
               selectedModel={selectedModel}
               toolChips={toolChips}
               messages={promptMessages}
@@ -457,6 +597,7 @@ export default function PromptIterateScreen() {
 }
 
 function PromptDraftPane({
+  threadTitle,
   selectedModel,
   toolChips,
   messages,
@@ -469,11 +610,12 @@ function PromptDraftPane({
   onAddFile,
   onDeleteMessage,
 }: {
+  threadTitle: string;
   selectedModel: PreviewModel;
   toolChips: readonly string[];
   messages: PromptMessage[];
   onSelectModel: (value: string) => void;
-  onAddTool: () => void;
+  onAddTool: (toolLabel?: string) => void;
   onAddMessage: () => void;
   onCycleRole: (id: string) => void;
   onUpdateMessage: (id: string, content: string) => void;
@@ -482,6 +624,19 @@ function PromptDraftPane({
   onDeleteMessage: (id: string) => void;
 }) {
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+  const [modelSettingsPopoverOpen, setModelSettingsPopoverOpen] =
+    useState(false);
+  const [addToolDialogOpen, setAddToolDialogOpen] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState(
+    selectedModel.provider,
+  );
+  const [providerConnections, setProviderConnections] = useState<
+    Partial<Record<string, string>>
+  >({});
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [toolDefinitionDraft, setToolDefinitionDraft] = useState(
+    PREVIEW_TOOL_TEMPLATE,
+  );
   const [highlightedModelId, setHighlightedModelId] = useState(
     selectedModel.id,
   );
@@ -489,258 +644,473 @@ function PromptDraftPane({
   const highlightedModel =
     PREVIEW_MODELS.find((model) => model.id === highlightedModelId) ??
     selectedModel;
+  const selectedProvider =
+    PREVIEW_PROVIDERS.find((provider) => provider.id === selectedProviderId) ??
+    PREVIEW_PROVIDERS[0]!;
+  const providerModels = PREVIEW_MODELS.filter(
+    (model) => model.provider === selectedProvider.id,
+  );
+  const activeProviderKey = providerConnections[selectedProvider.id];
+  const threadInitial = threadTitle.trim().charAt(0).toUpperCase() || "T";
+
+  const openAddToolDialog = () => {
+    setToolDefinitionDraft(PREVIEW_TOOL_TEMPLATE);
+    setAddToolDialogOpen(true);
+  };
+
+  const saveProviderConnection = () => {
+    const trimmedKey = apiKeyDraft.trim();
+
+    if (!trimmedKey) {
+      showErrorToast(
+        "API key required",
+        `Paste a ${selectedProvider.label} API key before saving the connection.`,
+        "WARNING",
+      );
+      return;
+    }
+
+    setProviderConnections((current) => ({
+      ...current,
+      [selectedProvider.id]: trimmedKey,
+    }));
+    setApiKeyDraft("");
+  };
+
+  const handleSaveTool = () => {
+    try {
+      const parsed = JSON.parse(toolDefinitionDraft) as {
+        type?: string;
+        definition?: {
+          schema?: {
+            name?: string;
+          };
+        };
+      };
+
+      if (
+        parsed.type !== "function" ||
+        typeof parsed.definition?.schema?.name !== "string" ||
+        parsed.definition.schema.name.trim().length === 0
+      ) {
+        showErrorToast(
+          "Invalid tool format",
+          'Tool JSON must include type "function" and definition.schema.name.',
+          "WARNING",
+        );
+        return;
+      }
+
+      onAddTool(parsed.definition.schema.name.trim());
+      setAddToolDialogOpen(false);
+    } catch {
+      showErrorToast(
+        "Invalid JSON",
+        "Please provide valid JSON before saving the tool.",
+        "WARNING",
+      );
+    }
+  };
 
   return (
-    <div className="group/editor flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 overflow-x-auto px-3.5 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <Popover
-            open={modelPopoverOpen}
-            onOpenChange={(open) => {
-              setModelPopoverOpen(open);
-              if (open) {
-                setHighlightedModelId(selectedModel.id);
-              }
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-muted/40 border-border/70 relative h-7 justify-start pr-2 pl-8 shadow-none [&>svg]:absolute [&>svg]:left-2.5 [&>svg]:size-3"
-                type="button"
-              >
-                <Cpu className="size-3" />
-                {selectedModel.label}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              sideOffset={6}
-              className="z-50 w-[min(760px,calc(100vw-2rem))] border-0 bg-transparent p-0 shadow-none"
+    <div className="group/editor bg-muted/10 flex h-full flex-col overflow-hidden">
+      <div className="bg-background/95 border-b backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white shadow-sm">
+              {threadInitial}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{threadTitle}</p>
+              <p className="text-muted-foreground truncate text-xs">
+                Draft conversation · {messages.length} messages ·{" "}
+                {toolChips.length} tools
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Popover
+              open={modelPopoverOpen}
+              onOpenChange={(open) => {
+                setModelPopoverOpen(open);
+                if (open) {
+                  setSelectedProviderId(selectedModel.provider);
+                  setHighlightedModelId(selectedModel.id);
+                  setApiKeyDraft("");
+                }
+              }}
             >
-              <div className="bg-background grid overflow-hidden rounded-lg border shadow-sm md:grid-cols-[300px_minmax(0,1fr)]">
-                <div className="min-w-0 border-b md:border-r md:border-b-0">
-                  <Command>
-                    <div className="border-b px-1.5">
-                      <CommandInput
-                        placeholder="Search models..."
-                        aria-label="Search models"
-                        showBorder={false}
-                        className="h-9"
-                      />
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-border/70 bg-background/90 h-8 justify-start gap-2 px-2.5 shadow-none"
+                  type="button"
+                >
+                  <Image
+                    width="14"
+                    height="14"
+                    className="size-3.5"
+                    src={selectedModel.providerIcon}
+                    alt={`${selectedModel.providerLabel} icon`}
+                  />
+                  <span className="text-muted-foreground">
+                    {selectedModel.providerLabel}
+                  </span>
+                  <span className="text-muted-foreground/60">/</span>
+                  <span>{getShortModelLabel(selectedModel)}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                sideOffset={6}
+                className="z-50 w-[min(960px,calc(100vw-2rem))] border-0 bg-transparent p-0 shadow-none"
+              >
+                <div className="bg-background grid overflow-hidden rounded-lg border shadow-sm md:grid-cols-[180px_250px_minmax(0,1fr)]">
+                  <div className="border-b md:border-r md:border-b-0">
+                    <div className="border-b px-3 py-2.5">
+                      <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.14em] uppercase">
+                        Providers
+                      </p>
                     </div>
-                    <CommandList className="max-h-[400px] overflow-y-auto px-2 py-2">
-                      <CommandEmpty>No model found.</CommandEmpty>
-                      {PREVIEW_MODEL_GROUPS.map(([providerLabel, models]) => (
-                        <CommandGroup
-                          key={providerLabel}
-                          heading={providerLabel}
-                          className="px-0"
-                        >
-                          {models.map((model) => (
-                            <CommandItem
-                              key={model.id}
-                              value={`${model.providerLabel} ${model.label}`}
-                              onSelect={() => {
-                                onSelectModel(model.id);
-                                setHighlightedModelId(model.id);
-                                setModelPopoverOpen(false);
-                              }}
-                              onMouseEnter={() =>
-                                setHighlightedModelId(model.id)
-                              }
-                              onFocus={() => setHighlightedModelId(model.id)}
-                              className="data-[selected=true]:bg-muted/70 gap-2 rounded-md px-2.5 py-2 text-sm"
-                            >
-                              <div className="mr-[-3px] flex size-4 items-center justify-center">
-                                <Image
-                                  width="14"
-                                  height="14"
-                                  className="size-3.5"
-                                  src={model.providerIcon}
-                                  alt={`${model.providerLabel} icon`}
-                                />
-                              </div>
-                              <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-sm font-medium">
-                                  {model.label}
-                                </span>
-                                <span className="text-muted-foreground truncate text-[11px]">
-                                  {model.benchmarks.speed} ·{" "}
-                                  {model.benchmarks.blendedPrice}
-                                </span>
-                              </div>
-                              <Check
-                                className={cn(
-                                  "size-3.5",
-                                  model.id === selectedModel.id
-                                    ? "opacity-100"
-                                    : "opacity-0",
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      ))}
-                      <CommandSeparator className="my-1" />
-                      <CommandGroup className="px-0">
-                        <CommandItem
-                          value="add provider"
-                          className="gap-2 rounded-md px-2.5 py-2 text-sm"
-                        >
-                          <span className="flex size-4 items-center justify-center">
-                            <CirclePlus className="size-3.5" />
-                          </span>
-                          <span>Add provider</span>
-                        </CommandItem>
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex h-full flex-col">
-                    <div className="border-b px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <div className="flex flex-col gap-1 px-2 py-2">
+                      {PREVIEW_PROVIDERS.map((provider) => {
+                        const isActive = provider.id === selectedProvider.id;
+                        const hasConnection = Boolean(
+                          providerConnections[provider.id],
+                        );
+
+                        return (
+                          <button
+                            key={provider.id}
+                            type="button"
+                            className={cn(
+                              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+                              isActive
+                                ? "bg-muted text-foreground"
+                                : "hover:bg-muted/60 text-muted-foreground",
+                            )}
+                            onClick={() => {
+                              setSelectedProviderId(provider.id);
+                              setApiKeyDraft("");
+                              setHighlightedModelId(
+                                PREVIEW_MODELS.find(
+                                  (model) => model.provider === provider.id,
+                                )?.id ?? highlightedModel.id,
+                              );
+                            }}
+                          >
                             <div className="mr-[-3px] flex size-4 items-center justify-center">
                               <Image
                                 width="14"
                                 height="14"
                                 className="size-3.5"
-                                src={highlightedModel.providerIcon}
-                                alt={`${highlightedModel.providerLabel} icon`}
+                                src={provider.icon}
+                                alt={`${provider.label} icon`}
                               />
                             </div>
-                            <span>{highlightedModel.providerLabel}</span>
-                          </div>
-                          <p className="mt-1 truncate text-sm font-medium">
-                            {highlightedModel.label}
-                          </p>
-                        </div>
-                        {highlightedModel.id === selectedModel.id ? (
-                          <span className="text-muted-foreground shrink-0 text-[11px]">
-                            Selected
-                          </span>
-                        ) : null}
-                      </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {provider.label}
+                              </p>
+                              <p className="text-[11px]">
+                                {hasConnection ? "Connected" : "Needs API key"}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex flex-1 flex-col gap-3 px-4 py-3">
-                      <p className="text-muted-foreground text-sm leading-6">
-                        {highlightedModel.description}
+                  </div>
+                  <div className="border-b md:border-r md:border-b-0">
+                    <div className="border-b px-3 py-2.5">
+                      <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.14em] uppercase">
+                        Models
                       </p>
-                      <div className="overflow-hidden rounded-md border">
-                        <div className="grid grid-cols-2">
-                          <BenchmarkCard
-                            label="Intelligence"
-                            value={highlightedModel.benchmarks.intelligence}
-                            numericValue={
-                              highlightedModel.benchmarks.intelligenceValue
-                            }
-                            numericRange={getBenchmarkRange(
-                              "intelligenceValue",
+                    </div>
+                    <div className="flex flex-col gap-1 px-2 py-2">
+                      {providerModels.map((model) => (
+                        <button
+                          key={model.id}
+                          type="button"
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+                            model.id === highlightedModel.id
+                              ? "bg-muted text-foreground"
+                              : "hover:bg-muted/60 text-muted-foreground",
+                          )}
+                          onClick={() => setHighlightedModelId(model.id)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {getShortModelLabel(model)}
+                            </p>
+                            <p className="truncate text-[11px]">
+                              {model.benchmarks.speed} ·{" "}
+                              {model.benchmarks.blendedPrice}
+                            </p>
+                          </div>
+                          <Check
+                            className={cn(
+                              "size-3.5 shrink-0",
+                              model.id === selectedModel.id
+                                ? "opacity-100"
+                                : "opacity-0",
                             )}
-                            hint={getBenchmarkHint(
-                              highlightedModel,
-                              "intelligenceValue",
-                            )}
-                            className="border-r border-b"
                           />
-                          <BenchmarkCard
-                            label="Speed"
-                            value={highlightedModel.benchmarks.speed}
-                            numericValue={
-                              highlightedModel.benchmarks.speedValue
-                            }
-                            numericRange={getBenchmarkRange("speedValue")}
-                            hint={getBenchmarkHint(
-                              highlightedModel,
-                              "speedValue",
-                            )}
-                            className="border-b"
-                          />
-                          <BenchmarkCard
-                            label="Latency"
-                            value={highlightedModel.benchmarks.latency}
-                            numericValue={
-                              highlightedModel.benchmarks.latencyValue
-                            }
-                            numericRange={getBenchmarkRange("latencyValue")}
-                            hint={getBenchmarkHint(
-                              highlightedModel,
-                              "latencyValue",
-                              true,
-                            )}
-                            className="border-r"
-                            inverse
-                          />
-                          <BenchmarkCard
-                            label="Blended price"
-                            value={highlightedModel.benchmarks.blendedPrice}
-                            numericValue={
-                              highlightedModel.benchmarks.blendedPriceValue
-                            }
-                            numericRange={getBenchmarkRange(
-                              "blendedPriceValue",
-                            )}
-                            hint={getBenchmarkHint(
-                              highlightedModel,
-                              "blendedPriceValue",
-                              true,
-                            )}
-                            inverse
-                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex h-full flex-col">
+                      <div className="border-b px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                              <div className="mr-[-3px] flex size-4 items-center justify-center">
+                                <Image
+                                  width="14"
+                                  height="14"
+                                  className="size-3.5"
+                                  src={selectedProvider.icon}
+                                  alt={`${selectedProvider.label} icon`}
+                                />
+                              </div>
+                              <span>{selectedProvider.label}</span>
+                            </div>
+                            <p className="mt-1 truncate text-sm font-medium">
+                              {getShortModelLabel(highlightedModel)}
+                            </p>
+                          </div>
+                          {highlightedModel.id === selectedModel.id ? (
+                            <span className="text-muted-foreground shrink-0 text-[11px]">
+                              Selected
+                            </span>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
-                        <p className="text-muted-foreground text-[11px] leading-5">
-                          Data from{" "}
-                          <Link
-                            href={highlightedModel.artificialAnalysisUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-foreground underline underline-offset-2"
-                          >
-                            Artificial Analysis
-                          </Link>
+                      <div className="flex flex-1 flex-col gap-3 px-4 py-3">
+                        <p className="text-muted-foreground text-sm leading-6">
+                          {highlightedModel.description}
                         </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={
-                            highlightedModel.id === selectedModel.id
-                              ? "outline"
-                              : "default"
-                          }
-                          className="h-8 shrink-0 px-3"
-                          disabled={highlightedModel.id === selectedModel.id}
-                          onClick={() => {
-                            onSelectModel(highlightedModel.id);
-                            setModelPopoverOpen(false);
-                          }}
-                        >
-                          {highlightedModel.id === selectedModel.id
-                            ? "Selected"
-                            : "Use model"}
-                        </Button>
+                        <div className="overflow-hidden rounded-md border">
+                          <div className="grid grid-cols-2">
+                            <BenchmarkCard
+                              label="Intelligence"
+                              value={highlightedModel.benchmarks.intelligence}
+                              numericValue={
+                                highlightedModel.benchmarks.intelligenceValue
+                              }
+                              numericRange={getBenchmarkRange(
+                                "intelligenceValue",
+                              )}
+                              hint={getBenchmarkHint(
+                                highlightedModel,
+                                "intelligenceValue",
+                              )}
+                              className="border-r border-b"
+                            />
+                            <BenchmarkCard
+                              label="Speed"
+                              value={highlightedModel.benchmarks.speed}
+                              numericValue={
+                                highlightedModel.benchmarks.speedValue
+                              }
+                              numericRange={getBenchmarkRange("speedValue")}
+                              hint={getBenchmarkHint(
+                                highlightedModel,
+                                "speedValue",
+                              )}
+                              className="border-b"
+                            />
+                            <BenchmarkCard
+                              label="Latency"
+                              value={highlightedModel.benchmarks.latency}
+                              numericValue={
+                                highlightedModel.benchmarks.latencyValue
+                              }
+                              numericRange={getBenchmarkRange("latencyValue")}
+                              hint={getBenchmarkHint(
+                                highlightedModel,
+                                "latencyValue",
+                                true,
+                              )}
+                              className="border-r"
+                              inverse
+                            />
+                            <BenchmarkCard
+                              label="Blended price"
+                              value={highlightedModel.benchmarks.blendedPrice}
+                              numericValue={
+                                highlightedModel.benchmarks.blendedPriceValue
+                              }
+                              numericRange={getBenchmarkRange(
+                                "blendedPriceValue",
+                              )}
+                              hint={getBenchmarkHint(
+                                highlightedModel,
+                                "blendedPriceValue",
+                                true,
+                              )}
+                              inverse
+                            />
+                          </div>
+                        </div>
+                        <div className="bg-muted/20 rounded-md border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium">
+                                Provider connection
+                              </p>
+                              <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                                {selectedProvider.helper}
+                              </p>
+                            </div>
+                            <Badge variant="outline">
+                              {activeProviderKey ? "Connected" : "Needs key"}
+                            </Badge>
+                          </div>
+                          {activeProviderKey ? (
+                            <p className="text-muted-foreground mt-3 text-[11px]">
+                              Connected with{" "}
+                              <span className="text-foreground font-medium">
+                                {maskApiKey(activeProviderKey)}
+                              </span>
+                            </p>
+                          ) : null}
+                          <div className="mt-3 flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <Input
+                                name={`${selectedProvider.id}-api-key`}
+                                value={apiKeyDraft}
+                                onChange={(event) =>
+                                  setApiKeyDraft(event.target.value)
+                                }
+                                type="password"
+                                aria-label={`${selectedProvider.label} API key`}
+                                placeholder={selectedProvider.placeholder}
+                                className="h-8"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 shrink-0 px-3"
+                                onClick={saveProviderConnection}
+                              >
+                                {activeProviderKey ? "Update key" : "Save key"}
+                              </Button>
+                            </div>
+                            <Link
+                              href={selectedProvider.apiKeyHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px] font-medium underline underline-offset-2"
+                            >
+                              {selectedProvider.apiKeyLabel}
+                              <ArrowUpRight className="size-3" />
+                            </Link>
+                          </div>
+                        </div>
+                        <div className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
+                          <p className="text-muted-foreground text-[11px] leading-5">
+                            Data from{" "}
+                            <Link
+                              href={highlightedModel.artificialAnalysisUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-foreground underline underline-offset-2"
+                            >
+                              Artificial Analysis
+                            </Link>
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              highlightedModel.id === selectedModel.id
+                                ? "outline"
+                                : "default"
+                            }
+                            className="h-8 shrink-0 px-3"
+                            disabled={highlightedModel.id === selectedModel.id}
+                            onClick={() => {
+                              onSelectModel(highlightedModel.id);
+                              setModelPopoverOpen(false);
+                            }}
+                          >
+                            {highlightedModel.id === selectedModel.id
+                              ? "Selected"
+                              : "Use model"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+            <Popover
+              open={modelSettingsPopoverOpen}
+              onOpenChange={setModelSettingsPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-border/70 bg-background/90 h-8 w-8 shrink-0 self-center px-0 shadow-none"
+                  type="button"
+                  aria-label="Open model settings"
+                >
+                  <MoreHorizontal className="size-3.5 translate-y-[-0.5px]" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                sideOffset={6}
+                className="bg-background w-auto min-w-[220px] overflow-hidden p-0"
+              >
+                <Command className="bg-background rounded-md shadow-none">
+                  <div className="border-b px-1.5">
+                    <CommandInput
+                      placeholder="Search model settings..."
+                      aria-label="Search model settings"
+                      showBorder={false}
+                      className="h-9"
+                    />
+                  </div>
+                  <CommandList className="max-h-[360px] overflow-y-auto px-2 py-2">
+                    <CommandEmpty>No model setting found.</CommandEmpty>
+                    <CommandGroup className="px-0 py-0">
+                      {PREVIEW_MODEL_SETTINGS.map((setting) => (
+                        <CommandItem
+                          key={setting.id}
+                          value={setting.label}
+                          className="data-[selected=true]:bg-muted/70 gap-2 rounded-md px-2.5 py-2 text-sm"
+                        >
+                          <span className="flex size-4 items-center justify-center">
+                            <setting.icon className="text-muted-foreground size-3.5" />
+                          </span>
+                          <span className="text-sm">{setting.label}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
-      <div className="px-3.5 pb-3">
-        <div className="flex items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto px-3.5 py-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <span className="text-muted-foreground shrink-0 text-[11px] font-semibold tracking-[0.14em] uppercase">
+            Thread tools
+          </span>
           {toolChips.map((tool) => (
             <Button
               key={tool}
               variant="outline"
               size="sm"
-              className="border-border/70 h-6 shrink-0 gap-1 rounded-md px-2 font-medium shadow-none"
+              className="border-border/70 bg-background/85 h-7 shrink-0 gap-1 rounded-full px-3 font-medium shadow-none"
               type="button"
             >
               <SquareFunction className="size-3" />
@@ -748,49 +1118,110 @@ function PromptDraftPane({
             </Button>
           ))}
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="-ml-1.5 h-6 shrink-0 gap-1 px-2"
+            className="border-border/70 bg-background/70 h-7 shrink-0 gap-1 rounded-full border-dashed px-3 shadow-none"
             type="button"
             title="Add tool"
-            onClick={onAddTool}
+            onClick={openAddToolDialog}
           >
             <CirclePlus className="size-3.5" />
             <ChevronDown className="size-3 opacity-50" />
           </Button>
         </div>
       </div>
-      <div
-        role="list"
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
-      >
-        {messages.map((message) => (
-          <PromptEditorMessageRow
-            key={message.id}
-            id={message.id}
-            role={message.role}
-            content={message.content}
-            onCycleRole={onCycleRole}
-            onUpdateMessage={onUpdateMessage}
-            onAddImage={onAddImage}
-            onAddFile={onAddFile}
-            onDeleteMessage={onDeleteMessage}
-          />
-        ))}
-      </div>
-      <div className="flex items-center justify-start px-2 pb-3 opacity-0 transition-opacity group-hover/editor:opacity-100 focus-within:opacity-100">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 font-medium"
-          type="button"
-          onClick={onAddMessage}
+      <Dialog open={addToolDialogOpen} onOpenChange={setAddToolDialogOpen}>
+        <DialogContent
+          className="max-w-[700px] rounded-xl p-0 shadow-sm"
+          closeOnInteractionOutside
         >
-          Add Message
-        </Button>
+          <DialogHeader className="px-6 py-5">
+            <DialogTitle className="text-base font-medium">
+              Add Tool
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-6">
+              Define a tool in a valid Tool format. You can also add an optional{" "}
+              <code className="bg-muted rounded px-1 py-0.5 text-[0.85em]">
+                request
+              </code>{" "}
+              object to automatically generate a tool response in the
+              playground.
+              <br />
+              <br />
+              Refer to the{" "}
+              <a
+                className="text-foreground font-semibold underline underline-offset-2"
+                href="https://langfuse.com/changelog/2025-03-28-tool-calling-structured-output-playground"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Tool schema documentation
+              </a>{" "}
+              for reference and examples.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="max-h-[60vh] px-6 py-0">
+            <div className="overflow-hidden rounded-md border">
+              <CodeMirrorEditor
+                value={toolDefinitionDraft}
+                onChange={setToolDefinitionDraft}
+                mode="json"
+                minHeight={530}
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter className="px-6 py-4 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddToolDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSaveTool}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-4">
+        <div role="list" className="flex flex-col gap-4">
+          {messages.map((message) => (
+            <PromptEditorMessageRow
+              key={message.id}
+              id={message.id}
+              role={message.role}
+              content={message.content}
+              onCycleRole={onCycleRole}
+              onUpdateMessage={onUpdateMessage}
+              onAddImage={onAddImage}
+              onAddFile={onAddFile}
+              onDeleteMessage={onDeleteMessage}
+            />
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-center opacity-0 transition-opacity group-hover/editor:opacity-100 focus-within:opacity-100">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-border/70 bg-background/90 h-9 rounded-full border-dashed px-4 font-medium shadow-none"
+            type="button"
+            onClick={onAddMessage}
+          >
+            Add Message
+          </Button>
+        </div>
       </div>
     </div>
   );
+}
+
+function maskApiKey(value: string) {
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
 function PlaygroundPreviewPane({
@@ -804,65 +1235,52 @@ function PlaygroundPreviewPane({
 }) {
   return (
     <div className="bg-background flex h-full flex-col overflow-hidden">
-      <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize="56%" minSize="32%">
-          <div className="flex h-full flex-col overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">Preview</Badge>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/project/${projectId}/playground`}>
-                    <Terminal className="size-4" />
-                    Open live
-                  </Link>
-                </Button>
-              </div>
-              <div className="inline-flex">
-                <Button size="sm" className="rounded-r-none">
-                  <Play className="size-4" />
-                  Run
-                </Button>
-                <Button size="icon-sm" className="rounded-l-none border-l">
-                  <ChevronDown className="size-3" />
-                </Button>
-              </div>
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+              S
             </div>
-            <div className="bg-muted/15 min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <div role="list" className="divide-y">
-                {messages.map((message) => (
-                  <PlaygroundSummaryRow
-                    key={message.id}
-                    role={message.role}
-                    content={interpolateMessage(
-                      message.content,
-                      variableValues,
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel defaultSize="44%" minSize="22%">
-          <div className="bg-muted/10 flex h-full items-center justify-center border-t px-6 text-center">
-            <div className="flex max-w-sm flex-col gap-1">
-              <p className="text-sm font-medium">
-                Press Run to test the prompt
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">
+                Live session review
               </p>
-              <p className="text-muted-foreground text-base/7 sm:text-sm/6">
-                Output stays empty until the draft is executed.
-              </p>
-              <p className="text-muted-foreground text-base/7 sm:text-sm/6">
-                Current queue:{" "}
-                <strong className="font-semibold">
-                  {variableValues.routing_queue}
-                </strong>
+              <p className="text-muted-foreground truncate text-xs">
+                Inspect how this thread behaves across routed sessions
               </p>
             </div>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/project/${projectId}/sessions`}>
+                <Terminal className="size-4" />
+                Open sessions
+              </Link>
+            </Button>
+            <div className="inline-flex">
+              <Button size="sm" className="rounded-r-none">
+                <Play className="size-4" />
+                Run
+              </Button>
+              <Button size="icon-sm" className="rounded-l-none border-l">
+                <ChevronDown className="size-3" />
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div role="list" className="flex flex-col gap-3">
+            {messages.map((message) => (
+              <PlaygroundSummaryRow
+                key={message.id}
+                role={message.role}
+                content={message.content}
+                variableValues={variableValues}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -892,55 +1310,38 @@ function VariablesPane({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b px-3.5 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Variable className="size-4" />
-            <p className="text-sm font-medium">
-              {PREVIEW_VARIABLES.length} variables
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" className="h-7 px-2 font-medium">
-            <CirclePlus className="size-3.5" />
-            Link dataset
-          </Button>
-        </div>
-      </div>
-      <div className="border-b px-2 py-2">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {PREVIEW_VARIABLES.map((variable) => (
-            <button
-              key={variable.key}
-              className={cn(
-                "flex shrink-0 flex-col items-start rounded-md px-2 py-1 text-left",
-                variable.key === selectedVariable
-                  ? "bg-muted text-foreground"
-                  : "hover:bg-muted/60 text-muted-foreground",
-              )}
-              onClick={() => onSelectVariable(variable.key)}
-            >
-              <span className="text-sm font-medium">{variable.label}</span>
-              <span className="truncate text-xs">
-                {variableValues[variable.key] ?? ""}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {stackOnMobile ? (
         <div className="flex min-h-0 flex-1 flex-col">
+          <div className="border-b px-3.5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Variable className="size-4" />
+                <p className="text-sm font-medium">
+                  {PREVIEW_VARIABLES.length} variables
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 font-medium"
+              >
+                <ListPlus className="size-3.5" />
+                Link dataset
+              </Button>
+            </div>
+          </div>
           <VariableList
             selectedVariable={selectedVariable}
             variableValues={variableValues}
             onSelectVariable={onSelectVariable}
-            className="border-t"
+            className="border-b"
+            compact
           />
           <VariableDetail
             variable={selectedVariableMeta}
             value={selectedVariableValue}
             onValueChange={onValueChange}
-            className="border-t"
+            className="h-full"
           />
         </div>
       ) : (
@@ -948,27 +1349,88 @@ function VariablesPane({
           orientation="horizontal"
           className="min-h-0 flex-1"
         >
-          <ResizablePanel defaultSize="33%" minSize="22%">
-            <VariableList
-              selectedVariable={selectedVariable}
-              variableValues={variableValues}
-              onSelectVariable={onSelectVariable}
-              className="border-t"
-            />
+          <ResizablePanel defaultSize="22%" minSize="16%">
+            <div className="flex h-full flex-col overflow-hidden">
+              <div className="flex w-full shrink-0 flex-row items-center px-3.5 py-3">
+                <div className="flex h-6 w-full flex-row items-center justify-between">
+                  <div className="flex flex-row items-center space-x-3.5">
+                    <Variable className="size-4" />
+                    <span className="truncate text-sm font-medium">
+                      {PREVIEW_VARIABLES.length} variables
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-7 w-7 shadow-none"
+                    type="button"
+                    aria-label="Link dataset"
+                  >
+                    <ListPlus className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <VariableList
+                selectedVariable={selectedVariable}
+                variableValues={variableValues}
+                onSelectVariable={onSelectVariable}
+                className="min-h-0 flex-1"
+              />
+            </div>
           </ResizablePanel>
           <ResizableHandle />
-          <ResizablePanel defaultSize="62%" minSize="34%">
+          <ResizablePanel defaultSize="78%" minSize="34%">
             <VariableDetail
               variable={selectedVariableMeta}
               value={selectedVariableValue}
               onValueChange={onValueChange}
-              className="border-t"
+              className="h-full"
             />
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
     </div>
   );
+}
+
+function getMessageRoleAppearance(role: PromptMessageRole) {
+  const isSystem = role === "System";
+  const isOutgoing = role === "User";
+
+  return {
+    isSystem,
+    isOutgoing,
+    rowClass: isSystem
+      ? "items-center"
+      : isOutgoing
+        ? "items-end"
+        : "items-start",
+    metaClass: isSystem
+      ? "justify-center"
+      : isOutgoing
+        ? "justify-end"
+        : "justify-start",
+    bubbleClass: isSystem
+      ? "bg-sky-500/10 border-sky-500/20"
+      : isOutgoing
+        ? "bg-emerald-500/15 border-emerald-500/25"
+        : "bg-background/95 border-border/80",
+    bubbleRadiusClass: isSystem
+      ? "rounded-2xl"
+      : isOutgoing
+        ? "rounded-[1.35rem] rounded-br-md"
+        : "rounded-[1.35rem] rounded-bl-md",
+    roleTextClass: isSystem
+      ? "text-sky-700 dark:text-sky-300"
+      : isOutgoing
+        ? "text-emerald-700 dark:text-emerald-300"
+        : "text-slate-700 dark:text-slate-200",
+    avatarClass: isSystem
+      ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
+      : isOutgoing
+        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+        : "bg-slate-500/15 text-slate-700 dark:text-slate-200",
+  };
 }
 
 function PromptEditorMessageRow({
@@ -990,46 +1452,65 @@ function PromptEditorMessageRow({
   onAddFile: (id: string) => void;
   onDeleteMessage: (id: string) => void;
 }) {
-  const variableCount = extractVariables(content).length;
-  const roleToneClass =
-    role === "System"
-      ? "bg-blue-500/30"
-      : role === "Assistant"
-        ? "bg-violet-500/30"
-        : "bg-emerald-500/30";
-  const roleLabelClass =
-    role === "System"
-      ? "text-blue-600"
-      : role === "Assistant"
-        ? "text-violet-600"
-        : "text-emerald-600";
+  const variableKeys = getUniqueVariableKeys(content);
+  const appearance = getMessageRoleAppearance(role);
 
   return (
-    <div className="group relative flex w-full gap-3 pb-1">
+    <div
+      className={cn("group/message flex w-full flex-col", appearance.rowClass)}
+    >
       <div
         className={cn(
-          "absolute top-0 bottom-0 left-0 w-0.5 shrink-0 opacity-30 transition-all group-focus-within:opacity-100 group-hover:w-1.5",
-          roleToneClass,
+          "flex w-full max-w-[88%] flex-col gap-1",
+          appearance.isOutgoing && "items-end",
+          appearance.isSystem && "max-w-[94%] items-center",
         )}
-      />
-      <div className="flex w-full flex-col gap-1">
-        <div className="bg-background sticky top-0 z-10 flex w-full items-center justify-between pr-3.5 pl-2">
-          <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+      >
+        <div
+          className={cn(
+            "flex w-full items-center gap-2 px-1",
+            appearance.metaClass,
+          )}
+        >
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-2 overflow-hidden",
+              appearance.isOutgoing && "flex-row-reverse",
+            )}
+          >
+            <span
+              className={cn(
+                "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold uppercase",
+                appearance.avatarClass,
+              )}
+            >
+              {role.charAt(0)}
+            </span>
             <Button
               variant="ghost"
               size="sm"
-              className={cn("h-6 px-2 text-xs font-bold", roleLabelClass)}
+              className={cn(
+                "h-6 rounded-full px-2.5 text-[11px] font-semibold",
+                appearance.roleTextClass,
+              )}
               type="button"
               onClick={() => onCycleRole(id)}
             >
               {role}
             </Button>
-            <span className="text-muted-foreground flex items-center gap-1 text-xs font-bold opacity-70">
-              <Brackets className="size-2.5 shrink-0 stroke-[3px]" />
-              <span className="tabular-nums">{variableCount}</span>
-            </span>
+            {variableKeys.length > 0 ? (
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px] font-medium opacity-75">
+                <Brackets className="size-2.5 shrink-0 stroke-[3px]" />
+                <span className="tabular-nums">{variableKeys.length}</span>
+              </span>
+            ) : null}
           </div>
-          <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <div
+            className={cn(
+              "bg-background/85 flex shrink-0 items-center rounded-full px-1 opacity-0 shadow-sm transition-opacity group-hover/message:opacity-100 focus-within:opacity-100",
+              appearance.isOutgoing && "order-first",
+            )}
+          >
             <Button
               variant="ghost"
               size="icon-xs"
@@ -1059,17 +1540,20 @@ function PromptEditorMessageRow({
             </Button>
           </div>
         </div>
-        <div className="px-3.5 text-base">
-          <div className="flex flex-col gap-2.5">
-            <Textarea
-              value={content}
-              name={`prompt-message-${id}`}
-              aria-label={`${role} message`}
-              placeholder="Write a message"
-              onChange={(event) => onUpdateMessage(id, event.target.value)}
-              className="min-h-20 resize-none rounded-none border-0 bg-transparent p-0 text-base/7 shadow-none focus-visible:ring-0 sm:text-sm/6"
-            />
-          </div>
+        <div
+          className={cn(
+            "w-full overflow-hidden border px-3.5 py-3 shadow-sm backdrop-blur-sm",
+            appearance.bubbleClass,
+            appearance.bubbleRadiusClass,
+          )}
+        >
+          <HighlightedVariableTextarea
+            value={content}
+            name={`prompt-message-${id}`}
+            ariaLabel={`${role} message`}
+            placeholder="Write a message"
+            onChange={(event) => onUpdateMessage(id, event.target.value)}
+          />
         </div>
       </div>
     </div>
@@ -1079,23 +1563,54 @@ function PromptEditorMessageRow({
 function PlaygroundSummaryRow({
   role,
   content,
+  variableValues,
 }: {
-  role: string;
+  role: PromptMessageRole;
   content: string;
+  variableValues: Record<string, string>;
 }) {
+  const appearance = getMessageRoleAppearance(role);
+  const variableKeys = getUniqueVariableKeys(content);
+
   return (
-    <div className="flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="w-fit">
-          {role}
-        </Badge>
-        <p className="text-muted-foreground text-xs">
-          {extractVariables(content).length} vars
-        </p>
+    <div className={cn("flex w-full", appearance.metaClass)}>
+      <div
+        className={cn(
+          "flex max-w-[85%] flex-col gap-1",
+          appearance.isOutgoing && "items-end",
+          appearance.isSystem && "items-center",
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center gap-2 px-1",
+            appearance.isOutgoing && "flex-row-reverse",
+          )}
+        >
+          <Badge variant="outline" className="w-fit rounded-full">
+            {role}
+          </Badge>
+          {variableKeys.length > 0 ? (
+            <p className="text-muted-foreground text-xs">
+              {variableKeys.length} vars
+            </p>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            "w-full rounded-[1.35rem] border px-3.5 py-3 shadow-sm",
+            appearance.bubbleClass,
+            appearance.bubbleRadiusClass,
+          )}
+        >
+          <InlineVariableText
+            content={content}
+            variableValues={variableValues}
+            resolveVariables
+            className="text-foreground text-base/7 sm:text-sm/6"
+          />
+        </div>
       </div>
-      <p className="text-muted-foreground truncate text-base/7 sm:text-sm/6">
-        {content}
-      </p>
     </div>
   );
 }
@@ -1105,36 +1620,101 @@ function VariableList({
   variableValues,
   onSelectVariable,
   className,
+  compact = false,
 }: {
   selectedVariable: string;
   variableValues: Record<string, string>;
   onSelectVariable: (value: string) => void;
   className?: string;
+  compact?: boolean;
 }) {
-  return (
-    <div className={cn("flex h-full flex-col overflow-hidden", className)}>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        <div role="list" className="flex flex-col gap-1">
-          {PREVIEW_VARIABLES.map((variable) => (
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-1 overflow-x-auto px-3.5 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          className,
+        )}
+        role="list"
+      >
+        {PREVIEW_VARIABLES.map((variable) => {
+          const selected = variable.key === selectedVariable;
+          const accent = getVariableAccentClasses(variable.key, selected);
+
+          return (
             <button
               key={variable.key}
               className={cn(
-                "flex w-full flex-col items-start gap-1 rounded-md px-3 py-2 text-left",
-                variable.key === selectedVariable
-                  ? "bg-muted"
-                  : "hover:bg-muted/40",
+                "group flex max-w-[18rem] shrink-0 flex-col items-start justify-center truncate rounded-md px-3 py-2 text-left select-none",
+                accent.containerClass,
               )}
+              type="button"
+              data-selected={selected}
               onClick={() => onSelectVariable(variable.key)}
             >
-              <div className="flex w-full items-center justify-between gap-3">
-                <p className="truncate text-sm font-medium">{variable.label}</p>
-                <Badge variant="outline">{variable.type}</Badge>
+              <div
+                className={cn(
+                  "flex w-full items-center justify-between gap-4 truncate text-left text-sm font-semibold whitespace-nowrap",
+                  accent.titleClass,
+                )}
+              >
+                <span className="truncate">{variable.label}</span>
+                <Type className="mr-px size-3 shrink-0" />
               </div>
-              <p className="text-muted-foreground line-clamp-2 text-base/7 sm:text-sm/6">
-                {variableValues[variable.key] ?? ""}
-              </p>
+              <div
+                className={cn(
+                  "w-full truncate text-left text-sm",
+                  accent.valueClass,
+                )}
+              >
+                <span>{variableValues[variable.key] ?? ""}</span>
+              </div>
             </button>
-          ))}
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex h-full flex-col overflow-hidden", className)}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3.5">
+        <div role="list" className="flex flex-col gap-1">
+          {PREVIEW_VARIABLES.map((variable) => {
+            const selected = variable.key === selectedVariable;
+            const accent = getVariableAccentClasses(variable.key, selected);
+
+            return (
+              <button
+                key={variable.key}
+                className={cn(
+                  "group flex w-full max-w-full min-w-full shrink-0 flex-col items-start justify-center truncate rounded-md px-3 py-2 text-left select-none",
+                  accent.containerClass,
+                )}
+                type="button"
+                data-selected={selected}
+                onClick={() => onSelectVariable(variable.key)}
+              >
+                <div
+                  className={cn(
+                    "flex w-full items-center justify-between gap-4 truncate text-left text-sm font-semibold whitespace-nowrap",
+                    accent.titleClass,
+                  )}
+                >
+                  <span className="truncate">{variable.label}</span>
+                  <Type className="mr-px size-3 shrink-0" />
+                </div>
+                <div
+                  className={cn(
+                    "w-full max-w-full min-w-full truncate text-left text-sm",
+                    accent.valueClass,
+                  )}
+                >
+                  <span>{variableValues[variable.key] ?? ""}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1154,37 +1734,224 @@ function VariableDetail({
 }) {
   return (
     <div className={cn("flex h-full flex-col overflow-hidden", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="truncate text-sm font-medium">{variable.label}</p>
+      <div className="flex h-12 w-full shrink-0 items-center justify-between py-3 pr-3.5 pl-2">
+        <div className="flex w-full items-center justify-between gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1 px-2 font-medium shadow-none"
+            type="button"
+          >
+            <Type className="size-3" />
+            {variable.type}
+            <ChevronDown className="size-3" />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 px-2 font-medium"
-        >
-          {variable.type}
-          <ChevronDown className="size-3.5" />
-        </Button>
+        <div className="flex items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-8 w-8 shadow-none"
+            type="button"
+            aria-label="Collapse variable editor"
+          >
+            <ChevronsDown className="size-3.5" />
+          </Button>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3.5">
         <Textarea
+          name={`variable-${variable.key}`}
+          aria-label={`${variable.label} value`}
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
-          className="min-h-full resize-none rounded-none border-0 bg-transparent px-0 py-0 text-base/7 shadow-none focus-visible:ring-0 sm:text-sm/6"
+          placeholder="Enter the variable value here"
+          className="size-full min-h-0 resize-none rounded-none border-0 bg-transparent px-2 py-2 pb-3.5 text-base leading-6 shadow-none focus-visible:ring-0 sm:text-sm sm:leading-6"
         />
       </div>
     </div>
   );
 }
 
-function interpolateMessage(
-  content: string,
-  variableValues: Record<string, string>,
-) {
-  return content.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => {
-    return variableValues[key] ?? `{{${key}}}`;
-  });
+function getVariableAccentClasses(variableKey: string, selected: boolean) {
+  const accent = getVariableAccentPalette(variableKey);
+
+  return {
+    containerClass: selected
+      ? accent.selectedContainer
+      : cn("text-muted-foreground", accent.hoverContainer),
+    titleClass: selected ? accent.title : "text-foreground",
+    valueClass: selected ? accent.value : "text-muted-foreground",
+  };
+}
+
+function getVariableAccentPalette(variableKey: string) {
+  const palette = [
+    {
+      selectedContainer: "bg-sky-500/12",
+      inlineContainer: "bg-sky-500/8",
+      hoverContainer: "hover:bg-sky-500/8",
+      title: "text-sky-700 dark:text-sky-300",
+      value: "text-sky-700/80 dark:text-sky-300/80",
+      tagBorder: "border-sky-500/20 dark:border-sky-400/20",
+    },
+    {
+      selectedContainer: "bg-emerald-500/12",
+      inlineContainer: "bg-emerald-500/8",
+      hoverContainer: "hover:bg-emerald-500/8",
+      title: "text-emerald-700 dark:text-emerald-300",
+      value: "text-emerald-700/80 dark:text-emerald-300/80",
+      tagBorder: "border-emerald-500/20 dark:border-emerald-400/20",
+    },
+    {
+      selectedContainer: "bg-violet-500/12",
+      inlineContainer: "bg-violet-500/8",
+      hoverContainer: "hover:bg-violet-500/8",
+      title: "text-violet-700 dark:text-violet-300",
+      value: "text-violet-700/80 dark:text-violet-300/80",
+      tagBorder: "border-violet-500/20 dark:border-violet-400/20",
+    },
+    {
+      selectedContainer: "bg-amber-500/12",
+      inlineContainer: "bg-amber-500/8",
+      hoverContainer: "hover:bg-amber-500/8",
+      title: "text-amber-700 dark:text-amber-300",
+      value: "text-amber-700/80 dark:text-amber-300/80",
+      tagBorder: "border-amber-500/20 dark:border-amber-400/20",
+    },
+  ] as const;
+
+  const variableIndex = PREVIEW_VARIABLES.findIndex(
+    (variable) => variable.key === variableKey,
+  );
+
+  return palette[(variableIndex >= 0 ? variableIndex : 0) % palette.length]!;
+}
+
+function HighlightedVariableTextarea({
+  value,
+  name,
+  ariaLabel,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  name: string;
+  ariaLabel: string;
+  placeholder: string;
+  onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="relative min-h-20">
+      {value ? (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <InlineVariableText
+            content={value}
+            className="text-foreground text-[15px] leading-6 break-words whitespace-pre-wrap sm:text-sm/6"
+          />
+        </div>
+      ) : null}
+      <Textarea
+        value={value}
+        name={name}
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        onChange={onChange}
+        className={cn(
+          "relative min-h-20 resize-none rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0",
+          "text-[15px] leading-6 caret-current sm:text-sm/6",
+          value
+            ? "text-transparent placeholder:text-transparent"
+            : "text-foreground placeholder:text-muted-foreground/70",
+        )}
+      />
+    </div>
+  );
+}
+
+function InlineVariableText({
+  content,
+  variableValues,
+  resolveVariables = false,
+  className,
+}: {
+  content: string;
+  variableValues?: Record<string, string>;
+  resolveVariables?: boolean;
+  className?: string;
+}) {
+  const segments = getMessageSegments(content);
+
+  return (
+    <div className={cn("break-words whitespace-pre-wrap", className)}>
+      {segments.map((segment, index) => {
+        if (segment.type === "text") {
+          return <span key={`${segment.type}-${index}`}>{segment.value}</span>;
+        }
+
+        const accent = getVariableAccentPalette(segment.key);
+        const label = resolveVariables
+          ? (variableValues?.[segment.key] ?? segment.raw)
+          : segment.raw;
+
+        return (
+          <span
+            key={`${segment.key}-${index}`}
+            className={cn(
+              "mx-[0.08rem] inline-flex max-w-full items-center rounded-[0.45rem] border px-1 py-px align-baseline text-[0.92em] font-medium",
+              accent.inlineContainer,
+              accent.tagBorder,
+              accent.title,
+            )}
+          >
+            <span className="truncate">{label}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function getUniqueVariableKeys(content: string) {
+  return Array.from(new Set(extractVariables(content)));
+}
+
+function getMessageSegments(content: string) {
+  const segments: Array<
+    | { type: "text"; value: string }
+    | { type: "variable"; key: string; raw: string }
+  > = [];
+  const regex = /\{\{\s*([\w.-]+)\s*\}\}/g;
+  let lastIndex = 0;
+
+  for (const match of content.matchAll(regex)) {
+    const fullMatch = match[0];
+    const key = match[1];
+    const startIndex = match.index ?? 0;
+
+    if (startIndex > lastIndex) {
+      segments.push({
+        type: "text",
+        value: content.slice(lastIndex, startIndex),
+      });
+    }
+
+    segments.push({
+      type: "variable",
+      key,
+      raw: fullMatch,
+    });
+    lastIndex = startIndex + fullMatch.length;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({
+      type: "text",
+      value: content.slice(lastIndex),
+    });
+  }
+
+  return segments;
 }
 
 function BenchmarkCard({

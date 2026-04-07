@@ -55,21 +55,6 @@ export function ProductSidebar({
         <div className="flex min-h-9 items-center gap-2 py-3 pr-0 pl-3 group-data-[collapsible=icon]:p-3">
           <LangfuseLogo version />
         </div>
-        <div className="px-3 pb-3 group-data-[collapsible=icon]:hidden">
-          <div className="bg-muted/30 rounded-2xl border p-3">
-            <p className="text-xs font-medium tracking-[0.16em] uppercase">
-              Greenfield
-            </p>
-            <p className="mt-1 text-sm font-medium">
-              {scope === "organization"
-                ? `Organization ${formatScopeId(organizationId)}`
-                : `Project ${formatScopeId(projectId)}`}
-            </p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Phase 1 shell preview with empty page frames only.
-            </p>
-          </div>
-        </div>
       </SidebarHeader>
       <SidebarContent className="pb-2">
         <SidebarGroup>
@@ -127,12 +112,4 @@ export function ProductSidebar({
       <SidebarRail />
     </Sidebar>
   );
-}
-
-function formatScopeId(value?: string) {
-  if (!value) {
-    return "preview";
-  }
-
-  return value.slice(0, 8);
 }

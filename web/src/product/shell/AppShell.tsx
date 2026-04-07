@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
+import { AgentationSurface } from "@/src/features/agentation/components/AgentationSurface";
 import { type ShellBreadcrumbItem } from "./Breadcrumbs";
 import { ProductHeader } from "./Header";
 import {
@@ -57,6 +58,7 @@ export function ProductAppShell({
               activePromptStage={activePromptStage}
             />
             <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+            <AgentationSurface />
           </div>
         </SidebarInset>
       </div>

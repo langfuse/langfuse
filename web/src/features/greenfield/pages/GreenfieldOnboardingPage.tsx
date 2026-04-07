@@ -18,6 +18,8 @@ export default function GreenfieldOnboardingPage() {
       withPadding
       headerProps={{
         title: "Home",
+        showSidebarTrigger: false,
+        showTopRow: false,
       }}
     >
       <GreenfieldOnboardingView
