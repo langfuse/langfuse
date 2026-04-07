@@ -6,6 +6,7 @@ import {
   AggregatableScoreDataType,
   ScoreByDataType,
   LISTABLE_SCORE_TYPES,
+  ListableScoreDataType,
 } from "../../domain/scores";
 import {
   commandClickhouse,
@@ -832,7 +833,7 @@ export const getScoresGroupedByNameSourceType = async ({
   return rows.map((row) => ({
     name: row.name,
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as AggregatableScoreDataType,
+    dataType: row.data_type as ListableScoreDataType,
   }));
 };
 

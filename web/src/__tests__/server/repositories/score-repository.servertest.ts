@@ -830,7 +830,7 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(result!.source).toBe("ANNOTATION");
     });
 
-    it("should exclude TEXT scores from getScoresGroupedByNameSourceType", async () => {
+    it("should include TEXT scores in getScoresGroupedByNameSourceType", async () => {
       const isolatedProjectId = v4();
       const traceId = v4();
 
@@ -1041,7 +1041,7 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(names).toContain("free-form");
     });
 
-    it("getScoresGroupedByNameSourceType should only return aggregatable types", async () => {
+    it("getScoresGroupedByNameSourceType should return all listable score types", async () => {
       const result = await getScoresGroupedByNameSourceType({
         projectId: isolatedProjectId,
         filter: [],

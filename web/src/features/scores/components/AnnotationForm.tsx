@@ -25,6 +25,7 @@ import {
   type ScoreConfigCategoryDomain,
   type UpdateAnnotationScoreData,
   type CreateAnnotationScoreData,
+  TEXT_SCORE_MAX_LENGTH,
 } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -702,7 +703,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                     <Textarea
                                       {...field}
                                       value={field.value ?? ""}
-                                      maxLength={500}
+                                      maxLength={TEXT_SCORE_MAX_LENGTH}
                                       className="text-xs"
                                       disabled={isInputDisabled(config)}
                                       placeholder="Enter free form text..."
