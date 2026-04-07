@@ -3,6 +3,8 @@ import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 
 export interface ObjectDataHook<TData> {
   data: TData | undefined;
@@ -15,15 +17,19 @@ export const useAnnotationObjectData = (
   item: (AnnotationQueueItem & { parentTraceId?: string | null }) | null,
   projectId: string,
 ): ObjectDataHook<any> => {
+  const { isBetaEnabled } = useV4Beta();
   const traceId = item?.parentTraceId ?? item?.objectId;
 
+  const isTraceOrObservation =
+    !!item &&
+    (item.objectType === AnnotationQueueObjectType.TRACE ||
+      item.objectType === AnnotationQueueObjectType.OBSERVATION);
+
+  // Old path: fetch from traces table (beta OFF)
   const traceQuery = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId: traceId as string, projectId },
     {
-      enabled:
-        !!item &&
-        (item.objectType === AnnotationQueueObjectType.TRACE ||
-          item.objectType === AnnotationQueueObjectType.OBSERVATION),
+      enabled: isTraceOrObservation && !isBetaEnabled,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -34,6 +40,12 @@ export const useAnnotationObjectData = (
       },
     },
   );
+
+  const eventsData = useEventsTraceData({
+    projectId,
+    traceId: traceId ?? "",
+    enabled: isTraceOrObservation && isBetaEnabled,
+  });
 
   const sessionQuery = api.sessions.byIdWithScores.useQuery(
     {
@@ -64,6 +76,13 @@ export const useAnnotationObjectData = (
   switch (item.objectType) {
     case AnnotationQueueObjectType.TRACE:
     case AnnotationQueueObjectType.OBSERVATION:
+      if (isBetaEnabled) {
+        return {
+          data: eventsData.data,
+          isLoading: eventsData.isLoading,
+          isError: !!eventsData.error,
+        };
+      }
       return {
         data: traceQuery.data,
         isLoading: traceQuery.isLoading,

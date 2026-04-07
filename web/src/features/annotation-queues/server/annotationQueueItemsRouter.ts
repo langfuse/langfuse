@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -20,6 +21,7 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationById,
+  getObservationByIdFromEventsTable,
   getTraceIdsForObservations,
   logger,
 } from "@langfuse/shared/src/server";
@@ -85,6 +87,7 @@ export const queueItemRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         itemId: z.string(),
+        isBetaEnabled: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -122,10 +125,15 @@ export const queueItemRouter = createTRPCRouter({
       };
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-        const clickhouseObservation = await getObservationById({
-          id: item.objectId,
-          projectId: input.projectId,
-        });
+        const clickhouseObservation = input.isBetaEnabled
+          ? await getObservationByIdFromEventsTable({
+              id: item.objectId,
+              projectId: input.projectId,
+            })
+          : await getObservationById({
+              id: item.objectId,
+              projectId: input.projectId,
+            });
 
         if (!clickhouseObservation) {
           throw new LangfuseNotFoundError("Observation not found");
