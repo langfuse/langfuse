@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";

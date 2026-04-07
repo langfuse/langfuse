@@ -47,13 +47,36 @@ export const useAnnotationObjectData = (
     enabled: isTraceOrObservation && isBetaEnabled,
   });
 
+  const isSession =
+    !!item && item.objectType === AnnotationQueueObjectType.SESSION;
+
+  // Old path: fetch from traces table (beta OFF)
   const sessionQuery = api.sessions.byIdWithScores.useQuery(
     {
       sessionId: item?.objectId as string,
       projectId,
     },
     {
-      enabled: !!item && item.objectType === AnnotationQueueObjectType.SESSION,
+      enabled: isSession && !isBetaEnabled,
+      retry(failureCount, error) {
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  // New path: fetch from events table (beta ON)
+  const sessionEventsQuery = api.sessions.byIdWithScoresFromEvents.useQuery(
+    {
+      sessionId: item?.objectId as string,
+      projectId,
+    },
+    {
+      enabled: isSession && isBetaEnabled,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -81,6 +104,7 @@ export const useAnnotationObjectData = (
           data: eventsData.data,
           isLoading: eventsData.isLoading,
           isError: !!eventsData.error,
+          errorCode: (eventsData.error as any)?.data?.code,
         };
       }
       return {
@@ -90,6 +114,14 @@ export const useAnnotationObjectData = (
         errorCode: traceQuery.error?.data?.code,
       };
     case AnnotationQueueObjectType.SESSION:
+      if (isBetaEnabled) {
+        return {
+          data: sessionEventsQuery.data,
+          isLoading: sessionEventsQuery.isLoading,
+          isError: sessionEventsQuery.isError,
+          errorCode: sessionEventsQuery.error?.data?.code,
+        };
+      }
       return {
         data: sessionQuery.data,
         isLoading: sessionQuery.isLoading,
