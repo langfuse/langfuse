@@ -35,7 +35,7 @@ export const ScoreBodyWithoutConfig = applyScoreValidation(
     ),
     PostScoreBodyFoundationSchema.extend(
       z.object({
-        value: z.string().min(1).max(500),
+        value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
         dataType: z.literal("TEXT"),
       }).shape,
     ),

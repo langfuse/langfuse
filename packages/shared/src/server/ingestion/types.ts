@@ -4,6 +4,7 @@ import { z } from "zod";
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
+import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
@@ -559,7 +560,7 @@ const createAllIngestionSchemas = ({
       ),
       BaseScoreBody.extend(
         z.object({
-          value: z.string().min(1).max(500),
+          value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
           dataType: z.literal("TEXT"),
           configId: z.string().nullish(),
         }).shape,

@@ -6,6 +6,7 @@ import { PostScoreBodyFoundationSchema } from "../shared";
 import {
   ScoreDataTypeDomain,
   ScoreSourceDomain,
+  TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
 import { singleFilter } from "../../../../interfaces/filters";
 import { InvalidRequestError } from "../../../../errors";
@@ -104,7 +105,7 @@ export const PostScoresBody = applyScoreValidation(
         configId: z.undefined().nullish(), // Cannot have config
       }),
       z.object({
-        value: z.string().min(1).max(500),
+        value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
         dataType: z.literal("TEXT"),
         configId: z.string().nullish(),
       }),
