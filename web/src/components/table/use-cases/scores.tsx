@@ -264,7 +264,7 @@ export default function ScoresTable({
           count: n.count !== undefined ? Number(n.count) : undefined,
         })) ?? undefined,
       source: ["ANNOTATION", "API", "EVAL"],
-      dataType: LISTABLE_SCORE_TYPES,
+      dataType: [...LISTABLE_SCORE_TYPES],
       value: [],
       stringValue:
         filterOptions.data?.stringValue?.map((sv) => ({
