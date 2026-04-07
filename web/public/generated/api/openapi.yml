@@ -6353,6 +6353,12 @@ components:
           description: >-
             Custom start date for exports (required when exportMode is
             FROM_CUSTOM_DATE)
+        compressed:
+          type: boolean
+          nullable: true
+          description: >-
+            Enable gzip compression for exported files (.csv.gz, .json.gz,
+            .jsonl.gz). Defaults to true.
       required:
         - projectId
         - type
@@ -6399,6 +6405,8 @@ components:
           type: string
           format: date-time
           nullable: true
+        compressed:
+          type: boolean
         nextSyncAt:
           type: string
           format: date-time
@@ -6432,6 +6440,7 @@ components:
         - forcePathStyle
         - fileType
         - exportMode
+        - compressed
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -7283,6 +7292,17 @@ components:
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScoreV1'
+    TextScoreV1:
+      title: TextScoreV1
+      type: object
+      properties:
+        stringValue:
+          type: string
+          description: The text content of the score (1-500 characters)
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV1'
     ScoreV1:
       title: ScoreV1
       oneOf:
@@ -7317,6 +7337,17 @@ components:
                   enum:
                     - BOOLEAN
             - $ref: '#/components/schemas/BooleanScoreV1'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScoreV1'
           required:
             - dataType
     BaseScore:
@@ -7460,6 +7491,17 @@ components:
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
+    TextScore:
+      title: TextScore
+      type: object
+      properties:
+        stringValue:
+          type: string
+          description: The text content of the score (1-500 characters)
+      required:
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     Score:
       title: Score
       oneOf:
@@ -7507,6 +7549,17 @@ components:
             - $ref: '#/components/schemas/CorrectionScore'
           required:
             - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScore'
+          required:
+            - dataType
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
@@ -7514,8 +7567,8 @@ components:
           format: double
         - type: string
       description: >-
-        The value of the score. Must be passed as string for categorical scores,
-        and numeric for boolean and numeric scores
+        The value of the score. Must be passed as string for categorical and
+        text scores, and numeric for boolean and numeric scores
     Comment:
       title: Comment
       type: object
@@ -8235,6 +8288,7 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+        - TEXT
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -8243,6 +8297,7 @@ components:
         - BOOLEAN
         - CATEGORICAL
         - CORRECTION
+        - TEXT
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -8869,9 +8924,10 @@ components:
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
-            The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean score
-            values must equal either 1 or 0 (true or false)
+            The value of the score. Must be passed as string for categorical and
+            text scores, and numeric for boolean and numeric scores. Boolean
+            score values must equal either 1 or 0 (true or false). Text score
+            values must be between 1 and 500 characters.
         comment:
           type: string
           nullable: true
@@ -9188,9 +9244,10 @@ components:
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
-            The value of the score. Must be passed as string for categorical
-            scores, and numeric for boolean and numeric scores. Boolean score
-            values must equal either 1 or 0 (true or false)
+            The value of the score. Must be passed as string for categorical and
+            text scores, and numeric for boolean and numeric scores. Boolean
+            score values must equal either 1 or 0 (true or false). Text score
+            values must be between 1 and 500 characters.
         comment:
           type: string
           nullable: true
@@ -10821,6 +10878,15 @@ components:
           nullable: true
       allOf:
         - $ref: '#/components/schemas/CorrectionScore'
+    GetScoresResponseDataText:
+      title: GetScoresResponseDataText
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/TextScore'
     GetScoresResponseData:
       title: GetScoresResponseData
       oneOf:
@@ -10866,6 +10932,17 @@ components:
                   enum:
                     - CORRECTION
             - $ref: '#/components/schemas/GetScoresResponseDataCorrection'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/GetScoresResponseDataText'
           required:
             - dataType
     GetScoresResponse:

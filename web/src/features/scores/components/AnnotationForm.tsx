@@ -297,10 +297,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.stringValue`, previousScore.stringValue);
     form.setValue(`scoreData.${index}.comment`, previousScore.comment);
     form.setValue(`scoreData.${index}.timestamp`, previousScore.timestamp);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to delete score",
-    });
+    if (isTextDataType(field.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to delete score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to delete score",
+      });
+    }
   };
 
   const handleDeleteScore = (index: number) => {
@@ -316,7 +323,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     // Optimistically clear form
-    form.clearErrors(`scoreData.${index}.value`);
+    if (isTextDataType(field.dataType)) {
+      form.clearErrors(`scoreData.${index}.stringValue`);
+    } else {
+      form.clearErrors(`scoreData.${index}.value`);
+    }
     update(index, {
       name: field.name,
       dataType: field.dataType,
@@ -351,10 +362,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   ) => {
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to update score",
-    });
+    if (isTextDataType(controlledFields[index]?.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to update score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to update score",
+      });
+    }
   };
 
   const rollbackCreateError = (
@@ -368,10 +386,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to create score",
-    });
+    if (isTextDataType(controlledFields[index]?.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to create score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to create score",
+      });
+    }
   };
 
   const handleUpsert = (
