@@ -98,7 +98,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       <CodeView
         content={envCode}
         title=".env"
-        clipboardMessage="Secrets could not be copied in full. Please create a new key to copy them."
+        clipboardMessage="Note: secrets are not shown here. Create a new key to copy them."
       />
       <Card className="mb-4 overflow-hidden">
         <Table>

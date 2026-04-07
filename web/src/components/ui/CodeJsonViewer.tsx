@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Check,
@@ -225,7 +225,10 @@ export function CodeView(props: {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
-  const copySuccessStateDuration = clipboardMessage ? 2_000 : 1_000;
+  const copySuccessStateDuration = clipboardMessage ? 3_000 : 1_000;
+  const copySuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -236,7 +239,12 @@ export function CodeView(props: {
         ? props.content
         : (props.content?.join("\n") ?? ""));
     void copyTextToClipboard(content);
-    setTimeout(() => setIsCopied(false), copySuccessStateDuration);
+    if (copySuccessTimeoutRef.current)
+      clearTimeout(copySuccessTimeoutRef.current);
+    copySuccessTimeoutRef.current = setTimeout(
+      () => setIsCopied(false),
+      copySuccessStateDuration,
+    );
 
     // Keep focus on the copy button to prevent focus shifting
     event.currentTarget.focus();
