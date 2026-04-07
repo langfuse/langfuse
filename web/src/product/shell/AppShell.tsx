@@ -15,7 +15,7 @@ type ProductAppShellProps = {
   scope: "organization" | "project";
   organizationId?: string;
   projectId?: string;
-  activeSection: ProjectPrimarySection | "organization";
+  activeSection?: ProjectPrimarySection | "organization";
   title: string;
   titleContent?: ReactNode;
   breadcrumbs: ShellBreadcrumbItem[];

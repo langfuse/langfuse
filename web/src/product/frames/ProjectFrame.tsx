@@ -13,7 +13,7 @@ export function ProjectFrame({
   children,
 }: {
   projectId: string;
-  activeSection: ProjectPrimarySection;
+  activeSection?: ProjectPrimarySection;
   title: string;
   breadcrumbs: ShellBreadcrumbItem[];
   workspaceSelection?: WorkspaceSelection;

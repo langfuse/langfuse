@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
 import { type ShellBreadcrumbItem } from "../shell/Breadcrumbs";
 import { ProductAppShell } from "../shell/AppShell";
 import {
@@ -27,9 +25,8 @@ export function PromptFrame({
     <ProductAppShell
       scope="project"
       projectId={projectId}
-      activeSection="workspace"
       title={title}
-      titleContent={<PromptSelector title={title} />}
+      titleContent={<PromptName title={title} />}
       breadcrumbs={breadcrumbs}
       workspaceSelection={{ kind: "prompt", path: promptPath }}
       promptTabs={getPromptStageTabs(projectId, promptPath)}
@@ -40,18 +37,10 @@ export function PromptFrame({
   );
 }
 
-function PromptSelector({ title }: { title: string }) {
+function PromptName({ title }: { title: string }) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="text-foreground hover:text-foreground h-7 max-w-full gap-1 px-2 font-medium shadow-none"
-      aria-label="Select prompt"
-    >
-      <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate">{title}</span>
-      </span>
-      <ChevronDown className="text-muted-foreground size-3.5 shrink-0" />
-    </Button>
+    <span className="text-foreground block truncate text-sm font-medium">
+      {title}
+    </span>
   );
 }

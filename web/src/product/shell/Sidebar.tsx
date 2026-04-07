@@ -25,7 +25,7 @@ type ProductSidebarProps = {
   scope: "organization" | "project";
   organizationId?: string;
   projectId?: string;
-  activeSection: ProjectPrimarySection | "organization";
+  activeSection?: ProjectPrimarySection | "organization";
   workspaceSelection: WorkspaceSelection;
 };
 

@@ -34,7 +34,6 @@ export function ProductHeader({
         <div className="flex h-10 items-center gap-3 px-3">
           <div className="max-w-[48%] min-w-0 flex-1">
             <ShellBreadcrumbs
-              leadingContent={<SidebarTrigger className="size-7" />}
               items={
                 breadcrumbs.length > 0 ? breadcrumbs.slice(0, -1) : breadcrumbs
               }

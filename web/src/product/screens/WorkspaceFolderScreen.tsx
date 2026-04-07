@@ -21,7 +21,6 @@ export default function WorkspaceFolderScreen() {
   return (
     <ProjectFrame
       projectId={projectId}
-      activeSection="workspace"
       title={getWorkspaceSelectionLabel(folderPath)}
       breadcrumbs={getWorkspaceBreadcrumbs(projectId, folderPath)}
       workspaceSelection={{ kind: "folder", path: folderPath }}

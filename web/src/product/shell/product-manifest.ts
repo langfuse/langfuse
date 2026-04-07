@@ -8,7 +8,6 @@ import {
   FilePenLine,
   FlaskConical,
   Folder,
-  Home,
   Settings,
   Wrench,
   type LucideIcon,
@@ -16,7 +15,7 @@ import {
 import { type ShellBreadcrumbItem } from "./Breadcrumbs";
 import { type PromptStageTab } from "./PromptStageTabs";
 
-export type ProjectPrimarySection = "overview" | "workspace" | "instrument";
+export type ProjectPrimarySection = "overview" | "instrument";
 
 export type WorkspaceNodeKind = "folder" | "prompt" | "dataset";
 
@@ -182,14 +181,6 @@ export function getProjectPrimaryNav(projectId: string): ProductNavItem[] {
       icon: BarChart2,
     },
     {
-      id: "workspace",
-      title: "Workspace",
-      section: "workspace",
-      kind: "page",
-      href: getWorkspacePreviewHref(projectId),
-      icon: Home,
-    },
-    {
       id: "instrument",
       title: "Instrument",
       section: "instrument",
@@ -316,12 +307,7 @@ export function getWorkspaceBreadcrumbs(
 ): ShellBreadcrumbItem[] {
   const crumbs: ShellBreadcrumbItem[] = [
     {
-      name: "Project",
-      href: getProjectPreviewHref(projectId),
-    },
-    {
       name: "Workspace",
-      href: getWorkspacePreviewHref(projectId),
     },
   ];
 

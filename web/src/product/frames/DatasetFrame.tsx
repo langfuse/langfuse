@@ -18,7 +18,6 @@ export function DatasetFrame({
   return (
     <ProjectFrame
       projectId={projectId}
-      activeSection="workspace"
       title={title}
       breadcrumbs={breadcrumbs}
       workspaceSelection={{ kind: "dataset", path: datasetPath }}

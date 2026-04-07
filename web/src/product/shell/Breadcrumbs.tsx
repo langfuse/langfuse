@@ -32,7 +32,9 @@ export function ShellBreadcrumbs({
         {leadingContent ? (
           <>
             <BreadcrumbItem>{leadingContent}</BreadcrumbItem>
-            {items.length > 0 || tailContent ? <BreadcrumbSeparator /> : null}
+            {items.length > 0 || tailContent ? (
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+            ) : null}
           </>
         ) : null}
         {items.map((item, index) => {
@@ -52,13 +54,15 @@ export function ShellBreadcrumbs({
                   <BreadcrumbPage>{item.name}</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
-              {!isLast ? <BreadcrumbSeparator /> : null}
+              {!isLast ? <BreadcrumbSeparator>/</BreadcrumbSeparator> : null}
             </Fragment>
           );
         })}
         {tailContent ? (
           <>
-            {items.length > 0 ? <BreadcrumbSeparator /> : null}
+            {items.length > 0 ? (
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+            ) : null}
             <BreadcrumbItem>{tailContent}</BreadcrumbItem>
           </>
         ) : null}
