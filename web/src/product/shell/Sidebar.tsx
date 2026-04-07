@@ -101,14 +101,7 @@ export function ProductSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-sidebar-border/70 border-t px-2 pt-2 pb-2 group-data-[collapsible=icon]:hidden">
-        <div className="bg-muted/30 rounded-2xl border p-3">
-          <p className="text-sm font-medium">Preview shell</p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Structure first. Feature content comes later.
-          </p>
-        </div>
-      </SidebarFooter>
+      <SidebarFooter className="border-sidebar-border/70 border-t px-2 pt-2 pb-2 group-data-[collapsible=icon]:hidden" />
       <SidebarRail />
     </Sidebar>
   );

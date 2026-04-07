@@ -29,7 +29,7 @@ export function ProductHeader({
       : null;
 
   return (
-    <header className="top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs">
+    <header className="top-banner-offset bg-background sticky z-30 w-full border-b">
       {promptHeaderContent ? (
         <div className="flex h-10 items-center gap-3 px-3">
           <div className="max-w-[48%] min-w-0 flex-1">
