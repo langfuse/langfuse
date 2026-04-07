@@ -12,6 +12,8 @@ export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
 export const CORRECTION_NAME = "output" as const;
 
+export const TEXT_SCORE_MAX_LENGTH = 500 as const;
+
 export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",
@@ -50,7 +52,7 @@ const CorrectionData = z.object({
 });
 
 export const TextData = z.object({
-  stringValue: z.string().min(1).max(500),
+  stringValue: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
   dataType: z.literal("TEXT"),
 });
 

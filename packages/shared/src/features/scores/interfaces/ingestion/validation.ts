@@ -3,6 +3,7 @@ import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import { isPresent } from "../../../../utils/typeChecks";
 import { ScoreConfigCategory } from "../../../../domain/score-configs";
+import { TEXT_SCORE_MAX_LENGTH } from "../../../../domain/scores";
 
 export const ScoreBodyWithoutConfig = applyScoreValidation(
   z.discriminatedUnion("dataType", [
@@ -82,7 +83,7 @@ export const ScorePropsAgainstConfig = z.union([
     dataType: z.literal("BOOLEAN"),
   }),
   z.object({
-    value: z.string().min(1).max(500),
+    value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
     dataType: z.literal("TEXT"),
   }),
 ]);
