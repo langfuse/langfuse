@@ -65,6 +65,10 @@
       "@release-it/bumper": {
         "out": [
           {
+            "file": "./packages/shared/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
             "file": "./web/src/constants/VERSION.ts",
             "type": "application/typescript"
           },
