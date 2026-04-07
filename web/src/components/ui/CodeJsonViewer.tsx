@@ -217,15 +217,14 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
   title?: string;
   scrollable?: boolean;
-  /** Message to display after the content was successfully copied to the clipboard */
-  clipboardMessage?: string;
+  copiedToClipboardMessage?: string;
 }) {
-  const { clipboardMessage } = props;
+  const { copiedToClipboardMessage } = props;
 
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
-  const copySuccessStateDuration = clipboardMessage ? 3_000 : 1_000;
+  const copySuccessStateDuration = copiedToClipboardMessage ? 3_000 : 1_000;
   const copySuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -256,14 +255,14 @@ export function CodeView(props: {
     return (
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
-        {clipboardMessage && (
+        {copiedToClipboardMessage && (
           <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
-            {clipboardMessage}
+            {copiedToClipboardMessage}
           </div>
         )}
       </div>
     );
-  }, [clipboardMessage]);
+  }, [copiedToClipboardMessage]);
 
   return (
     <div
