@@ -151,10 +151,12 @@ export function DashboardWidget({
       view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
       dimensions: widget.data?.dimensions ?? [],
       metrics:
-        widget.data?.metrics.map((metric) => ({
-          measure: metric.measure,
-          aggregation: metric.agg as z.infer<typeof metricAggregations>,
-        })) ?? [],
+        widget.data?.metrics.map(
+          (metric: { measure: string; agg: string }) => ({
+            measure: metric.measure,
+            aggregation: metric.agg as z.infer<typeof metricAggregations>,
+          }),
+        ) ?? [],
       filters: [
         ...(widget.data?.filters ?? []),
         ...mapLegacyUiTableFilterToView(
@@ -420,9 +422,12 @@ export function DashboardWidget({
                 ...widget.data.chartConfig,
                 // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
                 ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
+                  dimensions: widget.data.dimensions.map(
+                    (dim: { field: string }) => dim.field,
+                  ),
                   metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
+                    (metric: { measure: string; agg: string }) =>
+                      `${metric.agg}_${metric.measure}`,
                   ),
                 }),
               }}

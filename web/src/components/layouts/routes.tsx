@@ -15,6 +15,7 @@ import {
   FileJson,
   Search,
   Home,
+  BarChart2,
   SquarePercent,
   ClipboardPen,
   Clock,
@@ -89,6 +90,12 @@ export const ROUTES: Route[] = [
     title: "Home",
     pathname: `/project/[projectId]`,
     icon: Home,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Overview",
+    pathname: `/project/[projectId]/overview`,
+    icon: BarChart2,
     section: RouteSection.Main,
   },
   {

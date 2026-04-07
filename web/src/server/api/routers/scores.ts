@@ -74,6 +74,7 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
+  getMockScoreColumns,
   getMockScoreFilterOptions,
   getMockScoreMetadata,
   getMockScoreMetricsFromEvents,
@@ -1113,6 +1114,10 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { projectId, filter, fromTimestamp, toTimestamp } = input;
+
+      if (shouldUseDesignModeMock(projectId)) {
+        return getMockScoreColumns(projectId);
+      }
 
       const groupedScores = await getScoresGroupedByNameSourceType({
         projectId,

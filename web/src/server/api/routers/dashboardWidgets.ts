@@ -23,6 +23,11 @@ import { getViewDeclaration } from "@/src/features/query/dataModel";
 import { TRPCError } from "@trpc/server";
 import type { ViewVersion } from "@/src/features/query";
 import { LangfuseConflictError } from "@langfuse/shared";
+import {
+  getMockDashboardWidget,
+  getMockDashboardWidgets,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -174,6 +179,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:read",
       });
 
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockDashboardWidgets(input.projectId, input);
+      }
+
       const result = await DashboardService.listWidgets({
         projectId: input.projectId,
         limit: input.limit,
@@ -192,6 +201,19 @@ export const dashboardWidgetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "dashboards:read",
       });
+
+      if (shouldUseDesignModeMock(input.projectId)) {
+        const widget = getMockDashboardWidget(input.projectId, input.widgetId);
+
+        if (!widget) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Widget not found",
+          });
+        }
+
+        return widget;
+      }
 
       const widget = await DashboardService.getWidget(
         input.widgetId,

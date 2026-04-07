@@ -7,6 +7,8 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { isDevAuthBypassEnabled } from "@/src/features/auth/lib/devAuthBypass";
 import {
   designModeAnnotationQueues,
+  designModeDashboards,
+  designModeDashboardWidgets,
   designModeDatasets,
   designModeEvaluators,
   designModeLlmApiKeys,
@@ -19,6 +21,7 @@ import {
   designModeTraces,
   designModeUsers,
 } from "../mockDb";
+import { type QueryType, type ViewVersion } from "@/src/features/query";
 
 const MOCK_NOW = new Date("2026-04-07T10:30:00.000Z");
 
@@ -258,6 +261,217 @@ const mockTraces = designModeTraces.map((trace, index) => {
 
 const traceById = new Map(mockTraces.map((trace) => [trace.id, trace]));
 
+const mockObservations = mockTraces.flatMap((trace, index) => {
+  const totalCost = trace.totalCost.toNumber();
+  const totalTokens = Number(trace.usage.totalUsage);
+  const baseLatencyMs = Math.round(trace.latencySeconds * 1000);
+
+  return [
+    {
+      id: `obs_gen_${trace.id}`,
+      projectId: trace.projectId,
+      traceId: trace.id,
+      traceName: trace.name,
+      name: trace.name,
+      userId: trace.userId,
+      providedModelName: trace.model,
+      type: "GENERATION",
+      level: Number(trace.levelCounts.errorCount) > 0 ? "ERROR" : "DEFAULT",
+      latency: baseLatencyMs,
+      totalCost,
+      totalTokens,
+      timestamp: trace.timestamp,
+      environment: trace.environment,
+      release: trace.release,
+      version: trace.version,
+      tags: trace.tags,
+    },
+    {
+      id: `obs_step_${trace.id}`,
+      projectId: trace.projectId,
+      traceId: trace.id,
+      traceName: trace.name,
+      name:
+        index % 3 === 0
+          ? "retrieval"
+          : index % 3 === 1
+            ? "reranker"
+            : "moderation",
+      userId: trace.userId,
+      providedModelName: trace.model,
+      type: index % 2 === 0 ? "TOOL" : "SPAN",
+      level: index % 4 === 0 ? "WARNING" : "DEFAULT",
+      latency: Math.max(80, Math.round(baseLatencyMs * 0.35)),
+      totalCost: Number((totalCost * 0.18).toFixed(6)),
+      totalTokens: Math.round(totalTokens * 0.22),
+      timestamp: new Date(trace.timestamp.getTime() + 12_000),
+      environment: trace.environment,
+      release: trace.release,
+      version: trace.version,
+      tags: trace.tags,
+    },
+  ];
+});
+
+const dashboardById = new Map(
+  designModeDashboards.map((dashboard) => [dashboard.id, dashboard]),
+);
+
+const widgetById = new Map(
+  designModeDashboardWidgets.map((widget) => [widget.id, widget]),
+);
+
+function getProjectDashboards(projectId: string) {
+  return designModeDashboards.filter(
+    (dashboard) => dashboard.projectId === projectId,
+  );
+}
+
+function getProjectDashboardWidgets(projectId: string) {
+  return designModeDashboardWidgets.filter(
+    (widget) => widget.projectId === projectId,
+  );
+}
+
+function startOfBucket(date: Date, granularity: string): Date {
+  const next = new Date(date);
+
+  if (granularity === "minute") {
+    next.setSeconds(0, 0);
+    return next;
+  }
+  if (granularity === "hour") {
+    next.setMinutes(0, 0, 0);
+    return next;
+  }
+  if (granularity === "week") {
+    const day = next.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    next.setUTCDate(next.getUTCDate() + diff);
+    next.setUTCHours(0, 0, 0, 0);
+    return next;
+  }
+  if (granularity === "month") {
+    next.setUTCDate(1);
+    next.setUTCHours(0, 0, 0, 0);
+    return next;
+  }
+
+  next.setUTCHours(0, 0, 0, 0);
+  return next;
+}
+
+function resolveGranularity(
+  query: Pick<QueryType, "fromTimestamp" | "toTimestamp" | "timeDimension">,
+) {
+  const granularity = query.timeDimension?.granularity;
+  if (!granularity || granularity === "day") {
+    return "day";
+  }
+  if (granularity !== "auto") {
+    return granularity;
+  }
+
+  const durationMs =
+    new Date(query.toTimestamp).getTime() -
+    new Date(query.fromTimestamp).getTime();
+
+  return durationMs <= 2 * 24 * 60 * 60 * 1000 ? "hour" : "day";
+}
+
+function percentile(values: number[], percentileValue: number) {
+  if (values.length === 0) return 0;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil((percentileValue / 100) * sorted.length) - 1),
+  );
+
+  return sorted[index] ?? 0;
+}
+
+function getFilterValue(row: Record<string, unknown>, column: string): unknown {
+  const aliases: Record<string, string[]> = {
+    model: ["providedModelName", "model"],
+    startTime: ["timestamp", "startTime"],
+    scoreTimestamp: ["timestamp", "scoreTimestamp"],
+    scoreName: ["name", "scoreName"],
+    scoreSource: ["source", "scoreSource"],
+    scoreDataType: ["dataType", "scoreDataType", "data_type"],
+    user: ["userId", "user"],
+    tags: ["tags", "traceTags"],
+  };
+
+  const keys = aliases[column] ?? [column];
+  for (const key of keys) {
+    if (key in row) {
+      return row[key];
+    }
+  }
+  return undefined;
+}
+
+function matchesFilter(
+  row: Record<string, unknown>,
+  filter: {
+    column: string;
+    operator: string;
+    value?: unknown;
+  },
+) {
+  const rowValue = getFilterValue(row, filter.column);
+  const filterValue = filter.value;
+
+  switch (filter.operator) {
+    case "=":
+      return Array.isArray(rowValue)
+        ? rowValue.includes(filterValue as never)
+        : rowValue === filterValue;
+    case "any of": {
+      const values = Array.isArray(filterValue) ? filterValue : [filterValue];
+      if (Array.isArray(rowValue)) {
+        return rowValue.some((value) => values.includes(value));
+      }
+      return values.includes(rowValue);
+    }
+    case "none of": {
+      const values = Array.isArray(filterValue) ? filterValue : [filterValue];
+      if (Array.isArray(rowValue)) {
+        return rowValue.every((value) => !values.includes(value));
+      }
+      return !values.includes(rowValue);
+    }
+    case ">":
+      return rowValue instanceof Date && filterValue instanceof Date
+        ? rowValue > filterValue
+        : Number(rowValue ?? 0) > Number(filterValue ?? 0);
+    case "<":
+      return rowValue instanceof Date && filterValue instanceof Date
+        ? rowValue < filterValue
+        : Number(rowValue ?? 0) < Number(filterValue ?? 0);
+    case "contains":
+      return String(rowValue ?? "")
+        .toLowerCase()
+        .includes(String(filterValue ?? "").toLowerCase());
+    case "is not null":
+      return rowValue !== null && rowValue !== undefined && rowValue !== "";
+    case "is null":
+      return rowValue === null || rowValue === undefined || rowValue === "";
+    default:
+      return true;
+  }
+}
+
+function applyFilters<T extends Record<string, unknown>>(
+  rows: T[],
+  filters: Array<{ column: string; operator: string; value?: unknown }>,
+) {
+  return rows.filter((row) =>
+    filters.every((filter) => matchesFilter(row, filter)),
+  );
+}
+
 const mockSessions = mockSessionsBase.map((session, index) => {
   const traces = mockTraces.filter((trace) => trace.sessionId === session.id);
   const inputTokens = traces.reduce(
@@ -426,6 +640,489 @@ function getProjectEvaluators(projectId: string) {
   return designModeEvaluators.filter(
     (evaluator) => evaluator.projectId === projectId,
   );
+}
+
+function getProjectScores(projectId: string) {
+  return allScores.filter((score) => score.projectId === projectId);
+}
+
+function getRowsForView(
+  projectId: string,
+  view: QueryType["view"],
+): Array<Record<string, unknown>> {
+  if (view === "traces") {
+    return getProjectTraces(projectId).map((trace) => ({
+      ...trace,
+      timestamp: trace.timestamp,
+      startTime: trace.timestamp,
+      traceName: trace.name,
+      count: 1,
+      latency: Math.round(trace.latencySeconds * 1000),
+    }));
+  }
+
+  if (view === "observations") {
+    return mockObservations.filter(
+      (observation) => observation.projectId === projectId,
+    );
+  }
+
+  if (view === "scores-numeric") {
+    return getProjectScores(projectId)
+      .filter(
+        (score) => score.dataType === "NUMERIC" || score.dataType === "BOOLEAN",
+      )
+      .map((score) => ({
+        ...score,
+        timestamp: score.timestamp,
+        startTime: score.timestamp,
+        scoreTimestamp: score.timestamp,
+        data_type: score.dataType,
+      }));
+  }
+
+  return getProjectScores(projectId)
+    .filter((score) => score.dataType === "CATEGORICAL")
+    .map((score) => ({
+      ...score,
+      timestamp: score.timestamp,
+      startTime: score.timestamp,
+      scoreTimestamp: score.timestamp,
+      data_type: score.dataType,
+    }));
+}
+
+function getGroupDimensionValue(
+  row: Record<string, unknown>,
+  field: string,
+  view: QueryType["view"],
+) {
+  const value = getFilterValue(row, field);
+  if (field === "dataType" && view.startsWith("scores")) {
+    return row.dataType ?? row.data_type ?? value ?? null;
+  }
+  return value ?? null;
+}
+
+function applyDateRange<T extends Record<string, unknown>>(
+  rows: T[],
+  query: Pick<QueryType, "fromTimestamp" | "toTimestamp">,
+) {
+  const from = new Date(query.fromTimestamp);
+  const to = new Date(query.toTimestamp);
+  return rows.filter((row) => {
+    const timestamp = getFilterValue(row, "timestamp");
+    if (!(timestamp instanceof Date)) {
+      return true;
+    }
+    return timestamp >= from && timestamp <= to;
+  });
+}
+
+function sortRows<T extends Record<string, unknown>>(
+  rows: T[],
+  orderBy: QueryType["orderBy"],
+) {
+  if (!orderBy || orderBy.length === 0) {
+    return rows;
+  }
+
+  const [{ field, direction }] = orderBy;
+  return [...rows].sort((a, b) => {
+    const left = a[field];
+    const right = b[field];
+    const leftNumber = typeof left === "number" ? left : Number(left ?? 0);
+    const rightNumber = typeof right === "number" ? right : Number(right ?? 0);
+    const comparison =
+      Number.isFinite(leftNumber) && Number.isFinite(rightNumber)
+        ? leftNumber - rightNumber
+        : String(left ?? "").localeCompare(String(right ?? ""));
+
+    return direction === "asc" ? comparison : -comparison;
+  });
+}
+
+function limitRows<T>(rows: T[], rowLimit?: number) {
+  if (!rowLimit || rowLimit <= 0) {
+    return rows;
+  }
+
+  return rows.slice(0, rowLimit);
+}
+
+function cloneFilterValue<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return [...value] as T;
+  }
+
+  return value;
+}
+
+function cloneFilters<T extends { value?: unknown }>(filters: T[]) {
+  return filters.map((filter) => {
+    const clonedFilter = { ...filter } as T;
+
+    if ("value" in clonedFilter) {
+      clonedFilter.value = cloneFilterValue(filter.value);
+    }
+
+    return clonedFilter;
+  });
+}
+
+function cloneDashboardDefinition(
+  definition: (typeof designModeDashboards)[number]["definition"],
+) {
+  return {
+    widgets: definition.widgets.map((widget) => ({
+      ...widget,
+      type: "widget" as const,
+    })),
+  };
+}
+
+export function getMockDashboardExecuteQuery(
+  projectId: string,
+  query: QueryType,
+  _version: ViewVersion = "v1",
+) {
+  const filteredRows = applyDateRange(
+    applyFilters(getRowsForView(projectId, query.view), query.filters),
+    query,
+  );
+
+  const grouped = new Map<string, Array<Record<string, unknown>>>();
+  const granularity = resolveGranularity(query);
+
+  for (const row of filteredRows) {
+    const bucket =
+      query.timeDimension !== null
+        ? startOfBucket(
+            getFilterValue(row, "timestamp") as Date,
+            granularity,
+          ).toISOString()
+        : "all";
+    const dimensions = query.dimensions.map((dimension) =>
+      getGroupDimensionValue(row, dimension.field, query.view),
+    );
+    const key = JSON.stringify([bucket, ...dimensions]);
+    const groupRows = grouped.get(key) ?? [];
+    groupRows.push(row);
+    grouped.set(key, groupRows);
+  }
+
+  const results = Array.from(grouped.entries()).map(([key, rows]) => {
+    const [bucket, ...dimensionValues] = JSON.parse(key) as Array<
+      string | number | null
+    >;
+    const result: Record<string, unknown> = {};
+
+    query.dimensions.forEach((dimension, index) => {
+      const dimensionValue = dimensionValues[index] ?? null;
+      result[dimension.field] = dimensionValue;
+      if (query.view.startsWith("scores") && dimension.field === "dataType") {
+        result.data_type = dimensionValue;
+      }
+    });
+
+    if (query.timeDimension !== null) {
+      result.time_dimension = new Date(bucket);
+    }
+
+    if (query.metrics.length === 0) {
+      result.count = rows.length;
+      return result;
+    }
+
+    for (const metric of query.metrics) {
+      const values = rows
+        .map((row) => Number(getFilterValue(row, metric.measure) ?? 0))
+        .filter((value) => !Number.isNaN(value));
+      const alias = `${metric.aggregation}_${metric.measure}`;
+
+      switch (metric.aggregation) {
+        case "count":
+          result[alias] = rows.length;
+          break;
+        case "uniq":
+          result[alias] = new Set(
+            rows.map((row) => getFilterValue(row, metric.measure)),
+          ).size;
+          break;
+        case "sum":
+          result[alias] = values.reduce((sum, value) => sum + value, 0);
+          break;
+        case "avg":
+          result[alias] =
+            values.length > 0
+              ? values.reduce((sum, value) => sum + value, 0) / values.length
+              : 0;
+          break;
+        case "p50":
+          result[alias] = percentile(values, 50);
+          break;
+        case "p75":
+          result[alias] = percentile(values, 75);
+          break;
+        case "p90":
+          result[alias] = percentile(values, 90);
+          break;
+        case "p95":
+          result[alias] = percentile(values, 95);
+          break;
+        case "p99":
+          result[alias] = percentile(values, 99);
+          break;
+        default:
+          result[alias] = 0;
+      }
+    }
+
+    return result;
+  });
+
+  return limitRows(
+    sortRows(results, query.orderBy),
+    query.chartConfig?.row_limit,
+  );
+}
+
+export function getMockDashboardChart(params: {
+  projectId: string;
+  queryName:
+    | "score-aggregate"
+    | "observations-usage-by-type-timeseries"
+    | "observations-cost-by-type-timeseries"
+    | null
+    | undefined;
+  filter?: Array<{ column: string; operator: string; value?: unknown }>;
+}) {
+  const filters = params.filter ?? [];
+
+  if (params.queryName === "score-aggregate") {
+    const rows = applyFilters(getProjectScores(params.projectId), filters);
+    const grouped = new Map<string, typeof rows>();
+
+    for (const row of rows) {
+      const key = `${row.name}:${row.source}:${row.dataType}`;
+      const groupRows = grouped.get(key) ?? [];
+      groupRows.push(row);
+      grouped.set(key, groupRows);
+    }
+
+    return Array.from(grouped.values())
+      .map((groupRows) => ({
+        scoreName: groupRows[0]?.name ?? "unknown",
+        scoreSource: groupRows[0]?.source ?? "API",
+        scoreDataType: groupRows[0]?.dataType ?? "NUMERIC",
+        countScoreId: groupRows.length,
+        avgValue:
+          groupRows.length > 0
+            ? groupRows.reduce((sum, row) => sum + Number(row.value ?? 0), 0) /
+              groupRows.length
+            : 0,
+      }))
+      .sort((left, right) => right.countScoreId - left.countScoreId);
+  }
+
+  const observations = applyFilters(
+    mockObservations.filter(
+      (observation) => observation.projectId === params.projectId,
+    ),
+    filters,
+  );
+  const grouped = new Map<string, typeof observations>();
+
+  for (const observation of observations) {
+    const bucket = startOfBucket(observation.timestamp, "day").toISOString();
+    const key = JSON.stringify([bucket, observation.providedModelName]);
+    const groupRows = grouped.get(key) ?? [];
+    groupRows.push(observation);
+    grouped.set(key, groupRows);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([key, groupRows]) => {
+      const [bucket, model] = JSON.parse(key) as [string, string];
+      const sum =
+        params.queryName === "observations-usage-by-type-timeseries"
+          ? groupRows.reduce((total, row) => total + row.totalTokens, 0)
+          : groupRows.reduce((total, row) => total + row.totalCost, 0);
+
+      return {
+        intervalStart: new Date(bucket),
+        key: model,
+        sum,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.intervalStart.getTime() - right.intervalStart.getTime(),
+    );
+}
+
+export function getMockDashboardScoreHistogram(params: {
+  projectId: string;
+  filter?: Array<{ column: string; operator: string; value?: unknown }>;
+}) {
+  const numericScores = applyFilters(
+    getProjectScores(params.projectId).filter(
+      (score) => score.dataType === "NUMERIC" || score.dataType === "BOOLEAN",
+    ),
+    params.filter ?? [],
+  );
+  const values = numericScores.map((score) => Number(score.value ?? 0));
+
+  if (values.length === 0) {
+    return { chartData: [], chartLabels: ["count"] };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const bucketCount = 10;
+  const span = max - min || 1;
+  const bucketSize = span / bucketCount;
+
+  const chartData = Array.from({ length: bucketCount }, (_, index) => {
+    const lower = min + index * bucketSize;
+    const upper = index === bucketCount - 1 ? max : lower + bucketSize;
+    const count = values.filter((value) => {
+      if (index === bucketCount - 1) {
+        return value >= lower && value <= upper;
+      }
+      return value >= lower && value < upper;
+    }).length;
+
+    return {
+      binLabel: `[${lower.toFixed(2)}, ${upper.toFixed(2)}]`,
+      count,
+    };
+  });
+
+  return { chartData, chartLabels: ["count"] };
+}
+
+export function getMockDashboards(
+  projectId: string,
+  input: { page: number; limit: number },
+) {
+  const rows = getProjectDashboards(projectId).map((dashboard) => ({
+    id: dashboard.id,
+    createdAt: parseRelativeDate(dashboard.createdAt, 7 * 24 * 60),
+    updatedAt: parseRelativeDate(dashboard.updatedAt, 30),
+    createdBy: "user_evren",
+    updatedBy: "user_evren",
+    projectId: dashboard.projectId,
+    name: dashboard.name,
+    description: dashboard.description,
+    definition: cloneDashboardDefinition(dashboard.definition),
+    filters: cloneFilters([...dashboard.filters]),
+    owner: dashboard.owner,
+  }));
+
+  return {
+    dashboards: paginate(rows, input.page, input.limit),
+    totalCount: rows.length,
+  } as any;
+}
+
+export function getMockDashboard(projectId: string, dashboardId: string) {
+  const dashboard = dashboardById.get(dashboardId);
+  if (!dashboard || dashboard.projectId !== projectId) {
+    return null;
+  }
+
+  return {
+    id: dashboard.id,
+    createdAt: parseRelativeDate(dashboard.createdAt, 7 * 24 * 60),
+    updatedAt: parseRelativeDate(dashboard.updatedAt, 30),
+    createdBy: "user_evren",
+    updatedBy: "user_evren",
+    projectId: dashboard.projectId,
+    name: dashboard.name,
+    description: dashboard.description,
+    definition: cloneDashboardDefinition(dashboard.definition),
+    filters: cloneFilters([...dashboard.filters]),
+    owner: dashboard.owner,
+  } as any;
+}
+
+export function getMockDashboardWidgets(
+  projectId: string,
+  input: { page?: number | null; limit?: number | null },
+) {
+  const rows = getProjectDashboardWidgets(projectId).map((widget) => ({
+    id: widget.id,
+    createdAt: parseRelativeDate(widget.createdAt, 7 * 24 * 60),
+    updatedAt: parseRelativeDate(widget.updatedAt, 30),
+    createdBy: "user_evren",
+    updatedBy: "user_evren",
+    projectId: widget.projectId,
+    name: widget.name,
+    description: widget.description,
+    view: widget.view,
+    dimensions: widget.dimensions.map((dimension) => ({ ...dimension })),
+    metrics: widget.metrics.map((metric) => ({ ...metric })),
+    filters: cloneFilters([...widget.filters]),
+    chartType: widget.chartType,
+    chartConfig: { ...widget.chartConfig },
+    minVersion: widget.minVersion,
+    owner: widget.owner,
+  }));
+  const page = input.page ?? 0;
+  const limit = input.limit ?? rows.length;
+
+  return {
+    widgets: paginate(rows, page, limit),
+    totalCount: rows.length,
+  } as any;
+}
+
+export function getMockDashboardWidget(projectId: string, widgetId: string) {
+  const widget = widgetById.get(widgetId);
+  if (!widget || widget.projectId !== projectId) {
+    return null;
+  }
+
+  return {
+    id: widget.id,
+    createdAt: parseRelativeDate(widget.createdAt, 7 * 24 * 60),
+    updatedAt: parseRelativeDate(widget.updatedAt, 30),
+    createdBy: "user_evren",
+    updatedBy: "user_evren",
+    projectId: widget.projectId,
+    name: widget.name,
+    description: widget.description,
+    view: widget.view,
+    dimensions: widget.dimensions.map((dimension) => ({ ...dimension })),
+    metrics: widget.metrics.map((metric) => ({ ...metric })),
+    filters: cloneFilters([...widget.filters]),
+    chartType: widget.chartType,
+    chartConfig: { ...widget.chartConfig },
+    minVersion: widget.minVersion,
+    owner: widget.owner,
+  } as any;
+}
+
+export function getMockScoreColumns(projectId: string) {
+  const grouped = new Map<
+    string,
+    { key: string; name: string; source: string; dataType: string }
+  >();
+
+  for (const score of getProjectScores(projectId)) {
+    const key = `${score.name}:${score.source}:${score.dataType}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        key,
+        name: score.name,
+        source: score.source,
+        dataType: score.dataType,
+      });
+    }
+  }
+
+  return { scoreColumns: Array.from(grouped.values()) };
 }
 
 export function shouldUseDesignModeMock(projectId: string) {
