@@ -1,7 +1,11 @@
 import {
   CTEQueryBuilder,
   EventsAggregationQueryBuilder,
+  EventsQueryBuilder,
+  createFilterTreeFromFilterExpression,
+  eventsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
+import { eventsTableCols, type FilterExpression } from "@langfuse/shared";
 
 describe("CTEQueryBuilder", () => {
   it("should compose multiple CTEs with type-safe references", () => {
@@ -119,5 +123,135 @@ describe("CTEQueryBuilder", () => {
     expect(params.param1).toBe("value1");
     expect(params.param2).toBe("value2");
     expect(params.param3).toBe("value3");
+  });
+});
+
+describe("EventsQueryBuilder", () => {
+  it("adds trace hash pruning only for mandatory traceId filters", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "AND",
+      conditions: [
+        {
+          type: "string",
+          column: "traceId",
+          operator: "=",
+          value: "trace-1",
+        },
+        {
+          type: "group",
+          operator: "OR",
+          conditions: [
+            {
+              type: "string",
+              column: "name",
+              operator: "=",
+              value: "alpha",
+            },
+            {
+              type: "string",
+              column: "name",
+              operator: "=",
+              value: "beta",
+            },
+          ],
+        },
+      ],
+    };
+
+    const compiledFilter = createFilterTreeFromFilterExpression(
+      filterExpression,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(compiledFilter)
+      .buildWithParams();
+
+    expect(query).toContain(
+      "xxHash32(trace_id) = xxHash32({traceIdXxHash: String})",
+    );
+    expect(params.traceIdXxHash).toBe("trace-1");
+  });
+
+  it("does not add trace hash pruning for OR-only traceId filters", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "OR",
+      conditions: [
+        {
+          type: "string",
+          column: "traceId",
+          operator: "=",
+          value: "trace-1",
+        },
+        {
+          type: "string",
+          column: "name",
+          operator: "=",
+          value: "alpha",
+        },
+      ],
+    };
+
+    const compiledFilter = createFilterTreeFromFilterExpression(
+      filterExpression,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(compiledFilter)
+      .buildWithParams();
+
+    expect(query).not.toContain("traceIdXxHash");
+    expect(params.traceIdXxHash).toBeUndefined();
+  });
+
+  it("keeps the authorized project filter outside nested OR expressions", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "OR",
+      conditions: [
+        {
+          type: "string",
+          column: "name",
+          operator: "=",
+          value: "alpha",
+        },
+        {
+          type: "string",
+          column: "type",
+          operator: "=",
+          value: "SPAN",
+        },
+      ],
+    };
+
+    const compiledFilter = createFilterTreeFromFilterExpression(
+      filterExpression,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "authorized-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(compiledFilter)
+      .buildWithParams();
+
+    expect(query).toContain("WHERE e.project_id = {projectId: String}");
+    expect(query).toMatch(
+      /WHERE e\.project_id = \{projectId: String\}[\s\S]*AND \(\(.+\) OR \(.+\)\)/,
+    );
+    expect(params.projectId).toBe("authorized-project");
   });
 });

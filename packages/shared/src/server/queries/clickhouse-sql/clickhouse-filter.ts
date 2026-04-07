@@ -16,6 +16,142 @@ type ClickhouseFilter = {
   params: { [x: string]: any } | {};
 };
 
+export interface CompiledFilterCollection {
+  apply(): ClickhouseFilter;
+  find(predicate: (filter: Filter) => boolean): Filter | undefined;
+  findMandatory(predicate: (filter: Filter) => boolean): Filter | undefined;
+  some(predicate: (filter: Filter) => boolean): boolean;
+  forEach(callback: (filter: Filter) => void): void;
+  length(): number;
+}
+
+type CompiledFilterNode = Filter | FilterGroupNode;
+
+function isFilterGroupNode(node: CompiledFilterNode): node is FilterGroupNode {
+  return node instanceof FilterGroupNode;
+}
+
+function flattenCompiledFilterNode(node: CompiledFilterNode): Filter[] {
+  if (!isFilterGroupNode(node)) {
+    return [node];
+  }
+
+  return node.children.flatMap((child) => flattenCompiledFilterNode(child));
+}
+
+function collectMandatoryCompiledFilters(node: CompiledFilterNode): Filter[] {
+  if (!isFilterGroupNode(node)) {
+    return [node];
+  }
+
+  if (node.operator === "OR") {
+    return [];
+  }
+
+  return node.children.flatMap((child) =>
+    collectMandatoryCompiledFilters(child),
+  );
+}
+
+function applyCompiledFilterNode(node: CompiledFilterNode): ClickhouseFilter {
+  if (!isFilterGroupNode(node)) {
+    return node.apply();
+  }
+
+  const compiledChildren = node.children
+    .map((child) => applyCompiledFilterNode(child))
+    .filter((child) => child.query.trim().length > 0);
+
+  if (compiledChildren.length === 0) {
+    return {
+      query: "",
+      params: {},
+    };
+  }
+
+  if (compiledChildren.length === 1) {
+    return compiledChildren[0];
+  }
+
+  return {
+    query: compiledChildren
+      .map((child) => `(${child.query})`)
+      .join(` ${node.operator} `),
+    params: compiledChildren.reduce(
+      (acc, child) => ({ ...acc, ...child.params }),
+      {} as Record<string, any>,
+    ),
+  };
+}
+
+class FilterGroupNode {
+  constructor(
+    public operator: "AND" | "OR",
+    public children: CompiledFilterNode[],
+  ) {}
+}
+
+export class FilterTree implements CompiledFilterCollection {
+  private leaves: Filter[];
+  private mandatoryLeaves: Filter[];
+
+  constructor(private root: CompiledFilterNode | null = null) {
+    this.leaves = this.root ? flattenCompiledFilterNode(this.root) : [];
+    this.mandatoryLeaves = this.root
+      ? collectMandatoryCompiledFilters(this.root)
+      : [];
+  }
+
+  find(predicate: (filter: Filter) => boolean) {
+    return this.leaves.find(predicate);
+  }
+
+  findMandatory(predicate: (filter: Filter) => boolean) {
+    return this.mandatoryLeaves.find(predicate);
+  }
+
+  some(predicate: (filter: Filter) => boolean) {
+    return this.leaves.some(predicate);
+  }
+
+  forEach(callback: (filter: Filter) => void) {
+    this.leaves.forEach(callback);
+  }
+
+  length() {
+    return this.leaves.length;
+  }
+
+  apply(): ClickhouseFilter {
+    if (!this.root) {
+      return {
+        query: "",
+        params: {},
+      };
+    }
+
+    return applyCompiledFilterNode(this.root);
+  }
+
+  static fromFilter(filter: Filter): FilterTree {
+    return new FilterTree(filter);
+  }
+
+  static fromGroup(
+    operator: "AND" | "OR",
+    children: Array<Filter | FilterTree>,
+  ): FilterTree {
+    return new FilterTree(
+      new FilterGroupNode(
+        operator,
+        children
+          .map((child) => (child instanceof FilterTree ? child.root : child))
+          .filter((child): child is CompiledFilterNode => child !== null),
+      ),
+    );
+  }
+}
+
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -522,7 +658,7 @@ export class BooleanFilter implements Filter {
   }
 }
 
-export class FilterList {
+export class FilterList implements CompiledFilterCollection {
   private filters: Filter[];
 
   constructor(filters: Filter[] = []) {
@@ -535,6 +671,10 @@ export class FilterList {
 
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
+  }
+
+  findMandatory(predicate: (filter: Filter) => boolean) {
+    return this.find(predicate);
   }
 
   filter(predicate: (filter: Filter) => boolean) {
