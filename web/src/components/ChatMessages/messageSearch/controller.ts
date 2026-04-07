@@ -335,7 +335,7 @@ export function createMessageSearchController(
   const refreshSearchResults = (shouldSyncEditors: boolean) => {
     const activeMatchChanged = recomputeMatches();
 
-    if (shouldSyncEditors) {
+    if (shouldSyncEditors || activeMatchChanged) {
       syncEditorsToQuery();
     }
 
