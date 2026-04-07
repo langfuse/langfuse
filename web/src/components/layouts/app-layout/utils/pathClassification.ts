@@ -4,12 +4,21 @@
  */
 
 export const PATH_CONSTANTS = {
-  withoutNavigation: ["/onboarding", "/auth/reset-password"] as const,
+  withoutNavigation: [
+    "/onboarding",
+    "/auth/reset-password",
+    "/project/[projectId]/greenfield",
+    "/organization/[organizationId]/greenfield",
+  ] as const,
   // DEV ONLY: auth-free preview namespace for local design work.
   public: ["/dev"] as const,
   // DEV ONLY: public routes that render their own full app shell and should
   // not inherit MinimalLayout padding/chrome.
   publicFullBleed: ["/dev/"] as const,
+  minimalFullBleed: [
+    "/project/[projectId]/greenfield",
+    "/organization/[organizationId]/greenfield",
+  ] as const,
   unauthenticated: [
     "/auth/sign-in",
     "/auth/sign-up",

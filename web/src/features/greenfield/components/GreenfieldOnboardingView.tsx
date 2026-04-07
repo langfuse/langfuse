@@ -27,13 +27,22 @@ import {
 type GreenfieldOnboardingViewProps = {
   projectId: string;
   organizationId?: string | null;
+  iterateHref?: string;
+  iterateLabel?: string;
 };
 
 export function GreenfieldOnboardingView({
   projectId,
   organizationId,
+  iterateHref,
+  iterateLabel,
 }: GreenfieldOnboardingViewProps) {
-  const data = getGreenfieldOnboardingData({ projectId, organizationId });
+  const data = getGreenfieldOnboardingData({
+    projectId,
+    organizationId,
+    iterateHref,
+    iterateLabel,
+  });
   const defaultOpenPillars = data.pillars
     .filter((pillar) => pillar.status === "active")
     .map((pillar) => pillar.id);

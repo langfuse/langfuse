@@ -46,9 +46,13 @@ export type GreenfieldOnboardingData = {
 export const getGreenfieldOnboardingData = ({
   projectId,
   organizationId,
+  iterateHref,
+  iterateLabel,
 }: {
   projectId: string;
   organizationId?: string | null;
+  iterateHref?: string;
+  iterateLabel?: string;
 }): GreenfieldOnboardingData => ({
   completedTracks: 0,
   totalTracks: 2,
@@ -83,8 +87,8 @@ export const getGreenfieldOnboardingData = ({
                 "Test the prompt against a real model response and refine the output before you wire anything deeper into the app.",
               status: "active",
               action: {
-                label: "Open Playground",
-                href: `/project/${projectId}/playground`,
+                label: iterateLabel ?? "Open Playground",
+                href: iterateHref ?? `/project/${projectId}/playground`,
               },
             },
           ],
