@@ -373,37 +373,50 @@ export async function upsertDatasetItem(
       }
     },
     [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Invalidate old row by setting valid_to, then create new row
-      await prisma.$transaction(async (tx) => {
-        const newValidFrom = new Date();
+      try {
+        // VERSIONED: Invalidate old row by setting valid_to, then create new row
+        await prisma.$transaction(async (tx) => {
+          const baseTs = existingItem?.validFrom.getTime() ?? 0;
+          const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
 
-        // 1. If updating existing item, invalidate the current version
-        if (existingItem) {
-          await tx.datasetItem.update({
-            where: {
-              id_projectId_validFrom: {
-                id: existingItem.id,
-                projectId: props.projectId,
-                validFrom: existingItem.validFrom,
+          // 1. If updating existing item, invalidate the current version
+          if (existingItem) {
+            await tx.datasetItem.update({
+              where: {
+                id_projectId_validFrom: {
+                  id: existingItem.id,
+                  projectId: props.projectId,
+                  validFrom: existingItem.validFrom,
+                },
               },
-            },
+              data: {
+                validTo: newValidFrom,
+              },
+            });
+          }
+
+          // 2. Create new version
+          const res = await tx.datasetItem.create({
             data: {
-              validTo: newValidFrom,
+              ...itemData,
+              projectId: props.projectId,
+              datasetId: dataset.id,
+              validFrom: newValidFrom,
             },
           });
-        }
-
-        // 2. Create new version
-        const res = await tx.datasetItem.create({
-          data: {
-            ...itemData,
-            projectId: props.projectId,
-            datasetId: dataset.id,
-            validFrom: newValidFrom,
-          },
+          item = res;
         });
-        item = res;
-      });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new InvalidRequestError(
+            `Dataset item with id ${itemId} already exists for project ${props.projectId}`,
+          );
+        }
+        throw error;
+      }
     },
   });
 
