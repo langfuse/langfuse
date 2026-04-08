@@ -515,3 +515,4 @@ Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [d
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 
 If the CLA check gets stuck after signing (a [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520)), comment `/check-cla` on your PR to retrigger it.
+
