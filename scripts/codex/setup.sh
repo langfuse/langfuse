@@ -14,6 +14,14 @@ install_golang_migrate() {
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   arch="$(uname -m)"
 
+  case "$os" in
+    linux|darwin) ;;
+    *)
+      echo "Unsupported operating system for golang-migrate auto-install: $os"
+      exit 1
+      ;;
+  esac
+
   case "$arch" in
     x86_64) arch="amd64" ;;
     aarch64|arm64) arch="arm64" ;;

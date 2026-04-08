@@ -39,7 +39,7 @@ if [ "${CODEX_ENABLE_DOCKER_DEV_INFRA:-0}" = "1" ]; then
   # Setup installs golang-migrate for Docker-enabled environments. Fail fast
   # if it is unexpectedly missing so infra maintenance does not silently drift.
   if ! command -v migrate >/dev/null 2>&1; then
-    echo "golang-migrate is required for ClickHouse migrations. Re-run bash scripts/codex/setup.sh."
+    echo "golang-migrate is required for ClickHouse migrations. Re-run CODEX_ENABLE_DOCKER_DEV_INFRA=1 bash scripts/codex/setup.sh."
     exit 1
   fi
 
