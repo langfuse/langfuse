@@ -399,7 +399,13 @@ export const llmApiKeyRouter = createTRPCRouter({
 
   test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+
       return testLLMConnection({
         adapter: input.adapter,
         provider: input.provider,
@@ -418,7 +424,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "llmApiKeys:read",
+          scope: "llmApiKeys:update",
         });
 
         // Get the existing key from the database
