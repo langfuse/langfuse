@@ -213,10 +213,7 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.OpenAI,
         baseURL: "https://attacker.example.com/v1",
       }),
-    ).resolves.toMatchObject({
-      success: false,
-      error: "User does not have access to this resource or action",
-    });
+    ).rejects.toThrow("User does not have access to this resource or action");
   });
 
   it("should create and update an llm api key", async () => {

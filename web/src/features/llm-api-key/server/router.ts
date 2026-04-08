@@ -420,13 +420,13 @@ export const llmApiKeyRouter = createTRPCRouter({
   testUpdate: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "llmApiKeys:update",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
 
+      try {
         // Get the existing key from the database
         const existingKey = await ctx.prisma.llmApiKeys.findUnique({
           where: {
