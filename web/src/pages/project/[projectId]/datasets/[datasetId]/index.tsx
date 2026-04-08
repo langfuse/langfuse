@@ -184,9 +184,9 @@ export default function Dataset() {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.RUNS,
           },
+          actionButtonsLeft: betaSwitch,
           actionButtonsRight: (
             <>
-              {betaSwitch}
               <Dialog
                 open={isCreateExperimentDialogOpen}
                 onOpenChange={setIsCreateExperimentDialogOpen}
@@ -213,11 +213,38 @@ export default function Dataset() {
                   />
                 </DialogContent>
               </Dialog>
+
+              {hasEvalReadAccess && (
+                <div className="w-fit">
+                  <TemplateSelector
+                    projectId={projectId}
+                    datasetId={datasetId}
+                    evalTemplates={evalTemplates.data?.templates ?? []}
+                    onConfigureTemplate={handleConfigureEvaluator}
+                    onSelectEvaluator={handleSelectEvaluator}
+                    activeTemplateIds={activeEvaluators}
+                    inactiveTemplateIds={pausedEvaluators}
+                    evaluatorTargetObjects={evaluatorTargetObjects}
+                    disabled={!hasEvalWriteAccess}
+                  />
+                </div>
+              )}
             </>
           ),
         }}
       >
-        <ExperimentsTable projectId={projectId} />
+        <ExperimentsTable
+          projectId={projectId}
+          defaultFilter={[
+            {
+              column: "experimentDatasetId",
+              type: "stringOptions",
+              operator: "any of",
+              value: [datasetId],
+            },
+          ]}
+          sessionFilterContextId={`dataset-${datasetId}`}
+        />
       </Page>
     );
   }
@@ -243,9 +270,9 @@ export default function Dataset() {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.RUNS,
         },
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
-            {betaSwitch}
             <Dialog
               open={isCreateExperimentDialogOpen}
               onOpenChange={setIsCreateExperimentDialogOpen}

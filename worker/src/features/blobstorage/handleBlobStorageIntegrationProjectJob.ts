@@ -19,6 +19,8 @@ import {
   QueueJobs,
   sendBlobStorageExportFailedEmail,
   getProjectAdminEmails,
+  enrichObservationWithModelData,
+  createModelCache,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -28,6 +30,38 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
+
+async function* enrichObservationStream(
+  stream: AsyncGenerator<Record<string, unknown>>,
+  projectId: string,
+  modelIdField: string,
+  convertLatencyToSeconds: boolean,
+): AsyncGenerator<Record<string, unknown>> {
+  const { getModel } = createModelCache(projectId);
+
+  for await (const row of stream) {
+    const modelId = row[modelIdField] as string | null | undefined;
+    const model = await getModel(modelId);
+    const pricing = enrichObservationWithModelData(model);
+
+    const enriched: Record<string, unknown> = {
+      ...row,
+      model_id: pricing.modelId ?? modelId ?? null,
+      input_price: pricing.inputPrice,
+      output_price: pricing.outputPrice,
+      total_price: pricing.totalPrice,
+    };
+
+    if (convertLatencyToSeconds) {
+      const latency = row.latency as number | null;
+      const ttft = row.time_to_first_token as number | null;
+      enriched.latency = latency != null ? latency / 1000 : null;
+      enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
+    }
+
+    yield enriched;
+  }
+}
 
 const getMinTimestampForExport = async (
   projectId: string,
@@ -162,6 +196,7 @@ const processBlobStorageExport = async (config: {
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
+  convertV4LatencyToSeconds: boolean;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -209,10 +244,15 @@ const processBlobStorageExport = async (config: {
         );
         break;
       case "observations":
-        dataStream = getObservationsForBlobStorageExport(
+        dataStream = enrichObservationStream(
+          getObservationsForBlobStorageExport(
+            config.projectId,
+            config.minTimestamp,
+            config.maxTimestamp,
+          ),
           config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
+          "model_id",
+          false, // v3 query already returns latency in seconds
         );
         break;
       case "scores":
@@ -223,10 +263,15 @@ const processBlobStorageExport = async (config: {
         );
         break;
       case "observations_v2": // observations_v2 is the events table
-        dataStream = getEventsForBlobStorageExport(
+        dataStream = enrichObservationStream(
+          getEventsForBlobStorageExport(
+            config.projectId,
+            config.minTimestamp,
+            config.maxTimestamp,
+          ),
           config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
+          "model_id",
+          config.convertV4LatencyToSeconds,
         );
         break;
       default:
@@ -349,6 +394,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
   try {
     // Process the export based on the integration configuration
+    // Convert v4 (events table) latency/time_to_first_token from ms to seconds
+    // for integrations created on or after 2026-04-01. Before this date, v4 blob
+    // export returned these fields in milliseconds. We preserve that behavior for
+    // existing integrations to avoid silently breaking their pipelines.
+    const convertV4LatencyToSeconds =
+      blobStorageIntegration.createdAt >= new Date("2026-04-01T00:00:00Z");
+
     const executionConfig = {
       projectId,
       minTimestamp,
@@ -365,6 +417,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
+      convertV4LatencyToSeconds,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

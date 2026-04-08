@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.162.0",
+  "version": "3.165.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -65,6 +65,10 @@
       "@release-it/bumper": {
         "out": [
           {
+            "file": "./packages/shared/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
+          {
             "file": "./web/src/constants/VERSION.ts",
             "type": "application/typescript"
           },
@@ -100,7 +104,6 @@
       "nanoid": "^3.3.8",
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",
-      "effect": "^3.20.0",
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
       "@types/react-dom": "19.2.3",

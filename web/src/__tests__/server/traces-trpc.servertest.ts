@@ -19,6 +19,7 @@ import {
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -204,6 +205,74 @@ describe("traces trpc", () => {
 
       expect(traces.traces.length).toBe(0);
     });
+
+    it("should search traces by input only", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+        input: { query: "unique_trace_input_keyword" },
+        output: { result: "different output" },
+        name: "input-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: "unique_trace_input_keyword",
+        searchType: ["input"], // Search only in input
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+      expect(traces.traces.some((t) => t.id === trace.id)).toBe(true);
+    });
+
+    it("should search traces by output only", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+        input: { query: "simple input" },
+        output: { result: "unique_trace_output_keyword for testing" },
+        name: "output-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: "unique_trace_output_keyword",
+        searchType: ["output"], // Search only in output
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+      expect(traces.traces.some((t) => t.id === trace.id)).toBe(true);
+    });
   });
 
   describe("traces.countAll", () => {
@@ -386,6 +455,104 @@ describe("traces trpc", () => {
       );
       // Should include all possible values from config, not just the actual score value
       expect(sentimentScore?.values).toHaveLength(4);
+    });
+
+    it("should include observation-only score names for trace-scoped aggregates", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+      });
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      const observationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observation.id,
+        name: "observation_only_quality",
+        source: "API",
+        data_type: "NUMERIC",
+        value: 0.7,
+      });
+      const sessionScore = createTraceScore({
+        project_id: projectId,
+        trace_id: null,
+        session_id: randomUUID(),
+        name: "session_only_quality",
+        source: "API",
+        data_type: "NUMERIC",
+        value: 0.5,
+      });
+      await createScoresCh([observationScore, sessionScore]);
+
+      const filterOptions = await caller.traces.filterOptions({
+        projectId,
+      });
+
+      expect(filterOptions.scores_avg).toEqual(
+        expect.arrayContaining(["observation_only_quality"]),
+      );
+      expect(filterOptions.scores_avg).not.toContain("session_only_quality");
+    });
+  });
+
+  describe("traces.metrics", () => {
+    it("should aggregate observation-only scores onto the trace row", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+      const firstObservation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+      });
+      const secondObservation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([firstObservation, secondObservation]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: firstObservation.id,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.4,
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: trace.id,
+          observation_id: secondObservation.id,
+          name: "quality",
+          source: "API",
+          data_type: "NUMERIC",
+          value: 0.8,
+        }),
+      ]);
+
+      const metrics = await caller.traces.metrics({
+        projectId,
+        traceIds: [trace.id],
+        filter: [],
+      });
+
+      const aggregateKey = composeAggregateScoreKey({
+        name: "quality",
+        source: "API",
+        dataType: "NUMERIC",
+      });
+
+      expect(metrics).toHaveLength(1);
+      expect(metrics[0]?.scores[aggregateKey]?.average).toBeCloseTo(0.6, 5);
+      expect(metrics[0]?.scores[aggregateKey]?.values).toEqual(
+        expect.arrayContaining([0.4, 0.8]),
+      );
     });
   });
 

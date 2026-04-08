@@ -5,6 +5,8 @@ import {
   AGGREGATABLE_SCORE_TYPES,
   AggregatableScoreDataType,
   ScoreByDataType,
+  LISTABLE_SCORE_TYPES,
+  ListableScoreDataType,
 } from "../../domain/scores";
 import {
   commandClickhouse,
@@ -131,7 +133,7 @@ export const getScoresByIds = async (
     scoreId,
     source,
     scoreScope: "all",
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
   });
 };
 
@@ -249,7 +251,7 @@ export const getScoresForSessions = async <
       sessionIds,
       limit,
       offset,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "sessions",
@@ -594,7 +596,7 @@ export const getScoresForTraces = async <
 ) => {
   return getScoresForTracesInternal({
     ...props,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
+    dataTypes: LISTABLE_SCORE_TYPES,
   });
 };
 
@@ -673,7 +675,7 @@ export const getScoresForObservations = async <
     params: {
       projectId: projectId,
       observationIds: observationIds,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
       limit: limit,
       offset: offset,
     },
@@ -809,7 +811,7 @@ export const getScoresGroupedByNameSourceType = async ({
     query: query,
     params: {
       projectId: projectId,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
       ...(fromTimestamp
         ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
@@ -826,33 +828,32 @@ export const getScoresGroupedByNameSourceType = async ({
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({
     name: row.name,
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as AggregatableScoreDataType,
+    dataType: row.data_type as ListableScoreDataType,
   }));
 };
 
 export const getNumericScoresGroupedByName = async (
   projectId: string,
-  timestampFilter?: FilterState,
+  filter?: FilterState,
 ) => {
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
+  // Despite the historical name of some callers, this accepts any score-table
+  // compatible filter. Trace tables use this to scope discovery to scores that
+  // roll up into trace aggregates, not just direct trace-level scores.
+  const chFilter = filter
+    ? createFilterFromFilterState(
+        filter,
+        scoresColumnsTableUiColumnDefinitions,
+        scoresTableCols,
+      )
     : undefined;
 
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
@@ -862,7 +863,7 @@ export const getNumericScoresGroupedByName = async (
       from scores s
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc
       LIMIT 1000;
@@ -874,7 +875,7 @@ export const getNumericScoresGroupedByName = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      ...(filterRes ? filterRes.params : {}),
     },
     tags: {
       feature: "tracing",
@@ -882,6 +883,7 @@ export const getNumericScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows;
@@ -889,22 +891,19 @@ export const getNumericScoresGroupedByName = async (
 
 export const getCategoricalScoresGroupedByName = async (
   projectId: string,
-  timestampFilter?: FilterState,
+  filter?: FilterState,
 ) => {
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
+  // Mirrors `getNumericScoresGroupedByName`: callers can provide any score
+  // scope filters, not just timestamp predicates.
+  const chFilter = filter
+    ? createFilterFromFilterState(
+        filter,
+        scoresColumnsTableUiColumnDefinitions,
+        scoresTableCols,
+      )
     : undefined;
 
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
 
   const query = `
     SELECT
@@ -913,7 +912,7 @@ export const getCategoricalScoresGroupedByName = async (
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.data_type = 'CATEGORICAL'
-    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+    ${filterRes?.query ? `AND ${filterRes.query}` : ""}
     GROUP BY name
     ORDER BY count() DESC
     LIMIT 1000;
@@ -926,7 +925,7 @@ export const getCategoricalScoresGroupedByName = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      ...(filterRes ? filterRes.params : {}),
     },
     tags: {
       feature: "tracing",
@@ -934,6 +933,7 @@ export const getCategoricalScoresGroupedByName = async (
       kind: "list",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Get score names from ClickHouse results to query score configs
@@ -1191,7 +1191,7 @@ const getScoresUiGeneric = async <T>(props: {
     input: {
       params: {
         projectId: projectId,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         ...(scoresFilterRes ? scoresFilterRes.params : {}),
         limit: limit,
         offset: offset,
@@ -1395,7 +1395,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     input: {
       params: {
         projectId,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
         ...tracesCTEParams,
         limit,
@@ -1537,7 +1537,7 @@ export const getScoreNames = async (
     params: {
       projectId: projectId,
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "tracing",
@@ -1566,6 +1566,8 @@ export const getScoreStringValues = async (
   );
   const timestampFilterRes = chFilter.apply();
 
+  // exclude TEXT scores as they are arbitrary by nature and hence have high cardinality
+  // which in turn can lead to performance issues
   const query = `
       select
         string_value,
@@ -1574,6 +1576,7 @@ export const getScoreStringValues = async (
       WHERE s.project_id = {projectId: String}
       AND string_value IS NOT NULL
       AND string_value != ''
+      AND s.data_type != 'TEXT'
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY string_value
       ORDER BY count() desc
@@ -1840,7 +1843,7 @@ export const getAggregatedScoresForPrompts = async (
     params: {
       projectId,
       promptIds,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "tracing",
@@ -1851,7 +1854,7 @@ export const getAggregatedScoresForPrompts = async (
   });
 
   return rows.map((row) => ({
-    ...convertScoreAggregation<AggregatableScoreDataType>(row),
+    ...convertScoreAggregation<ListableScoreDataType>(row),
     promptId: row.prompt_id,
     hasMetadata: !!row.has_metadata,
   }));
@@ -1880,7 +1883,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     params: {
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     clickhouseConfigs: {
       request_timeout: 120000, // 2 minutes timeout
@@ -1959,7 +1962,7 @@ export const getDistinctScoreNames = async (p: {
     params: {
       projectId,
       cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreTimestampFilter
         ? {
             filterTimestamp: convertDateToClickhouseDateTime(
@@ -2000,7 +2003,9 @@ export const getScoresForBlobStorageExport = function (
       source,
       comment,
       data_type,
-      string_value
+      string_value,
+      created_at,
+      updated_at
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -2014,7 +2019,7 @@ export const getScoresForBlobStorageExport = function (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "blobstorage",
@@ -2087,7 +2092,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "posthog",
@@ -2260,7 +2265,7 @@ export const getScoreCountsByProjectAndDay = async ({
     params: {
       startDate: convertDateToClickhouseDateTime(startDate),
       endDate: convertDateToClickhouseDateTime(endDate),
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "tracing",
