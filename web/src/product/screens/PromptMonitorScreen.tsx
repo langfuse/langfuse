@@ -67,17 +67,26 @@ type PromptCall = {
   evaluations: PromptCallEvaluation[];
 };
 
+type PromptCallTemplate = Omit<
+  PromptCall,
+  | "id"
+  | "startedAt"
+  | "bucketLabel"
+  | "startedAtLabel"
+  | "relativeLabel"
+  | "title"
+  | "modelId"
+  | "deploymentId"
+  | "environmentLabel"
+>;
+
 const MONITOR_TIME_RANGES: MonitorTimeRange[] = ["Hourly", "Daily", "Monthly"];
 
 const MONITOR_DEPLOYMENT_ID = "f4f3dd59-c99b-4133-9704-e3cb4a985246";
 const MONITOR_NOW = new Date("2025-10-14T11:00:00");
 
-const MONITOR_CALLS: PromptCall[] = [
-  createPromptCall({
-    id: "call-01",
-    bucketLabel: "20:00",
-    startedAtLabel: "07:00 am · Oct 14, 2025",
-    relativeLabel: "0 hours ago",
+const MONITOR_CALL_TEMPLATES: PromptCallTemplate[] = [
+  {
     durationSeconds: 7,
     ttftSeconds: 1.1,
     costUsd: 0.001,
@@ -122,12 +131,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "0.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-02",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:57 am · Oct 14, 2025",
-    relativeLabel: "0 hours ago",
+  },
+  {
     durationSeconds: 7,
     ttftSeconds: 1.0,
     costUsd: 0.001,
@@ -172,12 +177,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-03",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:52 am · Oct 14, 2025",
-    relativeLabel: "1 hour ago",
+  },
+  {
     durationSeconds: 8,
     ttftSeconds: 1.4,
     costUsd: 0.0012,
@@ -221,12 +222,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-04",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:45 am · Oct 14, 2025",
-    relativeLabel: "1 hour ago",
+  },
+  {
     durationSeconds: 6,
     ttftSeconds: 0.9,
     costUsd: 0.0009,
@@ -269,12 +266,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-05",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:32 am · Oct 14, 2025",
-    relativeLabel: "1 hour ago",
+  },
+  {
     durationSeconds: 7,
     ttftSeconds: 1.2,
     costUsd: 0.0011,
@@ -317,12 +310,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-06",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:19 am · Oct 14, 2025",
-    relativeLabel: "2 hours ago",
+  },
+  {
     durationSeconds: 9,
     ttftSeconds: 1.7,
     costUsd: 0.0013,
@@ -365,12 +354,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-07",
-    bucketLabel: "20:00",
-    startedAtLabel: "06:07 am · Oct 14, 2025",
-    relativeLabel: "2 hours ago",
+  },
+  {
     durationSeconds: 7,
     ttftSeconds: 1.0,
     costUsd: 0.001,
@@ -413,12 +398,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-08",
-    bucketLabel: "16:00",
-    startedAtLabel: "02:51 am · Oct 14, 2025",
-    relativeLabel: "4 hours ago",
+  },
+  {
     durationSeconds: 7,
     ttftSeconds: 1.3,
     costUsd: 0.001,
@@ -462,12 +443,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "0.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-09",
-    bucketLabel: "07:00",
-    startedAtLabel: "11:02 pm · Oct 13, 2025",
-    relativeLabel: "8 hours ago",
+  },
+  {
     durationSeconds: 7,
     ttftSeconds: 1.1,
     costUsd: 0.001,
@@ -510,12 +487,8 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
-  createPromptCall({
-    id: "call-10",
-    bucketLabel: "03:00",
-    startedAtLabel: "07:06 pm · Oct 13, 2025",
-    relativeLabel: "12 hours ago",
+  },
+  {
     durationSeconds: 8,
     ttftSeconds: 1.5,
     costUsd: 0.0011,
@@ -558,8 +531,77 @@ const MONITOR_CALLS: PromptCall[] = [
         scoreLabel: "1.00",
       },
     ],
-  }),
+  },
 ];
+
+const MONITOR_CALL_TIMESTAMPS = [
+  minutesAgo(4),
+  minutesAgo(7),
+  minutesAgo(11),
+  minutesAgo(14),
+  minutesAgo(18),
+  minutesAgo(22),
+  minutesAgo(26),
+  minutesAgo(31),
+  minutesAgo(36),
+  minutesAgo(42),
+  minutesAgo(47),
+  minutesAgo(53),
+  minutesAgo(61),
+  minutesAgo(74),
+  minutesAgo(86),
+  minutesAgo(99),
+  minutesAgo(112),
+  minutesAgo(127),
+  minutesAgo(145),
+  minutesAgo(167),
+  minutesAgo(194),
+  minutesAgo(221),
+  minutesAgo(257),
+  minutesAgo(304),
+  minutesAgo(366),
+  minutesAgo(428),
+  minutesAgo(512),
+  minutesAgo(685),
+  minutesAgo(843),
+  minutesAgo(1095),
+  daysAgo(1, 15, 24),
+  daysAgo(1, 10, 12),
+  daysAgo(2, 16, 48),
+  daysAgo(2, 9, 13),
+  daysAgo(3, 9, 27),
+  daysAgo(3, 13, 52),
+  daysAgo(4, 13, 36),
+  daysAgo(5, 17, 18),
+  daysAgo(6, 8, 43),
+  daysAgo(7, 12, 6),
+  daysAgo(8, 14, 17),
+  daysAgo(10, 11, 8),
+  daysAgo(12, 18, 2),
+  daysAgo(13, 9, 41),
+  monthsAgo(1, 12, 9, 18),
+  monthsAgo(1, 24, 15, 4),
+  monthsAgo(2, 7, 15, 41),
+  monthsAgo(2, 20, 11, 12),
+  monthsAgo(3, 19, 10, 9),
+  monthsAgo(4, 25, 13, 52),
+  monthsAgo(5, 11, 8, 33),
+  monthsAgo(6, 18, 16, 6),
+  monthsAgo(7, 3, 11, 45),
+  monthsAgo(8, 21, 14, 24),
+  monthsAgo(9, 8, 9, 58),
+  monthsAgo(10, 24, 17, 11),
+  monthsAgo(11, 6, 12, 36),
+].sort((a, b) => b.getTime() - a.getTime());
+
+const MONITOR_CALLS: PromptCall[] = MONITOR_CALL_TIMESTAMPS.map(
+  (startedAt, index) =>
+    createPromptCall({
+      id: `call-${String(index + 1).padStart(2, "0")}`,
+      startedAt,
+      ...MONITOR_CALL_TEMPLATES[index % MONITOR_CALL_TEMPLATES.length]!,
+    }),
+);
 
 export default function PromptMonitorScreen() {
   const router = useRouter();
@@ -887,8 +929,8 @@ function CompletionsPane({
 }) {
   return (
     <div className="bg-background flex h-full min-h-0 flex-col">
-      <div className="border-b px-4 py-2.5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="border-b px-4">
+        <div className="flex h-14 items-center justify-between gap-3">
           <h2 className="text-foreground truncate text-sm font-medium">
             Completions
           </h2>
@@ -969,30 +1011,32 @@ function PromptCallDetailPane({
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-        <div className="min-w-0 space-y-0.5">
-          <h2 className="text-foreground truncate text-sm font-medium">
-            {call.title}
-          </h2>
-          <p className="text-muted-foreground text-xs">{call.startedAtLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-1.5">
-            <Link href={iterateHref}>
-              <Play className="size-3.5" />
-              Open in Playground
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Database className="size-3.5" />
-            Add to Dataset
-            <ChevronDown className="size-3.5" />
-          </Button>
+      <div className="border-b px-4">
+        <div className="flex h-14 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-foreground truncate text-sm font-medium">
+              {call.title}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="gap-1.5">
+              <Link href={iterateHref}>
+                <Play className="size-3.5" />
+                Open in Playground
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Database className="size-3.5" />
+              Add to Dataset
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-4 py-3">
           <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b pb-4 sm:grid-cols-4">
+            <MetricCell label="Start" value={call.startedAtLabel} />
             <MetricCell
               label="Duration"
               value={formatDuration(call.durationSeconds)}
@@ -1005,7 +1049,6 @@ function PromptCallDetailPane({
               label="Estimated cost"
               value={formatUsd(call.costUsd)}
             />
-            <MetricCell label="Environment" value={call.environmentLabel} />
           </section>
           <section className="grid grid-cols-1 gap-4 border-b py-4 sm:grid-cols-3">
             <MetricCell label="Passed" value={`${passPercent}%`} />
@@ -1018,7 +1061,7 @@ function PromptCallDetailPane({
               label="Model"
               value={toShortModelLabel(activeModel.label)}
             />
-            <MetricCell label="Bucket" value={call.relativeLabel} />
+            <MetricCell label="Environment" value={call.environmentLabel} />
           </section>
           <Tabs
             value={selectedTab}
@@ -1167,28 +1210,28 @@ function PromptRollupPane({
 
   return (
     <div className="bg-background flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="border-b px-3.5 py-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="size-2 shrink-0 rounded-full bg-emerald-700" />
-              <h2 className="text-foreground truncate text-sm font-medium">
-                {title}
-              </h2>
-            </div>
-            <p className="text-muted-foreground mt-1 truncate text-xs tabular-nums">
-              {callCount} calls • {deploymentId.slice(0, 8)}…
-            </p>
+      <div className="border-b px-3.5">
+        <div className="flex h-14 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="size-2 shrink-0 rounded-full bg-emerald-700" />
+            <h2 className="text-foreground truncate text-sm font-medium">
+              {title}
+            </h2>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0"
-            onClick={onToggleCollapse}
-            aria-label="Collapse prompt rollup"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+              {callCount}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={onToggleCollapse}
+              aria-label="Collapse prompt rollup"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
       <ScrollArea className="radix-scroll-inner-fluid min-h-0 min-w-0 flex-1 overflow-x-hidden">
@@ -1206,6 +1249,9 @@ function PromptRollupPane({
                 {activeModelLabel}
               </p>
             </div>
+            <p className="text-muted-foreground mt-1 truncate text-xs tabular-nums">
+              {deploymentId.slice(0, 8)}…
+            </p>
             <div className="text-muted-foreground mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <div>
                 <div className="text-foreground tabular-nums">
@@ -1393,7 +1439,13 @@ function EmptyMonitorState({ compact = false }: { compact?: boolean }) {
 function createPromptCall(
   input: Omit<
     PromptCall,
-    "title" | "modelId" | "deploymentId" | "environmentLabel" | "startedAt"
+    | "title"
+    | "modelId"
+    | "deploymentId"
+    | "environmentLabel"
+    | "bucketLabel"
+    | "startedAtLabel"
+    | "relativeLabel"
   >,
 ): PromptCall {
   return {
@@ -1401,14 +1453,75 @@ function createPromptCall(
     modelId: PREVIEW_MODELS[0]!.id,
     deploymentId: MONITOR_DEPLOYMENT_ID,
     environmentLabel: "Production",
-    startedAt: parseMonitorStartedAt(input.startedAtLabel),
+    bucketLabel: formatMonitorBucketLabel(input.startedAt),
+    startedAtLabel: formatMonitorStartedAtLabel(input.startedAt),
+    relativeLabel: formatMonitorRelativeLabel(input.startedAt),
     ...input,
   };
 }
 
-function parseMonitorStartedAt(value: string) {
-  const [time, date] = value.split(" · ");
-  return new Date(`${date} ${time.toUpperCase()}`);
+function minutesAgo(minutes: number) {
+  return new Date(MONITOR_NOW.getTime() - minutes * 60 * 1000);
+}
+
+function daysAgo(days: number, hour: number, minute: number) {
+  const value = new Date(MONITOR_NOW);
+  value.setDate(value.getDate() - days);
+  value.setHours(hour, minute, 0, 0);
+  return value;
+}
+
+function monthsAgo(months: number, day: number, hour: number, minute: number) {
+  const value = new Date(MONITOR_NOW);
+  value.setMonth(value.getMonth() - months, day);
+  value.setHours(hour, minute, 0, 0);
+  return value;
+}
+
+function formatMonitorBucketLabel(value: Date) {
+  return value.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatMonitorStartedAtLabel(value: Date) {
+  const [time, meridiem] = value
+    .toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+    .split(" ");
+
+  return `${time} ${meridiem?.toLowerCase() ?? ""} · ${value.toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  )}`;
+}
+
+function formatMonitorRelativeLabel(value: Date) {
+  const diffMs = MONITOR_NOW.getTime() - value.getTime();
+  const diffHours = Math.max(0, Math.floor(diffMs / (60 * 60 * 1000)));
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+
+  const diffDays = Math.max(1, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
+  if (diffDays < 31) {
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  }
+
+  const diffMonths =
+    (MONITOR_NOW.getFullYear() - value.getFullYear()) * 12 +
+    (MONITOR_NOW.getMonth() - value.getMonth());
+  const normalizedMonths = Math.max(diffMonths, 1);
+  return `${normalizedMonths} month${normalizedMonths === 1 ? "" : "s"} ago`;
 }
 
 function buildMonitorBucketSeries(
