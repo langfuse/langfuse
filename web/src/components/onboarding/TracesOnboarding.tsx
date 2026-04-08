@@ -7,7 +7,7 @@ interface TracesOnboardingProps {
 
 export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
   return (
-    <div className="space-y-10 px-6 md:px-8">
+    <div className="space-y-10">
       <SkillsOnboardingCard projectId={projectId} />
     </div>
   );
