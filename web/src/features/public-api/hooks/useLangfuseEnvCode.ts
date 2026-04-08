@@ -6,7 +6,12 @@ export function useLangfuseEnvCode(keys?: {
   publicKey: string;
 }): string {
   const uiCustomization = useUiCustomization();
-  const baseUrl = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+  const origin =
+    uiCustomization?.hostname ??
+    (typeof window !== "undefined"
+      ? window.origin
+      : env.NEXTAUTH_URL?.replace("/api/auth", "") ?? "http://localhost:3000");
+  const baseUrl = `${origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   if (keys) {
     return `LANGFUSE_SECRET_KEY="${keys.secretKey}"
