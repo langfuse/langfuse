@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -38,10 +38,16 @@ export type UserNavigationProps = {
     avatar: string;
   };
   items: UserNavigationItem[];
+  variant?: "footer" | "switcher";
 };
 
-export function NavUser({ user, items }: UserNavigationProps) {
+export function NavUser({
+  user,
+  items,
+  variant = "footer",
+}: UserNavigationProps) {
   const { isMobile } = useSidebar();
+  const showEmail = variant === "footer";
 
   const initials = user.name
     .split(" ")
@@ -57,7 +63,17 @@ export function NavUser({ user, items }: UserNavigationProps) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-foreground rounded-xl data-[state=open]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]"
+              data-testid={
+                variant === "switcher"
+                  ? "sidebar-account-switcher"
+                  : "sidebar-user-menu"
+              }
+              className={
+                variant === "switcher"
+                  ? "border-sidebar-border/70 bg-sidebar-accent/25 hover:bg-sidebar-accent/45 data-[state=open]:bg-sidebar-accent/55 data-[state=open]:text-sidebar-foreground rounded-xl border px-2.5 shadow-none data-[state=open]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]"
+                  : "data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-foreground rounded-xl data-[state=open]:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]"
+              }
+              aria-label={`Account options and switcher, current account is ${user.name}`}
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -67,14 +83,20 @@ export function NavUser({ user, items }: UserNavigationProps) {
               </Avatar>
               <div className="grid min-w-0 flex-1 text-left">
                 <p className="truncate text-sm font-medium">{user.name}</p>
-                <p
-                  className="text-sidebar-foreground/60 truncate text-[0.8125rem]"
-                  title={user.email}
-                >
-                  {user.email}
-                </p>
+                {showEmail ? (
+                  <p
+                    className="text-sidebar-foreground/60 truncate text-[0.8125rem]"
+                    title={user.email}
+                  >
+                    {user.email}
+                  </p>
+                ) : null}
               </div>
-              <ChevronsUpDown className="text-sidebar-foreground/50 ml-auto size-4" />
+              {variant === "switcher" ? (
+                <ChevronDown className="text-sidebar-foreground/50 ml-auto size-4" />
+              ) : (
+                <ChevronsUpDown className="text-sidebar-foreground/50 ml-auto size-4" />
+              )}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

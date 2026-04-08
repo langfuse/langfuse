@@ -28,6 +28,20 @@ import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
+const GREENFIELD_SIDEBAR_STYLE = {
+  "--sidebar-width": "15rem",
+  "--sidebar-width-icon": "3.5rem",
+} as React.CSSProperties;
+
+function isGreenfieldSidebarPath(pathname: string) {
+  return (
+    pathname === "/dev/greenfield" ||
+    pathname === "/project/[projectId]" ||
+    pathname.startsWith("/project/[projectId]/greenfield") ||
+    pathname.startsWith("/organization/[organizationId]/greenfield")
+  );
+}
+
 type AppSidebarProps = {
   navItems: {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
@@ -46,6 +60,31 @@ export function AppSidebar({
   userNavProps,
   ...props
 }: AppSidebarProps) {
+  const router = useRouter();
+  const isGreenfieldSidebar = isGreenfieldSidebarPath(router.pathname);
+
+  if (isGreenfieldSidebar) {
+    return (
+      <Sidebar
+        collapsible="icon"
+        variant="sidebar"
+        style={GREENFIELD_SIDEBAR_STYLE}
+        {...props}
+      >
+        <SidebarHeader className="border-sidebar-border/70 border-b px-3 pt-3 pb-3">
+          <NavUser {...userNavProps} variant="switcher" />
+        </SidebarHeader>
+        <SidebarContent className="pb-4">
+          <NavMain items={navItems} variant="greenfield" />
+          <div className="flex-1" />
+          <div className="border-sidebar-border/70 mt-3 border-t pt-3">
+            <NavMain items={secondaryNavItems} variant="greenfield" />
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader className="border-sidebar-border/70 border-b">

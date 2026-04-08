@@ -77,6 +77,10 @@
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-collapsible-down: collapsible-down 0.28s
+    cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-collapsible-up: collapsible-up 0.22s
+    cubic-bezier(0.7, 0, 0.84, 0);
 
   @keyframes rainbow {
     0% {
@@ -107,6 +111,34 @@
       height: 0;
     }
   }
+
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+
+    to {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    to {
+      height: 0;
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
 }
 
 /*
@@ -124,6 +156,16 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer utilities {
+  .animate-collapsible-down {
+    animation: var(--animate-collapsible-down);
+  }
+
+  .animate-collapsible-up {
+    animation: var(--animate-collapsible-up);
   }
 }
 

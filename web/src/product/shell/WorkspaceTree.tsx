@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -62,6 +68,7 @@ function WorkspaceTreeNode({
   depth: number;
   selection: WorkspaceSelection;
 }) {
+  const hasChildren = Boolean(node.children?.length);
   const Icon = getTreeIcon(node.kind);
   const isActive =
     selection?.kind === node.kind &&
@@ -74,11 +81,46 @@ function WorkspaceTreeNode({
     ),
   );
   const isNested = depth > 0;
+  const [isOpen, setIsOpen] = useState(
+    depth === 0 || isActive || hasActiveChild,
+  );
+
+  useEffect(() => {
+    if (isActive || hasActiveChild) {
+      setIsOpen(true);
+    }
+  }, [hasActiveChild, isActive]);
+
+  if (!hasChildren) {
+    return (
+      <div className={cn(isNested ? "space-y-0.5" : "space-y-1")}>
+        <Link
+          href={getNodeHref(projectId, node)}
+          className={cn(
+            "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center transition-colors",
+            isNested
+              ? "min-h-8 gap-1.5 rounded-md px-1.5 text-sm"
+              : "min-h-9 gap-2 rounded-lg px-2 text-sm",
+            isActive &&
+              "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
+            !isActive && hasActiveChild && "text-foreground",
+          )}
+        >
+          <div className="w-3.5 shrink-0" />
+          <Icon className="text-sidebar-foreground/70 h-4 w-4 shrink-0" />
+          <span className="truncate">{humanizeSegment(node.name)}</span>
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className={cn(isNested ? "space-y-0.5" : "space-y-1")}>
-      <Link
-        href={getNodeHref(projectId, node)}
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      className={cn(isNested ? "space-y-0.5" : "space-y-1")}
+    >
+      <div
         className={cn(
           "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center transition-colors",
           isNested
@@ -89,17 +131,31 @@ function WorkspaceTreeNode({
           !isActive && hasActiveChild && "text-foreground",
         )}
       >
-        {node.kind === "folder" ? (
-          <ChevronDown className="text-sidebar-foreground/55 h-3.5 w-3.5 shrink-0" />
-        ) : (
-          <div className="w-3.5 shrink-0" />
-        )}
-        <Icon className="text-sidebar-foreground/70 h-4 w-4 shrink-0" />
-        <span className="truncate">{humanizeSegment(node.name)}</span>
-      </Link>
-      {node.children?.length ? (
-        <div className="border-sidebar-border/60 ml-3 space-y-0.5 border-l pl-0.5">
-          {node.children.map((child) => (
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Toggle ${humanizeSegment(node.name)} folder`}
+            className="text-sidebar-foreground/55 hover:text-sidebar-foreground flex h-5 w-3.5 shrink-0 items-center justify-center"
+          >
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                isOpen && "rotate-180",
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <Link
+          href={getNodeHref(projectId, node)}
+          className="flex min-w-0 flex-1 items-center gap-2"
+        >
+          <Icon className="text-sidebar-foreground/70 h-4 w-4 shrink-0" />
+          <span className="truncate">{humanizeSegment(node.name)}</span>
+        </Link>
+      </div>
+      <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down origin-top overflow-hidden will-change-[height,opacity,transform]">
+        <div className="border-sidebar-border/60 mt-1 ml-3 space-y-0.5 border-l pl-0.5">
+          {node.children?.map((child) => (
             <WorkspaceTreeNode
               key={child.pathSegments.join("/")}
               node={child}
@@ -109,8 +165,8 @@ function WorkspaceTreeNode({
             />
           ))}
         </div>
-      ) : null}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
