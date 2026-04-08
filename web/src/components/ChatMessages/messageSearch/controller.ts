@@ -7,7 +7,8 @@ import { type RefObject } from "react";
 
 import {
   applyCodeMirrorSearchQuery,
-  selectCodeMirrorRange,
+  unsetActiveSearchMarkCodeMirrorRange,
+  setActiveSearchMarkCodeMirrorRange,
 } from "@/src/components/editor";
 
 export type MessageSearchMatch = {
@@ -269,17 +270,33 @@ export function createMessageSearchController(
       inline: "center",
     });
 
-    const messageTarget = messageTargets.get(
-      getMessageTargetKey(activeMatch.pageId, activeMatch.messageId),
+    let activeMessageTarget: MessageSearchMessageTarget | null = null;
+    const inactiveMessageTargets: MessageSearchMessageTarget[] = [];
+
+    const activeMessageTargetKey = getMessageTargetKey(
+      activeMatch.pageId,
+      activeMatch.messageId,
     );
 
-    messageTarget?.rowRef.current?.scrollIntoView({
+    for (const [key, target] of messageTargets.entries()) {
+      if (key === activeMessageTargetKey) {
+        activeMessageTarget = target;
+      } else {
+        inactiveMessageTargets.push(target);
+      }
+    }
+
+    for (const target of inactiveMessageTargets) {
+      unsetActiveSearchMarkCodeMirrorRange(target?.editorRef);
+    }
+
+    activeMessageTarget?.rowRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "center",
       inline: "nearest",
     });
 
-    selectCodeMirrorRange(messageTarget?.editorRef, {
+    setActiveSearchMarkCodeMirrorRange(activeMessageTarget?.editorRef, {
       from: activeMatch.from,
       to: activeMatch.to,
     });
@@ -318,7 +335,7 @@ export function createMessageSearchController(
   const refreshSearchResults = (shouldSyncEditors: boolean) => {
     const activeMatchChanged = recomputeMatches();
 
-    if (shouldSyncEditors) {
+    if (shouldSyncEditors || activeMatchChanged) {
       syncEditorsToQuery();
     }
 

@@ -21,7 +21,6 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
     openRequestCount,
     queryInput,
     matches,
-    activeMatch,
     activeMatchIndex,
     openSearch,
     closeSearch,
@@ -109,9 +108,6 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         onClick={nextMatch}
         disabled={matches.length === 0}
       />
-      <div className="text-muted-foreground hidden max-w-48 truncate px-1 text-xs lg:block">
-        {activeMatch?.locationLabel ?? "No matches"}
-      </div>
       <IconButton icon={X} label="Close search" onClick={closeSearch} />
     </div>
   );
