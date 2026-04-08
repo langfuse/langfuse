@@ -124,14 +124,24 @@ function ensureObservationCoreFields(
 export const enrichObservationWithModelData = (
   model: ModelWithPrice | null | undefined,
 ) => {
+  const inputPrice =
+    model?.Price?.find((m) => m.usageType === "input")?.price ??
+    model?.inputPrice ??
+    null;
+  const outputPrice =
+    model?.Price?.find((m) => m.usageType === "output")?.price ??
+    model?.outputPrice ??
+    null;
+  const totalPrice =
+    model?.Price?.find((m) => m.usageType === "total")?.price ??
+    model?.totalPrice ??
+    null;
+
   return {
     modelId: model?.id ?? null,
-    inputPrice:
-      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-    outputPrice:
-      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-    totalPrice:
-      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+    inputPrice,
+    outputPrice,
+    totalPrice,
   };
 };
 

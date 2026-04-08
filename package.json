@@ -36,7 +36,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
-    "test": "turbo run test",
+    "test": "TZ=UTC turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"

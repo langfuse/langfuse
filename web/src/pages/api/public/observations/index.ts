@@ -1,5 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  enrichObservationWithModelData,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
@@ -99,16 +100,7 @@ export default withMiddlewares({
             const model = models.find((m) => m.id === i.internalModelId);
             return {
               ...i,
-              modelId: model?.id ?? null,
-              inputPrice:
-                model?.Price?.find((m) => m.usageType === "input")?.price ??
-                null,
-              outputPrice:
-                model?.Price?.find((m) => m.usageType === "output")?.price ??
-                null,
-              totalPrice:
-                model?.Price?.find((m) => m.usageType === "total")?.price ??
-                null,
+              ...enrichObservationWithModelData(model),
             };
           })
           .map(transformDbToApiObservation),

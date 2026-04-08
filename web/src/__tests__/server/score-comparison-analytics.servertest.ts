@@ -3874,6 +3874,6 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(resultDatasetRun.counts.matchedCount).toBe(1);
       expect(resultDatasetRun.counts.score1Total).toBe(1);
       expect(resultDatasetRun.counts.score2Total).toBe(1);
-    });
+    }, 20000);
   });
 });

@@ -17,11 +17,7 @@ export function ToolCallInvocationsView({
   toolCallNumbers,
   className,
 }: ToolCallInvocationsViewProps) {
-  const toolCalls = parseToolCallsFromMessage(message) as Array<{
-    id?: unknown;
-    name?: unknown;
-    arguments?: unknown;
-  }>;
+  const toolCalls = parseToolCallsFromMessage(message);
 
   if (toolCalls.length === 0) {
     return null;
@@ -31,6 +27,14 @@ export function ToolCallInvocationsView({
     <div className={cn("flex flex-col gap-2", className)}>
       {toolCalls.map((toolCall, index) => {
         const invocationNumber = toolCallNumbers?.[index];
+        const toolName =
+          typeof toolCall.name === "string"
+            ? toolCall.name
+            : typeof toolCall.toolName === "string"
+              ? toolCall.toolName
+              : "Unknown tool";
+        const toolCallId =
+          typeof toolCall.id === "string" ? toolCall.id : undefined;
         // Parse arguments if they're a JSON string
         let parsedArguments = toolCall.arguments;
         if (typeof toolCall.arguments === "string") {
@@ -44,7 +48,7 @@ export function ToolCallInvocationsView({
 
         return (
           <div
-            key={`${toolCall.id}-${index}`}
+            key={`${toolCallId ?? "tool-call"}-${index}`}
             className={cn(
               "w-full border-t px-2 py-2",
               (message.role === "assistant" ||
@@ -62,14 +66,14 @@ export function ToolCallInvocationsView({
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
                   )}
-                  {toolCall.name}
+                  {toolName}
                 </span>
               </div>
 
               {/* Right: Call ID if available */}
-              {toolCall.id && (
+              {toolCallId && (
                 <span className="text-muted-foreground font-mono text-xs">
-                  {toolCall.id}
+                  {toolCallId}
                 </span>
               )}
             </div>

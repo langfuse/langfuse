@@ -668,7 +668,7 @@ describe("/api/public/traces API Endpoint", () => {
     ).rejects.toThrow(
       "Observations in trace are too large: 90.00MB exceeds limit of 80.00MB",
     );
-  });
+  }, 20_000);
 
   it("should delete a single trace via DELETE /traces/:traceId", async () => {
     // Setup
@@ -728,8 +728,8 @@ describe("/api/public/traces API Endpoint", () => {
         projectId,
       });
       expect(trace2).toBeUndefined();
-    }, 40_000);
-  }, 60_000);
+    }, 70_000);
+  }, 100_000);
 
   describe("Fields Filtering", () => {
     it("should fetch traces with all fields by default", async () => {

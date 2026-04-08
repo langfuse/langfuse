@@ -1,10 +1,11 @@
 import { randomUUID } from "crypto";
 import {
-  makeZodVerifiedAPICall,
-  makeAPICall,
+  makeZodVerifiedAPICall as makeZodVerifiedAPICallBase,
+  makeAPICall as makeAPICallBase,
 } from "@/src/__tests__/test-utils";
 import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
 import {
+  createOrgProjectAndApiKey,
   createEvent,
   createEventsCh,
   createScoresCh,
@@ -18,7 +19,8 @@ const hasV2Apis = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
 const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  let auth: string;
+  let projectId: string;
 
   let traceId: string;
   let observationIds: string[];
@@ -27,11 +29,38 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   const timeValue = timestamp.getTime() * 1000; // microseconds for events table
   const testMetadataValue = randomUUID();
 
+  const makeZodVerifiedAPICall: typeof makeZodVerifiedAPICallBase = (
+    responseZodSchema,
+    method,
+    url,
+    body,
+    requestAuth,
+    statusCode,
+  ) =>
+    makeZodVerifiedAPICallBase(
+      responseZodSchema,
+      method,
+      url,
+      body,
+      requestAuth ?? auth,
+      statusCode,
+    );
+
+  const makeAPICall: typeof makeAPICallBase = (
+    method,
+    url,
+    body,
+    requestAuth,
+    customHeaders,
+  ) => makeAPICallBase(method, url, body, requestAuth ?? auth, customHeaders);
+
   beforeAll(async () => {
     if (!hasV2Apis) {
       // don't attempt data setup if events table is disabled
       return;
     }
+
+    ({ auth, projectId } = await createOrgProjectAndApiKey());
 
     traceId = randomUUID();
     observationIds = [];

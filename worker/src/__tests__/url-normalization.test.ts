@@ -1,5 +1,27 @@
-import { describe, it, expect } from "vitest";
+import dns from "node:dns/promises";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+
+const createDnsError = (code: string, hostname: string) =>
+  Object.assign(new Error(`${code} ${hostname}`), { code });
+
+beforeAll(() => {
+  vi.spyOn(dns, "resolve4").mockImplementation(async (hostname: string) => {
+    if (hostname === "httpbin.org") {
+      return ["93.184.216.34"];
+    }
+
+    throw createDnsError("ENOTFOUND", hostname);
+  });
+
+  vi.spyOn(dns, "resolve6").mockImplementation(async (hostname: string) => {
+    throw createDnsError("ENODATA", hostname);
+  });
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
+});
 
 describe("URL Normalization and Edge Cases", () => {
   describe("URL encoding bypass attempts", () => {

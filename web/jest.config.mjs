@@ -39,8 +39,8 @@ const esModules = ["superjson", "jsonpath-plus"];
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {
-  // Ignore .next/standalone to avoid "Haste module naming collision" warning
-  modulePathIgnorePatterns: ["<rootDir>/.next/"],
+  // Ignore Next build artifacts to avoid "Haste module naming collision" warnings
+  modulePathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/.next-check/"],
   // Jest 30 performance: recycle workers when memory exceeds limit
   workerIdleMemoryLimit: "512MB",
   // Add more setup options before each test is run

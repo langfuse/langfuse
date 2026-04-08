@@ -20,10 +20,31 @@ export class PrismaClientSingleton {
 }
 
 const createPrismaInstance = () => {
+  const datasourceUrl = (() => {
+    const databaseUrl = env.DATABASE_URL;
+    if (!databaseUrl || !databaseUrl.includes("langfuse_test")) {
+      return undefined;
+    }
+
+    const url = new URL(databaseUrl);
+    url.searchParams.set("connection_limit", "5");
+
+    return url.toString();
+  })();
+
   const client = new PrismaClient<
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
   >({
+    ...(datasourceUrl
+      ? {
+          datasources: {
+            db: {
+              url: datasourceUrl,
+            },
+          },
+        }
+      : {}),
     log: [
       { emit: "event", level: "query" },
       { emit: "event", level: "error" },
@@ -51,12 +72,16 @@ declare const globalThis: {
   prismaGlobal: PrismaClient | undefined;
 } & typeof global;
 
-// eslint-disable-next-line turbo/no-undeclared-env-vars
-if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
-}
+type PrismaProcess = NodeJS.Process & {
+  __langfusePrismaClient?: PrismaClient;
+};
 
-export const prisma =
-  globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
+const prismaProcess = process as PrismaProcess;
+
+prismaProcess.__langfusePrismaClient ??=
+  globalThis.prismaGlobal ?? createPrismaInstance();
+globalThis.prismaGlobal = prismaProcess.__langfusePrismaClient;
+
+export const prisma = prismaProcess.__langfusePrismaClient;
 
 export * from "@prisma/client";

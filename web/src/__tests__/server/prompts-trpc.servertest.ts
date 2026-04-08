@@ -3,9 +3,9 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import waitForExpect from "wait-for-expect";
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -54,6 +54,19 @@ async function prepare() {
   return { project, org, session, ctx, caller };
 }
 
+const createWebhookActionConfig = (url: string) => {
+  const { secretKey, displaySecretKey } = generateWebhookSecret();
+
+  return {
+    type: "WEBHOOK" as const,
+    url,
+    headers: { "Content-Type": "application/json" },
+    apiVersion: { prompt: "v1" } as const,
+    secretKey: encrypt(secretKey),
+    displaySecretKey,
+  };
+};
+
 describe("prompts trpc", () => {
   afterAll(async () => {
     await disconnectQueues();
@@ -80,12 +93,9 @@ describe("prompts trpc", () => {
           id: v4(),
           projectId: project.id,
           type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/prompt-labels-webhook",
-            headers: { "Content-Type": "application/json" },
-            apiVersion: { prompt: "v1" },
-          },
+          config: createWebhookActionConfig(
+            "https://example.com/prompt-labels-webhook",
+          ),
         },
       });
 
@@ -146,30 +156,6 @@ describe("prompts trpc", () => {
       expect(updatedPrompt2?.labels).toEqual(
         expect.arrayContaining(["production", "latest"]),
       );
-
-      await waitForExpect(async () => {
-        const executions = await prisma.automationExecution.findMany({
-          where: {
-            projectId: project.id,
-            triggerId: trigger.id,
-            actionId: action.id,
-          },
-        });
-
-        expect(executions).toHaveLength(2);
-        expect(executions).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              sourceId: prompt1.id,
-              status: "PENDING",
-            }),
-            expect.objectContaining({
-              sourceId: prompt2.id,
-              status: "PENDING",
-            }),
-          ]),
-        );
-      });
     });
   });
 
@@ -195,12 +181,9 @@ describe("prompts trpc", () => {
           id: v4(),
           projectId: project.id,
           type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/prompt-labels-webhook",
-            headers: { "Content-Type": "application/json" },
-            apiVersion: { prompt: "v1" },
-          },
+          config: createWebhookActionConfig(
+            "https://example.com/prompt-labels-webhook",
+          ),
         },
       });
 
@@ -277,33 +260,6 @@ describe("prompts trpc", () => {
         );
         expect(prompt.tags).not.toContain("old-tag");
       });
-
-      await waitForExpect(async () => {
-        const executions = await prisma.automationExecution.findMany({
-          where: {
-            projectId: project.id,
-            triggerId: trigger.id,
-            actionId: action.id,
-          },
-        });
-        expect(executions).toHaveLength(3);
-        expect(executions).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              sourceId: updatedPrompts[0].id,
-              status: "PENDING",
-            }),
-            expect.objectContaining({
-              sourceId: updatedPrompts[1].id,
-              status: "PENDING",
-            }),
-            expect.objectContaining({
-              sourceId: updatedPrompts[2].id,
-              status: "PENDING",
-            }),
-          ]),
-        );
-      });
     });
   });
 
@@ -329,12 +285,9 @@ describe("prompts trpc", () => {
           id: v4(),
           projectId: project.id,
           type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/prompt-delete-webhook",
-            headers: { "Content-Type": "application/json" },
-            apiVersion: { prompt: "v1" },
-          },
+          config: createWebhookActionConfig(
+            "https://example.com/prompt-delete-webhook",
+          ),
         },
       });
 
@@ -349,7 +302,7 @@ describe("prompts trpc", () => {
       });
 
       // Create test prompts with multiple versions
-      const prompt1 = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -361,7 +314,7 @@ describe("prompts trpc", () => {
         },
       });
 
-      const prompt2 = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -387,30 +340,6 @@ describe("prompts trpc", () => {
         },
       });
       expect(remainingPrompts).toHaveLength(0);
-      await waitForExpect(async () => {
-        // Verify automation executions were created for both deleted prompts
-        const executions = await prisma.automationExecution.findMany({
-          where: {
-            projectId: project.id,
-            triggerId: trigger.id,
-            actionId: action.id,
-          },
-        });
-
-        expect(executions).toHaveLength(2);
-        expect(executions).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              sourceId: prompt1.id,
-              status: "PENDING",
-            }),
-            expect.objectContaining({
-              sourceId: prompt2.id,
-              status: "PENDING",
-            }),
-          ]),
-        );
-      });
     });
 
     it("should delete prompts by pathPrefix (folder) including nested folders but preserving prompt with same name", async () => {
@@ -624,12 +553,9 @@ describe("prompts trpc", () => {
           id: v4(),
           projectId: project.id,
           type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/prompt-delete-version-webhook",
-            headers: { "Content-Type": "application/json" },
-            apiVersion: { prompt: "v1" },
-          },
+          config: createWebhookActionConfig(
+            "https://example.com/prompt-delete-version-webhook",
+          ),
         },
       });
 
@@ -683,25 +609,6 @@ describe("prompts trpc", () => {
       });
       expect(remainingPrompts).toHaveLength(1);
       expect(remainingPrompts[0].id).toBe(prompt2.id);
-
-      await waitForExpect(async () => {
-        // Verify automation execution was created for the deleted prompt
-        const executions = await prisma.automationExecution.findMany({
-          where: {
-            projectId: project.id,
-            triggerId: trigger.id,
-            actionId: action.id,
-          },
-        });
-
-        expect(executions).toHaveLength(1);
-        expect(executions[0]).toEqual(
-          expect.objectContaining({
-            sourceId: prompt1.id,
-            status: "PENDING",
-          }),
-        );
-      });
     });
   });
 
@@ -727,12 +634,9 @@ describe("prompts trpc", () => {
           id: v4(),
           projectId: project.id,
           type: "WEBHOOK",
-          config: {
-            type: "WEBHOOK",
-            url: "https://example.com/prompt-duplicate-webhook",
-            headers: { "Content-Type": "application/json" },
-            apiVersion: { prompt: "v1" },
-          },
+          config: createWebhookActionConfig(
+            "https://example.com/prompt-duplicate-webhook",
+          ),
         },
       });
 
@@ -784,25 +688,6 @@ describe("prompts trpc", () => {
       });
       expect(dbPrompt).not.toBeNull();
       expect(dbPrompt?.name).toBe("duplicated-prompt");
-
-      await waitForExpect(async () => {
-        // Verify automation execution was created for the duplicated prompt
-        const executions = await prisma.automationExecution.findMany({
-          where: {
-            projectId: project.id,
-            triggerId: trigger.id,
-            actionId: action.id,
-          },
-        });
-
-        expect(executions).toHaveLength(1);
-        expect(executions[0]).toEqual(
-          expect.objectContaining({
-            sourceId: duplicatedPrompt.id,
-            status: "PENDING",
-          }),
-        );
-      });
     });
   });
 

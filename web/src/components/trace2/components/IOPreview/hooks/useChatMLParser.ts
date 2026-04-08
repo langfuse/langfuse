@@ -118,13 +118,12 @@ export function useChatMLParser(
         const messageToolNumbers: number[] = [];
 
         for (const tc of toolCallList) {
-          const toolCall = tc as Record<string, unknown>;
           const calledToolName =
-            toolCall.name && typeof toolCall.name === "string"
-              ? toolCall.name
+            typeof tc.name === "string"
+              ? tc.name
               : // AI SDK has 'toolName'
-                toolCall.toolName && typeof toolCall.toolName === "string"
-                ? toolCall.toolName
+                typeof tc.toolName === "string"
+                ? tc.toolName
                 : undefined;
 
           if (calledToolName) {

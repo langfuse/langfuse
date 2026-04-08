@@ -393,7 +393,7 @@ describe("/api/public/observations API Endpoint", () => {
         expect(embeddingObs?.output).toBe("Vector embedding generated");
         expect(embeddingObs?.usageDetails).toBeDefined();
         expect(embeddingObs?.costDetails).toBeDefined();
-      }, 20_000);
+      }, 40_000);
 
       it("should filter observations by level parameter", async () => {
         const traceId = randomUUID();

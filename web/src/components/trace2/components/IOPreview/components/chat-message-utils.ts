@@ -3,6 +3,17 @@ import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema"
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
+export type ParsedToolCall = Record<string, unknown> & {
+  id?: unknown;
+  name?: unknown;
+  toolName?: unknown;
+  arguments?: unknown;
+  type?: unknown;
+};
+
+function isParsedToolCall(value: unknown): value is ParsedToolCall {
+  return typeof value === "object" && value !== null;
+}
 
 /**
  * Get display title for a message based on name or role.
@@ -73,11 +84,11 @@ export function shouldRenderMessage(message: ChatMlMessage): boolean {
  */
 export function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
-): unknown[] {
+): ParsedToolCall[] {
   if (message.tool_calls && Array.isArray(message.tool_calls))
     return message.tool_calls;
   if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls))
-    return message.json.tool_calls;
+    return message.json.tool_calls.filter(isParsedToolCall);
   // Anthropic: tool calls can live inside content array as type: "tool_use" blocks.
   // Normalize them to the standard tool_calls shape so downstream consumers can
   // render and number them the same way as OpenAI-style tool calls.
