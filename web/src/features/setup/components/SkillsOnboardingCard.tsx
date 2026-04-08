@@ -38,7 +38,7 @@ function CopyableSnippet({
   return (
     <div className="space-y-2">
       <div className="bg-muted/50 mx-auto flex items-start justify-between gap-3 rounded-2xl border px-5 py-4 shadow-xs">
-        <code className="min-w-0 flex-1 font-mono text-xs leading-6 whitespace-pre-wrap break-words sm:text-sm">
+        <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
           {prefix ? (
             <span className="text-muted-foreground mr-2 select-none">
               {prefix}
@@ -93,12 +93,7 @@ export function SkillsOnboardingCard({
   };
 
   return (
-    <section
-      className={cn(
-        "bg-background",
-        className,
-      )}
-    >
+    <section className={cn("bg-background", className)}>
       <div className="mx-auto flex max-w-4xl flex-col px-6 py-8 sm:px-10 sm:py-10">
         <div className="mb-10 text-center">
           <StatusBadge
@@ -120,7 +115,9 @@ export function SkillsOnboardingCard({
         <div className="w-full max-w-4xl space-y-8">
           <div className="text-left">
             <div className="mb-3 flex items-center gap-3 text-left">
-              <span className="text-muted-foreground text-3xl font-light">1</span>
+              <span className="text-muted-foreground text-3xl font-light">
+                1
+              </span>
               <h3 className="text-2xl font-semibold">
                 Add tracing with your coding agent
               </h3>
@@ -164,7 +161,9 @@ export function SkillsOnboardingCard({
 
           <div className="border-border border-t pt-8 text-left">
             <div className="mb-3 flex items-center gap-3">
-              <span className="text-muted-foreground text-3xl font-light">2</span>
+              <span className="text-muted-foreground text-3xl font-light">
+                2
+              </span>
               <h3 className="text-2xl font-semibold">Get API keys</h3>
             </div>
             <p className="text-muted-foreground text-base leading-7">
