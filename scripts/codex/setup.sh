@@ -26,12 +26,42 @@ install_golang_migrate() {
   local tarball="migrate.${os}-${arch}.tar.gz"
   local url="https://github.com/golang-migrate/migrate/releases/download/${version}/${tarball}"
   local install_dir="${HOME}/.local/bin"
+  local tmpdir
+  local archive_path
+  local checksum_path
+  local expected_sha
+  local actual_sha
+
+  tmpdir="$(mktemp -d)"
+  archive_path="${tmpdir}/${tarball}"
+  checksum_path="${tmpdir}/${tarball}.sha256"
+
+  curl -fsSL -o "$archive_path" "$url"
+  curl -fsSL -o "$checksum_path" "${url}.sha256"
+
+  expected_sha="$(awk '{print $1}' "$checksum_path")"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_sha="$(sha256sum "$archive_path" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_sha="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+  else
+    echo "Neither sha256sum nor shasum is available to verify golang-migrate checksum."
+    rm -rf "$tmpdir"
+    exit 1
+  fi
+
+  if [ "$expected_sha" != "$actual_sha" ]; then
+    echo "golang-migrate checksum verification failed."
+    rm -rf "$tmpdir"
+    exit 1
+  fi
 
   mkdir -p "$install_dir"
-  curl -fsSL "$url" | tar xz migrate
-  mv migrate "${install_dir}/migrate"
+  tar xzf "$archive_path" -C "$tmpdir" migrate
+  mv "${tmpdir}/migrate" "${install_dir}/migrate"
   chmod +x "${install_dir}/migrate"
   export PATH="${install_dir}:${PATH}"
+  rm -rf "$tmpdir"
 }
 
 ensure_env_file() {
