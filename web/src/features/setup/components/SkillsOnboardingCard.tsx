@@ -3,14 +3,16 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const SKILLS_INSTALL_COMMAND =
   "Install the Langfuse AI skill from github.com/langfuse/skills and use it to add tracing to this application with Langfuse following best practices.";
@@ -72,10 +74,13 @@ export function SkillsOnboardingCard({
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
+  const hasApiKeyCreateAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
-  const envCode = useLangfuseEnvCode(apiKeys ?? undefined);
   const utils = api.useUtils();
   const mutCreateApiKey = api.projectApiKeys.create.useMutation({
     onSuccess: (data) => {
@@ -89,6 +94,7 @@ export function SkillsOnboardingCard({
       await mutCreateApiKey.mutateAsync({ projectId });
     } catch (error) {
       console.error("Error creating API key:", error);
+      toast.error("Failed to create API key");
     }
   };
 
@@ -171,20 +177,31 @@ export function SkillsOnboardingCard({
               Langfuse.
             </p>
             {apiKeys ? (
-              <div className="mt-4">
-                <div className="mb-2 text-sm font-medium">.env</div>
-                <CopyableSnippet value={envCode} />
-              </div>
+              <ApiKeyRender
+                generatedKeys={apiKeys}
+                scope="project"
+                className="mt-4"
+              />
             ) : (
               <div className="mt-4 flex flex-col gap-4">
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={createApiKey}
-                    loading={mutCreateApiKey.isPending}
-                    className="self-start"
-                  >
-                    Create new API key
-                  </Button>
+                  {hasApiKeyCreateAccess ? (
+                    <Button
+                      onClick={createApiKey}
+                      loading={mutCreateApiKey.isPending}
+                      className="self-start"
+                    >
+                      Create new API key
+                    </Button>
+                  ) : (
+                    <Button disabled className="self-start">
+                      <LockIcon
+                        className="mr-2 -ml-0.5 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      Create new API key
+                    </Button>
+                  )}
                   <ActionButton
                     href={`/project/${projectId}/settings/api-keys`}
                     variant="secondary"
