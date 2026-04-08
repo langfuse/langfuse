@@ -57,6 +57,7 @@ export default withMiddlewares({
         clickhouseFeatureTag: "tracing-public-api",
         preferredClickhouseService: "ReadOnly",
         excludeInputOutput: !includeIO,
+        excludeMetadata: !includeIO,
       });
 
       if (!trace) {

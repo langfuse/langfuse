@@ -657,4 +657,48 @@ describe.concurrent("test eval filtering", () => {
     expect(jobs[0].jobInputTraceId).toBe(traceId1);
     expect(jobs[0].status.toString()).toBe("PENDING");
   }, 10_000);
+
+  test("cached trace preserves metadata for in-memory filter evaluation", async ({
+    expect,
+    projectId,
+    traceId1,
+    upsertTrace,
+    configureJob,
+    getJobs,
+  }) => {
+    // Create a trace with metadata
+    await upsertTrace({
+      id: traceId1,
+      metadata: { tier: "premium" },
+    });
+
+    // Create TWO job configs so configs.length > 1, triggering the cached trace path
+    // (getTraceById is called with excludeInputOutput: true)
+    await configureJob({
+      scoreName: "score-with-metadata-filter",
+      filter: [
+        {
+          type: "stringObject",
+          key: "tier",
+          value: "premium",
+          column: "metadata",
+          operator: "=",
+        },
+      ],
+    });
+    await configureJob({
+      scoreName: "score-no-filter",
+      filter: [],
+    });
+
+    // Single createEvalJobs call => configs.length=2 => cached trace path
+    await createEvalJobs({
+      event: { projectId, traceId: traceId1 },
+      jobTimestamp: new Date(),
+    });
+
+    const jobs = await getJobs();
+    // Both configs should produce a job — the metadata filter should match
+    expect(jobs.length).toBe(2);
+  }, 10_000);
 });
