@@ -11,14 +11,46 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
   let orgId: string;
+  let session: Session;
   let caller: ReturnType<typeof appRouter.createCaller>;
+
+  const createCallerForProjectRole = (
+    projectRole: "ADMIN" | "MEMBER" | "VIEWER",
+  ) => {
+    const limitedSession: Session = {
+      ...session,
+      user: {
+        ...session.user!,
+        admin: false,
+        organizations: [
+          {
+            ...session.user!.organizations[0],
+            role: "MEMBER",
+            projects: [
+              {
+                ...session.user!.organizations[0].projects[0],
+                role: projectRole,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const limitedCtx = createInnerTRPCContext({
+      session: limitedSession,
+      headers: {},
+    });
+
+    return appRouter.createCaller({ ...limitedCtx, prisma });
+  };
 
   beforeEach(async () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
 
-    const session: Session = {
+    session = {
       expires: "1",
       user: {
         id: "user-1",
@@ -139,6 +171,49 @@ describe("llmApiKey.all RPC", () => {
     // response must not contain the secret key itself
     const secretKey = llmApiKeys[0].secretKey;
     expect(secretKey).toBeUndefined();
+  });
+
+  it("should require llmApiKeys:create access for testing a new llm api key", async () => {
+    const memberCaller = createCallerForProjectRole("MEMBER");
+
+    await expect(
+      memberCaller.llmApiKey.test({
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+        baseURL: "https://attacker.example.com/v1",
+      }),
+    ).rejects.toThrow("User does not have access to this resource or action");
+  });
+
+  it("should require llmApiKeys:update access for testing an existing llm api key", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-test",
+      baseURL: "https://api.openai.com/v1",
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    const memberCaller = createCallerForProjectRole("MEMBER");
+
+    await expect(
+      memberCaller.llmApiKey.testUpdate({
+        id: existingKey.id,
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "https://attacker.example.com/v1",
+      }),
+    ).rejects.toThrow("User does not have access to this resource or action");
   });
 
   it("should create and update an llm api key", async () => {
