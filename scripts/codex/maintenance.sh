@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# setup.sh installs golang-migrate into ~/.local/bin for non-root environments.
+# Ensure the same location is on PATH when maintenance runs in non-interactive
+# shells (where profile PATH mutations may not be loaded).
+export PATH="${HOME}/.local/bin:${PATH}"
+
 if ! command -v corepack >/dev/null 2>&1; then
   echo "corepack is required. Use a Codex base environment with Node.js 24 support."
   exit 1
