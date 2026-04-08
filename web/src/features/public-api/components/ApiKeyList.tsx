@@ -95,7 +95,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         }}
         actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
-      <CodeView content={envCode} title=".env" />
+      <CodeView
+        content={envCode}
+        title=".env"
+        copiedToClipboardMessage="Secrets are not included, create a new key to copy them."
+      />
       <Card className="mb-4 overflow-hidden">
         <Table>
           <TableHeader>
