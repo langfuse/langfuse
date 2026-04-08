@@ -59,6 +59,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
       mainContent={children}
       sidebarContent={<SupportDrawer />}
       open={open}
+      showHandle={false}
       defaultMainSize={70}
       defaultSidebarSize={30}
       minMainSize={30}
