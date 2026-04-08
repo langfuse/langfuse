@@ -8,7 +8,11 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemDomainToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
+import {
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+  Prisma,
+} from "@langfuse/shared";
 import {
   createDatasetItemFilterState,
   getDatasetItems,
@@ -82,10 +86,21 @@ export default withMiddlewares({
             // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
             // If this record does not exist, the database will throw an error.
             logger.warn(
-              `Failed to upsert dataset item. Dataset item ${id} in project ${auth.scope.projectId} already exists for a different dataset than ${datasetName}`,
+              `Failed to upsert dataset item. Dataset item ${id} already exists for a different dataset than ${datasetName}`,
             );
             throw new LangfuseNotFoundError(
               `The dataset item with id ${id} already exists in a dataset other than ${datasetName}`,
+            );
+          }
+          if (e.code === "P2002") {
+            // Unique constraint violation on (id, projectId, validFrom).
+            // This can happen when concurrent requests try to update the same dataset item
+            // and create versions with the same timestamp.
+            logger.warn(
+              `Failed to upsert dataset item due to version conflict. Dataset item ${id} was modified concurrently.`,
+            );
+            throw new LangfuseConflictError(
+              `Dataset item ${id ?? "new"} was modified concurrently. Please retry the request.`,
             );
           }
         }
@@ -126,6 +141,7 @@ export default withMiddlewares({
         ...(datasetId && { datasetIds: [datasetId] }),
         sourceTraceId: sourceTraceId ?? undefined,
         sourceObservationId: sourceObservationId ?? undefined,
+        status: "ACTIVE",
       });
       const items = await getDatasetItems({
         projectId: auth.scope.projectId,

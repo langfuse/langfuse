@@ -913,6 +913,7 @@ export const getObservationsGroupedByModel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res.map((r) => ({ model: r.name }));
 };
@@ -964,6 +965,7 @@ export const getObservationsGroupedByModelId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res.map((r) => ({ modelId: r.modelId }));
 };
@@ -1017,6 +1019,7 @@ export const getObservationsGroupedByName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1066,6 +1069,7 @@ export const getObservationsGroupedByToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1115,6 +1119,7 @@ export const getObservationsGroupedByCalledToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1167,6 +1172,7 @@ export const getObservationsGroupedByPromptName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   const prompts = res.map((r) => r.id).filter((r): r is string => Boolean(r));

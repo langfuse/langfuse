@@ -432,11 +432,13 @@ export default function TracesTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
 
+  // Trace rows render trace-scoped aggregates: direct trace scores plus
+  // observation scores that belong to the same trace.
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<TracesTableRow>({
       scoreColumnKey: "scores",
       projectId,
-      filter: scoreFilters.forTraces(),
+      filter: scoreFilters.forTraceScopedAggregates(),
       fromTimestamp: dateRange?.from,
     });
 
