@@ -1,6 +1,7 @@
 import {
   CTEQueryBuilder,
   EventsAggregationQueryBuilder,
+  EventsQueryBuilder,
 } from "@langfuse/shared/src/server";
 
 describe("CTEQueryBuilder", () => {
@@ -119,5 +120,29 @@ describe("CTEQueryBuilder", () => {
     expect(params.param1).toBe("value1");
     expect(params.param2).toBe("value2");
     expect(params.param3).toBe("value3");
+  });
+});
+
+describe("EventsQueryBuilder", () => {
+  it("should allow list queries to omit tool payload columns", () => {
+    const slimQuery = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("baseWithoutTools", "calculated")
+      .buildWithParams().query;
+
+    const defaultQuery = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base", "calculated")
+      .buildWithParams().query;
+
+    expect(slimQuery).not.toContain('e.tool_definitions as "tool_definitions"');
+    expect(slimQuery).not.toContain('e.tool_calls as "tool_calls"');
+    expect(slimQuery).not.toContain('e.tool_call_names as "tool_call_names"');
+
+    expect(defaultQuery).toContain('e.tool_definitions as "tool_definitions"');
+    expect(defaultQuery).toContain('e.tool_calls as "tool_calls"');
+    expect(defaultQuery).toContain('e.tool_call_names as "tool_call_names"');
   });
 });

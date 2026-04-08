@@ -3,6 +3,8 @@
 import capitalize from "lodash/capitalize";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChatMessageType, type ChatMessageWithId } from "@langfuse/shared";
+import { EditorState } from "@codemirror/state";
+import { SearchQuery } from "@codemirror/search";
 import { type RefObject } from "react";
 
 import {
@@ -137,7 +139,11 @@ function buildMatches(state: MessageSearchState) {
     return [];
   }
 
-  const lowerQuery = searchQuery.toLocaleLowerCase();
+  const codeMirrorSearchQuery = new SearchQuery({
+    search: searchQuery,
+    caseSensitive: false,
+    literal: true,
+  });
   const allMatches: MessageSearchMatch[] = [];
 
   for (const [pageIndex, pageId] of state.pageIds.entries()) {
@@ -152,10 +158,13 @@ function buildMatches(state: MessageSearchState) {
         continue;
       }
 
-      const lowerText = text.toLocaleLowerCase();
-      let from = lowerText.indexOf(lowerQuery);
+      const cursor = codeMirrorSearchQuery.getCursor(
+        EditorState.create({ doc: text }),
+      );
+      let match = cursor.next();
 
-      while (from !== -1) {
+      while (!match.done) {
+        const { from, to } = match.value;
         const label = getMessageSearchLabel(message, messageIndex);
         const pageLabel = state.getPageLabel?.(pageId, pageIndex);
         const matchWithoutKey = {
@@ -164,7 +173,7 @@ function buildMatches(state: MessageSearchState) {
           label,
           locationLabel: pageLabel ? `${pageLabel} · ${label}` : label,
           from,
-          to: from + searchQuery.length,
+          to,
           text,
         };
 
@@ -173,10 +182,7 @@ function buildMatches(state: MessageSearchState) {
           ...matchWithoutKey,
         });
 
-        from = lowerText.indexOf(
-          lowerQuery,
-          from + Math.max(1, lowerQuery.length),
-        );
+        match = cursor.next();
       }
     }
   }
