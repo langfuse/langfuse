@@ -337,6 +337,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
         limit: MAX_OBSERVATIONS_PER_TRACE + 1,
         offset: 0,
         select: "rows",
+        selectToolData: false,
         tags: { kind: "byTraceId" },
       },
     );
@@ -394,6 +395,7 @@ export const getObservationsWithModelDataFromEventsTable = async (
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
+    selectToolData?: boolean;
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> {
@@ -401,6 +403,7 @@ async function getObservationsFromEventsTableInternal<T>(
     projectId,
     filter,
     selectIOAndMetadata,
+    selectToolData = true,
     renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
     offset,
@@ -461,7 +464,10 @@ async function getObservationsFromEventsTableInternal<T>(
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
   } else {
-    queryBuilder.selectFieldSet("base", "calculated");
+    queryBuilder.selectFieldSet(
+      selectToolData ? "base" : "baseWithoutTools",
+      "calculated",
+    );
     if (selectIOAndMetadata) {
       queryBuilder
         .selectIO(
