@@ -10,7 +10,8 @@ export function useLangfuseEnvCode(keys?: {
     uiCustomization?.hostname ??
     (typeof window !== "undefined"
       ? window.origin
-      : env.NEXTAUTH_URL?.replace("/api/auth", "") ?? "http://localhost:3000");
+      : (env.NEXTAUTH_URL?.replace("/api/auth", "") ??
+        "http://localhost:3000"));
   const baseUrl = `${origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   if (keys) {
