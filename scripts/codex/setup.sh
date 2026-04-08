@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Keep user-level tooling installs discoverable in non-interactive shells.
+# setup/maintenance rely on this for golang-migrate when Docker infra is enabled.
+export PATH="${HOME}/.local/bin:${PATH}"
+
 install_golang_migrate() {
   local version="v4.19.1"
   local arch
