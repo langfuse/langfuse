@@ -320,21 +320,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     ).toBe(true);
   });
 
-  it("should return 404 when getting an ARCHIVED dataset item by id", async () => {
+  it("should return archived dataset item when getting by id", async () => {
     const datasetName = `dataset-archived-by-id-${v4()}`;
 
-    // Create dataset
     await makeZodVerifiedAPICall(
       PostDatasetsV1Response,
       "POST",
       "/api/public/datasets",
-      {
-        name: datasetName,
-      },
+      { name: datasetName },
       auth,
     );
 
-    // Create an archived dataset item
     const archivedItem = await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
@@ -350,16 +346,29 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(archivedItem.status).toBe(200);
     expect(archivedItem.body.status).toBe("ARCHIVED");
 
-    // Try to get the archived item by id - should return 404
-    const getArchivedItem = await makeAPICall(
+    const getArchivedItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
       "GET",
       `/api/public/dataset-items/archived-item-by-id`,
       undefined,
       auth,
     );
-    expect(getArchivedItem.status).toBe(404);
+    expect(getArchivedItem.status).toBe(200);
+    expect(getArchivedItem.body.id).toBe("archived-item-by-id");
+    expect(getArchivedItem.body.status).toBe("ARCHIVED");
+  });
 
-    // Create an active item to verify GET still works for active items
+  it("should return active dataset item when getting by id", async () => {
+    const datasetName = `dataset-active-by-id-${v4()}`;
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
     const activeItem = await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
@@ -374,7 +383,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     expect(activeItem.status).toBe(200);
 
-    // Get the active item by id - should succeed
     const getActiveItem = await makeZodVerifiedAPICall(
       GetDatasetItemV1Response,
       "GET",
