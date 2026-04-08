@@ -398,13 +398,12 @@ export async function upsertDatasetItem(
 
         // 1. If updating existing item, invalidate the current version
         if (current) {
-          await tx.datasetItem.update({
+          await tx.datasetItem.updateMany({
             where: {
-              id_projectId_validFrom: {
-                id: current.id,
-                projectId: props.projectId,
-                validFrom: current.validFrom,
-              },
+              id: current.id,
+              projectId: props.projectId,
+              datasetId: dataset.id,
+              validTo: null, // Only update current versions
             },
             data: {
               validTo: newValidFrom,
