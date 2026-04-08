@@ -70,6 +70,15 @@ minimumReleaseAgeExclude:
   - "@prisma/debug@6.19.3"
   - "@prisma/fetch-engine@6.19.3"
   - "@prisma/get-platform@6.19.3"
+  - "eslint-config-turbo@2.9.5"
+  - "eslint-plugin-turbo@2.9.5"
+  - "turbo@2.9.5"
+  - "@turbo/darwin-64@2.9.5"
+  - "@turbo/darwin-arm64@2.9.5"
+  - "@turbo/windows-64@2.9.5"
+  - "@turbo/windows-arm64@2.9.5"
+  - "@turbo/linux-64@2.9.5"
+  - "@turbo/linux-arm64@2.9.5"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
