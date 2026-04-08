@@ -440,7 +440,7 @@ export function CodeMirrorEditor({
         }),
         // Update search match highlight styles
         EditorView.theme({
-          ".cm-searchMatch": {
+          ".cm-searchMatch.cm-searchMatch": {
             backgroundColor: "hsl(var(--find-match-background))",
           },
           ".cm-searchMatch.cm-searchMatch-selected": {
