@@ -550,13 +550,14 @@ export const getTraceById = async ({
         : renderingProps.truncated
           ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
           : "output";
+      const metadataColumn = excludeInputOutput ? "'{}'" : "metadata";
 
       const query = `
         SELECT
           id,
           name as name,
           user_id as user_id,
-          metadata as metadata,
+          ${metadataColumn} as metadata,
           release as release,
           version as version,
           project_id,
