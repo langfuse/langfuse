@@ -61,6 +61,15 @@ minimumReleaseAgeExclude:
   - "langfuse@3.38.20"
   - "langfuse-langchain@3.38.20"
   - "langfuse-core@3.38.20"
+  - "@modelcontextprotocol/sdk@1.29.0"
+  - "@prisma/instrumentation@6.19.3"
+  - "prisma@6.19.3"
+  - "@prisma/client@6.19.3"
+  - "@prisma/config@6.19.3"
+  - "@prisma/engines@6.19.3"
+  - "@prisma/debug@6.19.3"
+  - "@prisma/fetch-engine@6.19.3"
+  - "@prisma/get-platform@6.19.3"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
