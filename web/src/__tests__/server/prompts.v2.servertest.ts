@@ -82,7 +82,7 @@ const setupTriggerAndAction = async (projectId: string) => {
       id: v4(),
       projectId: projectId,
       eventSource: "prompt",
-      eventActions: ["updated"],
+      eventActions: [],
       filter: [],
       status: "ACTIVE",
     },
