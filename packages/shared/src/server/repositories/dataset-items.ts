@@ -373,50 +373,56 @@ export async function upsertDatasetItem(
       }
     },
     [Implementation.VERSIONED]: async () => {
-      try {
-        // VERSIONED: Invalidate old row by setting valid_to, then create new row
-        await prisma.$transaction(async (tx) => {
-          const baseTs = existingItem?.validFrom.getTime() ?? 0;
-          const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
-
-          // 1. If updating existing item, invalidate the current version
-          if (existingItem) {
-            await tx.datasetItem.update({
-              where: {
-                id_projectId_validFrom: {
-                  id: existingItem.id,
-                  projectId: props.projectId,
-                  validFrom: existingItem.validFrom,
-                },
-              },
-              data: {
-                validTo: newValidFrom,
-              },
-            });
-          }
-
-          // 2. Create new version
-          const res = await tx.datasetItem.create({
-            data: {
-              ...itemData,
-              projectId: props.projectId,
-              datasetId: dataset.id,
-              validFrom: newValidFrom,
-            },
-          });
-          item = res;
+      // VERSIONED: Invalidate old row by setting valid_to, then create new row
+      await prisma.$transaction(async (tx) => {
+        // 0. Re-read if there is an existing item to get the validFrom timestamp
+        const current = await tx.datasetItem.findFirst({
+          where: {
+            id: itemId,
+            projectId: props.projectId,
+            validTo: null,
+          },
+          orderBy: {
+            validFrom: "desc",
+          },
         });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          throw new InvalidRequestError(
-            `Dataset item with id ${itemId} already exists for project ${props.projectId}`,
+
+        if (current && current.datasetId !== dataset.id) {
+          throw new LangfuseNotFoundError(
+            `Dataset item with id ${itemId} not found for project ${props.projectId}`,
           );
         }
-        throw error;
-      }
+
+        const baseTs = current?.validFrom.getTime() ?? 0;
+        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
+
+        // 1. If updating existing item, invalidate the current version
+        if (current) {
+          await tx.datasetItem.update({
+            where: {
+              id_projectId_validFrom: {
+                id: current.id,
+                projectId: props.projectId,
+                validFrom: current.validFrom,
+              },
+            },
+            data: {
+              validTo: newValidFrom,
+            },
+          });
+        }
+
+        // 2. Create new version
+        const res = await tx.datasetItem.create({
+          data: {
+            ...itemData,
+            projectId: props.projectId,
+            datasetId: dataset.id,
+            validFrom: newValidFrom,
+          },
+        });
+        item = res;
+      });
     },
   });
 
