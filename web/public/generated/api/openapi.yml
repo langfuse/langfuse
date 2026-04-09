@@ -5639,6 +5639,19 @@ paths:
           required: true
           schema:
             type: string
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated list of fields to include in the response. Available
+            field groups: 'core' (always included), 'io' (input, output,
+            metadata), 'scores', 'observations', 'metrics'. If not specified,
+            all fields are returned. Example: 'core,scores,metrics'. Note:
+            Excluded 'observations' or 'scores' fields return empty arrays;
+            excluded 'metrics' returns -1 for 'totalCost' and 'latency'.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
