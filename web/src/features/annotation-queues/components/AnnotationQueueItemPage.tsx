@@ -149,7 +149,8 @@ export const AnnotationQueueItemPage: React.FC<{
     (seenItemData.isPending && itemId) ||
     (fetchAndLockNextMutation.isPending && !itemId) ||
     unseenPendingItemCount.isPending ||
-    objectData.isLoading
+    objectData.isLoading ||
+    (!sessionLoaded && !isSingleItem)
   ) {
     return <Skeleton className="h-full w-full" />;
   }
