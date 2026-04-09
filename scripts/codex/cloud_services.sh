@@ -288,6 +288,12 @@ ensure_redis_running() {
   local redis_auth_escaped
 
   mkdir -p "$redis_root"
+
+  if wait_for_port 127.0.0.1 "$REDIS_PORT" 1; then
+    echo "Redis already running on 127.0.0.1:$REDIS_PORT; keeping existing runtime config."
+    return 0
+  fi
+
   redis_auth_escaped="$(escape_redis_config_string "$REDIS_AUTH")"
 
   cat > "$redis_conf" <<CONF
@@ -301,9 +307,7 @@ logfile "$redis_log"
 dir "$redis_root"
 CONF
 
-  if ! wait_for_port 127.0.0.1 "$REDIS_PORT" 1; then
-    redis-server "$redis_conf"
-  fi
+  redis-server "$redis_conf"
 
   if ! wait_for_port 127.0.0.1 "$REDIS_PORT" 30; then
     echo "Redis did not start on 127.0.0.1:$REDIS_PORT"
