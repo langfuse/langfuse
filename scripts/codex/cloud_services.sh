@@ -111,6 +111,7 @@ download_and_verify_sha256() {
   local tmp_download
 
   tmp_download="$(mktemp)"
+  trap 'rm -f "$tmp_download"' RETURN
   curl -fsSL "$url" -o "$tmp_download"
 
   local actual_sha256
@@ -120,11 +121,11 @@ download_and_verify_sha256() {
     echo "SHA256 mismatch for $url" >&2
     echo "expected: $expected_sha256" >&2
     echo "actual:   $actual_sha256" >&2
-    rm -f "$tmp_download"
     exit 1
   fi
 
   mv "$tmp_download" "$output_path"
+  trap - RETURN
 }
 
 ensure_minio_binaries() {
