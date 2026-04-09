@@ -2,10 +2,17 @@ import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import Header from "@/src/components/layouts/header";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { getAppBaseUrl } from "@/src/utils/app-base-url";
+import { env } from "@/src/env.mjs";
 
 export function HostNameProject() {
   const uiCustomization = useUiCustomization();
+  const baseUrl = `${
+    uiCustomization?.hostname ??
+    (typeof window !== "undefined"
+      ? window.origin
+      : (env.NEXTAUTH_URL?.replace("/api/auth", "") ?? ""))
+  }${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+
   return (
     <div>
       <Header title="Host Name" />
@@ -14,7 +21,7 @@ export function HostNameProject() {
           <div className="mb-2 text-sm">
             When connecting to Langfuse, use this hostname / baseurl.
           </div>
-          <CodeView content={getAppBaseUrl(uiCustomization?.hostname)} />
+          <CodeView content={baseUrl} />
         </div>
       </Card>
     </div>

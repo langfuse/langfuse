@@ -1,12 +1,17 @@
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { getAppBaseUrl } from "@/src/utils/app-base-url";
+import { env } from "@/src/env.mjs";
 
 export function useLangfuseEnvCode(keys?: {
   secretKey: string;
   publicKey: string;
 }): string {
   const uiCustomization = useUiCustomization();
-  const baseUrl = getAppBaseUrl(uiCustomization?.hostname);
+  const baseUrl = `${
+    uiCustomization?.hostname ??
+    (typeof window !== "undefined"
+      ? window.origin
+      : (env.NEXTAUTH_URL?.replace("/api/auth", "") ?? ""))
+  }${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   if (keys) {
     return `LANGFUSE_SECRET_KEY="${keys.secretKey}"
