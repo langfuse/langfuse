@@ -1,9 +1,5 @@
 import CallbackHandler from "langfuse-langchain";
-import {
-  GenerationDetails,
-  ProcessedTraceEvent,
-  TraceSinkParams,
-} from "./types";
+import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";

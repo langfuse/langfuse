@@ -1,3 +1,4 @@
+import { asRecord } from "../../utils/objects";
 import { stringifyValue } from "../../utils/stringChecks";
 import {
   convertCallsToArrays,
@@ -139,12 +140,6 @@ function asStringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) &&
     value.every((entry) => typeof entry === "string")
     ? value
-    : undefined;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
     : undefined;
 }
 

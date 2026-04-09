@@ -1,4 +1,5 @@
 import {
+  asRecord,
   convertEventRecordToObservationForEval,
   DatasetItemDomain,
   Prisma,
@@ -66,14 +67,6 @@ async function getExistingRunItemDatasetItemIds(
   });
 
   return new Set(rows.map((row) => row.id));
-}
-
-function asJsonObject(
-  value: Prisma.JsonValue | null | undefined,
-): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
 }
 
 async function processItem(
@@ -201,13 +194,13 @@ async function processLLMCall(
       experiment: {
         id: config.runId,
         name: config.datasetRun.name,
-        metadata: asJsonObject(config.datasetRun.metadata),
+        metadata: asRecord(config.datasetRun.metadata),
         description: config.datasetRun.description,
         datasetId: datasetItem.datasetId,
         itemId: datasetItem.id,
         itemVersion: datasetItem.validFrom.toISOString(),
         itemExpectedOutput: datasetItem.expectedOutput,
-        itemMetadata: asJsonObject(datasetItem.metadata),
+        itemMetadata: asRecord(datasetItem.metadata),
       },
       onRootEventRecordReady: async (rootEventRecord) => {
         await scheduleExperimentObservationEvals({
