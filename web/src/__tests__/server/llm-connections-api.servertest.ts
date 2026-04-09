@@ -354,6 +354,25 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.extraHeaderKeys).toEqual([]);
     });
 
+    it("should reject creating a connection with a localhost baseURL", async () => {
+      const response = await makeAPICall(
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("local-openai"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-local",
+          baseURL: "http://localhost:11434/v1",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe(
+        "Invalid baseURL: Blocked hostname detected",
+      );
+    });
+
     it("should update existing connection (upsert)", async () => {
       const existingProvider = generateUniqueProvider("existing-provider");
 
