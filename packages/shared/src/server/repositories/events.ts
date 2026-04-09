@@ -3028,6 +3028,7 @@ export const getEventsForKubit = async function* (
 ) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("base", "calculated", "io", "metadata", "eventTs")
+    .selectIO(false) // query events_full for untruncated input/output
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
       {
