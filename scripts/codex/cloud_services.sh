@@ -220,6 +220,7 @@ escape_redis_config_string() {
   # Redis treats backslashes and double-quotes as escape delimiters inside
   # quoted config strings, so both must be escaped before writing requirepass.
   value="${value//\\/\\\\}"
+  value="${value//$'\n'/\\n}"
   value="${value//\"/\\\"}"
   printf "%s" "$value"
 }
