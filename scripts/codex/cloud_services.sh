@@ -201,6 +201,11 @@ escape_sql_literal() {
   printf "%s" "${value//\'/\'\'}"
 }
 
+escape_clickhouse_identifier() {
+  local value="$1"
+  printf '`%s`' "${value//\`/\`\`}"
+}
+
 ensure_postgres_running() {
   ensure_postgres_binaries
 
@@ -222,11 +227,9 @@ ensure_postgres_running() {
   local pg_root="$CODEX_SERVICES_ROOT/postgres"
   local pg_data="$pg_root/data"
   local pg_log="$pg_root/postgres.log"
-  local pg_password_sql
   local -a pg_runner
 
   mkdir -p "$pg_root"
-  pg_password_sql="$(escape_sql_literal "$POSTGRES_PASSWORD")"
 
   if [ "${EUID:-$(id -u)}" -eq 0 ] && id -u postgres >/dev/null 2>&1; then
     chown -R postgres:postgres "$pg_root"
@@ -254,8 +257,8 @@ ensure_postgres_running() {
     "${pg_runner[@]}" "$pg_ctl" -D "$pg_data" -l "$pg_log" -w start
   fi
 
-  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_db="$POSTGRES_DB" <<SQL >/dev/null
-ALTER USER "$POSTGRES_USER" WITH PASSWORD '$pg_password_sql';
+  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_user="$POSTGRES_USER" -v postgres_db="$POSTGRES_DB" -v postgres_password="$POSTGRES_PASSWORD" <<SQL >/dev/null
+SELECT format('ALTER USER %I WITH PASSWORD %L', :'postgres_user', :'postgres_password')\gexec
 SELECT format('CREATE DATABASE %I', :'postgres_db')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'postgres_db')\gexec
 SQL
@@ -320,10 +323,12 @@ ensure_clickhouse_running() {
   fi
 
   local clickhouse_password_sql
+  local clickhouse_user_identifier
   clickhouse_password_sql="$(escape_sql_literal "$CLICKHOUSE_PASSWORD")"
+  clickhouse_user_identifier="$(escape_clickhouse_identifier "$CLICKHOUSE_USER")"
 
-  clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "CREATE USER IF NOT EXISTS $CLICKHOUSE_USER IDENTIFIED WITH plaintext_password BY '$clickhouse_password_sql'"
-  clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "GRANT ALL ON *.* TO $CLICKHOUSE_USER WITH GRANT OPTION"
+  clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "CREATE USER IF NOT EXISTS $clickhouse_user_identifier IDENTIFIED WITH plaintext_password BY '$clickhouse_password_sql'"
+  clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "GRANT ALL ON *.* TO $clickhouse_user_identifier WITH GRANT OPTION"
 }
 
 ensure_minio_running() {
