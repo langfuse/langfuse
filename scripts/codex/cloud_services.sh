@@ -210,6 +210,12 @@ escape_clickhouse_identifier() {
   printf '`%s`' "${value//\`/\`\`}"
 }
 
+escape_redis_config_string() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  printf "%s" "${value//\"/\\\"}"
+}
+
 ensure_postgres_running() {
   ensure_postgres_binaries
 
@@ -275,13 +281,15 @@ ensure_redis_running() {
   local redis_conf="$redis_root/redis.conf"
   local redis_log="$redis_root/redis.log"
   local redis_pid="$redis_root/redis.pid"
+  local redis_auth_escaped
 
   mkdir -p "$redis_root"
+  redis_auth_escaped="$(escape_redis_config_string "$REDIS_AUTH")"
 
   cat > "$redis_conf" <<CONF
 bind 127.0.0.1
 port $REDIS_PORT
-requirepass "$REDIS_AUTH"
+requirepass "$redis_auth_escaped"
 maxmemory-policy noeviction
 daemonize yes
 pidfile "$redis_pid"
