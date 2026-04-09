@@ -19,6 +19,9 @@ CLICKHOUSE_PASSWORD="${CLICKHOUSE_PASSWORD:-clickhouse}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-minio}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-miniosecret}"
 
+MINIO_RELEASE_TAG="${MINIO_RELEASE_TAG:-RELEASE.2025-09-07T16-13-09Z}"
+MC_RELEASE_TAG="${MC_RELEASE_TAG:-RELEASE.2025-08-13T08-35-41Z}"
+
 export DEBIAN_FRONTEND=noninteractive
 
 ensure_apt_package() {
@@ -93,19 +96,62 @@ detect_minio_arch() {
   esac
 }
 
+download_and_verify_sha256() {
+  local url="$1"
+  local output_path="$2"
+  local expected_sha256="$3"
+  local tmp_download
+
+  tmp_download="$(mktemp)"
+  curl -fsSL "$url" -o "$tmp_download"
+
+  local actual_sha256
+  actual_sha256="$(sha256sum "$tmp_download" | awk '{print $1}')"
+
+  if [ "$actual_sha256" != "$expected_sha256" ]; then
+    echo "SHA256 mismatch for $url" >&2
+    echo "expected: $expected_sha256" >&2
+    echo "actual:   $actual_sha256" >&2
+    rm -f "$tmp_download"
+    exit 1
+  fi
+
+  mv "$tmp_download" "$output_path"
+}
+
 ensure_minio_binaries() {
   local bin_dir="$CODEX_SERVICES_ROOT/bin"
   local minio_arch
+  local minio_sha256
+  local mc_sha256
+
   mkdir -p "$bin_dir"
   minio_arch="$(detect_minio_arch)"
 
+  case "$minio_arch" in
+    amd64)
+      minio_sha256="7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+      mc_sha256="01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891"
+      ;;
+    arm64)
+      minio_sha256="5c83cd2cf151717ba0243f73e1c7802ff36e272b67144bdd7f1f7d684fd6f03d"
+      mc_sha256="14c8c9616cfce4636add161304353244e8de383b2e2752c0e9dad01d4c27c12c"
+      ;;
+  esac
+
   if [ ! -x "$bin_dir/minio" ]; then
-    curl -fsSL "https://dl.min.io/server/minio/release/linux-${minio_arch}/minio" -o "$bin_dir/minio"
+    download_and_verify_sha256 \
+      "https://dl.min.io/server/minio/release/linux-${minio_arch}/archive/minio.${MINIO_RELEASE_TAG}" \
+      "$bin_dir/minio" \
+      "$minio_sha256"
     chmod +x "$bin_dir/minio"
   fi
 
   if [ ! -x "$bin_dir/mc" ]; then
-    curl -fsSL "https://dl.min.io/client/mc/release/linux-${minio_arch}/mc" -o "$bin_dir/mc"
+    download_and_verify_sha256 \
+      "https://dl.min.io/client/mc/release/linux-${minio_arch}/archive/mc.${MC_RELEASE_TAG}" \
+      "$bin_dir/mc" \
+      "$mc_sha256"
     chmod +x "$bin_dir/mc"
   fi
 
