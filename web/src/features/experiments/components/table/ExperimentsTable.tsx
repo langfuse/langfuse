@@ -301,11 +301,29 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("experimentDatasetId"),
       size: 150,
       cell: ({ row }) => {
-        const key: string | undefined = row.getValue("datasetId");
-        const value = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === key,
+        const datasetId: string | undefined = row.getValue("datasetId");
+        const datasetName = filterOptions.experimentDatasetId?.find(
+          (d) => d.value === datasetId,
         )?.displayValue;
-        return value ? <TableIdOrName value={value} /> : undefined;
+
+        if (!datasetId || !datasetName) {
+          return undefined;
+        }
+
+        return (
+          <Link
+            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge
+              variant="secondary"
+              className="hover:bg-secondary/80 max-w-full cursor-pointer"
+            >
+              {datasetName}
+            </Badge>
+          </Link>
+        );
       },
     },
     {
