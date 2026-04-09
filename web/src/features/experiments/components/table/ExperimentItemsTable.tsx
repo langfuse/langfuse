@@ -105,12 +105,13 @@ const StackedExperimentCell = ({
           experimentId,
           colorExperimentIds ?? allExperimentIds,
         );
+        const content = exp ? renderValue(exp) : null;
         return (
           <div
             key={experimentId}
             className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
           >
-            {exp ? (
+            {content ? (
               <>
                 <span
                   className={cn(
@@ -118,7 +119,7 @@ const StackedExperimentCell = ({
                     colorStyles.markerClass,
                   )}
                 />
-                {renderValue(exp)}
+                {content}
               </>
             ) : (
               <span className="text-muted-foreground">—</span>
@@ -170,11 +171,14 @@ const StackedOutputCell = ({
             className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
           >
             {isLoading ? (
-              <MemoizedIOTableCell
-                isLoading={true}
-                data={null}
-                singleLine={singleLine}
-              />
+              <div className="flex min-w-0 items-start">
+                <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
+                <MemoizedIOTableCell
+                  isLoading={true}
+                  data={null}
+                  singleLine={singleLine}
+                />
+              </div>
             ) : out?.output ? (
               <div className="flex min-w-0 items-start">
                 <span
