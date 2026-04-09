@@ -149,7 +149,7 @@ export const ExperimentGridView = ({
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
-              accentClassName={colorStyles?.headerAccentClass}
+              markerClassName={colorStyles?.markerClass}
             />
           );
         },
