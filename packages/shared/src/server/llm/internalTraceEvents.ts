@@ -1,4 +1,10 @@
-import { asRecord } from "../../utils/objects";
+import {
+  asBoolean,
+  asNumberRecord,
+  asRecord,
+  asString,
+  asStringArray,
+} from "../../utils/objects";
 import { stringifyValue } from "../../utils/stringChecks";
 import {
   convertCallsToArrays,
@@ -127,37 +133,6 @@ export type MaterializedInternalTrace = {
   rootSpanId: string;
   snapshots: InternalTraceSnapshot[];
 };
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function asStringArray(value: unknown): string[] | undefined {
-  return Array.isArray(value) &&
-    value.every((entry) => typeof entry === "string")
-    ? value
-    : undefined;
-}
-
-function asNumberRecord(value: unknown): Record<string, number> | undefined {
-  const record = asRecord(value);
-
-  if (!record) {
-    return undefined;
-  }
-
-  const normalized = Object.fromEntries(
-    Object.entries(record).filter(
-      ([, entry]) => typeof entry === "number" && Number.isFinite(entry),
-    ),
-  ) as Record<string, number>;
-
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
 
 function isCreateEvent(type: string): boolean {
   return type.endsWith("-create");
