@@ -217,8 +217,11 @@ escape_clickhouse_identifier() {
 
 escape_redis_config_string() {
   local value="$1"
+  # Redis treats backslashes and double-quotes as escape delimiters inside
+  # quoted config strings, so both must be escaped before writing requirepass.
   value="${value//\\/\\\\}"
-  printf "%s" "${value//\"/\\\"}"
+  value="${value//\"/\\\"}"
+  printf "%s" "$value"
 }
 
 ensure_postgres_running() {
