@@ -207,6 +207,7 @@ wait_for_http() {
 
 escape_sql_literal() {
   local value="$1"
+  value="${value//\\/\\\\}"
   printf "%s" "${value//\'/\'\'}"
 }
 
