@@ -262,12 +262,18 @@ describe("llmApiKey.all RPC", () => {
   });
 
   it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+      "X-Custom-Header": "stored-value",
+    };
+
     await caller.llmApiKey.create({
       projectId,
       provider: "openai",
       adapter: LLMAdapter.OpenAI,
       secretKey: "sk-original",
       baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
     });
 
     const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
@@ -290,15 +296,24 @@ describe("llmApiKey.all RPC", () => {
     const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
     expect(llmConnection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-original");
+    expect(JSON.parse(decrypt(llmConnection.extraHeaders))).toEqual(
+      existingExtraHeaders,
+    );
   });
 
   it("should allow testUpdate when the base URL changes and a new secret key is provided", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+      "X-Custom-Header": "stored-value",
+    };
+
     await caller.llmApiKey.create({
       projectId,
       provider: "openai",
       adapter: LLMAdapter.OpenAI,
       secretKey: "sk-original",
       baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
     });
 
     const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
@@ -322,6 +337,7 @@ describe("llmApiKey.all RPC", () => {
     const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
     expect(llmConnection.baseURL).toBe("https://new-endpoint.example.com/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
+    expect(llmConnection.extraHeaders).toBeUndefined();
   });
 
   it("should create and update an llm api key", async () => {
