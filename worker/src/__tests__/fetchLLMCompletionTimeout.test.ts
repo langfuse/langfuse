@@ -17,40 +17,35 @@ process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET ??= "test-bucket";
 process.env.ENCRYPTION_KEY ??=
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-vi.mock("@langchain/google-vertexai", () => ({
-  ChatVertexAI: chatVertexAIConstructorMock,
-}));
+class MockLLMCompletionError extends Error {
+  responseStatusCode: number;
+  isRetryable: boolean;
+  blockReason: null;
 
-vi.mock("../../../packages/shared/src/server/llm/errors", () => ({
-  LLMCompletionError: class MockLLMCompletionError extends Error {
-    responseStatusCode: number;
-    isRetryable: boolean;
-    blockReason: null;
+  constructor(params: {
+    message: string;
+    responseStatusCode?: number;
+    isRetryable?: boolean;
+  }) {
+    super(params.message);
+    this.name = "LLMCompletionError";
+    this.responseStatusCode = params.responseStatusCode ?? 500;
+    this.isRetryable = params.isRetryable ?? false;
+    this.blockReason = null;
+  }
 
-    constructor(params: {
-      message: string;
-      responseStatusCode?: number;
-      isRetryable?: boolean;
-    }) {
-      super(params.message);
-      this.name = "LLMCompletionError";
-      this.responseStatusCode = params.responseStatusCode ?? 500;
-      this.isRetryable = params.isRetryable ?? false;
-      this.blockReason = null;
-    }
+  shouldBlockConfig() {
+    return false;
+  }
 
-    shouldBlockConfig() {
-      return false;
-    }
-
-    getEvaluatorBlockReason() {
-      return null;
-    }
-  },
-}));
+  getEvaluatorBlockReason() {
+    return null;
+  }
+}
 
 describe("fetchLLMCompletion runtime timeouts", () => {
   let originalTimeout: number;
+  let originalCloudRegion: string | undefined;
   let env: typeof import("../../../packages/shared/src/env").env;
   let encrypt: typeof import("../../../packages/shared/src/encryption").encrypt;
   let fetchLLMCompletion: typeof import("../../../packages/shared/src/server/llm/fetchLLMCompletion").fetchLLMCompletion;
@@ -61,6 +56,14 @@ describe("fetchLLMCompletion runtime timeouts", () => {
     streamMock.mockReset();
     chatVertexAIConstructorMock.mockClear();
     vi.resetModules();
+    originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    vi.doMock("@langchain/google-vertexai", () => ({
+      ChatVertexAI: chatVertexAIConstructorMock,
+    }));
+    vi.doMock("../../../packages/shared/src/server/llm/errors", () => ({
+      LLMCompletionError: MockLLMCompletionError,
+    }));
 
     ({ env } = await import("../../../packages/shared/src/env"));
     ({ encrypt } = await import("../../../packages/shared/src/encryption"));
@@ -72,6 +75,11 @@ describe("fetchLLMCompletion runtime timeouts", () => {
 
   afterEach(() => {
     env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS = originalTimeout;
+    if (originalCloudRegion === undefined) {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    } else {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    }
     vi.useRealTimers();
   });
 
