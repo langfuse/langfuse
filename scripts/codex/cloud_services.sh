@@ -254,18 +254,13 @@ ensure_postgres_running() {
   fi
 
   if [ ! -f "$pg_data/PG_VERSION" ]; then
-    "${pg_runner[@]}" "$initdb" -D "$pg_data" -U "$POSTGRES_USER" >/dev/null
+    "${pg_runner[@]}" "$initdb" -D "$pg_data" -U "$POSTGRES_USER" --auth-host=md5 >/dev/null
     {
       echo "listen_addresses = '127.0.0.1'"
       echo "port = $POSTGRES_PORT"
       echo "log_statement = 'all'"
       echo "timezone = 'UTC'"
     } >> "$pg_data/postgresql.conf"
-
-    {
-      echo "host all all 127.0.0.1/32 md5"
-      echo "host all all ::1/128 md5"
-    } >> "$pg_data/pg_hba.conf"
   fi
 
   if ! "$pg_isready" -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" >/dev/null 2>&1; then
