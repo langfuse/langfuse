@@ -319,11 +319,12 @@ ensure_clickhouse_running() {
   ensure_clickhouse_binaries
 
   local clickhouse_root="$CODEX_SERVICES_ROOT/clickhouse"
+  local clickhouse_data="$clickhouse_root/data"
   local clickhouse_log="$clickhouse_root/clickhouse.log"
   local clickhouse_err="$clickhouse_root/clickhouse.err.log"
   local clickhouse_pid="$clickhouse_root/clickhouse.pid"
 
-  mkdir -p "$clickhouse_root"
+  mkdir -p "$clickhouse_data"
 
   if ! wait_for_http "http://127.0.0.1:$CLICKHOUSE_HTTP_PORT/ping" 1; then
     clickhouse-server \
@@ -333,6 +334,7 @@ ensure_clickhouse_running() {
       --log-file="$clickhouse_log" \
       --errorlog-file="$clickhouse_err" \
       -- \
+      --path="$clickhouse_data" \
       --http_port="$CLICKHOUSE_HTTP_PORT" \
       --tcp_port="$CLICKHOUSE_NATIVE_PORT"
   fi
