@@ -424,8 +424,25 @@ ensure_minio_running() {
     exit 1
   fi
 
-  mc alias set local "http://127.0.0.1:$MINIO_API_PORT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
-  mc mb --ignore-existing local/langfuse >/dev/null
+  if ! mc alias set local "http://127.0.0.1:$MINIO_API_PORT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
+    if [ "$minio_already_running" = "true" ]; then
+      echo "MinIO is running but credentials do not match MINIO_ROOT_USER/MINIO_ROOT_PASSWORD; skipping bucket reconciliation."
+      return 0
+    fi
+
+    echo "Failed to configure MinIO client alias for fresh MinIO startup."
+    exit 1
+  fi
+
+  if ! mc mb --ignore-existing local/langfuse >/dev/null 2>&1; then
+    if [ "$minio_already_running" = "true" ]; then
+      echo "Failed to reconcile MinIO bucket 'langfuse'; will retry on next run."
+      return 0
+    fi
+
+    echo "Failed to create MinIO bucket 'langfuse' after fresh startup."
+    exit 1
+  fi
 }
 
 ensure_cloud_dependencies() {
