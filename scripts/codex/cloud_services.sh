@@ -75,17 +75,37 @@ ensure_clickhouse_binaries() {
   apt-get install -y clickhouse-server clickhouse-client
 }
 
+detect_minio_arch() {
+  local machine_arch
+  machine_arch="$(uname -m)"
+
+  case "$machine_arch" in
+    x86_64|amd64)
+      echo "amd64"
+      ;;
+    aarch64|arm64)
+      echo "arm64"
+      ;;
+    *)
+      echo "Unsupported architecture for MinIO binaries: $machine_arch" >&2
+      exit 1
+      ;;
+  esac
+}
+
 ensure_minio_binaries() {
   local bin_dir="$CODEX_SERVICES_ROOT/bin"
+  local minio_arch
   mkdir -p "$bin_dir"
+  minio_arch="$(detect_minio_arch)"
 
   if [ ! -x "$bin_dir/minio" ]; then
-    curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o "$bin_dir/minio"
+    curl -fsSL "https://dl.min.io/server/minio/release/linux-${minio_arch}/minio" -o "$bin_dir/minio"
     chmod +x "$bin_dir/minio"
   fi
 
   if [ ! -x "$bin_dir/mc" ]; then
-    curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o "$bin_dir/mc"
+    curl -fsSL "https://dl.min.io/client/mc/release/linux-${minio_arch}/mc" -o "$bin_dir/mc"
     chmod +x "$bin_dir/mc"
   fi
 
