@@ -218,6 +218,7 @@ export const ExperimentGridView = ({
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       topAlignCells
       peekView={peekView}
+      columnVisibility={columnVisibility}
     />
   );
 };
