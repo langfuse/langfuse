@@ -1,4 +1,8 @@
+import chunk from "lodash/chunk";
+
 import { prisma } from "../db";
+
+const BATCH_SIZE = 10_000;
 
 interface MediaFileRef {
   id: string;
@@ -55,16 +59,20 @@ export async function deleteMediaFiles(params: {
     return 0;
   }
 
-  // Delete from S3 first
-  await storageClient.deleteFiles(mediaFiles.map((f) => f.bucketPath));
-
-  // Delete from PostgreSQL (cascades to traceMedia/observationMedia)
-  await prisma.media.deleteMany({
-    where: {
-      id: { in: mediaFiles.map((f) => f.id) },
-      projectId,
-    },
-  });
+  // Process in batches to stay under PostgreSQL's 32,767 bind variable limit.
+  // S3 is deleted before PG per batch to avoid orphaned storage files.
+  // All callers target expired or soft-deleted media with retry semantics,
+  // so partial failure self-heals on retry (S3 deletes are idempotent).
+  const chunks = chunk(mediaFiles, BATCH_SIZE);
+  for (const batch of chunks) {
+    await storageClient.deleteFiles(batch.map((f) => f.bucketPath));
+    await prisma.media.deleteMany({
+      where: {
+        id: { in: batch.map((f) => f.id) },
+        projectId,
+      },
+    });
+  }
 
   return mediaFiles.length;
 }
