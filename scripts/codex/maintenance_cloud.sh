@@ -11,7 +11,7 @@ corepack enable
 corepack prepare pnpm@10.33.0 --activate
 
 # shellcheck source=/dev/null
-source scripts/codex/cloud_services.sh
+source "$(dirname "${BASH_SOURCE[0]}")/cloud_services.sh"
 ensure_cloud_dependencies
 
 pnpm install --frozen-lockfile

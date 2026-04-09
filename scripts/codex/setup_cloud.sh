@@ -25,7 +25,7 @@ ensure_env_file .env .env.dev.example
 ensure_env_file .env.test .env.test.example
 
 # shellcheck source=/dev/null
-source scripts/codex/cloud_services.sh
+source "$(dirname "${BASH_SOURCE[0]}")/cloud_services.sh"
 ensure_cloud_dependencies
 
 pnpm install --frozen-lockfile
