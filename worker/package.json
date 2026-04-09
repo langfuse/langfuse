@@ -58,7 +58,7 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.8.2",
     "jsonpath-plus": "10.3.0",
-    "lodash": "^4.17.23",
+    "lodash": "4.18.1",
     "p-limit": "^7.3.0",
     "pg": "^8.13.0",
     "posthog-node": "^5.8.4",

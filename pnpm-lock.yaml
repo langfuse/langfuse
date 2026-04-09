@@ -927,8 +927,8 @@ importers:
         specifier: 10.3.0
         version: 10.3.0
       lodash:
-        specifier: ^4.17.23
-        version: 4.17.23
+        specifier: 4.18.1
+        version: 4.18.1
       p-limit:
         specifier: ^7.3.0
         version: 7.3.0
@@ -8675,6 +8675,9 @@ packages:
   lodash@4.17.23:
     resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
+
   log-symbols@7.0.1:
     resolution: {integrity: sha512-ja1E3yCr9i/0hmBVaM0bfwDjnGy8I/s6PP4DFp+yP+a+mrHO4Rm7DtmnqROTUkHIkqffC84YY7AeqX6oFk0WFg==}
     engines: {node: '>=18'}
@@ -13878,7 +13881,7 @@ snapshots:
 
   '@nodeutils/defaults-deep@1.1.0':
     dependencies:
-      lodash: 4.17.23
+      lodash: 4.18.1
 
   '@nolyfill/is-core-module@1.0.39': {}
 
@@ -20419,6 +20422,8 @@ snapshots:
   lodash.uniqby@4.7.0: {}
 
   lodash@4.17.23: {}
+
+  lodash@4.18.1: {}
 
   log-symbols@7.0.1:
     dependencies:
