@@ -399,22 +399,25 @@ ensure_minio_running() {
   local minio_data="$minio_root/data"
   local minio_log="$minio_root/minio.log"
   local minio_pid="$minio_root/minio.pid"
+  local minio_already_running="false"
 
   mkdir -p "$minio_data"
 
   if wait_for_port 127.0.0.1 "$MINIO_API_PORT" 1; then
-    echo "MinIO already running on 127.0.0.1:$MINIO_API_PORT; keeping existing runtime config."
-    return 0
+    echo "MinIO already running on 127.0.0.1:$MINIO_API_PORT; skipping server start."
+    minio_already_running="true"
   fi
 
-  (
-    export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
-    nohup minio server \
-      --address "127.0.0.1:$MINIO_API_PORT" \
-      --console-address "127.0.0.1:$MINIO_CONSOLE_PORT" \
-      "$minio_data" >"$minio_log" 2>&1 &
-    echo $! > "$minio_pid"
-  )
+  if [ "$minio_already_running" != "true" ]; then
+    (
+      export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
+      nohup minio server \
+        --address "127.0.0.1:$MINIO_API_PORT" \
+        --console-address "127.0.0.1:$MINIO_CONSOLE_PORT" \
+        "$minio_data" >"$minio_log" 2>&1 &
+      echo $! > "$minio_pid"
+    )
+  fi
 
   if ! wait_for_port 127.0.0.1 "$MINIO_API_PORT" 45; then
     echo "MinIO did not start on 127.0.0.1:$MINIO_API_PORT"
