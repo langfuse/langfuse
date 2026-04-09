@@ -93,6 +93,7 @@ export function TraceDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -421,7 +422,7 @@ export function TraceDetailView({
                 traceId={trace.id}
                 hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
                 localStorageSuffix="TracePreview"
-                disableUrlPersistence
+                disableUrlPersistence={isPeekMode}
               />
             </div>
           </TabsBarContent>
