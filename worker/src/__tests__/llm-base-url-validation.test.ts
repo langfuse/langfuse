@@ -43,6 +43,34 @@ describe("LLM base URL validation", () => {
     ).resolves.not.toThrow();
   });
 
+  it("should allow explicitly allowlisted IPv6 localhost literals for self-hosted instances", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    const whitelist: LlmBaseUrlValidationWhitelist = {
+      hosts: [],
+      ips: ["::1"],
+      ip_ranges: [],
+    };
+
+    await expect(
+      validateLlmConnectionBaseURL("http://[::1]:11434/v1", whitelist),
+    ).resolves.not.toThrow();
+  });
+
+  it("should allow explicitly allowlisted IPv6 CIDR ranges for self-hosted instances", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    const whitelist: LlmBaseUrlValidationWhitelist = {
+      hosts: [],
+      ips: [],
+      ip_ranges: ["::1/128"],
+    };
+
+    await expect(
+      validateLlmConnectionBaseURL("http://[::1]:11434/v1", whitelist),
+    ).resolves.not.toThrow();
+  });
+
   it("should ignore self-host allowlists on Langfuse Cloud", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
 
