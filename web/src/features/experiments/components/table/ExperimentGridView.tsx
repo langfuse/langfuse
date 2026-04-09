@@ -90,12 +90,7 @@ export const ExperimentGridView = ({
         accessorKey: `exp_${index}`, // Avoid nested path syntax that confuses TanStack
         id: expId,
         header: () => (
-          <div
-            className={cn(
-              "flex items-center gap-2 border-t-2 pt-1",
-              colorStyles?.headerAccentClass ?? "border-transparent",
-            )}
-          >
+          <div className="flex items-center gap-2">
             <span
               className={cn("truncate font-medium", colorStyles?.textClass)}
             >

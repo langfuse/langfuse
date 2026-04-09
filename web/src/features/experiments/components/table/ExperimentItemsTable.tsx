@@ -108,16 +108,20 @@ const StackedExperimentCell = ({
         return (
           <div
             key={experimentId}
-            className={cn(
-              "flex min-h-0 items-start overflow-hidden border-l-2 py-0.5 pr-2 pl-1.5",
-              colorStyles.borderClass,
-              colorStyles.textClass,
-            )}
+            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
           >
             {exp ? (
-              renderValue(exp)
+              <>
+                <span
+                  className={cn(
+                    "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
+                    colorStyles.markerClass,
+                  )}
+                />
+                {renderValue(exp)}
+              </>
             ) : (
-              <span className="text-muted-foreground">-</span>
+              <span className="text-muted-foreground">—</span>
             )}
           </div>
         );
@@ -163,11 +167,7 @@ const StackedOutputCell = ({
         return (
           <div
             key={experimentId}
-            className={cn(
-              "flex min-h-0 items-start overflow-hidden border-l-2 py-0.5 pr-1 pl-1.5",
-              colorStyles.borderClass,
-              colorStyles.textClass,
-            )}
+            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
           >
             {isLoading ? (
               <MemoizedIOTableCell
@@ -176,14 +176,22 @@ const StackedOutputCell = ({
                 singleLine={singleLine}
               />
             ) : out?.output ? (
-              <MemoizedIOTableCell
-                isLoading={false}
-                data={out.output}
-                singleLine={singleLine}
-                className="bg-accent-light-green"
-              />
+              <div className="flex min-w-0 items-start">
+                <span
+                  className={cn(
+                    "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
+                    colorStyles.markerClass,
+                  )}
+                />
+                <MemoizedIOTableCell
+                  isLoading={false}
+                  data={out.output}
+                  singleLine={singleLine}
+                  className="bg-accent-light-green"
+                />
+              </div>
             ) : (
-              <span className="text-muted-foreground px-2 py-1">-</span>
+              <span className="text-muted-foreground px-2 py-1">—</span>
             )}
           </div>
         );

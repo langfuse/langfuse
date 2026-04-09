@@ -8,6 +8,7 @@ export const EXPERIMENT_COLOR_STYLES = [
     textClass: "text-dark-gray",
     borderClass: "border-l-slate-400 dark:border-l-slate-500",
     headerAccentClass: "border-t-slate-400 dark:border-t-slate-500",
+    markerClass: "bg-slate-500 dark:bg-slate-400",
     badgeClass:
       "border-slate-400/80 bg-slate-100/70 text-slate-700 dark:border-slate-500/70 dark:bg-slate-900/60 dark:text-slate-300",
   }, // Baseline - index 0
@@ -15,6 +16,7 @@ export const EXPERIMENT_COLOR_STYLES = [
     textClass: "text-blue-700 dark:text-blue-300",
     borderClass: "border-l-blue-500/70 dark:border-l-blue-400/70",
     headerAccentClass: "border-t-blue-500/70 dark:border-t-blue-400/70",
+    markerClass: "bg-blue-500/80 dark:bg-blue-400/80",
     badgeClass:
       "border-blue-500/45 bg-blue-500/12 text-blue-700 dark:border-blue-400/45 dark:bg-blue-400/15 dark:text-blue-300",
   }, // Comparison 1
@@ -22,6 +24,7 @@ export const EXPERIMENT_COLOR_STYLES = [
     textClass: "text-violet-700 dark:text-violet-300",
     borderClass: "border-l-violet-500/70 dark:border-l-violet-400/70",
     headerAccentClass: "border-t-violet-500/70 dark:border-t-violet-400/70",
+    markerClass: "bg-violet-500/80 dark:bg-violet-400/80",
     badgeClass:
       "border-violet-500/45 bg-violet-500/12 text-violet-700 dark:border-violet-400/45 dark:bg-violet-400/15 dark:text-violet-300",
   }, // Comparison 2
@@ -29,6 +32,7 @@ export const EXPERIMENT_COLOR_STYLES = [
     textClass: "text-teal-700 dark:text-teal-300",
     borderClass: "border-l-teal-500/70 dark:border-l-teal-400/70",
     headerAccentClass: "border-t-teal-500/70 dark:border-t-teal-400/70",
+    markerClass: "bg-teal-500/80 dark:bg-teal-400/80",
     badgeClass:
       "border-teal-500/45 bg-teal-500/12 text-teal-700 dark:border-teal-400/45 dark:bg-teal-400/15 dark:text-teal-300",
   }, // Comparison 3
@@ -36,6 +40,7 @@ export const EXPERIMENT_COLOR_STYLES = [
     textClass: "text-amber-700 dark:text-amber-300",
     borderClass: "border-l-amber-500/70 dark:border-l-amber-400/70",
     headerAccentClass: "border-t-amber-500/70 dark:border-t-amber-400/70",
+    markerClass: "bg-amber-500/80 dark:bg-amber-400/80",
     badgeClass:
       "border-amber-500/45 bg-amber-500/12 text-amber-700 dark:border-amber-400/45 dark:bg-amber-400/15 dark:text-amber-300",
   }, // Comparison 4
