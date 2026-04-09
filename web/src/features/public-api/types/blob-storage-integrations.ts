@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
 
 /**
  * Enums
@@ -57,7 +58,8 @@ export const CreateBlobStorageIntegrationRequest = z
         "exportStartDate is required when exportMode is FROM_CUSTOM_DATE",
       path: ["exportStartDate"],
     },
-  );
+  )
+  .superRefine(validateAzureContainerName);
 
 export const BlobStorageIntegrationResponse = z
   .object({
