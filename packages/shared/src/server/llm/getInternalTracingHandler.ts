@@ -119,6 +119,15 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
           return true;
         })
         .map((event: any) => {
+          return {
+            ...event,
+            body: {
+              ...event.body,
+              environment,
+            },
+          };
+        })
+        .map((event: any) => {
           // to add the prompt name and version to only generation-type observations
           if (event.type === "generation-create" && prompt) {
             return {
