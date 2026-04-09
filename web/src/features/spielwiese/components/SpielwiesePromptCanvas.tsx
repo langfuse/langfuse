@@ -1,56 +1,87 @@
-import { Separator } from "../ui/separator";
+import {
+  MessageCirclePlus,
+  MoreHorizontal,
+  SendHorizonal,
+  SmilePlus,
+} from "lucide-react";
+import { Button } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 
 type SpielwiesePromptCanvasProps = {
   promptCanvas: NonNullable<SpielwieseDashboardVM["promptCanvas"]>;
 };
 
-function PromptSection({
-  content,
-  label,
-}: NonNullable<SpielwieseDashboardVM["promptCanvas"]>["sections"][number]) {
+function getEditorParagraphs(
+  sections: NonNullable<SpielwieseDashboardVM["promptCanvas"]>["sections"],
+) {
+  return sections.flatMap((section, sectionIndex) => [
+    ...section.content.map((line, lineIndex) => ({
+      id: `${section.id}-${lineIndex}`,
+      text: line,
+    })),
+    ...(sectionIndex === sections.length - 1
+      ? []
+      : [{ id: `${section.id}-gap`, text: "" }]),
+  ]);
+}
+
+function EditorToolbar() {
   return (
-    <section className="bg-background flex flex-col gap-3 rounded-lg border px-4 py-4">
-      <p className="text-muted-foreground text-sm font-medium tracking-[0.12em] uppercase">
-        {label}
-      </p>
-      <div className="flex flex-col gap-2">
-        {content.map((line) => (
-          <p
-            key={line}
-            className="text-foreground text-base text-pretty sm:text-sm"
-          >
-            {line}
-          </p>
-        ))}
-      </div>
-    </section>
+    <div className="flex items-center gap-1">
+      <Button aria-label="Add reaction" size="icon-sm" variant="ghost">
+        <SmilePlus size={16} />
+      </Button>
+      <Button aria-label="Add comment" size="icon-sm" variant="ghost">
+        <MessageCirclePlus size={16} />
+      </Button>
+      <Button aria-label="Share page" size="icon-sm" variant="ghost">
+        <SendHorizonal size={16} />
+      </Button>
+      <Button aria-label="More options" size="icon-sm" variant="ghost">
+        <MoreHorizontal size={16} />
+      </Button>
+    </div>
   );
 }
 
 export function SpielwiesePromptCanvas({
   promptCanvas,
 }: SpielwiesePromptCanvasProps) {
+  const editorParagraphs = getEditorParagraphs(promptCanvas.sections);
+
   return (
     <section
-      className="bg-card @container flex min-h-[calc(100dvh-7rem)] flex-col rounded-lg border px-6 py-6 shadow-xs sm:px-10 sm:py-8"
+      className="@container flex min-h-[calc(100dvh-7rem)] flex-col"
       data-testid="spielwiese-prompt-canvas"
     >
-      <div className="flex flex-col gap-4">
-        <h1 className="text-3xl font-semibold text-balance sm:text-4xl">
-          {promptCanvas.title}
-        </h1>
-        <Separator />
-      </div>
+      <div className="flex-1 overflow-y-auto">
+        <div
+          className="mx-auto flex min-h-full w-full max-w-[48rem] flex-col"
+          data-testid="spielwiese-document-editor"
+        >
+          <div className="flex items-center justify-end px-6 pt-6 sm:px-10 sm:pt-8">
+            <div className="shrink-0">
+              <EditorToolbar />
+            </div>
+          </div>
 
-      <div className="flex flex-1 flex-col gap-4 py-5 sm:py-6">
-        {promptCanvas.sections.map((section) => (
-          <PromptSection
-            content={section.content}
-            key={section.id}
-            label={section.label}
-          />
-        ))}
+          <div className="flex-1 px-6 pb-10 sm:px-10 sm:pb-14">
+            <div
+              className="text-foreground min-h-full cursor-text text-base text-pretty [caret-color:currentColor] outline-none sm:text-sm/6 [&>p+p]:mt-2"
+              contentEditable
+              data-testid="spielwiese-editor-body"
+              role="textbox"
+              suppressContentEditableWarning
+            >
+              {editorParagraphs.map((paragraph) => (
+                <p className="min-h-7 whitespace-pre-wrap" key={paragraph.id}>
+                  {paragraph.text}
+                </p>
+              ))}
+              <p className="min-h-7 whitespace-pre-wrap" />
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

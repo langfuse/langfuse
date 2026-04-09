@@ -24,11 +24,10 @@ describe("SpielwieseDashboardPage", () => {
 
     render(<SpielwieseDashboardPage />);
 
-    expect(
-      screen.getByRole("heading", {
-        name: "Vision Agent",
-      }),
-    ).toBeTruthy();
     expect(screen.getByTestId("spielwiese-prompt-canvas")).toBeTruthy();
+    expect(screen.getByRole("textbox")).toBeTruthy();
+    expect(
+      screen.getByText(/You are a food identification expert/i),
+    ).toBeTruthy();
   });
 });
