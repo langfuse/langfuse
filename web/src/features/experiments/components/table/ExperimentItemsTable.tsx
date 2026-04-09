@@ -40,7 +40,7 @@ import {
   type ExperimentItemsTableProps,
   type ExperimentItemData,
   type ExperimentOutputData,
-  getExperimentColor,
+  getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import {
@@ -101,15 +101,17 @@ const StackedExperimentCell = ({
     >
       {allExperimentIds.map((experimentId) => {
         const exp = experimentsById.get(experimentId);
+        const colorStyles = getExperimentColorStyles(
+          experimentId,
+          colorExperimentIds ?? allExperimentIds,
+        );
         return (
           <div
             key={experimentId}
             className={cn(
-              "flex min-h-0 items-start overflow-hidden px-2",
-              getExperimentColor(
-                experimentId,
-                colorExperimentIds ?? allExperimentIds,
-              ),
+              "flex min-h-0 items-start overflow-hidden border-l-2 py-0.5 pr-2 pl-1.5",
+              colorStyles.borderClass,
+              colorStyles.textClass,
             )}
           >
             {exp ? (
@@ -154,15 +156,17 @@ const StackedOutputCell = ({
     >
       {allExperimentIds.map((experimentId) => {
         const out = outputsByExperimentId.get(experimentId);
+        const colorStyles = getExperimentColorStyles(
+          experimentId,
+          colorExperimentIds ?? allExperimentIds,
+        );
         return (
           <div
             key={experimentId}
             className={cn(
-              "flex min-h-0 items-start overflow-hidden",
-              getExperimentColor(
-                experimentId,
-                colorExperimentIds ?? allExperimentIds,
-              ),
+              "flex min-h-0 items-start overflow-hidden border-l-2 py-0.5 pr-1 pl-1.5",
+              colorStyles.borderClass,
+              colorStyles.textClass,
             )}
           >
             {isLoading ? (

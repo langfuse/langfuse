@@ -49,6 +49,7 @@ type ExperimentGridCellProps = {
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
+  accentClassName?: string;
 };
 
 /**
@@ -300,6 +301,7 @@ export const ExperimentGridCell = ({
   baselineTraceScores,
   isLoading = false,
   columnVisibility = {},
+  accentClassName,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -492,7 +494,9 @@ export const ExperimentGridCell = ({
     .filter((section) => section.content !== null);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
+    <div
+      className={`flex h-full w-full flex-col overflow-hidden border-t-2 ${accentClassName ?? "border-transparent"}`}
+    >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {sectionsToRender.map((section, index) => {
           const { row, content } = section;
