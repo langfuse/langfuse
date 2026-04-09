@@ -661,6 +661,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks
   if (
