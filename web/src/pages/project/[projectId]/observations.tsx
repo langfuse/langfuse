@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import { useQueryParams, StringParam } from "use-query-params";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -15,8 +16,32 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
+  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const [, setQueryParams] = useQueryParams({ viewId: StringParam });
   const { project } = useQueryProject();
+  const previousBetaEnabledRef = useRef<boolean | null>(null);
+  const viewPersistenceKey = isBetaEnabled
+    ? "observations-v4"
+    : "observations-v3";
+
+  // Clear viewId when switching between table modes
+  useEffect(() => {
+    if (isInitializing) {
+      return;
+    }
+
+    const previousIsBetaEnabled = previousBetaEnabledRef.current;
+    previousBetaEnabledRef.current = isBetaEnabled;
+
+    const didTableModeChange =
+      previousIsBetaEnabled !== null && previousIsBetaEnabled !== isBetaEnabled;
+
+    if (!didTableModeChange) {
+      return;
+    }
+
+    setQueryParams({ viewId: undefined });
+  }, [isBetaEnabled, isInitializing, setQueryParams]);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -60,9 +85,15 @@ export default function Generations() {
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          viewPersistenceKey={viewPersistenceKey}
+        />
       ) : (
-        <ObservationsTable projectId={projectId} />
+        <ObservationsTable
+          projectId={projectId}
+          viewPersistenceKey={viewPersistenceKey}
+        />
       )}
     </Page>
   );

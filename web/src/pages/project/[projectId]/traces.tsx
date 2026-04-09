@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { useQueryParams, StringParam } from "use-query-params";
 import TracesTable from "@/src/components/table/use-cases/traces";
@@ -16,16 +16,41 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
-  const [, setQueryParams] = useQueryParams({ viewMode: StringParam });
+  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const [, setQueryParams] = useQueryParams({
+    viewId: StringParam,
+    viewMode: StringParam,
+  });
   const { project } = useQueryProject();
+  const previousBetaEnabledRef = useRef<boolean | null>(null);
+  const viewPersistenceKey = isBetaEnabled ? "traces-v4" : "traces-v3";
 
-  // Clear viewMode query when beta is turned off (e.g. from sidebar)
+  // Clear mode-specific query state when switching table modes
   useEffect(() => {
-    if (!isBetaEnabled) {
-      setQueryParams({ viewMode: undefined });
+    if (isInitializing) {
+      return;
     }
-  }, [isBetaEnabled, setQueryParams]);
+
+    const previousIsBetaEnabled = previousBetaEnabledRef.current;
+    previousBetaEnabledRef.current = isBetaEnabled;
+
+    if (previousIsBetaEnabled === null) {
+      if (!isBetaEnabled) {
+        setQueryParams({ viewMode: undefined });
+      }
+      return;
+    }
+
+    if (previousIsBetaEnabled === isBetaEnabled) {
+      return;
+    }
+
+    if (!isBetaEnabled) {
+      setQueryParams({ viewId: undefined, viewMode: undefined });
+    } else {
+      setQueryParams({ viewId: undefined });
+    }
+  }, [isBetaEnabled, isInitializing, setQueryParams]);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -97,9 +122,15 @@ export default function Traces() {
       }}
     >
       {isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          viewPersistenceKey={viewPersistenceKey}
+        />
       ) : (
-        <TracesTable projectId={projectId} />
+        <TracesTable
+          projectId={projectId}
+          viewPersistenceKey={viewPersistenceKey}
+        />
       )}
     </Page>
   );
