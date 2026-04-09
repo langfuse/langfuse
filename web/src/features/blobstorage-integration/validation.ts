@@ -17,6 +17,7 @@ export function validateAzureContainerName(
   data: { type: string; bucketName: string },
   ctx: z.RefinementCtx,
 ) {
+  if (!data.bucketName) return;
   if (
     data.type === "AZURE_BLOB_STORAGE" &&
     !AZURE_CONTAINER_NAME_REGEX.test(data.bucketName)

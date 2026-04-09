@@ -71,4 +71,13 @@ describe("validateAzureContainerName via schema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("skips Azure validation when bucketName is empty", () => {
+    const result = schema.safeParse({
+      type: "AZURE_BLOB_STORAGE",
+      bucketName: "",
+    });
+    // Should pass superRefine (empty guard), letting .min(1) handle it upstream
+    expect(result.success).toBe(true);
+  });
 });

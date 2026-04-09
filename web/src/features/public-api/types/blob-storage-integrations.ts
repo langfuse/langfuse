@@ -27,7 +27,7 @@ export const CreateBlobStorageIntegrationRequest = z
   .object({
     projectId: z.string(),
     type: BlobStorageIntegrationType,
-    bucketName: z.string(),
+    bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
     region: z.string(),
     accessKeyId: z.string().nullable().optional(),
