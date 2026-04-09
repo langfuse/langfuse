@@ -65,6 +65,14 @@ describe("LLM base URL validation", () => {
     ).resolves.not.toThrow();
   });
 
+  it("should allow unresolved public hostnames by default", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    await expect(
+      validateLlmConnectionBaseURL("https://gateway.invalid/v1"),
+    ).resolves.not.toThrow();
+  });
+
   it("should reject non-HTTPS URLs on Langfuse Cloud", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
 

@@ -53,10 +53,6 @@ export async function validateLlmConnectionBaseURL(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
-    throw new Error("Only HTTPS base URLs are allowed on Langfuse Cloud");
-  }
-
   const hostname = normalizeHostname(url.hostname);
 
   if (effectiveWhitelist.hosts.includes(hostname)) {
@@ -65,6 +61,10 @@ export async function validateLlmConnectionBaseURL(
 
   if (isHostnameBlocked(hostname)) {
     throw new Error("Blocked hostname detected");
+  }
+
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
+    throw new Error("Only HTTPS base URLs are allowed on Langfuse Cloud");
   }
 
   if (isIPAddress(hostname)) {
@@ -84,7 +84,14 @@ export async function validateLlmConnectionBaseURL(
     return;
   }
 
-  const ips = await resolveHost(hostname);
+  let ips: string[];
+  try {
+    ips = await resolveHost(hostname);
+  } catch {
+    // DNS resolution is best-effort here so valid custom gateways do not fail at write time.
+    return;
+  }
+
   for (const ip of ips) {
     if (isIPBlocked(ip, effectiveWhitelist.ips, effectiveWhitelist.ip_ranges)) {
       logger.warn(

@@ -13,7 +13,7 @@ import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createOrgProjectAndApiKey,
   fetchLLMCompletion,
@@ -213,7 +213,7 @@ describe("llmApiKey.all RPC", () => {
     ).rejects.toThrow("User does not have access to this resource or action");
   });
 
-  it("should require llmApiKeys:create access for testing an existing llm api key", async () => {
+  it("should require llmApiKeys:update access for testing an existing llm api key", async () => {
     await caller.llmApiKey.create({
       projectId,
       provider: "openai",

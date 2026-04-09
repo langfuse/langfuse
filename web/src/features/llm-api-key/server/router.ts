@@ -484,15 +484,15 @@ export const llmApiKeyRouter = createTRPCRouter({
         const baseURL = input.baseURL ?? existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
-        if (input.baseURL && isBaseURLChanged) {
-          await validateLlmConnectionBaseURL(input.baseURL);
-        }
-
         if (isBaseURLChanged && !hasNewSecretKey) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Secret key is required when changing the base URL",
           });
+        }
+
+        if (input.baseURL && isBaseURLChanged) {
+          await validateLlmConnectionBaseURL(input.baseURL);
         }
 
         const secretKey = hasNewSecretKey
