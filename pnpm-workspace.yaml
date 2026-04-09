@@ -4,10 +4,10 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
-# 8 day delay for new dep upgrades to reduce supply chain attack risk
-minimumReleaseAge: 11520
+# 5 day delay for new dep upgrades to reduce supply chain attack risk
+minimumReleaseAge: 7200
 # TODO: remove exclusions below!
-# the exclusions are temporary so that we can set the 8 day limit without downgrading packages.
+# the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
   - "picomatch@4.0.4"
