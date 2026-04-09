@@ -19,13 +19,13 @@ type SpielwieseDashboardShellProps = {
 function getGridClassName(leftCollapsed: boolean, rightOpen: boolean) {
   if (!rightOpen) {
     return leftCollapsed
-      ? "md:grid-cols-[5rem_minmax(0,1fr)]"
-      : "md:grid-cols-[18rem_minmax(0,1fr)]";
+      ? "md:grid-cols-[4.75rem_minmax(0,1fr)]"
+      : "md:grid-cols-[14rem_minmax(0,1fr)]";
   }
 
   return leftCollapsed
-    ? "md:grid-cols-[5rem_minmax(0,1fr)] xl:grid-cols-[5rem_minmax(0,1fr)_21rem]"
-    : "md:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)_21rem]";
+    ? "md:grid-cols-[4.75rem_minmax(0,1fr)] xl:grid-cols-[4.75rem_minmax(0,1fr)_17rem]"
+    : "md:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_17rem]";
 }
 
 function MobileSidebars({
@@ -46,7 +46,8 @@ function MobileSidebars({
       {mobileLeftOpen || mobileRightOpen ? (
         <button
           aria-label="Close mobile sidebars"
-          className="bg-foreground/10 fixed inset-0 z-30 md:hidden"
+          className="bg-background/80 fixed inset-x-0 top-[var(--spielwiese-shell-offset)] bottom-0 z-30 md:hidden"
+          data-testid="spielwiese-mobile-backdrop"
           onClick={onClose}
           type="button"
         />
@@ -54,20 +55,22 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "border-sidebar-border/70 bg-sidebar fixed inset-y-0 left-0 z-40 w-[18rem] max-w-[88vw] border-r transition-transform md:hidden",
+          "border-sidebar-border bg-sidebar fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] border-r transition-transform md:hidden",
           mobileLeftOpen ? "translate-x-0" : "-translate-x-full",
         )}
+        data-testid="spielwiese-mobile-left-drawer"
       >
         <SpielwieseSidebarLeft shell={shell} />
       </aside>
 
       <aside
         className={cn(
-          "border-sidebar-border/70 bg-sidebar fixed inset-y-0 right-0 z-40 w-[20rem] max-w-[88vw] border-l transition-transform xl:hidden",
+          "border-sidebar-border bg-sidebar fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] border-l transition-transform xl:hidden",
           mobileRightOpen ? "translate-x-0" : "translate-x-full",
         )}
+        data-testid="spielwiese-mobile-right-drawer"
       >
-        <SpielwieseSidebarRight dashboard={dashboard} shell={shell} />
+        <SpielwieseSidebarRight dashboard={dashboard} />
       </aside>
     </>
   );
@@ -90,7 +93,7 @@ function SpielwieseDashboardShellLayout({
 
   return (
     <div
-      className="bg-background text-foreground min-h-dvh"
+      className="bg-background text-foreground min-h-dvh [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"
@@ -103,24 +106,28 @@ function SpielwieseDashboardShellLayout({
         shell={shell}
       />
 
-      <div className={cn("min-h-dvh md:grid", gridClassName)}>
-        <aside className="hidden min-h-dvh md:block">
-          <div className="sticky top-0 h-dvh">
+      <SpielwieseTopBar header={dashboard.header} shell={shell} />
+
+      <div
+        className={cn("md:grid", gridClassName)}
+        data-testid="spielwiese-shell-body"
+      >
+        <aside className="hidden md:block">
+          <div className="sticky top-[var(--spielwiese-shell-offset)] h-[calc(100svh-var(--spielwiese-shell-offset))]">
             <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
           </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <SpielwieseTopBar header={dashboard.header} shell={shell} />
-          <main className="flex flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+          <main className="flex flex-1 flex-col px-3 pt-3 pb-4 sm:px-5 sm:pt-4 sm:pb-5">
             {children}
           </main>
         </div>
 
         {rightOpen ? (
-          <aside className="hidden min-h-dvh xl:block">
-            <div className="sticky top-0 h-dvh">
-              <SpielwieseSidebarRight dashboard={dashboard} shell={shell} />
+          <aside className="hidden xl:block">
+            <div className="sticky top-[var(--spielwiese-shell-offset)] h-[calc(100svh-var(--spielwiese-shell-offset))]">
+              <SpielwieseSidebarRight dashboard={dashboard} />
             </div>
           </aside>
         ) : null}

@@ -3,13 +3,13 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+  "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
   {
     variants: {
       active: {
         true: "bg-sidebar-accent text-sidebar-accent-foreground",
         false:
-          "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+          "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
       },
       compact: {
         true: "justify-center px-2.5",
@@ -90,7 +90,7 @@ export function SidebarGroupLabel({
   return (
     <p
       className={cn(
-        "text-sidebar-foreground/70 px-3 text-xs font-medium tracking-[0.18em] uppercase",
+        "text-sidebar-foreground/70 px-1 text-sm font-medium",
         className,
       )}
       {...props}
@@ -102,7 +102,13 @@ export function SidebarMenu({
   className,
   ...props
 }: HTMLAttributes<HTMLUListElement>) {
-  return <ul className={cn("flex flex-col gap-1.5", className)} {...props} />;
+  return (
+    <ul
+      className={cn("flex flex-col gap-1.5", className)}
+      role="list"
+      {...props}
+    />
+  );
 }
 
 export function SidebarMenuItem({
@@ -161,8 +167,8 @@ export function SidebarMenuSubButton({
     <a
       aria-current={active ? "page" : undefined}
       className={cn(
-        "text-sidebar-foreground/85 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring/50 flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2",
-        active && "bg-sidebar-accent/80 text-sidebar-accent-foreground",
+        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring/50 flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2",
+        active && "bg-sidebar-accent text-sidebar-accent-foreground",
         className,
       )}
       href={href}
@@ -175,9 +181,7 @@ export function SidebarSeparator({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn("bg-sidebar-border/70 h-px", className)} {...props} />
-  );
+  return <div className={cn("bg-sidebar-border h-px", className)} {...props} />;
 }
 
 export { sidebarMenuButtonVariants };

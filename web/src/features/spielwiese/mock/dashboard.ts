@@ -1,104 +1,226 @@
+import {
+  Braces,
+  File,
+  FileText,
+  Folder,
+  ImageIcon,
+  Images,
+  LayoutGrid,
+  PanelTop,
+  ScanText,
+  Sigma,
+} from "lucide-react";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 
+const defaultInsertPanel: SpielwieseDashboardVM["insertPanel"] = {
+  tabs: ["Insert", "Format", "Style", "Info"],
+  activeTab: "Insert",
+  description: "Drag and drop any item to the document.",
+  items: [
+    {
+      id: "text",
+      label: "Text",
+      icon: ScanText,
+    },
+    {
+      id: "page",
+      label: "Page",
+      icon: FileText,
+    },
+    {
+      id: "card",
+      label: "Card",
+      icon: LayoutGrid,
+    },
+    {
+      id: "file",
+      label: "File Attachment",
+      icon: File,
+    },
+    {
+      id: "image",
+      label: "Image",
+      icon: ImageIcon,
+    },
+    {
+      id: "unsplash",
+      label: "Image from Unsplash",
+      icon: Images,
+    },
+    {
+      id: "code",
+      label: "Code Block",
+      icon: Braces,
+    },
+    {
+      id: "whiteboard",
+      label: "Whiteboard",
+      icon: PanelTop,
+    },
+    {
+      id: "formula",
+      label: "Tex Formula",
+      icon: Sigma,
+    },
+    {
+      id: "collection",
+      label: "Collection",
+      icon: Folder,
+    },
+  ],
+  linePresets: [
+    {
+      id: "dots",
+      label: "Insert dotted line",
+      style: "dots",
+    },
+    {
+      id: "dash",
+      label: "Insert dashed line",
+      style: "dash",
+    },
+    {
+      id: "split",
+      label: "Insert split line",
+      style: "split",
+    },
+    {
+      id: "solid",
+      label: "Insert solid line",
+      style: "solid",
+    },
+  ],
+  pageBreakLabel: "Insert Page Break",
+  table: {
+    rows: 4,
+    columns: 6,
+    selectedRows: 2,
+    selectedColumns: 3,
+    helper: "Insert a table with the highlighted number of rows and columns.",
+    footerLabel: "Assistant",
+  },
+};
+
+export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
+  assistant: {
+    pageId: "assistant",
+    header: {
+      breadcrumb: "Macroextractor / Assistant",
+      title: "Assistant",
+      updatedAt: "02m",
+    },
+    canvas: {
+      title: "Assistant",
+      helper:
+        "Start from a blank page, then drop in structure block by block as the layout sharpens.",
+      stats: [
+        {
+          id: "blocks",
+          label: "Blocks",
+          value: "01",
+        },
+        {
+          id: "links",
+          label: "Linked pages",
+          value: "00",
+        },
+        {
+          id: "comments",
+          label: "Comments",
+          value: "03",
+        },
+      ],
+    },
+    insertPanel: defaultInsertPanel,
+  },
+  "vision-agent": {
+    pageId: "vision-agent",
+    header: {
+      breadcrumb: "Macroextractor / Vision Agent",
+      title: "Vision Agent",
+      updatedAt: "05m",
+    },
+    canvas: {
+      title: "Vision Agent",
+      helper:
+        "Review the image-analysis prompt as a structured handoff before turning it into a reusable workflow.",
+      stats: [
+        {
+          id: "messages",
+          label: "Messages",
+          value: "03",
+        },
+        {
+          id: "attachments",
+          label: "Attachments",
+          value: "01",
+        },
+        {
+          id: "outputs",
+          label: "Outputs",
+          value: "01",
+        },
+      ],
+    },
+    promptCanvas: {
+      title: "Vision Agent",
+      sections: [
+        {
+          id: "user",
+          label: "User",
+          content: ["[image]"],
+        },
+        {
+          id: "system",
+          label: "System",
+          content: [
+            "You are a food identification expert. Identify every food item in the image.",
+            "For each item, estimate the weight in grams based on plate size, utensils, and other visible references.",
+            'Return only JSON, for example: [{"item":"grilled salmon","estimated_weight_g":180}].',
+          ],
+        },
+        {
+          id: "assistant",
+          label: "Assistant",
+          content: ["[JSON]"],
+        },
+      ],
+    },
+    insertPanel: defaultInsertPanel,
+  },
+  "nutrition-agent": {
+    pageId: "nutrition-agent",
+    header: {
+      breadcrumb: "Macroextractor / Nutrition Agent",
+      title: "Nutrition Agent",
+      updatedAt: "07m",
+    },
+    canvas: {
+      title: "Nutrition Agent",
+      helper:
+        "Take the detected foods and convert them into nutrition facts, assumptions, and confidence notes.",
+      stats: [
+        {
+          id: "blocks",
+          label: "Blocks",
+          value: "02",
+        },
+        {
+          id: "inputs",
+          label: "Inputs",
+          value: "01",
+        },
+        {
+          id: "outputs",
+          label: "Outputs",
+          value: "01",
+        },
+      ],
+    },
+    insertPanel: defaultInsertPanel,
+  },
+};
+
 export const spielwieseDashboardMock: SpielwieseDashboardVM = {
-  header: {
-    eyebrow: "Preset-driven shell",
-    title: "A cleaner command deck for prompt iteration and review.",
-    description:
-      "Spielwiese starts from a local shell, warm paper surfaces, and deliberate hierarchy so the redesign can scale beyond a one-off dashboard.",
-  },
-  metrics: [
-    {
-      id: "throughput",
-      label: "Live review throughput for staged prompts",
-      value: "128 / day",
-      delta: "+12%",
-      trend: "week over week",
-      status: "spotlight",
-    },
-    {
-      id: "latency",
-      label: "Median end-to-end iteration turnaround",
-      value: "6m 24s",
-      delta: "-18%",
-      trend: "vs. yesterday",
-      status: "steady",
-    },
-    {
-      id: "coverage",
-      label: "Runs sampled into qualitative checkpoints",
-      value: "84%",
-      delta: "+9 pts",
-      trend: "coverage target",
-      status: "steady",
-    },
-    {
-      id: "watch",
-      label: "Prompt lanes needing human attention",
-      value: "03",
-      delta: "2 urgent",
-      trend: "triage now",
-      status: "watch",
-    },
-  ],
-  insights: [
-    {
-      id: "lane-balance",
-      kicker: "Lane health",
-      title:
-        "Shipping lanes are balanced, but risk is clustering in support triage.",
-      summary:
-        "Most review work is moving faster, yet one lane is accumulating late-stage edits and rechecks.",
-      cta: "Inspect lane",
-    },
-    {
-      id: "signal-noise",
-      kicker: "Signal quality",
-      title:
-        "Evaluator notes are landing earlier, which makes the overview feel more actionable.",
-      summary:
-        "Notes now arrive before export prep, so reviewers can intervene before the summary hardens.",
-      cta: "Open notes",
-    },
-    {
-      id: "handoff",
-      kicker: "Design handoff",
-      title:
-        "The new shell is proving which pieces should graduate into the main product chrome.",
-      summary:
-        "Navigation, right-rail context, and panel density are all cleaner in this isolated track.",
-      cta: "Review shell",
-    },
-  ],
-  activity: {
-    title: "Review queue",
-    description:
-      "A compact right rail for active work, handoff notes, and the next decisions that need a human.",
-    items: [
-      {
-        id: "triage-pass",
-        label: "Safety pass pending",
-        detail: "Support triage / Prompt v4",
-        value: "09:40",
-      },
-      {
-        id: "notes",
-        label: "Designer note added",
-        detail: "Dashboard shell / Density review",
-        value: "10:15",
-      },
-      {
-        id: "coverage",
-        label: "Coverage dip detected",
-        detail: "Monitor lane / Export preview",
-        value: "11:02",
-      },
-      {
-        id: "handoff",
-        label: "Spec ready for handoff",
-        detail: "Right rail / Copy polish",
-        value: "11:47",
-      },
-    ],
-  },
+  ...spielwieseDashboardMocks.assistant,
 };

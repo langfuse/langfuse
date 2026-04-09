@@ -19,6 +19,7 @@ export type SpielwieseWorkspacePage = {
   id: string;
   label: string;
   href: string;
+  isActive?: boolean;
 };
 
 export type SpielwieseWorkspaceGroup = {
@@ -50,5 +51,4 @@ export type SpielwieseShellVM = {
   secondaryNav: SpielwieseNavItem[];
   favorites: SpielwieseFavoriteItem[];
   workspaces: SpielwieseWorkspaceGroup[];
-  rightRailTitle: string;
 };

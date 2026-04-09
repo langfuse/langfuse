@@ -1,22 +1,20 @@
 import {
-  BarChart3,
-  FlaskConical,
-  FolderKanban,
-  Home,
-  LifeBuoy,
+  CircleCheckBig,
+  FileStack,
+  FolderClosed,
+  LayoutList,
+  Paperclip,
   Search,
-  Settings2,
-  Sparkles,
 } from "lucide-react";
 import type { SpielwieseShellVM } from "../types/shell";
 
 export const spielwieseShellMock: SpielwieseShellVM = {
-  productLabel: "Langfuse",
-  workspaceLabel: "Spielwiese",
+  productLabel: "Macroextractor",
+  workspaceLabel: "Assistant",
   team: {
-    name: "Iteration Lab",
-    plan: "Design sandbox",
-    initials: "IL",
+    name: "Macroextractor",
+    plan: "Just now",
+    initials: "ME",
   },
   user: {
     name: "Louis Ville",
@@ -25,143 +23,70 @@ export const spielwieseShellMock: SpielwieseShellVM = {
   },
   primaryNav: [
     {
+      id: "outline",
+      label: "Outline",
+      href: "#outline",
+      icon: LayoutList,
+      isActive: true,
+    },
+    {
+      id: "review",
+      label: "Review",
+      href: "#review",
+      icon: CircleCheckBig,
+    },
+    {
+      id: "attach",
+      label: "Attach",
+      href: "#attach",
+      icon: Paperclip,
+    },
+    {
       id: "search",
       label: "Search",
       href: "#search",
       icon: Search,
     },
-    {
-      id: "assist",
-      label: "Ask AI",
-      href: "#assist",
-      icon: Sparkles,
-    },
-    {
-      id: "overview",
-      label: "Overview",
-      href: "#overview",
-      icon: Home,
-      isActive: true,
-    },
-    {
-      id: "dashboards",
-      label: "Dashboards",
-      href: "#dashboards",
-      icon: BarChart3,
-      badge: "7",
-    },
   ],
   secondaryNav: [
     {
-      id: "experiments",
-      label: "Experiments",
-      href: "#experiments",
-      icon: FlaskConical,
+      id: "folder",
+      label: "Folders",
+      href: "#folders",
+      icon: FolderClosed,
     },
     {
-      id: "workflows",
-      label: "Workflows",
-      href: "#workflows",
-      icon: FolderKanban,
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      href: "#settings",
-      icon: Settings2,
-    },
-    {
-      id: "help",
-      label: "Help",
-      href: "#help",
-      icon: LifeBuoy,
+      id: "files",
+      label: "Files",
+      href: "#files",
+      icon: FileStack,
     },
   ],
-  favorites: [
-    {
-      id: "triage",
-      label: "Support triage dashboard",
-      href: "#triage",
-    },
-    {
-      id: "iter-doc",
-      label: "Iteration notes for prompt review",
-      href: "#iter-doc",
-    },
-    {
-      id: "handoff",
-      label: "Designer handoff checklist",
-      href: "#handoff",
-    },
-  ],
+  favorites: [],
   workspaces: [
     {
-      id: "ops",
-      label: "Operations",
-      emoji: "🧭",
+      id: "macroextractor",
+      label: "Macroextractor",
+      emoji: "•",
       defaultOpen: true,
       pages: [
         {
-          id: "queue",
-          label: "Review queue",
-          href: "#queue",
+          id: "assistant",
+          label: "Assistant",
+          href: "#assistant",
+          isActive: true,
         },
         {
-          id: "handoff",
-          label: "Handoff notes",
-          href: "#handoff",
+          id: "vision-agent",
+          label: "Step 1 — Vision Agent",
+          href: "#vision-agent",
         },
         {
-          id: "coverage",
-          label: "Coverage map",
-          href: "#coverage",
-        },
-      ],
-    },
-    {
-      id: "quality",
-      label: "Prompt quality",
-      emoji: "🧪",
-      pages: [
-        {
-          id: "pairs",
-          label: "Prompt pairs",
-          href: "#pairs",
-        },
-        {
-          id: "variants",
-          label: "Variant ledger",
-          href: "#variants",
-        },
-        {
-          id: "scores",
-          label: "Score snapshots",
-          href: "#scores",
-        },
-      ],
-    },
-    {
-      id: "signal",
-      label: "Signal studio",
-      emoji: "📡",
-      pages: [
-        {
-          id: "monitors",
-          label: "Monitor cuts",
-          href: "#monitors",
-        },
-        {
-          id: "annotations",
-          label: "Annotations",
-          href: "#annotations",
-        },
-        {
-          id: "reports",
-          label: "Export deck",
-          href: "#reports",
+          id: "nutrition-agent",
+          label: "Step 2 — Nutrition Agent",
+          href: "#nutrition-agent",
         },
       ],
     },
   ],
-  rightRailTitle: "Review queue",
 };

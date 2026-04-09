@@ -9,7 +9,7 @@ export function Avatar({
   return (
     <span
       className={cn(
-        "bg-secondary text-secondary-foreground ring-border/70 relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-medium ring-1",
+        "bg-secondary text-secondary-foreground relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-medium",
         className,
       )}
       {...props}
@@ -42,7 +42,7 @@ export function AvatarFallback({
   return (
     <span
       className={cn(
-        "bg-secondary text-secondary-foreground inline-flex size-full items-center justify-center rounded-2xl",
+        "bg-muted text-muted-foreground inline-flex size-full items-center justify-center rounded-full",
         className,
       )}
       {...props}

@@ -1,40 +1,59 @@
-export type SpielwieseMetricStatus = "spotlight" | "steady" | "watch";
+import type { LucideIcon } from "lucide-react";
 
-export type SpielwieseMetricVM = {
+export type SpielwieseCanvasStatVM = {
   id: string;
   label: string;
   value: string;
-  delta: string;
-  trend: string;
-  status: SpielwieseMetricStatus;
 };
 
-export type SpielwieseInsightVM = {
-  id: string;
-  kicker: string;
-  title: string;
-  summary: string;
-  cta: string;
-};
-
-export type SpielwieseActivityItemVM = {
+export type SpielwiesePromptSectionVM = {
   id: string;
   label: string;
-  detail: string;
-  value: string;
+  content: string[];
+};
+
+export type SpielwieseInsertItemVM = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+export type SpielwieseLinePresetVM = {
+  id: string;
+  label: string;
+  style: "dots" | "dash" | "split" | "solid";
 };
 
 export type SpielwieseDashboardVM = {
+  pageId: string;
   header: {
-    eyebrow: string;
+    breadcrumb: string;
     title: string;
-    description: string;
+    updatedAt: string;
   };
-  metrics: SpielwieseMetricVM[];
-  insights: SpielwieseInsightVM[];
-  activity: {
+  canvas: {
     title: string;
+    helper: string;
+    stats: SpielwieseCanvasStatVM[];
+  };
+  promptCanvas?: {
+    title: string;
+    sections: SpielwiesePromptSectionVM[];
+  };
+  insertPanel: {
+    tabs: string[];
+    activeTab: string;
     description: string;
-    items: SpielwieseActivityItemVM[];
+    items: SpielwieseInsertItemVM[];
+    linePresets: SpielwieseLinePresetVM[];
+    pageBreakLabel: string;
+    table: {
+      rows: number;
+      columns: number;
+      selectedRows: number;
+      selectedColumns: number;
+      helper: string;
+      footerLabel: string;
+    };
   };
 };

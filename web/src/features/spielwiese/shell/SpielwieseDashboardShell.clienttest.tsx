@@ -5,9 +5,30 @@ import {
   getSpielwieseShellVm,
 } from "../adapters/dashboardVm";
 
-describe("SpielwieseDashboardShell", () => {
-  const originalMatchMedia = window.matchMedia;
+function createMatchMedia(matches: boolean) {
+  return jest.fn().mockImplementation((query: string) => ({
+    addEventListener: jest.fn(),
+    matches,
+    media: query,
+    onchange: null,
+    removeEventListener: jest.fn(),
+  }));
+}
 
+function renderShell() {
+  const shell = getSpielwieseShellVm();
+  const dashboard = getSpielwieseDashboardVm();
+
+  render(
+    <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
+      <div>Shell content</div>
+    </SpielwieseDashboardShell>,
+  );
+}
+
+const originalMatchMedia = window.matchMedia;
+
+describe("SpielwieseDashboardShell render", () => {
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
   });
@@ -21,13 +42,28 @@ describe("SpielwieseDashboardShell", () => {
       </SpielwieseDashboardShell>,
     );
 
-    expect(screen.getByText("Spielwiese dashboard")).toBeTruthy();
+    expect(screen.getAllByText("Macroextractor").length >= 1).toBeTruthy();
+    expect(screen.getByText("Macroextractor / Assistant")).toBeTruthy();
     expect(screen.getByText("Shell content")).toBeTruthy();
     expect(screen.queryByText("langofuso")).toBeNull();
     expect(screen.queryByText("langfuse-redesign")).toBeNull();
     expect(
       container.querySelector("[data-testid='spielwiese-shell']"),
     ).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-shell-body")).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("spielwiese-shell-header")
+        .compareDocumentPosition(screen.getByTestId("spielwiese-shell-body")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
+describe("SpielwieseDashboardShell interactions", () => {
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
   });
 
   it("toggles the desktop left rail collapse state from the local shell", () => {
@@ -39,14 +75,7 @@ describe("SpielwieseDashboardShell", () => {
       removeEventListener: jest.fn(),
     }));
 
-    const shell = getSpielwieseShellVm();
-    const dashboard = getSpielwieseDashboardVm();
-
-    render(
-      <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
-        <div>Shell content</div>
-      </SpielwieseDashboardShell>,
-    );
+    renderShell();
 
     const shellRoot = screen.getByTestId("spielwiese-shell");
     expect(shellRoot.getAttribute("data-left-collapsed")).toBe("false");
@@ -54,5 +83,30 @@ describe("SpielwieseDashboardShell", () => {
     fireEvent.click(screen.getByTestId("spielwiese-left-toggle"));
 
     expect(shellRoot.getAttribute("data-left-collapsed")).toBe("true");
+  });
+
+  it("opens mobile drawers below the sticky header", () => {
+    window.matchMedia = createMatchMedia(false);
+
+    renderShell();
+
+    fireEvent.click(screen.getByTestId("spielwiese-left-toggle"));
+
+    expect(screen.getByTestId("spielwiese-mobile-backdrop")).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("spielwiese-mobile-left-drawer")
+        .className.includes("top-[var(--spielwiese-shell-offset)]"),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByTestId("spielwiese-mobile-backdrop"));
+    fireEvent.click(screen.getByTestId("spielwiese-right-toggle"));
+
+    expect(
+      screen
+        .getByTestId("spielwiese-mobile-right-drawer")
+        .className.includes("top-[var(--spielwiese-shell-offset)]"),
+    ).toBe(true);
+    expect(screen.getByTestId("spielwiese-mobile-backdrop")).toBeTruthy();
   });
 });
