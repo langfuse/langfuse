@@ -7,8 +7,8 @@ CODEX_SERVICES_ROOT="${CODEX_SERVICES_ROOT:-$PWD/.codex/services}"
 # `$CODEX_SERVICES_ROOT/postgres/data` is initialized. Changing either value on
 # reruns requires deleting the initialized Postgres data directory and allowing
 # `initdb` to recreate the cluster with the new settings.
-POSTGRES_PORT="${POSTGRES_HOST_PORT:-5432}"
-REDIS_PORT="${REDIS_HOST_PORT:-6379}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+REDIS_PORT="${REDIS_PORT:-6379}"
 CLICKHOUSE_HTTP_PORT="${CLICKHOUSE_HTTP_PORT:-8123}"
 CLICKHOUSE_NATIVE_PORT="${CLICKHOUSE_NATIVE_PORT:-9000}"
 MINIO_API_PORT="${MINIO_API_PORT:-9090}"
