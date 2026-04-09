@@ -140,5 +140,8 @@ export function isHostnameBlocked(hostname: string): boolean {
 }
 
 function normalizeIPAddress(ipString: string): string {
-  return ipString.toLowerCase().trim().replace(/^\[|\]$/g, "");
+  return ipString
+    .toLowerCase()
+    .trim()
+    .replace(/^\[|\]$/g, "");
 }
