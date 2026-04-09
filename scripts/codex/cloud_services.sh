@@ -277,9 +277,9 @@ port $REDIS_PORT
 requirepass "$REDIS_AUTH"
 maxmemory-policy noeviction
 daemonize yes
-pidfile $redis_pid
-logfile $redis_log
-dir $redis_root
+pidfile "$redis_pid"
+logfile "$redis_log"
+dir "$redis_root"
 CONF
 
   if ! wait_for_port 127.0.0.1 "$REDIS_PORT" 1; then
