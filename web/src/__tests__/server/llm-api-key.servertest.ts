@@ -140,6 +140,18 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
   });
 
+  it("should block creating an llm api key with a localhost base URL", async () => {
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "http://localhost:11434/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL: Blocked hostname detected");
+  });
+
   it("should create and get an llm api key", async () => {
     const secret = "test-secret";
     const provider = "openai";
@@ -259,6 +271,31 @@ describe("llmApiKey.all RPC", () => {
       error: "Secret key is required when changing the base URL",
     });
     expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+  });
+
+  it("should allow testing an existing connection with an unchanged localhost base URL", async () => {
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "local-ollama",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("sk-existing"),
+        displaySecretKey: "...ting",
+        baseURL: "http://localhost:11434/v1",
+        customModels: ["llama3.1"],
+        withDefaultModels: true,
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: connection.id,
+      projectId,
+      provider: "local-ollama",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
   });
 
   it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {
