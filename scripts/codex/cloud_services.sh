@@ -3,6 +3,10 @@
 set -euo pipefail
 
 CODEX_SERVICES_ROOT="${CODEX_SERVICES_ROOT:-$PWD/.codex/services}"
+# NOTE: POSTGRES_PORT and POSTGRES_USER are effectively immutable once
+# `$CODEX_SERVICES_ROOT/postgres/data` is initialized. Changing either value on
+# reruns requires deleting the initialized Postgres data directory and allowing
+# `initdb` to recreate the cluster with the new settings.
 POSTGRES_PORT="${POSTGRES_HOST_PORT:-5432}"
 REDIS_PORT="${REDIS_HOST_PORT:-6379}"
 CLICKHOUSE_HTTP_PORT="${CLICKHOUSE_HTTP_PORT:-8123}"
