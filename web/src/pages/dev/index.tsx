@@ -29,6 +29,12 @@ const devPages = [
       "Auth-free greenfield onboarding preview in the mocked project shell.",
   },
   {
+    href: "/dev/spielwiese",
+    title: "Spielwiese",
+    description:
+      "Standalone redesign shell with local primitives, scoped tokens, and a future-facing dashboard layout.",
+  },
+  {
     href: "/dev/organization-overview",
     title: "Organization Overview",
     description: "Design preview for the organization landing experience.",

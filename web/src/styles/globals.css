@@ -79,8 +79,7 @@
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-collapsible-down: collapsible-down 0.28s
     cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-collapsible-up: collapsible-up 0.22s
-    cubic-bezier(0.7, 0, 0.84, 0);
+  --animate-collapsible-up: collapsible-up 0.22s cubic-bezier(0.7, 0, 0.84, 0);
 
   @keyframes rainbow {
     0% {
@@ -442,6 +441,92 @@
 }
 
 @layer base {
+  [data-spielwiese] {
+    --background: 42 35% 98%;
+    --foreground: 162 18% 14%;
+    --muted: 45 24% 93%;
+    --muted-foreground: 160 9% 42%;
+    --popover: 42 28% 99%;
+    --popover-foreground: 162 18% 14%;
+    --card: 42 28% 97%;
+    --card-foreground: 162 18% 14%;
+    --header: 42 22% 96%;
+    --header-foreground: 162 18% 14%;
+    --border: 150 12% 82%;
+    --input: 150 12% 82%;
+    --primary: 170 34% 24%;
+    --primary-foreground: 48 50% 97%;
+    --secondary: 48 24% 93%;
+    --secondary-foreground: 162 18% 18%;
+    --tertiary: 150 16% 90%;
+    --tertiary-foreground: 162 18% 18%;
+    --accent: 150 20% 91%;
+    --accent-foreground: 162 18% 18%;
+    --destructive: 0 70% 46%;
+    --destructive-foreground: 42 28% 98%;
+    --ring: 170 36% 32%;
+    --sidebar-background: 44 28% 95%;
+    --sidebar-foreground: 162 16% 18%;
+    --sidebar-primary: 170 34% 24%;
+    --sidebar-primary-foreground: 48 50% 97%;
+    --sidebar-accent: 148 18% 90%;
+    --sidebar-accent-foreground: 162 18% 18%;
+    --sidebar-border: 148 12% 82%;
+    --sidebar-ring: 170 36% 32%;
+    background:
+      radial-gradient(circle at top left, hsl(54 75% 97%) 0, transparent 28%),
+      radial-gradient(circle at top right, hsl(154 35% 93%) 0, transparent 24%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(46 28% 95%));
+    font-family:
+      Geist,
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  .dark [data-spielwiese] {
+    --background: 160 20% 8%;
+    --foreground: 48 28% 92%;
+    --muted: 160 14% 14%;
+    --muted-foreground: 45 12% 70%;
+    --popover: 160 22% 10%;
+    --popover-foreground: 48 28% 92%;
+    --card: 160 20% 10%;
+    --card-foreground: 48 28% 92%;
+    --header: 160 18% 12%;
+    --header-foreground: 48 28% 92%;
+    --border: 158 12% 22%;
+    --input: 158 12% 22%;
+    --primary: 48 28% 92%;
+    --primary-foreground: 162 20% 12%;
+    --secondary: 160 12% 15%;
+    --secondary-foreground: 48 28% 92%;
+    --tertiary: 160 10% 20%;
+    --tertiary-foreground: 48 28% 92%;
+    --accent: 160 12% 18%;
+    --accent-foreground: 48 28% 92%;
+    --destructive: 0 66% 54%;
+    --destructive-foreground: 48 28% 98%;
+    --ring: 44 24% 62%;
+    --sidebar-background: 158 24% 9%;
+    --sidebar-foreground: 48 28% 90%;
+    --sidebar-primary: 48 28% 92%;
+    --sidebar-primary-foreground: 162 20% 12%;
+    --sidebar-accent: 160 12% 16%;
+    --sidebar-accent-foreground: 48 28% 92%;
+    --sidebar-border: 158 10% 22%;
+    --sidebar-ring: 44 24% 62%;
+    background:
+      radial-gradient(circle at top left, hsl(168 24% 14%) 0, transparent 28%),
+      radial-gradient(circle at top right, hsl(44 18% 16%) 0, transparent 24%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(160 18% 7%));
+  }
+
   .greenfield-pretext {
     --background: 138 20% 98%;
     --foreground: 150 18% 12%;
@@ -500,6 +585,10 @@
     background-color: transparent;
   }
 
+  [data-spielwiese] > main {
+    background-color: transparent;
+  }
+
   .greenfield-pretext header {
     background-color: color-mix(in srgb, hsl(var(--background)) 82%, white);
   }
@@ -522,7 +611,9 @@
   }
 
   .greenfield-pretext.greenfield-workspace-shell .greenfield-workspace-content,
-  .greenfield-pretext.greenfield-workspace-shell .greenfield-workspace-content * {
+  .greenfield-pretext.greenfield-workspace-shell
+    .greenfield-workspace-content
+    * {
     --background: 0 0% 100%;
     --muted: 0 0% 100%;
     --secondary: 0 0% 100%;

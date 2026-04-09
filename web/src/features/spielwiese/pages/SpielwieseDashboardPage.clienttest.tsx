@@ -5,7 +5,11 @@ describe("SpielwieseDashboardPage", () => {
   it("renders the route with a scoped spielwiese root", () => {
     const { container } = render(<SpielwieseDashboardPage />);
 
-    expect(screen.getByText("Local dashboard shell")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "A cleaner command deck for prompt iteration and review.",
+      ),
+    ).toBeTruthy();
     expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
   });
 });

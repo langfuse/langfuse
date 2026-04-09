@@ -1,31 +1,22 @@
-import { ActivityWidget } from "../components/dashboard/ActivityWidget";
-import { MetricStrip } from "../components/dashboard/MetricStrip";
+import {
+  getSpielwieseDashboardVm,
+  getSpielwieseShellVm,
+} from "../adapters/dashboardVm";
+import { DashboardHero } from "../components/DashboardHero";
+import { InsightPanel } from "../components/InsightPanel";
+import { MetricStrip } from "../components/MetricStrip";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
 
-const metrics = [
-  {
-    id: "latency",
-    label: "Median end-to-end latency for local preview",
-    value: "482 ms",
-  },
-  {
-    id: "feedback",
-    label: "Feedback completion rate across active review queues",
-    value: "74%",
-  },
-  {
-    id: "sessions",
-    label: "Active sessions sampled into the redesign preview",
-    value: "1,284",
-  },
-];
-
 export default function SpielwieseDashboardPage() {
+  const shell = getSpielwieseShellVm();
+  const dashboard = getSpielwieseDashboardVm();
+
   return (
-    <div className="antialiased" data-spielwiese>
-      <SpielwieseDashboardShell>
-        <MetricStrip metrics={metrics} />
-        <ActivityWidget />
+    <div className="isolate min-h-dvh antialiased" data-spielwiese>
+      <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
+        <DashboardHero header={dashboard.header} />
+        <MetricStrip metrics={dashboard.metrics} />
+        <InsightPanel insights={dashboard.insights} />
       </SpielwieseDashboardShell>
     </div>
   );

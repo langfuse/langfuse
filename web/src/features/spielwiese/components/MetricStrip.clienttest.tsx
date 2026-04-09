@@ -7,6 +7,9 @@ describe("MetricStrip", () => {
       id: "metric-1",
       label: "A very long metric label that should stay on a single line",
       value: "128",
+      delta: "+4%",
+      trend: "week over week",
+      status: "steady" as const,
     },
   ];
 
