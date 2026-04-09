@@ -135,7 +135,6 @@ export default function PromptDeployScreen() {
   return (
     <PromptFrame
       projectId={projectId}
-      title={promptName}
       breadcrumbs={getPromptBreadcrumbs(projectId, promptPath)}
       promptPath={promptPath}
       activeStage="deploy"

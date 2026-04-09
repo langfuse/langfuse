@@ -464,13 +464,13 @@
     --accent: 140 16% 93%;
     --accent-foreground: 150 18% 18%;
     --ring: 146 32% 42%;
-    --sidebar-background: 138 20% 97%;
+    --sidebar-background: 60 4% 95.1%;
     --sidebar-foreground: 150 14% 18%;
     --sidebar-primary: 148 34% 16%;
     --sidebar-primary-foreground: 138 25% 98%;
-    --sidebar-accent: 138 18% 94%;
+    --sidebar-accent: 60 4% 92.5%;
     --sidebar-accent-foreground: 150 16% 18%;
-    --sidebar-border: 145 14% 86%;
+    --sidebar-border: 60 4% 88%;
     --sidebar-ring: 146 32% 42%;
     background:
       radial-gradient(circle at top left, hsl(142 45% 96%) 0, transparent 32%),
@@ -496,11 +496,44 @@
       Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
 
-  .greenfield-pretext [data-slot="sidebar-inset"] {
+  .greenfield-pretext > main {
     background-color: transparent;
   }
 
   .greenfield-pretext header {
     background-color: color-mix(in srgb, hsl(var(--background)) 82%, white);
+  }
+
+  .greenfield-workspace-shell {
+    --background: 0 0% 100%;
+    --muted: 0 0% 100%;
+    --secondary: 0 0% 100%;
+    --tertiary: 0 0% 100%;
+    --accent: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --card: 0 0% 100%;
+    --header: 60 4% 95.1%;
+    --input: 0 0% 100%;
+    background: #fff;
+  }
+
+  .greenfield-pretext.greenfield-workspace-shell > main {
+    background-color: #fff;
+  }
+
+  .greenfield-pretext.greenfield-workspace-shell .greenfield-workspace-content,
+  .greenfield-pretext.greenfield-workspace-shell .greenfield-workspace-content * {
+    --background: 0 0% 100%;
+    --muted: 0 0% 100%;
+    --secondary: 0 0% 100%;
+    --tertiary: 0 0% 100%;
+    --accent: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --card: 0 0% 100%;
+    --input: 0 0% 100%;
+  }
+
+  .greenfield-pretext.greenfield-workspace-shell .greenfield-workspace-content {
+    background-color: #fff;
   }
 }

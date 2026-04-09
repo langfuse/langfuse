@@ -7,24 +7,20 @@ import { type WorkspaceSelection } from "../shell/WorkspaceTree";
 export function ProjectFrame({
   projectId,
   activeSection,
-  title,
   breadcrumbs,
   workspaceSelection = null,
   children,
 }: {
   projectId: string;
   activeSection?: ProjectPrimarySection;
-  title: string;
   breadcrumbs: ShellBreadcrumbItem[];
   workspaceSelection?: WorkspaceSelection;
   children: ReactNode;
 }) {
   return (
     <ProductAppShell
-      scope="project"
       projectId={projectId}
       activeSection={activeSection}
-      title={title}
       breadcrumbs={breadcrumbs}
       workspaceSelection={workspaceSelection}
     >

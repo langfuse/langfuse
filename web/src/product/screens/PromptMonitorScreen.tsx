@@ -33,7 +33,6 @@ import { PREVIEW_MODELS, PREVIEW_PROMPT_MESSAGES } from "./PromptIterateScreen";
 import {
   getPromptBreadcrumbs,
   getPromptStageHref,
-  getWorkspaceSelectionLabel,
   resolvePromptPreviewSlug,
 } from "../shell/product-manifest";
 
@@ -681,7 +680,6 @@ export default function PromptMonitorScreen() {
   return (
     <PromptFrame
       projectId={projectId}
-      title={getWorkspaceSelectionLabel(promptPath)}
       breadcrumbs={getPromptBreadcrumbs(projectId, promptPath)}
       promptPath={promptPath}
       activeStage="monitor"

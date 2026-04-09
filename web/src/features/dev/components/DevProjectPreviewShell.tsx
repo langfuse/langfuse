@@ -37,6 +37,7 @@ export function DevProjectPreviewShell({
   title,
   children,
 }: DevProjectPreviewShellProps) {
+  const isGreenfieldPreview = currentPath === DEV_PATHS.greenfield;
   const previewNavigation = {
     mainNavigation: {
       ungrouped: [
@@ -175,9 +176,18 @@ export function DevProjectPreviewShell({
                     { name: "langofuso", href: "/" },
                     { name: "langfuse-redesign" },
                   ],
+                  className: isGreenfieldPreview
+                    ? "bg-white [&_.bg-header]:bg-white"
+                    : undefined,
                 }}
               >
-                {children}
+                {isGreenfieldPreview ? (
+                  <div className="-m-3 flex min-h-full flex-1 bg-white p-3">
+                    {children}
+                  </div>
+                ) : (
+                  children
+                )}
               </Page>
               <AgentationSurface />
             </SidebarInset>

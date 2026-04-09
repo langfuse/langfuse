@@ -1,12 +1,9 @@
 import { useRouter } from "next/router";
+import { WorkspaceFolderOverview } from "../components/WorkspaceFolderOverview";
 import { ProjectFrame } from "../frames/ProjectFrame";
-import { PlaceholderPage } from "../shell/PlaceholderPage";
 import {
-  PLACEHOLDER_COPY,
   decodePathSegments,
-  getFolderPreviewHref,
   getWorkspaceBreadcrumbs,
-  getWorkspaceSelectionLabel,
 } from "../shell/product-manifest";
 
 export default function WorkspaceFolderScreen() {
@@ -14,22 +11,17 @@ export default function WorkspaceFolderScreen() {
   const projectId = router.query.projectId as string | undefined;
   const folderPath = decodePathSegments(router.query.folderPath);
 
-  if (!router.isReady || !projectId) {
+  if (!router.isReady || !projectId || folderPath.length === 0) {
     return null;
   }
 
   return (
     <ProjectFrame
       projectId={projectId}
-      title={getWorkspaceSelectionLabel(folderPath)}
       breadcrumbs={getWorkspaceBreadcrumbs(projectId, folderPath)}
       workspaceSelection={{ kind: "folder", path: folderPath }}
     >
-      <PlaceholderPage
-        label="Workspace Folder"
-        description={PLACEHOLDER_COPY.workspaceFolder}
-        route={getFolderPreviewHref(projectId, folderPath)}
-      />
+      <WorkspaceFolderOverview projectId={projectId} folderPath={folderPath} />
     </ProjectFrame>
   );
 }

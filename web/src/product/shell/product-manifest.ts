@@ -1,30 +1,36 @@
 import {
   Activity,
-  ArrowUpRight,
   BarChart2,
+  BadgeCheck,
   CloudUpload,
-  Database,
   FileJson,
   FilePenLine,
   FlaskConical,
   Folder,
-  Settings,
-  Wrench,
+  MessageSquareReply,
+  Route,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 import { type ShellBreadcrumbItem } from "./Breadcrumbs";
-import { type PromptStageTab } from "./PromptStageTabs";
 
-export type ProjectPrimarySection = "overview" | "instrument";
+export type ProjectPrimarySection = "overview";
 
-export type WorkspaceNodeKind = "folder" | "prompt" | "dataset";
+export type WorkspaceNodeKind = "folder" | "prompt";
 
 export type PromptStage = "iterate" | "evaluate" | "monitor" | "deploy";
+
+export type PromptStageLink = {
+  value: PromptStage;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+};
 
 export type ShellRoute = {
   id: string;
   title: string;
-  section: ProjectPrimarySection | "organization";
+  section: ProjectPrimarySection;
   kind: "page" | "prompt-stage" | "workspace-node";
   href: string;
 };
@@ -33,17 +39,11 @@ export type ProductNavItem = ShellRoute & {
   icon: LucideIcon;
 };
 
-export type UtilityNavItem = {
-  id: string;
-  title: string;
-  href: string;
-  icon: LucideIcon;
-};
-
 export type WorkspacePreviewNode = {
   kind: WorkspaceNodeKind;
   name: string;
   pathSegments: string[];
+  icon?: LucideIcon;
   children?: WorkspacePreviewNode[];
 };
 
@@ -53,29 +53,6 @@ export const PROMPT_STAGES: PromptStage[] = [
   "deploy",
   "monitor",
 ];
-
-export const PLACEHOLDER_COPY = {
-  organizationMonitor:
-    "Cross-project monitoring, portfolio health, and organization-level quality signals will land here once the shell is approved.",
-  projectOverview:
-    "This becomes the canonical project landing page. Project-level charts, cards, and monitoring summaries will replace the current placeholder in later phases.",
-  workspaceHome:
-    "This is the root of the docs-like workspace. Folders, prompts, and datasets will eventually be browsable and actionable from here.",
-  workspaceFolder:
-    "Folder pages prove the workspace path model and breadcrumb behavior. Real folder contents come in the next phase.",
-  promptIterate:
-    "Prompt authoring, prompt versions, playground entry points, variables, and tools will be re-homed into this stage.",
-  promptEvaluate:
-    "Datasets, experiments, evaluators, scores, and annotation workflows will be grouped here around a selected prompt.",
-  promptMonitor:
-    "Prompt-scoped traces, spans, and charts will live here while preserving the prompt selection across the lifecycle.",
-  promptDeploy:
-    "Deploy stays intentionally thin in phase 1. Existing Langfuse prompt version and label concepts will be re-homed here first.",
-  dataset:
-    "Datasets stay as peer workspace assets. This page validates that they open outside prompt tabs while still living inside the workspace shell.",
-  instrument:
-    "Instrumentation setup, API keys, and tracing onboarding will move here as the dedicated project setup surface.",
-} as const;
 
 const PREVIEW_WORKSPACE_NODES: WorkspacePreviewNode[] = [
   {
@@ -87,33 +64,25 @@ const PREVIEW_WORKSPACE_NODES: WorkspacePreviewNode[] = [
         kind: "prompt",
         name: "triage-agent",
         pathSegments: ["support", "triage-agent"],
+        icon: ShieldAlert,
       },
       {
         kind: "prompt",
         name: "reply-drafter",
         pathSegments: ["support", "reply-drafter"],
+        icon: MessageSquareReply,
       },
-      {
-        kind: "dataset",
-        name: "golden-cases",
-        pathSegments: ["support", "golden-cases"],
-      },
-    ],
-  },
-  {
-    kind: "folder",
-    name: "release-ops",
-    pathSegments: ["release-ops"],
-    children: [
       {
         kind: "prompt",
-        name: "release-summary",
-        pathSegments: ["release-ops", "release-summary"],
+        name: "priority-router",
+        pathSegments: ["support", "priority-router"],
+        icon: Route,
       },
       {
-        kind: "dataset",
-        name: "regression-cases",
-        pathSegments: ["release-ops", "regression-cases"],
+        kind: "prompt",
+        name: "resolution-checker",
+        pathSegments: ["support", "resolution-checker"],
+        icon: BadgeCheck,
       },
     ],
   },
@@ -155,21 +124,6 @@ export function getPromptStageHref(
   return `${getWorkspacePreviewHref(projectId)}/prompt/${promptPath.map(encodeURIComponent).join("/")}/${stage}`;
 }
 
-export function getDatasetPreviewHref(
-  projectId: string,
-  datasetPath: string[],
-) {
-  return `${getWorkspacePreviewHref(projectId)}/dataset/${datasetPath.map(encodeURIComponent).join("/")}`;
-}
-
-export function getInstrumentPreviewHref(projectId: string) {
-  return `${getProjectPreviewHref(projectId)}/instrument`;
-}
-
-export function getOrganizationPreviewHref(organizationId: string) {
-  return `/organization/${organizationId}/greenfield`;
-}
-
 export function getProjectPrimaryNav(projectId: string): ProductNavItem[] {
   return [
     {
@@ -179,65 +133,6 @@ export function getProjectPrimaryNav(projectId: string): ProductNavItem[] {
       kind: "page",
       href: getProjectPreviewHref(projectId),
       icon: BarChart2,
-    },
-    {
-      id: "instrument",
-      title: "Instrument",
-      section: "instrument",
-      kind: "page",
-      href: getInstrumentPreviewHref(projectId),
-      icon: Wrench,
-    },
-  ];
-}
-
-export function getOrganizationPrimaryNav(
-  organizationId: string,
-): ProductNavItem[] {
-  return [
-    {
-      id: "organization-monitor",
-      title: "Monitor",
-      section: "organization",
-      kind: "page",
-      href: getOrganizationPreviewHref(organizationId),
-      icon: BarChart2,
-    },
-  ];
-}
-
-export function getProjectUtilityNav(projectId: string): UtilityNavItem[] {
-  return [
-    {
-      id: "live-app",
-      title: "Live app",
-      href: `/project/${projectId}`,
-      icon: ArrowUpRight,
-    },
-    {
-      id: "settings",
-      title: "Settings",
-      href: `/project/${projectId}/settings`,
-      icon: Settings,
-    },
-  ];
-}
-
-export function getOrganizationUtilityNav(
-  organizationId: string,
-): UtilityNavItem[] {
-  return [
-    {
-      id: "live-app",
-      title: "Live app",
-      href: `/organization/${organizationId}`,
-      icon: ArrowUpRight,
-    },
-    {
-      id: "settings",
-      title: "Settings",
-      href: `/organization/${organizationId}/settings`,
-      icon: Settings,
     },
   ];
 }
@@ -249,7 +144,7 @@ export function getWorkspacePreviewNodes() {
 export function getPromptStageTabs(
   projectId: string,
   promptPath: string[],
-): PromptStageTab[] {
+): PromptStageLink[] {
   const stageIcons = {
     iterate: FilePenLine,
     evaluate: FlaskConical,
@@ -308,6 +203,7 @@ export function getWorkspaceBreadcrumbs(
   const crumbs: ShellBreadcrumbItem[] = [
     {
       name: "Workspace",
+      href: getWorkspacePreviewHref(projectId),
     },
   ];
 
@@ -340,57 +236,19 @@ export function getPromptBreadcrumbs(
   ];
 }
 
-export function getDatasetBreadcrumbs(
-  projectId: string,
-  datasetPath: string[],
-): ShellBreadcrumbItem[] {
-  const folderPath = datasetPath.slice(0, -1);
-  const datasetName = datasetPath.at(-1) ?? "Dataset";
-
-  return [
-    ...getWorkspaceBreadcrumbs(projectId, folderPath),
-    {
-      name: humanizeSegment(datasetName),
-    },
-  ];
-}
-
-export function getInstrumentBreadcrumbs(
-  projectId: string,
-): ShellBreadcrumbItem[] {
-  return [
-    {
-      name: "Project",
-      href: getProjectPreviewHref(projectId),
-    },
-    {
-      name: "Instrument",
-    },
-  ];
-}
-
-export function getOrganizationMonitorBreadcrumbs(
-  organizationId: string,
-): ShellBreadcrumbItem[] {
-  return [
-    {
-      name: "Organization",
-      href: getOrganizationPreviewHref(organizationId),
-    },
-    {
-      name: "Monitor",
-    },
-  ];
-}
-
 export function getWorkspaceSelectionLabel(pathSegments: string[]) {
   return humanizeSegment(pathSegments.at(-1) ?? "Workspace");
 }
 
-export function getTreeIcon(kind: WorkspaceNodeKind): LucideIcon {
+export function getTreeIcon(
+  kind: WorkspaceNodeKind,
+  icon?: LucideIcon,
+): LucideIcon {
+  if (icon) {
+    return icon;
+  }
+
   switch (kind) {
-    case "dataset":
-      return Database;
     case "prompt":
       return FileJson;
     case "folder":

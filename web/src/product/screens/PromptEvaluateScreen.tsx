@@ -45,7 +45,6 @@ import {
 } from "./PromptIterateScreen";
 import {
   getPromptBreadcrumbs,
-  getWorkspaceSelectionLabel,
   resolvePromptPreviewSlug,
 } from "../shell/product-manifest";
 
@@ -310,7 +309,6 @@ export default function PromptEvaluateScreen() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
   const { promptPath } = resolvePromptPreviewSlug(router.query.slug);
-  const promptName = getWorkspaceSelectionLabel(promptPath);
   const [selectedModelId, setSelectedModelId] = useState(PREVIEW_MODELS[0]!.id);
   const [toolChips, setToolChips] = useState<string[]>([...PREVIEW_TOOL_CHIPS]);
   const [promptMessages, setPromptMessages] = useState<PromptMessage[]>(
@@ -400,7 +398,6 @@ export default function PromptEvaluateScreen() {
   return (
     <PromptFrame
       projectId={projectId}
-      title={promptName}
       breadcrumbs={getPromptBreadcrumbs(projectId, promptPath)}
       promptPath={promptPath}
       activeStage="evaluate"

@@ -1,6 +1,6 @@
 import type { GetServerSideProps } from "next";
 import {
-  getPromptStageHref,
+  getFolderPreviewHref,
   getWorkspacePreviewNodes,
 } from "@/src/product/shell/product-manifest";
 
@@ -11,14 +11,13 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { notFound: true };
   }
 
-  const previewPrompt = getWorkspacePreviewNodes()
-    .flatMap((node) => node.children ?? [])
-    .find((node) => node.kind === "prompt")?.pathSegments;
-  const defaultPrompt = previewPrompt ?? ["support", "triage-agent"];
+  const defaultFolder = getWorkspacePreviewNodes().find(
+    (node) => node.kind === "folder",
+  )?.pathSegments ?? ["support"];
 
   return {
     redirect: {
-      destination: getPromptStageHref(projectId, defaultPrompt, "iterate"),
+      destination: getFolderPreviewHref(projectId, defaultFolder),
       permanent: false,
     },
   };

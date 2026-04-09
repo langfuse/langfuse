@@ -68,7 +68,6 @@ import { cn } from "@/src/utils/tailwind";
 import { PromptFrame } from "../frames/PromptFrame";
 import {
   getPromptBreadcrumbs,
-  getWorkspaceSelectionLabel,
   resolvePromptPreviewSlug,
 } from "../shell/product-manifest";
 
@@ -589,7 +588,6 @@ export default function PromptIterateScreen() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
   const { promptPath } = resolvePromptPreviewSlug(router.query.slug);
-  const promptName = getWorkspaceSelectionLabel(promptPath);
   const [selectedModelId, setSelectedModelId] = useState(PREVIEW_MODELS[0]!.id);
   const [toolChips, setToolChips] = useState<string[]>([...PREVIEW_TOOL_CHIPS]);
   const [promptMessages, setPromptMessages] = useState<PromptMessage[]>(
@@ -712,7 +710,6 @@ export default function PromptIterateScreen() {
   return (
     <PromptFrame
       projectId={projectId}
-      title={promptName}
       breadcrumbs={getPromptBreadcrumbs(projectId, promptPath)}
       promptPath={promptPath}
       activeStage="iterate"
@@ -993,10 +990,10 @@ export function PromptDraftPane({
                             key={provider.id}
                             type="button"
                             className={cn(
-                              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+                              "border-border/60 flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors",
                               isActive
-                                ? "bg-muted text-foreground"
-                                : "hover:bg-muted/60 text-muted-foreground",
+                                ? "bg-background text-foreground"
+                                : "hover:bg-background text-muted-foreground",
                             )}
                             onClick={() => {
                               setSelectedProviderId(provider.id);
@@ -1042,10 +1039,10 @@ export function PromptDraftPane({
                           key={model.id}
                           type="button"
                           className={cn(
-                            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+                            "border-border/60 flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors",
                             model.id === highlightedModel.id
-                              ? "bg-muted text-foreground"
-                              : "hover:bg-muted/60 text-muted-foreground",
+                              ? "bg-background text-foreground"
+                              : "hover:bg-background text-muted-foreground",
                           )}
                           onClick={() => setHighlightedModelId(model.id)}
                         >
@@ -1165,7 +1162,7 @@ export function PromptDraftPane({
                             />
                           </div>
                         </div>
-                        <div className="bg-muted/20 rounded-md border p-3">
+                        <div className="bg-background rounded-md border p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-sm font-medium">
@@ -1294,7 +1291,7 @@ export function PromptDraftPane({
                         <CommandItem
                           key={setting.id}
                           value={setting.label}
-                          className="data-[selected=true]:bg-muted/70 gap-2 rounded-md px-2.5 py-2 text-sm"
+                          className="data-[selected=true]:bg-background gap-2 rounded-md border px-2.5 py-2 text-sm"
                         >
                           <span className="flex size-4 items-center justify-center">
                             <setting.icon className="text-muted-foreground size-3.5" />
@@ -1495,10 +1492,10 @@ function PlaygroundPreviewPane({
                       <CommandGroup className="px-0 py-0">
                         <CommandItem
                           value="Run Append to existing Playground"
-                          className="data-[selected=true]:bg-muted/80 gap-3 rounded-lg px-2.5 py-2.5"
+                          className="data-[selected=true]:bg-background gap-3 rounded-lg border px-2.5 py-2.5"
                           onSelect={() => setRunOptionsOpen(false)}
                         >
-                          <span className="bg-muted/80 flex size-10 shrink-0 items-center justify-center rounded-md">
+                          <span className="bg-background flex size-10 shrink-0 items-center justify-center rounded-md border">
                             <Play className="text-muted-foreground size-5" />
                           </span>
                           <div className="min-w-0">
@@ -1510,10 +1507,10 @@ function PlaygroundPreviewPane({
                         </CommandItem>
                         <CommandItem
                           value="Clear and run Clear existing Playground and run"
-                          className="data-[selected=true]:bg-muted/80 gap-3 rounded-lg px-2.5 py-2.5"
+                          className="data-[selected=true]:bg-background gap-3 rounded-lg border px-2.5 py-2.5"
                           onSelect={() => setRunOptionsOpen(false)}
                         >
-                          <span className="bg-muted/80 flex size-10 shrink-0 items-center justify-center rounded-md">
+                          <span className="bg-background flex size-10 shrink-0 items-center justify-center rounded-md border">
                             <RefreshCcw className="text-muted-foreground size-5" />
                           </span>
                           <div className="min-w-0">
@@ -1577,10 +1574,10 @@ function PlaygroundPreviewPane({
                         type="button"
                         onClick={() => setSelectedHistoryId(snapshot.id)}
                         className={cn(
-                          "flex flex-col items-start gap-1 rounded-xl px-3 py-3 text-left",
+                          "flex flex-col items-start gap-1 rounded-xl border border-transparent px-3 py-3 text-left",
                           isSelected
-                            ? "bg-emerald-500/10"
-                            : "hover:bg-muted/60",
+                            ? "bg-background border-emerald-500/20"
+                            : "hover:bg-background",
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -1710,7 +1707,7 @@ function HistoryMetaPill({
   label: string;
 }) {
   return (
-    <div className="bg-muted/70 text-foreground inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm font-medium">
+    <div className="bg-background text-foreground inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm font-medium">
       {providerIcon ? (
         <Image
           width="14"
@@ -1877,9 +1874,9 @@ function getMessageRoleAppearance(role: PromptMessageRole) {
         ? "justify-end"
         : "justify-start",
     bubbleClass: isSystem
-      ? "bg-sky-500/6 border-sky-500/14"
+      ? "bg-background border-sky-500/18"
       : isOutgoing
-        ? "bg-emerald-500/8 border-emerald-500/16"
+        ? "bg-background border-emerald-500/18"
         : "bg-background border-border/70",
     bubbleRadiusClass: isSystem
       ? "rounded-2xl"
@@ -2098,7 +2095,7 @@ function VariableList({
             <button
               key={variable.key}
               className={cn(
-                "group flex max-w-[18rem] shrink-0 flex-col items-start justify-center truncate rounded-md px-3 py-2 text-left select-none",
+                "group border-border/60 flex max-w-[18rem] shrink-0 flex-col items-start justify-center truncate rounded-md border px-3 py-2 text-left select-none",
                 accent.containerClass,
               )}
               type="button"
@@ -2141,7 +2138,7 @@ function VariableList({
               <button
                 key={variable.key}
                 className={cn(
-                  "group flex w-full max-w-full min-w-full shrink-0 flex-col items-start justify-center truncate rounded-md px-3 py-2 text-left select-none",
+                  "group border-border/60 flex w-full max-w-full min-w-full shrink-0 flex-col items-start justify-center truncate rounded-md border px-3 py-2 text-left select-none",
                   accent.containerClass,
                 )}
                 type="button"
@@ -2241,33 +2238,33 @@ function getVariableAccentClasses(variableKey: string, selected: boolean) {
 function getVariableAccentPalette(variableKey: string) {
   const palette = [
     {
-      selectedContainer: "bg-sky-500/12",
+      selectedContainer: "bg-background border-sky-500/20",
       inlineContainer: "bg-sky-500/8",
-      hoverContainer: "hover:bg-sky-500/8",
+      hoverContainer: "hover:bg-background",
       title: "text-sky-700 dark:text-sky-300",
       value: "text-sky-700/80 dark:text-sky-300/80",
       tagBorder: "border-sky-500/20 dark:border-sky-400/20",
     },
     {
-      selectedContainer: "bg-emerald-500/12",
+      selectedContainer: "bg-background border-emerald-500/20",
       inlineContainer: "bg-emerald-500/8",
-      hoverContainer: "hover:bg-emerald-500/8",
+      hoverContainer: "hover:bg-background",
       title: "text-emerald-700 dark:text-emerald-300",
       value: "text-emerald-700/80 dark:text-emerald-300/80",
       tagBorder: "border-emerald-500/20 dark:border-emerald-400/20",
     },
     {
-      selectedContainer: "bg-violet-500/12",
+      selectedContainer: "bg-background border-violet-500/20",
       inlineContainer: "bg-violet-500/8",
-      hoverContainer: "hover:bg-violet-500/8",
+      hoverContainer: "hover:bg-background",
       title: "text-violet-700 dark:text-violet-300",
       value: "text-violet-700/80 dark:text-violet-300/80",
       tagBorder: "border-violet-500/20 dark:border-violet-400/20",
     },
     {
-      selectedContainer: "bg-amber-500/12",
+      selectedContainer: "bg-background border-amber-500/20",
       inlineContainer: "bg-amber-500/8",
-      hoverContainer: "hover:bg-amber-500/8",
+      hoverContainer: "hover:bg-background",
       title: "text-amber-700 dark:text-amber-300",
       value: "text-amber-700/80 dark:text-amber-300/80",
       tagBorder: "border-amber-500/20 dark:border-amber-400/20",

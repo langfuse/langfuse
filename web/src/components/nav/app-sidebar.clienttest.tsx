@@ -92,6 +92,10 @@ function renderSidebar(pathname: string) {
   );
 }
 
+function getSidebarSurface(container: HTMLElement) {
+  return container.querySelector('[data-sidebar="sidebar"]')?.parentElement;
+}
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     Object.defineProperty(window, "matchMedia", {
@@ -110,29 +114,41 @@ describe("AppSidebar", () => {
 
   it("uses the top account switcher layout on greenfield routes", () => {
     const { container } = renderSidebar("/dev/greenfield");
+    const sidebarSurface = getSidebarSurface(container);
 
     expect(screen.getByTestId("sidebar-account-switcher")).toBeTruthy();
     expect(screen.queryByTestId("sidebar-user-menu")).toBeNull();
     expect(screen.queryByTestId("sidebar-notifications")).toBeNull();
     expect(container.querySelector('[data-sidebar="footer"]')).toBeNull();
+    expect(sidebarSurface?.style.getPropertyValue("--sidebar-background")).toBe(
+      "60 4% 95.1%",
+    );
   });
 
   it("uses the top account switcher layout on nested greenfield workspace routes", () => {
     const { container } = renderSidebar(
       "/project/[projectId]/greenfield/workspace/prompt/[...slug]",
     );
+    const sidebarSurface = getSidebarSurface(container);
 
     expect(screen.getByTestId("sidebar-account-switcher")).toBeTruthy();
     expect(screen.queryByTestId("sidebar-user-menu")).toBeNull();
     expect(screen.queryByTestId("sidebar-notifications")).toBeNull();
     expect(container.querySelector('[data-sidebar="footer"]')).toBeNull();
+    expect(sidebarSurface?.style.getPropertyValue("--sidebar-background")).toBe(
+      "60 4% 95.1%",
+    );
   });
 
   it("keeps the default footer layout on non-greenfield routes", () => {
     const { container } = renderSidebar("/project/[projectId]/traces");
+    const sidebarSurface = getSidebarSurface(container);
 
     expect(screen.getByTestId("sidebar-user-menu")).toBeTruthy();
     expect(screen.getByTestId("sidebar-notifications")).toBeTruthy();
     expect(container.querySelector('[data-sidebar="footer"]')).toBeTruthy();
+    expect(sidebarSurface?.style.getPropertyValue("--sidebar-background")).toBe(
+      "",
+    );
   });
 });

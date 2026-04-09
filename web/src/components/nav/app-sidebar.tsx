@@ -31,6 +31,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 const GREENFIELD_SIDEBAR_STYLE = {
   "--sidebar-width": "15rem",
   "--sidebar-width-icon": "3.5rem",
+  "--sidebar-background": "60 4% 95.1%",
 } as React.CSSProperties;
 
 function isGreenfieldSidebarPath(pathname: string) {

@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import { GreenfieldOnboardingView } from "@/src/features/greenfield/components/GreenfieldOnboardingView";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { GreenfieldDocSignals } from "../components/GreenfieldDocSignals";
 import { ProjectFrame } from "../frames/ProjectFrame";
 import {
   getProjectPreviewHref,
@@ -20,12 +21,12 @@ export default function ProjectOverviewScreen() {
     <ProjectFrame
       projectId={projectId}
       activeSection="overview"
-      title="Home"
       breadcrumbs={[
         { name: "Project", href: getProjectPreviewHref(projectId) },
         { name: "Home" },
       ]}
     >
+      <GreenfieldDocSignals section="overview" />
       <GreenfieldOnboardingView
         projectId={projectId}
         organizationId={organization?.id}

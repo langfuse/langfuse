@@ -8,59 +8,54 @@ import {
   type ProjectPrimarySection,
   type PromptStage,
 } from "./product-manifest";
-import { type PromptStageTab } from "./PromptStageTabs";
 import { ProductSidebar } from "./Sidebar";
 import { type WorkspaceSelection } from "./WorkspaceTree";
 
 type ProductAppShellProps = {
-  scope: "organization" | "project";
-  organizationId?: string;
-  projectId?: string;
-  activeSection?: ProjectPrimarySection | "organization";
+  projectId: string;
+  activeSection?: ProjectPrimarySection;
   className?: string;
-  title: string;
-  titleContent?: ReactNode;
+  showHeader?: boolean;
+  headerClassName?: string;
+  mainClassName?: string;
   breadcrumbs: ShellBreadcrumbItem[];
   children: ReactNode;
   workspaceSelection?: WorkspaceSelection;
-  promptTabs?: PromptStageTab[];
   activePromptStage?: PromptStage;
 };
 
 export function ProductAppShell({
-  scope,
-  organizationId,
   projectId,
   activeSection,
   className,
-  title,
-  titleContent,
+  showHeader = true,
+  headerClassName,
+  mainClassName,
   breadcrumbs,
   children,
   workspaceSelection = null,
-  promptTabs,
   activePromptStage,
 }: ProductAppShellProps) {
   return (
     <SidebarProvider>
       <div className={cn("bg-background flex h-dvh w-full", className)}>
         <ProductSidebar
-          scope={scope}
-          organizationId={organizationId}
           projectId={projectId}
           activeSection={activeSection}
           workspaceSelection={workspaceSelection}
+          activePromptStage={activePromptStage}
         />
         <SidebarInset className="max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
           <div className="flex h-full min-h-0 flex-1 flex-col">
-            <ProductHeader
-              title={title}
-              titleContent={titleContent}
-              breadcrumbs={breadcrumbs}
-              promptTabs={promptTabs}
-              activePromptStage={activePromptStage}
-            />
-            <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+            {showHeader ? (
+              <ProductHeader
+                breadcrumbs={breadcrumbs}
+                className={headerClassName}
+              />
+            ) : null}
+            <main className={cn("flex min-h-0 flex-1 flex-col", mainClassName)}>
+              {children}
+            </main>
             <AgentationSurface />
           </div>
         </SidebarInset>

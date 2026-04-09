@@ -13,10 +13,11 @@ import {
 } from "@/src/components/ui/sidebar";
 import { cn } from "@/src/utils/tailwind";
 import {
+  type PromptStage,
   type WorkspaceNodeKind,
   type WorkspacePreviewNode,
-  getDatasetPreviewHref,
   getFolderPreviewHref,
+  getPromptStageTabs,
   getPromptStageHref,
   getTreeIcon,
   getWorkspacePreviewNodes,
@@ -31,9 +32,11 @@ export type WorkspaceSelection = {
 export function WorkspaceTree({
   projectId,
   selection,
+  activePromptStage,
 }: {
   projectId: string;
   selection: WorkspaceSelection;
+  activePromptStage?: PromptStage;
 }) {
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -49,6 +52,7 @@ export function WorkspaceTree({
               projectId={projectId}
               depth={0}
               selection={selection}
+              activePromptStage={activePromptStage}
             />
           ))}
         </div>
@@ -62,14 +66,16 @@ function WorkspaceTreeNode({
   projectId,
   depth,
   selection,
+  activePromptStage,
 }: {
   node: WorkspacePreviewNode;
   projectId: string;
   depth: number;
   selection: WorkspaceSelection;
+  activePromptStage?: PromptStage;
 }) {
   const hasChildren = Boolean(node.children?.length);
-  const Icon = getTreeIcon(node.kind);
+  const Icon = getTreeIcon(node.kind, node.icon);
   const isActive =
     selection?.kind === node.kind &&
     selection.path.join("/") === node.pathSegments.join("/");
@@ -92,8 +98,14 @@ function WorkspaceTreeNode({
   }, [hasActiveChild, isActive]);
 
   if (!hasChildren) {
+    const showPromptStages =
+      node.kind === "prompt" && isActive && Boolean(activePromptStage);
+
     return (
-      <div className={cn(isNested ? "space-y-0.5" : "space-y-1")}>
+      <Collapsible
+        open={showPromptStages}
+        className={cn(isNested ? "space-y-0.5" : "space-y-1")}
+      >
         <Link
           href={getNodeHref(projectId, node)}
           className={cn(
@@ -110,7 +122,16 @@ function WorkspaceTreeNode({
           <Icon className="text-sidebar-foreground/70 h-4 w-4 shrink-0" />
           <span className="truncate">{humanizeSegment(node.name)}</span>
         </Link>
-      </div>
+        {node.kind === "prompt" && activePromptStage ? (
+          <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down origin-top overflow-hidden">
+            <PromptStageTreeItems
+              projectId={projectId}
+              promptPath={node.pathSegments}
+              activeStage={activePromptStage}
+            />
+          </CollapsibleContent>
+        ) : null}
+      </Collapsible>
     );
   }
 
@@ -162,6 +183,7 @@ function WorkspaceTreeNode({
               projectId={projectId}
               depth={depth + 1}
               selection={selection}
+              activePromptStage={activePromptStage}
             />
           ))}
         </div>
@@ -174,10 +196,42 @@ function getNodeHref(projectId: string, node: WorkspacePreviewNode) {
   switch (node.kind) {
     case "folder":
       return getFolderPreviewHref(projectId, node.pathSegments);
-    case "dataset":
-      return getDatasetPreviewHref(projectId, node.pathSegments);
     case "prompt":
     default:
       return getPromptStageHref(projectId, node.pathSegments, "iterate");
   }
+}
+
+function PromptStageTreeItems({
+  projectId,
+  promptPath,
+  activeStage,
+}: {
+  projectId: string;
+  promptPath: string[];
+  activeStage: PromptStage;
+}) {
+  const tabs = getPromptStageTabs(projectId, promptPath);
+
+  return (
+    <div className="bg-muted/60 mt-1 ml-7 rounded-md p-[3px]">
+      <div className="flex flex-col gap-1">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.value}
+            href={tab.href}
+            className={cn(
+              "inline-flex h-7 items-center justify-start gap-1 rounded border border-transparent px-2.5 py-0 text-sm font-bold whitespace-nowrap transition-colors",
+              tab.value === activeStage
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+            )}
+          >
+            <tab.icon className="size-3" />
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 }
