@@ -288,7 +288,7 @@ ensure_postgres_running() {
   fi
 
   if [ ! -f "$pg_data/PG_VERSION" ]; then
-    "${pg_runner[@]}" "$initdb" -D "$pg_data" -U "$POSTGRES_USER" --auth-host=md5 >/dev/null
+    "${pg_runner[@]}" "$initdb" -D "$pg_data" -U "$POSTGRES_USER" --auth-host=md5 --auth-local=trust >/dev/null
     {
       echo "listen_addresses = '127.0.0.1'"
       echo "port = $POSTGRES_PORT"
