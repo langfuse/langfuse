@@ -1,12 +1,10 @@
 /** @jest-environment node */
 
-const mockFetchLLMCompletion = jest.fn();
-
 jest.mock("@langfuse/shared/src/server", () => {
   const actual = jest.requireActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: mockFetchLLMCompletion,
+    fetchLLMCompletion: jest.fn(),
   };
 });
 
@@ -16,7 +14,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt } from "@langfuse/shared/encryption";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
+
+const mockFetchLLMCompletion = jest.mocked(fetchLLMCompletion);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;

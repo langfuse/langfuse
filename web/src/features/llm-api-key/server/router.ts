@@ -423,7 +423,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "llmApiKeys:create",
+        scope: "llmApiKeys:update",
       });
 
       try {
