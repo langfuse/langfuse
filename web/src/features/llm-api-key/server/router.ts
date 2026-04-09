@@ -455,7 +455,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         const secretKey = hasNewSecretKey
-          ? input.secretKey
+          ? (input.secretKey as string)
           : decrypt(existingKey.secretKey);
 
         // Merge existing key with provided input, giving priority to input
