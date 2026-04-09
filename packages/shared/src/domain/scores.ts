@@ -12,17 +12,21 @@ export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
 export const CORRECTION_NAME = "output" as const;
 
+export const TEXT_SCORE_MAX_LENGTH = 500 as const;
+
 export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",
   "BOOLEAN",
   "CORRECTION",
+  "TEXT",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
   CORRECTION: "CORRECTION",
+  TEXT: "TEXT",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -45,6 +49,11 @@ export const BooleanData = z.object({
 const CorrectionData = z.object({
   stringValue: z.null(),
   dataType: z.literal("CORRECTION"),
+});
+
+export const TextData = z.object({
+  stringValue: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+  dataType: z.literal("TEXT"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -89,6 +98,7 @@ export const ScoreSchema = ScoreFoundationSchema.and(
     CategoricalData,
     BooleanData,
     CorrectionData,
+    TextData,
   ]),
 );
 
@@ -119,3 +129,13 @@ export type AggregatableScoreDataType =
 export type AggregatableScore = ScoresByDataTypes<
   typeof AGGREGATABLE_SCORE_TYPES
 >;
+
+export const LISTABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+  "TEXT",
+] as const satisfies readonly ScoreDataTypeType[];
+
+export type ListableScoreDataType = (typeof LISTABLE_SCORE_TYPES)[number];
+export type ListableScore = ScoresByDataTypes<typeof LISTABLE_SCORE_TYPES>;

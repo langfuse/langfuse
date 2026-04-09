@@ -3,11 +3,14 @@
 import capitalize from "lodash/capitalize";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { ChatMessageType, type ChatMessageWithId } from "@langfuse/shared";
+import { EditorState } from "@codemirror/state";
+import { SearchQuery } from "@codemirror/search";
 import { type RefObject } from "react";
 
 import {
   applyCodeMirrorSearchQuery,
-  selectCodeMirrorRange,
+  unsetActiveSearchMarkCodeMirrorRange,
+  setActiveSearchMarkCodeMirrorRange,
 } from "@/src/components/editor";
 
 export type MessageSearchMatch = {
@@ -136,7 +139,11 @@ function buildMatches(state: MessageSearchState) {
     return [];
   }
 
-  const lowerQuery = searchQuery.toLocaleLowerCase();
+  const codeMirrorSearchQuery = new SearchQuery({
+    search: searchQuery,
+    caseSensitive: false,
+    literal: true,
+  });
   const allMatches: MessageSearchMatch[] = [];
 
   for (const [pageIndex, pageId] of state.pageIds.entries()) {
@@ -151,10 +158,13 @@ function buildMatches(state: MessageSearchState) {
         continue;
       }
 
-      const lowerText = text.toLocaleLowerCase();
-      let from = lowerText.indexOf(lowerQuery);
+      const cursor = codeMirrorSearchQuery.getCursor(
+        EditorState.create({ doc: text }),
+      );
+      let match = cursor.next();
 
-      while (from !== -1) {
+      while (!match.done) {
+        const { from, to } = match.value;
         const label = getMessageSearchLabel(message, messageIndex);
         const pageLabel = state.getPageLabel?.(pageId, pageIndex);
         const matchWithoutKey = {
@@ -163,7 +173,7 @@ function buildMatches(state: MessageSearchState) {
           label,
           locationLabel: pageLabel ? `${pageLabel} · ${label}` : label,
           from,
-          to: from + searchQuery.length,
+          to,
           text,
         };
 
@@ -172,10 +182,7 @@ function buildMatches(state: MessageSearchState) {
           ...matchWithoutKey,
         });
 
-        from = lowerText.indexOf(
-          lowerQuery,
-          from + Math.max(1, lowerQuery.length),
-        );
+        match = cursor.next();
       }
     }
   }
@@ -269,17 +276,33 @@ export function createMessageSearchController(
       inline: "center",
     });
 
-    const messageTarget = messageTargets.get(
-      getMessageTargetKey(activeMatch.pageId, activeMatch.messageId),
+    let activeMessageTarget: MessageSearchMessageTarget | null = null;
+    const inactiveMessageTargets: MessageSearchMessageTarget[] = [];
+
+    const activeMessageTargetKey = getMessageTargetKey(
+      activeMatch.pageId,
+      activeMatch.messageId,
     );
 
-    messageTarget?.rowRef.current?.scrollIntoView({
+    for (const [key, target] of messageTargets.entries()) {
+      if (key === activeMessageTargetKey) {
+        activeMessageTarget = target;
+      } else {
+        inactiveMessageTargets.push(target);
+      }
+    }
+
+    for (const target of inactiveMessageTargets) {
+      unsetActiveSearchMarkCodeMirrorRange(target?.editorRef);
+    }
+
+    activeMessageTarget?.rowRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "center",
       inline: "nearest",
     });
 
-    selectCodeMirrorRange(messageTarget?.editorRef, {
+    setActiveSearchMarkCodeMirrorRange(activeMessageTarget?.editorRef, {
       from: activeMatch.from,
       to: activeMatch.to,
     });
@@ -318,7 +341,7 @@ export function createMessageSearchController(
   const refreshSearchResults = (shouldSyncEditors: boolean) => {
     const activeMatchChanged = recomputeMatches();
 
-    if (shouldSyncEditors) {
+    if (shouldSyncEditors || activeMatchChanged) {
       syncEditorsToQuery();
     }
 
