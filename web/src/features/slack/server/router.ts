@@ -112,7 +112,9 @@ export const slackRouter = createTRPCRouter({
         const client = await slackService.getWebClientForProject(
           input.projectId,
         );
-        const channels = await slackService.getChannels(client);
+        const channels = await slackService.getChannels(client, {
+          slackTeamId: integration.teamId,
+        });
 
         await auditLog({
           session: ctx.session,
@@ -137,6 +139,65 @@ export const slackRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message:
             "Failed to fetch channels. Please check your Slack connection and try again.",
+        });
+      }
+    }),
+
+  /**
+   * Look up a public channel by exact name (paginates until found).
+   */
+  lookupChannel: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        channelName: z.string().min(1).max(80),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slack integration not found for this project",
+        });
+      }
+
+      try {
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
+          input.projectId,
+        );
+        const channel = await slackService.findChannelByName(
+          client,
+          input.channelName,
+          { slackTeamId: integration.teamId },
+        );
+
+        return {
+          found: channel !== null,
+          channel,
+        };
+      } catch (error) {
+        logger.error("Failed to look up Slack channel", {
+          error,
+          projectId: input.projectId,
+        });
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to look up channel",
         });
       }
     }),

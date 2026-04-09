@@ -105,6 +105,18 @@ The Slack integration provides:
 - OAuth callback is handled at `/api/public/slack/oauth`
 - All Slack API interactions are handled through the `SlackService` in the shared package
 
+## Channel selection and validation (UI)
+
+When you type a channel **name** or paste a **channel ID** in Langfuse:
+
+- **Add the app to the channel**: In Slack, invite or add the Langfuse app to each channel you target. Private channels require this; for public channels it avoids surprises with listing and delivery.
+- **Channel ID** (e.g. `C012AB3CD` from _View channel details_ in Slack) is resolved with Slack’s `conversations.info` API. This is the most reliable identifier.
+- **Name** (with or without a leading `#`) is matched against channels returned by `conversations.list` (including a second pass that includes **archived** channels if the first pass misses it).
+- **Private channels** only appear if the **bot has been invited** to that channel. The bot token cannot see private channels it is not a member of, even if you can see them in the Slack client.
+- **Public channels**: if listing does not find the handle (e.g. very large workspaces), Langfuse may perform a **fallback**: post a minimal message (a single dot) with `chat.postMessage` and **delete it immediately** to obtain the canonical channel ID. Some clients may still show a brief notification. To disable this behaviour, set `SLACK_CHANNEL_LOOKUP_DISABLE_POST_MESSAGE_PROBE=true` in the server environment.
+- Use **Fetch channels** in the UI to load the workspace list (with progress); you can then pick from the dropdown or rely on manual entry as above.
+- After changing Slack **scopes** in the app manifest (for example adding `groups:read`), workspaces must **reconnect** the integration so the stored token includes the new scopes.
+
 ## Production Deployment
 
 For production deployment, ensure:
