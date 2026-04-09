@@ -284,8 +284,7 @@ describe("llmApiKey.all RPC", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
-    const llmConnection =
-      mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
+    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
     expect(llmConnection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-original");
   });
@@ -317,8 +316,7 @@ describe("llmApiKey.all RPC", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
-    const llmConnection =
-      mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
+    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
     expect(llmConnection.baseURL).toBe("https://new-endpoint.example.com/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
   });
