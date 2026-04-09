@@ -272,7 +272,7 @@ ensure_postgres_running() {
     "${pg_runner[@]}" "$pg_ctl" -D "$pg_data" -l "$pg_log" -w start
   fi
 
-  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_user="$POSTGRES_USER" -v postgres_db="$POSTGRES_DB" -v postgres_password="$POSTGRES_PASSWORD" <<SQL >/dev/null
+  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_user="$POSTGRES_USER" -v postgres_db="$POSTGRES_DB" -v postgres_password="$POSTGRES_PASSWORD" <<SQL >/dev/null
 SELECT format('ALTER USER %I WITH PASSWORD %L', :'postgres_user', :'postgres_password')\gexec
 SELECT format('CREATE DATABASE %I', :'postgres_db')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'postgres_db')\gexec
