@@ -47,6 +47,30 @@ ensure_apt_package() {
   apt-get install -y "$package"
 }
 
+stop_service_if_running() {
+  local service_name="$1"
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop "$service_name" >/dev/null 2>&1 || true
+  fi
+
+  if command -v service >/dev/null 2>&1; then
+    service "$service_name" stop >/dev/null 2>&1 || true
+  fi
+}
+
+stop_system_postgres_clusters() {
+  if command -v pg_lsclusters >/dev/null 2>&1 && command -v pg_ctlcluster >/dev/null 2>&1; then
+    while read -r version cluster_name _ status _; do
+      if [ "$status" = "online" ]; then
+        pg_ctlcluster "$version" "$cluster_name" stop >/dev/null 2>&1 || true
+      fi
+    done < <(pg_lsclusters --no-header 2>/dev/null || true)
+  fi
+
+  stop_service_if_running postgresql
+}
+
 ensure_clickhouse_repo() {
   ensure_apt_package ca-certificates
   ensure_apt_package curl
@@ -71,19 +95,23 @@ ensure_clickhouse_repo() {
 ensure_postgres_binaries() {
   ensure_apt_package postgresql
   ensure_apt_package postgresql-client
+  stop_system_postgres_clusters
 }
 
 ensure_redis_binary() {
   ensure_apt_package redis-server
+  stop_service_if_running redis-server
 }
 
 ensure_clickhouse_binaries() {
   if command -v clickhouse-server >/dev/null 2>&1 && command -v clickhouse-client >/dev/null 2>&1; then
+    stop_service_if_running clickhouse-server
     return 0
   fi
 
   ensure_clickhouse_repo
   apt-get install -y clickhouse-server clickhouse-client
+  stop_service_if_running clickhouse-server
 }
 
 detect_minio_arch() {
@@ -121,7 +149,7 @@ download_and_verify_sha256() {
     echo "SHA256 mismatch for $url" >&2
     echo "expected: $expected_sha256" >&2
     echo "actual:   $actual_sha256" >&2
-    exit 1
+    return 1
   fi
 
   mv "$tmp_download" "$output_path"
@@ -247,6 +275,7 @@ ensure_postgres_running() {
   local pg_root="$CODEX_SERVICES_ROOT/postgres"
   local pg_data="$pg_root/data"
   local pg_log="$pg_root/postgres.log"
+  local pg_socket_dir="$pg_root"
   local -a pg_runner
 
   mkdir -p "$pg_root"
@@ -265,14 +294,20 @@ ensure_postgres_running() {
       echo "port = $POSTGRES_PORT"
       echo "log_statement = 'all'"
       echo "timezone = 'UTC'"
+      echo "unix_socket_directories = '$pg_socket_dir'"
     } >> "$pg_data/postgresql.conf"
   fi
 
-  if ! "$pg_isready" -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" >/dev/null 2>&1; then
+  if ! "${pg_runner[@]}" "$pg_ctl" -D "$pg_data" status >/dev/null 2>&1; then
     "${pg_runner[@]}" "$pg_ctl" -D "$pg_data" -l "$pg_log" -w start
   fi
 
-  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_user="$POSTGRES_USER" -v postgres_db="$POSTGRES_DB" -v postgres_password="$POSTGRES_PASSWORD" <<SQL >/dev/null
+  if ! "$pg_isready" -h "$pg_socket_dir" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" >/dev/null 2>&1; then
+    echo "PostgreSQL did not become ready on socket $pg_socket_dir (port $POSTGRES_PORT)"
+    exit 1
+  fi
+
+  PGPASSWORD="${POSTGRES_PASSWORD}" "${pg_runner[@]}" "$psql" -h "$pg_socket_dir" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -v postgres_user="$POSTGRES_USER" -v postgres_db="$POSTGRES_DB" -v postgres_password="$POSTGRES_PASSWORD" <<SQL >/dev/null
 SELECT format('ALTER USER %I WITH PASSWORD %L', :'postgres_user', :'postgres_password')\gexec
 SELECT format('CREATE DATABASE %I', :'postgres_db')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'postgres_db')\gexec
@@ -326,6 +361,9 @@ ensure_clickhouse_running() {
   local clickhouse_pid="$clickhouse_root/clickhouse.pid"
 
   mkdir -p "$clickhouse_data"
+  if [ "${EUID:-$(id -u)}" -eq 0 ] && id -u clickhouse >/dev/null 2>&1; then
+    chown -R clickhouse:clickhouse "$clickhouse_root"
+  fi
 
   if ! wait_for_http "http://127.0.0.1:$CLICKHOUSE_HTTP_PORT/ping" 1; then
     clickhouse-server \
