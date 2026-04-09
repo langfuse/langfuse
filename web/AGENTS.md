@@ -87,6 +87,35 @@ signoff of user-visible changes.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
 
+## Spielwiese Guardrails
+
+Applies to:
+
+- `src/features/spielwiese/**`
+- `src/pages/dev/spielwiese.tsx`
+
+Rules:
+
+- Run `pnpm --filter web run lint` before signoff on every code-editing turn
+  that touches `spielwiese`. This lint command includes the scoped
+  `spielwiese` style guard script.
+- Run targeted client tests for the touched `spielwiese` components before
+  signoff. At minimum, keep coverage for the route root scope, metric
+  `truncate`, metric `tabular-nums`, shell isolation, and widget `@container`
+  behavior.
+- Default to shared shadcn/ui primitives from `src/components/ui`. Do not
+  import `@radix-ui/react-*` directly in `spielwiese`.
+- Keep `spielwiese` isolated from the current product shell and unrelated
+  feature UI. Do not import from `src/components/nav/**`,
+  `src/components/layouts/app-layout/**`, `src/product/**`, or other
+  feature-local UI outside `src/features/spielwiese/**`.
+- Do not use `useEffect` or `useLayoutEffect` directly in `spielwiese`. Derive
+  state during render, move action logic into event handlers, and use
+  mount-only hooks only for real external synchronization.
+- `spielwiese` linting also bans raw Tailwind palette classes, `space-x-*` /
+  `space-y-*`, `dark:` color overrides, CSS `!important`, and Tailwind `!`
+  modifiers. Use semantic tokens, `gap-*`, and correct selector scope instead.
+
 ## Quick Commands
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
