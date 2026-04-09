@@ -584,16 +584,4 @@ export type TraceSinkParams = {
     version: number;
   };
   eventsTableWrite?: InternalTraceDirectEventWrite;
-  /**
-   * Optional callback invoked after traced events have been filtered and
-   * processed for internal ingestion.
-   */
-  onProcessedEvents?: (
-    processedEvents: ProcessedTraceEvent[],
-  ) => void | Promise<void>;
-  /**
-   * Optional callback invoked after the generation events have been processed.
-   * Called with merged generation details (from create + update events).
-   */
-  onGenerationComplete?: (details: GenerationDetails) => void;
 };

@@ -5,7 +5,6 @@ import {
 } from "@langfuse/shared";
 import {
   buildInternalTraceEventInputs,
-  extractGenerationDetails,
   materializeInternalTrace,
   prepareInternalTraceEvents,
 } from "@langfuse/shared/src/server";
@@ -376,47 +375,6 @@ function getExperimentContext() {
     itemMetadata: datasetItem.metadata,
   };
 }
-
-describe("extractGenerationDetails", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should extract and merge generation details from processed experiment events", () => {
-    const result = extractGenerationDetails(getProcessedExperimentEvents());
-
-    expect(result).not.toBeNull();
-    expect(result!.observationId).toBe(generationId);
-    expect(result!.name).toBe("ChatOpenAI");
-    expect(result!.input).toEqual([
-      { content: "You are a euro capital guesser.", role: "system" },
-      { content: "What is the capital of Germany?", role: "user" },
-    ]);
-    expect(result!.output).toEqual({
-      content: "The capital of Germany is Berlin.",
-      role: "assistant",
-    });
-    expect(result!.metadata).toEqual({
-      tags: ["seq:step:1"],
-      dataset_id: "cml1yj2ag0001xsej1fcv6vz8",
-      dataset_item_id: "f0c467a1-539b-4e25-b41b-8db3ae399ef4",
-      experiment_name: "Prompt Capital guesser-v1 on dataset countries",
-      experiment_run_name:
-        "Prompt Capital guesser-v1 on dataset countries - 2026-01-31T06:57:38.646Z",
-      ls_provider: "openai",
-      ls_model_name: "gpt-4.1",
-      ls_model_type: "chat",
-    });
-  });
-
-  it("should return null when no generation events are present", () => {
-    const nonGenerationEvents = getProcessedExperimentEvents().filter(
-      (event) => !event.type.startsWith("generation"),
-    );
-
-    expect(extractGenerationDetails(nonGenerationEvents)).toBeNull();
-  });
-});
 
 describe("prompt experiment direct-write materialization", () => {
   beforeEach(() => {
