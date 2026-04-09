@@ -8,6 +8,9 @@ export const BEDROCK_USE_DEFAULT_CREDENTIALS =
 export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
   "__VERTEXAI_DEFAULT_CREDENTIALS__";
 
+// Sentinel value for Azure default credential provider chain
+export const AZURE_USE_DEFAULT_CREDENTIALS = "__AZURE_DEFAULT_CREDENTIALS__";
+
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 

@@ -61,6 +61,7 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
+    "@azure/identity",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,

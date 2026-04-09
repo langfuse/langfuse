@@ -75,7 +75,13 @@ types:
         docs: The adapter used to interface with the LLM
       secretKey:
         type: string
-        docs: Secret key for the LLM API.
+        docs: >
+          Secret key for the LLM API. For Bedrock, pass a JSON object with
+          `accessKeyId` and `secretAccessKey`, or `__BEDROCK_DEFAULT_CREDENTIALS__`
+          for the default provider chain. For VertexAI, pass a GCP service account
+          JSON key or `__VERTEXAI_DEFAULT_CREDENTIALS__` for ADC. For Azure, pass
+          an API key or `__AZURE_DEFAULT_CREDENTIALS__` for the default credential
+          chain.
       baseURL:
         type: optional<string>
         docs: Custom base URL for the LLM API
@@ -94,6 +100,7 @@ types:
           Adapter-specific configuration. Validation rules:
           - **Bedrock**: Required. Must be `{"region": "<aws-region>"}` (e.g., `{"region":"us-east-1"}`)
           - **VertexAI**: Optional. If provided, must be `{"location": "<gcp-location>"}` (e.g., `{"location":"us-central1"}`)
+          - **Azure**: Not required for default credentials.
           - **Other adapters**: Not supported. Omit this field or set to null.
 
   LlmAdapter:

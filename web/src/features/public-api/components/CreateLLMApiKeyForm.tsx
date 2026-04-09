@@ -9,6 +9,7 @@ import {
   type LlmApiKeys,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  AZURE_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -146,10 +147,29 @@ const createFormSchema = (mode: "create" | "update") =>
         path: ["secretKey"],
       },
     )
+    // Azure validation - API key or default credentials sentinel required
+    .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.Azure) return true;
+
+        // In update mode, credentials are optional (existing ones are preserved)
+        if (mode === "update") return true;
+
+        // secretKey is required (either API key or AZURE_USE_DEFAULT_CREDENTIALS sentinel)
+        return !!data.secretKey;
+      },
+      {
+        message: isLangfuseCloud
+          ? "API key is required for Azure"
+          : "API key or Default Azure Credentials is required.",
+        path: ["secretKey"],
+      },
+    )
     .refine(
       (data) =>
         data.adapter === LLMAdapter.Bedrock ||
         data.adapter === LLMAdapter.VertexAI ||
+        data.adapter === LLMAdapter.Azure ||
         mode === "update" ||
         data.secretKey,
       {
@@ -235,7 +255,10 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI &&
               existingKey.displaySecretKey === "Default GCP credentials (ADC)"
                 ? VERTEXAI_USE_DEFAULT_CREDENTIALS
-                : "",
+                : existingKey.adapter === LLMAdapter.Azure &&
+                    existingKey.displaySecretKey === "Default Azure credentials"
+                  ? AZURE_USE_DEFAULT_CREDENTIALS
+                  : "",
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
@@ -466,6 +489,19 @@ export function CreateLLMApiKeyForm({
       config = {
         region: values.awsRegion ?? "",
       };
+    } else if (currentAdapter === LLMAdapter.Azure) {
+      // Handle Azure credentials
+      // secretKey already contains either API key or AZURE_USE_DEFAULT_CREDENTIALS sentinel
+      if (mode === "update") {
+        // In update mode, only update secretKey if a new one is provided
+        if (values.secretKey) {
+          secretKey = values.secretKey;
+        } else {
+          // Keep existing credentials by not setting secretKey
+          secretKey = undefined;
+        }
+      }
+      // In create mode, secretKey is already set from values.secretKey
     } else if (currentAdapter === LLMAdapter.VertexAI) {
       // Handle Vertex AI credentials
       // secretKey already contains either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel
@@ -883,6 +919,105 @@ export function CreateLLMApiKeyForm({
                         className="text-blue-600 underline hover:text-blue-800"
                       >
                         Learn more about GCP Application Default Credentials →
+                      </a>
+                    </p>
+                  </div>
+                )}
+            </>
+          ) : currentAdapter === LLMAdapter.Azure ? (
+            <>
+              {/* Azure Default Credentials option for self-hosted only, create mode only */}
+              {!isLangfuseCloud && mode === "create" && (
+                <FormItem>
+                  <span className="row flex">
+                    <span className="flex-1">
+                      <FormLabel>Use Default Azure Credentials</FormLabel>
+                      <FormDescription>
+                        When enabled, authentication uses Azure&apos;s default
+                        credential chain instead of a static API key.
+                      </FormDescription>
+                    </span>
+                    <FormControl>
+                      <Switch
+                        checked={
+                          form.watch("secretKey") ===
+                          AZURE_USE_DEFAULT_CREDENTIALS
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            form.setValue(
+                              "secretKey",
+                              AZURE_USE_DEFAULT_CREDENTIALS,
+                            );
+                          } else {
+                            form.setValue("secretKey", "");
+                          }
+                        }}
+                      />
+                    </FormControl>
+                  </span>
+                </FormItem>
+              )}
+
+              {/* API Key - hidden when default credentials are enabled */}
+              {(isLangfuseCloud ||
+                form.watch("secretKey") !== AZURE_USE_DEFAULT_CREDENTIALS) && (
+                <FormField
+                  control={form.control}
+                  name="secretKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Key</FormLabel>
+                      <FormDescription>
+                        {isLangfuseCloud
+                          ? "Your API keys are stored encrypted on our servers."
+                          : "Your API keys are stored encrypted in your database."}
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={
+                            mode === "update"
+                              ? existingKey?.displaySecretKey
+                              : undefined
+                          }
+                          autoComplete="off"
+                          spellCheck="false"
+                          autoCapitalize="off"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Default credentials info box for self-hosted */}
+              {!isLangfuseCloud &&
+                form.watch("secretKey") === AZURE_USE_DEFAULT_CREDENTIALS && (
+                  <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                    <p>
+                      <strong>Default Azure Credentials:</strong> When enabled,
+                      the system will automatically check for credentials in
+                      this order:
+                    </p>
+                    <ul className="ml-2 list-inside list-disc space-y-1">
+                      <li>
+                        Environment variables (AZURE_CLIENT_ID, AZURE_TENANT_ID,
+                        AZURE_CLIENT_SECRET)
+                      </li>
+                      <li>Managed Identity (Azure VMs, AKS, App Service)</li>
+                      <li>Azure CLI credentials (az login)</li>
+                      <li>Workload Identity Federation</li>
+                    </ul>
+                    <p>
+                      <a
+                        href="https://learn.microsoft.com/en-us/javascript/api/@azure/identity/defaultazurecredential"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline hover:text-blue-800"
+                      >
+                        Learn more about Azure Default Credentials →
                       </a>
                     </p>
                   </div>

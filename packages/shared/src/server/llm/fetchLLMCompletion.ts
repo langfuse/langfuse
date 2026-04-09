@@ -24,6 +24,7 @@ import GCPServiceAccountKeySchema, {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  AZURE_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   ChatMessage,
@@ -335,8 +336,41 @@ export async function fetchLLMCompletion(
       timeout: timeoutMs,
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
+    // Handle both explicit API key and default credential provider chain
+    // Only allow default provider chain in self-hosted deployments
+    const isDefaultCredentials =
+      apiKey === AZURE_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
+
+    let azureADTokenProvider: (() => Promise<string>) | undefined;
+    if (isDefaultCredentials) {
+      const { DefaultAzureCredential, getBearerTokenProvider } =
+        await import("@azure/identity");
+      const credential = new DefaultAzureCredential();
+      // Eagerly acquire a token to surface credential-chain errors early
+      // instead of getting a generic "Connection error" from the OpenAI SDK.
+      try {
+        const testToken = await credential.getToken(
+          "https://cognitiveservices.azure.com/.default",
+        );
+        logger.info(
+          `Azure default credentials: token acquired, expires ${testToken.expiresOnTimestamp}`,
+        );
+      } catch (tokenError) {
+        logger.error(
+          `Azure default credentials: token acquisition failed — ${tokenError}`,
+        );
+        throw tokenError;
+      }
+      azureADTokenProvider = getBearerTokenProvider(
+        credential,
+        "https://cognitiveservices.azure.com/.default",
+      );
+    }
+
     chatModel = new AzureChatOpenAI({
-      azureOpenAIApiKey: apiKey,
+      ...(isDefaultCredentials
+        ? { azureADTokenProvider }
+        : { azureOpenAIApiKey: apiKey }),
       azureOpenAIBasePath: baseURL ?? undefined,
       azureOpenAIApiDeploymentName: modelParams.model,
       azureOpenAIApiVersion: "2025-02-01-preview",

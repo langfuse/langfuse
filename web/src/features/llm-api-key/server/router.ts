@@ -20,6 +20,7 @@ import {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  AZURE_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
 } from "@langfuse/shared";
@@ -44,6 +45,9 @@ export function getDisplaySecretKey(secretKey: string) {
   }
   if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
     return "Default GCP credentials (ADC)";
+  }
+  if (secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+    return "Default Azure credentials";
   }
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
@@ -186,6 +190,16 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+          if (isLangfuseCloud || input.adapter !== LLMAdapter.Azure) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Default Azure credentials are only allowed for Azure in self-hosted deployments.",
             });
           }
         }
@@ -599,6 +613,16 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey === AZURE_USE_DEFAULT_CREDENTIALS) {
+          if (isLangfuseCloud || input.adapter !== LLMAdapter.Azure) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Default Azure credentials are only allowed for Azure in self-hosted deployments.",
             });
           }
         }
