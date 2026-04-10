@@ -64,6 +64,7 @@ const ingestionService = new IngestionService(
 );
 
 const traceId = "4a56b6d74bbdffd08b9a2485f3315eeb";
+const syntheticRootSpanId = `t-${traceId}`;
 const generationId = "d6f103ed-6ef6-4f83-a520-ab746e717360";
 const blockedParserSpanId = "8bd2ff9f-1d45-4240-9581-45a7190c77fd";
 
@@ -434,7 +435,7 @@ describe("prompt experiment direct-write materialization", () => {
     });
   });
 
-  it("should build trace-rooted event inputs with experiment metadata", async () => {
+  it("should build synthetic trace-rooted event inputs with experiment metadata", async () => {
     const { rootSpanId, eventInputs } = buildInternalTraceEventInputs({
       processedEvents: getProcessedExperimentEvents(),
       traceId,
@@ -442,11 +443,11 @@ describe("prompt experiment direct-write materialization", () => {
       experimentContext: getExperimentContext(),
     });
 
-    expect(rootSpanId).toBe(traceId);
+    expect(rootSpanId).toBe(syntheticRootSpanId);
     expect(eventInputs).toHaveLength(2);
 
     const rootEventInput = eventInputs.find(
-      (eventInput) => eventInput.spanId === traceId,
+      (eventInput) => eventInput.spanId === syntheticRootSpanId,
     );
     const generationEventInput = eventInputs.find(
       (eventInput) => eventInput.spanId === generationId,
@@ -455,13 +456,13 @@ describe("prompt experiment direct-write materialization", () => {
     expect(rootEventInput).toMatchObject({
       projectId: "project-123",
       traceId,
-      spanId: traceId,
+      spanId: syntheticRootSpanId,
       parentSpanId: undefined,
       type: "SPAN",
       experimentId: "run-456",
       experimentName:
         "Prompt Capital guesser-v1 on dataset countries - 2026-01-31T06:57:38.646Z",
-      experimentItemRootSpanId: traceId,
+      experimentItemRootSpanId: syntheticRootSpanId,
       input: JSON.stringify([
         { content: "You are a euro capital guesser.", role: "system" },
         { content: "What is the capital of Germany?", role: "user" },
@@ -473,7 +474,7 @@ describe("prompt experiment direct-write materialization", () => {
     expect(generationEventInput).toMatchObject({
       traceId,
       spanId: generationId,
-      parentSpanId: traceId,
+      parentSpanId: syntheticRootSpanId,
       type: "GENERATION",
       promptName: "Capital guesser",
       promptVersion: "1",
@@ -487,8 +488,10 @@ describe("prompt experiment direct-write materialization", () => {
     const rootObservation =
       convertEventRecordToObservationForEval(rootEventRecord);
 
-    expect(rootObservation.span_id).toBe(traceId);
-    expect(rootObservation.experiment_item_root_span_id).toBe(traceId);
+    expect(rootObservation.span_id).toBe(syntheticRootSpanId);
+    expect(rootObservation.experiment_item_root_span_id).toBe(
+      syntheticRootSpanId,
+    );
     expect(rootObservation.type).toBe("SPAN");
     expect(rootObservation.name).toBe("dataset-run-item-008e4");
     expect(rootObservation.experiment_id).toBe("run-456");
@@ -540,7 +543,7 @@ describe("scheduleExperimentObservationEvals", () => {
       experimentContext: getExperimentContext(),
     });
     const rootEventInput = eventInputs.find(
-      (eventInput) => eventInput.spanId === traceId,
+      (eventInput) => eventInput.spanId === syntheticRootSpanId,
     );
     const rootEventRecord = await ingestionService.createEventRecord(
       rootEventInput!,
@@ -556,22 +559,22 @@ describe("scheduleExperimentObservationEvals", () => {
       configs: [{ id: "config-1" }],
       schedulerDeps: expect.any(Object),
     });
-    expect(observation.span_id).toBe(traceId);
-    expect(observation.experiment_item_root_span_id).toBe(traceId);
+    expect(observation.span_id).toBe(syntheticRootSpanId);
+    expect(observation.experiment_item_root_span_id).toBe(syntheticRootSpanId);
   });
 
   it("should skip scheduling when no configs exist", async () => {
     mockFetchObservationEvalConfigs.mockResolvedValue([]);
 
     const observation = {
-      span_id: traceId,
+      span_id: syntheticRootSpanId,
       trace_id: traceId,
       project_id: "project-123",
       type: "SPAN",
       name: "dataset-run-item-008e4",
       environment: LangfuseInternalTraceEnvironment.PromptExperiments,
       level: "DEFAULT",
-      experiment_item_root_span_id: traceId,
+      experiment_item_root_span_id: syntheticRootSpanId,
       tags: [],
       provided_usage_details: {},
       provided_cost_details: {},

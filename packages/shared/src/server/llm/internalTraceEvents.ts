@@ -256,16 +256,43 @@ function mergeSnapshotEvent(
   };
 }
 
+/**
+ * Creates new snapshots with target span remapped given remapping params.
+ * Children's parentSpanId is updated to preserve the hierarchy.
+ */
+function remapSnapshotsForExperiment(params: {
+  snapshots: InternalTraceSnapshot[];
+  remapTargetId: string;
+  remapping: { spanId: string; startTimeISO?: string };
+}): InternalTraceSnapshot[] {
+  const { snapshots, remapTargetId, remapping } = params;
+
+  return snapshots.map((s) => {
+    if (s.spanId === remapTargetId) {
+      return {
+        ...s,
+        spanId: remapping.spanId,
+        startTimeISO: remapping.startTimeISO ?? s.startTimeISO,
+      };
+    }
+    if ((s.parentSpanId ?? remapTargetId) === remapTargetId) {
+      return { ...s, parentSpanId: remapping.spanId };
+    }
+    return s;
+  });
+}
+
 export function materializeInternalTrace(params: {
   processedEvents: ProcessedTraceEvent[];
   traceId: string;
+  isExperiment?: boolean;
 }): MaterializedInternalTrace {
-  const { processedEvents, traceId } = params;
+  const { processedEvents, traceId, isExperiment } = params;
   const snapshots = new Map<string, InternalTraceSnapshot>();
-  const rootSpanId =
-    asString(
-      processedEvents.find((event) => event.type === "trace-create")?.body.id,
-    ) ?? traceId;
+  const traceCreateEvent = processedEvents.find(
+    (e) => e.type === "trace-create",
+  );
+  const originalRootId = asString(traceCreateEvent?.body.id) ?? traceId;
 
   for (const event of sortEvents(processedEvents)) {
     const spanId = asString(event.body.id);
@@ -286,7 +313,21 @@ export function materializeInternalTrace(params: {
     snapshots.set(spanId, mergeSnapshotEvent(existingSnapshot, event));
   }
 
-  const orderedSnapshots = [...snapshots.values()].sort((left, right) => {
+  const rootSpanId = isExperiment ? `t-${traceId}` : originalRootId;
+  const finalSnapshots = isExperiment
+    ? remapSnapshotsForExperiment({
+        snapshots: [...snapshots.values()],
+        remapTargetId: originalRootId,
+        remapping: {
+          spanId: rootSpanId,
+          startTimeISO:
+            asString(traceCreateEvent?.body.timestamp) ??
+            asString(traceCreateEvent?.timestamp),
+        },
+      })
+    : [...snapshots.values()];
+
+  const orderedSnapshots = finalSnapshots.sort((left, right) => {
     if (left.spanId === rootSpanId) {
       return -1;
     }
@@ -300,10 +341,7 @@ export function materializeInternalTrace(params: {
     );
   });
 
-  return {
-    rootSpanId,
-    snapshots: orderedSnapshots,
-  };
+  return { rootSpanId, snapshots: orderedSnapshots };
 }
 
 export function buildInternalTraceEventInputs(params: {
@@ -319,10 +357,9 @@ export function buildInternalTraceEventInputs(params: {
   const { rootSpanId, snapshots } = materializeInternalTrace({
     processedEvents,
     traceId,
+    isExperiment: Boolean(experimentContext),
   });
-  const rootSnapshot = snapshots.find(
-    (snapshot) => snapshot.spanId === rootSpanId,
-  );
+  const rootSnapshot = snapshots.find((s) => s.spanId === rootSpanId);
 
   if (!rootSnapshot) {
     return { rootSpanId, eventInputs: [] };
@@ -342,15 +379,13 @@ export function buildInternalTraceEventInputs(params: {
       snapshot.output,
     );
     const toolCalls = convertCallsToArrays(toolArguments);
+    const isRoot = snapshot.spanId === rootSpanId;
 
     return {
       projectId,
       traceId,
       spanId: snapshot.spanId,
-      parentSpanId:
-        snapshot.spanId === rootSpanId
-          ? undefined
-          : (snapshot.parentSpanId ?? rootSpanId),
+      parentSpanId: isRoot ? undefined : (snapshot.parentSpanId ?? rootSpanId),
       name:
         snapshot.name ??
         (snapshot.type === "GENERATION"
@@ -417,8 +452,5 @@ export function buildInternalTraceEventInputs(params: {
     } satisfies InternalTraceEventInput;
   });
 
-  return {
-    rootSpanId,
-    eventInputs,
-  };
+  return { rootSpanId, eventInputs };
 }
