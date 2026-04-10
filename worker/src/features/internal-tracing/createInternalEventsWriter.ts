@@ -37,8 +37,10 @@ async function writeInternalEventInputs(params: {
     ),
   );
 
-  for (const eventRecord of eventRecords) {
-    service.writeEventRecord(eventRecord);
+  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+    for (const eventRecord of eventRecords) {
+      service.writeEventRecord(eventRecord);
+    }
   }
 
   return {
@@ -48,16 +50,19 @@ async function writeInternalEventInputs(params: {
   };
 }
 
+/**
+ * Always materialize internal trace event records, even when direct events-table
+ * writes are disabled. Self-hosted setups may not have `events_full`
+ * configured, but experiment eval scheduling still depends on the normalized
+ * root event record. The env flag therefore gates only the actual enqueue into
+ * ClickHouse, not creation of the writer or invocation of the ready callback.
+ */
 export function createInternalEventsWriter(params?: {
   experimentContext?: InternalTraceExperimentContext;
-  onRootEventWriteComplete?: (
+  onRootEventRecordReady?: (
     rootEventRecord: EventRecordInsertType,
   ) => Promise<void>;
 }): InternalEventsWriter | undefined {
-  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE !== "true") {
-    return undefined;
-  }
-
   return {
     experimentContext: params?.experimentContext,
     write: async (writeParams: {
@@ -70,8 +75,8 @@ export function createInternalEventsWriter(params?: {
         eventInputs,
       });
 
-      if (rootEventRecord && params?.onRootEventWriteComplete) {
-        await params.onRootEventWriteComplete(rootEventRecord);
+      if (rootEventRecord && params?.onRootEventRecordReady) {
+        await params.onRootEventRecordReady(rootEventRecord);
       }
     },
   };

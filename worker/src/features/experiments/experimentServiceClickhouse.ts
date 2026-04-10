@@ -203,7 +203,7 @@ async function processLLMCall(
         itemExpectedOutput: datasetItem.expectedOutput,
         itemMetadata: asRecord(datasetItem.metadata),
       },
-      onRootEventWriteComplete: async (rootEventRecord) => {
+      onRootEventRecordReady: async (rootEventRecord) => {
         await scheduleExperimentObservationEvals({
           observation: convertEventRecordToObservationForEval(rootEventRecord),
         });
