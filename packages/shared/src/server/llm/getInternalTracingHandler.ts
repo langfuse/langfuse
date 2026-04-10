@@ -27,7 +27,9 @@ export function prepareInternalTraceEvents(params: {
   for (const event of events) {
     const eventName = "name" in event.body ? event.body.name : "";
 
-    if (!eventName) continue;
+    if (typeof eventName !== "string" || eventName.length === 0) {
+      continue;
+    }
 
     if (blockedSpanNames.includes(eventName as string) && "id" in event.body) {
       blockedSpanIds.add(event.body.id);
