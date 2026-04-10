@@ -123,9 +123,6 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
             traceId: traceSinkParams.traceId,
             projectId: targetProjectId,
             experimentContext: eventsWriter.experimentContext,
-            // Skip span remapping when events table is unavailable (self-hosted)
-            // to preserve observation.id === trace.id in the legacy observations table
-            isEventsTableAvailable: eventsWriter.isEventsTableAvailable,
           });
 
           if (eventInputs.length > 0) {

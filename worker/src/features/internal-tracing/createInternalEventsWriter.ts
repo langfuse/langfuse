@@ -63,12 +63,8 @@ export function createInternalEventsWriter(params?: {
     rootEventRecord: EventRecordInsertType,
   ) => Promise<void>;
 }): InternalEventsWriter {
-  const isEventsTableAvailable =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true";
-
   return {
     experimentContext: params?.experimentContext,
-    isEventsTableAvailable,
     write: async (writeParams: {
       rootSpanId: string;
       eventInputs: InternalTraceEventInput[];

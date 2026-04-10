@@ -64,7 +64,6 @@ const ingestionService = new IngestionService(
 );
 
 const traceId = "4a56b6d74bbdffd08b9a2485f3315eeb";
-const syntheticRootSpanId = `t-${traceId}`;
 const generationId = "d6f103ed-6ef6-4f83-a520-ab746e717360";
 const blockedParserSpanId = "8bd2ff9f-1d45-4240-9581-45a7190c77fd";
 
@@ -439,20 +438,21 @@ describe("prompt experiment direct-write materialization", () => {
     });
   });
 
-  it("should build synthetic trace-rooted event inputs with experiment metadata", async () => {
+  it("should build trace-rooted event inputs with experiment metadata", async () => {
     const { rootSpanId, eventInputs } = buildInternalTraceEventInputs({
       processedEvents: getProcessedExperimentEvents(),
       traceId,
       projectId: "project-123",
       experimentContext: getExperimentContext(),
-      isEventsTableAvailable: true,
     });
 
-    expect(rootSpanId).toBe(syntheticRootSpanId);
+    // Direct write uses original IDs (no t- prefix remapping).
+    // The experiment backfill job skips traces already in events_core via LEFT ANTI JOIN.
+    expect(rootSpanId).toBe(traceId);
     expect(eventInputs).toHaveLength(2);
 
     const rootEventInput = eventInputs.find(
-      (eventInput) => eventInput.spanId === syntheticRootSpanId,
+      (eventInput) => eventInput.spanId === traceId,
     );
     const generationEventInput = eventInputs.find(
       (eventInput) => eventInput.spanId === generationId,
@@ -461,13 +461,13 @@ describe("prompt experiment direct-write materialization", () => {
     expect(rootEventInput).toMatchObject({
       projectId: "project-123",
       traceId,
-      spanId: syntheticRootSpanId,
+      spanId: traceId,
       parentSpanId: undefined,
       type: "SPAN",
       experimentId: "run-456",
       experimentName:
         "Prompt Capital guesser-v1 on dataset countries - 2026-01-31T06:57:38.646Z",
-      experimentItemRootSpanId: syntheticRootSpanId,
+      experimentItemRootSpanId: traceId,
       input: JSON.stringify([
         { content: "You are a euro capital guesser.", role: "system" },
         { content: "What is the capital of Germany?", role: "user" },
@@ -479,7 +479,7 @@ describe("prompt experiment direct-write materialization", () => {
     expect(generationEventInput).toMatchObject({
       traceId,
       spanId: generationId,
-      parentSpanId: syntheticRootSpanId,
+      parentSpanId: traceId,
       type: "GENERATION",
       promptName: "Capital guesser",
       promptVersion: "1",
@@ -493,10 +493,8 @@ describe("prompt experiment direct-write materialization", () => {
     const rootObservation =
       convertEventRecordToObservationForEval(rootEventRecord);
 
-    expect(rootObservation.span_id).toBe(syntheticRootSpanId);
-    expect(rootObservation.experiment_item_root_span_id).toBe(
-      syntheticRootSpanId,
-    );
+    expect(rootObservation.span_id).toBe(traceId);
+    expect(rootObservation.experiment_item_root_span_id).toBe(traceId);
     expect(rootObservation.type).toBe("SPAN");
     expect(rootObservation.name).toBe("dataset-run-item-008e4");
     expect(rootObservation.experiment_id).toBe("run-456");
@@ -546,10 +544,9 @@ describe("scheduleExperimentObservationEvals", () => {
       traceId,
       projectId: "project-123",
       experimentContext: getExperimentContext(),
-      isEventsTableAvailable: true,
     });
     const rootEventInput = eventInputs.find(
-      (eventInput) => eventInput.spanId === syntheticRootSpanId,
+      (eventInput) => eventInput.spanId === traceId,
     );
     const rootEventRecord = await ingestionService.createEventRecord(
       rootEventInput!,
@@ -565,22 +562,22 @@ describe("scheduleExperimentObservationEvals", () => {
       configs: [{ id: "config-1" }],
       schedulerDeps: expect.any(Object),
     });
-    expect(observation.span_id).toBe(syntheticRootSpanId);
-    expect(observation.experiment_item_root_span_id).toBe(syntheticRootSpanId);
+    expect(observation.span_id).toBe(traceId);
+    expect(observation.experiment_item_root_span_id).toBe(traceId);
   });
 
   it("should skip scheduling when no configs exist", async () => {
     mockFetchObservationEvalConfigs.mockResolvedValue([]);
 
     const observation = {
-      span_id: syntheticRootSpanId,
+      span_id: traceId,
       trace_id: traceId,
       project_id: "project-123",
       type: "SPAN",
       name: "dataset-run-item-008e4",
       environment: LangfuseInternalTraceEnvironment.PromptExperiments,
       level: "DEFAULT",
-      experiment_item_root_span_id: syntheticRootSpanId,
+      experiment_item_root_span_id: traceId,
       tags: [],
       provided_usage_details: {},
       provided_cost_details: {},

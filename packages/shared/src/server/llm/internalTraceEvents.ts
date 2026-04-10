@@ -256,43 +256,16 @@ function mergeSnapshotEvent(
   };
 }
 
-/**
- * Creates new snapshots with target span remapped given remapping params.
- * Children's parentSpanId is updated to preserve the hierarchy.
- */
-function remapSnapshotsForExperiment(params: {
-  snapshots: InternalTraceSnapshot[];
-  remapTargetId: string;
-  remapping: { spanId: string; startTimeISO?: string };
-}): InternalTraceSnapshot[] {
-  const { snapshots, remapTargetId, remapping } = params;
-
-  return snapshots.map((s) => {
-    if (s.spanId === remapTargetId) {
-      return {
-        ...s,
-        spanId: remapping.spanId,
-        startTimeISO: remapping.startTimeISO ?? s.startTimeISO,
-      };
-    }
-    if ((s.parentSpanId ?? remapTargetId) === remapTargetId) {
-      return { ...s, parentSpanId: remapping.spanId };
-    }
-    return s;
-  });
-}
-
 export function materializeInternalTrace(params: {
   processedEvents: ProcessedTraceEvent[];
   traceId: string;
-  enableSpanRemapping?: boolean;
 }): MaterializedInternalTrace {
-  const { processedEvents, traceId, enableSpanRemapping } = params;
+  const { processedEvents, traceId } = params;
   const snapshots = new Map<string, InternalTraceSnapshot>();
   const traceCreateEvent = processedEvents.find(
     (e) => e.type === "trace-create",
   );
-  const originalRootId = asString(traceCreateEvent?.body.id) ?? traceId;
+  const rootSpanId = asString(traceCreateEvent?.body.id) ?? traceId;
 
   for (const event of sortEvents(processedEvents)) {
     const spanId = asString(event.body.id);
@@ -313,21 +286,7 @@ export function materializeInternalTrace(params: {
     snapshots.set(spanId, mergeSnapshotEvent(existingSnapshot, event));
   }
 
-  const rootSpanId = enableSpanRemapping ? `t-${traceId}` : originalRootId;
-  const finalSnapshots = enableSpanRemapping
-    ? remapSnapshotsForExperiment({
-        snapshots: [...snapshots.values()],
-        remapTargetId: originalRootId,
-        remapping: {
-          spanId: rootSpanId,
-          startTimeISO:
-            asString(traceCreateEvent?.body.timestamp) ??
-            asString(traceCreateEvent?.timestamp),
-        },
-      })
-    : [...snapshots.values()];
-
-  const orderedSnapshots = finalSnapshots.sort((left, right) => {
+  const orderedSnapshots = [...snapshots.values()].sort((left, right) => {
     if (left.spanId === rootSpanId) {
       return -1;
     }
@@ -349,26 +308,17 @@ export function buildInternalTraceEventInputs(params: {
   traceId: string;
   projectId: string;
   experimentContext?: InternalTraceExperimentContext;
-  isEventsTableAvailable: boolean;
 }): {
   rootSpanId: string;
   eventInputs: InternalTraceEventInput[];
 } {
-  const {
-    processedEvents,
-    traceId,
-    projectId,
-    experimentContext,
-    isEventsTableAvailable,
-  } = params;
-  // Only remap span IDs for experiments when the events table is available.
-  // Self-hosted setups without the events table rely on the legacy observations
-  // table where observation.id === trace.id must be preserved for existing queries.
+  const { processedEvents, traceId, projectId, experimentContext } = params;
+  // Direct write uses original IDs (observation.id === trace.id for root).
+  // The experiment backfill job skips traces already in events_core via LEFT ANTI JOIN,
+  // so there's no deduplication concern between direct write and backfill.
   const { rootSpanId, snapshots } = materializeInternalTrace({
     processedEvents,
     traceId,
-    enableSpanRemapping:
-      Boolean(experimentContext) && isEventsTableAvailable === true,
   });
   const rootSnapshot = snapshots.find((s) => s.spanId === rootSpanId);
 
