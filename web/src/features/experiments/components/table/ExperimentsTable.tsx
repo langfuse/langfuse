@@ -361,6 +361,9 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
+      headerTooltip: {
+        description: "Average duration of the root span per experiment item.",
+      },
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latencyAvg");
         if (value === undefined) return undefined;
