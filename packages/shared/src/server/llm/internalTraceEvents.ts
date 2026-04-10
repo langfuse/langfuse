@@ -285,9 +285,9 @@ function remapSnapshotsForExperiment(params: {
 export function materializeInternalTrace(params: {
   processedEvents: ProcessedTraceEvent[];
   traceId: string;
-  isExperiment?: boolean;
+  enableSpanRemapping?: boolean;
 }): MaterializedInternalTrace {
-  const { processedEvents, traceId, isExperiment } = params;
+  const { processedEvents, traceId, enableSpanRemapping } = params;
   const snapshots = new Map<string, InternalTraceSnapshot>();
   const traceCreateEvent = processedEvents.find(
     (e) => e.type === "trace-create",
@@ -313,8 +313,8 @@ export function materializeInternalTrace(params: {
     snapshots.set(spanId, mergeSnapshotEvent(existingSnapshot, event));
   }
 
-  const rootSpanId = isExperiment ? `t-${traceId}` : originalRootId;
-  const finalSnapshots = isExperiment
+  const rootSpanId = enableSpanRemapping ? `t-${traceId}` : originalRootId;
+  const finalSnapshots = enableSpanRemapping
     ? remapSnapshotsForExperiment({
         snapshots: [...snapshots.values()],
         remapTargetId: originalRootId,
@@ -349,15 +349,26 @@ export function buildInternalTraceEventInputs(params: {
   traceId: string;
   projectId: string;
   experimentContext?: InternalTraceExperimentContext;
+  isEventsTableAvailable: boolean;
 }): {
   rootSpanId: string;
   eventInputs: InternalTraceEventInput[];
 } {
-  const { processedEvents, traceId, projectId, experimentContext } = params;
+  const {
+    processedEvents,
+    traceId,
+    projectId,
+    experimentContext,
+    isEventsTableAvailable,
+  } = params;
+  // Only remap span IDs for experiments when the events table is available.
+  // Self-hosted setups without the events table rely on the legacy observations
+  // table where observation.id === trace.id must be preserved for existing queries.
   const { rootSpanId, snapshots } = materializeInternalTrace({
     processedEvents,
     traceId,
-    isExperiment: Boolean(experimentContext),
+    enableSpanRemapping:
+      Boolean(experimentContext) && isEventsTableAvailable === true,
   });
   const rootSnapshot = snapshots.find((s) => s.spanId === rootSpanId);
 

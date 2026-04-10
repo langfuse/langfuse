@@ -549,6 +549,13 @@ export type ProcessedTraceEvent = {
  */
 export type InternalEventsWriter = {
   experimentContext?: InternalTraceExperimentContext;
+  /**
+   * When true, the events table is available and events will be inserted (v4 flow).
+   * When false, the write callback is still invoked for side effects (e.g. eval
+   * scheduling) but no events table insert occurs. Self-hosted setups without
+   * the events table should set this to false.
+   */
+  isEventsTableAvailable: boolean;
   write: (params: {
     rootSpanId: string;
     eventInputs: InternalTraceEventInput[];
