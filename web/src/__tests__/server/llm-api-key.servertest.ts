@@ -10,6 +10,7 @@ jest.mock("@langfuse/shared/src/server", () => {
 
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -788,6 +789,53 @@ describe("llmApiKey.all RPC", () => {
     ).rejects.toThrow(
       "Default AWS credentials are only allowed for Bedrock in self-hosted deployments",
     );
+  });
+
+  it("should update a Bedrock Access key auth back to DefaultCredentials (self-hosted)", async () => {
+    const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider,
+      adapter: LLMAdapter.Bedrock,
+      secretKey: JSON.stringify({
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      }),
+      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+      withDefaultModels: false,
+      config: { region: "us-east-1" },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider },
+    });
+
+    try {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id },
+    });
+
+    expect(decrypt(updatedKey.secretKey)).toBe(BEDROCK_USE_DEFAULT_CREDENTIALS);
+    expect(updatedKey.displaySecretKey).toBe("Default AWS credentials");
+    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
   });
 
   it("should update only the secret key", async () => {
