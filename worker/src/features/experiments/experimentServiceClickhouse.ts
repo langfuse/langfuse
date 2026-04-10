@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared";
 import {
   ChatMessage,
+  convertDateToClickhouseDateTime,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
@@ -198,7 +199,7 @@ async function processLLMCall(
         description: config.datasetRun.description,
         datasetId: datasetItem.datasetId,
         itemId: datasetItem.id,
-        itemVersion: datasetItem.validFrom.toISOString(),
+        itemVersion: convertDateToClickhouseDateTime(datasetItem.validFrom),
         itemExpectedOutput: datasetItem.expectedOutput,
         itemMetadata: asRecord(datasetItem.metadata),
       },
