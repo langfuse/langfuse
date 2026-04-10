@@ -88,6 +88,14 @@ import {
   QuerySection,
   buildAdditionalQueryFilters,
 } from "@/src/features/widgets/components/QuerySection";
+import {
+  type ExpressionConfig,
+  ExpressionSection,
+} from "@/src/features/widgets/components/ExpressionSection";
+import {
+  evaluateExpression,
+  validateExpression,
+} from "@/src/features/widgets/components/widgetExpressionParser";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -423,6 +431,9 @@ export function WidgetForm({
   const [additionalQueries, setAdditionalQueries] = useState<
     AdditionalQueryConfig[]
   >([]);
+
+  // Expression configurations (not persisted)
+  const [expressions, setExpressions] = useState<ExpressionConfig[]>([]);
 
   // When beta is toggled on while "traces" is selected (and not editing an
   // existing widget), auto-switch to "observations" and reset dependent fields.
@@ -1180,10 +1191,9 @@ export function WidgetForm({
     queryAName,
   ]);
 
-  // Combine Query A data with additional query data into a single series array
+  // Combine Query A data with additional query data into a single series array,
+  // then evaluate any expressions over the combined query values.
   const chartData: DataPoint[] = useMemo(() => {
-    if (additionalQueries.length === 0) return transformedData;
-
     const additionalDatas = [
       additionalResult0.data,
       additionalResult1.data,
@@ -1192,7 +1202,12 @@ export function WidgetForm({
       additionalResult4.data,
     ];
 
+    if (additionalQueries.length === 0 && expressions.length === 0)
+      return transformedData;
+
     const combined = [...transformedData];
+
+    // Additional query series
     additionalQueries.forEach((config, i) => {
       if (config.hidden) return;
       const data = additionalDatas[i];
@@ -1225,10 +1240,121 @@ export function WidgetForm({
         });
       });
     });
+
+    // Expression evaluation
+    if (expressions.length > 0) {
+      // Determine whether all queries share the same non-"none" breakdown
+      // dimension. If so, we evaluate the expression per (time, dim_value)
+      // pair so the result series is also broken down by that dimension.
+      const allQueryDims = [
+        selectedDimension,
+        ...additionalQueries.map((q) => q.dimension),
+      ];
+      const commonDimension = allQueryDims.every(
+        (d) => d !== "none" && d === allQueryDims[0],
+      )
+        ? allQueryDims[0]
+        : null;
+
+      // Keys are "td::dimValue" when breaking down, or just "td" otherwise.
+      const makeKey = (td: string, dimValue: string | undefined) =>
+        dimValue !== undefined ? `${td}::${dimValue}` : td;
+
+      // Build per-letter value maps keyed by the composite key above.
+      // All queries contribute regardless of hidden state so expressions
+      // can reference any query as a variable.
+      const varMaps: Record<string, Record<string, number>> = {};
+
+      const metricFieldA = `${selectedAggregation}_${selectedMeasure}`;
+      varMaps["a"] = {};
+      (queryResult.data ?? []).forEach((item: any) => {
+        const td =
+          item["time_dimension"] != null
+            ? String(item["time_dimension"])
+            : "_total";
+        const dimValue = commonDimension
+          ? String(item[commonDimension] ?? "n/a")
+          : undefined;
+        const key = makeKey(td, dimValue);
+        varMaps["a"][key] =
+          (varMaps["a"][key] ?? 0) + Number(item[metricFieldA] ?? 0);
+      });
+
+      additionalQueries.forEach((config, i) => {
+        const letter = String.fromCharCode(98 + i); // b, c, d, …
+        const data = additionalDatas[i];
+        if (!data) return;
+        const metricField = `${config.aggregation}_${config.measure}`;
+        varMaps[letter] = {};
+        data.forEach((item: any) => {
+          const td =
+            item["time_dimension"] != null
+              ? String(item["time_dimension"])
+              : "_total";
+          const dimValue = commonDimension
+            ? String(item[commonDimension] ?? "n/a")
+            : undefined;
+          const key = makeKey(td, dimValue);
+          varMaps[letter][key] =
+            (varMaps[letter][key] ?? 0) + Number(item[metricField] ?? 0);
+        });
+      });
+
+      const availableVars = Object.keys(varMaps);
+      const allKeys = new Set<string>(
+        Object.values(varMaps).flatMap((m) => Object.keys(m)),
+      );
+
+      expressions.forEach((exprConfig) => {
+        if (!exprConfig.expression.trim()) return;
+        const validation = validateExpression(
+          exprConfig.expression,
+          availableVars,
+        );
+        if (!validation.valid) return;
+        const baseName = exprConfig.name.trim() || "Expression";
+
+        allKeys.forEach((key) => {
+          const sepIdx = key.indexOf("::");
+          const td = sepIdx === -1 ? key : key.slice(0, sepIdx);
+          const dimValue = sepIdx === -1 ? undefined : key.slice(sepIdx + 2);
+
+          const values: Record<string, number> = {};
+          availableVars.forEach((letter) => {
+            values[letter] = varMaps[letter]?.[key] ?? 0;
+          });
+          try {
+            const result = evaluateExpression(exprConfig.expression, values);
+            // NaN means 0/0 (both sides empty) — treat as 0 so the time
+            // bucket still appears on the chart. True infinities (non-zero /
+            // zero) are skipped since they have no sensible chart value.
+            const metric = Number.isNaN(result) ? 0 : result;
+            if (Number.isFinite(metric)) {
+              combined.push({
+                dimension:
+                  dimValue !== undefined
+                    ? `${baseName}: ${dimValue}`
+                    : baseName,
+                metric,
+                time_dimension: td === "_total" ? undefined : td,
+              });
+            }
+          } catch {
+            // Skip on runtime error (e.g. division by zero producing Infinity)
+          }
+        });
+      });
+    }
+
     return combined;
   }, [
     transformedData,
     additionalQueries,
+    expressions,
+    queryResult.data,
+    selectedAggregation,
+    selectedMeasure,
+    selectedDimension,
     additionalResult0.data,
     additionalResult1.data,
     additionalResult2.data,
@@ -1439,7 +1565,12 @@ export function WidgetForm({
               <h3 className="text-lg font-bold">Data</h3>
 
               {/* Query A */}
-              <div className="rounded-md border p-3">
+              <div className="relative rounded-md border p-3">
+                {expressions.length > 0 && (
+                  <span className="bg-primary text-primary-foreground absolute top-0 left-0 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold">
+                    a
+                  </span>
+                )}
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -2004,7 +2135,15 @@ export function WidgetForm({
                       `${config.aggregation}_${config.measure}`,
                     );
                     return (
-                      <div key={config.id} className="rounded-md border p-3">
+                      <div
+                        key={config.id}
+                        className="relative rounded-md border p-3"
+                      >
+                        {expressions.length > 0 && (
+                          <span className="bg-primary text-primary-foreground absolute top-0 left-0 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold">
+                            {String.fromCharCode(98 + index)}
+                          </span>
+                        )}
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -2099,33 +2238,79 @@ export function WidgetForm({
                       </div>
                     );
                   })}
-                  {additionalQueries.length < MAX_ADDITIONAL_QUERIES && (
+                  {/* Expression blocks */}
+                  {expressions.map((exprConfig) => (
+                    <ExpressionSection
+                      key={exprConfig.id}
+                      config={exprConfig}
+                      availableVars={[
+                        "a",
+                        ...additionalQueries.map((_, i) =>
+                          String.fromCharCode(98 + i),
+                        ),
+                      ]}
+                      onChange={(updated) =>
+                        setExpressions((prev) =>
+                          prev.map((e) => (e.id === updated.id ? updated : e)),
+                        )
+                      }
+                      onRemove={() =>
+                        setExpressions((prev) =>
+                          prev.filter((e) => e.id !== exprConfig.id),
+                        )
+                      }
+                    />
+                  ))}
+
+                  {/* + Query / + ∑ Expression buttons */}
+                  <div className="flex gap-2">
+                    {additionalQueries.length < MAX_ADDITIONAL_QUERIES && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() =>
+                          setAdditionalQueries((prev) => [
+                            ...prev,
+                            {
+                              id: `query-${Date.now()}`,
+                              name: "",
+                              view: selectedView,
+                              measure: selectedMeasure,
+                              aggregation: selectedAggregation,
+                              dimension: "none",
+                              filters: [],
+                              hidden: false,
+                              expanded: true,
+                            },
+                          ])
+                        }
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Query
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full"
+                      className="flex-1"
                       onClick={() =>
-                        setAdditionalQueries((prev) => [
+                        setExpressions((prev) => [
                           ...prev,
                           {
-                            id: `query-${Date.now()}`,
+                            id: `expr-${Date.now()}`,
                             name: "",
-                            view: selectedView,
-                            measure: selectedMeasure,
-                            aggregation: selectedAggregation,
-                            dimension: "none",
-                            filters: [],
-                            hidden: false,
+                            expression: "",
                             expanded: true,
                           },
                         ])
                       }
                     >
-                      <Plus className="mr-1 h-4 w-4" />
-                      Query
+                      <Plus className="mr-1 h-4 w-4" />∑ Expression
                     </Button>
-                  )}
+                  </div>
                 </>
               )}
             </div>
