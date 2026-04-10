@@ -668,8 +668,6 @@ jobs:
     permissions:
       packages: write
       contents: read
-    env:
-      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
 
     steps:
       - name: Checkout
@@ -682,6 +680,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
       - name: Extract metadata (labels) for Docker
@@ -701,15 +704,46 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push staged Docker image (${{ matrix.component }}, ${{ matrix.platform_tag }})
+      - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-ghcr
         uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ghcr.io/langfuse/${{ matrix.image_name }}:${{ env.STAGING_TAG_PREFIX }}-${{ matrix.platform_tag }}
+          outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-dockerhub
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Record pushed digests
+        run: |
+          if [ -z '${{ steps.build-ghcr.outputs.digest }}' ] || [ -z '${{ steps.build-dockerhub.outputs.digest }}' ]; then
+            echo "Missing registry digest output"
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/digests/ghcr" "$RUNNER_TEMP/digests/dockerhub"
+          printf '%s\n' '${{ steps.build-ghcr.outputs.digest }}' > "$RUNNER_TEMP/digests/ghcr/${{ matrix.platform_tag }}.txt"
+          printf '%s\n' '${{ steps.build-dockerhub.outputs.digest }}' > "$RUNNER_TEMP/digests/dockerhub/${{ matrix.platform_tag }}.txt"
+      - name: Upload release digests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}
+          path: |
+            ${{ runner.temp }}/digests/ghcr/${{ matrix.platform_tag }}.txt
+            ${{ runner.temp }}/digests/dockerhub/${{ matrix.platform_tag }}.txt
+          if-no-files-found: error
 
   publish-docker-image-release:
     needs:
@@ -728,12 +762,8 @@ jobs:
     permissions:
       packages: write
       contents: read
-    env:
-      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Log in to the GitHub Container registry
         uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
         with:
@@ -745,6 +775,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
+      - name: Download release digests
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: release-digests-${{ matrix.component }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
       - name: Extract metadata (tags) for GitHub Container Registry
         id: meta-ghcr
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
@@ -778,6 +816,8 @@ jobs:
       - name: Publish multi-platform manifest to GitHub Container Registry
         run: |
           ghcr_tags=()
+          ghcr_sources=()
+
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             ghcr_tags+=("-t" "$tag")
@@ -785,13 +825,22 @@ jobs:
           ${{ steps.meta-ghcr.outputs.tags }}
           EOF
 
-          docker buildx imagetools create "${ghcr_tags[@]}" \
-            "ghcr.io/langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-amd64" \
-            "ghcr.io/langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-arm64"
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/ghcr/*.txt; do
+            digest="$(cat "$digest_file")"
+            ghcr_sources+=("ghcr.io/langfuse/${{ matrix.image_name }}@$digest")
+          done
+
+          if [ "${#ghcr_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 GHCR digests for ${{ matrix.component }}"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
       - name: Publish multi-platform manifest to Docker Hub
         run: |
           dockerhub_tags=()
-          ghcr_first_tag=""
+          dockerhub_sources=()
 
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
@@ -800,20 +849,18 @@ jobs:
           ${{ steps.meta-dockerhub.outputs.tags }}
           EOF
 
-          while IFS= read -r tag; do
-            [ -n "$tag" ] || continue
-            ghcr_first_tag="$tag"
-            break
-          done <<'EOF'
-          ${{ steps.meta-ghcr.outputs.tags }}
-          EOF
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/dockerhub/*.txt; do
+            digest="$(cat "$digest_file")"
+            dockerhub_sources+=("langfuse/${{ matrix.image_name }}@$digest")
+          done
 
-          if [ -z "$ghcr_first_tag" ]; then
-            echo "No GHCR tag available to copy to Docker Hub"
+          if [ "${#dockerhub_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 Docker Hub digests for ${{ matrix.component }}"
             exit 1
           fi
 
-          docker buildx imagetools create "${dockerhub_tags[@]}" "$ghcr_first_tag"
+          docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
       - name: Inspect published manifests
         run: |
           ghcr_first_tag="$(printf '%s\n' "${{ steps.meta-ghcr.outputs.tags }}" | sed -n '1p')"
