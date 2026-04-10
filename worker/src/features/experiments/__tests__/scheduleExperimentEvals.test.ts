@@ -371,7 +371,10 @@ function getExperimentContext() {
     description: config.datasetRun.description,
     datasetId: datasetItem.datasetId,
     itemId: datasetItem.id,
-    itemVersion: datasetItem.validFrom.toISOString(),
+    itemVersion: datasetItem.validFrom
+      .toISOString()
+      .replace("T", " ")
+      .replace("Z", ""),
     itemExpectedOutput: datasetItem.expectedOutput,
     itemMetadata: datasetItem.metadata,
   };
