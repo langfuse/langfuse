@@ -2,6 +2,8 @@ import * as React from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
+type TableDensity = "compact" | "comfortable";
+
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
@@ -74,7 +76,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "bg-background text-muted-foreground relative h-10 border-b px-4 text-left align-middle font-medium [&:has([role=checkbox])]:pr-0",
+      "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-medium [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
@@ -84,12 +86,13 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
+  React.TdHTMLAttributes<HTMLTableCellElement> & { density?: TableDensity }
+>(({ className, density = "compact", ...props }, ref) => (
   <td
     ref={ref}
     className={cn(
-      "h-full px-2 py-0 align-middle [&:has([role=checkbox])]:pr-0",
+      "h-full align-middle [&:has([role=checkbox])]:pr-0",
+      density === "comfortable" ? "p-2" : "px-2 py-0",
       "border-b [:last-child_>_&]:border-b-0",
       className,
     )}
