@@ -39,6 +39,9 @@ export type SpielwieseDashboardVM = {
     title: string;
     updatedAt: string;
   };
+  onboardingCanvas?: {
+    greeting: string;
+  };
   canvas: {
     title: string;
     helper: string;

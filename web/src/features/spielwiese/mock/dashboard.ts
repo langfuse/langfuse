@@ -79,6 +79,9 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
       title: "Assistant",
       updatedAt: "02m",
     },
+    onboardingCanvas: {
+      greeting: "Hello Leonard",
+    },
     canvas: {
       title: "Assistant",
       helper:

@@ -6,6 +6,7 @@ import {
 import { SpielwieseEditorCanvas } from "../components/SpielwieseEditorCanvas";
 import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
+import type { SpielwieseDashboardVM } from "../types/dashboard";
 
 function subscribeToHash(onStoreChange: () => void) {
   window.addEventListener("hashchange", onStoreChange);
@@ -21,23 +22,27 @@ function getPageIdFromHash() {
   return hash || "assistant";
 }
 
+function renderCanvas(dashboard: SpielwieseDashboardVM) {
+  if (dashboard.promptCanvas) {
+    return <SpielwiesePromptCanvas promptCanvas={dashboard.promptCanvas} />;
+  }
+
+  return <SpielwieseEditorCanvas canvas={dashboard.canvas} />;
+}
+
 export default function SpielwieseDashboardPage() {
   const pageId = useSyncExternalStore(
     subscribeToHash,
     getPageIdFromHash,
     () => "assistant",
   );
-  const shell = getSpielwieseShellVm(pageId);
   const dashboard = getSpielwieseDashboardVm(pageId);
+  const shell = getSpielwieseShellVm(pageId);
 
   return (
     <div className="isolate min-h-dvh antialiased" data-spielwiese>
       <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
-        {dashboard.promptCanvas ? (
-          <SpielwiesePromptCanvas promptCanvas={dashboard.promptCanvas} />
-        ) : (
-          <SpielwieseEditorCanvas canvas={dashboard.canvas} />
-        )}
+        {renderCanvas(dashboard)}
       </SpielwieseDashboardShell>
     </div>
   );

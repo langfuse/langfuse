@@ -12,6 +12,8 @@ describe("SpielwieseDashboardPage", () => {
     const { container } = render(<SpielwieseDashboardPage />);
 
     expect(screen.getByTestId("spielwiese-editor-canvas")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-shell")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
     expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
   });
 

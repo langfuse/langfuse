@@ -1,0 +1,28 @@
+import { getSpielwieseDashboardVm } from "../adapters/dashboardVm";
+import { SpielwieseOnboardingCanvas } from "../components/SpielwieseOnboardingCanvas";
+
+export default function SpielwieseOnboardingPage() {
+  const dashboard = getSpielwieseDashboardVm("assistant");
+
+  if (!dashboard.onboardingCanvas) {
+    return null;
+  }
+
+  return (
+    <div
+      className="bg-background isolate min-h-dvh antialiased"
+      data-spielwiese
+    >
+      <div className="flex min-h-dvh flex-col overflow-hidden">
+        <main
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-0 sm:px-5 sm:pt-4"
+          data-testid="spielwiese-onboarding-main"
+        >
+          <SpielwieseOnboardingCanvas
+            onboardingCanvas={dashboard.onboardingCanvas}
+          />
+        </main>
+      </div>
+    </div>
+  );
+}
