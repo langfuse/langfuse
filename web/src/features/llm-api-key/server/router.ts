@@ -33,6 +33,7 @@ import {
   blockEvaluatorConfigsInTx,
   EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
+  validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -130,6 +131,27 @@ async function testLLMConnection(
   }
 }
 
+async function validateBaseURLForWrite(params: {
+  baseURL?: string | null;
+  errorPrefix?: string;
+}): Promise<void> {
+  if (!params.baseURL) {
+    return;
+  }
+
+  try {
+    await validateLlmConnectionBaseURL(params.baseURL);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        error instanceof Error
+          ? `${params.errorPrefix ?? "Invalid base URL"}: ${error.message}`
+          : (params.errorPrefix ?? "Invalid base URL"),
+    });
+  }
+}
+
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
@@ -139,6 +161,10 @@ export const llmApiKeyRouter = createTRPCRouter({
           session: ctx.session,
           projectId: input.projectId,
           scope: "llmApiKeys:create",
+        });
+
+        await validateBaseURLForWrite({
+          baseURL: input.baseURL,
         });
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
@@ -406,6 +432,17 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:create",
       });
 
+      if (input.baseURL) {
+        try {
+          await validateLlmConnectionBaseURL(input.baseURL);
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Invalid base URL",
+          };
+        }
+      }
+
       return testLLMConnection({
         adapter: input.adapter,
         provider: input.provider,
@@ -442,25 +479,41 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
-        const decryptedSecretKey =
-          input.secretKey !== undefined &&
-          input.secretKey !== "" &&
-          input.secretKey !== null
-            ? input.secretKey
-            : decrypt(existingKey.secretKey);
+        const hasNewSecretKey =
+          typeof input.secretKey === "string" && input.secretKey.length > 0;
+        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const isBaseURLChanged = baseURL !== existingKey.baseURL;
+
+        if (isBaseURLChanged && !hasNewSecretKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Secret key is required when changing the base URL",
+          });
+        }
+
+        if (input.baseURL && isBaseURLChanged) {
+          await validateLlmConnectionBaseURL(input.baseURL);
+        }
+
+        const secretKey = hasNewSecretKey
+          ? (input.secretKey as string)
+          : decrypt(existingKey.secretKey);
 
         // Merge existing key with provided input, giving priority to input
-        const secretKey = decryptedSecretKey;
         const adapter = input.adapter ?? (existingKey.adapter as LLMAdapter);
         const provider = input.provider ?? existingKey.provider;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
+
+        // Never reuse stored headers across a destination change.
         const extraHeaders =
-          input.extraHeaders ??
-          (existingKey.extraHeaders
-            ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-            : undefined);
+          input.extraHeaders !== undefined
+            ? input.extraHeaders
+            : isBaseURLChanged
+              ? undefined
+              : existingKey.extraHeaders
+                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
+                : undefined;
 
         return testLLMConnection({
           adapter,
@@ -519,6 +572,16 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isBaseURLChanged =
+          input.baseURL !== undefined
+            ? input.baseURL !== existingKey.baseURL
+            : false;
+
+        if (input.baseURL && isBaseURLChanged) {
+          await validateBaseURLForWrite({
+            baseURL: input.baseURL,
+          });
+        }
 
         if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
           if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {

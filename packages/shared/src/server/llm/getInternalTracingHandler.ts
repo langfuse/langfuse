@@ -11,9 +11,10 @@ export function prepareInternalTraceEvents(params: {
     timestamp: string;
     body: Record<string, unknown>;
   }>;
+  environment: string;
   prompt?: TraceSinkParams["prompt"];
 }): ProcessedTraceEvent[] {
-  const { events, prompt } = params;
+  const { events, environment, prompt } = params;
 
   const blockedSpanIds = new Set();
   const blockedSpanNames = [
@@ -40,6 +41,16 @@ export function prepareInternalTraceEvents(params: {
       }
 
       return true;
+    })
+    .map((event) => {
+      // Inject environment into all events
+      return {
+        ...event,
+        body: {
+          ...event.body,
+          environment,
+        },
+      };
     })
     .map((event) => {
       if (event.type === "generation-create" && prompt) {
@@ -75,7 +86,11 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
       const events = await handler.langfuse._exportLocalEvents(
         traceSinkParams.targetProjectId,
       );
-      const processedEvents = prepareInternalTraceEvents({ events, prompt });
+      const processedEvents = prepareInternalTraceEvents({
+        events,
+        environment,
+        prompt,
+      });
 
       // Legacy write to traces/observations tables
       try {

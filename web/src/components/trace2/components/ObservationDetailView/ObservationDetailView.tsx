@@ -129,6 +129,7 @@ export function ObservationDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -476,11 +477,12 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
-              disableUrlPersistence
+              disableUrlPersistence={isPeekMode}
             />
           </div>
         </TabsBarContent>
