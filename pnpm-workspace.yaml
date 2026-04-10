@@ -29,6 +29,18 @@ minimumReleaseAgeExclude:
   - "@vitest/utils@4.1.4"
   - "@vitest/coverage-v8@4.1.4"
   - "axios@1.15.0"
+  - "next@16.2.3"
+  - "@next/env@16.2.3"
+  - "eslint-config-next@16.2.3"
+  - "@next/eslint-plugin-next@16.2.3"
+  - "@next/swc-darwin-arm64@16.2.3"
+  - "@next/swc-darwin-x64@16.2.3"
+  - "@next/swc-linux-arm64-gnu@16.2.3"
+  - "@next/swc-linux-arm64-musl@16.2.3"
+  - "@next/swc-linux-x64-gnu@16.2.3"
+  - "@next/swc-linux-x64-musl@16.2.3"
+  - "@next/swc-win32-arm64-msvc@16.2.3"
+  - "@next/swc-win32-x64-msvc@16.2.3"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
