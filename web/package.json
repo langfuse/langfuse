@@ -195,7 +195,7 @@
     "eslint-config-next": "16.2.2",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
-    "node-mocks-http": "^1.14.1",
+    "node-mocks-http": "^1.17.2",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.2.2",
