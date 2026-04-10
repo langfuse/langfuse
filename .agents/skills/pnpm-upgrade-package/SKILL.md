@@ -21,6 +21,11 @@ Use this skill for interactive dependency bumps in Langfuse.
   output for scope, exclusion decisions, and the final bump.
 - If the target package is not directly declared anywhere, run
   `pnpm why -r <package>` to find which direct dependency brings it in, then
+  inspect whether the current top-level parent already allows the requested
+  transitive version via its dependency range.
+- If the current parent range already covers the requested transitive version,
+  prefer a lockfile refresh / reinstall path over bumping the parent manifest.
+- If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
 - Resolve the registry latest version, but do not silently upgrade to latest

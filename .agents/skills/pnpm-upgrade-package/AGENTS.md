@@ -24,7 +24,13 @@ pnpm workspace.
 
 3. Handle the transitive-only case before editing anything.
    - If the helper shows no direct workspace references, run `pnpm why -r <package>`.
-   - Upgrade the direct parent dependency that pulls the package in.
+   - Identify the current top-level parent that pulls the package in.
+   - Check whether that parent's current dependency range already permits the
+     requested transitive version.
+   - If the current parent range already covers the requested version, prefer a
+     lock refresh / reinstall path before changing `package.json`.
+   - If the current parent range does not cover the requested version, upgrade
+     the direct parent dependency that pulls the package in.
    - Do not add the transitive package directly unless the user explicitly asks.
 
 4. Ask before changing `minimumReleaseAgeExclude`.
@@ -51,6 +57,8 @@ pnpm workspace.
   `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`
 - Transitive provenance check:
   `pnpm why -r <package>`
+- Inspect the current parent manifest on the registry:
+  `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
 - Final graph verification:
   `pnpm why -r <package>`
 - Bump in the root workspace:
