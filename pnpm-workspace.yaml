@@ -41,6 +41,7 @@ minimumReleaseAgeExclude:
   - "@next/swc-linux-x64-musl@16.2.3"
   - "@next/swc-win32-arm64-msvc@16.2.3"
   - "@next/swc-win32-x64-msvc@16.2.3"
+  - "defu@6.1.7"
   - "hono@4.12.12"
 allowBuilds:
   "@prisma/client": true
