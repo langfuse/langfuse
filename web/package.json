@@ -128,6 +128,7 @@
     "langfuse": "3.38.4",
     "lodash": "^4.17.23",
     "lucide-react": "^0.552.0",
+    "mesurer": "0.0.3",
     "nanoid": "^3.3.11",
     "next": "16.2.1",
     "next-auth": "^4.24.13",

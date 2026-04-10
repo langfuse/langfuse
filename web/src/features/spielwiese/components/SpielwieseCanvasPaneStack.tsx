@@ -1,33 +1,56 @@
+import type { SpielwieseDashboardVM } from "../types/dashboard";
+import { SpielwieseAgentNodeStack } from "./SpielwieseAgentNodeStack";
+
 type SpielwieseCanvasPaneProps = {
-  bottomRadius: "none" | "top";
+  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
+  onPromptSectionChange: (
+    nodeId: string,
+    sectionId: string,
+    value: string,
+  ) => void;
+  onSettingValueChange: (
+    nodeId: string,
+    settingId: string,
+    value: string,
+  ) => void;
+  onTitleChange: (nodeId: string, value: string) => void;
 };
 
-function SpielwieseCanvasPane({ bottomRadius }: SpielwieseCanvasPaneProps) {
-  const radiusClassName =
-    bottomRadius === "top"
-      ? "rounded-t-lg rounded-b-none"
-      : "rounded-none border-t-0";
-
+function SpielwieseCanvasPane({
+  nodes,
+  onPromptSectionChange,
+  onSettingValueChange,
+  onTitleChange,
+}: SpielwieseCanvasPaneProps) {
   return (
     <div
-      className={`bg-card flex min-h-0 flex-1 flex-col overflow-hidden border px-6 pt-6 pb-0 shadow-xs sm:px-10 sm:pt-8 ${radiusClassName}`}
+      className="border-border/70 bg-card/95 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border px-4 pt-4 pb-0 shadow-xs sm:px-5 sm:pt-5"
       data-testid="spielwiese-editor-canvas-pane"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-6 pt-5 pb-0 sm:pt-6">
-        <div
-          aria-hidden="true"
-          className="bg-foreground mt-1 h-6 w-px rounded-full"
+      <div className="flex min-h-0 flex-1 flex-col pb-0">
+        <SpielwieseAgentNodeStack
+          nodes={nodes}
+          onPromptSectionChange={onPromptSectionChange}
+          onSettingValueChange={onSettingValueChange}
+          onTitleChange={onTitleChange}
         />
       </div>
     </div>
   );
 }
 
-export function SpielwieseCanvasPaneStack() {
+export function SpielwieseCanvasPaneStack({
+  nodes,
+  onPromptSectionChange,
+  onSettingValueChange,
+  onTitleChange,
+}: SpielwieseCanvasPaneProps) {
   return (
-    <>
-      <SpielwieseCanvasPane bottomRadius="top" />
-      <SpielwieseCanvasPane bottomRadius="none" />
-    </>
+    <SpielwieseCanvasPane
+      nodes={nodes}
+      onPromptSectionChange={onPromptSectionChange}
+      onSettingValueChange={onSettingValueChange}
+      onTitleChange={onTitleChange}
+    />
   );
 }

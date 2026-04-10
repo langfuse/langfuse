@@ -13,7 +13,7 @@ export default function SpielwieseRoutePage({
   slug,
 }: SpielwieseRoutePageProps) {
   return getSpielwieseRoute(slug) === "onboarding" ? (
-    <SpielwieseOnboardingPage />
+    <SpielwieseOnboardingPage stepId={slug?.[1]} />
   ) : (
     <SpielwieseDashboardPage />
   );

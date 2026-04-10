@@ -10,8 +10,17 @@ jest.mock("./SpielwieseDashboardPage", () => ({
 
 jest.mock("./SpielwieseOnboardingPage", () => ({
   __esModule: true,
-  default: function MockSpielwieseOnboardingPage() {
-    return <div data-testid="spielwiese-route-onboarding" />;
+  default: function MockSpielwieseOnboardingPage({
+    stepId,
+  }: {
+    stepId?: string;
+  }) {
+    return (
+      <div
+        data-step-id={stepId ?? ""}
+        data-testid="spielwiese-route-onboarding"
+      />
+    );
   },
 }));
 
@@ -30,9 +39,20 @@ describe("SpielwieseRoutePage", () => {
     expect(screen.queryByTestId("spielwiese-route-dashboard")).toBeNull();
   });
 
+  it("passes nested onboarding steps through to the onboarding page", () => {
+    render(<SpielwieseRoutePage slug={["onboarding", "intent"]} />);
+
+    expect(
+      screen
+        .getByTestId("spielwiese-route-onboarding")
+        .getAttribute("data-step-id"),
+    ).toBe("intent");
+  });
+
   it("resolves unknown nested paths back to the dashboard", () => {
     expect(getSpielwieseRoute()).toBe("dashboard");
     expect(getSpielwieseRoute(["drafts"])).toBe("dashboard");
     expect(getSpielwieseRoute(["onboarding"])).toBe("onboarding");
+    expect(getSpielwieseRoute(["onboarding", "role"])).toBe("onboarding");
   });
 });

@@ -1,7 +1,13 @@
 import { getSpielwieseDashboardVm } from "../adapters/dashboardVm";
 import { SpielwieseOnboardingCanvas } from "../components/SpielwieseOnboardingCanvas";
 
-export default function SpielwieseOnboardingPage() {
+type SpielwieseOnboardingPageProps = {
+  stepId?: string;
+};
+
+export default function SpielwieseOnboardingPage({
+  stepId,
+}: SpielwieseOnboardingPageProps) {
   const dashboard = getSpielwieseDashboardVm("assistant");
 
   if (!dashboard.onboardingCanvas) {
@@ -20,6 +26,7 @@ export default function SpielwieseOnboardingPage() {
         >
           <SpielwieseOnboardingCanvas
             onboardingCanvas={dashboard.onboardingCanvas}
+            requestedStepId={stepId}
           />
         </main>
       </div>

@@ -47,6 +47,8 @@ describe("SpielwieseDashboardShell render", () => {
     expect(screen.getByText("Shell content")).toBeTruthy();
     expect(screen.queryByText("langofuso")).toBeNull();
     expect(screen.queryByText("langfuse-redesign")).toBeNull();
+    expect(screen.getAllByText("3 variables").length >= 1).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-insert-panel")).toBeNull();
     expect(
       container.querySelector("[data-testid='spielwiese-shell']"),
     ).toBeTruthy();

@@ -30,6 +30,22 @@ describe("MinimalLayout", () => {
     expect(screen.getByTestId("agentation-surface")).toBeTruthy();
   });
 
+  it("renders agentation for the spielwiese catch-all route", () => {
+    mockedUseRouter.mockReturnValue({
+      pathname: "/dev/spielwiese/[[...slug]]",
+      asPath: "/dev/spielwiese/onboarding",
+    } as ReturnType<typeof useRouter>);
+
+    render(
+      <MinimalLayout>
+        <div>Spielwiese Nested</div>
+      </MinimalLayout>,
+    );
+
+    expect(screen.getByText("Spielwiese Nested")).toBeTruthy();
+    expect(screen.getByTestId("agentation-surface")).toBeTruthy();
+  });
+
   it("does not render agentation for other minimal routes", () => {
     mockedUseRouter.mockReturnValue({
       pathname: "/dev/dashboard",

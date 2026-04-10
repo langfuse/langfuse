@@ -12,6 +12,98 @@ import {
 } from "lucide-react";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 
+const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
+  {
+    id: "vision-agent",
+    stepLabel: "Step 1",
+    title: "Vision Agent",
+    description: "identifies + estimates",
+    kind: "Classifier",
+    settings: [
+      { id: "model", label: "Model", value: "GPT-4.1 mini" },
+      { id: "input", label: "Input", value: "meal_photo" },
+      { id: "output", label: "Output", value: "detected_foods" },
+      { id: "temperature", label: "Temperature", value: "0.1" },
+    ],
+    promptSections: [
+      { id: "user", label: "User", value: "[image]" },
+      {
+        id: "system",
+        label: "System",
+        value:
+          'You are a food identification expert. Identify every food item in the image.\nFor each item, estimate the weight in grams based on visual cues like plate size, hand, utensils, and known object references.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
+      },
+      { id: "assistant", label: "Assistant", value: "[JSON]" },
+    ],
+    notes: [
+      { id: "tools", value: "No tools." },
+      { id: "mode", value: "Pure vision." },
+      {
+        id: "focus",
+        value: 'This agent does ONE thing: "what is it and how much."',
+      },
+    ],
+  },
+  {
+    id: "nutrition-agent",
+    stepLabel: "Step 2",
+    title: "Nutrition Agent",
+    description: "calculates everything",
+    kind: "Calculator",
+    settings: [
+      { id: "model", label: "Model", value: "GPT-4.1" },
+      { id: "input", label: "Input", value: "detected_foods" },
+      { id: "output", label: "Output", value: "macro_estimates" },
+      { id: "temperature", label: "Temperature", value: "0.2" },
+    ],
+    promptSections: [
+      { id: "user", label: "User", value: "[JSON from Step 1]" },
+      {
+        id: "system",
+        label: "System",
+        value:
+          'You are a clinical nutritionist. Given food items and weights, return precise nutritional data per item and totals.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[{"item":"grilled salmon","weight_g":180,"kcal":354,"protein_g":39.2,"carbs_g":0,"fat_g":21.6,"fiber_g":0,"vitamins":{"A_mcg":12,"D_mcg":11,"B12_mcg":5.2},"minerals":{"iron_mg":0.5,"zinc_mg":0.7},"polyphenols_mg":0}],"totals":{...}}',
+      },
+      { id: "assistant", label: "Assistant", value: "[JSON]" },
+    ],
+    notes: [
+      { id: "source", value: "USDA FoodData Central" },
+      { id: "scope", value: "Per item + totals" },
+    ],
+  },
+  {
+    id: "coach-agent",
+    stepLabel: "Step 3",
+    title: "Coach Agent",
+    description: "turns data into guidance",
+    kind: "Responder",
+    settings: [
+      { id: "model", label: "Model", value: "GPT-4o mini" },
+      { id: "input", label: "Input", value: "macro_estimates" },
+      { id: "output", label: "Output", value: "coach_summary" },
+      { id: "temperature", label: "Temperature", value: "0.4" },
+    ],
+    promptSections: [
+      { id: "user", label: "User", value: "[JSON from Step 2]" },
+      {
+        id: "system",
+        label: "System",
+        value:
+          "You are a nutrition coach.\nTurn the nutrition JSON into a concise user-facing summary with calories, macros, and the biggest takeaways.\nKeep it short, concrete, and easy to scan.\nReturn natural language only.",
+      },
+      { id: "assistant", label: "Assistant", value: "[final summary]" },
+    ],
+    notes: [
+      { id: "tools", value: "No tools." },
+      {
+        id: "focus",
+        value:
+          'This agent does ONE thing: "turn structured nutrition into clear guidance."',
+      },
+    ],
+  },
+];
+
 const defaultInsertPanel: SpielwieseDashboardVM["insertPanel"] = {
   tabs: ["Insert", "Format", "Style", "Info"],
   activeTab: "Insert",
@@ -91,6 +183,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "links", label: "Linked pages", value: "00" },
         { id: "comments", label: "Comments", value: "03" },
       ],
+      agentNodes: defaultAgentNodes,
     },
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,
@@ -111,6 +204,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "attachments", label: "Attachments", value: "01" },
         { id: "outputs", label: "Outputs", value: "01" },
       ],
+      agentNodes: defaultAgentNodes,
     },
     promptCanvas: {
       title: "Vision Agent",
@@ -147,6 +241,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "inputs", label: "Inputs", value: "01" },
         { id: "outputs", label: "Outputs", value: "01" },
       ],
+      agentNodes: defaultAgentNodes,
     },
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,

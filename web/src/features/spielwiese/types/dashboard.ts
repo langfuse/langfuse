@@ -6,6 +6,34 @@ export type SpielwieseCanvasStatVM = {
   value: string;
 };
 
+export type SpielwieseAgentNodeSettingVM = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+export type SpielwieseAgentNodePromptSectionVM = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+export type SpielwieseAgentNodeNoteVM = {
+  id: string;
+  value: string;
+};
+
+export type SpielwieseAgentNodeVM = {
+  id: string;
+  stepLabel: string;
+  title: string;
+  description: string;
+  kind: string;
+  settings: SpielwieseAgentNodeSettingVM[];
+  promptSections: SpielwieseAgentNodePromptSectionVM[];
+  notes: SpielwieseAgentNodeNoteVM[];
+};
+
 export type SpielwiesePromptSectionVM = {
   id: string;
   label: string;
@@ -46,6 +74,7 @@ export type SpielwieseDashboardVM = {
     title: string;
     helper: string;
     stats: SpielwieseCanvasStatVM[];
+    agentNodes: SpielwieseAgentNodeVM[];
   };
   promptCanvas?: {
     title: string;

@@ -64,6 +64,12 @@ export function getSpielwieseDashboardVm(
     canvas: {
       ...dashboardSource.canvas,
       stats: dashboardSource.canvas.stats.map((stat) => ({ ...stat })),
+      agentNodes: dashboardSource.canvas.agentNodes.map((node) => ({
+        ...node,
+        settings: node.settings.map((setting) => ({ ...setting })),
+        promptSections: node.promptSections.map((section) => ({ ...section })),
+        notes: node.notes.map((note) => ({ ...note })),
+      })),
     },
     promptCanvas: dashboardSource.promptCanvas
       ? {
