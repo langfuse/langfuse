@@ -736,17 +736,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/digests/ghcr" "$RUNNER_TEMP/digests/dockerhub"
           printf '%s\n' '${{ steps.build-ghcr.outputs.digest }}' > "$RUNNER_TEMP/digests/ghcr/${{ matrix.platform_tag }}.txt"
           printf '%s\n' '${{ steps.build-dockerhub.outputs.digest }}' > "$RUNNER_TEMP/digests/dockerhub/${{ matrix.platform_tag }}.txt"
-      - name: Upload GitHub Container Registry digests
+      - name: Upload release digests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}-ghcr
-          path: ${{ runner.temp }}/digests/ghcr/${{ matrix.platform_tag }}.txt
-          if-no-files-found: error
-      - name: Upload Docker Hub digests
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}-dockerhub
-          path: ${{ runner.temp }}/digests/dockerhub/${{ matrix.platform_tag }}.txt
+          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}
+          path: |
+            ${{ runner.temp }}/digests/ghcr/${{ matrix.platform_tag }}.txt
+            ${{ runner.temp }}/digests/dockerhub/${{ matrix.platform_tag }}.txt
           if-no-files-found: error
 
   publish-docker-image-release:
@@ -781,18 +777,12 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
-      - name: Download GitHub Container Registry digests
+      - name: Download release digests
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
-          pattern: release-digests-${{ matrix.component }}-*-ghcr
+          pattern: release-digests-${{ matrix.component }}-*
           merge-multiple: true
-          path: ${{ runner.temp }}/digests/ghcr
-      - name: Download Docker Hub digests
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
-        with:
-          pattern: release-digests-${{ matrix.component }}-*-dockerhub
-          merge-multiple: true
-          path: ${{ runner.temp }}/digests/dockerhub
+          path: ${{ runner.temp }}/digests
       - name: Extract metadata (tags) for GitHub Container Registry
         id: meta-ghcr
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
