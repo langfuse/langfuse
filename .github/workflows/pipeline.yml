@@ -682,11 +682,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Log in to Docker Hub
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
       - name: Extract metadata (labels) for Docker
@@ -712,9 +707,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: |
-            ghcr.io/langfuse/${{ matrix.image_name }}:${{ env.STAGING_TAG_PREFIX }}-${{ matrix.platform_tag }}
-            langfuse/${{ matrix.image_name }}:${{ env.STAGING_TAG_PREFIX }}-${{ matrix.platform_tag }}
+          tags: ghcr.io/langfuse/${{ matrix.image_name }}:${{ env.STAGING_TAG_PREFIX }}-${{ matrix.platform_tag }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
 
@@ -798,6 +791,8 @@ jobs:
       - name: Publish multi-platform manifest to Docker Hub
         run: |
           dockerhub_tags=()
+          ghcr_first_tag=""
+
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             dockerhub_tags+=("-t" "$tag")
@@ -805,9 +800,20 @@ jobs:
           ${{ steps.meta-dockerhub.outputs.tags }}
           EOF
 
-          docker buildx imagetools create "${dockerhub_tags[@]}" \
-            "langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-amd64" \
-            "langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-arm64"
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            ghcr_first_tag="$tag"
+            break
+          done <<'EOF'
+          ${{ steps.meta-ghcr.outputs.tags }}
+          EOF
+
+          if [ -z "$ghcr_first_tag" ]; then
+            echo "No GHCR tag available to copy to Docker Hub"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${dockerhub_tags[@]}" "$ghcr_first_tag"
       - name: Inspect published manifests
         run: |
           ghcr_first_tag="$(printf '%s\n' "${{ steps.meta-ghcr.outputs.tags }}" | sed -n '1p')"
