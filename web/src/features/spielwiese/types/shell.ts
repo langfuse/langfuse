@@ -11,6 +11,11 @@ export type SpielwieseNavItem = {
   actionIcon?: LucideIcon;
 };
 
+export type SpielwieseNavGroup = {
+  id: string;
+  items: SpielwieseNavItem[];
+};
+
 export type SpielwieseSidebarTreeItem = {
   id: string;
   label: string;
@@ -64,7 +69,7 @@ export type SpielwieseShellVM = {
   workspaceLabel: string;
   team: SpielwieseTeam;
   user: SpielwieseUser;
-  utilityNav: SpielwieseNavItem[];
+  utilityNavGroups: SpielwieseNavGroup[];
   sidebarSections: SpielwieseSidebarSection[];
   footerTools: SpielwieseFooterTool[];
   usage: SpielwieseUsage;

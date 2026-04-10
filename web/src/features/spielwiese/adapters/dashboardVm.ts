@@ -29,9 +29,12 @@ function cloneTreeItems(
 export function getSpielwieseShellVm(pageId = "assistant"): SpielwieseShellVM {
   return {
     ...spielwieseShellMock,
-    utilityNav: spielwieseShellMock.utilityNav.map((item) => ({
-      ...item,
-      isActive: item.href.replace(/^#/, "") === pageId,
+    utilityNavGroups: spielwieseShellMock.utilityNavGroups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({
+        ...item,
+        isActive: item.href.replace(/^#/, "") === pageId,
+      })),
     })),
     sidebarSections: spielwieseShellMock.sidebarSections.map((section) => ({
       ...section,
@@ -53,6 +56,11 @@ export function getSpielwieseDashboardVm(
   return {
     ...dashboardSource,
     header: { ...dashboardSource.header },
+    onboardingCanvas: dashboardSource.onboardingCanvas
+      ? {
+          ...dashboardSource.onboardingCanvas,
+        }
+      : undefined,
     canvas: {
       ...dashboardSource.canvas,
       stats: dashboardSource.canvas.stats.map((stat) => ({ ...stat })),
