@@ -6325,7 +6325,11 @@ components:
           $ref: '#/components/schemas/BlobStorageIntegrationType'
         bucketName:
           type: string
-          description: Name of the storage bucket
+          description: >-
+            Name of the storage bucket. For AZURE_BLOB_STORAGE, must be a valid
+            Azure container name (3-63 chars, lowercase letters, numbers, and
+            hyphens only, must start and end with a letter or number, no
+            consecutive hyphens).
         endpoint:
           type: string
           nullable: true
