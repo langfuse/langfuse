@@ -1,22 +1,45 @@
 import { spielwieseDashboardMocks } from "../mock/dashboard";
 import { spielwieseShellMock } from "../mock/shell";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
-import type { SpielwieseShellVM } from "../types/shell";
+import type {
+  SpielwieseShellVM,
+  SpielwieseSidebarTreeItem,
+} from "../types/shell";
+
+function cloneTreeItems(
+  items: SpielwieseSidebarTreeItem[],
+  pageId: string,
+): SpielwieseSidebarTreeItem[] {
+  return items.map((item) => {
+    const children = item.children ? cloneTreeItems(item.children, pageId) : [];
+    const hrefPageId = item.href.replace(/^#/, "");
+    const isActive =
+      item.id === pageId ||
+      hrefPageId === pageId ||
+      children.some((child) => child.isActive);
+
+    return {
+      ...item,
+      children,
+      isActive,
+    };
+  });
+}
 
 export function getSpielwieseShellVm(pageId = "assistant"): SpielwieseShellVM {
   return {
     ...spielwieseShellMock,
-    primaryNav: spielwieseShellMock.primaryNav.map((item) => ({ ...item })),
-    secondaryNav: spielwieseShellMock.secondaryNav.map((item) => ({ ...item })),
-    favorites: spielwieseShellMock.favorites.map((item) => ({ ...item })),
-    workspaces: spielwieseShellMock.workspaces.map((workspace) => ({
-      ...workspace,
-      pages: workspace.pages.map((page) => ({
-        ...page,
-        isActive: page.id === pageId,
-      })),
+    utilityNav: spielwieseShellMock.utilityNav.map((item) => ({
+      ...item,
+      isActive: item.href.replace(/^#/, "") === pageId,
     })),
+    sidebarSections: spielwieseShellMock.sidebarSections.map((section) => ({
+      ...section,
+      items: cloneTreeItems(section.items, pageId),
+    })),
+    footerTools: spielwieseShellMock.footerTools.map((item) => ({ ...item })),
     team: { ...spielwieseShellMock.team },
+    usage: { ...spielwieseShellMock.usage },
     user: { ...spielwieseShellMock.user },
   };
 }
@@ -43,6 +66,12 @@ export function getSpielwieseDashboardVm(
           })),
         }
       : undefined,
+    variablesPanel: {
+      ...dashboardSource.variablesPanel,
+      items: dashboardSource.variablesPanel.items.map((item) => ({
+        ...item,
+      })),
+    },
     insertPanel: {
       ...dashboardSource.insertPanel,
       items: dashboardSource.insertPanel.items.map((item) => ({

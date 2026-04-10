@@ -2,18 +2,29 @@
 
 `spielwiese` is the dev-only redesign track for the future Langfuse shell.
 
+The tracked design-system source of truth lives under
+`src/features/spielwiese/design-system/*`. Runtime primitives live under
+`src/features/spielwiese/ui/*`, and all Spielwiese shells/pages/components
+should consume that primitive layer instead of shared app primitives.
+
 ## Boundaries
 
 - Keep all composed UI local to `src/features/spielwiese/**`.
 - Do not import from `src/components/nav/**`, `src/components/layouts/app-layout/**`, `src/product/**`, or other feature-local UI.
-- Prefer semantic Tailwind utilities and scoped tokens under `[data-spielwiese]`.
-- Do not mix shared `src/components/ui/*` primitives into Spielwiese shell or widget composition.
+- Prefer semantic Tailwind utilities and the shared token system in
+  `src/styles/globals.css`.
+- Do not mix shared `src/components/ui/*` primitives into Spielwiese shell or
+  widget composition.
 
 ## shadcn provenance
 
-- Generator workspace: `.context/spielwiese-shadcn`
+- Tracked design-system manifest:
+  `src/features/spielwiese/design-system/components.json`
+- Tracked design-system config:
+  `src/features/spielwiese/design-system/config.ts`
 - Target preset: `b1D0eCA7`
 - Starting block: `@shadcn/sidebar-15`
+- Generator workspace for local CLI inspection only: `.context/spielwiese-shadcn`
 
 When package installs are allowed, initialize the sandbox with:
 

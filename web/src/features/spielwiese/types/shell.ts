@@ -7,27 +7,44 @@ export type SpielwieseNavItem = {
   icon: LucideIcon;
   isActive?: boolean;
   badge?: string;
+  count?: string;
+  actionIcon?: LucideIcon;
 };
 
-export type SpielwieseFavoriteItem = {
+export type SpielwieseSidebarTreeItem = {
   id: string;
   label: string;
   href: string;
-};
-
-export type SpielwieseWorkspacePage = {
-  id: string;
-  label: string;
-  href: string;
-  isActive?: boolean;
-};
-
-export type SpielwieseWorkspaceGroup = {
-  id: string;
-  label: string;
-  emoji: string;
+  count?: string;
   defaultOpen?: boolean;
-  pages: SpielwieseWorkspacePage[];
+  emoji?: string;
+  icon?: LucideIcon;
+  isActive?: boolean;
+  children?: SpielwieseSidebarTreeItem[];
+};
+
+export type SpielwieseSidebarSection = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  actionIcon?: LucideIcon;
+  defaultOpen?: boolean;
+  emptyState?: string;
+  items: SpielwieseSidebarTreeItem[];
+};
+
+export type SpielwieseFooterTool = {
+  id: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+export type SpielwieseUsage = {
+  ctaLabel: string;
+  label: string;
+  limit: number;
+  used: number;
 };
 
 export type SpielwieseUser = {
@@ -47,8 +64,8 @@ export type SpielwieseShellVM = {
   workspaceLabel: string;
   team: SpielwieseTeam;
   user: SpielwieseUser;
-  primaryNav: SpielwieseNavItem[];
-  secondaryNav: SpielwieseNavItem[];
-  favorites: SpielwieseFavoriteItem[];
-  workspaces: SpielwieseWorkspaceGroup[];
+  utilityNav: SpielwieseNavItem[];
+  sidebarSections: SpielwieseSidebarSection[];
+  footerTools: SpielwieseFooterTool[];
+  usage: SpielwieseUsage;
 };

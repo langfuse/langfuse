@@ -18,13 +18,21 @@ describe("SpielwieseEditorCanvas", () => {
     render(<SpielwieseEditorCanvas canvas={canvas} />);
 
     const widget = screen.getByTestId("spielwiese-editor-canvas");
+    const panes = screen.getAllByTestId("spielwiese-editor-canvas-pane");
     expect(widget.className).toContain("@container");
+    expect(widget.className).toContain("h-full");
+    expect(widget.className).toContain("overflow-hidden");
+    expect(widget.className).toContain("flex-1");
+    expect(panes).toHaveLength(2);
+    expect(panes[0]?.className).toContain("rounded-t-lg");
+    expect(panes[1]?.className).toContain("rounded-none");
   });
 
-  it("renders canvas stats with tabular numerals", () => {
+  it("keeps the canvas minimal without the trailing stats footer", () => {
     render(<SpielwieseEditorCanvas canvas={canvas} />);
 
-    const value = screen.getByText("01");
-    expect(value.className).toContain("tabular-nums");
+    expect(screen.queryByText(canvas.helper)).toBeNull();
+    expect(screen.queryByText("01")).toBeNull();
+    expect(screen.queryByText("Assistant")).toBeNull();
   });
 });

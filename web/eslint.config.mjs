@@ -1,5 +1,96 @@
 import nextConfig from "@repo/eslint-config/next";
 
+const spielwieseRestrictedImportPaths = [
+  {
+    name: "react",
+    importNames: ["useEffect"],
+    message:
+      "Do not use useEffect directly in spielwiese. Derive state during render, move action logic into an event handler, use a query abstraction, or use useMountEffect only for mount-time external sync.",
+  },
+  {
+    name: "react",
+    importNames: ["useLayoutEffect"],
+    message:
+      "Do not use useLayoutEffect directly in spielwiese. If DOM measurement or imperative integration is truly required, isolate it in a focused hook and document why.",
+  },
+];
+
+const spielwieseRestrictedImportPatterns = [
+  {
+    group: ["@radix-ui/react-*"],
+    message:
+      "Do not import @radix-ui/react-* directly in spielwiese. Use the tracked local primitive layer under src/features/spielwiese/ui/*.",
+  },
+  {
+    group: ["@/src/components/ui", "@/src/components/ui/**"],
+    message:
+      "Do not import shared src/components/ui/* in spielwiese. Use the tracked local primitive layer under src/features/spielwiese/ui/*.",
+  },
+  {
+    group: ["@/src/components/nav", "@/src/components/nav/**"],
+    message:
+      "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
+  },
+  {
+    group: [
+      "@/src/components/layouts/app-layout",
+      "@/src/components/layouts/app-layout/**",
+    ],
+    message:
+      "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
+  },
+  {
+    group: ["@/src/product/*", "@/src/product/**"],
+    message:
+      "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
+  },
+  {
+    group: [
+      "@/src/features/*",
+      "@/src/features/*/**",
+      "!@/src/features/spielwiese",
+      "!@/src/features/spielwiese/**",
+    ],
+    message:
+      "Do not import UI primitives from unrelated features. Use the local spielwiese design-system or a spielwiese composite instead.",
+  },
+  {
+    group: ["**/.context/**"],
+    message:
+      "Do not import from .context. Scratch and generator artifacts must never become runtime source.",
+  },
+  {
+    group: ["@/src/features/spielwiese/ui"],
+    message:
+      "Do not import from a spielwiese UI barrel. Import directly from the concrete file for clearer ownership.",
+  },
+];
+
+const spielwieseDesignSystemPrimitiveBypassPatterns = [
+  {
+    group: [
+      "@/src/features/spielwiese/design-system/primitives",
+      "@/src/features/spielwiese/design-system/primitives/**",
+      "../design-system/primitives",
+      "../design-system/primitives/**",
+      "../../design-system/primitives",
+      "../../design-system/primitives/**",
+    ],
+    message:
+      "Do not import Spielwiese design-system primitive internals directly. Use the public runtime layer under src/features/spielwiese/ui/*.",
+  },
+];
+
+function withSpielwieseImportRestrictions(extraPatterns = []) {
+  return [
+    "error",
+    {
+      paths: spielwieseRestrictedImportPaths,
+      patterns: [...spielwieseRestrictedImportPatterns, ...extraPatterns],
+    },
+  ];
+}
+
 export default [
   ...nextConfig,
 
@@ -96,70 +187,7 @@ export default [
         },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "react",
-              importNames: ["useEffect"],
-              message:
-                "Do not use useEffect directly in spielwiese. Derive state during render, move action logic into an event handler, use a query abstraction, or use useMountEffect only for mount-time external sync.",
-            },
-            {
-              name: "react",
-              importNames: ["useLayoutEffect"],
-              message:
-                "Do not use useLayoutEffect directly in spielwiese. If DOM measurement or imperative integration is truly required, isolate it in a focused hook and document why.",
-            },
-          ],
-          patterns: [
-            {
-              group: ["@radix-ui/react-*"],
-              message:
-                "Do not import @radix-ui/react-* directly in spielwiese. Use the shared shadcn component layer instead.",
-            },
-            {
-              group: ["@/src/components/nav", "@/src/components/nav/**"],
-              message:
-                "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
-            },
-            {
-              group: [
-                "@/src/components/layouts/app-layout",
-                "@/src/components/layouts/app-layout/**",
-              ],
-              message:
-                "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
-            },
-            {
-              group: ["@/src/product/*", "@/src/product/**"],
-              message:
-                "Do not reuse current product shell or layout internals in spielwiese. Keep the redesign track isolated.",
-            },
-            {
-              group: [
-                "@/src/features/*",
-                "@/src/features/*/**",
-                "!@/src/features/spielwiese",
-                "!@/src/features/spielwiese/**",
-              ],
-              message:
-                "Do not import UI primitives from unrelated features. Use shared stock shadcn or a local spielwiese composite.",
-            },
-            {
-              group: ["**/.context/**"],
-              message:
-                "Do not import from .context. Scratch and generator artifacts must never become runtime source.",
-            },
-            {
-              group: ["@/src/features/spielwiese/ui"],
-              message:
-                "Do not import from a spielwiese UI barrel. Import directly from the concrete file for clearer ownership.",
-            },
-          ],
-        },
-      ],
+      "no-restricted-imports": withSpielwieseImportRestrictions(),
       "no-restricted-syntax": [
         "error",
         {
@@ -175,6 +203,169 @@ export default [
             "Do not use React.useLayoutEffect directly in spielwiese. If DOM measurement or imperative integration is truly required, isolate it in a focused hook and document why.",
         },
       ],
+    },
+  },
+
+  {
+    name: "langfuse/web/spielwiese-ui-layer-boundary",
+    files: ["src/features/spielwiese/ui/**/*.{ts,tsx}"],
+    ignores: ["src/features/spielwiese/**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": withSpielwieseImportRestrictions([
+        {
+          group: [
+            "../components",
+            "../components/**",
+            "@/src/features/spielwiese/components",
+            "@/src/features/spielwiese/components/**",
+          ],
+          message:
+            "spielwiese/ui/* is the primitive layer. It must not depend on spielwiese/components/*.",
+        },
+        {
+          group: [
+            "../shell",
+            "../shell/**",
+            "@/src/features/spielwiese/shell",
+            "@/src/features/spielwiese/shell/**",
+          ],
+          message:
+            "spielwiese/ui/* is the primitive layer. It must not depend on spielwiese/shell/*.",
+        },
+        {
+          group: [
+            "../pages",
+            "../pages/**",
+            "@/src/features/spielwiese/pages",
+            "@/src/features/spielwiese/pages/**",
+          ],
+          message:
+            "spielwiese/ui/* is the primitive layer. It must not depend on spielwiese/pages/*.",
+        },
+        {
+          group: [
+            "../adapters",
+            "../adapters/**",
+            "@/src/features/spielwiese/adapters",
+            "@/src/features/spielwiese/adapters/**",
+          ],
+          message:
+            "spielwiese/ui/* is the primitive layer. It must not depend on spielwiese/adapters/*.",
+        },
+        {
+          group: [
+            "../mock",
+            "../mock/**",
+            "@/src/features/spielwiese/mock",
+            "@/src/features/spielwiese/mock/**",
+          ],
+          message:
+            "spielwiese/ui/* is the primitive layer. It must not depend on spielwiese/mock/*.",
+        },
+      ]),
+    },
+  },
+
+  {
+    name: "langfuse/web/spielwiese-components-layer-boundary",
+    files: ["src/features/spielwiese/components/**/*.{ts,tsx}"],
+    ignores: ["src/features/spielwiese/**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": withSpielwieseImportRestrictions([
+        ...spielwieseDesignSystemPrimitiveBypassPatterns,
+        {
+          group: [
+            "../shell",
+            "../shell/**",
+            "@/src/features/spielwiese/shell",
+            "@/src/features/spielwiese/shell/**",
+          ],
+          message:
+            "spielwiese/components/* should stay reusable. Do not depend on spielwiese/shell/*.",
+        },
+        {
+          group: [
+            "../pages",
+            "../pages/**",
+            "@/src/features/spielwiese/pages",
+            "@/src/features/spielwiese/pages/**",
+          ],
+          message:
+            "spielwiese/components/* should stay reusable. Do not depend on spielwiese/pages/*.",
+        },
+        {
+          group: [
+            "../adapters",
+            "../adapters/**",
+            "@/src/features/spielwiese/adapters",
+            "@/src/features/spielwiese/adapters/**",
+          ],
+          message:
+            "spielwiese/components/* should receive view models via props. Do not depend on spielwiese/adapters/*.",
+        },
+        {
+          group: [
+            "../mock",
+            "../mock/**",
+            "@/src/features/spielwiese/mock",
+            "@/src/features/spielwiese/mock/**",
+          ],
+          message:
+            "spielwiese/components/* should stay runtime-focused. Do not depend on spielwiese/mock/*.",
+        },
+      ]),
+    },
+  },
+
+  {
+    name: "langfuse/web/spielwiese-shell-layer-boundary",
+    files: ["src/features/spielwiese/shell/**/*.{ts,tsx}"],
+    ignores: ["src/features/spielwiese/**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": withSpielwieseImportRestrictions([
+        ...spielwieseDesignSystemPrimitiveBypassPatterns,
+        {
+          group: [
+            "../pages",
+            "../pages/**",
+            "@/src/features/spielwiese/pages",
+            "@/src/features/spielwiese/pages/**",
+          ],
+          message:
+            "spielwiese/shell/* should stay page-agnostic. Do not depend on spielwiese/pages/*.",
+        },
+        {
+          group: [
+            "../adapters",
+            "../adapters/**",
+            "@/src/features/spielwiese/adapters",
+            "@/src/features/spielwiese/adapters/**",
+          ],
+          message:
+            "spielwiese/shell/* should receive data via props. Do not depend on spielwiese/adapters/*.",
+        },
+        {
+          group: [
+            "../mock",
+            "../mock/**",
+            "@/src/features/spielwiese/mock",
+            "@/src/features/spielwiese/mock/**",
+          ],
+          message:
+            "spielwiese/shell/* should receive data via props. Do not depend on spielwiese/mock/*.",
+        },
+      ]),
+    },
+  },
+
+  {
+    name: "langfuse/web/spielwiese-pages-layer-boundary",
+    files: ["src/features/spielwiese/pages/**/*.{ts,tsx}"],
+    ignores: ["src/features/spielwiese/**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": withSpielwieseImportRestrictions(
+        spielwieseDesignSystemPrimitiveBypassPatterns,
+      ),
     },
   },
 ];

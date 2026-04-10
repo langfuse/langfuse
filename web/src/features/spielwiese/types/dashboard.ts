@@ -24,6 +24,14 @@ export type SpielwieseLinePresetVM = {
   style: "dots" | "dash" | "split" | "solid";
 };
 
+export type SpielwieseVariableVM = {
+  id: string;
+  label: string;
+  helper: string;
+  isActive?: boolean;
+  tone: "blue" | "green" | "yellow";
+};
+
 export type SpielwieseDashboardVM = {
   pageId: string;
   header: {
@@ -39,6 +47,11 @@ export type SpielwieseDashboardVM = {
   promptCanvas?: {
     title: string;
     sections: SpielwiesePromptSectionVM[];
+  };
+  variablesPanel: {
+    countLabel: string;
+    actionLabel: string;
+    items: SpielwieseVariableVM[];
   };
   insertPanel: {
     tabs: string[];

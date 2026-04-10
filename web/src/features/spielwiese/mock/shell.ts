@@ -1,10 +1,20 @@
 import {
+  CalendarDays,
   CircleCheckBig,
+  Cloud,
+  Download,
   FileStack,
   FolderClosed,
+  FolderOpen,
+  Inbox,
   LayoutList,
-  Paperclip,
+  Monitor,
+  Plus,
   Search,
+  Star,
+  Tag,
+  Trash2,
+  Users,
 } from "lucide-react";
 import type { SpielwieseShellVM } from "../types/shell";
 
@@ -13,7 +23,7 @@ export const spielwieseShellMock: SpielwieseShellVM = {
   workspaceLabel: "Assistant",
   team: {
     name: "Macroextractor",
-    plan: "Just now",
+    plan: "Free plan",
     initials: "ME",
   },
   user: {
@@ -21,72 +31,193 @@ export const spielwieseShellMock: SpielwieseShellVM = {
     email: "louis@langfuse.dev",
     initials: "LV",
   },
-  primaryNav: [
+  utilityNav: [
+    {
+      id: "all-docs",
+      label: "All Docs",
+      href: "#all-docs",
+      icon: FileStack,
+      count: "12",
+    },
+    {
+      id: "tasks",
+      label: "Tasks",
+      href: "#tasks",
+      icon: CircleCheckBig,
+      actionIcon: Plus,
+    },
+    {
+      id: "calendar",
+      label: "Calendar",
+      href: "#calendar",
+      icon: CalendarDays,
+      actionIcon: Search,
+    },
+    {
+      id: "imagine",
+      label: "Imagine",
+      href: "#vision-agent",
+      icon: Cloud,
+    },
+    {
+      id: "shared-with-me",
+      label: "Shared With Me",
+      href: "#shared-with-me",
+      icon: Users,
+      count: "0",
+    },
+  ],
+  sidebarSections: [
+    {
+      id: "starred",
+      label: "Starred",
+      icon: Star,
+      actionIcon: Plus,
+      defaultOpen: true,
+      emptyState: "Star docs to keep them close.",
+      items: [],
+    },
+    {
+      id: "folders",
+      label: "Folders",
+      icon: FolderClosed,
+      actionIcon: Plus,
+      defaultOpen: true,
+      items: [
+        {
+          id: "welcome-pack",
+          label: "How to use Macroextractor",
+          href: "#welcome-pack",
+          count: "3",
+          defaultOpen: true,
+          emoji: "👋",
+          children: [
+            {
+              id: "workspace-rules",
+              label: "Workspace Rules",
+              href: "#workspace-rules",
+            },
+            {
+              id: "capture-checklist",
+              label: "Capture Checklist",
+              href: "#capture-checklist",
+            },
+            {
+              id: "handoff-template",
+              label: "Handoff Template",
+              href: "#handoff-template",
+            },
+          ],
+        },
+        {
+          id: "search",
+          label: "Search",
+          href: "#search",
+          icon: Search,
+        },
+        {
+          id: "macroextractor-runbook",
+          label: "Macroextractor Runbook",
+          href: "#assistant",
+          count: "4",
+          defaultOpen: true,
+          icon: FolderOpen,
+          children: [
+            {
+              id: "assistant",
+              label: "Assistant",
+              href: "#assistant",
+            },
+            {
+              id: "vision-agent",
+              label: "Vision Agent",
+              href: "#vision-agent",
+            },
+            {
+              id: "nutrition-agent",
+              label: "Nutrition Agent",
+              href: "#nutrition-agent",
+            },
+            {
+              id: "search-index",
+              label: "Search Index",
+              href: "#search",
+            },
+          ],
+        },
+        {
+          id: "inbox",
+          label: "Inbox",
+          href: "#inbox",
+          icon: Inbox,
+        },
+        {
+          id: "my-post",
+          label: "My Post",
+          href: "#my-post",
+        },
+        {
+          id: "open-questions",
+          label: "Open Questions Numia",
+          href: "#open-questions",
+        },
+        {
+          id: "philips",
+          label: "philips",
+          href: "#philips",
+        },
+        {
+          id: "prompt-eng",
+          label: "prompt eng",
+          href: "#prompt-eng",
+        },
+        {
+          id: "untitled-document",
+          label: "Untitled Document",
+          href: "#untitled-document",
+        },
+      ],
+    },
+    {
+      id: "tags",
+      label: "Tags",
+      icon: Tag,
+      actionIcon: Plus,
+      defaultOpen: true,
+      emptyState: "Pin your key tags for quick access.",
+      items: [],
+    },
+  ],
+  usage: {
+    ctaLabel: "Go Unlimited",
+    label: "You are on the free plan",
+    limit: 1500,
+    used: 878,
+  },
+  footerTools: [
+    {
+      id: "desktop",
+      label: "Desktop app",
+      href: "#desktop",
+      icon: Monitor,
+    },
+    {
+      id: "download",
+      label: "Download",
+      href: "#download",
+      icon: Download,
+    },
+    {
+      id: "trash",
+      label: "Trash",
+      href: "#trash",
+      icon: Trash2,
+    },
     {
       id: "outline",
       label: "Outline",
       href: "#outline",
       icon: LayoutList,
-      isActive: true,
-    },
-    {
-      id: "review",
-      label: "Review",
-      href: "#review",
-      icon: CircleCheckBig,
-    },
-    {
-      id: "attach",
-      label: "Attach",
-      href: "#attach",
-      icon: Paperclip,
-    },
-    {
-      id: "search",
-      label: "Search",
-      href: "#search",
-      icon: Search,
-    },
-  ],
-  secondaryNav: [
-    {
-      id: "folder",
-      label: "Folders",
-      href: "#folders",
-      icon: FolderClosed,
-    },
-    {
-      id: "files",
-      label: "Files",
-      href: "#files",
-      icon: FileStack,
-    },
-  ],
-  favorites: [],
-  workspaces: [
-    {
-      id: "macroextractor",
-      label: "Macroextractor",
-      emoji: "•",
-      defaultOpen: true,
-      pages: [
-        {
-          id: "assistant",
-          label: "Assistant",
-          href: "#assistant",
-          isActive: true,
-        },
-        {
-          id: "vision-agent",
-          label: "Step 1 — Vision Agent",
-          href: "#vision-agent",
-        },
-        {
-          id: "nutrition-agent",
-          label: "Step 2 — Nutrition Agent",
-          href: "#nutrition-agent",
-        },
-      ],
     },
   ],
 };

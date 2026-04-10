@@ -103,8 +103,12 @@ Rules:
   signoff. At minimum, keep coverage for the route root scope, metric
   `truncate`, metric `tabular-nums`, shell isolation, and widget `@container`
   behavior.
-- Default to shared shadcn/ui primitives from `src/components/ui`. Do not
-  import `@radix-ui/react-*` directly in `spielwiese`.
+- Default to the tracked Spielwiese primitive layer under
+  `src/features/spielwiese/ui/*`. Do not import shared `src/components/ui/*`
+  or `@radix-ui/react-*` directly in `spielwiese`.
+- Treat `src/features/spielwiese/design-system/*` as the tracked source of
+  truth for Spielwiese's Base shadcn + preset setup. Keep runtime primitives in
+  `src/features/spielwiese/ui/*` aligned with that layer.
 - Keep `spielwiese` isolated from the current product shell and unrelated
   feature UI. Do not import from `src/components/nav/**`,
   `src/components/layouts/app-layout/**`, `src/product/**`, or other

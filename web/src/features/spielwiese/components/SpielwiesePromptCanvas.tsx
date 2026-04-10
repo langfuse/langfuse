@@ -51,7 +51,7 @@ export function SpielwiesePromptCanvas({
 
   return (
     <section
-      className="@container flex min-h-[calc(100dvh-7rem)] flex-col"
+      className="@container flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="spielwiese-prompt-canvas"
     >
       <div className="flex-1 overflow-y-auto">

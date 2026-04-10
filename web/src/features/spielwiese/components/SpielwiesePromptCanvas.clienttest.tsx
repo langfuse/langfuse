@@ -21,6 +21,12 @@ describe("SpielwiesePromptCanvas", () => {
   it("renders a centered document editor surface", () => {
     render(<SpielwiesePromptCanvas promptCanvas={promptCanvas} />);
 
+    expect(screen.getByTestId("spielwiese-prompt-canvas").className).toContain(
+      "h-full",
+    );
+    expect(screen.getByTestId("spielwiese-prompt-canvas").className).toContain(
+      "overflow-hidden",
+    );
     expect(screen.getByTestId("spielwiese-document-editor")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-editor-body")).toBeTruthy();
   });

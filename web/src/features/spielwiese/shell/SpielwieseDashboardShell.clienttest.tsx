@@ -52,6 +52,15 @@ describe("SpielwieseDashboardShell render", () => {
     ).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-body")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-shell").className).toContain(
+      "h-screen-with-banner",
+    );
+    expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
+      "overflow-hidden",
+    );
+    expect(screen.getByTestId("spielwiese-shell-main").className).toContain(
+      "overflow-hidden",
+    );
     expect(
       screen
         .getByTestId("spielwiese-shell-header")

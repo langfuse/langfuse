@@ -1,67 +1,136 @@
-import { ChevronDown, FileText, Search } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Button } from "../ui/button";
 import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarSeparator,
   SidebarSurface,
 } from "../ui/sidebar";
-import type { SpielwieseShellVM } from "../types/shell";
+import type {
+  SpielwieseFooterTool,
+  SpielwieseNavItem,
+  SpielwieseShellVM,
+} from "../types/shell";
+import { SidebarSectionList } from "./SpielwieseSidebarLeftTree";
 
 type SpielwieseSidebarLeftProps = {
   compact?: boolean;
   shell: SpielwieseShellVM;
 };
 
-function TeamCard({
+function SpaceSwitcher({
   compact,
   shell,
 }: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
+  const avatar = (
+    <Avatar className="border-sidebar-border/60 size-9 rounded-lg border">
+      <AvatarFallback className="rounded-lg text-sm font-medium">
+        {shell.team.initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+
+  if (compact) {
+    return (
+      <a
+        className="border-sidebar-border/70 hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl border transition-colors"
+        href="#assistant"
+        title={shell.team.name}
+      >
+        <span className="scale-[0.89]">{avatar}</span>
+      </a>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-1 py-1.5",
-        compact && "justify-center",
-      )}
+    <a
+      className="hover:bg-sidebar-accent flex items-center gap-3 rounded-xl px-2 py-2 transition-colors"
+      href="#assistant"
     >
-      <div className="bg-muted flex h-10 w-8 shrink-0 items-center justify-center rounded-md border">
-        <div className="flex flex-col gap-1">
-          <span className="bg-foreground/85 block h-1.5 w-1.5 rounded-[2px]" />
-          <span className="bg-foreground/45 block h-0.5 w-3 rounded-full" />
-          <span className="bg-foreground/75 block h-0.5 w-4 rounded-full" />
-        </div>
-      </div>
-      <div className={cn("min-w-0 flex-1", compact && "hidden")}>
-        <p className="text-foreground truncate text-sm font-semibold">
-          {shell.team.name}
-        </p>
+      {avatar}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{shell.team.name}</p>
         <p className="text-muted-foreground truncate text-sm">
           {shell.team.plan}
         </p>
       </div>
-    </div>
+      <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+    </a>
   );
 }
 
-function ToolbarRow({
-  compact,
-  shell,
-}: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
+function CreateDocumentButton({ compact }: { compact: boolean }) {
+  if (compact) {
+    return (
+      <Button
+        aria-label="New document"
+        className="size-11 rounded-xl"
+        size="icon"
+        variant="secondary"
+      >
+        <Plus size={18} />
+      </Button>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "bg-secondary/65 flex items-center gap-1 rounded-lg p-1",
-        compact && "flex-col p-1.5",
-      )}
+    <Button
+      className="border-sidebar-border/70 bg-secondary/75 h-10 w-full justify-start rounded-xl border px-3 text-sm font-medium shadow-none"
+      data-testid="spielwiese-left-new-document"
+      variant="secondary"
     >
-      {shell.primaryNav.map((item) => {
+      <Plus size={16} />
+      <span>New Document</span>
+    </Button>
+  );
+}
+
+function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
+  const ActionIcon = item.actionIcon;
+  const Icon = item.icon;
+
+  return (
+    <a
+      aria-current={item.isActive ? "page" : undefined}
+      className={cn(
+        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+        item.isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+      )}
+      href={item.href}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      {item.count ? (
+        <span className="text-muted-foreground shrink-0 text-sm">
+          {item.count}
+        </span>
+      ) : null}
+      {ActionIcon ? (
+        <span className="text-muted-foreground shrink-0">
+          <ActionIcon className="size-4" />
+        </span>
+      ) : null}
+    </a>
+  );
+}
+
+function ExpandedUtilityNav({ items }: { items: SpielwieseNavItem[] }) {
+  return (
+    <nav aria-label="Primary workspace links" className="flex flex-col gap-1">
+      {items.map((item) => (
+        <UtilityNavRow item={item} key={item.id} />
+      ))}
+    </nav>
+  );
+}
+
+function CompactUtilityNav({ items }: { items: SpielwieseNavItem[] }) {
+  return (
+    <nav aria-label="Primary workspace links" className="flex flex-col gap-1.5">
+      {items.map((item) => {
         const Icon = item.icon;
 
         return (
@@ -69,13 +138,66 @@ function ToolbarRow({
             key={item.id}
             aria-current={item.isActive ? "page" : undefined}
             className={cn(
-              "text-muted-foreground hover:bg-background hover:text-foreground inline-flex size-8 items-center justify-center rounded-md transition-colors",
-              item.isActive && "bg-background text-foreground shadow-xs",
+              "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-10 items-center justify-center rounded-xl transition-colors",
+              item.isActive &&
+                "bg-sidebar-accent text-sidebar-accent-foreground",
             )}
             href={item.href}
             title={item.label}
           >
-            <Icon size={16} />
+            <Icon size={18} />
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+function UsageMeter({ shell }: { shell: SpielwieseShellVM }) {
+  const progress = Math.min(100, (shell.usage.used / shell.usage.limit) * 100);
+
+  return (
+    <div className="border-sidebar-border/70 bg-muted/35 flex flex-col gap-3 rounded-2xl border p-3">
+      <p className="text-sm font-medium">{shell.usage.label}</p>
+      <div className="bg-sidebar-border/60 h-2 overflow-hidden rounded-full">
+        <div
+          className="bg-foreground/75 h-full rounded-full"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="text-muted-foreground text-sm">
+        {shell.usage.used} of {shell.usage.limit} blocks used
+      </p>
+      <Button className="w-full rounded-xl">{shell.usage.ctaLabel}</Button>
+    </div>
+  );
+}
+
+function FooterTools({
+  compact,
+  tools,
+}: {
+  compact: boolean;
+  tools: SpielwieseFooterTool[];
+}) {
+  return (
+    <div
+      className={cn(
+        "border-sidebar-border/70 flex items-center gap-1.5 border-t pt-3",
+        compact && "flex-col border-t-0 pt-0",
+      )}
+    >
+      {tools.map((tool) => {
+        const Icon = tool.icon;
+
+        return (
+          <a
+            key={tool.id}
+            className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-9 items-center justify-center rounded-xl transition-colors"
+            href={tool.href}
+            title={tool.label}
+          >
+            <Icon className="size-4" />
           </a>
         );
       })}
@@ -83,102 +205,60 @@ function ToolbarRow({
   );
 }
 
-function SearchField({ compact }: Pick<SpielwieseSidebarLeftProps, "compact">) {
-  if (compact) {
-    return null;
-  }
-
+function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
   return (
-    <div className="text-muted-foreground bg-background flex items-center gap-2 rounded-md border px-3 py-2">
-      <Search size={15} />
-      <span className="truncate text-sm">Search</span>
-    </div>
-  );
-}
+    <>
+      <SidebarHeader className="items-center gap-2 p-2.5">
+        <SpaceSwitcher compact shell={shell} />
+        <CreateDocumentButton compact />
+      </SidebarHeader>
 
-function TableOfContents({
-  compact,
-  shell,
-}: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
-  const rootLabel = shell.team.name;
+      <SidebarContent className="items-center gap-2 overflow-y-auto p-2.5 pt-0">
+        <CompactUtilityNav items={shell.utilityNav} />
+        <SidebarSeparator className="w-full" />
+        <div className="flex flex-col gap-1.5">
+          {shell.sidebarSections.map((section) => {
+            const Icon = section.icon;
 
-  return (
-    <div className="flex flex-col gap-4">
-      {!compact ? (
-        <div className="flex flex-col gap-1">
-          <p className="text-muted-foreground text-sm">Table of Contents</p>
+            return (
+              <a
+                key={section.id}
+                className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-10 items-center justify-center rounded-xl transition-colors"
+                href={`#${section.id}`}
+                title={section.label}
+              >
+                <Icon className="size-4" />
+              </a>
+            );
+          })}
         </div>
-      ) : null}
+      </SidebarContent>
 
-      <SidebarMenu>
-        {!compact ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#root">
-              <FileText size={16} />
-              <span className="truncate">{rootLabel}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
-
-        {shell.workspaces.map((workspace) => (
-          <SidebarMenuItem key={workspace.id}>
-            <SidebarMenuButton
-              active={workspace.pages.some((page) => page.isActive)}
-              compact={compact}
-              href={workspace.pages[0]?.href ?? "#workspace"}
-            >
-              <span className={cn("shrink-0", compact && "hidden")}>
-                <ChevronDown size={14} />
-              </span>
-              <FileText size={16} />
-              <span className={cn("truncate", compact && "hidden")}>
-                {workspace.label}
-              </span>
-            </SidebarMenuButton>
-
-            {!compact ? (
-              <SidebarMenuSub>
-                {workspace.pages.map((page) => (
-                  <SidebarMenuSubItem key={page.id}>
-                    <SidebarMenuSubButton
-                      active={page.isActive}
-                      href={page.href}
-                    >
-                      <FileText size={15} />
-                      <span className="truncate">{page.label}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                ))}
-              </SidebarMenuSub>
-            ) : null}
-          </SidebarMenuItem>
-        ))}
-      </SidebarMenu>
-    </div>
+      <SidebarFooter className="items-center gap-2 p-2.5 pt-0">
+        <FooterTools compact tools={shell.footerTools} />
+      </SidebarFooter>
+    </>
   );
 }
 
-function FooterActions({
-  compact,
-  shell,
-}: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
+function ExpandedSidebar({ shell }: { shell: SpielwieseShellVM }) {
   return (
-    <SidebarMenu>
-      {shell.secondaryNav.map((item) => {
-        const Icon = item.icon;
+    <>
+      <SidebarHeader className="gap-2.5 p-3">
+        <SpaceSwitcher compact={false} shell={shell} />
+        <CreateDocumentButton compact={false} />
+        <ExpandedUtilityNav items={shell.utilityNav} />
+      </SidebarHeader>
 
-        return (
-          <SidebarMenuItem key={item.id}>
-            <SidebarMenuButton compact={compact} href={item.href}>
-              <Icon size={16} />
-              <span className={cn("truncate", compact && "hidden")}>
-                {item.label}
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        );
-      })}
-    </SidebarMenu>
+      <SidebarContent className="gap-4 overflow-y-auto p-3 pt-0">
+        <SidebarSectionList sections={shell.sidebarSections} />
+      </SidebarContent>
+
+      <SidebarFooter className="gap-4 p-3 pt-0">
+        <UsageMeter shell={shell} />
+        <FooterTools compact={false} tools={shell.footerTools} />
+      </SidebarFooter>
+    </>
   );
 }
 
@@ -187,22 +267,15 @@ export function SpielwieseSidebarLeft({
   shell,
 }: SpielwieseSidebarLeftProps) {
   return (
-    <SidebarSurface className="border-sidebar-border bg-background border-r">
-      <SidebarHeader className="gap-3">
-        <TeamCard compact={compact} shell={shell} />
-        <ToolbarRow compact={compact} shell={shell} />
-        <SearchField compact={compact} />
-      </SidebarHeader>
-
-      <SidebarSeparator />
-
-      <SidebarContent className={cn(compact && "items-center")}>
-        <TableOfContents compact={compact} shell={shell} />
-      </SidebarContent>
-
-      <SidebarFooter>
-        <FooterActions compact={compact} shell={shell} />
-      </SidebarFooter>
+    <SidebarSurface
+      className="border-sidebar-border bg-background overflow-hidden border-r"
+      data-testid="spielwiese-left-sidebar"
+    >
+      {compact ? (
+        <CompactSidebar shell={shell} />
+      ) : (
+        <ExpandedSidebar shell={shell} />
+      )}
     </SidebarSurface>
   );
 }

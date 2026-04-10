@@ -11,11 +11,7 @@ describe("SpielwieseDashboardPage", () => {
   it("renders the route with a scoped spielwiese root", () => {
     const { container } = render(<SpielwieseDashboardPage />);
 
-    expect(
-      screen.getByRole("heading", {
-        name: "Assistant",
-      }),
-    ).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-editor-canvas")).toBeTruthy();
     expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
   });
 

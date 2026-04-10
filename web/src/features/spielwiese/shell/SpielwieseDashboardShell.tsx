@@ -93,7 +93,7 @@ function SpielwieseDashboardShellLayout({
 
   return (
     <div
-      className="bg-background text-foreground min-h-dvh [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
+      className="bg-background text-foreground h-screen-with-banner flex flex-col overflow-hidden [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"
@@ -109,24 +109,30 @@ function SpielwieseDashboardShellLayout({
       <SpielwieseTopBar header={dashboard.header} shell={shell} />
 
       <div
-        className={cn("md:grid", gridClassName)}
+        className={cn("min-h-0 flex-1 overflow-hidden md:grid", gridClassName)}
         data-testid="spielwiese-shell-body"
       >
-        <aside className="hidden md:block">
-          <div className="sticky top-[var(--spielwiese-shell-offset)] h-[calc(100svh-var(--spielwiese-shell-offset))]">
+        <aside className="hidden min-h-0 md:block">
+          <div className="h-full min-h-0" data-testid="spielwiese-shell-left">
             <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <main className="flex flex-1 flex-col px-3 pt-3 pb-4 sm:px-5 sm:pt-4 sm:pb-5">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <main
+            className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-0 sm:px-5 sm:pt-4"
+            data-testid="spielwiese-shell-main"
+          >
             {children}
           </main>
         </div>
 
         {rightOpen ? (
-          <aside className="hidden xl:block">
-            <div className="sticky top-[var(--spielwiese-shell-offset)] h-[calc(100svh-var(--spielwiese-shell-offset))]">
+          <aside className="hidden min-h-0 xl:block">
+            <div
+              className="h-full min-h-0"
+              data-testid="spielwiese-shell-right"
+            >
               <SpielwieseSidebarRight dashboard={dashboard} />
             </div>
           </aside>
