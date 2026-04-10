@@ -1,6 +1,6 @@
 import type {
   EventRecordInsertType,
-  InternalTraceDirectEventWrite,
+  InternalEventsWriter,
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "@langfuse/shared/src/server";
@@ -24,38 +24,50 @@ function getInternalTraceIngestionService(): IngestionService {
   return internalTraceIngestionService;
 }
 
-export async function writeInternalTraceEventInputs(params: {
+async function writeInternalEventInputs(params: {
   rootSpanId: string;
   eventInputs: InternalTraceEventInput[];
 }): Promise<{ rootEventRecord?: EventRecordInsertType }> {
-  const ingestionService = getInternalTraceIngestionService();
+  const service = getInternalTraceIngestionService();
+
   const eventRecords = await Promise.all(
     params.eventInputs.map((eventInput) =>
-      ingestionService.createEventRecord(eventInput, ""),
+      service.createEventRecord(eventInput, ""),
     ),
   );
 
   for (const eventRecord of eventRecords) {
-    ingestionService.writeEventRecord(eventRecord);
+    service.writeEventRecord(eventRecord);
   }
 
   return {
     rootEventRecord: eventRecords.find(
-      (eventRecord) => eventRecord.span_id === params.rootSpanId,
+      (record) => record.span_id === params.rootSpanId,
     ),
   };
 }
 
-export function createInternalTraceEventsTableWrite(params?: {
-  experiment?: InternalTraceExperimentContext;
-  onRootEventRecordReady?: (
+export function createInternalEventsWriter(params?: {
+  experimentContext?: InternalTraceExperimentContext;
+  onRootEventWriteComplete?: (
     rootEventRecord: EventRecordInsertType,
-  ) => void | Promise<void>;
-}): InternalTraceDirectEventWrite {
+  ) => Promise<void>;
+}): InternalEventsWriter {
   return {
-    enabled: true,
-    experiment: params?.experiment,
-    writeEventInputs: writeInternalTraceEventInputs,
-    onRootEventRecordReady: params?.onRootEventRecordReady,
+    experimentContext: params?.experimentContext,
+    write: async (writeParams: {
+      rootSpanId: string;
+      eventInputs: InternalTraceEventInput[];
+    }) => {
+      const { rootSpanId, eventInputs } = writeParams;
+      const { rootEventRecord } = await writeInternalEventInputs({
+        rootSpanId,
+        eventInputs,
+      });
+
+      if (rootEventRecord && params?.onRootEventWriteComplete) {
+        await params.onRootEventWriteComplete(rootEventRecord);
+      }
+    },
   };
 }

@@ -36,7 +36,7 @@ import {
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
-import { createInternalTraceEventsTableWrite } from "../internal-tracing/createInternalTraceEventsTableWrite";
+import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -190,8 +190,8 @@ async function processLLMCall(
       experiment_run_name: config.experimentRunName,
     },
     prompt: config.prompt,
-    eventsTableWrite: createInternalTraceEventsTableWrite({
-      experiment: {
+    eventsWriter: createInternalEventsWriter({
+      experimentContext: {
         id: config.runId,
         name: config.datasetRun.name,
         metadata: asRecord(config.datasetRun.metadata),
@@ -202,7 +202,7 @@ async function processLLMCall(
         itemExpectedOutput: datasetItem.expectedOutput,
         itemMetadata: asRecord(datasetItem.metadata),
       },
-      onRootEventRecordReady: async (rootEventRecord) => {
+      onRootEventWriteComplete: async (rootEventRecord) => {
         await scheduleExperimentObservationEvals({
           observation: convertEventRecordToObservationForEval(rootEventRecord),
         });

@@ -5,7 +5,6 @@ import {
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
-import type { EventRecordInsertType } from "../repositories/definitions";
 import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
@@ -538,34 +537,22 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
 }
 
-/**
- * Details of a generation extracted from traced events.
- * Used to pass generation information from internal tracing to callbacks.
- */
-export type GenerationDetails = {
-  observationId: string;
-  name: string;
-  input: unknown;
-  output: unknown;
-  metadata: Record<string, unknown>;
-};
-
 export type ProcessedTraceEvent = {
   type: string;
   timestamp: string;
   body: Record<string, unknown>;
 };
 
-export type InternalTraceDirectEventWrite = {
-  enabled: boolean;
-  experiment?: InternalTraceExperimentContext;
-  writeEventInputs: (params: {
+/**
+ * Configuration for direct writing of trace events to the events table.
+ * Used by internal tracing (prompt experiments, evaluations).
+ */
+export type InternalEventsWriter = {
+  experimentContext?: InternalTraceExperimentContext;
+  write: (params: {
     rootSpanId: string;
     eventInputs: InternalTraceEventInput[];
-  }) => Promise<{ rootEventRecord?: EventRecordInsertType } | void>;
-  onRootEventRecordReady?: (
-    rootEventRecord: EventRecordInsertType,
-  ) => void | Promise<void>;
+  }) => Promise<void>;
 };
 
 export type TraceSinkParams = {
@@ -583,5 +570,11 @@ export type TraceSinkParams = {
     name: string;
     version: number;
   };
-  eventsTableWrite?: InternalTraceDirectEventWrite;
+  /**
+   * When provided, traced events are written directly to the events table,
+   * bypassing the legacy traces/observations ingestion pipeline for the events write.
+   * Used for internal tracing (prompt experiments, LLM-as-a-judge evaluations). Traced
+   * events are still written to the legacy traces/observations tables.
+   */
+  eventsWriter?: InternalEventsWriter;
 };

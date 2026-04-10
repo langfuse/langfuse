@@ -58,9 +58,8 @@ describe("createProductionEvalExecutionDeps", () => {
         traceSinkParams: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",
-          eventsTableWrite: expect.objectContaining({
-            enabled: true,
-            writeEventInputs: expect.any(Function),
+          eventsWriter: expect.objectContaining({
+            write: expect.any(Function),
           }),
         }),
       }),

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  convertDateToClickhouseDateTime,
   convertEventRecordToObservationForEval,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
@@ -439,7 +440,7 @@ describe("prompt experiment direct-write materialization", () => {
       processedEvents: getProcessedExperimentEvents(),
       traceId,
       projectId: "project-123",
-      experiment: getExperimentContext(),
+      experimentContext: getExperimentContext(),
     });
 
     expect(rootSpanId).toBe(traceId);
@@ -487,6 +488,9 @@ describe("prompt experiment direct-write materialization", () => {
     const rootObservation =
       convertEventRecordToObservationForEval(rootEventRecord);
 
+    expect(rootEventRecord.experiment_item_version).toBe(
+      convertDateToClickhouseDateTime(datasetItem.validFrom),
+    );
     expect(rootObservation.span_id).toBe(traceId);
     expect(rootObservation.experiment_item_root_span_id).toBe(traceId);
     expect(rootObservation.type).toBe("SPAN");
@@ -537,7 +541,7 @@ describe("scheduleExperimentObservationEvals", () => {
       processedEvents: getProcessedExperimentEvents(),
       traceId,
       projectId: "project-123",
-      experiment: getExperimentContext(),
+      experimentContext: getExperimentContext(),
     });
     const rootEventInput = eventInputs.find(
       (eventInput) => eventInput.spanId === traceId,

@@ -310,12 +310,12 @@ export function buildInternalTraceEventInputs(params: {
   processedEvents: ProcessedTraceEvent[];
   traceId: string;
   projectId: string;
-  experiment?: InternalTraceExperimentContext;
+  experimentContext?: InternalTraceExperimentContext;
 }): {
   rootSpanId: string;
   eventInputs: InternalTraceEventInput[];
 } {
-  const { processedEvents, traceId, projectId, experiment } = params;
+  const { processedEvents, traceId, projectId, experimentContext } = params;
   const { rootSpanId, snapshots } = materializeInternalTrace({
     processedEvents,
     traceId,
@@ -328,9 +328,11 @@ export function buildInternalTraceEventInputs(params: {
     return { rootSpanId, eventInputs: [] };
   }
 
-  const experimentMetadata = flattenMetadata(experiment?.metadata);
-  const experimentItemMetadata = flattenMetadata(experiment?.itemMetadata);
-  const source = experiment
+  const experimentMetadata = flattenMetadata(experimentContext?.metadata);
+  const experimentItemMetadata = flattenMetadata(
+    experimentContext?.itemMetadata,
+  );
+  const source = experimentContext
     ? INTERNAL_TRACE_EXPERIMENT_EVENT_SOURCE
     : INTERNAL_TRACE_EVENT_SOURCE;
 
@@ -396,19 +398,19 @@ export function buildInternalTraceEventInputs(params: {
           : undefined,
       metadata: snapshot.metadata,
       source,
-      experimentId: experiment?.id,
-      experimentName: experiment?.name,
+      experimentId: experimentContext?.id,
+      experimentName: experimentContext?.name,
       experimentMetadataNames: experimentMetadata.names,
       experimentMetadataValues: experimentMetadata.values,
-      experimentDescription: experiment?.description ?? undefined,
-      experimentDatasetId: experiment?.datasetId,
-      experimentItemId: experiment?.itemId,
-      experimentItemVersion: experiment?.itemVersion,
-      experimentItemRootSpanId: experiment ? rootSpanId : undefined,
+      experimentDescription: experimentContext?.description ?? undefined,
+      experimentDatasetId: experimentContext?.datasetId,
+      experimentItemId: experimentContext?.itemId,
+      experimentItemVersion: experimentContext?.itemVersion,
+      experimentItemRootSpanId: experimentContext ? rootSpanId : undefined,
       experimentItemExpectedOutput:
-        experiment?.itemExpectedOutput !== undefined &&
-        experiment?.itemExpectedOutput !== null
-          ? stringifyValue(experiment.itemExpectedOutput)
+        experimentContext?.itemExpectedOutput !== undefined &&
+        experimentContext?.itemExpectedOutput !== null
+          ? stringifyValue(experimentContext.itemExpectedOutput)
           : undefined,
       experimentItemMetadataNames: experimentItemMetadata.names,
       experimentItemMetadataValues: experimentItemMetadata.values,

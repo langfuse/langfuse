@@ -1,16 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockExportLocalEvents,
-  mockProcessEventBatch,
-  mockWriteEventInputs,
-  mockOnRootEventRecordReady,
-} = vi.hoisted(() => ({
-  mockExportLocalEvents: vi.fn(),
-  mockProcessEventBatch: vi.fn(),
-  mockWriteEventInputs: vi.fn(),
-  mockOnRootEventRecordReady: vi.fn(),
-}));
+const { mockExportLocalEvents, mockProcessEventBatch, mockWrite } = vi.hoisted(
+  () => ({
+    mockExportLocalEvents: vi.fn(),
+    mockProcessEventBatch: vi.fn(),
+    mockWrite: vi.fn(),
+  }),
+);
 
 vi.mock("langfuse-langchain", () => {
   return {
@@ -87,13 +83,7 @@ describe("getInternalTracingHandler", () => {
       successes: [],
       errors: [],
     });
-    mockWriteEventInputs.mockResolvedValue({
-      rootEventRecord: {
-        span_id: traceId,
-        trace_id: traceId,
-        project_id: "project-123",
-      },
-    });
+    mockWrite.mockResolvedValue(undefined);
   });
 
   it("disables staging propagation when direct event write is enabled", async () => {
@@ -102,17 +92,15 @@ describe("getInternalTracingHandler", () => {
       traceId,
       traceName: "internal-trace",
       environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-      eventsTableWrite: {
-        enabled: true,
-        experiment: {
+      eventsWriter: {
+        experimentContext: {
           id: "run-123",
           name: "Prompt run",
           datasetId: "dataset-123",
           itemId: "item-123",
           itemVersion: "2026-01-31T06:57:38.646Z",
         },
-        writeEventInputs: mockWriteEventInputs,
-        onRootEventRecordReady: mockOnRootEventRecordReady,
+        write: mockWrite,
       },
     });
 
@@ -146,7 +134,6 @@ describe("getInternalTracingHandler", () => {
         forwardToEventsTable: undefined,
       }),
     );
-    expect(mockWriteEventInputs).not.toHaveBeenCalled();
-    expect(mockOnRootEventRecordReady).not.toHaveBeenCalled();
+    expect(mockWrite).not.toHaveBeenCalled();
   });
 });

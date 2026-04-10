@@ -61,7 +61,7 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
   handler: CallbackHandler;
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, userId, eventsTableWrite } =
+  const { prompt, targetProjectId, environment, userId, eventsWriter } =
     traceSinkParams;
   const handler = new CallbackHandler({
     _projectId: targetProjectId,
@@ -77,6 +77,7 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
       );
       const processedEvents = prepareInternalTraceEvents({ events, prompt });
 
+      // Legacy write to traces/observations tables
       try {
         await processEventBatch(
           JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
@@ -89,7 +90,7 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
           },
           {
             isLangfuseInternal: true,
-            forwardToEventsTable: eventsTableWrite?.enabled ? false : undefined, // Do not dual write when we already direct event write
+            forwardToEventsTable: eventsWriter ? false : undefined, // Do not dual write when we already direct event write
           },
         );
       } catch (processingError) {
@@ -99,29 +100,18 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         });
       }
 
-      if (eventsTableWrite?.enabled) {
+      // Direct write to events table
+      if (eventsWriter) {
         try {
           const { rootSpanId, eventInputs } = buildInternalTraceEventInputs({
             processedEvents,
             traceId: traceSinkParams.traceId,
             projectId: targetProjectId,
-            experiment: eventsTableWrite.experiment,
+            experimentContext: eventsWriter.experimentContext,
           });
 
           if (eventInputs.length > 0) {
-            const writeResult = await eventsTableWrite.writeEventInputs({
-              rootSpanId,
-              eventInputs,
-            });
-
-            if (
-              writeResult?.rootEventRecord &&
-              eventsTableWrite.onRootEventRecordReady
-            ) {
-              await eventsTableWrite.onRootEventRecordReady(
-                writeResult.rootEventRecord,
-              );
-            }
+            await eventsWriter.write({ rootSpanId, eventInputs });
           }
         } catch (writeError) {
           traceException(writeError);
