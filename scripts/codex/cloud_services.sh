@@ -359,14 +359,18 @@ ensure_clickhouse_running() {
   local clickhouse_log="$clickhouse_root/clickhouse.log"
   local clickhouse_err="$clickhouse_root/clickhouse.err.log"
   local clickhouse_pid="$clickhouse_root/clickhouse.pid"
+  local -a clickhouse_runner
 
   mkdir -p "$clickhouse_data"
   if [ "${EUID:-$(id -u)}" -eq 0 ] && id -u clickhouse >/dev/null 2>&1; then
     chown -R clickhouse:clickhouse "$clickhouse_root"
+    clickhouse_runner=(runuser -u clickhouse --)
+  else
+    clickhouse_runner=()
   fi
 
   if ! wait_for_http "http://127.0.0.1:$CLICKHOUSE_HTTP_PORT/ping" 1; then
-    clickhouse-server \
+    "${clickhouse_runner[@]}" clickhouse-server \
       --daemon \
       --config-file=/etc/clickhouse-server/config.xml \
       --pid-file="$clickhouse_pid" \
@@ -389,7 +393,9 @@ ensure_clickhouse_running() {
   clickhouse_user_identifier="$(escape_clickhouse_identifier "$CLICKHOUSE_USER")"
 
   clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "CREATE USER IF NOT EXISTS $clickhouse_user_identifier IDENTIFIED WITH plaintext_password BY '$clickhouse_password_sql'"
-  clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "GRANT ALL ON *.* TO $clickhouse_user_identifier WITH GRANT OPTION"
+  if ! clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "GRANT CURRENT GRANTS ON *.* TO $clickhouse_user_identifier" >/dev/null 2>&1; then
+    clickhouse-client --host 127.0.0.1 --port "$CLICKHOUSE_NATIVE_PORT" -q "GRANT ALL ON *.* TO $clickhouse_user_identifier WITH GRANT OPTION"
+  fi
 }
 
 ensure_minio_running() {
