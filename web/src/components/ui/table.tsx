@@ -133,11 +133,12 @@ const TableCellWithCopyButton = React.forwardRef<
         aria-label={copyButtonLabel ?? "Copy to clipboard"}
         onClick={async (event) => {
           event.preventDefault();
+          const button = event.currentTarget;
           await copy(text);
 
-          if (event.currentTarget) {
-            // The currentTarget might no longer be in the DOM since React might have re-rendered the component after the state update.
-            event.currentTarget.focus();
+          if (button) {
+            // The original button might no longer be in the DOM if React re-rendered the component after the state update.
+            button.focus();
           }
         }}
       >

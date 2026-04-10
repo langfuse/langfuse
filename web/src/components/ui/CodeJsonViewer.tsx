@@ -230,6 +230,7 @@ export function CodeView(props: {
 
   const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    const button = event.currentTarget;
     const content =
       props.originalContent ??
       (typeof props.content === "string"
@@ -238,10 +239,10 @@ export function CodeView(props: {
 
     await copy(content);
 
-    if (event.currentTarget) {
+    if (button) {
       // Keep focus on the copy button to prevent focus shifting
-      // Note: The currentTarget might no longer be in the DOM since React might have re-rendered the component after the state update.
-      event.currentTarget.focus();
+      // Note: the original button might no longer be in the DOM if React re-rendered the component after the state update.
+      button.focus();
     }
   };
 
