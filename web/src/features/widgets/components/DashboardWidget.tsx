@@ -227,6 +227,15 @@ export function DashboardWidget({
     setRetryCount((current) => current + 1);
   }, []);
 
+  const isLatencyMetric = useMemo(() => {
+    const firstMetric = widget.data?.metrics[0];
+    if (!firstMetric) return false;
+    return (
+      firstMetric.measure === "latency" ||
+      firstMetric.measure === "streamingLatency"
+    );
+  }, [widget.data?.metrics]);
+
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
       return [];
@@ -254,7 +263,13 @@ export function DashboardWidget({
         agg: "count",
       };
       const metricField = `${metric.agg}_${metric.measure}`;
-      const metricValue = item[metricField];
+      const rawMetricValue = item[metricField];
+      // Latency measures are stored in milliseconds in ClickHouse,
+      // convert to seconds for display consistency with built-in dashboards
+      const metricValue =
+        isLatencyMetric && typeof rawMetricValue === "number"
+          ? rawMetricValue / 1000
+          : rawMetricValue;
 
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
@@ -433,6 +448,12 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              valueFormatter={
+                isLatencyMetric
+                  ? (seconds: number) =>
+                      `${Intl.NumberFormat("en-US", { notation: "compact", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(seconds)}s`
+                  : undefined
+              }
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}
