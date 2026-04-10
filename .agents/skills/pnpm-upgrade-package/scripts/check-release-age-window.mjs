@@ -26,6 +26,7 @@ const repoRoot = process.cwd();
 const workspaceConfig = readWorkspaceConfig(join(repoRoot, "pnpm-workspace.yaml"));
 const minimumReleaseAgeMinutes = workspaceConfig.minimumReleaseAge ?? 0;
 const thresholdMs = Date.now() - minimumReleaseAgeMinutes * 60 * 1000;
+const REGISTRY_FETCH_TIMEOUT_MS = 30_000;
 const registryCache = new Map();
 const workspaceReferenceCache = new Map();
 
@@ -59,23 +60,46 @@ function getMatchingExcludeEntries(name, version) {
 async function fetchRegistryPackage(name) {
   if (registryCache.has(name)) return registryCache.get(name);
 
-  const response = await fetch(
-    `https://registry.npmjs.org/${encodeURIComponent(name)}`,
-    {
-      headers: {
-        accept: "application/json",
-        "user-agent": "langfuse-pnpm-upgrade-package-skill",
-      },
-    },
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(
+    () => abortController.abort(),
+    REGISTRY_FETCH_TIMEOUT_MS,
   );
+  timeoutId.unref?.();
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${name} from npm registry: ${response.status}`);
+  try {
+    const response = await fetch(
+      `https://registry.npmjs.org/${encodeURIComponent(name)}`,
+      {
+        headers: {
+          accept: "application/json",
+          "user-agent": "langfuse-pnpm-upgrade-package-skill",
+        },
+        signal: abortController.signal,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch ${name} from npm registry: ${response.status}`,
+      );
+    }
+
+    const metadata = await response.json();
+    registryCache.set(name, metadata);
+    return metadata;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(
+        `Timed out fetching ${name} from npm registry after ${REGISTRY_FETCH_TIMEOUT_MS}ms`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const metadata = await response.json();
-  registryCache.set(name, metadata);
-  return metadata;
 }
 
 function getInstallability(metadata, name, version) {
@@ -140,27 +164,30 @@ async function analyzeManifestEntries(entries, { includeWorkspace = false } = {}
   const range = [];
 
   for (const entry of entries) {
+    const workspaceReferences = includeWorkspace
+      ? getWorkspaceReferences(entry.name)
+      : null;
+
     if (!isExactVersion(entry.spec)) {
       range.push({
         ...entry,
-        workspaceReferences: includeWorkspace
-          ? getWorkspaceReferences(entry.name)
-          : [],
+        ...(includeWorkspace ? { workspaceReferences } : {}),
       });
       continue;
     }
 
     const metadata = await fetchRegistryPackage(entry.name);
     const installability = getInstallability(metadata, entry.name, entry.spec);
-    const workspaceReferences = includeWorkspace
-      ? getWorkspaceReferences(entry.name)
-      : [];
 
     exact.push({
       ...entry,
       ...installability,
-      workspaceReferences,
-      isInstalledInWorkspace: workspaceReferences.length > 0,
+      ...(includeWorkspace
+        ? {
+            workspaceReferences,
+            isInstalledInWorkspace: workspaceReferences.length > 0,
+          }
+        : {}),
       suggestedExclude:
         includeWorkspace && workspaceReferences.length === 0
           ? null
