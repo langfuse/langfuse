@@ -359,6 +359,7 @@ const realExperimentEvents = [
 function getProcessedExperimentEvents() {
   return prepareInternalTraceEvents({
     events: realExperimentEvents as any,
+    environment: "langfuse-prompt-experiment",
     prompt,
   });
 }
