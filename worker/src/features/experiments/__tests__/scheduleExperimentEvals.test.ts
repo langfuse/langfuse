@@ -445,6 +445,7 @@ describe("prompt experiment direct-write materialization", () => {
       traceId,
       projectId: "project-123",
       experimentContext: getExperimentContext(),
+      isEventsTableAvailable: true,
     });
 
     expect(rootSpanId).toBe(syntheticRootSpanId);
@@ -545,6 +546,7 @@ describe("scheduleExperimentObservationEvals", () => {
       traceId,
       projectId: "project-123",
       experimentContext: getExperimentContext(),
+      isEventsTableAvailable: true,
     });
     const rootEventInput = eventInputs.find(
       (eventInput) => eventInput.spanId === syntheticRootSpanId,
