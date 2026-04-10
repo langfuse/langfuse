@@ -8,6 +8,20 @@ export const SCORE_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   tags: "trace_tags",
 };
 
+export type ScoresTableHiddenColumn =
+  | "traceId"
+  | "traceName"
+  | "observationId"
+  | "jobConfigurationId"
+  | "userId"
+  | "traceTags";
+
+const SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN: Partial<
+  Record<ScoresTableHiddenColumn, string>
+> = {
+  traceTags: "tags",
+};
+
 export const scoreFilterConfig: FilterConfig = {
   tableName: "scores",
 
@@ -83,3 +97,26 @@ export const scoreFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getScoreFilterConfig(
+  hiddenColumns: ScoresTableHiddenColumn[] = [],
+): FilterConfig {
+  if (hiddenColumns.length === 0) {
+    return scoreFilterConfig;
+  }
+  const hiddenColumnSet = new Set<string>(
+    hiddenColumns.map(
+      (column) => SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN[column] ?? column,
+    ),
+  );
+
+  return {
+    ...scoreFilterConfig,
+    defaultExpanded: scoreFilterConfig.defaultExpanded?.filter(
+      (column) => !hiddenColumnSet.has(column),
+    ),
+    facets: scoreFilterConfig.facets.filter(
+      (facet) => !hiddenColumnSet.has(facet.column),
+    ),
+  };
+}

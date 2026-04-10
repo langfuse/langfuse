@@ -290,6 +290,14 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_PAGE_SIZE: z.coerce
+    .number()
+    .positive()
+    .int()
+    .max(1000)
+    .optional()
+    .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
+    .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
