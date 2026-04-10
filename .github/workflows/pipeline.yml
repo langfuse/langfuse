@@ -669,7 +669,7 @@ jobs:
       packages: write
       contents: read
     env:
-      STAGING_TAG_PREFIX: staging-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
 
     steps:
       - name: Checkout
@@ -736,7 +736,7 @@ jobs:
       packages: write
       contents: read
     env:
-      STAGING_TAG_PREFIX: staging-${{ github.run_id }}-${{ github.run_attempt }}
+      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
 
     steps:
       - name: Checkout
