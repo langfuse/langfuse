@@ -577,6 +577,26 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(bedrockResponse.body.adapter).toBe(LLMAdapter.Bedrock);
       expect(bedrockResponse.body.config).toEqual({ region: "us-east-1" });
 
+      const bedrockApiKeyResponse = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("test-bedrock-api-key"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+          config: { region: "us-east-1" },
+        },
+        auth,
+        201,
+      );
+      expect(bedrockApiKeyResponse.status).toBe(201);
+      expect(bedrockApiKeyResponse.body.adapter).toBe(LLMAdapter.Bedrock);
+      expect(bedrockApiKeyResponse.body.displaySecretKey).toBe("...1234");
+      expect(bedrockApiKeyResponse.body.config).toEqual({
+        region: "us-east-1",
+      });
+
       // VertexAI works with or without config
       const vertexResponse = await makeZodVerifiedAPICall(
         PutLlmConnectionV1Response,
@@ -902,6 +922,41 @@ describe("/api/public/llm-connections API Endpoints", () => {
           },
         });
         expect(dbConnection?.config).toEqual({ region: "us-east-1" });
+      });
+
+      it("should create Bedrock connection with a Bedrock API key", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-api-key-config-test"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({ apiKey: "bedrock-api-key-9876" }),
+          config: {
+            region: "us-west-2",
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.displaySecretKey).toBe("...9876");
+        expect(response.body.config).toEqual({ region: "us-west-2" });
+
+        const dbConnection = await prisma.llmApiKeys.findUnique({
+          where: {
+            projectId_provider: {
+              projectId,
+              provider: createData.provider,
+            },
+          },
+        });
+
+        expect(dbConnection?.displaySecretKey).toBe("...9876");
       });
 
       it("should reject Bedrock connection without config", async () => {
