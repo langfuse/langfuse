@@ -1009,6 +1009,48 @@ describe("/api/public/llm-connections API Endpoints", () => {
         );
       });
 
+      it("should reject Bedrock connection with default credentials sentinel on cloud", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-default-creds"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: "__BEDROCK_DEFAULT_CREDENTIALS__",
+          config: { region: "us-east-1" },
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Default AWS credentials are only allowed for Bedrock in self-hosted deployments",
+        );
+      });
+
+      it("should reject Bedrock connection with invalid credential JSON", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-invalid-creds"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({ unknownField: "value" }),
+          config: { region: "us-east-1" },
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Invalid Bedrock credentials",
+        );
+      });
+
       it("should create VertexAI connection with location config", async () => {
         const createData = {
           provider: generateUniqueProvider("vertexai-config-test"),

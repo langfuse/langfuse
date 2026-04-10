@@ -668,91 +668,107 @@ describe("llmApiKey.all RPC", () => {
 
   it("should update a Bedrock DefaultCredentials key to explicit Access keys", async () => {
     const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
-    await caller.llmApiKey.create({
-      projectId,
-      provider,
-      adapter: LLMAdapter.Bedrock,
-      secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
-      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
-      withDefaultModels: false,
-      config: { region: "us-east-1" },
-    });
+    try {
+      // Simulate self-hosted to allow default credentials
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
-    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
-      where: { projectId, provider },
-    });
+      await caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "us-east-1" },
+      });
 
-    expect(decrypt(existingKey.secretKey)).toBe(
-      BEDROCK_USE_DEFAULT_CREDENTIALS,
-    );
-    expect(existingKey.displaySecretKey).toBe("Default AWS credentials");
+      const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider },
+      });
 
-    await caller.llmApiKey.update({
-      id: existingKey.id,
-      projectId,
-      provider,
-      adapter: LLMAdapter.Bedrock,
-      secretKey: JSON.stringify({
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      }),
-      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
-      withDefaultModels: false,
-      config: { region: "eu-west-1" },
-    });
+      expect(decrypt(existingKey.secretKey)).toBe(
+        BEDROCK_USE_DEFAULT_CREDENTIALS,
+      );
+      expect(existingKey.displaySecretKey).toBe("Default AWS credentials");
 
-    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
-      where: { id: existingKey.id },
-    });
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: JSON.stringify({
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        }),
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
 
-    expect(decrypt(updatedKey.secretKey)).toBe(
-      JSON.stringify({
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      }),
-    );
-    expect(updatedKey.displaySecretKey).toBe("...EKEY");
-    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+      const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existingKey.id },
+      });
+
+      expect(decrypt(updatedKey.secretKey)).toBe(
+        JSON.stringify({
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        }),
+      );
+      expect(updatedKey.displaySecretKey).toBe("...EKEY");
+      expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
   });
 
   it("should update a Bedrock DefaultCredentials key to a Bedrock API key", async () => {
     const provider = "bedrock";
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
-    await caller.llmApiKey.create({
-      projectId,
-      provider,
-      adapter: LLMAdapter.Bedrock,
-      secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
-      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
-      withDefaultModels: false,
-      config: { region: "us-east-1" },
-    });
+    try {
+      // Simulate self-hosted to allow default credentials
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
-    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
-      where: { projectId, provider },
-    });
+      await caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "us-east-1" },
+      });
 
-    await caller.llmApiKey.update({
-      id: existingKey.id,
-      projectId,
-      provider,
-      adapter: LLMAdapter.Bedrock,
-      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
-      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
-      withDefaultModels: false,
-      config: { region: "eu-west-1" },
-    });
+      const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider },
+      });
 
-    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
-      where: { id: existingKey.id },
-    });
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      });
 
-    expect(decrypt(updatedKey.secretKey)).toBe(
-      JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
-    );
-    expect(updatedKey.displaySecretKey).toBe("...9999");
-    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+      const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existingKey.id },
+      });
+
+      expect(decrypt(updatedKey.secretKey)).toBe(
+        JSON.stringify({ apiKey: "bedrock-api-key-9999" }),
+      );
+      expect(updatedKey.displaySecretKey).toBe("...9999");
+      expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
   });
 
   it("should reject updating a Bedrock key back to DefaultCredentials on cloud", async () => {
@@ -813,6 +829,7 @@ describe("llmApiKey.all RPC", () => {
     });
 
     try {
+      // Simulate self-hosted deployment where default credentials are allowed
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 
       await caller.llmApiKey.update({

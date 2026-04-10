@@ -13,8 +13,8 @@ export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
 export const BedrockAccessKeysSchema = z
   .object({
-    accessKeyId: z.string(),
-    secretAccessKey: z.string(),
+    accessKeyId: z.string().min(1),
+    secretAccessKey: z.string().min(1),
   })
   .strict();
 export type BedrockAccessKeys = z.infer<typeof BedrockAccessKeysSchema>;
