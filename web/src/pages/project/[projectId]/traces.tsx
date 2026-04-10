@@ -113,15 +113,23 @@ export default function Traces() {
           ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: isBetaEnabled
-          ? undefined
-          : {
-              tabs: getTracingTabs(projectId),
-              activeTab: TRACING_TABS.TRACES,
-            },
+        tabsProps:
+          isBetaEnabled || isInitializing
+            ? undefined
+            : {
+                tabs: getTracingTabs(projectId),
+                activeTab: TRACING_TABS.TRACES,
+              },
       }}
     >
-      {isBetaEnabled ? (
+      {isInitializing ? (
+        <>
+          {/* Wait for the beta flag before mounting either table. Otherwise the
+              legacy table can briefly mount, restore a v3 saved view, and
+              promote its viewId into the URL before the correct mode
+              resolves. */}
+        </>
+      ) : isBetaEnabled ? (
         <ObservationsEventsTable
           projectId={projectId}
           viewPersistenceKey={viewPersistenceKey}
