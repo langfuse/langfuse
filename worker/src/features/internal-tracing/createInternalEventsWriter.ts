@@ -8,6 +8,7 @@ import { clickhouseClient, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { IngestionService } from "../../services/IngestionService";
+import { env } from "../../env";
 
 let internalTraceIngestionService: IngestionService | undefined;
 
@@ -52,7 +53,11 @@ export function createInternalEventsWriter(params?: {
   onRootEventWriteComplete?: (
     rootEventRecord: EventRecordInsertType,
   ) => Promise<void>;
-}): InternalEventsWriter {
+}): InternalEventsWriter | undefined {
+  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE !== "true") {
+    return undefined;
+  }
+
   return {
     experimentContext: params?.experimentContext,
     write: async (writeParams: {
