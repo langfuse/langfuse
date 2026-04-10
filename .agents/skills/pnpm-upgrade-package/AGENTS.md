@@ -31,6 +31,9 @@ pnpm workspace.
      lock refresh / reinstall path before changing `package.json`.
    - If the current parent range does not cover the requested version, upgrade
      the direct parent dependency that pulls the package in.
+   - If a compatible transitive package still stays pinned after the normal
+     refresh path, you may suggest `pnpm dedupe` to the user as an optional
+     manual follow-up, but do not run it automatically and do not require it.
    - Do not add the transitive package directly unless the user explicitly asks.
 
 4. Ask before changing `minimumReleaseAgeExclude`.

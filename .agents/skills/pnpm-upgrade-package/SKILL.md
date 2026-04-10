@@ -28,6 +28,9 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
+- If a compatible transitive package still stays pinned after the normal
+  refresh path, you may suggest `pnpm dedupe` to the user as an optional manual
+  follow-up, but do not run it automatically and do not require it.
 - Resolve the registry latest version, but do not silently upgrade to latest
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
