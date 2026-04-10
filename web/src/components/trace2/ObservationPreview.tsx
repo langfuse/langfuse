@@ -596,6 +596,7 @@ export const ObservationPreview = ({
                   traceId={traceId}
                   omittedFilter={["Observation ID"]}
                   observationId={preloadedObservation.id}
+                  includeTraceLevelScores
                   hiddenColumns={[
                     "traceId",
                     "observationId",

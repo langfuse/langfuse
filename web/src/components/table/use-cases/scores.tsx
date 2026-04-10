@@ -101,6 +101,7 @@ export default function ScoresTable({
   userId,
   traceId,
   observationId,
+  includeTraceLevelScores = false,
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
@@ -109,6 +110,7 @@ export default function ScoresTable({
   userId?: string;
   traceId?: string;
   observationId?: string;
+  includeTraceLevelScores?: boolean;
   omittedFilter?: string[];
   hiddenColumns?: string[];
   localStorageSuffix?: string;
@@ -313,7 +315,7 @@ export default function ScoresTable({
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-      ...(observationId
+      ...(observationId && !includeTraceLevelScores
         ? [{ key: "Observation ID", value: observationId }]
         : []),
     ],

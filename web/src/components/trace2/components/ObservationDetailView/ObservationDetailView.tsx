@@ -473,6 +473,7 @@ export function ObservationDetailView({
               projectId={projectId}
               traceId={traceId}
               observationId={observation.id}
+              includeTraceLevelScores
               hiddenColumns={[
                 "traceId",
                 "observationId",
