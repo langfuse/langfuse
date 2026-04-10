@@ -80,7 +80,7 @@ jest.mock("use-query-params", () => {
   const React = require("react");
   const actual = jest.requireActual("use-query-params");
 
-  const StringParam = { __type: "string" };
+  const StringParam = { __type: "string" } as const;
   const withDefault = (param: unknown, defaultValue: unknown) => ({
     ...(typeof param === "object" && param !== null ? param : {}),
     __default: defaultValue,
