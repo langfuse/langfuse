@@ -10,12 +10,8 @@ Use this skill for interactive dependency bumps in Langfuse.
 ## Read Order
 
 - Start with [AGENTS.md](AGENTS.md) for the end-to-end workflow.
-- Open [references/release-age-workflow.md](references/release-age-workflow.md)
-  for the `minimumReleaseAgeExclude` decision rules.
 - Run the main helper once at the start of the upgrade:
   `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> [targetVersion]`
-- Use `find-package-references.mjs` only as a debug fallback if you need a
-  smaller local-only view.
 
 ## Apply This Skill
 
@@ -32,7 +28,7 @@ Use this skill for interactive dependency bumps in Langfuse.
 - Compare the target version with the latest version installable under the
   current `minimumReleaseAge` window.
 - Ask before adding `minimumReleaseAgeExclude` entries for the target package,
-  related exact-version direct dependencies, or locally installed exact peer
-  dependencies.
+  exact dependency companions from `dependencies` or `optionalDependencies`, or
+  locally installed exact peer dependencies.
 - Finish with `pnpm why -r <package>` to confirm that only the intended version
   remains in the workspace.

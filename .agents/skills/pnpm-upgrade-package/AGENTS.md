@@ -5,72 +5,45 @@ pnpm workspace.
 
 ## Workflow
 
-1. Collect the missing inputs.
-   - Ask for the package name if it was not passed in the request.
-   - Ask for the target version if it was not passed in the request.
-   - If the user says `latest`, resolve the actual latest registry version and
-     use that as the target version.
+1. Collect missing inputs.
+   - Ask for the package if missing.
+   - Ask for the target version if missing.
+   - If the user says `latest`, resolve the real registry latest first.
 
-2. Run the main analysis once, at the start.
+2. Run the main helper once.
    - Run
      `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`.
-   - Do not run a second discovery pass unless the helper output is missing
-     something you need.
-   - Start with the dependency and peer surface before deciding scope.
-   - Use this one output for:
-     - where the package is installed
-     - whether root `pnpm.overrides` or `pnpm.patchedDependencies` apply
-     - whether `minimumReleaseAgeExclude` already covers the target version
-     - which direct dependencies or locally installed exact peer dependencies
-       need companion exclusions
-   - If the helper shows no direct workspace references, treat the package as a
-     transitive-only candidate until proven otherwise.
-   - In that case, run `pnpm why -r <package>` before editing anything.
-   - Use the `why` output to identify which direct dependency introduces the
-     package, then check whether upgrading that parent dependency is the real
-     change you should make.
-   - Do not add the target package directly just because it is present in the
-     lockfile unless the user explicitly wants to add it as a direct dependency.
+   - Treat this as the single source of truth for:
+     - direct workspace references
+     - root `pnpm.overrides` / `pnpm.patchedDependencies`
+     - latest registry version
+     - latest version installable under the current release-age rules
+     - existing matching `minimumReleaseAgeExclude` entries
+     - exact dependency companions from `dependencies` and `optionalDependencies`
+     - exact peer dependencies that are actually installed in the workspace
 
-3. Ask about `minimumReleaseAgeExclude` before editing it.
-   - If the target version is newer than the latest version installable under
-     the current `minimumReleaseAge`, ask whether to add an exclusion.
-   - Prefer a version-specific exclusion like `package@1.2.3`.
-   - Add a package-wide exclusion like `package` only after explicit user
-     approval.
-   - If the script flags exact-version direct dependencies that are also too
-     new, ask whether to add version-specific exclusions for those packages too.
-   - If the script flags locally installed exact peer dependencies that are too
-     new, ask whether to add version-specific exclusions for those packages too.
-   - If the script lists range-based direct dependencies or peers for manual
-     review, only add exclusions after confirming the resolved version really
-     needs it.
+3. Handle the transitive-only case before editing anything.
+   - If the helper shows no direct workspace references, run `pnpm why -r <package>`.
+   - Upgrade the direct parent dependency that pulls the package in.
+   - Do not add the transitive package directly unless the user explicitly asks.
 
-4. Bump the dependency at the narrowest useful scope.
-   - Use `pnpm -w up <package>@<version>` for root-only dependencies.
-   - Use `pnpm --filter <workspace> up <package>@<version>` for one workspace.
-   - Use `pnpm -r up <package>@<version>` only when every current workspace
-     reference should move together.
-   - Use the workspace-reference output from the first analysis step to choose
-     the narrowest scope.
-   - For transitive-only packages, bump the direct parent package that `pnpm why
-     -r` identified instead of the transitive package itself, unless the user
-     explicitly asked to add the transitive package as a direct dependency.
+4. Ask before changing `minimumReleaseAgeExclude`.
+   - Prefer `package@version` entries.
+   - Only use bare `package` entries after explicit approval.
+   - Ask about exact companion packages only when the helper says they still
+     need a new exclusion.
+   - Treat range-based dependency or peer entries as manual review.
+
+5. Bump at the narrowest useful scope.
+   - `pnpm -w up <package>@<version>` for root-only changes.
+   - `pnpm --filter <workspace> up <package>@<version>` for one workspace.
+   - `pnpm -r up <package>@<version>` only when every current reference should move.
    - Do not hand-edit `pnpm-lock.yaml`.
 
-5. Update `pnpm-workspace.yaml` if approved.
-   - Keep exclusions narrow by default.
-   - Preserve existing formatting and nearby comments.
-   - Prefer adding exact-version entries for one-off upgrades.
-
-6. Validate the upgrade.
-   - Use the verification matrix in root `AGENTS.md`.
-   - Open the nearest package `AGENTS.md` when the change is package-specific.
-   - Run broader checks when the dependency is shared across `web`, `worker`,
-     `packages/shared`, or `ee`.
-   - Run `pnpm why -r <package>` as a final dependency-graph check.
-   - If the upgrade also moved tightly coupled companions, run
-     `pnpm why -r <companion-package>` for those too.
+6. Validate.
+   - Use the nearest package `AGENTS.md` plus the root verification matrix.
+   - Finish with `pnpm why -r <package>`.
+   - If companions moved too, run `pnpm why -r <companion-package>` for them as well.
 
 ## Quick Commands
 
@@ -80,8 +53,6 @@ pnpm workspace.
   `pnpm why -r <package>`
 - Final graph verification:
   `pnpm why -r <package>`
-- Optional local-only debug view:
-  `node .agents/skills/pnpm-upgrade-package/scripts/find-package-references.mjs <package>`
 - Bump in the root workspace:
   `pnpm -w up <package>@<version>`
 - Bump in one workspace:

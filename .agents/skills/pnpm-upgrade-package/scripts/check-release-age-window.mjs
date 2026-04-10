@@ -2,7 +2,9 @@
 
 import { join } from "node:path";
 import {
+  entryCoversVersion,
   findLocalPackageReferences,
+  formatWorkspaceReference,
   getRootPnpmControls,
   readWorkspaceConfig,
 } from "./lib/workspace-utils.mjs";
@@ -21,32 +23,24 @@ if (!packageName) {
 }
 
 const repoRoot = process.cwd();
+const workspaceConfig = readWorkspaceConfig(join(repoRoot, "pnpm-workspace.yaml"));
+const minimumReleaseAgeMinutes = workspaceConfig.minimumReleaseAge ?? 0;
+const thresholdMs = Date.now() - minimumReleaseAgeMinutes * 60 * 1000;
 const registryCache = new Map();
-const localReferenceCache = new Map();
+const workspaceReferenceCache = new Map();
 
-const getLocalPackageReferences = (name) => {
-  if (!localReferenceCache.has(name)) {
-    localReferenceCache.set(name, findLocalPackageReferences(repoRoot, name));
+const getWorkspaceReferences = (name) => {
+  if (!workspaceReferenceCache.has(name)) {
+    workspaceReferenceCache.set(name, findLocalPackageReferences(repoRoot, name));
   }
 
-  return localReferenceCache.get(name);
+  return workspaceReferenceCache.get(name);
 };
 
-const formatWorkspaceReferenceLine = (reference) => {
-  const label = reference.workspaceName
-    ? `${reference.path} (${reference.workspaceName})`
-    : reference.path;
-  const specs = reference.matches
-    .map((match) => `${match.field}: ${match.spec}`)
-    .join(", ");
-
-  return `${label} -> ${specs}`;
-};
-
-const printSectionHeader = (title) => {
+function printSectionHeader(title) {
   console.log("");
   console.log(title);
-};
+}
 
 function isPrerelease(version) {
   return version.includes("-");
@@ -56,19 +50,10 @@ function isExactVersion(spec) {
   return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(spec.trim());
 }
 
-function entryCoversVersion(entry, wantedPackage, wantedVersion) {
-  if (entry === wantedPackage) return true;
-  if (entry.endsWith("/*")) {
-    const prefix = entry.slice(0, -1);
-    return wantedPackage.startsWith(prefix);
-  }
-  if (!entry.startsWith(`${wantedPackage}@`)) return false;
-
-  return entry
-    .slice(wantedPackage.length + 1)
-    .split("||")
-    .map((part) => part.trim())
-    .includes(wantedVersion);
+function getMatchingExcludeEntries(name, version) {
+  return workspaceConfig.minimumReleaseAgeExclude.filter((entry) =>
+    entryCoversVersion(entry, name, version),
+  );
 }
 
 async function fetchRegistryPackage(name) {
@@ -88,55 +73,102 @@ async function fetchRegistryPackage(name) {
     throw new Error(`Failed to fetch ${name} from npm registry: ${response.status}`);
   }
 
-  const json = await response.json();
-  registryCache.set(name, json);
-  return json;
+  const metadata = await response.json();
+  registryCache.set(name, metadata);
+  return metadata;
 }
 
-function selectLatestInstallableVersion(metadata, thresholdMs) {
-  const times = metadata.time ?? {};
-  const candidates = Object.keys(metadata.versions ?? {})
-    .filter((version) => times[version] && !isPrerelease(version))
-    .map((version) => ({
-      version,
-      publishedAt: times[version],
-      publishedAtMs: Date.parse(times[version]),
-    }))
-    .sort((a, b) => b.publishedAtMs - a.publishedAtMs);
-
-  return (
-    candidates.find((candidate) => candidate.publishedAtMs <= thresholdMs) ??
-    null
-  );
-}
-
-async function analyzeExactVersionRequirement(
-  name,
-  version,
-  thresholdMs,
-  excludeEntries,
-) {
-  const metadata = await fetchRegistryPackage(name);
+function getInstallability(metadata, name, version) {
   const publishedAt = metadata.time?.[version] ?? null;
   const publishedAtMs = publishedAt ? Date.parse(publishedAt) : null;
-  const matchingExcludeEntries = excludeEntries.filter((entry) =>
-    entryCoversVersion(entry, name, version),
-  );
+  const matchingExcludeEntries = getMatchingExcludeEntries(name, version);
+  const isYoungerThanMinimumReleaseAge =
+    publishedAtMs != null ? publishedAtMs > thresholdMs : null;
+  const isInstallableWithoutNewExclude =
+    isYoungerThanMinimumReleaseAge == null
+      ? null
+      : !isYoungerThanMinimumReleaseAge || matchingExcludeEntries.length > 0;
 
   return {
     name,
     version,
     publishedAt,
-    isYoungerThanMinimumReleaseAge:
-      publishedAtMs != null ? publishedAtMs > thresholdMs : null,
+    isYoungerThanMinimumReleaseAge,
+    isInstallableWithoutNewExclude,
     matchingExcludeEntries,
     suggestedExclude:
-      publishedAtMs != null &&
-      publishedAtMs > thresholdMs &&
-      matchingExcludeEntries.length === 0
-        ? `${name}@${version}`
-        : null,
+      isInstallableWithoutNewExclude === false ? `${name}@${version}` : null,
   };
+}
+
+function selectLatestInstallableVersion(metadata, name) {
+  const times = metadata.time ?? {};
+
+  return (
+    Object.keys(metadata.versions ?? {})
+      .filter((version) => times[version] && !isPrerelease(version))
+      .sort((left, right) => Date.parse(times[right]) - Date.parse(times[left]))
+      .map((version) => getInstallability(metadata, name, version))
+      .find((candidate) => candidate.isInstallableWithoutNewExclude) ?? null
+  );
+}
+
+function collectManifestEntries(manifest, fields) {
+  const merged = new Map();
+
+  for (const field of fields) {
+    for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
+      const key = `${name}:${spec}`;
+      const entry = merged.get(key);
+
+      if (entry) {
+        entry.fields.push(field);
+        continue;
+      }
+
+      merged.set(key, { name, spec, fields: [field] });
+    }
+  }
+
+  return [...merged.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+}
+
+async function analyzeManifestEntries(entries, { includeWorkspace = false } = {}) {
+  const exact = [];
+  const range = [];
+
+  for (const entry of entries) {
+    if (!isExactVersion(entry.spec)) {
+      range.push({
+        ...entry,
+        workspaceReferences: includeWorkspace
+          ? getWorkspaceReferences(entry.name)
+          : [],
+      });
+      continue;
+    }
+
+    const metadata = await fetchRegistryPackage(entry.name);
+    const installability = getInstallability(metadata, entry.name, entry.spec);
+    const workspaceReferences = includeWorkspace
+      ? getWorkspaceReferences(entry.name)
+      : [];
+
+    exact.push({
+      ...entry,
+      ...installability,
+      workspaceReferences,
+      isInstalledInWorkspace: workspaceReferences.length > 0,
+      suggestedExclude:
+        includeWorkspace && workspaceReferences.length === 0
+          ? null
+          : installability.suggestedExclude,
+    });
+  }
+
+  return { exact, range };
 }
 
 function printWorkspaceReferences(title, references) {
@@ -147,7 +179,7 @@ function printWorkspaceReferences(title, references) {
   }
 
   for (const reference of references) {
-    console.log(`- ${formatWorkspaceReferenceLine(reference)}`);
+    console.log(`- ${formatWorkspaceReference(reference)}`);
   }
 }
 
@@ -169,7 +201,7 @@ function printRootPnpmControls(rootPnpm) {
   }
 }
 
-function printExactVersionSection(title, entries, { includeWorkspace = false } = {}) {
+function printVersionEntries(title, entries, { includeWorkspace = false } = {}) {
   printSectionHeader(title);
   if (entries.length === 0) {
     console.log("- none");
@@ -177,25 +209,25 @@ function printExactVersionSection(title, entries, { includeWorkspace = false } =
   }
 
   for (const entry of entries) {
-    const ageText =
-      entry.isYoungerThanMinimumReleaseAge == null
+    const status =
+      entry.isInstallableWithoutNewExclude == null
         ? "unknown"
-        : entry.isYoungerThanMinimumReleaseAge
-          ? "too new"
-          : "old enough";
-    const suffix = includeWorkspace
-      ? `; ${entry.isInstalledInWorkspace ? "installed in workspace" : "not installed in workspace"}`
-      : "";
+        : entry.isInstallableWithoutNewExclude
+          ? "installable now"
+          : "needs exclude";
 
-    console.log(`- ${entry.name}@${entry.version} (${ageText}${suffix})`);
+    console.log(
+      `- ${entry.name}@${entry.version} (${status}; via ${entry.fields.join(", ")})`,
+    );
     if (entry.publishedAt) {
       console.log(`  published at: ${entry.publishedAt}`);
     }
-    if (includeWorkspace && entry.workspaceReferences.length > 0) {
+    if (includeWorkspace) {
+      console.log(
+        `  installed in workspace: ${entry.isInstalledInWorkspace ? "yes" : "no"}`,
+      );
       for (const reference of entry.workspaceReferences) {
-        console.log(
-          `  workspace reference: ${formatWorkspaceReferenceLine(reference)}`,
-        );
+        console.log(`  workspace reference: ${formatWorkspaceReference(reference)}`);
       }
     }
     if (entry.matchingExcludeEntries.length > 0) {
@@ -209,7 +241,7 @@ function printExactVersionSection(title, entries, { includeWorkspace = false } =
   }
 }
 
-function printRangeSection(title, entries) {
+function printRangeEntries(title, entries) {
   printSectionHeader(title);
   if (entries.length === 0) {
     console.log("- none");
@@ -217,20 +249,15 @@ function printRangeSection(title, entries) {
   }
 
   for (const entry of entries) {
-    console.log(`- ${entry.name}: ${entry.spec} (manual review)`);
-    if (entry.workspaceReferences?.length > 0) {
-      for (const reference of entry.workspaceReferences) {
-        console.log(
-          `  workspace reference: ${formatWorkspaceReferenceLine(reference)}`,
-        );
-      }
+    console.log(
+      `- ${entry.name}: ${entry.spec} (manual review; via ${entry.fields.join(", ")})`,
+    );
+    for (const reference of entry.workspaceReferences ?? []) {
+      console.log(`  workspace reference: ${formatWorkspaceReference(reference)}`);
     }
   }
 }
 
-const workspaceConfig = readWorkspaceConfig(join(repoRoot, "pnpm-workspace.yaml"));
-const minimumReleaseAgeMinutes = workspaceConfig.minimumReleaseAge ?? 0;
-const thresholdMs = Date.now() - minimumReleaseAgeMinutes * 60 * 1000;
 const packageMetadata = await fetchRegistryPackage(packageName);
 const latestVersion = packageMetadata["dist-tags"]?.latest ?? null;
 const targetVersion = requestedTargetVersion ?? latestVersion;
@@ -245,69 +272,29 @@ if (!packageMetadata.versions?.[targetVersion]) {
   process.exit(1);
 }
 
-const packageWorkspaceReferences = getLocalPackageReferences(packageName);
+const packageWorkspaceReferences = getWorkspaceReferences(packageName);
 const rootPnpm = getRootPnpmControls(repoRoot, packageName);
 const latestInstallableWithoutNewExclude = selectLatestInstallableVersion(
   packageMetadata,
-  thresholdMs,
+  packageName,
 );
-const targetPublishedAt = packageMetadata.time?.[targetVersion] ?? null;
-const targetPublishedAtMs = targetPublishedAt ? Date.parse(targetPublishedAt) : null;
-const matchingPackageExcludeEntries =
-  workspaceConfig.minimumReleaseAgeExclude.filter((entry) =>
-    entryCoversVersion(entry, packageName, targetVersion),
-  );
-
+const targetInstallability = getInstallability(
+  packageMetadata,
+  packageName,
+  targetVersion,
+);
 const targetManifest = packageMetadata.versions[targetVersion];
-const exactDirectDependencies = await Promise.all(
-  Object.entries(targetManifest.dependencies ?? {})
-    .filter(([, spec]) => isExactVersion(spec))
-    .map(([name, version]) =>
-      analyzeExactVersionRequirement(
-        name,
-        version,
-        thresholdMs,
-        workspaceConfig.minimumReleaseAgeExclude,
-      ),
-    ),
-);
-const rangeDirectDependencies = Object.entries(targetManifest.dependencies ?? {})
-  .filter(([, spec]) => !isExactVersion(spec))
-  .map(([name, spec]) => ({
-    name,
-    spec,
-    note: "Manual review: range-based dependency",
-  }));
 
-const exactPeerDependencies = await Promise.all(
-  Object.entries(targetManifest.peerDependencies ?? {})
-    .filter(([, spec]) => isExactVersion(spec))
-    .map(async ([name, version]) => {
-      const workspaceReferences = getLocalPackageReferences(name);
-      const analysis = await analyzeExactVersionRequirement(
-        name,
-        version,
-        thresholdMs,
-        workspaceConfig.minimumReleaseAgeExclude,
-      );
-
-      return {
-        ...analysis,
-        workspaceReferences,
-        isInstalledInWorkspace: workspaceReferences.length > 0,
-        suggestedExclude:
-          workspaceReferences.length > 0 ? analysis.suggestedExclude : null,
-      };
-    }),
+const dependencyCompanions = await analyzeManifestEntries(
+  collectManifestEntries(targetManifest, [
+    "dependencies",
+    "optionalDependencies",
+  ]),
 );
-const rangePeerDependencies = Object.entries(targetManifest.peerDependencies ?? {})
-  .filter(([, spec]) => !isExactVersion(spec))
-  .map(([name, spec]) => ({
-    name,
-    spec,
-    workspaceReferences: getLocalPackageReferences(name),
-    note: "Manual review: range-based peer dependency",
-  }));
+const peerDependencies = await analyzeManifestEntries(
+  collectManifestEntries(targetManifest, ["peerDependencies"]),
+  { includeWorkspace: true },
+);
 
 const result = {
   packageName,
@@ -321,20 +308,17 @@ const result = {
   latestRegistryPublishedAt:
     latestVersion != null ? packageMetadata.time?.[latestVersion] ?? null : null,
   latestInstallableWithoutNewExclude,
-  targetPublishedAt,
+  targetPublishedAt: targetInstallability.publishedAt,
   targetIsYoungerThanMinimumReleaseAge:
-    targetPublishedAtMs != null ? targetPublishedAtMs > thresholdMs : null,
-  matchingPackageExcludeEntries,
-  suggestedPackageExclude:
-    targetPublishedAtMs != null &&
-    targetPublishedAtMs > thresholdMs &&
-    matchingPackageExcludeEntries.length === 0
-      ? `${packageName}@${targetVersion}`
-      : null,
-  exactDirectDependencies,
-  rangeDirectDependencies,
-  exactPeerDependencies,
-  rangePeerDependencies,
+    targetInstallability.isYoungerThanMinimumReleaseAge,
+  targetIsInstallableWithoutNewExclude:
+    targetInstallability.isInstallableWithoutNewExclude,
+  matchingPackageExcludeEntries: targetInstallability.matchingExcludeEntries,
+  suggestedPackageExclude: targetInstallability.suggestedExclude,
+  exactDependencyCompanions: dependencyCompanions.exact,
+  rangeDependencyCompanions: dependencyCompanions.range,
+  exactPeerDependencies: peerDependencies.exact,
+  rangePeerDependencies: peerDependencies.range,
 };
 
 if (asJson) {
@@ -371,19 +355,19 @@ if (latestInstallableWithoutNewExclude) {
 } else {
   console.log("Latest installable without new exclude: none found");
 }
-console.log(`Target published at: ${targetPublishedAt ?? "unknown"}`);
+console.log(`Target published at: ${result.targetPublishedAt ?? "unknown"}`);
 console.log(
-  `Target is younger than minimumReleaseAge: ${
-    result.targetIsYoungerThanMinimumReleaseAge == null
+  `Target installable without new exclude: ${
+    result.targetIsInstallableWithoutNewExclude == null
       ? "unknown"
-      : result.targetIsYoungerThanMinimumReleaseAge
+      : result.targetIsInstallableWithoutNewExclude
         ? "yes"
         : "no"
   }`,
 );
-if (matchingPackageExcludeEntries.length > 0) {
+if (result.matchingPackageExcludeEntries.length > 0) {
   console.log("Matching package exclude entries:");
-  for (const entry of matchingPackageExcludeEntries) {
+  for (const entry of result.matchingPackageExcludeEntries) {
     console.log(`- ${entry}`);
   }
 } else {
@@ -393,9 +377,15 @@ if (result.suggestedPackageExclude) {
   console.log(`Suggested package exclude: ${result.suggestedPackageExclude}`);
 }
 
-printExactVersionSection("Exact direct dependencies:", exactDirectDependencies);
-printRangeSection("Range direct dependencies:", rangeDirectDependencies);
-printExactVersionSection("Exact peer dependencies:", exactPeerDependencies, {
+printVersionEntries(
+  "Exact dependency companions (dependencies + optionalDependencies):",
+  result.exactDependencyCompanions,
+);
+printRangeEntries(
+  "Range dependency companions (dependencies + optionalDependencies):",
+  result.rangeDependencyCompanions,
+);
+printVersionEntries("Exact peer dependencies:", result.exactPeerDependencies, {
   includeWorkspace: true,
 });
-printRangeSection("Range peer dependencies:", rangePeerDependencies);
+printRangeEntries("Range peer dependencies:", result.rangePeerDependencies);

@@ -8,6 +8,17 @@ const packageFields = [
   "optionalDependencies",
 ];
 
+export function formatWorkspaceReference(reference) {
+  const label = reference.workspaceName
+    ? `${reference.path} (${reference.workspaceName})`
+    : reference.path;
+  const specs = reference.matches
+    .map((match) => `${match.field}: ${match.spec}`)
+    .join(", ");
+
+  return `${label} -> ${specs}`;
+}
+
 export function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -103,6 +114,21 @@ export function matchesPackageSelector(selector, wantedPackage) {
   return false;
 }
 
+export function entryCoversVersion(entry, wantedPackage, wantedVersion) {
+  if (entry === wantedPackage) return true;
+  if (entry.endsWith("/*")) {
+    const prefix = entry.slice(0, -1);
+    return wantedPackage.startsWith(prefix);
+  }
+  if (!entry.startsWith(`${wantedPackage}@`)) return false;
+
+  return entry
+    .slice(wantedPackage.length + 1)
+    .split("||")
+    .map((part) => part.trim())
+    .includes(wantedVersion);
+}
+
 export function findLocalPackageReferences(repoRoot, wantedPackage) {
   const results = [];
 
@@ -140,22 +166,5 @@ export function getRootPnpmControls(repoRoot, packageName) {
     )
       .filter(([selector]) => matchesPackageSelector(selector, packageName))
       .map(([selector, value]) => ({ selector, value })),
-  };
-}
-
-export function getPackageWorkspaceContext(repoRoot, packageName) {
-  const workspaceConfig = readWorkspaceConfig(join(repoRoot, "pnpm-workspace.yaml"));
-
-  return {
-    packageName,
-    locations: findLocalPackageReferences(repoRoot, packageName),
-    rootPnpm: getRootPnpmControls(repoRoot, packageName),
-    workspaceConfig: {
-      minimumReleaseAge: workspaceConfig.minimumReleaseAge,
-      matchingMinimumReleaseAgeExcludeEntries:
-        workspaceConfig.minimumReleaseAgeExclude.filter((entry) =>
-          matchesPackageSelector(entry, packageName),
-        ),
-    },
   };
 }
