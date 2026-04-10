@@ -23,6 +23,43 @@ export function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function stripInlineComment(line) {
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (quote) {
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+
+    if (char === "#") {
+      return line.slice(0, index).trimEnd();
+    }
+  }
+
+  return line;
+}
+
 export function readWorkspaceConfig(path) {
   const raw = readFileSync(path, "utf8");
   const lines = raw.split(/\r?\n/);
@@ -31,7 +68,8 @@ export function readWorkspaceConfig(path) {
   let inExcludeBlock = false;
 
   for (const line of lines) {
-    const trimmed = line.trim();
+    const uncommented = stripInlineComment(line);
+    const trimmed = uncommented.trim();
 
     if (!trimmed || trimmed.startsWith("#")) continue;
 
@@ -47,7 +85,7 @@ export function readWorkspaceConfig(path) {
     }
 
     if (inExcludeBlock) {
-      const excludeMatch = line.match(/^\s*-\s+(.+?)\s*$/);
+      const excludeMatch = uncommented.match(/^\s*-\s+(.+?)\s*$/);
       if (excludeMatch) {
         minimumReleaseAgeExclude.push(
           excludeMatch[1].replace(/^['"]|['"]$/g, ""),
@@ -55,7 +93,7 @@ export function readWorkspaceConfig(path) {
         continue;
       }
 
-      if (/^\S/.test(line)) {
+      if (/^\S/.test(uncommented)) {
         inExcludeBlock = false;
       }
     }
