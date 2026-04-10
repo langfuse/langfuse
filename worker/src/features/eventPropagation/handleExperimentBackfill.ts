@@ -837,8 +837,9 @@ async function processExperimentBackfill(
 
   if (datasetRunItems.length === 0) {
     logger.info(
-      "[EXPERIMENT BACKFILL] No dataset run items to process, skipping",
+      "[EXPERIMENT BACKFILL] No dataset run items to process, advancing cursor",
     );
+    await updateBackfillTimestamp(upperBound);
     return;
   }
 
