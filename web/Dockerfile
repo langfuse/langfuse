@@ -19,6 +19,20 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 RUN rm -rf /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
+FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
+ARG TARGETOS
+ARG TARGETARCH
+ENV CGO_ENABLED=0 \
+    GOBIN=/out \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH}
+# Build only the ClickHouse migrate CLI Langfuse uses at runtime.
+# compile this ourselves instead of downloading the upstream release
+# because prebuilt bins bundle many unused drivers and thus inherit CVEs
+# eg.: https://github.com/golang-migrate/migrate/issues/1357
+RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
+    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
 WORKDIR /app
@@ -134,9 +148,7 @@ RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
 RUN rm -rf /usr/local/lib/node_modules/npm && \
     rm -f /usr/local/bin/npm /usr/local/bin/npx
 
-RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
-    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
-    mv migrate /usr/bin/migrate
+COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
