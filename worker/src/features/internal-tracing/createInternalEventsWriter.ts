@@ -62,7 +62,7 @@ export function createInternalEventsWriter(params?: {
   onRootEventRecordReady?: (
     rootEventRecord: EventRecordInsertType,
   ) => Promise<void>;
-}): InternalEventsWriter | undefined {
+}): InternalEventsWriter {
   return {
     experimentContext: params?.experimentContext,
     write: async (writeParams: {
