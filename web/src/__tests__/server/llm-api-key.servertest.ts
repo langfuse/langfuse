@@ -754,7 +754,7 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKey.config).toEqual({ region: "eu-west-1" });
   });
 
-  it("should update a Bedrock Access key auth back to DefaultCredentials", async () => {
+  it("should reject updating a Bedrock key back to DefaultCredentials on cloud", async () => {
     const provider = "bedrock";
 
     await caller.llmApiKey.create({
@@ -774,24 +774,20 @@ describe("llmApiKey.all RPC", () => {
       where: { projectId, provider },
     });
 
-    await caller.llmApiKey.update({
-      id: existingKey.id,
-      projectId,
-      provider,
-      adapter: LLMAdapter.Bedrock,
-      secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
-      customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
-      withDefaultModels: false,
-      config: { region: "eu-west-1" },
-    });
-
-    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
-      where: { id: existingKey.id },
-    });
-
-    expect(decrypt(updatedKey.secretKey)).toBe(BEDROCK_USE_DEFAULT_CREDENTIALS);
-    expect(updatedKey.displaySecretKey).toBe("Default AWS credentials");
-    expect(updatedKey.config).toEqual({ region: "eu-west-1" });
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Bedrock,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+        customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+        withDefaultModels: false,
+        config: { region: "eu-west-1" },
+      }),
+    ).rejects.toThrow(
+      "Default AWS credentials are only allowed for Bedrock in self-hosted deployments",
+    );
   });
 
   it("should update only the secret key", async () => {
