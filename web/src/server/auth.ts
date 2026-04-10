@@ -353,6 +353,7 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -372,6 +373,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: `${env.AUTH_GITHUB_ENTERPRISE_BASE_URL}/login/oauth`,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
