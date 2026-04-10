@@ -631,29 +631,109 @@ jobs:
         run: |
           echo "Job results: ${{ steps.set-success-output.outputs.success }}"
 
-  push-docker-image:
+  build-docker-image-release:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
     if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       packages: write
       contents: read
+    env:
+      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
 
     steps:
-      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
-        with:
-          version: 10.33.0
-      - name: Setup node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Log in to the GitHub Container registry
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
+      - name: Extract metadata (labels) for Docker
+        id: meta
+        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
+        with:
+          images: |
+            ghcr.io/langfuse/${{ matrix.image_name }}
+            langfuse/${{ matrix.image_name }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+      - name: Build and push staged Docker image (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ghcr.io/langfuse/${{ matrix.image_name }}:${{ env.STAGING_TAG_PREFIX }}-${{ matrix.platform_tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+
+  publish-docker-image-release:
+    needs:
+      - build-docker-image-release
+    if: always() && needs.build-docker-image-release.result == 'success' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: "protected branches"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+          - component: worker
+            image_name: langfuse-worker
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    env:
+      STAGING_TAG_PREFIX: staging-${{ github.run_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Log in to the GitHub Container registry
         uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
         with:
@@ -665,17 +745,11 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-      - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-web
+      - name: Extract metadata (tags) for GitHub Container Registry
+        id: meta-ghcr
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
-          images: |
-            ghcr.io/langfuse/langfuse # GitHub
-            langfuse/langfuse # Docker Hub
+          images: ghcr.io/langfuse/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -686,24 +760,11 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (web)
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
-        with:
-          context: .
-          file: ./web/Dockerfile
-          push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-worker
+      - name: Extract metadata (tags) for Docker Hub
+        id: meta-dockerhub
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
-          images: |
-            ghcr.io/langfuse/langfuse-worker # GitHub
-            langfuse/langfuse-worker # Docker Hub
+          images: langfuse/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -714,17 +775,63 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (worker)
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
-        with:
-          context: .
-          file: ./worker/Dockerfile
-          push: true
-          tags: ${{ steps.meta-worker.outputs.tags }}
-          labels: ${{ steps.meta-worker.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
+      - name: Publish multi-platform manifest to GitHub Container Registry
+        run: |
+          ghcr_tags=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            ghcr_tags+=("-t" "$tag")
+          done <<'EOF'
+          ${{ steps.meta-ghcr.outputs.tags }}
+          EOF
+
+          docker buildx imagetools create "${ghcr_tags[@]}" \
+            "ghcr.io/langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-amd64" \
+            "ghcr.io/langfuse/${{ matrix.image_name }}:${STAGING_TAG_PREFIX}-arm64"
+      - name: Publish multi-platform manifest to Docker Hub
+        run: |
+          dockerhub_tags=()
+          ghcr_first_tag=""
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            dockerhub_tags+=("-t" "$tag")
+          done <<'EOF'
+          ${{ steps.meta-dockerhub.outputs.tags }}
+          EOF
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            ghcr_first_tag="$tag"
+            break
+          done <<'EOF'
+          ${{ steps.meta-ghcr.outputs.tags }}
+          EOF
+
+          if [ -z "$ghcr_first_tag" ]; then
+            echo "No GHCR tag available to copy to Docker Hub"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${dockerhub_tags[@]}" "$ghcr_first_tag"
+      - name: Inspect published manifests
+        run: |
+          ghcr_first_tag="$(printf '%s\n' "${{ steps.meta-ghcr.outputs.tags }}" | sed -n '1p')"
+          dockerhub_first_tag="$(printf '%s\n' "${{ steps.meta-dockerhub.outputs.tags }}" | sed -n '1p')"
+
+          docker buildx imagetools inspect "$ghcr_first_tag"
+          docker buildx imagetools inspect "$dockerhub_first_tag"
+
+  notify-docker-image-release:
+    needs:
+      - build-docker-image-release
+      - publish-docker-image-release
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Fail when a release image job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
       - name: Notify Slack
         uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
         if: always()
