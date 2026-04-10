@@ -477,6 +477,7 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
