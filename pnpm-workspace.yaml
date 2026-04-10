@@ -28,6 +28,7 @@ minimumReleaseAgeExclude:
   - "@vitest/expect@4.1.4"
   - "@vitest/utils@4.1.4"
   - "@vitest/coverage-v8@4.1.4"
+  - "axios@1.15.0"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
