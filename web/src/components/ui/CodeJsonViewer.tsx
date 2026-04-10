@@ -237,7 +237,11 @@ export function CodeView(props: {
         ? props.content
         : (props.content?.join("\n") ?? ""));
 
-    await copy(content);
+    try {
+      await copy(content);
+    } catch {
+      // Clipboard writes can be rejected when the browser denies permission.
+    }
 
     if (button) {
       // Keep focus on the copy button to prevent focus shifting

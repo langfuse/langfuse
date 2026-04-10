@@ -79,6 +79,35 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(false);
   });
 
+  it("resets copied state after a failed clipboard write", async () => {
+    const writeText = jest.fn().mockRejectedValue(new Error("NotAllowedError"));
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText,
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useCopyToClipboard({ successDuration: 500 }),
+    );
+
+    await act(async () => {
+      await expect(result.current.copy("pk-lf-test")).rejects.toThrow(
+        "NotAllowedError",
+      );
+    });
+
+    expect(result.current.isCopied).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(result.current.isCopied).toBe(false);
+  });
+
   it("keeps the active copied state across rerenders and preserves the original timeout", async () => {
     const { result, rerender } = renderHook(
       ({ successDuration }) => useCopyToClipboard({ successDuration }),

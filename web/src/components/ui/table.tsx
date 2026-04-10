@@ -134,7 +134,11 @@ const TableCellWithCopyButton = React.forwardRef<
         onClick={async (event) => {
           event.preventDefault();
           const button = event.currentTarget;
-          await copy(text);
+          try {
+            await copy(text);
+          } catch {
+            // Clipboard writes can be rejected when the browser denies permission.
+          }
 
           if (button) {
             // The original button might no longer be in the DOM if React re-rendered the component after the state update.

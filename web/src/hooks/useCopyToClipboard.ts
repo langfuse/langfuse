@@ -22,15 +22,17 @@ export function useCopyToClipboard({
 
   const copy = async (text: string) => {
     setIsCopied(true);
-    await copyTextToClipboard(text);
+    try {
+      await copyTextToClipboard(text);
+    } finally {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        setIsCopied(false);
+      }, successDuration);
     }
-
-    timeoutRef.current = setTimeout(() => {
-      setIsCopied(false);
-    }, successDuration);
   };
 
   return { copy, isCopied };
