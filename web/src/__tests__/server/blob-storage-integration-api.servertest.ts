@@ -445,6 +445,24 @@ describe("Blob Storage Integrations API", () => {
       );
     });
 
+    it("should reject invalid Azure container names", async () => {
+      const azureConfig = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        type: "AZURE_BLOB_STORAGE" as const,
+        endpoint: "https://myaccount.blob.core.windows.net",
+        bucketName: "Feedback N8N Bot",
+      };
+
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        azureConfig,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+    });
+
     it("should handle export modes with dates", async () => {
       const customDateConfig = {
         ...validBlobStorageConfig,
