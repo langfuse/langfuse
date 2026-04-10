@@ -16,6 +16,7 @@ export function useV4Beta() {
   const mutation = api.userAccount.setV4BetaEnabled.useMutation();
 
   const isBetaEnabled = session?.user?.v4BetaEnabled ?? false;
+  const joinedPostCutOff = session?.user?.joinedPostCutOff ?? false;
   const [showIntroDialog, setShowIntroDialog] = useState(false);
   const [pendingOnSuccess, setPendingOnSuccess] =
     useState<SetV4BetaEnabledOptions["onSuccess"]>();
@@ -71,6 +72,7 @@ export function useV4Beta() {
 
   return {
     isBetaEnabled,
+    joinedPostCutOff,
     setBetaEnabled,
     enableWithIntro,
     showIntroDialog,

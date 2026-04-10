@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { resolveV4BetaMutationState } from "@/src/features/events/lib/v4BetaRollout";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -69,6 +70,36 @@ async function checkUserCanBeDeleted(
   };
 }
 
+async function getUserOrganizationCreatedAts(
+  userId: string,
+  prisma:
+    | Omit<
+        PrismaClient,
+        | "$connect"
+        | "$disconnect"
+        | "$on"
+        | "$transaction"
+        | "$use"
+        | "$extends"
+      >
+    | Prisma.TransactionClient,
+) {
+  const organizationMemberships = await prisma.organizationMembership.findMany({
+    where: { userId },
+    select: {
+      organization: {
+        select: {
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  return organizationMemberships.map(
+    (membership) => membership.organization.createdAt,
+  );
+}
+
 export const userAccountRouter = createTRPCRouter({
   checkCanDelete: authenticatedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
@@ -129,10 +160,26 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      await ctx.prisma.user.update({
-        where: { id: ctx.session.user.id },
-        data: { v4BetaEnabled: input.enabled },
+      const organizationCreatedAts = await getUserOrganizationCreatedAts(
+        ctx.session.user.id,
+        ctx.prisma,
+      );
+      const v4BetaState = resolveV4BetaMutationState({
+        requestedV4BetaEnabled: input.enabled,
+        organizationCreatedAts,
       });
-      return { success: true, v4BetaEnabled: input.enabled };
+
+      if (v4BetaState.shouldPersistRequestedState) {
+        await ctx.prisma.user.update({
+          where: { id: ctx.session.user.id },
+          data: { v4BetaEnabled: input.enabled },
+        });
+      }
+
+      return {
+        success: true,
+        v4BetaEnabled: v4BetaState.isEnabled,
+        joinedPostCutOff: v4BetaState.joinedPostCutOff,
+      };
     }),
 });

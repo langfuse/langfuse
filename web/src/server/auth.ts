@@ -64,6 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { resolveV4BetaState } from "@/src/features/events/lib/v4BetaRollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -719,6 +720,16 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
 
+          const v4BetaState =
+            dbUser !== null
+              ? resolveV4BetaState({
+                  storedV4BetaEnabled: dbUser.v4BetaEnabled,
+                  organizationCreatedAts: dbUser.organizationMemberships.map(
+                    (orgMembership) => orgMembership.organization.createdAt,
+                  ),
+                })
+              : null;
+
           return {
             ...session,
             environment: {
@@ -740,7 +751,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    v4BetaEnabled: v4BetaState?.isEnabled ?? false,
+                    joinedPostCutOff: v4BetaState?.joinedPostCutOff ?? false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
