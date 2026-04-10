@@ -4,6 +4,11 @@ import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 
+type TracedEvent = {
+  type: string;
+  body: Record<string, unknown>;
+};
+
 /**
  * Extracts and merges generation details from a list of processed events.
  * Handles multiple generation-create and generation-update events with the same id.
@@ -73,6 +78,66 @@ export function extractGenerationDetails(
   };
 }
 
+export function prepareTracedEventsForIngestion(
+  events: TracedEvent[],
+  { environment, prompt }: Pick<TraceSinkParams, "environment" | "prompt">,
+): TracedEvent[] {
+  const blockedSpanIds = new Set<string>();
+  const blockedSpanNames = [
+    "RunnableLambda",
+    "StructuredOutputParser",
+    "StrOutputParser",
+    "JsonOutputParser",
+  ];
+
+  for (const event of events) {
+    const eventName = event.body.name;
+
+    if (typeof eventName !== "string" || eventName.length === 0) {
+      continue;
+    }
+
+    if (
+      blockedSpanNames.includes(eventName) &&
+      typeof event.body.id === "string"
+    ) {
+      blockedSpanIds.add(event.body.id);
+    }
+  }
+
+  return events
+    .filter((event) => {
+      if (typeof event.body.id === "string") {
+        return !blockedSpanIds.has(event.body.id);
+      }
+
+      return true;
+    })
+    .map((event) => {
+      return {
+        ...event,
+        body: {
+          ...event.body,
+          environment,
+        },
+      };
+    })
+    .map((event) => {
+      if (event.type === "generation-create" && prompt) {
+        return {
+          ...event,
+          body: {
+            ...event.body,
+            promptName: prompt.name,
+            promptVersion: prompt.version,
+          },
+        };
+      }
+
+      return event;
+    });
+}
+
 export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
   handler: CallbackHandler;
   processTracedEvents: () => Promise<void>;
@@ -91,46 +156,13 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         traceSinkParams.targetProjectId,
       );
 
-      // Filter out unnecessary Langchain spans
-      const blockedSpanIds = new Set();
-      const blockedSpanNames = [
-        "RunnableLambda",
-        "StructuredOutputParser",
-        "StrOutputParser",
-        "JsonOutputParser",
-      ];
-
-      for (const event of events) {
-        const eventName = "name" in event.body ? event.body.name : "";
-
-        if (!eventName) continue;
-
-        if (blockedSpanNames.includes(eventName) && "id" in event.body) {
-          blockedSpanIds.add(event.body.id);
-        }
-      }
-
-      const processedEvents = events
-        .filter((event) => {
-          if ("id" in event.body) {
-            return !blockedSpanIds.has(event.body.id);
-          }
-
-          return true;
-        })
-        .map((event: any) => {
-          // to add the prompt name and version to only generation-type observations
-          if (event.type === "generation-create" && prompt) {
-            return {
-              ...event,
-              body: {
-                ...event.body,
-                ...{ promptName: prompt.name, promptVersion: prompt.version },
-              },
-            };
-          }
-          return event;
-        });
+      const processedEvents = prepareTracedEventsForIngestion(
+        events as TracedEvent[],
+        {
+          environment,
+          prompt,
+        },
+      );
 
       await processEventBatch(
         JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
