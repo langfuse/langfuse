@@ -631,25 +631,45 @@ jobs:
         run: |
           echo "Job results: ${{ steps.set-success-output.outputs.success }}"
 
-  push-docker-image:
+  build-docker-image-release:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
     if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: web
+            image_name: langfuse
+            dockerfile: ./web/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: worker
+            image_name: langfuse-worker
+            dockerfile: ./worker/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       packages: write
       contents: read
 
     steps:
-      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
-        with:
-          version: 10.33.0
-      - name: Setup node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Set NEXT_PUBLIC_BUILD_ID
@@ -665,17 +685,15 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-web
+      - name: Extract metadata (labels) for Docker
+        id: meta
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
           images: |
-            ghcr.io/langfuse/langfuse # GitHub
-            langfuse/langfuse # Docker Hub
+            ghcr.io/langfuse/${{ matrix.image_name }}
+            langfuse/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -686,24 +704,90 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (web)
+      - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-ghcr
         uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
         with:
           context: .
-          file: ./web/Dockerfile
-          push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-worker
+          file: ${{ matrix.dockerfile }}
+          outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
+        id: build-dockerhub
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+      - name: Record pushed digests
+        run: |
+          if [ -z '${{ steps.build-ghcr.outputs.digest }}' ] || [ -z '${{ steps.build-dockerhub.outputs.digest }}' ]; then
+            echo "Missing registry digest output"
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/digests/ghcr" "$RUNNER_TEMP/digests/dockerhub"
+          printf '%s\n' '${{ steps.build-ghcr.outputs.digest }}' > "$RUNNER_TEMP/digests/ghcr/${{ matrix.platform_tag }}.txt"
+          printf '%s\n' '${{ steps.build-dockerhub.outputs.digest }}' > "$RUNNER_TEMP/digests/dockerhub/${{ matrix.platform_tag }}.txt"
+      - name: Upload release digests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-digests-${{ matrix.component }}-${{ matrix.platform_tag }}
+          path: |
+            ${{ runner.temp }}/digests/ghcr/${{ matrix.platform_tag }}.txt
+            ${{ runner.temp }}/digests/dockerhub/${{ matrix.platform_tag }}.txt
+          if-no-files-found: error
+
+  publish-docker-image-release:
+    needs:
+      - build-docker-image-release
+    if: always() && needs.build-docker-image-release.result == 'success' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: "protected branches"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            image_name: langfuse
+          - component: worker
+            image_name: langfuse-worker
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Log in to the GitHub Container registry
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1
+      - name: Download release digests
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: release-digests-${{ matrix.component }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - name: Extract metadata (tags) for GitHub Container Registry
+        id: meta-ghcr
         uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
-          images: |
-            ghcr.io/langfuse/langfuse-worker # GitHub
-            langfuse/langfuse-worker # Docker Hub
+          images: ghcr.io/langfuse/${{ matrix.image_name }}
           flavor: |
             latest=false
           tags: |
@@ -714,17 +798,87 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
-      - name: Build and push Docker image (worker)
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+      - name: Extract metadata (tags) for Docker Hub
+        id: meta-dockerhub
+        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
-          context: .
-          file: ./worker/Dockerfile
-          push: true
-          tags: ${{ steps.meta-worker.outputs.tags }}
-          labels: ${{ steps.meta-worker.outputs.labels }}
-          platforms: |
-            linux/amd64
-            ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
+          images: langfuse/${{ matrix.image_name }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+      - name: Publish multi-platform manifest to GitHub Container Registry
+        run: |
+          ghcr_tags=()
+          ghcr_sources=()
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            ghcr_tags+=("-t" "$tag")
+          done <<'EOF'
+          ${{ steps.meta-ghcr.outputs.tags }}
+          EOF
+
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/ghcr/*.txt; do
+            digest="$(cat "$digest_file")"
+            ghcr_sources+=("ghcr.io/langfuse/${{ matrix.image_name }}@$digest")
+          done
+
+          if [ "${#ghcr_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 GHCR digests for ${{ matrix.component }}"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
+      - name: Publish multi-platform manifest to Docker Hub
+        run: |
+          dockerhub_tags=()
+          dockerhub_sources=()
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            dockerhub_tags+=("-t" "$tag")
+          done <<'EOF'
+          ${{ steps.meta-dockerhub.outputs.tags }}
+          EOF
+
+          shopt -s nullglob
+          for digest_file in "$RUNNER_TEMP"/digests/dockerhub/*.txt; do
+            digest="$(cat "$digest_file")"
+            dockerhub_sources+=("langfuse/${{ matrix.image_name }}@$digest")
+          done
+
+          if [ "${#dockerhub_sources[@]}" -lt 2 ]; then
+            echo "Expected amd64 and arm64 Docker Hub digests for ${{ matrix.component }}"
+            exit 1
+          fi
+
+          docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
+      - name: Inspect published manifests
+        run: |
+          ghcr_first_tag="$(printf '%s\n' "${{ steps.meta-ghcr.outputs.tags }}" | sed -n '1p')"
+          dockerhub_first_tag="$(printf '%s\n' "${{ steps.meta-dockerhub.outputs.tags }}" | sed -n '1p')"
+
+          docker buildx imagetools inspect "$ghcr_first_tag"
+          docker buildx imagetools inspect "$dockerhub_first_tag"
+
+  notify-docker-image-release:
+    needs:
+      - build-docker-image-release
+      - publish-docker-image-release
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Fail when a release image job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
       - name: Notify Slack
         uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
         if: always()

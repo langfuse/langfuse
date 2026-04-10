@@ -1,0 +1,4 @@
+interface:
+  display_name: "PNPM Upgrade Package"
+  short_description: "Interactive pnpm package bump workflow"
+  default_prompt: "Use $pnpm-upgrade-package to upgrade a package in this pnpm workspace, asking me for the package or version if I did not provide them."

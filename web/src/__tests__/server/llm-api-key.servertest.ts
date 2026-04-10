@@ -1,12 +1,25 @@
 /** @jest-environment node */
 
+jest.mock("@langfuse/shared/src/server", () => {
+  const actual = jest.requireActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    fetchLLMCompletion: jest.fn(),
+  };
+});
+
 import type { Session } from "next-auth";
 import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { decrypt } from "@langfuse/shared/encryption";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import {
+  createOrgProjectAndApiKey,
+  fetchLLMCompletion,
+} from "@langfuse/shared/src/server";
+
+const mockFetchLLMCompletion = jest.mocked(fetchLLMCompletion);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
@@ -49,6 +62,7 @@ describe("llmApiKey.all RPC", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
+    mockFetchLLMCompletion.mockReset().mockResolvedValue({});
 
     session = {
       expires: "1",
@@ -124,6 +138,18 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].withDefaultModels).toBe(withDefaultModels);
     // this has to be 3 dots and the last 4 characters of the secret
     expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
+  });
+
+  it("should block creating an llm api key with a localhost base URL", async () => {
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "http://localhost:11434/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL: Blocked hostname detected");
   });
 
   it("should create and get an llm api key", async () => {
@@ -214,6 +240,141 @@ describe("llmApiKey.all RPC", () => {
         baseURL: "https://attacker.example.com/v1",
       }),
     ).rejects.toThrow("User does not have access to this resource or action");
+  });
+
+  it("should block testUpdate when the base URL changes without a new secret key", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://attacker.example.com/v1",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Secret key is required when changing the base URL",
+    });
+    expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+  });
+
+  it("should allow testing an existing connection with an unchanged localhost base URL", async () => {
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "local-ollama",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("sk-existing"),
+        displaySecretKey: "...ting",
+        baseURL: "http://localhost:11434/v1",
+        customModels: ["llama3.1"],
+        withDefaultModels: true,
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: connection.id,
+      projectId,
+      provider: "local-ollama",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+      "X-Custom-Header": "stored-value",
+    };
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://api.openai.com/v1",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
+    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
+    expect(llmConnection.baseURL).toBe("https://api.openai.com/v1");
+    expect(decrypt(llmConnection.secretKey)).toBe("sk-original");
+    expect(JSON.parse(decrypt(llmConnection.extraHeaders))).toEqual(
+      existingExtraHeaders,
+    );
+  });
+
+  it("should allow testUpdate when the base URL changes and a new secret key is provided", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+      "X-Custom-Header": "stored-value",
+    };
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://new-endpoint.example.com/v1",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
+    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
+    expect(llmConnection.baseURL).toBe("https://new-endpoint.example.com/v1");
+    expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
+    expect(llmConnection.extraHeaders).toBeUndefined();
   });
 
   it("should create and update an llm api key", async () => {

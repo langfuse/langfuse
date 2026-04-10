@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.166.0",
+  "version": "3.167.4",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -58,7 +58,7 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.8.2",
     "jsonpath-plus": "10.3.0",
-    "lodash": "^4.17.23",
+    "lodash": "4.18.1",
     "p-limit": "^7.3.0",
     "pg": "^8.13.0",
     "posthog-node": "^5.8.4",
@@ -78,7 +78,7 @@
     "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
-    "@vitest/coverage-v8": "^4.1.2",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.2",
     "msw": "^2.6.5",
     "prettier": "^3.8.1",
@@ -86,7 +86,7 @@
     "tsc-watch": "^6.2.0",
     "tsx": "^4.20.5",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.2",
+    "vitest": "^4.1.4",
     "wait-for-expect": "^3.0.2"
   }
 }

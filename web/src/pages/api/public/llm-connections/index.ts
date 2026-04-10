@@ -11,6 +11,8 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { InvalidRequestError } from "@langfuse/shared";
+import { validateLlmConnectionBaseURL } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -85,10 +87,20 @@ export default withMiddlewares({
             provider: body.provider,
           },
         },
-        select: { id: true },
+        select: { id: true, baseURL: true },
       });
 
       const isUpdate = Boolean(existingConnection);
+
+      if (body.baseURL && body.baseURL !== existingConnection?.baseURL) {
+        try {
+          await validateLlmConnectionBaseURL(body.baseURL);
+        } catch (error) {
+          throw new InvalidRequestError(
+            `Invalid baseURL: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        }
+      }
 
       const llmConnectionBody = {
         adapter: body.adapter,
