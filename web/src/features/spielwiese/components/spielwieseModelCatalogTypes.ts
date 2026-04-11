@@ -17,6 +17,8 @@ export type SpielwieseModelOption = {
 export type SpielwieseModelProvider = {
   description: string;
   id: string;
+  iconAlt?: string;
+  iconSrc?: string;
   label: string;
   latestModels: SpielwieseModelOption[];
   legacyModels: SpielwieseModelOption[];

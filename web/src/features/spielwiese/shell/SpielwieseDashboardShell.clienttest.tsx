@@ -36,15 +36,15 @@ function openFinder() {
 
 function expectShellChromeBackground() {
   expect(screen.getByTestId("spielwiese-shell").className).toContain(
-    "bg-[#FCFDFE]",
+    "bg-[#F5F5F5]",
   );
   expect(screen.getByTestId("spielwiese-shell-header").className).toContain(
-    "bg-[#FCFDFE]",
+    "bg-[#F5F5F5]",
   );
   expect(
     screen
       .getAllByTestId("spielwiese-right-sidebar")
-      .every((sidebar) => sidebar.className.includes("bg-[#FCFDFE]")),
+      .every((sidebar) => sidebar.className.includes("bg-[#F5F5F5]")),
   ).toBe(true);
 }
 
@@ -158,7 +158,7 @@ describe("SpielwieseDashboardShell sidebar interactions", () => {
     ).toBe(true);
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).toContain("bg-[#FCFDFE]");
+    ).toContain("bg-[#F5F5F5]");
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
     ).not.toContain("border-r");
@@ -173,7 +173,7 @@ describe("SpielwieseDashboardShell sidebar interactions", () => {
     ).toBe(true);
     expect(
       screen.getByTestId("spielwiese-mobile-right-drawer").className,
-    ).toContain("bg-[#FCFDFE]");
+    ).toContain("bg-[#F5F5F5]");
     expect(
       screen.getByTestId("spielwiese-mobile-right-drawer").className,
     ).not.toContain("border-l");

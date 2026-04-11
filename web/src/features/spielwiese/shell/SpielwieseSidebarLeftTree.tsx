@@ -1,91 +1,59 @@
-import { ChevronDown, ChevronRight, FileText } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, FileText, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { sidebarMenuButtonVariants } from "../ui/sidebar";
 import type {
   SpielwieseSidebarSection,
   SpielwieseSidebarTreeItem,
 } from "../types/shell";
 
-function DocumentGlyph({ item }: { item: SpielwieseSidebarTreeItem }) {
-  if (item.emoji) {
-    return (
-      <span
-        aria-hidden="true"
-        className="inline-flex size-5 shrink-0 items-center justify-center text-sm"
-      >
-        {item.emoji}
-      </span>
-    );
-  }
+function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
+  const Icon = item.icon ?? FileText;
 
-  if (item.icon) {
-    const Icon = item.icon;
-    return <Icon className="size-4 shrink-0" />;
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className="text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center"
-    >
-      <FileText className="size-4" />
-    </span>
-  );
-}
-
-function TreeLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
   return (
     <a
       aria-current={item.isActive ? "page" : undefined}
-      className={cn(
-        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
-        item.isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-      )}
+      className={cn(sidebarMenuButtonVariants({ active: item.isActive }))}
       href={item.href}
     >
-      <DocumentGlyph item={item} />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.count ? (
-        <span className="text-muted-foreground shrink-0 text-sm">
-          {item.count}
+      <Icon className="size-3.5 shrink-0" data-sidebar-icon />
+      <span data-sidebar-label>{item.label}</span>
+      {item.isActive ? (
+        <span data-sidebar-action>
+          <MoreHorizontal className="size-3.5" />
         </span>
       ) : null}
     </a>
   );
 }
 
-function TreeBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
+function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
   const isOpen = item.defaultOpen || item.isActive;
 
   return (
     <details
-      className="group/branch flex flex-col gap-1 [&_summary::-webkit-details-marker]:hidden"
+      className="group/branch flex flex-col gap-0.5 [&_summary::-webkit-details-marker]:hidden"
       open={isOpen}
     >
       <summary
         className={cn(
-          "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex list-none items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
-          item.isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+          sidebarMenuButtonVariants({ active: item.isActive }),
+          "list-none",
         )}
       >
-        <DocumentGlyph item={item} />
-        <ChevronRight className="text-muted-foreground size-4 shrink-0 group-open/branch:hidden" />
-        <ChevronDown className="text-muted-foreground hidden size-4 shrink-0 group-open/branch:block" />
-        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        {item.count ? (
-          <span className="text-muted-foreground shrink-0 text-sm">
-            {item.count}
-          </span>
-        ) : null}
+        <ChevronRight
+          className="size-3.5 shrink-0 transition-transform group-open/branch:rotate-90"
+          data-sidebar-icon
+        />
+        <span data-sidebar-label>{item.label}</span>
       </summary>
 
-      <div className="ml-7 flex flex-col gap-1">
+      <div className="ml-4 flex flex-col gap-0.5">
         {item.children?.map((child) => {
           if (child.children?.length) {
-            return <TreeBranch item={child} key={child.id} />;
+            return <SidebarFileBranch item={child} key={child.id} />;
           }
 
-          return <TreeLeaf item={child} key={child.id} />;
+          return <SidebarFileLeaf item={child} key={child.id} />;
         })}
       </div>
     </details>
@@ -97,45 +65,31 @@ function SidebarSectionBlock({
 }: {
   section: SpielwieseSidebarSection;
 }) {
-  const ActionIcon = section.actionIcon;
-  let content: ReactNode = null;
-
-  if (section.items.length) {
-    content = (
-      <div className="relative flex flex-col gap-1">
-        {section.items.map((item) => {
-          if (item.children?.length) {
-            return <TreeBranch item={item} key={item.id} />;
-          }
-
-          return <TreeLeaf item={item} key={item.id} />;
-        })}
-      </div>
-    );
-  } else if (section.emptyState) {
-    content = (
-      <div className="text-muted-foreground px-2 py-2 text-sm">
-        {section.emptyState}
-      </div>
-    );
-  }
-
   return (
-    <details
-      className="group/section flex flex-col gap-1 [&_summary::-webkit-details-marker]:hidden"
-      open={section.defaultOpen}
-    >
-      <summary className="hover:bg-sidebar-accent flex list-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors">
-        <span className="min-w-0 flex-1 truncate">{section.label}</span>
-        {ActionIcon ? (
-          <span className="text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center">
-            <ActionIcon className="size-4" />
-          </span>
-        ) : null}
-        <ChevronDown className="text-muted-foreground size-4 shrink-0" />
-      </summary>
-      {content}
-    </details>
+    <section className="flex flex-col gap-2">
+      <div className="text-muted-foreground px-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
+        {section.label}
+      </div>
+      <div className="flex flex-col gap-1">
+        {section.items.map((item) =>
+          item.children?.length ? (
+            <SidebarFileBranch item={item} key={item.id} />
+          ) : (
+            <SidebarFileLeaf item={item} key={item.id} />
+          ),
+        )}
+        <button
+          className={cn(
+            sidebarMenuButtonVariants({}),
+            "text-muted-foreground hover:text-sidebar-foreground",
+          )}
+          type="button"
+        >
+          <Plus className="size-3.5 shrink-0" data-sidebar-icon />
+          <span data-sidebar-label>New</span>
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -145,10 +99,10 @@ export function SidebarSectionList({
   sections: SpielwieseSidebarSection[];
 }) {
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {sections.map((section) => (
         <SidebarSectionBlock key={section.id} section={section} />
       ))}
-    </>
+    </div>
   );
 }

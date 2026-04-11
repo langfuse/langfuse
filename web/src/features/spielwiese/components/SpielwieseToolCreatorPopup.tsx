@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Wrench } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -15,6 +16,7 @@ import {
   SpielwieseToolCreatorPopupContent,
   type ToolCreatorMode,
 } from "./SpielwieseToolCreatorPopupContent";
+import { SpielwieseHeaderStripTag } from "./SpielwieseHeaderStrip";
 
 const toolCreatorModes = [
   { label: "Builder", value: "builder" },
@@ -85,23 +87,60 @@ function ToolCreatorCard({
   );
 }
 
-export function SpielwieseToolCreatorPopup() {
+function ToolCreatorTriggerContent({
+  summaryLabel,
+  variant,
+}: {
+  summaryLabel: string;
+  variant: "default" | "row";
+}) {
+  return variant === "row" ? (
+    <span className="flex min-w-0 items-center gap-2">
+      <Wrench aria-hidden="true" className="text-foreground/56 size-3.5" />
+      <span className="min-w-0 truncate">{summaryLabel}</span>
+    </span>
+  ) : (
+    <>
+      <SpielwieseHeaderStripTag
+        label="Tools"
+        revealLabelWidthClassName="group-hover/setting-tag:max-w-[2rem]"
+        revealWidthClassName="hover:w-[4rem]"
+      >
+        <Wrench aria-hidden="true" className="size-3.5 shrink-0" />
+      </SpielwieseHeaderStripTag>
+      <span className="px-2.5">{summaryLabel}</span>
+    </>
+  );
+}
+
+export function SpielwieseToolCreatorPopup({
+  summaryLabel = "any",
+  variant = "default",
+}: {
+  summaryLabel?: string;
+  variant?: "default" | "row";
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<ToolCreatorMode>("builder");
 
   return (
     <div className="relative shrink-0">
       <Button
-        className="border-border/50 bg-muted/28 text-foreground/78 hover:bg-muted/34 hover:text-foreground h-7 overflow-hidden rounded-md border px-0 text-[13px] font-medium"
+        aria-label="Create tool"
+        className={cn(
+          variant === "row"
+            ? "border-border/40 bg-background/88 text-foreground/78 hover:bg-background hover:text-foreground h-8 rounded-lg border px-3 text-[0.8125rem] font-medium shadow-[inset_0_1px_0_hsl(var(--background)/0.96)]"
+            : "bg-background text-foreground/78 hover:bg-background hover:text-foreground h-7 gap-0 overflow-hidden rounded-[8px] border border-[rgba(0,0,0,0.08)] px-0 text-[13px] font-medium",
+        )}
         size="sm"
         type="button"
         variant="ghost"
         onClick={() => setIsOpen(true)}
       >
-        <span className="bg-muted/55 text-foreground/56 grid h-full w-6 shrink-0 place-items-center">
-          <Wrench aria-hidden="true" className="size-3.5" />
-        </span>
-        <span className="px-2.5">Create tool</span>
+        <ToolCreatorTriggerContent
+          summaryLabel={summaryLabel}
+          variant={variant}
+        />
       </Button>
       {isOpen ? (
         <div

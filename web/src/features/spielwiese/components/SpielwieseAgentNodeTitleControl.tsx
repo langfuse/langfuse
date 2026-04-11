@@ -1,0 +1,241 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import { getModelProvider } from "./spielwieseModelCatalog";
+import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
+import { SpielwieseModelPickerPanel } from "./SpielwieseModelPicker";
+import {
+  SpielwieseHeaderStripTag,
+  spielwieseInlineInputClassName,
+  spielwieseStripItemFieldClassName,
+} from "./SpielwieseHeaderStrip";
+
+function getModelTintClassName(currentModel: string) {
+  switch (getModelProvider(currentModel)?.id) {
+    case "anthropic":
+      return "bg-[linear-gradient(135deg,rgba(201,120,62,0.18)_0%,rgba(239,213,186,0.18)_34%,rgba(255,255,255,0.96)_78%)]";
+    case "google":
+      return "bg-[linear-gradient(135deg,rgba(66,133,244,0.16)_0%,rgba(52,168,83,0.10)_38%,rgba(251,188,5,0.10)_62%,rgba(255,255,255,0.96)_84%)]";
+    case "xai":
+      return "bg-[linear-gradient(135deg,rgba(15,23,42,0.13)_0%,rgba(71,85,105,0.12)_42%,rgba(255,255,255,0.97)_84%)]";
+    case "openai":
+    default:
+      return "bg-[linear-gradient(135deg,rgba(16,163,127,0.18)_0%,rgba(16,163,127,0.08)_32%,rgba(255,255,255,0.96)_78%)]";
+  }
+}
+
+function resetModelPickerState({
+  setHoveredModelLabel,
+  setProviderId,
+  setShowLegacyModels,
+}: {
+  setHoveredModelLabel: (modelLabel: string | null) => void;
+  setProviderId: (providerId: string | null) => void;
+  setShowLegacyModels: (updater: (currentValue: boolean) => boolean) => void;
+}) {
+  setProviderId(null);
+  setHoveredModelLabel(null);
+  setShowLegacyModels(() => false);
+}
+
+function useModelPickerControlState() {
+  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
+  const [providerId, setProviderId] = useState<string | null>(null);
+  const [hoveredModelLabel, setHoveredModelLabel] = useState<string | null>(
+    null,
+  );
+  const [showLegacyModels, setShowLegacyModels] = useState(false);
+
+  const resetState = () =>
+    resetModelPickerState({
+      setHoveredModelLabel,
+      setProviderId,
+      setShowLegacyModels,
+    });
+  const closePicker = () => {
+    setIsModelPickerOpen(false);
+    resetState();
+  };
+
+  return {
+    closePicker,
+    hoveredModelLabel,
+    isModelPickerOpen,
+    providerId,
+    setHoveredModelLabel,
+    setProviderId,
+    setShowLegacyModels,
+    showLegacyModels,
+    togglePicker: () =>
+      setIsModelPickerOpen((currentValue) => {
+        if (currentValue) {
+          resetState();
+        }
+
+        return !currentValue;
+      }),
+  };
+}
+
+type SpielwieseAgentNodeTitleControlProps = {
+  modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
+  node: SpielwieseAgentNodeVM;
+  onSettingValueChange: (
+    nodeId: string,
+    settingId: string,
+    value: string,
+  ) => void;
+  onTitleChange: (nodeId: string, value: string) => void;
+};
+
+function SpielwieseAgentTitleField({
+  node,
+  onTitleChange,
+}: Pick<SpielwieseAgentNodeTitleControlProps, "node" | "onTitleChange">) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center px-3">
+      <Input
+        aria-label={`${node.id} title`}
+        className={cn(
+          spielwieseInlineInputClassName,
+          spielwieseStripItemFieldClassName,
+          "text-foreground min-w-0 flex-1 px-0 text-[13px] font-semibold tracking-[-0.01em] max-sm:text-base/5",
+        )}
+        name={`${node.id}-title`}
+        onChange={(event) => onTitleChange(node.id, event.target.value)}
+        value={node.title}
+      />
+    </div>
+  );
+}
+
+function SpielwieseAgentModelSegment({
+  nodeId,
+  currentModel,
+  isOpen,
+  onClick,
+}: {
+  nodeId: string;
+  currentModel: string;
+  isOpen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center pr-1">
+      <Button
+        aria-expanded={isOpen}
+        aria-label={`${nodeId} Model`}
+        className="text-foreground h-7 min-w-[11rem] justify-between gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium hover:bg-black/[0.03]"
+        size="sm"
+        type="button"
+        variant="ghost"
+        onClick={onClick}
+      >
+        <span className="flex min-w-0 flex-1 items-center">
+          <SpielwieseHeaderStripTag
+            label=""
+            revealLabelWidthClassName="max-w-0"
+            revealWidthClassName="w-6"
+          >
+            <SpielwieseModelProviderMark currentModel={currentModel} />
+          </SpielwieseHeaderStripTag>
+          <span className="min-w-0 truncate px-2.5">{currentModel}</span>
+        </span>
+        <ChevronDown data-icon="inline-end" />
+      </Button>
+    </div>
+  );
+}
+
+function SpielwieseAgentTitleSurface({
+  currentModel,
+  isModelPickerOpen,
+  node,
+  onTitleChange,
+  togglePicker,
+}: {
+  currentModel: string;
+  isModelPickerOpen: boolean;
+  node: SpielwieseAgentNodeVM;
+  onTitleChange: SpielwieseAgentNodeTitleControlProps["onTitleChange"];
+  togglePicker: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-7 min-w-0 items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4",
+        getModelTintClassName(currentModel),
+      )}
+      data-testid="spielwiese-agent-title-control"
+    >
+      <SpielwieseAgentModelSegment
+        nodeId={node.id}
+        currentModel={currentModel}
+        isOpen={isModelPickerOpen}
+        onClick={togglePicker}
+      />
+      <div className="h-[calc(100%-10px)] w-px shrink-0 bg-black/8" />
+      <SpielwieseAgentTitleField node={node} onTitleChange={onTitleChange} />
+    </div>
+  );
+}
+
+export function SpielwieseAgentNodeTitleControl({
+  modelSetting,
+  node,
+  onSettingValueChange,
+  onTitleChange,
+}: SpielwieseAgentNodeTitleControlProps) {
+  const {
+    closePicker,
+    hoveredModelLabel,
+    isModelPickerOpen,
+    providerId,
+    setHoveredModelLabel,
+    setProviderId,
+    setShowLegacyModels,
+    showLegacyModels,
+    togglePicker,
+  } = useModelPickerControlState();
+  const currentModel = modelSetting?.value ?? "GPT-4.1 mini";
+
+  return (
+    <div
+      className="relative max-w-[31rem] min-w-[19rem] flex-1 basis-[19rem] sm:flex-none"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          closePicker();
+        }
+      }}
+    >
+      <SpielwieseAgentTitleSurface
+        currentModel={currentModel}
+        isModelPickerOpen={isModelPickerOpen}
+        node={node}
+        onTitleChange={onTitleChange}
+        togglePicker={togglePicker}
+      />
+      {modelSetting && isModelPickerOpen ? (
+        <SpielwieseModelPickerPanel
+          currentModel={currentModel}
+          hoveredModelLabel={hoveredModelLabel}
+          onClose={closePicker}
+          onValueChange={(value) =>
+            onSettingValueChange(node.id, modelSetting.id, value)
+          }
+          panelClassName="left-0 top-full mt-2"
+          providerId={providerId}
+          setHoveredModelLabel={setHoveredModelLabel}
+          setProviderId={setProviderId}
+          setShowLegacyModels={setShowLegacyModels}
+          showLegacyModels={showLegacyModels}
+        />
+      ) : null}
+    </div>
+  );
+}

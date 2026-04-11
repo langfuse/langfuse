@@ -18,6 +18,8 @@ function createBenchmarks(
 export const spielwieseModelProviders: SpielwieseModelProvider[] = [
   {
     id: "openai",
+    iconAlt: "OpenAI mark",
+    iconSrc: "/providers/openai/chatgpt.svg",
     label: "OpenAI",
     description:
       "Frontier general-purpose models with a deep mini-to-nano range.",
@@ -106,6 +108,8 @@ export const spielwieseModelProviders: SpielwieseModelProvider[] = [
   },
   {
     id: "anthropic",
+    iconAlt: "Anthropic mark",
+    iconSrc: "/providers/anthropic/claude.svg",
     label: "Anthropic",
     description:
       "Claude models with strong writing quality and dependable tool use.",
@@ -181,6 +185,8 @@ export const spielwieseModelProviders: SpielwieseModelProvider[] = [
   },
   {
     id: "google",
+    iconAlt: "Google Gemini mark",
+    iconSrc: "/providers/google/gemini.svg",
     label: "Google",
     description:
       "Gemini models spanning flagship reasoning to low-cost flash tiers.",

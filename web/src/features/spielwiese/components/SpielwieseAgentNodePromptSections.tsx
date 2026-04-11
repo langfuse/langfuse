@@ -1,13 +1,21 @@
 import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { cn } from "@/src/utils/tailwind";
+import { Textarea } from "../ui/textarea";
 import { SpielwieseAssistantReplySection } from "./SpielwieseAssistantReplySection";
+import { SpielwieseDetachedUserMessageSectionRow } from "./SpielwieseDetachedUserMessageSectionRow";
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
-import { SpielwieseMessageSectionBody } from "./SpielwieseMessageSectionBody";
+import {
+  SpielwieseMessageSectionBody,
+  spielwieseInlineTextareaClassName,
+} from "./SpielwieseMessageSectionBody";
 import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { getPromptSectionDisplayLabel } from "./spielwiesePromptSectionLabels";
-import { getMessageKind } from "./spielwieseMessageTone";
+import {
+  getMessageKind,
+  getMessageToneClassNames,
+} from "./spielwieseMessageTone";
 
 type SpielwieseAgentNodePromptSectionsProps = {
   className?: string;
@@ -31,6 +39,7 @@ type SpielwieseAgentNodePromptSectionsProps = {
   promptSections: SpielwieseAgentNodeVM["promptSections"];
   showInsertRow?: boolean;
   toolOptions: SpielwieseToolOption[];
+  userLayout?: "standard" | "detached";
 };
 
 type SpielwieseMessageSectionRowProps = {
@@ -45,6 +54,53 @@ type SpielwieseMessageSectionRowProps = {
   section: SpielwieseAgentNodeVM["promptSections"][number];
   toolOptions: SpielwieseToolOption[];
 };
+
+function getMessageSectionRowRadiusClassName(sectionId: string) {
+  return getMessageKind(sectionId) === "user"
+    ? "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]"
+    : "rounded-xl";
+}
+
+function renderExpandedStandardMessageSectionContent({
+  nodeId,
+  onPromptSectionChange,
+  section,
+  toolOptions,
+}: {
+  nodeId: string;
+  onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
+  section: SpielwieseAgentNodeVM["promptSections"][number];
+  toolOptions: SpielwieseToolOption[];
+}) {
+  const toneClassNames = getMessageToneClassNames(section.id);
+
+  if (getMessageKind(section.id) === "user") {
+    return (
+      <Textarea
+        aria-label={`${nodeId} ${section.label}`}
+        className={cn(
+          `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden px-0 pt-1 pb-0.5 text-base leading-7 sm:text-[0.9375rem]`,
+          toneClassNames.field,
+        )}
+        name={`${nodeId}-${section.id}`}
+        onChange={(event) =>
+          onPromptSectionChange(nodeId, section.id, event.target.value)
+        }
+        rows={1}
+        value={section.value}
+      />
+    );
+  }
+
+  return (
+    <SpielwieseMessageSectionBody
+      nodeId={nodeId}
+      onPromptSectionChange={onPromptSectionChange}
+      section={section}
+      toolOptions={toolOptions}
+    />
+  );
+}
 
 function SpielwieseStandardMessageSectionRow({
   canMoveDown,
@@ -69,12 +125,14 @@ function SpielwieseStandardMessageSectionRow({
   toolOptions: SpielwieseToolOption[];
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
     <div
       className={cn(
-        "border-border/30 group flex w-full flex-col overflow-hidden border",
-        getMessageKind(section.id) === "system" ? "rounded-none" : "rounded-lg",
+        "group flex w-full flex-col overflow-hidden px-2.5 py-2",
+        getMessageSectionRowRadiusClassName(section.id),
+        toneClassNames.surface,
       )}
       data-section-id={section.id}
       data-testid="spielwiese-message-section-row"
@@ -92,19 +150,24 @@ function SpielwieseStandardMessageSectionRow({
         sectionId={section.id}
         value={section.value}
       />
-      {isCollapsed ? null : (
-        <SpielwieseMessageSectionBody
-          nodeId={nodeId}
-          onPromptSectionChange={onPromptSectionChange}
-          section={section}
-          toolOptions={toolOptions}
-        />
-      )}
+      {isCollapsed
+        ? null
+        : renderExpandedStandardMessageSectionContent({
+            nodeId,
+            onPromptSectionChange,
+            section,
+            toolOptions,
+          })}
     </div>
   );
 }
 
-function SpielwieseMessageSectionRow(props: SpielwieseMessageSectionRowProps) {
+function SpielwieseMessageSectionRow({
+  userLayout = "standard",
+  ...props
+}: SpielwieseMessageSectionRowProps & {
+  userLayout?: "standard" | "detached";
+}) {
   if (getMessageKind(props.section.id) === "assistant") {
     return (
       <SpielwieseAssistantReplySection
@@ -126,6 +189,13 @@ function SpielwieseMessageSectionRow(props: SpielwieseMessageSectionRowProps) {
         section={props.section}
       />
     );
+  }
+
+  if (
+    userLayout === "detached" &&
+    getMessageKind(props.section.id) === "user"
+  ) {
+    return <SpielwieseDetachedUserMessageSectionRow {...props} />;
   }
 
   return <SpielwieseStandardMessageSectionRow {...props} />;
@@ -179,6 +249,7 @@ export function SpielwieseAgentNodePromptSections({
   promptSections,
   showInsertRow = true,
   toolOptions,
+  userLayout = "standard",
 }: SpielwieseAgentNodePromptSectionsProps) {
   const visibleSections = getVisiblePromptSections(
     promptSections,
@@ -189,7 +260,7 @@ export function SpielwieseAgentNodePromptSections({
   }
 
   return (
-    <div className={cn("grid gap-1 pt-1.5", className)}>
+    <div className={cn("grid gap-[7px] pt-2.5", className)}>
       {visibleSections.map((section, index) => (
         <SpielwieseMessageSectionRow
           assistantReceivesValue={findAssistantReceivesValue(
@@ -213,6 +284,7 @@ export function SpielwieseAgentNodePromptSections({
           onPromptSectionMove={onPromptSectionMove}
           section={section}
           toolOptions={toolOptions}
+          userLayout={userLayout}
         />
       ))}
       {showInsertRow ? (

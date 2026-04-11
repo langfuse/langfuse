@@ -3,16 +3,15 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+  "text-sidebar-foreground/88 hover:bg-background/72 hover:text-sidebar-foreground focus-visible:ring-sidebar-ring/35 inline-flex h-8 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] leading-5 font-medium outline-none transition-[background-color,color,box-shadow] focus-visible:ring-2 [&_[data-sidebar-action]]:text-muted-foreground [&_[data-sidebar-action]]:inline-flex [&_[data-sidebar-action]]:size-4 [&_[data-sidebar-action]]:shrink-0 [&_[data-sidebar-action]]:items-center [&_[data-sidebar-action]]:justify-center [&_[data-sidebar-badge]]:bg-background [&_[data-sidebar-badge]]:text-muted-foreground [&_[data-sidebar-badge]]:inline-flex [&_[data-sidebar-badge]]:min-w-5 [&_[data-sidebar-badge]]:shrink-0 [&_[data-sidebar-badge]]:items-center [&_[data-sidebar-badge]]:justify-center [&_[data-sidebar-badge]]:rounded-full [&_[data-sidebar-badge]]:px-1.5 [&_[data-sidebar-badge]]:py-0.5 [&_[data-sidebar-badge]]:text-[11px] [&_[data-sidebar-badge]]:font-medium [&_[data-sidebar-badge]]:leading-none [&_[data-sidebar-icon]]:text-sidebar-foreground/68 [&_[data-sidebar-icon]]:size-3.5 [&_[data-sidebar-icon]]:shrink-0 [&_[data-sidebar-label]]:min-w-0 [&_[data-sidebar-label]]:flex-1 [&_[data-sidebar-label]]:truncate [&_[data-sidebar-meta]]:text-muted-foreground [&_[data-sidebar-meta]]:shrink-0 [&_[data-sidebar-meta]]:text-[12px] [&_[data-sidebar-meta]]:leading-none",
   {
     variants: {
       active: {
-        true: "bg-sidebar-accent text-sidebar-accent-foreground",
-        false:
-          "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        true: "bg-background text-sidebar-foreground shadow-[0_0_0_1px_hsl(var(--sidebar-border)/0.7)] [&_[data-sidebar-icon]]:text-sidebar-foreground/78",
+        false: "",
       },
       compact: {
-        true: "justify-center px-2.5",
+        true: "size-8 justify-center gap-0 rounded-[10px] px-0 [&_[data-sidebar-action]]:hidden [&_[data-sidebar-badge]]:hidden [&_[data-sidebar-label]]:hidden [&_[data-sidebar-meta]]:hidden",
         false: "",
       },
     },
@@ -104,7 +103,7 @@ export function SidebarMenu({
 }: HTMLAttributes<HTMLUListElement>) {
   return (
     <ul
-      className={cn("flex flex-col gap-1.5", className)}
+      className={cn("flex flex-col gap-0.5", className)}
       role="list"
       {...props}
     />
@@ -167,8 +166,8 @@ export function SidebarMenuSubButton({
     <a
       aria-current={active ? "page" : undefined}
       className={cn(
-        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring/50 flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2",
-        active && "bg-sidebar-accent text-sidebar-accent-foreground",
+        sidebarMenuButtonVariants({ active }),
+        "h-7 gap-2 rounded-lg pr-2 pl-2.5",
         className,
       )}
       href={href}

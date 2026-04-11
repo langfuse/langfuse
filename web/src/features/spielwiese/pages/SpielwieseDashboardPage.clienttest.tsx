@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import "../components/spielwieseResizableTestMock";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
 describe("SpielwieseDashboardPage", () => {
@@ -12,14 +13,19 @@ describe("SpielwieseDashboardPage", () => {
     const { container } = render(<SpielwieseDashboardPage />);
 
     const editorCanvas = screen.getByTestId("spielwiese-editor-canvas");
+    const root = container.querySelector("[data-spielwiese]");
 
     expect(editorCanvas).toBeTruthy();
-    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(3);
+    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
     expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Nutrition Agent")).toBeNull();
+    expect(screen.queryByDisplayValue("Coach Agent")).toBeNull();
     expect(screen.getByDisplayValue("[image]")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
-    expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
+    expect(root).toBeTruthy();
+    expect(root?.className).toContain("h-screen-with-banner");
+    expect(root?.className).toContain("overflow-hidden");
   });
 
   it("renders the vision agent canvas when the hash selects it", () => {

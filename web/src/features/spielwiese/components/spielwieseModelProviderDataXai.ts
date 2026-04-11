@@ -16,6 +16,8 @@ function createBenchmarks(
 
 export const xaiProvider: SpielwieseModelProvider = {
   id: "xai",
+  iconAlt: "xAI mark",
+  iconSrc: "/providers/xai/grok.svg",
   label: "xAI",
   description:
     "Grok models focused on reasoning and current-events-aware assistants.",

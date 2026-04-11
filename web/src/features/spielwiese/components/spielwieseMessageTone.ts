@@ -9,59 +9,36 @@ function getMessageKind(sectionId: string) {
 
 export { getMessageKind };
 
-export function getMessageToneClassNames(sectionId: string) {
-  const messageKind = getMessageKind(sectionId);
+export function getMessageToneClassNames(_sectionId: string) {
+  const messageKind = getMessageKind(_sectionId);
 
   if (messageKind === "user") {
     return {
       action:
-        "text-foreground/42 hover:bg-foreground/5 hover:text-foreground/70",
-      body: "bg-light-blue/58",
+        "text-foreground/34 hover:bg-muted/48 hover:text-foreground/70 disabled:text-foreground/18 disabled:hover:bg-transparent",
+      body: "bg-transparent",
+      chip: "border-border/40 bg-background/76 shadow-[inset_0_1px_0_hsl(var(--background)/0.95)] hover:bg-background/88",
       count:
-        "text-foreground/50 group-hover:text-foreground/70 group-focus-within:text-foreground/70",
-      label: "text-dark-blue",
+        "text-foreground/38 group-hover:text-foreground/56 group-focus-within:text-foreground/56",
+      header: "bg-transparent",
+      label: "text-foreground/70",
       field:
-        "border-transparent bg-transparent text-foreground placeholder:text-foreground/45 shadow-none focus-visible:border-transparent focus-visible:ring-0",
-      header: "bg-light-blue/58",
-    };
-  }
-
-  if (messageKind === "assistant") {
-    return {
-      action:
-        "text-foreground/42 hover:bg-foreground/5 hover:text-foreground/70",
-      body: "bg-light-red/58",
-      count:
-        "text-foreground/50 group-hover:text-foreground/70 group-focus-within:text-foreground/70",
-      label: "text-dark-red",
-      field:
-        "border-transparent bg-transparent text-foreground placeholder:text-foreground/45 shadow-none focus-visible:border-transparent focus-visible:ring-0",
-      header: "bg-light-red/58",
-    };
-  }
-
-  if (messageKind === "tool") {
-    return {
-      action:
-        "text-foreground/42 hover:bg-foreground/5 hover:text-foreground/70",
-      body: "bg-light-yellow/58",
-      count:
-        "text-foreground/50 group-hover:text-foreground/70 group-focus-within:text-foreground/70",
-      label: "text-dark-yellow",
-      field:
-        "border-transparent bg-transparent text-foreground placeholder:text-foreground/45 shadow-none focus-visible:border-transparent focus-visible:ring-0",
-      header: "bg-light-yellow/58",
+        "border-transparent bg-transparent text-foreground placeholder:text-foreground/40 shadow-none focus-visible:border-transparent focus-visible:ring-0",
+      surface: "border border-border/40 bg-background/96",
     };
   }
 
   return {
-    action: "text-foreground/42 hover:bg-foreground/5 hover:text-foreground/70",
-    body: "bg-accent-light-blue/58",
+    action:
+      "text-foreground/34 hover:bg-muted/48 hover:text-foreground/70 disabled:text-foreground/18 disabled:hover:bg-transparent",
+    body: "bg-transparent",
+    chip: "border-border/35 bg-muted/22 hover:bg-muted/30",
     count:
-      "text-foreground/50 group-hover:text-foreground/70 group-focus-within:text-foreground/70",
-    label: "text-accent-dark-blue",
+      "text-foreground/38 group-hover:text-foreground/56 group-focus-within:text-foreground/56",
+    header: "bg-transparent",
+    label: "text-foreground/70",
+    surface: "bg-muted/24",
     field:
-      "border-transparent bg-transparent text-foreground placeholder:text-foreground/45 shadow-none focus-visible:border-transparent focus-visible:ring-0",
-    header: "bg-accent-light-blue/58",
+      "rounded-[10px] border-transparent bg-[#dfe0e0] px-3 py-2 text-foreground placeholder:text-foreground/46 shadow-none focus-visible:border-transparent focus-visible:ring-0",
   };
 }

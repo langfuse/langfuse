@@ -47,12 +47,15 @@ function SpielwieseCanvasPane({
   return (
     <div
       className={cn(
-        "border-border/70 bg-card/95 flex min-h-0 flex-1 flex-col overflow-hidden border px-4 pt-4 pb-0 shadow-xs sm:px-5 sm:pt-5",
+        "border-border/70 flex min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-b-0 bg-[#F5F5F5] p-2",
         className,
       )}
       data-testid="spielwiese-editor-canvas-pane"
     >
-      <div className="flex min-h-0 flex-1 flex-col pb-0">
+      <div
+        className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] px-4 py-0 shadow-xs sm:px-5"
+        data-testid="spielwiese-editor-canvas-pane-shell"
+      >
         <SpielwieseAgentNodeStack
           nodes={nodes}
           onPromptSectionDelete={onPromptSectionDelete}
@@ -83,7 +86,7 @@ export function SpielwieseCanvasPaneStack({
     >
       <ResizablePanel defaultSize="68%" minSize="20%">
         <SpielwieseCanvasPane
-          className="h-full rounded-t-lg rounded-b-none"
+          className="h-full rounded-none"
           nodes={nodes}
           onPromptSectionDelete={onPromptSectionDelete}
           onPromptSectionInsert={onPromptSectionInsert}
@@ -94,11 +97,11 @@ export function SpielwieseCanvasPaneStack({
         />
       </ResizablePanel>
       <ResizableHandle
-        className="shrink-0"
+        className="bg-border/70 aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
         data-testid="spielwiese-canvas-pane-resize-handle"
       />
       <ResizablePanel defaultSize="32%" minSize="12%">
-        <SpielwiesePromptSimulationPane />
+        <SpielwiesePromptSimulationPane nodes={nodes} />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

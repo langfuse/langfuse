@@ -113,6 +113,8 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
   },
 ];
 
+const assistantCanvasAgentNodes = defaultAgentNodes.slice(0, 1);
+
 const defaultInsertPanel: SpielwieseDashboardVM["insertPanel"] = {
   tabs: ["Insert", "Format", "Style", "Info"],
   activeTab: "Insert",
@@ -192,7 +194,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "links", label: "Linked pages", value: "00" },
         { id: "comments", label: "Comments", value: "03" },
       ],
-      agentNodes: defaultAgentNodes,
+      agentNodes: assistantCanvasAgentNodes,
     },
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,

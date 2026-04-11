@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
@@ -22,7 +23,7 @@ function insertToolMessage(nodeElement: HTMLElement) {
 }
 
 describe("SpielwieseEditorCanvas prompt insertion", () => {
-  it("shows the new-message picker to the right and dismisses it when focus leaves", () => {
+  it("reveals an inline message tray that stays open until toggled closed", () => {
     render(
       <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
     );
@@ -42,15 +43,30 @@ describe("SpielwieseEditorCanvas prompt insertion", () => {
       "spielwiese-message-insert-row",
     );
 
-    expect(picker.className).toContain("left-full");
-    expect(picker.className).toContain("-translate-y-1/2");
+    expect(picker.className).not.toContain("absolute");
+    expect(picker.getAttribute("data-state")).toBe("open");
+    expect(picker.className).toContain("border-l");
+    expect(picker.className).toContain("bg-[rgba(0,0,0,0.035)]");
     expect(insertRow.className).toContain("w-fit");
+    expect(insertRow.className).toContain("items-center");
+    expect(insertRow.className).toContain("pt-[7px]");
+    expect(insertRow.className).toContain("pl-[18px]");
+    expect(insertRow.className).toContain("pb-[14px]");
+    expect(insertRow.firstElementChild?.className).toContain("overflow-hidden");
+    expect(insertRow.firstElementChild?.className).toContain("rounded-[8px]");
+    expect(
+      within(visionNode)
+        .getByTestId("spielwiese-agent-node-card")
+        .querySelector("#vision-agent-content > div")?.className,
+    ).toContain("gap-[7px]");
 
     fireEvent.blur(newMessageButton, { relatedTarget: null });
 
-    expect(
-      within(visionNode).queryByTestId("spielwiese-message-insert-picker"),
-    ).toBeNull();
+    expect(picker.getAttribute("data-state")).toBe("open");
+
+    fireEvent.click(newMessageButton);
+
+    expect(picker.getAttribute("data-state")).toBe("closed");
   });
 });
 
@@ -123,7 +139,8 @@ describe("SpielwieseEditorCanvas tool messages", () => {
     );
 
     expect(toolPicker.textContent).toContain("Select a tool...");
-    expect(toolSection.className).toContain("bg-light-yellow/70");
+    expect(toolSection.className).toContain("bg-muted/18");
+    expect(toolSection.className).not.toContain("bg-light-yellow/70");
     expect(within(visionNode).queryByText("Ready")).toBeNull();
     expect(within(visionNode).queryByText("Example I/O")).toBeNull();
     expect(

@@ -41,6 +41,9 @@ type SpielwieseAgentNodeProps = {
   onTitleChange: SpielwieseAgentNodeStackProps["onTitleChange"];
 };
 
+const spielwieseAgentNodeShellClassName =
+  "group flex w-full flex-col gap-1.5 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]";
+
 function SpielwieseDetachedUserSections({
   node,
   onPromptSectionDelete,
@@ -57,9 +60,12 @@ function SpielwieseDetachedUserSections({
   toolOptions: ReturnType<typeof getNodeToolOptions>;
 }) {
   return (
-    <div data-testid={`${node.id}-detached-user-sections`}>
+    <div
+      className={spielwieseAgentNodeShellClassName}
+      data-testid={`${node.id}-detached-user-sections`}
+    >
       <SpielwieseAgentNodePromptSections
-        className="border-0 pt-0"
+        className="pt-0"
         includeKinds={["user"]}
         nodeId={node.id}
         onPromptSectionDelete={onPromptSectionDelete}
@@ -69,6 +75,7 @@ function SpielwieseDetachedUserSections({
         promptSections={node.promptSections}
         showInsertRow={false}
         toolOptions={toolOptions}
+        userLayout="detached"
       />
     </div>
   );
@@ -101,7 +108,7 @@ function SpielwieseAgentNodeCard({
 }) {
   return (
     <div
-      className="border-border/50 bg-card/90 grid gap-1.5 rounded-lg border px-2.5 py-2"
+      className={spielwieseAgentNodeShellClassName}
       data-testid="spielwiese-agent-node-card"
     >
       <SpielwieseAgentNodeHeader
@@ -186,7 +193,7 @@ export function SpielwieseAgentNodeStack({
 
   return (
     <ol
-      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-2"
+      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pt-4 pb-2 sm:pt-5"
       data-testid="spielwiese-agent-node-stack"
       role="list"
     >

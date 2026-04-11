@@ -126,7 +126,7 @@ export function SpielwieseTopBar({
 
   return (
     <header
-      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#FCFDFE]"
+      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#F5F5F5]"
       data-testid="spielwiese-shell-header"
     >
       <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 sm:px-5">

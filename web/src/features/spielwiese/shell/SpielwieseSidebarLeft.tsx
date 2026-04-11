@@ -1,12 +1,14 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarSurface,
 } from "../ui/sidebar";
 import type {
@@ -17,7 +19,6 @@ import type {
 import {
   FooterTools,
   SidebarBottomModeSwitch,
-  UsageMeter,
 } from "./SpielwieseSidebarLeftExtras";
 import { SpielwieseSidebarDocumentPage } from "./SpielwieseSidebarDocumentPage";
 import { SidebarSectionList } from "./SpielwieseSidebarLeftTree";
@@ -96,39 +97,30 @@ function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   const Icon = item.icon;
 
   return (
-    <a
-      aria-current={item.isActive ? "page" : undefined}
-      className={cn(
-        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
-        item.isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-      )}
-      href={item.href}
-    >
-      <Icon className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.count ? (
-        <span className="text-muted-foreground shrink-0 text-sm">
-          {item.count}
-        </span>
-      ) : null}
+    <SidebarMenuButton active={item.isActive} href={item.href}>
+      <Icon className="size-3.5 shrink-0" data-sidebar-icon />
+      <span data-sidebar-label>{item.label}</span>
+      {item.count ? <span data-sidebar-meta>{item.count}</span> : null}
       {ActionIcon ? (
-        <span className="text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center">
+        <span data-sidebar-action>
           <ActionIcon className="size-3.5" />
         </span>
       ) : null}
-    </a>
+    </SidebarMenuButton>
   );
 }
 
 function ExpandedUtilityNav({ groups }: { groups: SpielwieseNavGroup[] }) {
   return (
-    <nav aria-label="Primary workspace links" className="flex flex-col gap-2">
+    <nav aria-label="Primary workspace links" className="flex flex-col gap-1.5">
       {groups.map((group) => (
-        <div className="flex flex-col gap-1" key={group.id}>
+        <SidebarMenu key={group.id}>
           {group.items.map((item) => (
-            <UtilityNavRow item={item} key={item.id} />
+            <SidebarMenuItem key={item.id}>
+              <UtilityNavRow item={item} />
+            </SidebarMenuItem>
           ))}
-        </div>
+        </SidebarMenu>
       ))}
     </nav>
   );
@@ -136,24 +128,20 @@ function ExpandedUtilityNav({ groups }: { groups: SpielwieseNavGroup[] }) {
 
 function CompactUtilityNav({ items }: { items: SpielwieseNavItem[] }) {
   return (
-    <nav aria-label="Primary workspace links" className="flex flex-col gap-1.5">
+    <nav aria-label="Primary workspace links" className="flex flex-col gap-1">
       {items.map((item) => {
         const Icon = item.icon;
 
         return (
-          <a
+          <SidebarMenuButton
             key={item.id}
-            aria-current={item.isActive ? "page" : undefined}
-            className={cn(
-              "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-10 items-center justify-center rounded-xl transition-colors",
-              item.isActive &&
-                "bg-sidebar-accent text-sidebar-accent-foreground",
-            )}
             href={item.href}
+            active={item.isActive}
+            compact
             title={item.label}
           >
-            <Icon size={18} />
-          </a>
+            <Icon className="size-4" data-sidebar-icon />
+          </SidebarMenuButton>
         );
       })}
     </nav>
@@ -227,12 +215,8 @@ function ExpandedSidebar({
               <ExpandedUtilityNav groups={shell.utilityNavGroups} />
             </SidebarHeader>
 
-            <SidebarContent className="gap-5 p-3 pt-0">
+            <SidebarContent className="gap-4 p-3 pt-0">
               <SidebarSectionList sections={shell.sidebarSections} />
-              <div className="flex flex-col gap-3 pt-2">
-                <FooterTools compact={false} tools={shell.footerTools} />
-                <UsageMeter shell={shell} />
-              </div>
             </SidebarContent>
           </>
         ) : (
@@ -241,7 +225,7 @@ function ExpandedSidebar({
       </div>
 
       <SidebarFooter
-        className="mt-0 shrink-0 bg-[#FCFDFE] p-3"
+        className="mt-0 shrink-0 bg-[#F5F5F5] p-3"
         data-testid="spielwiese-left-sidebar-sticky-footer"
       >
         <SidebarBottomModeSwitch
@@ -263,7 +247,7 @@ export function SpielwieseSidebarLeft({
 
   return (
     <SidebarSurface
-      className="overflow-hidden bg-[#FCFDFE]"
+      className="overflow-hidden bg-[#F5F5F5]"
       data-testid="spielwiese-left-sidebar"
     >
       {compact ? (

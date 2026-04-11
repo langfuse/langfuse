@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -14,9 +13,13 @@ import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
-  SpielwieseModelPickerPanel,
-  SpielwieseModelPickerTrigger,
-} from "./SpielwieseModelPicker";
+  SpielwieseHeaderStripTag,
+  spielwieseInlineInputClassName,
+  spielwieseStripItemClassName,
+  spielwieseStripItemFieldClassName,
+} from "./SpielwieseHeaderStrip";
+import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
+import { SpielwieseAgentNodeTitleControl } from "./SpielwieseAgentNodeTitleControl";
 import { SpielwieseToolCreatorPopup } from "./SpielwieseToolCreatorPopup";
 
 type SpielwieseAgentNodeHeaderProps = {
@@ -47,16 +50,22 @@ function getSettingWidthClass(settingId: string) {
   }
 }
 
-const inlineInputClassName =
-  "h-auto rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0";
-const stripItemClassName =
-  "border-border/50 bg-muted/28 flex h-7 shrink-0 items-center overflow-hidden rounded-md border";
-const stripItemIconRailClassName =
-  "bg-muted/55 text-foreground/56 grid h-full w-6 shrink-0 place-items-center";
-const stripItemFieldClassName = "min-w-0 px-2";
-
 function getInlineSettings(settings: SpielwieseAgentNodeVM["settings"]) {
   return settings.filter((setting) => setting.id !== "model");
+}
+
+function getToolStripLabel(node: SpielwieseAgentNodeVM) {
+  const toolOptions = getNodeToolOptions(node.notes);
+
+  if (toolOptions.length === 0) {
+    return "any";
+  }
+
+  if (toolOptions.length === 1) {
+    return toolOptions[0]?.label ?? "any";
+  }
+
+  return `${toolOptions.length} tools`;
 }
 
 function getSettingIcon(settingId: string): LucideIcon {
@@ -82,7 +91,7 @@ function SpielwieseAgentNodeInlineSettings({
   settings: SpielwieseAgentNodeVM["settings"];
 }) {
   return (
-    <dl className="flex min-w-0 flex-wrap items-center gap-1">
+    <dl className="flex min-w-0 shrink-0 items-center gap-1">
       {settings.flatMap((setting) => {
         const SettingIcon = getSettingIcon(setting.id);
 
@@ -90,13 +99,13 @@ function SpielwieseAgentNodeInlineSettings({
           <dt className="sr-only" key={`${setting.id}-label`}>
             {setting.label}
           </dt>,
-          <dd className={stripItemClassName} key={setting.id}>
-            <span className={stripItemIconRailClassName}>
-              <SettingIcon aria-hidden="true" className="size-3.5" />
-            </span>
+          <dd className={spielwieseStripItemClassName} key={setting.id}>
+            <SpielwieseHeaderStripTag label={setting.label}>
+              <SettingIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            </SpielwieseHeaderStripTag>
             <Input
               aria-label={`${nodeId} ${setting.label}`}
-              className={`${inlineInputClassName} ${stripItemFieldClassName} text-foreground/78 w-full min-w-0 text-[0.8125rem] font-medium tabular-nums max-sm:text-base/5 ${getSettingWidthClass(
+              className={`${spielwieseInlineInputClassName} ${spielwieseStripItemFieldClassName} text-foreground/78 w-full min-w-0 text-[0.8125rem] font-medium tabular-nums max-sm:text-base/5 ${getSettingWidthClass(
                 setting.id,
               )}`}
               name={`${nodeId}-${setting.id}`}
@@ -123,32 +132,27 @@ function SpielwieseAgentNodeHeaderRow({
   const inlineSettings = getInlineSettings(node.settings);
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-      <div className="min-w-0 flex-1 basis-[10rem]">
-        <Input
-          aria-label={`${node.id} title`}
-          className={`${inlineInputClassName} w-full min-w-0 text-[13px] font-semibold tracking-[-0.01em] max-sm:text-base/5`}
-          name={`${node.id}-title`}
-          onChange={(event) => onTitleChange(node.id, event.target.value)}
-          value={node.title}
-        />
-      </div>
-      <SpielwieseAgentNodeModelControl
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
+      data-testid="spielwiese-agent-node-header-row"
+    >
+      <SpielwieseAgentNodeTitleControl
         modelSetting={modelSetting}
         node={node}
         onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
       />
       <SpielwieseAgentNodeInlineSettings
         nodeId={node.id}
         onSettingValueChange={onSettingValueChange}
         settings={inlineSettings}
       />
-      <SpielwieseToolCreatorPopup />
+      <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
       <Button
         aria-controls={`${node.id}-content`}
         aria-expanded={!isCollapsed}
         aria-label={`Toggle ${node.id} node`}
-        className="text-foreground/55 hover:bg-muted/45 hover:text-foreground ml-auto h-7 w-7 shrink-0 rounded-md"
+        className="bg-background text-foreground/58 hover:bg-background hover:text-foreground h-7 w-7 shrink-0 rounded-[8px] border border-[rgba(0,0,0,0.08)]"
         size="icon-sm"
         variant="ghost"
         onClick={onToggleCollapse}
@@ -164,134 +168,15 @@ function SpielwieseAgentNodeHeaderRow({
   );
 }
 
-function resetModelPickerState({
-  setHoveredModelLabel,
-  setProviderId,
-  setShowLegacyModels,
-}: {
-  setHoveredModelLabel: (modelLabel: string | null) => void;
-  setProviderId: (providerId: string | null) => void;
-  setShowLegacyModels: (value: boolean) => void;
-}) {
-  setProviderId(null);
-  setHoveredModelLabel(null);
-  setShowLegacyModels(false);
-}
-
-function useModelPickerControlState() {
-  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
-  const [providerId, setProviderId] = useState<string | null>(null);
-  const [hoveredModelLabel, setHoveredModelLabel] = useState<string | null>(
-    null,
-  );
-  const [showLegacyModels, setShowLegacyModels] = useState(false);
-
-  const resetState = () =>
-    resetModelPickerState({
-      setHoveredModelLabel,
-      setProviderId,
-      setShowLegacyModels,
-    });
-  const closePicker = () => {
-    setIsModelPickerOpen(false);
-    resetState();
-  };
-
-  return {
-    closePicker,
-    hoveredModelLabel,
-    isModelPickerOpen,
-    providerId,
-    setHoveredModelLabel,
-    setProviderId,
-    setShowLegacyModels,
-    showLegacyModels,
-    togglePicker: () =>
-      setIsModelPickerOpen((currentValue) => {
-        if (currentValue) {
-          resetState();
-        }
-
-        return !currentValue;
-      }),
-  };
-}
-
-type SpielwieseAgentNodeModelControlProps = {
-  modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
-  node: SpielwieseAgentNodeVM;
-  onSettingValueChange: SpielwieseAgentNodeHeaderProps["onSettingValueChange"];
-};
-
-function SpielwieseAgentNodeModelControl({
-  modelSetting,
-  node,
-  onSettingValueChange,
-}: SpielwieseAgentNodeModelControlProps) {
-  const {
-    closePicker,
-    hoveredModelLabel,
-    isModelPickerOpen,
-    providerId,
-    setHoveredModelLabel,
-    setProviderId,
-    setShowLegacyModels,
-    showLegacyModels,
-    togglePicker,
-  } = useModelPickerControlState();
-  if (!modelSetting) {
-    return null;
-  }
+export function SpielwieseAgentNodeHeader(
+  props: SpielwieseAgentNodeHeaderProps,
+) {
   return (
     <div
-      className="relative shrink-0"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          closePicker();
-        }
-      }}
+      className="border-border/40 bg-background/96 flex min-w-0 items-center rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border"
+      data-testid="spielwiese-agent-node-header-shell"
     >
-      <SpielwieseModelPickerTrigger
-        ariaLabel={`${node.id} ${modelSetting.label}`}
-        currentModel={modelSetting.value}
-        isOpen={isModelPickerOpen}
-        onClick={togglePicker}
-      />
-      {isModelPickerOpen ? (
-        <SpielwieseModelPickerPanel
-          currentModel={modelSetting.value}
-          hoveredModelLabel={hoveredModelLabel}
-          onClose={closePicker}
-          onValueChange={(value) =>
-            onSettingValueChange(node.id, modelSetting.id, value)
-          }
-          providerId={providerId}
-          setHoveredModelLabel={setHoveredModelLabel}
-          setProviderId={setProviderId}
-          setShowLegacyModels={setShowLegacyModels}
-          showLegacyModels={showLegacyModels}
-        />
-      ) : null}
+      <SpielwieseAgentNodeHeaderRow {...props} />
     </div>
-  );
-}
-
-export function SpielwieseAgentNodeHeader({
-  isCollapsed,
-  modelSetting,
-  node,
-  onSettingValueChange,
-  onToggleCollapse,
-  onTitleChange,
-}: SpielwieseAgentNodeHeaderProps) {
-  return (
-    <SpielwieseAgentNodeHeaderRow
-      isCollapsed={isCollapsed}
-      modelSetting={modelSetting}
-      node={node}
-      onSettingValueChange={onSettingValueChange}
-      onToggleCollapse={onToggleCollapse}
-      onTitleChange={onTitleChange}
-    />
   );
 }

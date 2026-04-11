@@ -45,7 +45,7 @@ export default function SpielwieseDashboardPage() {
 
   return (
     <div
-      className="isolate min-h-dvh [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
+      className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
     >
       <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>

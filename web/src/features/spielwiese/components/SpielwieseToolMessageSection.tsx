@@ -282,7 +282,7 @@ export function SpielwieseToolMessageSection({
 
   return (
     <div
-      className="bg-light-yellow/70 rounded-[10px] px-3 py-3"
+      className="border-border/40 bg-muted/18 rounded-xl border px-3 py-3"
       data-testid="spielwiese-tool-message-section"
     >
       <div className="overflow-visible">
@@ -300,7 +300,7 @@ export function SpielwieseToolMessageSection({
         />
       </div>
       {hasToolSelection ? (
-        <div className="mt-3 border-t pt-3 pl-11">
+        <div className="border-border/30 mt-3 border-t pt-3 pl-3 sm:pl-11">
           <ToolResponsePair
             backValue={backValue}
             nodeId={nodeId}

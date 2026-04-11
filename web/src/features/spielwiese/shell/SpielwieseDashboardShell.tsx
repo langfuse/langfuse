@@ -91,7 +91,7 @@ function MobileSidebars({
       {mobileLeftOpen || mobileRightOpen ? (
         <button
           aria-label="Close mobile sidebars"
-          className="fixed inset-x-0 top-[var(--spielwiese-shell-offset)] bottom-0 z-30 bg-[#FCFDFE]/80 md:hidden"
+          className="fixed inset-x-0 top-[var(--spielwiese-shell-offset)] bottom-0 z-30 bg-[#F5F5F5]/80 md:hidden"
           data-testid="spielwiese-mobile-backdrop"
           onClick={onClose}
           type="button"
@@ -100,7 +100,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#FCFDFE] transition-transform md:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#F5F5F5] transition-transform md:hidden",
           mobileLeftOpen ? "translate-x-0" : "-translate-x-full",
         )}
         data-testid="spielwiese-mobile-left-drawer"
@@ -110,7 +110,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#FCFDFE] transition-transform xl:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#F5F5F5] transition-transform xl:hidden",
           mobileRightOpen ? "translate-x-0" : "translate-x-full",
         )}
         data-testid="spielwiese-mobile-right-drawer"
@@ -185,7 +185,7 @@ function SpielwieseDashboardShellLayout({
 
   return (
     <div
-      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#FCFDFE] [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
+      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"

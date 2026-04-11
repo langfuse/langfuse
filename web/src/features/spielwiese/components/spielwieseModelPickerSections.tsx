@@ -8,15 +8,16 @@ import {
   type SpielwieseModelOption,
   type SpielwieseModelProvider,
 } from "./spielwieseModelCatalog";
+import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 
 function ProviderButton({
   isActive,
-  label,
+  provider,
   onFocus,
   onClick,
 }: {
   isActive: boolean;
-  label: string;
+  provider: SpielwieseModelProvider;
   onFocus: () => void;
   onClick: () => void;
 }) {
@@ -33,7 +34,10 @@ function ProviderButton({
       onPointerEnter={onFocus}
       onPointerMove={onFocus}
     >
-      <span>{label}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <SpielwieseModelProviderMark providerId={provider.id} />
+        <span className="truncate">{provider.label}</span>
+      </span>
       <ChevronRight data-icon="inline-end" />
     </Button>
   );
@@ -79,11 +83,13 @@ function ModelOptionButton({
   model,
   onFocus,
   onSelect,
+  provider,
 }: {
   isActive: boolean;
   model: SpielwieseModelOption;
   onFocus: () => void;
   onSelect: () => void;
+  provider: SpielwieseModelProvider;
 }) {
   return (
     <button
@@ -100,7 +106,8 @@ function ModelOptionButton({
       onPointerMove={onFocus}
       type="button"
     >
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <SpielwieseModelProviderMark providerId={provider.id} />
         <p className="truncate text-sm font-medium">{model.label}</p>
       </div>
       <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
@@ -140,6 +147,7 @@ export function SpielwieseModelColumn({
           model={model}
           onFocus={() => onHoverModel(model.label)}
           onSelect={() => onSelectModel(model.label)}
+          provider={provider}
         />
       ))}
       {provider.legacyModels.length > 0 ? (
@@ -200,9 +208,9 @@ export function SpielwieseProviderColumn({
           <ProviderButton
             isActive={provider.id === currentProviderId}
             key={provider.id}
-            label={provider.label}
             onFocus={() => onSelectProvider(provider)}
             onClick={() => onSelectProvider(provider)}
+            provider={provider}
           />
         ))}
       </div>

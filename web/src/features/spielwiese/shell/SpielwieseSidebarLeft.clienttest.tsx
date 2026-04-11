@@ -19,7 +19,7 @@ function expectModeButtons(folderPressed: "true" | "false") {
 
 function expectBorderlessSidebarChrome() {
   expect(screen.getByTestId("spielwiese-left-sidebar").className).toContain(
-    "bg-[#FCFDFE]",
+    "bg-[#F5F5F5]",
   );
   expect(screen.getByTestId("spielwiese-left-sidebar").className).not.toContain(
     "border-r",
@@ -27,6 +27,23 @@ function expectBorderlessSidebarChrome() {
   expect(
     screen.getByTestId("spielwiese-left-sidebar-sticky-footer").className,
   ).not.toContain("border-t");
+}
+
+function expectSidebarButtonChrome(
+  label: string,
+  options?: { active?: boolean },
+) {
+  const link = screen.getByText(label).closest("a");
+
+  expect(link).toBeTruthy();
+  expect(link?.className).toContain("h-8");
+  expect(link?.className).toContain("rounded-[10px]");
+  expect(link?.className).toContain("text-[13px]");
+  expect(link?.querySelector("[data-sidebar-icon]")).toBeTruthy();
+
+  if (options?.active) {
+    expect(link?.className).toContain("bg-background");
+  }
 }
 
 describe("SpielwieseSidebarLeft expanded", () => {
@@ -38,18 +55,18 @@ describe("SpielwieseSidebarLeft expanded", () => {
     ).toBeTruthy();
     expect(screen.getByText("My Space")).toBeTruthy();
     expect(screen.getByText("New Document")).toBeTruthy();
-    expect(screen.getByText("All Docs")).toBeTruthy();
-    expect(screen.getByText("Tasks")).toBeTruthy();
-    expect(screen.getByText("Calendar")).toBeTruthy();
-    expect(screen.getByText("Imagine")).toBeTruthy();
-    expect(screen.getByText("Starred")).toBeTruthy();
-    expect(screen.getByText("Folders")).toBeTruthy();
-    expect(screen.getByText("Tags")).toBeTruthy();
-    expect(screen.getByText("How to use Craft")).toBeTruthy();
-    expect(screen.getByText("Unsorted")).toBeTruthy();
-    expect(screen.getByText("Open Questions Numia")).toBeTruthy();
-    expect(screen.getByText("You are on the free plan")).toBeTruthy();
-    expect(screen.getByText("Go Unlimited")).toBeTruthy();
+    expect(screen.getByText("Home")).toBeTruthy();
+    expect(screen.getByText("Search")).toBeTruthy();
+    expect(screen.getByText("Library")).toBeTruthy();
+    expect(screen.getByText("Organization settings")).toBeTruthy();
+    expect(screen.getByText("Documentation")).toBeTruthy();
+    expect(screen.getByText("Files")).toBeTruthy();
+    expect(screen.getByText("Example Evaluators")).toBeTruthy();
+    expect(screen.getByText("Comedian Bot")).toBeTruthy();
+    expect(screen.getByText("New")).toBeTruthy();
+    expect(screen.queryByText("All Docs")).toBeNull();
+    expect(screen.queryByText("Folders")).toBeNull();
+    expect(screen.queryByText("Go Unlimited")).toBeNull();
     expect(
       screen.getByTestId("spielwiese-left-bottom-mode-switch"),
     ).toBeTruthy();
@@ -60,6 +77,9 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectModeButtons("true");
     expect(screen.getByLabelText("Folder view")).toBeTruthy();
     expect(screen.getByLabelText("Document view")).toBeTruthy();
+    expectSidebarButtonChrome("Home");
+    expectSidebarButtonChrome("Search", { active: true });
+    expectSidebarButtonChrome("Comedian Bot");
   });
 
   it("switches the scrollable rail to the second page from the sticky footer", () => {
@@ -106,8 +126,9 @@ describe("SpielwieseSidebarLeft compact", () => {
       screen.getByTestId("spielwiese-left-sidebar-scroll-area"),
     ).toBeTruthy();
     expect(screen.queryByText("New Document")).toBeNull();
-    expect(screen.queryByText("Folders")).toBeNull();
+    expect(screen.queryByText("Files")).toBeNull();
     expect(screen.getByTitle("Desktop app")).toBeTruthy();
-    expect(screen.getByTitle("Folders")).toBeTruthy();
+    expect(screen.getByTitle("Files")).toBeTruthy();
+    expect(screen.getByTitle("Home").className).toContain("size-8");
   });
 });
