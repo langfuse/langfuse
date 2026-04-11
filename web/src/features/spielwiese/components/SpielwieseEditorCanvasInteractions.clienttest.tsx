@@ -148,6 +148,11 @@ describe("SpielwieseEditorCanvas node collapse sections", () => {
     expect(
       screen.queryByLabelText("vision-agent How the assistant should reply"),
     ).toBeNull();
+    expect(
+      within(visionNode).queryByTestId(
+        "spielwiese-message-insert-compact-trigger",
+      ),
+    ).toBeNull();
     expect(toggleButton.getAttribute("aria-pressed")).toBe("true");
     expect(toggleButton.getAttribute("aria-label")).toBe(
       "Maximize vision-agent node sections",

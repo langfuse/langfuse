@@ -304,7 +304,7 @@ export function SpielwieseAgentNodePromptSections({
           userLayout={userLayout}
         />
       ))}
-      {showInsertRow ? (
+      {showInsertRow && !isCompact ? (
         <SpielwieseMessageInsertRow
           nodeId={nodeId}
           onPromptSectionInsert={onPromptSectionInsert}
