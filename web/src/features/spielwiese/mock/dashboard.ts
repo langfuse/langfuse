@@ -11,6 +11,12 @@ import {
   Sigma,
 } from "lucide-react";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
+import {
+  coachAgentThinking,
+  nutritionAgentThinking,
+  visionAgentThinking,
+} from "../components/spielwiesePlaygroundThinkingData";
+import { defaultVariablesPanel } from "./dashboardShared";
 
 const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
   {
@@ -44,6 +50,26 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
         value: 'This agent does ONE thing: "what is it and how much."',
       },
     ],
+    playgroundThinking: visionAgentThinking,
+    playgroundPreview: {
+      format: "json",
+      label: "Answer",
+      toneSectionId: "system",
+      value: `[
+  {
+    "item": "grilled salmon",
+    "estimated_weight_g": 186
+  },
+  {
+    "item": "asparagus",
+    "estimated_weight_g": 64
+  },
+  {
+    "item": "lemon wedge",
+    "estimated_weight_g": 12
+  }
+]`,
+    },
   },
   {
     id: "nutrition-agent",
@@ -73,6 +99,41 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
       { id: "source", value: "USDA FoodData Central" },
       { id: "scope", value: "Per item + totals" },
     ],
+    playgroundThinking: nutritionAgentThinking,
+    playgroundPreview: {
+      format: "json",
+      label: "Answer",
+      toneSectionId: "system",
+      value: `{
+  "items": [
+    {
+      "item": "grilled salmon",
+      "weight_g": 186,
+      "kcal": 366,
+      "protein_g": 40.5,
+      "carbs_g": 0,
+      "fat_g": 22.1,
+      "fiber_g": 0
+    },
+    {
+      "item": "asparagus",
+      "weight_g": 64,
+      "kcal": 13,
+      "protein_g": 1.4,
+      "carbs_g": 2.5,
+      "fat_g": 0.1,
+      "fiber_g": 1.3
+    }
+  ],
+  "totals": {
+    "kcal": 379,
+    "protein_g": 41.9,
+    "carbs_g": 2.5,
+    "fat_g": 22.2,
+    "fiber_g": 1.3
+  }
+}`,
+    },
   },
   {
     id: "coach-agent",
@@ -107,10 +168,16 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
           'This agent does ONE thing: "turn structured nutrition into clear guidance."',
       },
     ],
+    playgroundThinking: coachAgentThinking,
+    playgroundPreview: {
+      format: "text",
+      label: "Answer",
+      toneSectionId: "system",
+      value:
+        "Estimated meal: 379 kcal with strong protein and very low carbs. The salmon drives most of the calories and protein, while the asparagus adds a light fiber boost.",
+    },
   },
 ];
-
-const assistantCanvasAgentNodes = defaultAgentNodes.slice(0, 1);
 
 const defaultInsertPanel: SpielwieseDashboardVM["insertPanel"] = {
   tabs: ["Insert", "Format", "Style", "Info"],
@@ -145,32 +212,6 @@ const defaultInsertPanel: SpielwieseDashboardVM["insertPanel"] = {
   },
 };
 
-const defaultVariablesPanel: SpielwieseDashboardVM["variablesPanel"] = {
-  countLabel: "3 variables",
-  actionLabel: "Add variable",
-  items: [
-    {
-      id: "food",
-      label: "Food",
-      helper: "This is about food.",
-      isActive: true,
-      tone: "green",
-    },
-    {
-      id: "cuisine",
-      label: "Cuisine",
-      helper: "Click to edit...",
-      tone: "yellow",
-    },
-    {
-      id: "source",
-      label: "Source",
-      helper: "Click to edit...",
-      tone: "blue",
-    },
-  ],
-};
-
 export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
   assistant: {
     pageId: "assistant",
@@ -191,7 +232,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "links", label: "Linked pages", value: "00" },
         { id: "comments", label: "Comments", value: "03" },
       ],
-      agentNodes: assistantCanvasAgentNodes,
+      agentNodes: defaultAgentNodes.slice(0, 1),
     },
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,
@@ -253,8 +294,4 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,
   },
-};
-
-export const spielwieseDashboardMock: SpielwieseDashboardVM = {
-  ...spielwieseDashboardMocks.assistant,
 };

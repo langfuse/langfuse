@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -14,7 +15,6 @@ import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
-  SpielwieseHeaderStripTag,
   spielwieseInlineInputClassName,
   spielwieseStripItemClassName,
   spielwieseStripItemFieldClassName,
@@ -59,29 +59,29 @@ function getSettingWidthClass(settingId: string) {
   }
 }
 
-function getSettingTagRevealLabelWidthClass(settingId: string) {
+function getSettingTagExpandedLabelWidthClass(settingId: string) {
   switch (settingId) {
     case "stop-sequence":
-      return "group-hover/setting-tag:max-w-[5.5rem]";
+      return "max-w-[5.5rem]";
     case "response-format":
-      return "group-hover/setting-tag:max-w-[6rem]";
+      return "max-w-[6rem]";
     case "reasoning":
-      return "group-hover/setting-tag:max-w-[4.75rem]";
+      return "max-w-[4.75rem]";
     default:
-      return undefined;
+      return "max-w-[4.25rem]";
   }
 }
 
-function getSettingTagRevealWidthClass(settingId: string) {
+function getSettingTagExpandedWidthClass(settingId: string) {
   switch (settingId) {
     case "stop-sequence":
-      return "hover:w-[7rem]";
+      return "w-[7rem]";
     case "response-format":
-      return "hover:w-[7.5rem]";
+      return "w-[7.5rem]";
     case "reasoning":
-      return "hover:w-[6.75rem]";
+      return "w-[6.75rem]";
     default:
-      return undefined;
+      return "w-[6.5rem]";
   }
 }
 
@@ -118,6 +118,101 @@ function getSettingIcon(settingId: string): LucideIcon {
   }
 }
 
+function useInlineSettingTagState() {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  const clearHoverTimer = () => {
+    if (hoverTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = null;
+  };
+
+  const close = () => {
+    clearHoverTimer();
+    setIsExpanded(false);
+  };
+
+  const openImmediately = () => {
+    clearHoverTimer();
+    setIsExpanded(true);
+  };
+
+  const openOnHoverIntent = () => {
+    clearHoverTimer();
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setIsExpanded(true);
+      hoverTimeoutRef.current = null;
+    }, 1000);
+  };
+
+  return {
+    close,
+    isExpanded,
+    openImmediately,
+    openOnHoverIntent,
+  };
+}
+
+const inlineSettingTagClassName =
+  "border-r border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)] text-foreground/58 flex h-full w-6 shrink-0 overflow-hidden whitespace-nowrap text-left transition-[width] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] outline-none focus-visible:ring-0";
+const inlineSettingTagContentClassName =
+  "flex h-full items-center gap-1 px-1.5";
+const inlineSettingTagLabelClassName =
+  "max-w-0 -translate-x-1 overflow-hidden opacity-0 text-[0.6875rem] font-medium transition-[max-width,opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]";
+
+function SpielwieseInlineSettingTag({
+  children,
+  label,
+  settingId,
+}: {
+  children: ReactNode;
+  label: string;
+  settingId: string;
+}) {
+  const { close, isExpanded, openImmediately, openOnHoverIntent } =
+    useInlineSettingTagState();
+
+  return (
+    <button
+      aria-label={`${label} setting`}
+      aria-pressed={isExpanded}
+      className={cn(
+        inlineSettingTagClassName,
+        isExpanded ? getSettingTagExpandedWidthClass(settingId) : "w-6",
+      )}
+      data-state={isExpanded ? "open" : "closed"}
+      data-testid={`spielwiese-inline-setting-tag-${settingId}`}
+      type="button"
+      onBlur={close}
+      onClick={openImmediately}
+      onMouseEnter={openOnHoverIntent}
+      onMouseLeave={close}
+    >
+      <span className={inlineSettingTagContentClassName}>
+        {children}
+        <span
+          aria-hidden="true"
+          className={cn(
+            inlineSettingTagLabelClassName,
+            isExpanded
+              ? getSettingTagExpandedLabelWidthClass(settingId)
+              : "max-w-0",
+            isExpanded
+              ? "translate-x-0 opacity-100"
+              : "-translate-x-1 opacity-0",
+          )}
+        >
+          {label}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function SpielwieseAgentNodeInlineSettings({
   nodeId,
   onSettingValueChange,
@@ -137,15 +232,12 @@ function SpielwieseAgentNodeInlineSettings({
             {setting.label}
           </dt>,
           <dd className={spielwieseStripItemClassName} key={setting.id}>
-            <SpielwieseHeaderStripTag
+            <SpielwieseInlineSettingTag
               label={setting.label}
-              revealLabelWidthClassName={getSettingTagRevealLabelWidthClass(
-                setting.id,
-              )}
-              revealWidthClassName={getSettingTagRevealWidthClass(setting.id)}
+              settingId={setting.id}
             >
               <SettingIcon aria-hidden="true" className="size-3.5 shrink-0" />
-            </SpielwieseHeaderStripTag>
+            </SpielwieseInlineSettingTag>
             <Input
               aria-label={`${nodeId} ${setting.label}`}
               className={`${spielwieseInlineInputClassName} ${spielwieseStripItemFieldClassName} text-foreground/78 w-full min-w-0 text-[0.8125rem] font-medium tabular-nums max-sm:text-base/5 ${getSettingWidthClass(

@@ -74,6 +74,15 @@ function expectInsertRowChrome({
   expect(insertRow.className).toContain("pb-[6px]");
   expect(externalRow.className).toContain("w-fit");
   expect(externalRow.className).toContain("pl-[18px]");
+  expect(externalRow.className).toContain("opacity-0");
+  expect(externalRow.className).toContain("pointer-events-none");
+  expect(externalRow.className).toContain("group-hover/agent-node:opacity-100");
+  expect(externalRow.className).toContain(
+    "group-hover/agent-node:pointer-events-auto",
+  );
+  expect(externalRow.className).toContain(
+    "group-focus-within/agent-node:opacity-100",
+  );
   expect(nodeCard.nextElementSibling).toBe(externalRow);
   expect(compactShell.className).toContain("overflow-hidden");
   expect(compactShell.className).toContain("rounded-[8px]");
@@ -116,6 +125,26 @@ describe("SpielwieseEditorCanvas prompt insertion", () => {
     expect(controls.textPicker.getAttribute("data-state")).toBe("open");
     expect(controls.compactTrigger.getAttribute("aria-expanded")).toBe("true");
     expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps the footer insert control hidden until the node is hovered or focused", () => {
+    const visionNode = renderVisionNode();
+    const { externalRow, textTrigger } = getInsertControls(visionNode);
+
+    expect(externalRow.className).toContain("opacity-0");
+    expect(externalRow.className).toContain("pointer-events-none");
+
+    fireEvent.mouseEnter(visionNode);
+
+    expect(externalRow.className).toContain(
+      "group-hover/agent-node:opacity-100",
+    );
+
+    textTrigger.focus();
+
+    expect(externalRow.className).toContain(
+      "group-focus-within/agent-node:opacity-100",
+    );
   });
 });
 

@@ -28,6 +28,9 @@ function expectVisibleMustacheTag(variableName: string, rawValue: string) {
   const mustacheTagMeasure = screen.getByTestId(
     `spielwiese-mustache-tag-${variableName}-measure`,
   );
+  const mustacheTagSurfaceShell = screen.getByTestId(
+    `spielwiese-mustache-tag-${variableName}-surface-shell`,
+  );
   const mustacheTagSurface = screen.getByTestId(
     `spielwiese-mustache-tag-${variableName}-surface`,
   );
@@ -37,22 +40,21 @@ function expectVisibleMustacheTag(variableName: string, rawValue: string) {
   expect(mustacheTag.className).toContain("relative");
   expect(mustacheTag.className).toContain("align-middle");
   expect(mustacheTag.className).toContain("items-center");
-  expect(mustacheTag.className).toContain("py-0.5");
   expect(mustacheTagMeasure.textContent).toBe(rawValue);
   expect(mustacheTagMeasure.className).toContain("invisible");
   expect(mustacheTagMeasure.className).toContain("whitespace-pre");
-  expect(mustacheTagSurface.className).toContain("absolute");
-  expect(mustacheTagSurface.className).toContain("inset-0");
-  expect(mustacheTagSurface.className).toContain("box-border");
-  expect(mustacheTagSurface.className).toContain("min-h-[1.375rem]");
-  expect(mustacheTagSurface.className).toContain("rounded-[5px]");
-  expect(mustacheTagSurface.className).toContain("justify-center");
-  expect(mustacheTagSurface.className).not.toContain("px-1.5");
-  expect(mustacheTagSurface.className).toContain("py-px");
+  expect(mustacheTagSurfaceShell.className).toContain("absolute");
+  expect(mustacheTagSurfaceShell.className).toContain("inset-0");
+  expect(mustacheTagSurfaceShell.className).toContain("items-center");
+  expect(mustacheTagSurfaceShell.className).toContain("justify-center");
+  expect(mustacheTagSurface.className).not.toContain("absolute");
+  expect(mustacheTagSurface.className).toContain("min-h-[0.9375rem]");
+  expect(mustacheTagSurface.className).toContain("rounded-[4px]");
+  expect(mustacheTagSurface.className).toContain("px-[3px]");
   expect(mustacheTagLabel.className).toContain("text-[12px]");
   expect(mustacheTagLabel.className).toContain("leading-4");
   expect(mustacheTagLabel.className).toContain("font-medium");
-  expect(mustacheTagLabel.textContent).toBe(variableName);
+  expect(mustacheTagLabel.textContent).toBe(rawValue);
 }
 
 function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
@@ -173,15 +175,24 @@ describe("SpielwieseEditorCanvas editing tags", () => {
 });
 
 describe("SpielwieseEditorCanvas model picker", () => {
-  it("reveals older models behind the more-models control", () => {
+  it("reveals older models behind the more-models control without clipping the open panel", () => {
     renderCanvas();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "vision-agent Model",
-      }),
+    const modelButton = screen.getByRole("button", {
+      name: "vision-agent Model",
+    });
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0]!;
+    const nodeCard = within(visionNode).getByTestId(
+      "spielwiese-agent-node-card",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "OpenAI" }));
+    fireEvent.click(modelButton);
+
+    expect(nodeCard.className).toContain("overflow-visible");
+    expect(nodeCard.className).not.toContain("overflow-hidden");
+    expect(modelButton.closest(".z-40")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "OpenAI" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "GPT-5.4" })).toBeTruthy();
+
     expect(screen.queryByRole("button", { name: "GPT-4.1 mini" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "More models" }));
@@ -282,5 +293,43 @@ describe("SpielwieseEditorCanvas section collapse interactions", () => {
         /You are a food identification expert\. Identify every food item in the image\./i,
       ),
     ).toHaveLength(1);
+  });
+});
+
+describe("SpielwieseEditorCanvas node card navigation", () => {
+  it("switches a node card into a new empty card and back again", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const addCardButton = within(visionNode).getByRole("button", {
+      name: "Add a new card after vision-agent",
+    });
+    const previousCardButton = within(visionNode).getByRole("button", {
+      name: "Show previous card for vision-agent",
+    });
+
+    expect(
+      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
+    ).toBeTruthy();
+    expect(previousCardButton.getAttribute("disabled")).toBe("");
+
+    fireEvent.click(addCardButton);
+
+    const emptyCard = within(visionNode).getByTestId(
+      "spielwiese-agent-node-empty-card",
+    );
+
+    expect(
+      within(visionNode).queryByRole("button", { name: "vision-agent Model" }),
+    ).toBeNull();
+    expect(emptyCard.parentElement?.className).toContain("opacity-100");
+    expect(previousCardButton.getAttribute("disabled")).toBeNull();
+
+    fireEvent.click(previousCardButton);
+
+    expect(
+      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
+    ).toBeTruthy();
+    expect(emptyCard.parentElement?.className).toContain("opacity-0");
+    expect(previousCardButton.getAttribute("disabled")).toBe("");
   });
 });

@@ -74,6 +74,11 @@ describe("SpielwieseVariablesPanel editing", () => {
 
     expect(screen.getByText("2 variables")).toBeTruthy();
     expect(screen.getAllByLabelText(/Variable name/).length).toBe(2);
+    expect(
+      screen.getAllByPlaceholderText(
+        "Add a sample value so you can test the prompt with it.",
+      ).length,
+    ).toBe(2);
   });
 
   it("edits an existing variable directly", () => {

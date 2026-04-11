@@ -1,6 +1,9 @@
+/* eslint-disable max-lines */
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
+import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
+import type { SpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
 import type { SpielwieseShellVM } from "../types/shell";
 import {
   SpielwieseShellProvider,
@@ -14,6 +17,7 @@ type SpielwieseDashboardShellProps = {
   children: ReactNode;
   dashboard: SpielwieseDashboardVM;
   shell: SpielwieseShellVM;
+  variablesState?: SpielwieseVariablesPanelState;
 };
 
 function getGridClassName(leftCollapsed: boolean, rightOpen: boolean) {
@@ -79,12 +83,14 @@ function MobileSidebars({
   mobileRightOpen,
   onClose,
   shell,
+  variablesState,
 }: {
   dashboard: SpielwieseDashboardVM;
   mobileLeftOpen: boolean;
   mobileRightOpen: boolean;
   onClose: () => void;
   shell: SpielwieseShellVM;
+  variablesState: SpielwieseVariablesPanelState;
 }) {
   return (
     <>
@@ -115,7 +121,10 @@ function MobileSidebars({
         )}
         data-testid="spielwiese-mobile-right-drawer"
       >
-        <SpielwieseSidebarRight dashboard={dashboard} />
+        <SpielwieseSidebarRight
+          dashboard={dashboard}
+          variablesState={variablesState}
+        />
       </aside>
     </>
   );
@@ -128,6 +137,7 @@ function ShellBodyGrid({
   leftCollapsed,
   rightOpen,
   shell,
+  variablesState,
 }: {
   children: ReactNode;
   dashboard: SpielwieseDashboardVM;
@@ -135,6 +145,7 @@ function ShellBodyGrid({
   leftCollapsed: boolean;
   rightOpen: boolean;
   shell: SpielwieseShellVM;
+  variablesState: SpielwieseVariablesPanelState;
 }) {
   return (
     <div
@@ -168,7 +179,10 @@ function ShellBodyGrid({
             data-testid="spielwiese-shell-right"
           >
             <div className="h-full min-h-0 overflow-hidden rounded-t-[8px]">
-              <SpielwieseSidebarRight dashboard={dashboard} />
+              <SpielwieseSidebarRight
+                dashboard={dashboard}
+                variablesState={variablesState}
+              />
             </div>
           </div>
         </aside>
@@ -177,12 +191,108 @@ function ShellBodyGrid({
   );
 }
 
+function useResolvedVariablesState({
+  initialItems,
+  variablesState,
+}: {
+  initialItems: SpielwieseDashboardVM["variablesPanel"]["items"];
+  variablesState?: SpielwieseVariablesPanelState;
+}) {
+  const fallbackVariablesState = useSpielwieseVariablesPanelState(initialItems);
+
+  return variablesState ?? fallbackVariablesState;
+}
+
+function getTopBarProps({
+  dashboard,
+  isFinderOpen,
+  setIsFinderOpen,
+  shell,
+}: {
+  dashboard: SpielwieseDashboardVM;
+  isFinderOpen: boolean;
+  setIsFinderOpen: (value: boolean) => void;
+  shell: SpielwieseShellVM;
+}) {
+  return {
+    header: dashboard.header,
+    isFinderOpen,
+    onFinderClose: () => setIsFinderOpen(false),
+    onFinderOpen: () => setIsFinderOpen(true),
+    pageId: dashboard.pageId,
+    shell,
+  };
+}
+
+function SpielwieseDashboardShellFrame({
+  dashboard,
+  gridClassName,
+  leftCollapsed,
+  mobileLeftOpen,
+  mobileRightOpen,
+  onCloseMobilePanels,
+  onKeyDownCapture,
+  rightOpen,
+  shell,
+  topBarProps,
+  variablesState,
+  children,
+}: {
+  children: ReactNode;
+  dashboard: SpielwieseDashboardVM;
+  gridClassName: string;
+  leftCollapsed: boolean;
+  mobileLeftOpen: boolean;
+  mobileRightOpen: boolean;
+  onCloseMobilePanels: () => void;
+  onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) => void;
+  rightOpen: boolean;
+  shell: SpielwieseShellVM;
+  topBarProps: ReturnType<typeof getTopBarProps>;
+  variablesState: SpielwieseVariablesPanelState;
+}) {
+  return (
+    <div
+      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
+      data-left-collapsed={leftCollapsed}
+      data-right-open={rightOpen}
+      data-testid="spielwiese-shell"
+      onKeyDownCapture={onKeyDownCapture}
+    >
+      <MobileSidebars
+        dashboard={dashboard}
+        mobileLeftOpen={mobileLeftOpen}
+        mobileRightOpen={mobileRightOpen}
+        onClose={onCloseMobilePanels}
+        shell={shell}
+        variablesState={variablesState}
+      />
+      <SpielwieseTopBar {...topBarProps} />
+      <ShellBodyGrid
+        dashboard={dashboard}
+        gridClassName={gridClassName}
+        leftCollapsed={leftCollapsed}
+        rightOpen={rightOpen}
+        shell={shell}
+        variablesState={variablesState}
+      >
+        {children}
+      </ShellBodyGrid>
+    </div>
+  );
+}
+
 function SpielwieseDashboardShellLayout({
   children,
   dashboard,
   shell,
+  variablesState,
 }: SpielwieseDashboardShellProps) {
   const [isFinderOpen, setIsFinderOpen] = useState(false);
+  const resolvedVariablesState = useResolvedVariablesState({
+    initialItems: dashboard.variablesPanel.items,
+    variablesState,
+  });
   const {
     closeMobilePanels,
     leftCollapsed,
@@ -191,14 +301,14 @@ function SpielwieseDashboardShellLayout({
     rightOpen,
   } = useSpielwieseShell();
 
-  const gridClassName = getGridClassName(leftCollapsed, rightOpen);
-
   return (
-    <div
-      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
-      data-left-collapsed={leftCollapsed}
-      data-right-open={rightOpen}
-      data-testid="spielwiese-shell"
+    <SpielwieseDashboardShellFrame
+      dashboard={dashboard}
+      gridClassName={getGridClassName(leftCollapsed, rightOpen)}
+      leftCollapsed={leftCollapsed}
+      mobileLeftOpen={mobileLeftOpen}
+      mobileRightOpen={mobileRightOpen}
+      onCloseMobilePanels={closeMobilePanels}
       onKeyDownCapture={(event) =>
         handleShellKeyDownCapture({
           event,
@@ -206,34 +316,18 @@ function SpielwieseDashboardShellLayout({
           setIsFinderOpen,
         })
       }
+      rightOpen={rightOpen}
+      shell={shell}
+      topBarProps={getTopBarProps({
+        dashboard,
+        isFinderOpen,
+        setIsFinderOpen,
+        shell,
+      })}
+      variablesState={resolvedVariablesState}
     >
-      <MobileSidebars
-        dashboard={dashboard}
-        mobileLeftOpen={mobileLeftOpen}
-        mobileRightOpen={mobileRightOpen}
-        onClose={closeMobilePanels}
-        shell={shell}
-      />
-
-      <SpielwieseTopBar
-        header={dashboard.header}
-        isFinderOpen={isFinderOpen}
-        onFinderClose={() => setIsFinderOpen(false)}
-        onFinderOpen={() => setIsFinderOpen(true)}
-        pageId={dashboard.pageId}
-        shell={shell}
-      />
-
-      <ShellBodyGrid
-        dashboard={dashboard}
-        gridClassName={gridClassName}
-        leftCollapsed={leftCollapsed}
-        rightOpen={rightOpen}
-        shell={shell}
-      >
-        {children}
-      </ShellBodyGrid>
-    </div>
+      {children}
+    </SpielwieseDashboardShellFrame>
   );
 }
 
@@ -241,10 +335,15 @@ export function SpielwieseDashboardShell({
   children,
   dashboard,
   shell,
+  variablesState,
 }: SpielwieseDashboardShellProps) {
   return (
     <SpielwieseShellProvider>
-      <SpielwieseDashboardShellLayout dashboard={dashboard} shell={shell}>
+      <SpielwieseDashboardShellLayout
+        dashboard={dashboard}
+        shell={shell}
+        variablesState={variablesState}
+      >
         {children}
       </SpielwieseDashboardShellLayout>
     </SpielwieseShellProvider>

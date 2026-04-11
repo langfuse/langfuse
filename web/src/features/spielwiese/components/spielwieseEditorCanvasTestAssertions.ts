@@ -130,8 +130,12 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
   const datasetTooltip = row.getByTestId(
     "spielwiese-detached-user-upload-dataset-tooltip",
   );
+  const datasetDocsLink = within(datasetTooltip).getByRole("link", {
+    name: "Docs",
+  });
   return {
     datasetAccessory,
+    datasetDocsLink,
     datasetInfo,
     fileTag,
     datasetInfoIcon,
@@ -201,6 +205,7 @@ function expectDetachedUserRowShell({
 }
 function expectDetachedDatasetTag({
   datasetAccessory,
+  datasetDocsLink,
   datasetInfo,
   datasetInfoIcon,
   datasetIcon,
@@ -208,41 +213,108 @@ function expectDetachedDatasetTag({
   datasetTooltip,
 }: {
   datasetAccessory: HTMLElement;
+  datasetDocsLink: HTMLElement;
   datasetInfo: HTMLElement;
   datasetInfoIcon: HTMLElement;
   datasetIcon: HTMLElement;
   datasetTag: HTMLElement;
   datasetTooltip: HTMLElement;
 }) {
+  expectDetachedDatasetAccessoryChrome({
+    datasetAccessory,
+    datasetInfo,
+    datasetTag,
+  });
+  expectDetachedDatasetTooltipChrome({
+    datasetDocsLink,
+    datasetInfo,
+    datasetTooltip,
+  });
+  expectDetachedDatasetIcons({
+    datasetIcon,
+    datasetInfoIcon,
+  });
+}
+
+function expectDetachedDatasetAccessoryChrome({
+  datasetAccessory,
+  datasetInfo,
+  datasetTag,
+}: {
+  datasetAccessory: HTMLElement;
+  datasetInfo: HTMLElement;
+  datasetTag: HTMLElement;
+}) {
   expect(datasetAccessory.className).toContain("relative");
   expect(datasetAccessory.className).toContain("overflow-visible");
-  expect(datasetAccessory.className).toContain("group/dataset-tooltip");
+  expect(datasetAccessory.childElementCount).toBe(2);
   expect(datasetAccessory.children[0]).toBe(datasetTag);
-  expect(datasetAccessory.children[1]).toBe(datasetTooltip);
+  expect(datasetAccessory.children[1]).toBe(datasetInfo);
   expect(datasetTag.className).toContain("h-6");
   expect(datasetTag.className).toContain("rounded-[8px]");
   expect(datasetTag.className).toContain("border");
   expect(datasetTag.className).toContain("pl-1.5");
-  expect(datasetTag.className).toContain("pr-1.5");
+  expect(datasetTag.className).toContain("pr-7");
   expect(datasetTag.className).toContain("gap-1.25");
   expect(datasetTag.textContent).toContain("Upload dataset");
+  expect(datasetInfo.className).toContain("group/dataset-tooltip");
+  expect(datasetInfo.className).toContain("absolute");
+  expect(datasetInfo.className).toContain("right-1.5");
   expect(datasetInfo.className).toContain("inline-flex");
   expect(datasetInfo.className).toContain("size-3.5");
+  expect(datasetInfo.className).toContain("after:top-full");
+  expect(datasetInfo.className).toContain("after:h-2");
+  expect(datasetInfo.className).toContain("after:w-[15rem]");
   expect(datasetInfo.className).not.toContain("border");
   expect(datasetInfo.className).not.toContain("bg-");
-  expect(datasetTag.lastElementChild).toBe(datasetInfo);
+  expect(datasetInfo.parentElement).toBe(datasetAccessory);
+}
+
+function expectDetachedDatasetTooltipChrome({
+  datasetDocsLink,
+  datasetInfo,
+  datasetTooltip,
+}: {
+  datasetDocsLink: HTMLElement;
+  datasetInfo: HTMLElement;
+  datasetTooltip: HTMLElement;
+}) {
+  expect(datasetTooltip.parentElement).toBe(datasetInfo);
   expect(datasetTooltip.getAttribute("role")).toBe("tooltip");
   expect(datasetTooltip.className).toContain("left-0");
   expect(datasetTooltip.className).not.toContain("right-0");
+  expect(datasetTooltip.className).toContain("text-left");
+  expect(datasetTooltip.className).toContain("text-[0.6875rem]");
+  expect(datasetTooltip.className).toContain("font-normal");
+  expect(datasetTooltip.className).toContain("pointer-events-none");
   expect(datasetTooltip.className).toContain("opacity-0");
   expect(datasetTooltip.className).not.toContain("border");
   expect(datasetTooltip.className).not.toContain("ring-1");
   expect(datasetTooltip.className).toContain(
     "group-hover/dataset-tooltip:opacity-100",
   );
+  expect(datasetTooltip.className).toContain(
+    "group-hover/dataset-tooltip:pointer-events-auto",
+  );
   expect(datasetTooltip.textContent).toContain(
     "Run the same prompt against a batch of user messages at once",
   );
+  expect(datasetDocsLink.className).toContain("inline");
+  expect(datasetDocsLink.className).not.toContain("mt-2");
+  expect(datasetDocsLink.textContent).toBe("Docs");
+  expect(datasetDocsLink.getAttribute("href")).toBe(
+    "https://langfuse.com/docs/evaluation/experiments/overview",
+  );
+  expect(datasetDocsLink.getAttribute("target")).toBe("_blank");
+}
+
+function expectDetachedDatasetIcons({
+  datasetIcon,
+  datasetInfoIcon,
+}: {
+  datasetIcon: HTMLElement;
+  datasetInfoIcon: HTMLElement;
+}) {
   expect(datasetIcon.getAttribute("class")).toContain("size-3");
   expect(datasetIcon.getAttribute("class")).toContain("text-foreground/32");
   expect(datasetInfoIcon.getAttribute("class")).toContain("size-3");

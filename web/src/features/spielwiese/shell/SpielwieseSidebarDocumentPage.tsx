@@ -1,46 +1,35 @@
-import { CircleCheckBig, List, Paperclip, Search } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseShellVM } from "../types/shell";
 
-type DocumentPanelTabId = "outline" | "tasks" | "attachments" | "search";
+type DocumentPanelTabId = "promptPlayground" | "deployment" | "observability";
 
 const documentPanelTabs: {
   id: DocumentPanelTabId;
   label: string;
-  icon: typeof List;
   title: string;
   description: string;
 }[] = [
   {
-    id: "outline",
-    label: "Table of contents",
-    icon: List,
-    title: "Table of Contents",
-    description: "Use titles, pages or cards to create a table of contents.",
-  },
-  {
-    id: "tasks",
-    label: "Checklist",
-    icon: CircleCheckBig,
-    title: "Checklist",
+    id: "promptPlayground",
+    label: "Prompt Engineering",
+    title: "Prompt Engineering",
     description:
-      "Create tasks in the page to turn this area into an action list.",
+      "Draft, test, refine, and evaluate prompt behavior before promoting changes.",
   },
   {
-    id: "attachments",
-    label: "Attachments",
-    icon: Paperclip,
-    title: "Attachments",
-    description: "Add files, media, or embeds to collect them here.",
-  },
-  {
-    id: "search",
-    label: "Search in page",
-    icon: Search,
-    title: "Search in Page",
+    id: "deployment",
+    label: "Deployment",
+    title: "Deployment",
     description:
-      "Search highlights, questions, or key phrases across this page.",
+      "Promote prompt versions with deployment labels so applications resolve the intended prompt in production.",
+  },
+  {
+    id: "observability",
+    label: "Observability",
+    title: "Observability",
+    description:
+      "Inspect traces, sessions, metrics, and scores to understand production behavior and quality.",
   },
 ];
 
@@ -70,7 +59,8 @@ export function SpielwieseSidebarDocumentPage({
 }: {
   shell: SpielwieseShellVM;
 }) {
-  const [activeTab, setActiveTab] = useState<DocumentPanelTabId>("outline");
+  const [activeTab, setActiveTab] =
+    useState<DocumentPanelTabId>("promptPlayground");
   const activePanel =
     documentPanelTabs.find((tab) => tab.id === activeTab) ??
     documentPanelTabs[0];
@@ -80,11 +70,10 @@ export function SpielwieseSidebarDocumentPage({
       <DocumentPreviewCard shell={shell} />
 
       <div
-        className="bg-muted flex items-center overflow-hidden rounded-2xl p-1"
+        className="bg-muted flex flex-col gap-1 overflow-hidden rounded-2xl p-1"
         data-testid="spielwiese-document-panel-tabs"
       >
         {documentPanelTabs.map((tab) => {
-          const Icon = tab.icon;
           const isActive = tab.id === activeTab;
 
           return (
@@ -92,14 +81,14 @@ export function SpielwieseSidebarDocumentPage({
               aria-label={tab.label}
               aria-pressed={isActive}
               className={cn(
-                "text-muted-foreground hover:bg-background hover:text-foreground inline-flex h-10 flex-1 items-center justify-center rounded-xl transition-colors",
+                "text-muted-foreground hover:bg-background hover:text-foreground inline-flex min-h-10 w-full items-center justify-start rounded-xl px-3 text-sm font-medium transition-colors",
                 isActive && "bg-background text-foreground shadow-sm",
               )}
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               type="button"
             >
-              <Icon className="size-5" />
+              <span>{tab.label}</span>
             </button>
           );
         })}

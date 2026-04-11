@@ -5,6 +5,8 @@ import {
 } from "../adapters/dashboardVm";
 import { SpielwieseEditorCanvas } from "../components/SpielwieseEditorCanvas";
 import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
+import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
+import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 
@@ -24,14 +26,21 @@ function getPageIdFromHash() {
 
 function SpielwieseDashboardCanvas({
   dashboard,
+  onDetectedVariablesChange,
 }: {
   dashboard: SpielwieseDashboardVM;
+  onDetectedVariablesChange: (labels: string[]) => void;
 }) {
   if (dashboard.promptCanvas) {
     return <SpielwiesePromptCanvas promptCanvas={dashboard.promptCanvas} />;
   }
 
-  return <SpielwieseEditorCanvas canvas={dashboard.canvas} />;
+  return (
+    <SpielwieseEditorCanvas
+      canvas={dashboard.canvas}
+      onDetectedVariablesChange={onDetectedVariablesChange}
+    />
+  );
 }
 
 export default function SpielwieseDashboardPage() {
@@ -42,15 +51,27 @@ export default function SpielwieseDashboardPage() {
   );
   const dashboard = getSpielwieseDashboardVm(pageId);
   const shell = getSpielwieseShellVm(pageId);
+  const variablesState = useSpielwieseVariablesPanelState(
+    dashboard.variablesPanel.items,
+  );
 
   return (
     <div
       className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
     >
-      <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
-        <SpielwieseDashboardCanvas dashboard={dashboard} />
-      </SpielwieseDashboardShell>
+      <SpielwieseVariableValuesProvider items={variablesState.items}>
+        <SpielwieseDashboardShell
+          dashboard={dashboard}
+          shell={shell}
+          variablesState={variablesState}
+        >
+          <SpielwieseDashboardCanvas
+            dashboard={dashboard}
+            onDetectedVariablesChange={variablesState.onEnsureDetectedVariables}
+          />
+        </SpielwieseDashboardShell>
+      </SpielwieseVariableValuesProvider>
     </div>
   );
 }

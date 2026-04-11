@@ -133,7 +133,7 @@ function SpielwieseStandardMessageSectionRow({
   return (
     <div
       className={cn(
-        "group flex w-full flex-col overflow-hidden px-2.5 pt-3.5 pb-2",
+        "group flex w-full flex-col overflow-hidden px-2.5 pt-1 pb-2",
         getMessageSectionRowRadiusClassName(section.id),
         toneClassNames.surface,
       )}

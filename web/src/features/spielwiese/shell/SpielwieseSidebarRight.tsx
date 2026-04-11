@@ -8,24 +8,23 @@ import {
   SpielwieseVariablesPanel,
   SpielwieseVariablesSummary,
 } from "../components/SpielwieseVariablesPanel";
-import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
+import type { SpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
 import { useSpielwieseShell } from "./SpielwieseShellProvider";
 
 type SpielwieseSidebarRightProps = {
   dashboard: SpielwieseDashboardVM;
+  variablesState: SpielwieseVariablesPanelState;
 };
 
 export function SpielwieseSidebarRight({
   dashboard,
+  variablesState,
 }: SpielwieseSidebarRightProps) {
   const {
     closeModelRecommendation,
     modelRecommendationTarget,
     rightPanelMode,
   } = useSpielwieseShell();
-  const variablesState = useSpielwieseVariablesPanelState(
-    dashboard.variablesPanel.items,
-  );
 
   return (
     <SidebarSurface

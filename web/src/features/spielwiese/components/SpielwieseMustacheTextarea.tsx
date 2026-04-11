@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { Textarea, type TextareaProps } from "../ui/textarea";
+import { useSpielwieseVariableValues } from "./useSpielwieseVariableValues";
 
 type SpielwieseMustacheTextareaProps = Omit<
   TextareaProps,
@@ -64,12 +65,14 @@ function getMustacheSegments(value: string): MustacheSegment[] {
 }
 
 const mustacheTagChipClassName =
-  "relative inline-flex items-center align-middle py-0.5";
+  "relative inline-flex items-center align-middle";
 const mustacheTagMeasureClassName = "invisible whitespace-pre";
+const mustacheTagSurfaceShellClassName =
+  "pointer-events-none absolute inset-0 inline-flex items-center justify-center";
 const mustacheTagInnerClassName =
-  "pointer-events-none absolute inset-0 inline-flex min-h-[1.375rem] box-border items-center justify-center rounded-[5px] px-1 py-px";
+  "inline-flex min-h-[0.9375rem] max-w-full items-center justify-center overflow-hidden rounded-[4px] px-[3px]";
 const mustacheTagLabelClassName =
-  "whitespace-nowrap text-[12px] leading-4 font-medium tracking-[-0.01em]";
+  "overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-4 font-medium tracking-[-0.01em]";
 
 const baseMustacheFillOklch = {
   chroma: 0.024493,
@@ -133,10 +136,12 @@ function getMustacheTagToneStyles(isValid: boolean, tagIndex: number) {
 }
 
 function MustacheTagChip({
+  displayValue,
   tagIndex,
   value,
   variableName,
 }: {
+  displayValue?: string;
   tagIndex: number;
   value: string;
   variableName: string;
@@ -145,7 +150,7 @@ function MustacheTagChip({
     isValidVariableName(variableName),
     tagIndex,
   );
-  const visibleLabel = variableName || value;
+  const visibleLabel = displayValue || value || variableName;
 
   return (
     <span
@@ -163,13 +168,18 @@ function MustacheTagChip({
         {value}
       </span>
       <span
-        className={mustacheTagInnerClassName}
-        data-size="20"
-        data-testid={`spielwiese-mustache-tag-${variableName}-surface`}
-        style={toneStyles.chip}
+        className={mustacheTagSurfaceShellClassName}
+        data-testid={`spielwiese-mustache-tag-${variableName}-surface-shell`}
       >
-        <span className={mustacheTagLabelClassName}>{visibleLabel}</span>
-        <span className="sr-only" />
+        <span
+          className={mustacheTagInnerClassName}
+          data-size="20"
+          data-testid={`spielwiese-mustache-tag-${variableName}-surface`}
+          style={toneStyles.chip}
+        >
+          <span className={mustacheTagLabelClassName}>{visibleLabel}</span>
+          <span className="sr-only" />
+        </span>
       </span>
     </span>
   );
@@ -182,6 +192,7 @@ function MustacheOverlay({
   className?: string;
   segments: MustacheSegment[];
 }) {
+  const variableValues = useSpielwieseVariableValues();
   let tagIndex = 0;
 
   return (
@@ -203,6 +214,7 @@ function MustacheOverlay({
 
         return (
           <MustacheTagChip
+            displayValue={variableValues[segment.variableName]}
             key={segment.key}
             tagIndex={currentTagIndex}
             value={segment.value}

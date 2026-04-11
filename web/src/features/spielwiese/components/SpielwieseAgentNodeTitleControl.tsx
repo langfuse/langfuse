@@ -197,7 +197,10 @@ export function SpielwieseAgentNodeTitleControl({
 
   return (
     <div
-      className="relative max-w-full shrink-0"
+      className={cn(
+        "relative max-w-full shrink-0",
+        isModelPickerOpen && "z-40",
+      )}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           closePicker();
@@ -219,7 +222,7 @@ export function SpielwieseAgentNodeTitleControl({
           onValueChange={(value) =>
             onSettingValueChange(node.id, modelSetting.id, value)
           }
-          panelClassName="left-0 top-full mt-2"
+          panelClassName="left-0 top-full"
           providerId={providerId}
           setHoveredModelLabel={setHoveredModelLabel}
           setProviderId={setProviderId}

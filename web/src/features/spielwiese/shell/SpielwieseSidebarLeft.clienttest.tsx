@@ -50,29 +50,29 @@ describe("SpielwieseSidebarLeft expanded", () => {
   it("renders the denser left rail structure", () => {
     renderExpandedSidebar("search");
 
-    expect(
-      screen.getByTestId("spielwiese-left-sidebar-scroll-area"),
-    ).toBeTruthy();
-    expect(screen.getByText("My Space")).toBeTruthy();
-    expect(screen.getByText("New Document")).toBeTruthy();
-    expect(screen.getByText("Home")).toBeTruthy();
-    expect(screen.getByText("Search")).toBeTruthy();
-    expect(screen.getByText("Library")).toBeTruthy();
-    expect(screen.getByText("Organization settings")).toBeTruthy();
-    expect(screen.getByText("Documentation")).toBeTruthy();
-    expect(screen.getByText("Files")).toBeTruthy();
-    expect(screen.getByText("Example Evaluators")).toBeTruthy();
-    expect(screen.getByText("Comedian Bot")).toBeTruthy();
-    expect(screen.getByText("New")).toBeTruthy();
-    expect(screen.queryByText("All Docs")).toBeNull();
-    expect(screen.queryByText("Folders")).toBeNull();
-    expect(screen.queryByText("Go Unlimited")).toBeNull();
-    expect(
-      screen.getByTestId("spielwiese-left-bottom-mode-switch"),
-    ).toBeTruthy();
-    expect(
-      screen.getByTestId("spielwiese-left-sidebar-sticky-footer"),
-    ).toBeTruthy();
+    [
+      "spielwiese-left-sidebar-scroll-area",
+      "spielwiese-left-bottom-mode-switch",
+      "spielwiese-left-sidebar-sticky-footer",
+    ].forEach((testId) => expect(screen.getByTestId(testId)).toBeTruthy());
+
+    [
+      "My Space",
+      "New Document",
+      "Home",
+      "Search",
+      "Library",
+      "Organization settings",
+      "Documentation",
+      "Files",
+      "Example Evaluators",
+      "Comedian Bot",
+      "New",
+    ].forEach((label) => expect(screen.getByText(label)).toBeTruthy());
+
+    ["All Docs", "Folders", "Go Unlimited"].forEach((label) =>
+      expect(screen.queryByText(label)).toBeNull(),
+    );
     expectBorderlessSidebarChrome();
     expectModeButtons("true");
     expect(screen.getByLabelText("Folder view")).toBeTruthy();
@@ -81,17 +81,25 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectSidebarButtonChrome("Search", { active: true });
     expectSidebarButtonChrome("Comedian Bot");
   });
+});
 
+describe("SpielwieseSidebarLeft document mode", () => {
   it("switches the scrollable rail to the second page from the sticky footer", () => {
     renderExpandedSidebar();
 
     fireEvent.click(screen.getByLabelText("Document view"));
 
     expect(screen.queryByText("My Space")).toBeNull();
-    expect(screen.getByText("Table of Contents")).toBeTruthy();
+    ["Prompt Engineering", "Deployment", "Observability"].forEach((label) => {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    });
+    expect(screen.queryByLabelText("Evaluation")).toBeNull();
+    expect(
+      screen.getByTestId("spielwiese-document-panel-tabs").className,
+    ).toContain("flex-col");
     expect(
       screen.getByText(
-        "Use titles, pages or cards to create a table of contents.",
+        "Draft, test, refine, and evaluate prompt behavior before promoting changes.",
       ),
     ).toBeTruthy();
     expectModeButtons("false");
@@ -101,14 +109,16 @@ describe("SpielwieseSidebarLeft expanded", () => {
     renderExpandedSidebar();
 
     fireEvent.click(screen.getByLabelText("Document view"));
-    fireEvent.click(screen.getByLabelText("Checklist"));
+    fireEvent.click(screen.getByLabelText("Deployment"));
 
     expect(
       screen.getByTestId("spielwiese-document-panel-title").textContent,
-    ).toBe("Checklist");
+    ).toBe("Deployment");
     expect(
       screen.getByTestId("spielwiese-document-panel-description").textContent,
-    ).toBe("Create tasks in the page to turn this area into an action list.");
+    ).toBe(
+      "Promote prompt versions with deployment labels so applications resolve the intended prompt in production.",
+    );
   });
 });
 

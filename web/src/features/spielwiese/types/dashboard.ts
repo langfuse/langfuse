@@ -29,6 +29,25 @@ export type SpielwieseAgentNodeNoteVM = {
   value: string;
 };
 
+export type SpielwieseAgentNodeThinkingStepVM = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+export type SpielwieseAgentNodeThinkingVM = {
+  summary: string;
+  title: string;
+  steps: SpielwieseAgentNodeThinkingStepVM[];
+};
+
+export type SpielwieseAgentNodePlaygroundPreviewVM = {
+  format: "json" | "text";
+  label: string;
+  toneSectionId?: string;
+  value: string;
+};
+
 export type SpielwieseAgentNodeVM = {
   id: string;
   stepLabel: string;
@@ -38,6 +57,8 @@ export type SpielwieseAgentNodeVM = {
   settings: SpielwieseAgentNodeSettingVM[];
   promptSections: SpielwieseAgentNodePromptSectionVM[];
   notes: SpielwieseAgentNodeNoteVM[];
+  playgroundThinking?: SpielwieseAgentNodeThinkingVM;
+  playgroundPreview?: SpielwieseAgentNodePlaygroundPreviewVM;
 };
 
 export type SpielwiesePromptSectionVM = {

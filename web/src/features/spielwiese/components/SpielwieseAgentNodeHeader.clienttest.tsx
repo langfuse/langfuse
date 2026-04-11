@@ -101,7 +101,8 @@ function expectHeaderChromeTags({
   expect(temperatureShell?.className).toContain("border-[rgba(0,0,0,0.08)]");
   expect(temperatureShell?.className).toContain("bg-background");
   expect(temperatureShell?.className).toContain("rounded-[8px]");
-  expect(temperatureTag?.className).toContain("hover:w-[6.5rem]");
+  expect(temperatureTag?.className).toContain("w-6");
+  expect(temperatureTag?.getAttribute("data-state")).toBe("closed");
   expect(toolTag?.className).toContain("hover:w-[4rem]");
   expect(temperatureTag?.textContent).toContain("Temperature");
   expect(toolTag?.textContent).toContain("Tools");

@@ -1,16 +1,37 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "../components/spielwieseResizableTestMock";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
-describe("SpielwieseDashboardPage", () => {
-  const originalHash = window.location.hash;
+const originalHash = window.location.hash;
 
-  afterEach(() => {
-    window.location.hash = originalHash;
+afterEach(() => {
+  window.location.hash = originalHash;
+});
+
+function renderPage() {
+  return render(<SpielwieseDashboardPage />);
+}
+
+function createDetachedUserVariable(value: string) {
+  fireEvent.change(screen.getByLabelText("vision-agent User"), {
+    target: { value },
   });
+}
 
+function updateFirstVariableHelper(value: string) {
+  fireEvent.change(
+    within(
+      screen.getAllByTestId("spielwiese-variable-editor")[0]!,
+    ).getByLabelText(/Variable helper/),
+    {
+      target: { value },
+    },
+  );
+}
+
+describe("SpielwieseDashboardPage rendering", () => {
   it("renders the route with a scoped spielwiese root", () => {
-    const { container } = render(<SpielwieseDashboardPage />);
+    const { container } = renderPage();
 
     const editorCanvas = screen.getByTestId("spielwiese-editor-canvas");
     const root = container.querySelector("[data-spielwiese]");
@@ -31,7 +52,7 @@ describe("SpielwieseDashboardPage", () => {
   it("renders the vision agent canvas when the hash selects it", () => {
     window.location.hash = "#vision-agent";
 
-    render(<SpielwieseDashboardPage />);
+    renderPage();
 
     expect(screen.getByTestId("spielwiese-prompt-canvas")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-editor-body")).toBeTruthy();
@@ -41,7 +62,7 @@ describe("SpielwieseDashboardPage", () => {
   });
 
   it("keeps the recommendation button inert in the picker", () => {
-    render(<SpielwieseDashboardPage />);
+    renderPage();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -52,9 +73,36 @@ describe("SpielwieseDashboardPage", () => {
       screen.getByRole("button", { name: "Recommend me a model" }),
     );
 
-    expect(screen.getAllByText("3 variables").length >= 1).toBeTruthy();
+    expect(screen.getAllByText("0 variables").length >= 1).toBeTruthy();
     expect(
       screen.queryByTestId("spielwiese-model-recommendation-panel"),
     ).toBeNull();
+  });
+});
+
+describe("SpielwieseDashboardPage variables", () => {
+  it("adds a new variable card when a detached user prompt creates a mustache variable", () => {
+    renderPage();
+
+    createDetachedUserVariable("Attach {{uploaded_file}}");
+
+    expect(screen.getAllByText("1 variable").length >= 1).toBeTruthy();
+    expect(
+      screen.getAllByDisplayValue("uploaded_file").length >= 1,
+    ).toBeTruthy();
+  });
+
+  it("shows the entered variable value inside the detached user tag", () => {
+    renderPage();
+
+    createDetachedUserVariable("Attach {{uploaded_file}}");
+    updateFirstVariableHelper("menu-photo.png");
+
+    expect(
+      within(
+        screen.getByTestId("vision-agent-detached-user-sections"),
+      ).getByTestId("spielwiese-mustache-tag-uploaded_file-surface")
+        .textContent,
+    ).toContain("menu-photo.png");
   });
 });

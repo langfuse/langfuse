@@ -1,4 +1,6 @@
+/* eslint-disable max-lines */
 import { useState } from "react";
+import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import { SpielwieseCanvasPaneStack } from "./SpielwieseCanvasPaneStack";
 import { getPromptSectionLabel } from "./spielwiesePromptSectionLabels";
@@ -6,6 +8,7 @@ import { getMessageKind } from "./spielwieseMessageTone";
 
 type SpielwieseEditorCanvasProps = {
   canvas: SpielwieseDashboardVM["canvas"];
+  onDetectedVariablesChange?: (labels: string[]) => void;
 };
 
 function cloneAgentNodes(nodes: SpielwieseDashboardVM["canvas"]["agentNodes"]) {
@@ -116,22 +119,86 @@ function movePromptSection(
   return nextSections;
 }
 
-function getPromptSectionHandlers(
-  editableCanvas: ReturnType<typeof useEditableCanvas>,
+function getDetectedMustacheVariables(
+  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
 ) {
-  return {
-    onPromptSectionDelete: (nodeId: string, sectionId: string) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
+  const mustacheRegex = new RegExp(MUSTACHE_REGEX.source, "g");
+  const variableNames = nodes.flatMap((node) =>
+    node.promptSections.flatMap((section) =>
+      [...section.value.matchAll(mustacheRegex)]
+        .map((match) => match[1] ?? "")
+        .filter((variableName) => isValidVariableName(variableName)),
+    ),
+  );
+
+  return [...new Set(variableNames)];
+}
+
+function reportDetectedVariables({
+  nextCanvas,
+  onDetectedVariablesChange,
+}: {
+  nextCanvas: EditableCanvasState;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+}) {
+  onDetectedVariablesChange?.(getDetectedMustacheVariables(nextCanvas.nodes));
+}
+
+function updatePromptSectionNode({
+  editableCanvas,
+  nodeId,
+  onDetectedVariablesChange,
+  updater,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  nodeId: string;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+  updater: (
+    node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
+  ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number];
+}) {
+  editableCanvas.updateNode(nodeId, updater, (nextCanvas) =>
+    reportDetectedVariables({
+      nextCanvas,
+      onDetectedVariablesChange,
+    }),
+  );
+}
+
+function createPromptSectionDeleteHandler({
+  editableCanvas,
+  onDetectedVariablesChange,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+}) {
+  return (nodeId: string, sectionId: string) =>
+    updatePromptSectionNode({
+      editableCanvas,
+      nodeId,
+      onDetectedVariablesChange,
+      updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
           node.promptSections.filter((section) => section.id !== sectionId),
         ),
-      })),
-    onPromptSectionInsert: (
-      nodeId: string,
-      kind: "user" | "system" | "assistant" | "tool",
-    ) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
+      }),
+    });
+}
+
+function createPromptSectionInsertHandler({
+  editableCanvas,
+  onDetectedVariablesChange,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+}) {
+  return (nodeId: string, kind: "user" | "system" | "assistant" | "tool") =>
+    updatePromptSectionNode({
+      editableCanvas,
+      nodeId,
+      onDetectedVariablesChange,
+      updater: (node) => ({
         ...node,
         promptSections: sortPromptSections([
           ...node.promptSections,
@@ -141,35 +208,84 @@ function getPromptSectionHandlers(
             value: "",
           },
         ]),
-      })),
-    onPromptSectionChange: (nodeId: string, sectionId: string, value: string) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
+      }),
+    });
+}
+
+function createPromptSectionChangeHandler({
+  editableCanvas,
+  onDetectedVariablesChange,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+}) {
+  return (nodeId: string, sectionId: string, value: string) =>
+    updatePromptSectionNode({
+      editableCanvas,
+      nodeId,
+      onDetectedVariablesChange,
+      updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
           node.promptSections.map((section) =>
             section.id === sectionId ? { ...section, value } : section,
           ),
         ),
-      })),
-    onPromptSectionMove: (
-      nodeId: string,
-      sectionId: string,
-      direction: "up" | "down",
-    ) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
+      }),
+    });
+}
+
+function createPromptSectionMoveHandler({
+  editableCanvas,
+  onDetectedVariablesChange,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+}) {
+  return (nodeId: string, sectionId: string, direction: "up" | "down") =>
+    updatePromptSectionNode({
+      editableCanvas,
+      nodeId,
+      onDetectedVariablesChange,
+      updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
           movePromptSection(node.promptSections, sectionId, direction),
         ),
-      })),
+      }),
+    });
+}
+
+function getPromptSectionHandlers(
+  editableCanvas: ReturnType<typeof useEditableCanvas>,
+  onDetectedVariablesChange?: (labels: string[]) => void,
+) {
+  return {
+    onPromptSectionDelete: createPromptSectionDeleteHandler({
+      editableCanvas,
+      onDetectedVariablesChange,
+    }),
+    onPromptSectionInsert: createPromptSectionInsertHandler({
+      editableCanvas,
+      onDetectedVariablesChange,
+    }),
+    onPromptSectionChange: createPromptSectionChangeHandler({
+      editableCanvas,
+      onDetectedVariablesChange,
+    }),
+    onPromptSectionMove: createPromptSectionMoveHandler({
+      editableCanvas,
+      onDetectedVariablesChange,
+    }),
   };
 }
 
 function getEditableCanvasHandlers(
   editableCanvas: ReturnType<typeof useEditableCanvas>,
+  onDetectedVariablesChange?: (labels: string[]) => void,
 ) {
   return {
-    ...getPromptSectionHandlers(editableCanvas),
+    ...getPromptSectionHandlers(editableCanvas, onDetectedVariablesChange),
     onSettingValueChange: (nodeId: string, settingId: string, value: string) =>
       editableCanvas.updateNode(nodeId, (node) => ({
         ...node,
@@ -193,6 +309,7 @@ function useEditableCanvas(
     updater: (
       node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
     ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number],
+    onNextCanvas?: (nextCanvas: EditableCanvasState) => void,
   ) => void;
 } {
   const sourceSignature = getEditableCanvasSourceSignature(canvas);
@@ -212,18 +329,24 @@ function useEditableCanvas(
 
   return {
     ...editableCanvas,
-    updateNode: (nodeId, updater) =>
-      setEditableCanvas((currentCanvas) =>
-        updateEditableNode(currentCanvas, nodeId, updater),
-      ),
+    updateNode: (nodeId, updater, onNextCanvas) =>
+      setEditableCanvas((currentCanvas) => {
+        const nextCanvas = updateEditableNode(currentCanvas, nodeId, updater);
+        onNextCanvas?.(nextCanvas);
+        return nextCanvas;
+      }),
   };
 }
 
 export function SpielwieseEditorCanvas({
   canvas,
+  onDetectedVariablesChange,
 }: SpielwieseEditorCanvasProps) {
   const editableCanvas = useEditableCanvas(canvas);
-  const editableCanvasHandlers = getEditableCanvasHandlers(editableCanvas);
+  const editableCanvasHandlers = getEditableCanvasHandlers(
+    editableCanvas,
+    onDetectedVariablesChange,
+  );
 
   return (
     <section

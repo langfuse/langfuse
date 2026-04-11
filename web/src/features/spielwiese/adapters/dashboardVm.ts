@@ -47,6 +47,28 @@ export function getSpielwieseShellVm(pageId = "assistant"): SpielwieseShellVM {
   };
 }
 
+function cloneAgentNode(
+  node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
+) {
+  return {
+    ...node,
+    playgroundThinking: node.playgroundThinking
+      ? {
+          ...node.playgroundThinking,
+          steps: node.playgroundThinking.steps.map((step) => ({
+            ...step,
+          })),
+        }
+      : undefined,
+    playgroundPreview: node.playgroundPreview
+      ? { ...node.playgroundPreview }
+      : undefined,
+    settings: node.settings.map((setting) => ({ ...setting })),
+    promptSections: node.promptSections.map((section) => ({ ...section })),
+    notes: node.notes.map((note) => ({ ...note })),
+  };
+}
+
 export function getSpielwieseDashboardVm(
   pageId = "assistant",
 ): SpielwieseDashboardVM {
@@ -64,12 +86,7 @@ export function getSpielwieseDashboardVm(
     canvas: {
       ...dashboardSource.canvas,
       stats: dashboardSource.canvas.stats.map((stat) => ({ ...stat })),
-      agentNodes: dashboardSource.canvas.agentNodes.map((node) => ({
-        ...node,
-        settings: node.settings.map((setting) => ({ ...setting })),
-        promptSections: node.promptSections.map((section) => ({ ...section })),
-        notes: node.notes.map((note) => ({ ...note })),
-      })),
+      agentNodes: dashboardSource.canvas.agentNodes.map(cloneAgentNode),
     },
     promptCanvas: dashboardSource.promptCanvas
       ? {

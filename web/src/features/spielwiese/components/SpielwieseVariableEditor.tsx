@@ -89,7 +89,7 @@ export function SpielwieseVariableEditor({
           className={cn("min-h-16 resize-none", toneClassNames.field)}
           name={`variable-helper-${item.id}`}
           onChange={(event) => onChange(item.id, "helper", event.target.value)}
-          placeholder="Describe what this variable should capture."
+          placeholder="Add a sample value so you can test the prompt with it."
           value={item.helper}
         />
       </div>

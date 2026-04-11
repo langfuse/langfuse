@@ -46,14 +46,14 @@ describe("SpielwieseModelPickerTrigger icons", () => {
 });
 
 describe("SpielwieseModelPickerPanel chrome", () => {
-  it("renders a layered picker shell with divided columns", () => {
+  it("renders a flatter picker shell and preselects the current provider", () => {
     render(
       <SpielwieseModelPickerPanel
         currentModel="GPT-4.1 mini"
         hoveredModelLabel={null}
         onClose={() => {}}
         onValueChange={() => {}}
-        providerId="openai"
+        providerId={null}
         setHoveredModelLabel={() => {}}
         setProviderId={() => {}}
         setShowLegacyModels={() => false}
@@ -63,13 +63,17 @@ describe("SpielwieseModelPickerPanel chrome", () => {
 
     const panel = screen.getByRole("dialog", { name: "Model picker" });
     const grid = screen.getByTestId("spielwiese-model-picker-grid");
+    const openAiButton = screen.getByRole("button", { name: "OpenAI" });
+    const gpt54Button = screen.getByRole("button", { name: "GPT-5.4" });
     const modelColumn = grid.children[1] as HTMLElement | undefined;
 
-    expect(panel.className).toContain("rounded-[20px]");
-    expect(panel.className).toContain("bg-[linear-gradient");
-    expect(panel.className).toContain("backdrop-blur-xl");
-    expect(grid.className).toContain("rounded-[16px]");
-    expect(grid.className).toContain("border-[rgba(0,0,0,0.05)]");
+    expect(panel.className).toContain("rounded-[16px]");
+    expect(panel.className).toContain("bg-[#FCFCFA]");
+    expect(panel.className).not.toContain("backdrop-blur");
+    expect(panel.className).not.toContain("bg-[linear-gradient");
+    expect(grid.className).toContain("grid-cols-[10.5rem_13.75rem]");
+    expect(openAiButton.className).toContain("ring-1");
+    expect(gpt54Button).toBeTruthy();
     expect(modelColumn?.className).toContain("border-l");
   });
 });

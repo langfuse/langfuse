@@ -6,6 +6,7 @@ import { Button } from "../ui/button";
 import {
   getModelDisplayLabel,
   getModelOption,
+  getModelProvider,
   spielwieseModelProviders,
   type SpielwieseModelProvider,
 } from "./spielwieseModelCatalog";
@@ -29,12 +30,12 @@ function getSelectedProvider(providerId: string | null) {
 
 function getGridClassName(hasProvider: boolean, hasPreview: boolean) {
   if (!hasProvider) {
-    return "grid-cols-[11rem]";
+    return "grid-cols-[10.5rem]";
   }
 
   return hasPreview
-    ? "grid-cols-[11rem_15rem_14rem]"
-    : "grid-cols-[11rem_15rem]";
+    ? "grid-cols-[10.5rem_13.75rem_12.5rem]"
+    : "grid-cols-[10.5rem_13.75rem]";
 }
 
 function RowModelPickerTrigger({
@@ -245,20 +246,22 @@ function SpielwieseModelPickerGrid({
   setShowLegacyModels,
   showLegacyModels,
 }: SpielwieseModelPickerPanelProps) {
-  const provider = getSelectedProvider(providerId);
+  const resolvedProviderId =
+    providerId ?? getModelProvider(currentModel)?.id ?? null;
+  const provider = getSelectedProvider(resolvedProviderId);
   const previewModel = getPreviewModel(hoveredModelLabel);
 
   return (
     <div
       className={cn(
-        "grid gap-0 overflow-hidden rounded-[16px] border border-[rgba(0,0,0,0.05)] bg-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]",
+        "grid overflow-hidden bg-[#FCFCFA]",
         getGridClassName(Boolean(provider), Boolean(previewModel)),
       )}
       data-testid="spielwiese-model-picker-grid"
     >
-      <div className="flex min-h-[17rem] min-w-0 flex-col bg-white/54 px-2.5 py-2.5">
+      <div className="flex min-h-[16rem] min-w-0 flex-col bg-[#FBFBFA] px-2 py-2">
         <SpielwieseProviderColumn
-          currentProviderId={providerId}
+          currentProviderId={resolvedProviderId}
           onSelectProvider={createProviderSelectHandler({
             setHoveredModelLabel,
             setProviderId,
@@ -267,7 +270,7 @@ function SpielwieseModelPickerGrid({
         />
       </div>
       {provider ? (
-        <div className="flex min-h-[17rem] min-w-0 flex-col border-l border-black/6 bg-white/34 px-2.5 py-2.5">
+        <div className="flex min-h-[16rem] min-w-0 flex-col border-l border-black/6 bg-white px-2 py-2">
           <SpielwieseModelColumn
             currentModel={currentModel}
             hoveredModelLabel={hoveredModelLabel}
@@ -285,7 +288,7 @@ function SpielwieseModelPickerGrid({
         </div>
       ) : null}
       {previewModel ? (
-        <div className="flex min-h-[17rem] min-w-0 flex-col border-l border-black/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.82)_0%,rgba(242,244,241,0.88)_100%)] px-2.5 py-2.5">
+        <div className="flex min-h-[16rem] min-w-0 flex-col border-l border-black/6 bg-[#F7F7F4] px-2.5 py-2.5">
           <SpielwieseModelPickerPreview previewModel={previewModel} />
         </div>
       ) : null}
@@ -300,7 +303,7 @@ export function SpielwieseModelPickerPanel({
   return (
     <div
       className={cn(
-        "absolute top-full left-0 z-30 mt-2 overflow-hidden rounded-[20px] border border-[rgba(0,0,0,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,246,244,0.96)_100%)] p-2 shadow-[0_24px_56px_rgba(15,23,42,0.16),0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/5 backdrop-blur-xl",
+        "absolute top-full left-0 z-30 mt-1.5 overflow-hidden rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)]",
         panelClassName,
       )}
       aria-label="Model picker"

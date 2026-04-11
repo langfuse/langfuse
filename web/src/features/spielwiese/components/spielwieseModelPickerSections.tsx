@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
@@ -25,10 +24,10 @@ function ProviderButton({
   return (
     <Button
       className={cn(
-        "h-8 justify-between rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+        "h-8 justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
         isActive
           ? "text-foreground bg-white ring-1 ring-black/6 hover:bg-white"
-          : "text-foreground hover:bg-black/[0.03]",
+          : "text-foreground hover:bg-black/[0.025]",
       )}
       size="sm"
       type="button"
@@ -42,12 +41,8 @@ function ProviderButton({
     >
       <span className="flex min-w-0 items-center gap-2">
         <SpielwieseModelProviderMark providerId={provider.id} />
-        <span className="truncate">{provider.label}</span>
+        <p className="truncate">{provider.label}</p>
       </span>
-      <ChevronRight
-        aria-hidden="true"
-        className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]"
-      />
     </Button>
   );
 }
@@ -104,10 +99,10 @@ function ModelOptionButton({
     <button
       aria-label={model.label}
       className={cn(
-        "focus-visible:ring-ring/30 flex w-full items-center justify-between gap-3 rounded-[12px] px-2.5 py-2.5 text-left outline-none focus-visible:ring-2",
+        "focus-visible:ring-ring/30 flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left outline-none focus-visible:ring-2",
         isActive
-          ? "bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] ring-1 ring-black/5"
-          : "hover:bg-white/72",
+          ? "bg-[#F6F7F4] ring-1 ring-black/6"
+          : "hover:bg-black/[0.025]",
       )}
       onClick={onSelect}
       onFocus={onFocus}
@@ -123,7 +118,6 @@ function ModelOptionButton({
           {model.label}
         </p>
       </div>
-      <ChevronRight className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]" />
     </button>
   );
 }
@@ -151,30 +145,39 @@ export function SpielwieseModelColumn({
     : provider.latestModels;
 
   return (
-    <div className="flex min-h-0 w-[15rem] flex-col gap-1.5">
-      {models.map((model) => (
-        <ModelOptionButton
-          isActive={
-            hoveredModelLabel === model.label ||
-            canonicalCurrentModel === model.label
-          }
-          key={model.id}
-          model={model}
-          onFocus={() => onHoverModel(model.label)}
-          onSelect={() => onSelectModel(model.label)}
-          provider={provider}
-        />
-      ))}
+    <div className="flex min-h-0 w-[13.75rem] flex-col gap-2">
+      <div className="px-0.5 pt-0.5">
+        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+          Models
+        </p>
+      </div>
+      <div className="flex flex-1 flex-col gap-0.5">
+        {models.map((model) => (
+          <ModelOptionButton
+            isActive={
+              hoveredModelLabel === model.label ||
+              canonicalCurrentModel === model.label
+            }
+            key={model.id}
+            model={model}
+            onFocus={() => onHoverModel(model.label)}
+            onSelect={() => onSelectModel(model.label)}
+            provider={provider}
+          />
+        ))}
+      </div>
       {provider.legacyModels.length > 0 ? (
-        <Button
-          className="text-foreground/64 hover:text-foreground mt-2 justify-start rounded-[10px] px-2.5 text-[0.75rem] hover:bg-black/[0.03]"
-          size="sm"
-          type="button"
-          variant="ghost"
-          onClick={toggleLegacyModels}
-        >
-          {showLegacyModels ? "Hide older models" : "More models"}
-        </Button>
+        <div className="border-t border-black/6 pt-2">
+          <Button
+            className="text-foreground/54 hover:text-foreground h-7 justify-start rounded-[8px] px-2 text-[0.75rem] hover:bg-black/[0.03]"
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={toggleLegacyModels}
+          >
+            {showLegacyModels ? "Hide older models" : "More models"}
+          </Button>
+        </div>
       ) : null}
     </div>
   );
@@ -186,23 +189,23 @@ export function SpielwieseBenchmarkPreview({
   model: SpielwieseModelOption;
 }) {
   return (
-    <div className="flex w-[14rem] flex-col gap-3 rounded-[14px] border border-[rgba(0,0,0,0.05)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(243,244,241,0.92)_100%)] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-      <div className="flex flex-col gap-1.5">
+    <div className="flex w-[12.5rem] flex-col gap-3">
+      <div className="flex flex-col gap-1">
         <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
           Model profile
         </p>
-        <p className="text-sm font-semibold">{model.label}</p>
-        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-black/5 bg-white/76 px-2.5 py-2 text-sm">
-          <span className="text-muted-foreground">Token cost</span>
-          <span className="font-medium tabular-nums">
-            {getTokenCostLabel(model)}
-          </span>
-        </div>
+        <p className="text-[0.9375rem] font-semibold">{model.label}</p>
       </div>
-      <div className="flex flex-col gap-2.5 rounded-[10px] border border-black/5 bg-white/58 p-2.5">
+      <div className="divide-y divide-black/6 overflow-hidden rounded-[10px] border border-black/6 bg-white/72">
+        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+          <p className="text-muted-foreground text-sm">Token cost</p>
+          <p className="text-sm font-medium tabular-nums">
+            {getTokenCostLabel(model)}
+          </p>
+        </div>
         {model.benchmarks.map((benchmark) => (
           <div
-            className="flex items-center justify-between gap-3"
+            className="flex items-center justify-between gap-3 px-3 py-2.5"
             key={benchmark.label}
           >
             <p className="text-muted-foreground text-sm">{benchmark.label}</p>
@@ -222,13 +225,13 @@ export function SpielwieseProviderColumn({
   onSelectProvider: (provider: SpielwieseModelProvider) => void;
 }) {
   return (
-    <div className="flex w-[11rem] flex-col gap-3">
-      <div className="px-0.5">
+    <div className="flex w-[10.5rem] flex-1 flex-col gap-2">
+      <div className="px-0.5 pt-0.5">
         <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
           Providers
         </p>
       </div>
-      <div className="flex flex-1 flex-col gap-1">
+      <div className="flex flex-1 flex-col gap-0.5">
         {spielwieseModelProviders.map((provider) => (
           <ProviderButton
             isActive={provider.id === currentProviderId}
@@ -239,9 +242,9 @@ export function SpielwieseProviderColumn({
           />
         ))}
       </div>
-      <div className="flex justify-center">
+      <div className="mt-auto border-t border-black/6 pt-2">
         <Button
-          className="text-foreground/64 hover:text-foreground h-7 rounded-full border border-black/6 bg-white/76 px-3 text-[0.75rem] shadow-none hover:bg-white"
+          className="text-foreground/54 hover:text-foreground h-7 justify-start rounded-[8px] px-2 text-[0.75rem] shadow-none hover:bg-black/[0.03]"
           size="sm"
           type="button"
           variant="ghost"

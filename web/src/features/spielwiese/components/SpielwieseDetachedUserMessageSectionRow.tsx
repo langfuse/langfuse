@@ -126,7 +126,7 @@ function DetachedUserUploadDatasetTag() {
   return (
     <button
       aria-label="Upload dataset"
-      className="bg-background/88 text-foreground/62 hover:bg-background hover:text-foreground inline-flex h-6 shrink-0 items-center gap-1.25 overflow-visible rounded-[8px] border border-[rgba(0,0,0,0.08)] pr-1.5 pl-1.5 shadow-[inset_0_1px_0_hsl(var(--background)/0.96)] outline-none focus-visible:ring-0"
+      className="bg-background/88 text-foreground/62 hover:bg-background hover:text-foreground inline-flex h-6 shrink-0 items-center gap-1.25 overflow-visible rounded-[8px] border border-[rgba(0,0,0,0.08)] pr-7 pl-1.5 shadow-[inset_0_1px_0_hsl(var(--background)/0.96)] outline-none focus-visible:ring-0"
       data-testid="spielwiese-detached-user-upload-dataset-tag"
       type="button"
     >
@@ -138,38 +138,51 @@ function DetachedUserUploadDatasetTag() {
       <span className="text-[0.6875rem] font-medium whitespace-nowrap">
         Upload dataset
       </span>
-      <span
-        className="text-foreground/46 inline-flex size-3.5 shrink-0 items-center justify-center"
-        data-testid="spielwiese-detached-user-upload-dataset-info-affordance"
-      >
-        <CircleQuestionMark
-          aria-hidden="true"
-          className="size-3 shrink-0 stroke-[2.2px]"
-          data-testid="spielwiese-detached-user-upload-dataset-info-icon"
-        />
-      </span>
     </button>
   );
 }
 
 const detachedUserDatasetTooltipCopy =
   "Run the same prompt against a batch of user messages at once so you can compare outputs and tune the prompt faster.";
+const detachedUserDatasetDocsHref =
+  "https://langfuse.com/docs/evaluation/experiments/overview";
 const detachedUserDatasetTooltipClassName =
-  "text-foreground/72 pointer-events-none absolute top-full left-0 z-20 mt-2 w-[15rem] translate-y-1 rounded-[12px] bg-[rgba(255,255,255,0.98)] px-3 py-2 text-[0.75rem] leading-4 font-medium opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12),0_4px_14px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/dataset-tooltip:translate-y-0 group-focus-within/dataset-tooltip:opacity-100 group-hover/dataset-tooltip:translate-y-0 group-hover/dataset-tooltip:opacity-100";
+  "text-foreground/72 pointer-events-none invisible absolute top-full left-0 z-20 mt-2 w-[15rem] translate-y-1 rounded-[12px] bg-[rgba(255,255,255,0.98)] px-3 py-2 text-left text-[0.6875rem] leading-[1.05rem] font-normal opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12),0_4px_14px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/dataset-tooltip:pointer-events-auto group-focus-within/dataset-tooltip:visible group-focus-within/dataset-tooltip:translate-y-0 group-focus-within/dataset-tooltip:opacity-100 group-hover/dataset-tooltip:pointer-events-auto group-hover/dataset-tooltip:visible group-hover/dataset-tooltip:translate-y-0 group-hover/dataset-tooltip:opacity-100";
 
 function DetachedUserDatasetAccessory() {
   return (
     <div
-      className="group/dataset-tooltip relative flex shrink-0 items-center overflow-visible"
+      className="relative flex shrink-0 items-center overflow-visible"
       data-testid="spielwiese-detached-user-upload-dataset-accessory"
     >
       <DetachedUserUploadDatasetTag />
       <div
-        className={detachedUserDatasetTooltipClassName}
-        data-testid="spielwiese-detached-user-upload-dataset-tooltip"
-        role="tooltip"
+        className="text-foreground/46 group/dataset-tooltip absolute top-1/2 right-1.5 z-10 inline-flex size-3.5 -translate-y-1/2 items-center justify-center outline-none after:absolute after:top-full after:left-0 after:h-2 after:w-[15rem] after:content-['']"
+        data-testid="spielwiese-detached-user-upload-dataset-info-affordance"
+        tabIndex={0}
       >
-        {detachedUserDatasetTooltipCopy}
+        <CircleQuestionMark
+          aria-hidden="true"
+          className="size-3 shrink-0 stroke-[2.2px]"
+          data-testid="spielwiese-detached-user-upload-dataset-info-icon"
+        />
+        <div
+          className={detachedUserDatasetTooltipClassName}
+          data-testid="spielwiese-detached-user-upload-dataset-tooltip"
+          role="tooltip"
+        >
+          <p>
+            {detachedUserDatasetTooltipCopy}{" "}
+            <a
+              className="text-foreground inline font-medium underline underline-offset-2"
+              href={detachedUserDatasetDocsHref}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Docs
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

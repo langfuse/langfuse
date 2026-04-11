@@ -83,9 +83,9 @@ function expectInstructionsSectionChrome(
   expect(firstSectionRow.getAttribute("data-section-id")).toBe("system");
   expect(sectionRowGroup.className).toContain("pt-1");
   expect(sectionRowGroup.className).toContain("pb-1");
-  expect(firstSectionRow.className).toContain("pt-3.5");
+  expect(firstSectionRow.className).toContain("pt-1");
   expect(firstSectionRow.className).toContain("pb-2");
-  expect(instructionsBodyElement.className).toContain("pt-[17px]");
+  expect(instructionsBodyElement.className).toContain("pt-[9px]");
   expect(instructionsInput).toBeTruthy();
   expect(instructionsTextareaRootElement.className).toContain("rounded-[10px]");
   expectShadowedMessageFieldShell(

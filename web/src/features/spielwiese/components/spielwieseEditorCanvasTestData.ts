@@ -1,3 +1,9 @@
+import {
+  coachAgentThinking,
+  nutritionAgentThinking,
+  visionAgentThinking,
+} from "./spielwiesePlaygroundThinkingData";
+
 export const spielwieseEditorCanvasTestCanvas = {
   title: "Assistant",
   helper: "Start from a blank page and shape the structure from the rail.",
@@ -36,6 +42,26 @@ export const spielwieseEditorCanvasTestCanvas = {
         { id: "tools", value: "No tools." },
         { id: "mode", value: "Pure vision." },
       ],
+      playgroundThinking: visionAgentThinking,
+      playgroundPreview: {
+        format: "json",
+        label: "Answer",
+        toneSectionId: "system",
+        value: `[
+  {
+    "item": "grilled salmon",
+    "estimated_weight_g": 186
+  },
+  {
+    "item": "asparagus",
+    "estimated_weight_g": 64
+  },
+  {
+    "item": "lemon wedge",
+    "estimated_weight_g": 12
+  }
+]`,
+      },
     },
     {
       id: "nutrition-agent",
@@ -62,6 +88,41 @@ export const spielwieseEditorCanvasTestCanvas = {
         },
       ],
       notes: [{ id: "source", value: "USDA FoodData Central" }],
+      playgroundThinking: nutritionAgentThinking,
+      playgroundPreview: {
+        format: "json",
+        label: "Answer",
+        toneSectionId: "system",
+        value: `{
+  "items": [
+    {
+      "item": "grilled salmon",
+      "weight_g": 186,
+      "kcal": 366,
+      "protein_g": 40.5,
+      "carbs_g": 0,
+      "fat_g": 22.1,
+      "fiber_g": 0
+    },
+    {
+      "item": "asparagus",
+      "weight_g": 64,
+      "kcal": 13,
+      "protein_g": 1.4,
+      "carbs_g": 2.5,
+      "fat_g": 0.1,
+      "fiber_g": 1.3
+    }
+  ],
+  "totals": {
+    "kcal": 379,
+    "protein_g": 41.9,
+    "carbs_g": 2.5,
+    "fat_g": 22.2,
+    "fiber_g": 1.3
+  }
+}`,
+      },
     },
     {
       id: "coach-agent",
@@ -88,6 +149,14 @@ export const spielwieseEditorCanvasTestCanvas = {
         },
       ],
       notes: [{ id: "tools", value: "No tools." }],
+      playgroundThinking: coachAgentThinking,
+      playgroundPreview: {
+        format: "text",
+        label: "Answer",
+        toneSectionId: "system",
+        value:
+          "Estimated meal: 379 kcal with strong protein and very low carbs. The salmon drives most of the calories and protein, while the asparagus adds a light fiber boost.",
+      },
     },
   ],
 };
