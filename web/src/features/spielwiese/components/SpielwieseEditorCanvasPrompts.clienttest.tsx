@@ -69,9 +69,9 @@ function expectInsertRowChrome({
     nodeCard.lastElementChild?.firstElementChild,
   );
   expect(insertRow.className).toContain("w-fit");
-  expect(insertRow.className).toContain("pt-4");
-  expect(insertRow.className).toContain("pl-[18px]");
-  expect(insertRow.className).toContain("pb-[14px]");
+  expect(insertRow.className).toContain("pt-0");
+  expect(insertRow.className).toContain("pl-[10px]");
+  expect(insertRow.className).toContain("pb-[6px]");
   expect(externalRow.className).toContain("w-fit");
   expect(externalRow.className).toContain("pl-[18px]");
   expect(nodeCard.nextElementSibling).toBe(externalRow);

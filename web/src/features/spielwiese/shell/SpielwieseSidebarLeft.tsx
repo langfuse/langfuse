@@ -225,7 +225,7 @@ function ExpandedSidebar({
       </div>
 
       <SidebarFooter
-        className="mt-0 shrink-0 bg-[#F5F5F5] p-3"
+        className="mt-0 shrink-0 bg-[#FBFBFB] p-3"
         data-testid="spielwiese-left-sidebar-sticky-footer"
       >
         <SidebarBottomModeSwitch
@@ -247,7 +247,7 @@ export function SpielwieseSidebarLeft({
 
   return (
     <SidebarSurface
-      className="overflow-hidden bg-[#F5F5F5]"
+      className="overflow-hidden bg-[#FBFBFB]"
       data-testid="spielwiese-left-sidebar"
     >
       {compact ? (

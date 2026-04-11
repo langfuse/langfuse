@@ -47,7 +47,7 @@ function SpielwieseCanvasPane({
   return (
     <div
       className={cn(
-        "border-border/70 flex min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-b-0 bg-[#F5F5F5] p-2",
+        "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#15181C] p-2",
         className,
       )}
       data-testid="spielwiese-editor-canvas-pane"
@@ -97,7 +97,7 @@ export function SpielwieseCanvasPaneStack({
         />
       </ResizablePanel>
       <ResizableHandle
-        className="bg-border/70 aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
+        className="aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 bg-[#15181C] aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
         data-testid="spielwiese-canvas-pane-resize-handle"
       />
       <ResizablePanel defaultSize="32%" minSize="12%">

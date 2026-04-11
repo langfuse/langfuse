@@ -1,7 +1,6 @@
+/* eslint-disable max-lines */
 import { screen, within } from "@testing-library/react";
-
 const assistantReplyCardShadowClassName = "shadow-[0_0_0_3px_rgba(0,0,0,0.03)]";
-
 export function expectInlineEditingShell({
   modelInput,
   systemInput,
@@ -30,10 +29,8 @@ export function expectInlineEditingShell({
   expect(screen.queryByLabelText("vision-agent tools")).toBeNull();
   expect(systemInput.getAttribute("rows")).toBe("1");
 }
-
 function expectDetachedUserShell(detachedUserSections: HTMLElement) {
   const detachedUserPromptSections = detachedUserSections.firstElementChild;
-
   expect(detachedUserSections.className).toContain("[--node-shell-gap:2px]");
   expect(detachedUserSections.className).toContain(
     "[--node-shell-radius:16px]",
@@ -49,10 +46,37 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
   expect(detachedUserPromptSections?.className).toContain("pt-0");
   expect(detachedUserPromptSections?.className).toContain("pb-0");
 }
-
 export function expectDetachedUserRowChrome(
   detachedUserSections: HTMLElement,
   detachedUserRow: HTMLElement,
+) {
+  const {
+    detachedUserCompactButton,
+    detachedUserField,
+    detachedUserHeader,
+    detachedUserTextarea,
+    detachedUserToggle,
+  } = getDetachedUserRowElements(detachedUserRow, detachedUserSections);
+  const detachedUploadElements = getDetachedUserUploadElements(detachedUserRow);
+  expectDetachedUserRowShell({
+    detachedUserCompactButton,
+    detachedUserHeader,
+    detachedUserRow,
+    detachedUserSections,
+    detachedUserTextarea,
+    detachedUserToggle,
+  });
+  expectDetachedUploadTag(detachedUploadElements);
+  expectDetachedDatasetTag(detachedUploadElements);
+  expectDetachedUserFieldChrome({
+    detachedUserField,
+    detachedUserSections,
+    detachedUserTextarea,
+  });
+}
+function getDetachedUserRowElements(
+  detachedUserRow: HTMLElement,
+  detachedUserSections: HTMLElement,
 ) {
   const detachedUserCompactButton = within(detachedUserRow).getByRole(
     "button",
@@ -67,36 +91,63 @@ export function expectDetachedUserRowChrome(
   });
   const detachedUserHeader =
     detachedUserRow.firstElementChild as HTMLElement | null;
-  const uploadFileTag = within(detachedUserRow).getByRole("button", {
-    name: "Upload file",
-  });
-  const uploadTagContent = within(detachedUserRow).getByTestId(
-    "spielwiese-detached-user-upload-tag-content",
-  );
-  const uploadSuffixIcon = within(detachedUserRow).getByTestId(
-    "spielwiese-detached-user-upload-suffix-icon",
-  );
-  const uploadThumb = within(detachedUserRow).getByTestId(
-    "spielwiese-detached-user-upload-thumb",
-  );
-  const uploadThumbImage = uploadThumb.querySelector("img");
-  const detachedUserField = detachedUserTextarea.parentElement?.parentElement;
-
-  expectDetachedUserRowShell({
+  const detachedUserField =
+    detachedUserTextarea.closest("[data-testid='spielwiese-mustache-root']")
+      ?.parentElement ?? detachedUserTextarea.parentElement;
+  return {
     detachedUserCompactButton,
+    detachedUserField,
     detachedUserHeader,
-    detachedUserRow,
-    detachedUserSections,
     detachedUserTextarea,
     detachedUserToggle,
-  });
-  expectDetachedUploadTag({
-    uploadFileTag,
-    uploadSuffixIcon,
-    uploadTagContent,
-    uploadThumb,
-    uploadThumbImage,
-  });
+  };
+}
+function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
+  const row = within(detachedUserRow);
+  const fileTag = row.getByRole("button", { name: "Upload file" });
+  const tagContent = row.getByTestId(
+    "spielwiese-detached-user-upload-tag-content",
+  );
+  const suffixIcon = row.getByTestId(
+    "spielwiese-detached-user-upload-suffix-icon",
+  );
+  const thumb = row.getByTestId("spielwiese-detached-user-upload-thumb");
+  const thumbImage = thumb.querySelector("img");
+  const datasetTag = row.getByRole("button", { name: "Upload dataset" });
+  const datasetInfo = row.getByTestId(
+    "spielwiese-detached-user-upload-dataset-info-affordance",
+  );
+  const datasetIcon = row.getByTestId(
+    "spielwiese-detached-user-upload-dataset-icon",
+  );
+  const datasetInfoIcon = row.getByTestId(
+    "spielwiese-detached-user-upload-dataset-info-icon",
+  );
+  const datasetTooltip = row.getByTestId(
+    "spielwiese-detached-user-upload-dataset-tooltip",
+  );
+  return {
+    fileTag,
+    datasetInfo,
+    datasetInfoIcon,
+    tagContent,
+    datasetIcon,
+    datasetTag,
+    datasetTooltip,
+    suffixIcon,
+    thumb,
+    thumbImage,
+  };
+}
+function expectDetachedUserFieldChrome({
+  detachedUserField,
+  detachedUserSections,
+  detachedUserTextarea,
+}: {
+  detachedUserField: Element | null | undefined;
+  detachedUserSections: HTMLElement;
+  detachedUserTextarea: HTMLElement;
+}) {
   expectShadowedMessageFieldShell(detachedUserField);
   expect(detachedUserField?.className).toContain("min-h-9");
   expect(detachedUserField?.className).toContain("items-center");
@@ -105,7 +156,6 @@ export function expectDetachedUserRowChrome(
     within(detachedUserSections).getByTestId("vision-agent-user-tag-icon"),
   ).toBeTruthy();
 }
-
 function expectDetachedUserRowShell({
   detachedUserCompactButton,
   detachedUserHeader,
@@ -144,50 +194,84 @@ function expectDetachedUserRowShell({
   expect(detachedUserHeader?.className).not.toContain("min-h-6");
   expect(detachedUserHeader?.className).not.toContain("py-0.5");
 }
-
-function expectDetachedUploadTag({
-  uploadFileTag,
-  uploadSuffixIcon,
-  uploadTagContent,
-  uploadThumb,
-  uploadThumbImage,
+function expectDetachedDatasetTag({
+  datasetInfo,
+  datasetInfoIcon,
+  datasetIcon,
+  datasetTag,
+  datasetTooltip,
 }: {
-  uploadFileTag: HTMLElement;
-  uploadSuffixIcon: HTMLElement;
-  uploadTagContent: HTMLElement;
-  uploadThumb: HTMLElement;
-  uploadThumbImage: HTMLImageElement | null;
+  datasetInfo: HTMLElement;
+  datasetInfoIcon: HTMLElement;
+  datasetIcon: HTMLElement;
+  datasetTag: HTMLElement;
+  datasetTooltip: HTMLElement;
 }) {
-  expect(uploadFileTag.className).toContain("h-6");
-  expect(uploadFileTag.className).toContain("overflow-visible");
-  expect(uploadFileTag.className).toContain("gap-1.5");
-  expect(uploadFileTag.className).toContain("pl-0");
-  expect(uploadFileTag.className).toContain("pr-1.5");
-  expect(uploadFileTag.textContent).toContain("Upload file");
-  expect(uploadTagContent.className).toContain("items-center");
-  expect(uploadTagContent.className).toContain("h-full");
-  expect(uploadTagContent.className).toContain("gap-1.25");
-  expect(uploadTagContent.children[1]).toBe(uploadSuffixIcon);
-  expect(uploadTagContent.children[2]?.textContent).toBe("Upload file");
-  expect(uploadThumb.className).toContain("-ml-px");
-  expect(uploadThumb.className).toContain("h-full");
-  expect(uploadThumb.className).toContain("aspect-square");
-  expect(uploadThumb.className).toContain("rounded-[7px]");
-  expect(uploadSuffixIcon.getAttribute("class")).toContain("size-3");
-  expect(uploadSuffixIcon.getAttribute("class")).toContain(
-    "text-foreground/32",
+  expect(datasetTag.className).toContain("h-6");
+  expect(datasetTag.className).toContain("rounded-[8px]");
+  expect(datasetTag.className).toContain("border");
+  expect(datasetTag.className).toContain("pl-1.5");
+  expect(datasetTag.className).toContain("pr-2");
+  expect(datasetTag.className).toContain("gap-1.25");
+  expect(datasetTag.className).toContain("relative");
+  expect(datasetTag.className).toContain("group/dataset-tooltip");
+  expect(datasetTag.textContent).toContain("Upload dataset");
+  expect(datasetInfo.className).toContain("inline-flex");
+  expect(datasetInfo.className).toContain("size-3.5");
+  expect(datasetInfo.className).not.toContain("border");
+  expect(datasetInfo.className).not.toContain("bg-");
+  expect(datasetTooltip.getAttribute("role")).toBe("tooltip");
+  expect(datasetTooltip.className).toContain("left-0");
+  expect(datasetTooltip.className).not.toContain("right-0");
+  expect(datasetTooltip.className).toContain("opacity-0");
+  expect(datasetTooltip.className).not.toContain("border");
+  expect(datasetTooltip.className).not.toContain("ring-1");
+  expect(datasetTooltip.className).toContain(
+    "group-hover/dataset-tooltip:opacity-100",
   );
-  expect(uploadThumb.className).toContain(
-    "shadow-[0_1px_2px_rgba(0,0,0,0.22)]",
+  expect(datasetTooltip.textContent).toContain(
+    "Run the same prompt against a batch of user messages at once",
   );
-  expect(uploadThumb.className).toContain(
+  expect(datasetIcon.getAttribute("class")).toContain("size-3");
+  expect(datasetIcon.getAttribute("class")).toContain("text-foreground/32");
+  expect(datasetInfoIcon.getAttribute("class")).toContain("size-3");
+}
+function expectDetachedUploadTag({
+  fileTag,
+  suffixIcon,
+  tagContent,
+  thumb,
+  thumbImage,
+}: {
+  fileTag: HTMLElement;
+  suffixIcon: HTMLElement;
+  tagContent: HTMLElement;
+  thumb: HTMLElement;
+  thumbImage: HTMLImageElement | null;
+}) {
+  expect(fileTag.className).toContain("h-6");
+  expect(fileTag.className).toContain("overflow-visible");
+  expect(fileTag.className).toContain("gap-1.5");
+  expect(fileTag.className).toContain("pl-0");
+  expect(fileTag.className).toContain("pr-1.5");
+  expect(fileTag.textContent).toContain("Upload file");
+  expect(tagContent.className).toContain("items-center");
+  expect(tagContent.className).toContain("h-full");
+  expect(tagContent.className).toContain("gap-1.25");
+  expect(tagContent.children[1]).toBe(suffixIcon);
+  expect(tagContent.children[2]?.textContent).toBe("Upload file");
+  expect(thumb.className).toContain("-ml-px");
+  expect(thumb.className).toContain("h-full");
+  expect(thumb.className).toContain("aspect-square");
+  expect(thumb.className).toContain("rounded-[7px]");
+  expect(suffixIcon.getAttribute("class")).toContain("size-3");
+  expect(suffixIcon.getAttribute("class")).toContain("text-foreground/32");
+  expect(thumb.className).toContain("shadow-[0_1px_2px_rgba(0,0,0,0.22)]");
+  expect(thumb.className).toContain(
     "after:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.98)]",
   );
-  expect(uploadThumbImage?.getAttribute("src")).toContain(
-    "upload-file-thumb.webp",
-  );
+  expect(thumbImage?.getAttribute("src")).toContain("upload-file-thumb.webp");
 }
-
 export function expectAttioSectionChip(
   instructionsToggle: HTMLElement,
   nodeCard: HTMLElement,
@@ -205,62 +289,14 @@ export function expectAttioSectionChip(
       .getAttribute("class"),
   ).toContain("size-3");
 }
-
-function expectAssistantReplyFieldShell(fieldShell: HTMLElement | null) {
-  expectShadowedMessageFieldShell(fieldShell);
-}
-
 export function expectShadowedMessageFieldShell(
   fieldShell: HTMLElement | null,
+  expectedBackgroundClassName = "bg-white",
 ) {
   expect(fieldShell).toBeTruthy();
   expect(fieldShell?.className).toContain("w-full");
   expect(fieldShell?.className).toContain("rounded-[10px]");
   expect(fieldShell?.className).toContain("border-[rgba(0,0,0,0.05)]");
-  expect(fieldShell?.className).toContain("bg-white");
+  expect(fieldShell?.className).toContain(expectedBackgroundClassName);
   expect(fieldShell?.className).toContain(assistantReplyCardShadowClassName);
-}
-
-export function expectAssistantReplyCard(behaviorCard: HTMLElement) {
-  const receivesLabel = within(behaviorCard).getByText("RECEIVES");
-  const respondsLabel = within(behaviorCard).getByText("RESPONDS");
-  const receivesRow = receivesLabel.parentElement;
-  const respondsRow = respondsLabel.parentElement;
-  const receivesFieldShell =
-    receivesLabel.nextElementSibling as HTMLElement | null;
-  const respondsFieldShell =
-    respondsLabel.nextElementSibling as HTMLElement | null;
-  const receivesTextarea = within(behaviorCard).getByLabelText(
-    "vision-agent receives context",
-  );
-  const respondsTextarea = within(behaviorCard).getByLabelText(
-    "vision-agent How the assistant should reply",
-  );
-
-  expect(within(behaviorCard).getByText("RECEIVES")).toBeTruthy();
-  expect(within(behaviorCard).getByText("RESPONDS")).toBeTruthy();
-  expect(behaviorCard.className).toContain("w-full");
-  expect(behaviorCard.className).toContain("mt-3.5");
-  expect(behaviorCard.className).toContain("ml-1");
-  expect(behaviorCard.className).toContain("h-[104px]");
-  expect(behaviorCard.className).toContain("max-h-[104px]");
-  expect(behaviorCard.className).toContain("justify-start");
-  expect(behaviorCard.className).toContain("gap-2.5");
-  expect(behaviorCard.className).toContain("pr-1");
-  expect(behaviorCard.className).not.toContain("rounded-xl");
-  expect(behaviorCard.className).not.toContain("border-border/40");
-  expect(behaviorCard.className).not.toContain("bg-transparent");
-  expect(behaviorCard.firstElementChild?.className).not.toContain("divide-y");
-  expect(receivesRow?.className).toContain("items-center");
-  expect(respondsRow?.className).toContain("items-center");
-  expectAssistantReplyFieldShell(receivesFieldShell);
-  expectAssistantReplyFieldShell(respondsFieldShell);
-  expect((receivesTextarea as HTMLTextAreaElement).value).toContain("[image]");
-  expect(receivesTextarea.className).toContain("leading-7");
-  expect(receivesTextarea.className).toContain("w-full");
-  expect(receivesTextarea.className).toContain("rounded-[10px]");
-  expect(receivesTextarea.className).toContain("bg-transparent");
-  expect(respondsTextarea).toBeTruthy();
-  expect(respondsTextarea.className).toContain("rounded-[10px]");
-  expect(respondsTextarea.className).toContain("bg-transparent");
 }

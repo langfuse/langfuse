@@ -19,6 +19,36 @@ type SpielwieseHeaderFinderProps = {
   shell: SpielwieseShellVM;
 };
 
+function FinderTriggerBackground({
+  backgroundRef,
+}: {
+  backgroundRef: RefObject<HTMLSpanElement | null>;
+}) {
+  return (
+    <span
+      className="absolute inset-0 origin-top-left rounded-full bg-white/[0.05] outline outline-1 outline-white/8 md:rounded"
+      data-bg-layer="true"
+      ref={backgroundRef}
+    />
+  );
+}
+
+function FinderTriggerShortcut({
+  shortcutRef,
+}: {
+  shortcutRef: RefObject<HTMLElement | null>;
+}) {
+  return (
+    <span className="hidden size-8 place-content-center pr-0.5 md:grid">
+      <FinderShortcut
+        className="border-white/10 bg-white/[0.06] text-white/58 shadow-none"
+        label="F"
+        shortcutRef={shortcutRef}
+      />
+    </span>
+  );
+}
+
 function FinderTrigger({
   backgroundRef,
   iconRef,
@@ -42,7 +72,7 @@ function FinderTrigger({
       aria-expanded={isOpen}
       aria-label="Open workspace finder"
       className={cn(
-        "relative z-[calc(var(--header-zindex)_+_1)] h-9 w-full max-w-[22rem] cursor-pointer overflow-visible rounded-full border-0 bg-transparent p-0 text-left [webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-[3px] md:cursor-text md:rounded",
+        "relative z-[calc(var(--header-zindex)_+_1)] h-8 w-full max-w-[21rem] cursor-pointer overflow-visible rounded-full border-0 bg-transparent p-0 text-left [webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-[3px] md:cursor-text md:rounded",
         isOpen ? "invisible" : "pointer-events-auto",
       )}
       data-testid="spielwiese-header-finder-trigger"
@@ -51,28 +81,22 @@ function FinderTrigger({
       tabIndex={isOpen ? -1 : 0}
       type="button"
     >
-      <span
-        className="bg-background outline-border/70 absolute inset-0 origin-top-left rounded-full outline outline-1 md:rounded"
-        data-bg-layer="true"
-        ref={backgroundRef}
-      />
+      <FinderTriggerBackground backgroundRef={backgroundRef} />
       <span className="relative flex flex-row items-center">
         <span
-          className="grid size-9 shrink-0 place-content-center pl-1"
+          className="grid size-8 shrink-0 place-content-center pl-0.5"
           data-search-icon="true"
         >
-          <Search className="text-foreground size-4" ref={iconRef} />
+          <Search className="size-[0.9375rem] text-white/70" ref={iconRef} />
         </span>
         <span
-          className="text-muted-foreground hidden min-w-0 flex-1 truncate pl-0.5 text-sm md:flex"
+          className="hidden min-w-0 flex-1 truncate pl-0.5 text-[13px] text-white/60 md:flex"
           data-placeholder="true"
           ref={placeholderRef}
         >
           Find…
         </span>
-        <span className="hidden size-9 place-content-center pr-1 md:grid">
-          <FinderShortcut label="F" shortcutRef={shortcutRef} />
-        </span>
+        <FinderTriggerShortcut shortcutRef={shortcutRef} />
       </span>
     </button>
   );
@@ -95,7 +119,7 @@ export function SpielwieseHeaderFinder({
   });
 
   return (
-    <div className="relative flex min-w-0 justify-center">
+    <div className="relative flex h-full min-w-0 items-center justify-center">
       <FinderTrigger
         backgroundRef={motion.triggerBackgroundRef}
         iconRef={motion.triggerIconRef}

@@ -39,12 +39,12 @@ function expectShellChromeBackground() {
     "bg-[#F5F5F5]",
   );
   expect(screen.getByTestId("spielwiese-shell-header").className).toContain(
-    "bg-[#F5F5F5]",
+    "bg-[#15181C]",
   );
   expect(
     screen
       .getAllByTestId("spielwiese-right-sidebar")
-      .every((sidebar) => sidebar.className.includes("bg-[#F5F5F5]")),
+      .every((sidebar) => sidebar.className.includes("bg-[#FBFBFB]")),
   ).toBe(true);
 }
 
@@ -62,6 +62,53 @@ function expectShellChromeWithoutBorders() {
       .getAllByTestId("spielwiese-right-sidebar-header")
       .every((header) => !header.className.includes("border-b")),
   ).toBe(true);
+}
+
+function expectInsetSidebarShells() {
+  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
+    "box-border",
+  );
+  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
+    "bg-[#15181C]",
+  );
+  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
+    "pt-2",
+  );
+  expect(screen.getByTestId("spielwiese-shell-left").className).not.toContain(
+    "p-2",
+  );
+  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
+    "box-border",
+  );
+  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
+    "bg-[#15181C]",
+  );
+  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
+    "pt-2",
+  );
+  expect(screen.getByTestId("spielwiese-shell-right").className).not.toContain(
+    "p-2",
+  );
+}
+
+function expectMainColumnWithoutExtraTopInset() {
+  expect(screen.getByTestId("spielwiese-shell-main").className).toContain(
+    "overflow-hidden",
+  );
+  expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+    "pt-2",
+  );
+  expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+    "pt-3",
+  );
+}
+
+function expectCenteredHeaderContent() {
+  const headerInnerClassName = screen.getByTestId("spielwiese-shell-header")
+    .firstElementChild?.className;
+
+  expect(headerInnerClassName).toContain("items-stretch");
+  expect(headerInnerClassName).toContain("pb-0");
 }
 
 describe("SpielwieseDashboardShell render", () => {
@@ -89,18 +136,23 @@ describe("SpielwieseDashboardShell render", () => {
       container.querySelector("[data-testid='spielwiese-shell']"),
     ).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
+    expectCenteredHeaderContent();
     expect(screen.getByTestId("spielwiese-shell-body")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-header-finder-trigger")).toBeTruthy();
     expect(screen.getAllByText("Find…").length >= 1).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell").className).toContain(
       "h-screen-with-banner",
     );
+    expect(screen.getByTestId("spielwiese-shell").className).toContain(
+      "[--spielwiese-header-height:2.75rem]",
+    );
+    expect(screen.getByTestId("spielwiese-shell").className).toContain(
+      "sm:[--spielwiese-header-height:3rem]",
+    );
     expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
       "overflow-hidden",
     );
-    expect(screen.getByTestId("spielwiese-shell-main").className).toContain(
-      "overflow-hidden",
-    );
+    expectMainColumnWithoutExtraTopInset();
     expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
       "px-3",
     );
@@ -109,6 +161,7 @@ describe("SpielwieseDashboardShell render", () => {
     );
     expectShellChromeBackground();
     expectShellChromeWithoutBorders();
+    expectInsetSidebarShells();
     expect(
       screen
         .getByTestId("spielwiese-shell-header")
@@ -158,7 +211,7 @@ describe("SpielwieseDashboardShell sidebar interactions", () => {
     ).toBe(true);
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).toContain("bg-[#F5F5F5]");
+    ).toContain("bg-[#FBFBFB]");
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
     ).not.toContain("border-r");
@@ -173,7 +226,7 @@ describe("SpielwieseDashboardShell sidebar interactions", () => {
     ).toBe(true);
     expect(
       screen.getByTestId("spielwiese-mobile-right-drawer").className,
-    ).toContain("bg-[#F5F5F5]");
+    ).toContain("bg-[#FBFBFB]");
     expect(
       screen.getByTestId("spielwiese-mobile-right-drawer").className,
     ).not.toContain("border-l");

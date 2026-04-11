@@ -30,9 +30,11 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(widget.className).toContain("h-full");
     expect(widget.className).toContain("overflow-hidden");
     expect(widget.className).toContain("flex-1");
-    expect(editorPane.className).toContain("bg-[#F5F5F5]");
+    expect(editorPane.className).toContain("bg-[#15181C]");
     expect(editorPane.className).toContain("p-2");
-    expect(editorPane.className).toContain("border-b-0");
+    expect(editorPane.className).not.toContain("border-x");
+    expect(editorPane.className).not.toContain("border-t");
+    expect(editorPane.className).not.toContain("border-b-0");
     expect(editorPaneShell.className).toContain("rounded-[8px]");
     expect(editorPaneShell.className).toContain("bg-background");
     expect(editorPaneShell.className).toContain("overflow-y-auto");
@@ -42,7 +44,7 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(editorNodeStack.className).toContain("pt-4");
     expect(editorNodeStack.className).toContain("pb-2");
     expect(simulationPane.className).toContain("rounded-none");
-    expect(simulationPane.className).toContain("border-t-0");
+    expect(simulationPane.className).not.toContain("border-t-0");
     expect(resizeHandle).toBeTruthy();
     expect(nodes).toHaveLength(3);
   });
@@ -54,7 +56,7 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     );
 
     expect(resizeHandle.className).toContain("shrink-0");
-    expect(resizeHandle.className).toContain("bg-border/70");
+    expect(resizeHandle.className).toContain("bg-[#15181C]");
     expect(resizeHandle.className).toContain("h-px");
     expect(resizeHandle.className).toContain("hover:ring-1");
     expect(resizeHandle.className).toContain("hover:ring-border/70");
@@ -82,7 +84,6 @@ describe("SpielwieseEditorCanvas node chrome", () => {
     expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
     expect(screen.getByDisplayValue("Nutrition Agent")).toBeTruthy();
     expect(screen.getByDisplayValue("Coach Agent")).toBeTruthy();
-    expect(screen.getAllByDisplayValue("[image]")).toHaveLength(2);
     expect(visionModelButton.textContent).toContain("GPT-4.1 mini");
     expect(
       within(visionModelButton).getByTestId("spielwiese-provider-mark-openai"),

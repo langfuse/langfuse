@@ -29,7 +29,7 @@ export function SpielwieseSidebarRight({
 
   return (
     <SidebarSurface
-      className="overflow-hidden bg-[#F5F5F5]"
+      className="overflow-hidden bg-[#FBFBFB]"
       data-testid="spielwiese-right-sidebar"
     >
       {rightPanelMode === "model-recommendation" &&

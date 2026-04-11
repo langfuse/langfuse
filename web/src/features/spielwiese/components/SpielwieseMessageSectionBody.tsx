@@ -87,11 +87,11 @@ function SpielwieseSystemMessageSectionBody({
       <div
         className={cn(
           spielwieseMessageFieldShellClassName,
-          "min-h-0 flex-col items-stretch px-0 py-0",
+          "min-h-0 flex-col items-stretch bg-[#F1F2F2] px-0 py-0",
         )}
       >
         <StandardPromptTextarea
-          className="px-3 py-1"
+          className="bg-[#FBFBFB] px-3 py-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
           nodeId={nodeId}
           onPromptSectionChange={onPromptSectionChange}
           section={section}

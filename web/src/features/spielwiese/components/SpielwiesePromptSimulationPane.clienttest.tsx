@@ -9,8 +9,12 @@ function getPromptSimulationElements() {
   const header = within(simulationPane).getByTestId(
     "spielwiese-playground-header",
   );
+  const actions = within(header).getByTestId("spielwiese-playground-actions");
   const historyButton = within(header).getByTestId(
     "spielwiese-playground-history-button",
+  );
+  const playButton = within(header).getByTestId(
+    "spielwiese-playground-play-button",
   );
   const title = within(simulationPane).getByTestId(
     "spielwiese-playground-title",
@@ -24,6 +28,9 @@ function getPromptSimulationElements() {
   const flowNodes = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-node",
   );
+  const modelSegments = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-model-segment",
+  );
   const flowSteps = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-step",
   );
@@ -32,11 +39,14 @@ function getPromptSimulationElements() {
     chevrons: within(flowStrip).getAllByTestId(
       "spielwiese-playground-flow-chevron",
     ),
+    actions,
     flowNodes,
     flowSteps,
     flowStrip,
     header,
     historyButton,
+    modelSegments,
+    playButton,
     simulationPane,
     terminalShell,
     title,
@@ -61,8 +71,10 @@ function expectPromptSimulationPaneChrome(
   expect(terminalShell.className).toContain("flex-col");
   expect(terminalShell.className).toContain("items-start");
   expect(terminalShell.className).toContain("gap-3");
-  expect(elements.header.className).toContain("ml-[13px]");
-  expect(elements.header.className).toContain("gap-2");
+  expect(elements.header.className).toContain("w-full");
+  expect(elements.header.className).toContain("pl-[13px]");
+  expect(elements.actions.className).toContain("ml-auto");
+  expect(elements.actions.className).toContain("gap-2");
   expect(elements.title.textContent).toBe("Playground");
   expect(elements.title.className).toContain("text-[0.75rem]");
   expect(elements.historyButton.textContent).toContain("History");
@@ -70,6 +82,11 @@ function expectPromptSimulationPaneChrome(
   expect(elements.historyButton.className).toContain("rounded-[8px]");
   expect(elements.historyButton.className).toContain("ring-1");
   expect(elements.historyButton.querySelector("svg")).not.toBeNull();
+  expect(elements.playButton.textContent).toContain("Play");
+  expect(elements.playButton.className).toContain("h-6");
+  expect(elements.playButton.className).toContain("rounded-[8px]");
+  expect(elements.playButton.className).toContain("ring-1");
+  expect(elements.playButton.querySelector("svg")).not.toBeNull();
   expect(flowStrip.className).toContain("items-start");
   expect(flowStrip.className).toContain("w-full");
   expect(simulationPane.textContent).not.toContain("Sample message");
@@ -90,27 +107,33 @@ function expectPromptSimulationNodeShells(
   const firstFlowStep = elements.flowSteps[0]!;
   const firstUserIcon = elements.userIcons[0]!;
   const secondUserIcon = elements.userIcons[1]!;
+  const firstModelSegment = elements.modelSegments[0]!;
 
   expect(firstFlowStep.className).toContain("[--node-shell-gap:2px]");
   expect(firstFlowStep.className).toContain("[--node-shell-radius:16px]");
   expect(firstFlowStep.className).toContain("flex-1");
   expect(firstFlowStep.className).not.toContain("w-fit");
   expect(firstFlowStep.className).toContain("bg-[#FBFBFB]");
+  expect(firstFlowStep.className).toContain("items-center");
   expect(firstFlowStep.className).toContain("px-[2px]");
   expect(firstFlowStep.className).toContain("pt-[2px]");
   expect(firstFlowStep.className).toContain("pb-[2px]");
-  expect(firstFlowNode.contains(firstUserIcon)).toBe(true);
-  expect(secondFlowNode.contains(secondUserIcon)).toBe(true);
-  expect(firstFlowNode.firstElementChild).toBe(firstUserIcon);
-  expect(secondFlowNode.firstElementChild).toBe(secondUserIcon);
+  expect(firstFlowNode.contains(firstUserIcon)).toBe(false);
+  expect(secondFlowNode.contains(secondUserIcon)).toBe(false);
+  expect(firstFlowStep.firstElementChild).toBe(firstUserIcon);
+  expect(firstFlowNode.className).toContain("h-7");
+  expect(firstFlowNode.className).toContain("rounded-[10px]");
+  expect(firstFlowNode.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(firstFlowNode.className).toContain("ring-1");
   expect(firstFlowNode.className).toContain(
-    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+    "shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
   );
-  expect(firstFlowNode.className).toContain("border-border/40");
-  expect(firstFlowNode.className).toContain("bg-background/96");
   expect(firstFlowNode.className).toContain("w-full");
-  expect(firstFlowNode.className).toContain("px-2.5");
-  expect(firstFlowNode.className).toContain("py-2");
+  expect(firstFlowNode.className).toContain("min-w-[15rem]");
+  expect(firstFlowNode.className).toContain(
+    "rgba(16,163,127,0.18)_0%,rgba(16,163,127,0.08)_32%",
+  );
+  expect(firstModelSegment.textContent).toContain("GPT-4.1 mini");
   expect(firstFlowNode.textContent).toContain("Vision Agent");
   expect(secondFlowNode.textContent).toContain("Nutrition Agent");
   expect(thirdFlowNode.textContent).toContain("Coach Agent");

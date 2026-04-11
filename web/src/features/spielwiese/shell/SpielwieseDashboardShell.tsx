@@ -100,7 +100,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#F5F5F5] transition-transform md:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#FBFBFB] transition-transform md:hidden",
           mobileLeftOpen ? "translate-x-0" : "-translate-x-full",
         )}
         data-testid="spielwiese-mobile-left-drawer"
@@ -110,7 +110,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#F5F5F5] transition-transform xl:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#FBFBFB] transition-transform xl:hidden",
           mobileRightOpen ? "translate-x-0" : "translate-x-full",
         )}
         data-testid="spielwiese-mobile-right-drawer"
@@ -142,14 +142,19 @@ function ShellBodyGrid({
       data-testid="spielwiese-shell-body"
     >
       <aside className="hidden min-h-0 md:block">
-        <div className="h-full min-h-0" data-testid="spielwiese-shell-left">
-          <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
+        <div
+          className="box-border h-full min-h-0 bg-[#15181C] pt-2"
+          data-testid="spielwiese-shell-left"
+        >
+          <div className="h-full min-h-0 overflow-hidden rounded-t-[8px]">
+            <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
+          </div>
         </div>
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <main
-          className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3 pb-0 sm:pt-4"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden pt-0 pb-0"
           data-testid="spielwiese-shell-main"
         >
           {children}
@@ -158,8 +163,13 @@ function ShellBodyGrid({
 
       {rightOpen ? (
         <aside className="hidden min-h-0 xl:block">
-          <div className="h-full min-h-0" data-testid="spielwiese-shell-right">
-            <SpielwieseSidebarRight dashboard={dashboard} />
+          <div
+            className="box-border h-full min-h-0 bg-[#15181C] pt-2"
+            data-testid="spielwiese-shell-right"
+          >
+            <div className="h-full min-h-0 overflow-hidden rounded-t-[8px]">
+              <SpielwieseSidebarRight dashboard={dashboard} />
+            </div>
           </div>
         </aside>
       ) : null}
@@ -185,7 +195,7 @@ function SpielwieseDashboardShellLayout({
 
   return (
     <div
-      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:3.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:4rem]"
+      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"

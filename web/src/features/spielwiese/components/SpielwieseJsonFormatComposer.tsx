@@ -3,14 +3,13 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Textarea } from "../ui/textarea";
 
-const spielwieseJsonFormatFooterClassName =
-  "border-t border-[rgba(0,0,0,0.05)] bg-[#F1F2F2]";
+const spielwieseJsonFormatFooterClassName = "bg-[#F1F2F2]";
 const spielwieseJsonFormatEditorShellClassName =
-  "mt-0.5 overflow-hidden rounded-[7px] border border-[rgba(0,0,0,0.05)] bg-[#F6F7F7]";
+  "overflow-hidden rounded-none border-0 bg-[#F1F2F2]";
 const spielwieseJsonFormatHighlightClassName =
   "m-0 min-h-[4.5rem] whitespace-pre-wrap break-words px-2 py-1.5 font-mono text-[0.6875rem] leading-[1.05rem] text-[#202427]";
 const spielwieseJsonFormatTextareaClassName =
-  "relative z-[1] min-h-[4.5rem] w-full resize-none overflow-auto rounded-[7px] border-0 bg-transparent px-2 py-1.5 font-mono text-[0.6875rem] leading-[1.05rem] text-transparent caret-[#202427] shadow-none outline-none selection:bg-[rgba(72,123,164,0.16)] focus-visible:border-transparent focus-visible:ring-0";
+  "relative z-[1] min-h-[4.5rem] w-full resize-none overflow-auto rounded-none border-0 bg-transparent px-2 py-1.5 font-mono text-[0.6875rem] leading-[1.05rem] text-transparent caret-[#202427] shadow-none outline-none selection:bg-[rgba(72,123,164,0.16)] focus-visible:border-transparent focus-visible:ring-0";
 const spielwieseJsonFormatPlaceholder = `{
   "field": "value"
 }`;
@@ -169,14 +168,12 @@ export function SpielwieseJsonFormatComposer({
   const [formatValue, setFormatValue] = useState("");
 
   return (
-    <div
-      className={cn(spielwieseJsonFormatFooterClassName, "px-1.5 pt-1 pb-1")}
-    >
+    <div className={cn(spielwieseJsonFormatFooterClassName, "px-0 pt-0 pb-0")}>
       <button
         aria-controls={`${nodeId}-json-format-panel`}
         aria-expanded={isOpen}
         aria-label="JSON Format"
-        className="text-foreground/50 hover:text-foreground/68 inline-flex h-5 w-full items-center justify-between rounded-[5px] px-1 text-left text-[0.6875rem] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0"
+        className="text-foreground/50 hover:text-foreground/68 inline-flex h-5 w-full items-center justify-between rounded-none px-2.5 pt-1 pb-0 text-left text-[0.6875rem] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0"
         type="button"
         onClick={() => setIsOpen((currentValue) => !currentValue)}
       >

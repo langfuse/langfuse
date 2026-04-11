@@ -57,7 +57,7 @@ function SpielwieseMessageInsertPicker({
     >
       <div
         className={cn(
-          "flex w-max items-center gap-0.5 px-1 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+          "flex w-max items-center gap-0.5 pr-px pl-0 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
           isOpen
             ? "translate-x-0 opacity-100 delay-75"
             : "translate-x-1 opacity-0 delay-0",
@@ -123,7 +123,7 @@ function getInsertRowConfig(
     pickerId: `${nodeId}-message-insert-picker-compact`,
     pickerTestId: "spielwiese-message-insert-picker-compact",
     rowClassName:
-      "relative inline-flex w-fit items-start pt-4 pb-[14px] pl-[18px]",
+      "relative inline-flex w-fit items-start pt-0 pb-[6px] pl-[10px]",
     shellTestId: "spielwiese-message-insert-compact-shell",
   };
 }

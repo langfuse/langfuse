@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
+import { expectAssistantReplyCard } from "./spielwieseAssistantReplyTestAssertions";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 import {
-  expectAssistantReplyCard,
   expectAttioSectionChip,
   expectDetachedUserRowChrome,
   expectShadowedMessageFieldShell,
@@ -41,6 +41,7 @@ function getInstructionsSectionElements(nodeCard: HTMLElement) {
   const instructionsInput = within(nodeCard).getByLabelText(
     "vision-agent Instructions",
   );
+  const instructionsTextareaRoot = instructionsInput.parentElement;
   const instructionsFieldShell = instructionsInput.parentElement?.parentElement;
   const instructionsBody = instructionsFieldShell?.parentElement;
   const instructionsToggle = within(nodeCard).getByRole("button", {
@@ -53,6 +54,7 @@ function getInstructionsSectionElements(nodeCard: HTMLElement) {
   return {
     sectionRows,
     instructionsInput,
+    instructionsTextareaRoot,
     instructionsFieldShell,
     instructionsBody,
     instructionsToggle,
@@ -60,10 +62,58 @@ function getInstructionsSectionElements(nodeCard: HTMLElement) {
   };
 }
 
+function expectInstructionsSectionChrome(
+  nodeCard: HTMLElement,
+  {
+    sectionRows,
+    instructionsInput,
+    instructionsTextareaRoot,
+    instructionsBody,
+    instructionsFieldShell,
+    instructionsToggle,
+  }: ReturnType<typeof getInstructionsSectionElements>,
+) {
+  const firstSectionRow = sectionRows[0] as HTMLElement;
+  const sectionRowGroup = firstSectionRow.parentElement as HTMLElement;
+  const instructionsBodyElement = instructionsBody as HTMLElement;
+  const instructionsTextareaRootElement =
+    instructionsTextareaRoot as HTMLElement;
+  const instructionsFieldShellElement = instructionsFieldShell as HTMLElement;
+
+  expect(firstSectionRow.getAttribute("data-section-id")).toBe("system");
+  expect(sectionRowGroup.className).toContain("pt-1");
+  expect(sectionRowGroup.className).toContain("pb-1");
+  expect(firstSectionRow.className).toContain("pt-3.5");
+  expect(firstSectionRow.className).toContain("pb-2");
+  expect(instructionsBodyElement.className).toContain("pt-3.5");
+  expect(instructionsInput).toBeTruthy();
+  expect(instructionsTextareaRootElement.className).toContain("rounded-[10px]");
+  expectShadowedMessageFieldShell(
+    instructionsFieldShellElement,
+    "bg-[#F1F2F2]",
+  );
+  expect(instructionsFieldShellElement.className).toContain("flex-col");
+  expect(instructionsFieldShellElement.className).toContain("items-stretch");
+  expect(instructionsInput.className).toContain("bg-[#FBFBFB]");
+  expect(instructionsInput.className).toContain(
+    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+  );
+  expect(instructionsInput.getAttribute("placeholder")).toBe(
+    "Add instructions for this step",
+  );
+  expect(instructionsToggle.textContent).toContain("Instructions");
+  expect(instructionsToggle.querySelector("[data-prefix='true']")).toBeTruthy();
+  expect(instructionsToggle.querySelector("[data-suffix='true']")).toBeTruthy();
+  expect(within(nodeCard).getByTestId("vision-agent-system-icon")).toBeTruthy();
+  expectAttioSectionChip(instructionsToggle, nodeCard);
+}
+
 function expectInstructionsJsonFormatComposer(nodeCard: HTMLElement) {
   const jsonFormatToggle = within(nodeCard).getByRole("button", {
     name: "JSON Format",
   });
+  const jsonFormatComposer =
+    jsonFormatToggle.parentElement as HTMLElement | null;
 
   expect(jsonFormatToggle.getAttribute("aria-expanded")).toBe("false");
 
@@ -80,16 +130,24 @@ function expectInstructionsJsonFormatComposer(nodeCard: HTMLElement) {
   );
 
   expect(jsonFormatToggle.getAttribute("aria-expanded")).toBe("true");
-  expect(jsonFormatPanel.className).toContain("bg-[#F6F7F7]");
-  expect(jsonFormatPanel.className).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(jsonFormatComposer?.className).toContain("bg-[#F1F2F2]");
+  expect(jsonFormatComposer?.className).not.toContain("border-t");
+  expect(jsonFormatComposer?.className).toContain("px-0");
+  expect(jsonFormatComposer?.className).toContain("pt-0");
+  expect(jsonFormatComposer?.className).toContain("pb-0");
+  expect(jsonFormatPanel.className).toContain("bg-[#F1F2F2]");
+  expect(jsonFormatPanel.className).toContain("rounded-none");
+  expect(jsonFormatPanel.className).not.toContain("border-[rgba(0,0,0,0.05)]");
   expect(jsonFormatPanel.className).not.toContain("bg-[linear-gradient");
   expect(jsonFormatPanel.className).not.toContain("shadow-[inset_0_1px_0");
+  expect(jsonFormatPanel.className).not.toContain("mt-0.5");
   expect(jsonFormatHighlight.className).toContain("font-mono");
   expect(jsonFormatHighlight.className).toContain("text-[#202427]");
   expect(jsonFormatInput.className).toContain("font-mono");
   expect(jsonFormatInput.className).toContain("bg-transparent");
   expect(jsonFormatInput.className).toContain("text-transparent");
   expect(jsonFormatInput.className).toContain("caret-[#202427]");
+  expect(jsonFormatInput.className).toContain("rounded-none");
 
   fireEvent.change(jsonFormatInput, {
     target: { value: '{\n  "food": "string"\n}' },
@@ -139,34 +197,20 @@ describe("SpielwieseEditorCanvas instructions prompt layout", () => {
     const {
       sectionRows,
       instructionsInput,
+      instructionsTextareaRoot,
       instructionsBody,
       instructionsFieldShell,
       instructionsToggle,
     } = getInstructionsSectionElements(nodeCard);
 
-    expect(sectionRows[0]?.getAttribute("data-section-id")).toBe("system");
-    expect(sectionRows[0]?.parentElement?.className).toContain("pt-1");
-    expect(sectionRows[0]?.parentElement?.className).toContain("pb-1");
-    expect(instructionsBody?.className).toContain("pt-3.5");
-    expect(instructionsInput).toBeTruthy();
-    expectShadowedMessageFieldShell(instructionsFieldShell);
-    expect(instructionsFieldShell?.className).toContain("flex-col");
-    expect(instructionsFieldShell?.className).toContain("items-stretch");
-    expect(instructionsInput.className).toContain("bg-transparent");
-    expect(instructionsInput.getAttribute("placeholder")).toBe(
-      "Add instructions for this step",
-    );
-    expect(instructionsToggle.textContent).toContain("Instructions");
-    expect(
-      instructionsToggle.querySelector("[data-prefix='true']"),
-    ).toBeTruthy();
-    expect(
-      instructionsToggle.querySelector("[data-suffix='true']"),
-    ).toBeTruthy();
-    expect(
-      within(nodeCard).getByTestId("vision-agent-system-icon"),
-    ).toBeTruthy();
-    expectAttioSectionChip(instructionsToggle, nodeCard);
+    expectInstructionsSectionChrome(nodeCard, {
+      sectionRows,
+      instructionsInput,
+      instructionsTextareaRoot,
+      instructionsBody,
+      instructionsFieldShell,
+      instructionsToggle,
+    });
     expectInstructionsJsonFormatComposer(nodeCard);
   });
 });

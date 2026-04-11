@@ -95,6 +95,7 @@ describe("SpielwieseEditorCanvas editing tags", () => {
     renderCanvas();
     const systemInput = screen.getByLabelText("vision-agent Instructions");
 
+    fireEvent.focus(systemInput);
     fireEvent.change(systemInput, {
       target: { value: "Return {{food_name}} as JSON." },
     });
@@ -102,8 +103,54 @@ describe("SpielwieseEditorCanvas editing tags", () => {
     expect((systemInput as HTMLTextAreaElement).value).toBe(
       "Return {{food_name}} as JSON.",
     );
+    expect(systemInput.className).not.toContain("text-transparent");
     expect(
-      screen.getByTestId("spielwiese-mustache-tag-food_name"),
+      screen.queryByTestId("spielwiese-mustache-tag-food_name"),
+    ).toBeNull();
+
+    fireEvent.blur(systemInput);
+
+    const mustacheTag = screen.getByTestId("spielwiese-mustache-tag-food_name");
+    const mustacheTagSurface = mustacheTag.firstElementChild as HTMLElement;
+    const mustacheTagLabel =
+      mustacheTagSurface.firstElementChild as HTMLElement;
+
+    expect(mustacheTag).toBeTruthy();
+    expect(mustacheTag.className).toContain("align-middle");
+    expect(mustacheTag.className).toContain("items-center");
+    expect(mustacheTag.className).toContain("py-0.5");
+    expect(mustacheTagSurface.className).toContain("min-h-[1.375rem]");
+    expect(mustacheTagSurface.className).toContain("rounded-[5px]");
+    expect(mustacheTagSurface.className).toContain("border");
+    expect(mustacheTagSurface.className).toContain("px-1.5");
+    expect(mustacheTagSurface.className).toContain("py-px");
+    expect(mustacheTagLabel.className).toContain("text-[12px]");
+    expect(mustacheTagLabel.className).toContain("leading-4");
+    expect(mustacheTagLabel.className).toContain("font-medium");
+    expect(mustacheTag.textContent).toBe("food_name");
+  });
+
+  it("renders detached user variables as chips immediately after a mustache token closes", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const detachedUserSections = within(visionNode).getByTestId(
+      "vision-agent-detached-user-sections",
+    );
+    const detachedUserInput =
+      within(detachedUserSections).getByLabelText("vision-agent User");
+
+    fireEvent.focus(detachedUserInput);
+    fireEvent.change(detachedUserInput, {
+      target: { value: "Attach {{uploaded_file}}" },
+    });
+
+    expect((detachedUserInput as HTMLTextAreaElement).value).toBe(
+      "Attach {{uploaded_file}}",
+    );
+    expect(
+      within(detachedUserSections).getByTestId(
+        "spielwiese-mustache-tag-uploaded_file",
+      ),
     ).toBeTruthy();
   });
 });

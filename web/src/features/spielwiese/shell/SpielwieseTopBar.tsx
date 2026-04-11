@@ -33,37 +33,38 @@ function HeaderPrimaryActions({
   togglePrimarySidebar: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex h-full min-w-0 items-center gap-1.5">
       <Link
         aria-label="Homepage"
         className={cn(
           buttonVariants({ size: "icon-sm", variant: "ghost" }),
-          "rounded-lg",
+          "rounded-md text-white/82 hover:bg-white/8 hover:text-white",
         )}
         href="/"
       >
-        <div className="bg-foreground text-background grid size-5 place-items-center rounded-sm text-[0.6875rem] font-semibold uppercase">
+        <div className="bg-foreground text-background grid size-[1.125rem] place-items-center rounded-[4px] text-[0.625rem] font-semibold uppercase">
           {teamInitial}
         </div>
       </Link>
       <Button
-        className="min-w-0 gap-1.5 rounded-lg px-2.5"
-        size="default"
+        className="min-w-0 gap-1 rounded-md px-2 text-white/82 hover:bg-white/8 hover:text-white"
+        size="sm"
         variant="ghost"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-medium">{productLabel}</p>
-          <ChevronDown size={14} />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="truncate text-[13px] font-medium">{productLabel}</p>
+          <ChevronDown size={13} />
         </div>
       </Button>
       <Button
         aria-label="Toggle primary sidebar"
+        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
         data-testid="spielwiese-left-toggle"
         onClick={togglePrimarySidebar}
         size="icon-sm"
         variant="ghost"
       >
-        <PanelLeft size={16} />
+        <PanelLeft size={15} />
       </Button>
     </div>
   );
@@ -79,36 +80,47 @@ function HeaderSecondaryActions({
   userInitials: string;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <p className="text-muted-foreground hidden text-sm tabular-nums sm:block">
+    <div className="flex h-full items-center gap-1.5">
+      <p className="hidden text-xs text-white/48 tabular-nums sm:block">
         {updatedAt}
       </p>
-      <Avatar className="hidden size-8 rounded-full sm:inline-flex">
-        <AvatarFallback className="rounded-full text-xs">
+      <Avatar className="hidden size-7 rounded-full sm:inline-flex">
+        <AvatarFallback className="rounded-full bg-white/10 text-xs text-white">
           {userInitials}
         </AvatarFallback>
       </Avatar>
       <Button
-        className="hidden rounded-full sm:inline-flex"
+        className="hidden rounded-full px-2 text-white/82 hover:bg-white/8 hover:text-white sm:inline-flex"
         size="sm"
         variant="ghost"
       >
         Share
       </Button>
-      <Button aria-label="Notifications" size="icon-sm" variant="ghost">
-        <Bell size={16} />
+      <Button
+        aria-label="Notifications"
+        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Bell size={15} />
       </Button>
-      <Button aria-label="Help" size="icon-sm" variant="ghost">
-        <CircleHelp size={16} />
+      <Button
+        aria-label="Help"
+        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        size="icon-sm"
+        variant="ghost"
+      >
+        <CircleHelp size={15} />
       </Button>
       <Button
         aria-label="Toggle secondary sidebar"
+        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
         data-testid="spielwiese-right-toggle"
         onClick={toggleSecondarySidebar}
         size="icon-sm"
         variant="ghost"
       >
-        <PanelRight size={16} />
+        <PanelRight size={15} />
       </Button>
     </div>
   );
@@ -126,10 +138,10 @@ export function SpielwieseTopBar({
 
   return (
     <header
-      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#F5F5F5]"
+      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#15181C] text-white"
       data-testid="spielwiese-shell-header"
     >
-      <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 sm:px-5">
+      <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-2 px-2.5 pb-0 sm:px-4">
         <HeaderPrimaryActions
           productLabel={shell.productLabel}
           teamInitial={shell.team.initials.slice(0, 1)}
