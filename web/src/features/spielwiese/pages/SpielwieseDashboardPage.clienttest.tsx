@@ -20,7 +20,7 @@ describe("SpielwieseDashboardPage", () => {
     expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
     expect(screen.queryByDisplayValue("Nutrition Agent")).toBeNull();
     expect(screen.queryByDisplayValue("Coach Agent")).toBeNull();
-    expect(screen.getByDisplayValue("[image]")).toBeTruthy();
+    expect(screen.getAllByDisplayValue("[image]").length >= 1).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
     expect(root).toBeTruthy();

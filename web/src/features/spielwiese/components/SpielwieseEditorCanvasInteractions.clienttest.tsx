@@ -21,6 +21,12 @@ function renderCanvas() {
   );
 }
 
+function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
+  return within(nodeElement)
+    .getAllByTestId("spielwiese-message-section-row")
+    .find((row) => row.getAttribute("data-section-id") === sectionId);
+}
+
 describe("SpielwieseEditorCanvas editing", () => {
   it("keeps inline fields editable with fixed widths", async () => {
     renderCanvas();
@@ -102,42 +108,91 @@ describe("SpielwieseEditorCanvas model picker", () => {
   });
 });
 
-describe("SpielwieseEditorCanvas collapse interactions", () => {
-  it("lets each node collapse to the header row", () => {
+describe("SpielwieseEditorCanvas node collapse interactions", () => {
+  it("lets each node minimize its prompt sections into single-row previews", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const toggleButton = screen.getByLabelText("Toggle vision-agent node");
+    const instructionsRow = findPromptRowBySectionId(visionNode, "system");
+    const assistantRow = findPromptRowBySectionId(visionNode, "assistant");
+    const toggleButton = screen.getByRole("button", {
+      name: "Minimize vision-agent node sections",
+    });
 
     fireEvent.click(toggleButton);
 
     expect(within(visionNode).getByLabelText("vision-agent User")).toBeTruthy();
+    expect(instructionsRow).toBeTruthy();
+    expect(assistantRow).toBeTruthy();
+    expect(
+      within(instructionsRow ?? visionNode).getByLabelText(
+        "Toggle vision-agent Instructions section",
+      ),
+    ).toBeTruthy();
     expect(screen.queryByLabelText("vision-agent Instructions")).toBeNull();
     expect(
       screen.queryByLabelText("vision-agent How the assistant should reply"),
     ).toBeNull();
-    expect(toggleButton.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      within(assistantRow ?? visionNode).getByLabelText(
+        "Toggle vision-agent How the assistant should reply section",
+      ),
+    ).toBeTruthy();
+    expect(toggleButton.getAttribute("aria-pressed")).toBe("true");
+    expect(toggleButton.getAttribute("aria-label")).toBe(
+      "Maximize vision-agent node sections",
+    );
   });
 
+  it("lets the detached user row minimize into a single-row preview", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const detachedUserSections = within(visionNode).getByTestId(
+      "vision-agent-detached-user-sections",
+    );
+    const detachedUserRow = within(detachedUserSections).getByTestId(
+      "spielwiese-message-section-row",
+    );
+    const detachedUserToggle = within(detachedUserRow).getByRole("button", {
+      name: "Minimize vision-agent User section",
+    });
+
+    fireEvent.click(detachedUserToggle);
+
+    expect(
+      within(detachedUserSections).queryByLabelText("vision-agent User"),
+    ).toBeNull();
+    expect(
+      within(detachedUserRow).getByLabelText(
+        "Toggle vision-agent User section",
+      ),
+    ).toBeTruthy();
+    expect(detachedUserToggle.getAttribute("aria-pressed")).toBe("true");
+    expect(detachedUserToggle.getAttribute("aria-label")).toBe(
+      "Maximize vision-agent User section",
+    );
+  });
+});
+
+describe("SpielwieseEditorCanvas section collapse interactions", () => {
   it("lets each prompt section collapse into a single header row preview", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-
     expect(
       within(visionNode).getAllByText(
         /You are a food identification expert\. Identify every food item in the image\./i,
       ),
     ).toHaveLength(1);
 
-    const toggleButton = within(visionNode).getByLabelText(
+    const collapseButton = within(visionNode).getByLabelText(
       "Toggle vision-agent Instructions section",
     );
 
-    fireEvent.click(toggleButton);
+    fireEvent.click(collapseButton);
 
     expect(
       within(visionNode).queryByLabelText("vision-agent Instructions"),
     ).toBeNull();
-    expect(toggleButton.getAttribute("aria-expanded")).toBe("false");
+    expect(collapseButton.getAttribute("aria-expanded")).toBe("false");
     expect(
       within(visionNode).getAllByText(
         /You are a food identification expert\. Identify every food item in the image\./i,

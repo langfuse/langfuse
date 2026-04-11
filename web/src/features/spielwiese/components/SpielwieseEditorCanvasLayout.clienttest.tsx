@@ -35,7 +35,10 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(editorPane.className).toContain("border-b-0");
     expect(editorPaneShell.className).toContain("rounded-[8px]");
     expect(editorPaneShell.className).toContain("bg-background");
+    expect(editorPaneShell.className).toContain("overflow-y-auto");
+    expect(editorPaneShell.className).toContain("overflow-x-hidden");
     expect(editorPaneShell.className).toContain("py-0");
+    expect(editorNodeStack.className).not.toContain("overflow-y-auto");
     expect(editorNodeStack.className).toContain("pt-4");
     expect(editorNodeStack.className).toContain("pb-2");
     expect(simulationPane.className).toContain("rounded-none");
@@ -100,6 +103,7 @@ describe("SpielwieseEditorCanvas node chrome", () => {
     expect(nodeCard.className).toContain("pt-[2px]");
     expect(nodeCard.className).toContain("pb-[2px]");
     expect(nodeCard.className).toContain("gap-1.5");
+    expect(visionNode.className).toContain("last:pb-5");
     expect(headerShell.className).toContain(
       "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
     );

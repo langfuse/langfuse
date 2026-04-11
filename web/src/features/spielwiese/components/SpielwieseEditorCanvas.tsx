@@ -20,9 +20,24 @@ function cloneAgentNodes(nodes: SpielwieseDashboardVM["canvas"]["agentNodes"]) {
 }
 
 type EditableCanvasState = {
-  sourceTitle: string;
+  sourceSignature: string;
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
 };
+
+function getEditableCanvasSourceSignature(
+  canvas: SpielwieseDashboardVM["canvas"],
+) {
+  return JSON.stringify({
+    title: canvas.title,
+    agentNodes: canvas.agentNodes.map((node) => ({
+      id: node.id,
+      title: node.title,
+      settings: node.settings,
+      promptSections: node.promptSections,
+      notes: node.notes,
+    })),
+  });
+}
 
 function updateEditableNode(
   state: EditableCanvasState,
@@ -180,16 +195,17 @@ function useEditableCanvas(
     ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number],
   ) => void;
 } {
+  const sourceSignature = getEditableCanvasSourceSignature(canvas);
   const [editableCanvas, setEditableCanvas] = useState<EditableCanvasState>(
     () => ({
-      sourceTitle: canvas.title,
+      sourceSignature,
       nodes: cloneAgentNodes(canvas.agentNodes),
     }),
   );
 
-  if (editableCanvas.sourceTitle !== canvas.title) {
+  if (editableCanvas.sourceSignature !== sourceSignature) {
     setEditableCanvas({
-      sourceTitle: canvas.title,
+      sourceSignature,
       nodes: cloneAgentNodes(canvas.agentNodes),
     });
   }

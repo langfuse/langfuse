@@ -3,7 +3,8 @@
 import {
   ArrowDownToLine,
   ArrowUpToLine,
-  ChevronDown,
+  Maximize2,
+  Minimize2,
   Settings2,
   Thermometer,
 } from "lucide-react";
@@ -23,7 +24,7 @@ import { SpielwieseAgentNodeTitleControl } from "./SpielwieseAgentNodeTitleContr
 import { SpielwieseToolCreatorPopup } from "./SpielwieseToolCreatorPopup";
 
 type SpielwieseAgentNodeHeaderProps = {
-  isCollapsed: boolean;
+  isCompact: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
   onSettingValueChange: (
@@ -31,7 +32,7 @@ type SpielwieseAgentNodeHeaderProps = {
     settingId: string,
     value: string,
   ) => void;
-  onToggleCollapse: () => void;
+  onToggleCompact: () => void;
   onTitleChange: (nodeId: string, value: string) => void;
 };
 
@@ -45,13 +46,49 @@ function getSettingWidthClass(settingId: string) {
       return "w-[7.75rem]";
     case "temperature":
       return "w-[2.75rem]";
+    case "top-p":
+      return "w-[3rem]";
+    case "stop-sequence":
+      return "w-[4.25rem]";
+    case "response-format":
+      return "w-[4rem]";
+    case "reasoning":
+      return "w-[7rem]";
     default:
       return "w-[6rem]";
   }
 }
 
+function getSettingTagRevealLabelWidthClass(settingId: string) {
+  switch (settingId) {
+    case "stop-sequence":
+      return "group-hover/setting-tag:max-w-[5.5rem]";
+    case "response-format":
+      return "group-hover/setting-tag:max-w-[6rem]";
+    case "reasoning":
+      return "group-hover/setting-tag:max-w-[4.75rem]";
+    default:
+      return undefined;
+  }
+}
+
+function getSettingTagRevealWidthClass(settingId: string) {
+  switch (settingId) {
+    case "stop-sequence":
+      return "hover:w-[7rem]";
+    case "response-format":
+      return "hover:w-[7.5rem]";
+    case "reasoning":
+      return "hover:w-[6.75rem]";
+    default:
+      return undefined;
+  }
+}
+
 function getInlineSettings(settings: SpielwieseAgentNodeVM["settings"]) {
-  return settings.filter((setting) => setting.id !== "model");
+  return settings.filter(
+    (setting) => setting.id !== "model" && setting.id !== "response-format",
+  );
 }
 
 function getToolStripLabel(node: SpielwieseAgentNodeVM) {
@@ -100,7 +137,13 @@ function SpielwieseAgentNodeInlineSettings({
             {setting.label}
           </dt>,
           <dd className={spielwieseStripItemClassName} key={setting.id}>
-            <SpielwieseHeaderStripTag label={setting.label}>
+            <SpielwieseHeaderStripTag
+              label={setting.label}
+              revealLabelWidthClassName={getSettingTagRevealLabelWidthClass(
+                setting.id,
+              )}
+              revealWidthClassName={getSettingTagRevealWidthClass(setting.id)}
+            >
               <SettingIcon aria-hidden="true" className="size-3.5 shrink-0" />
             </SpielwieseHeaderStripTag>
             <Input
@@ -122,47 +165,47 @@ function SpielwieseAgentNodeInlineSettings({
 }
 
 function SpielwieseAgentNodeHeaderRow({
-  isCollapsed,
+  isCompact,
   modelSetting,
   node,
   onSettingValueChange,
-  onToggleCollapse,
+  onToggleCompact,
   onTitleChange,
 }: SpielwieseAgentNodeHeaderProps) {
   const inlineSettings = getInlineSettings(node.settings);
+  const HeaderToggleIcon = isCompact ? Maximize2 : Minimize2;
+  const headerToggleLabel = `${
+    isCompact ? "Maximize" : "Minimize"
+  } ${node.id} node sections`;
 
   return (
     <div
-      className="flex min-w-0 flex-wrap items-center gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
+      className="flex w-full min-w-0 items-center justify-between gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
       data-testid="spielwiese-agent-node-header-row"
     >
-      <SpielwieseAgentNodeTitleControl
-        modelSetting={modelSetting}
-        node={node}
-        onSettingValueChange={onSettingValueChange}
-        onTitleChange={onTitleChange}
-      />
-      <SpielwieseAgentNodeInlineSettings
-        nodeId={node.id}
-        onSettingValueChange={onSettingValueChange}
-        settings={inlineSettings}
-      />
-      <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        <SpielwieseAgentNodeTitleControl
+          modelSetting={modelSetting}
+          node={node}
+          onSettingValueChange={onSettingValueChange}
+          onTitleChange={onTitleChange}
+        />
+        <SpielwieseAgentNodeInlineSettings
+          nodeId={node.id}
+          onSettingValueChange={onSettingValueChange}
+          settings={inlineSettings}
+        />
+        <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
+      </div>
       <Button
-        aria-controls={`${node.id}-content`}
-        aria-expanded={!isCollapsed}
-        aria-label={`Toggle ${node.id} node`}
+        aria-label={headerToggleLabel}
+        aria-pressed={isCompact}
         className="bg-background text-foreground/58 hover:bg-background hover:text-foreground h-7 w-7 shrink-0 rounded-[8px] border border-[rgba(0,0,0,0.08)]"
         size="icon-sm"
         variant="ghost"
-        onClick={onToggleCollapse}
+        onClick={onToggleCompact}
       >
-        <ChevronDown
-          className={cn(
-            "size-3.5 transition-transform",
-            isCollapsed && "-rotate-90",
-          )}
-        />
+        <HeaderToggleIcon className={cn("size-3.5")} />
       </Button>
     </div>
   );

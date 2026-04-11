@@ -242,35 +242,44 @@ function SpielwieseModelPickerGrid({
   return (
     <div
       className={cn(
-        "grid gap-3",
+        "grid gap-0 overflow-hidden rounded-[16px] border border-[rgba(0,0,0,0.05)] bg-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]",
         getGridClassName(Boolean(provider), Boolean(previewModel)),
       )}
+      data-testid="spielwiese-model-picker-grid"
     >
-      <SpielwieseProviderColumn
-        currentProviderId={providerId}
-        onSelectProvider={createProviderSelectHandler({
-          setHoveredModelLabel,
-          setProviderId,
-          setShowLegacyModels,
-        })}
-      />
-      {provider ? (
-        <SpielwieseModelColumn
-          currentModel={currentModel}
-          hoveredModelLabel={hoveredModelLabel}
-          onHoverModel={setHoveredModelLabel}
-          onSelectModel={createModelSelectHandler({
-            onClose,
-            onValueChange,
+      <div className="flex min-h-[17rem] min-w-0 flex-col bg-white/54 px-2.5 py-2.5">
+        <SpielwieseProviderColumn
+          currentProviderId={providerId}
+          onSelectProvider={createProviderSelectHandler({
+            setHoveredModelLabel,
+            setProviderId,
+            setShowLegacyModels,
           })}
-          provider={provider}
-          showLegacyModels={showLegacyModels}
-          toggleLegacyModels={() =>
-            setShowLegacyModels((currentValue) => !currentValue)
-          }
         />
+      </div>
+      {provider ? (
+        <div className="flex min-h-[17rem] min-w-0 flex-col border-l border-black/6 bg-white/34 px-2.5 py-2.5">
+          <SpielwieseModelColumn
+            currentModel={currentModel}
+            hoveredModelLabel={hoveredModelLabel}
+            onHoverModel={setHoveredModelLabel}
+            onSelectModel={createModelSelectHandler({
+              onClose,
+              onValueChange,
+            })}
+            provider={provider}
+            showLegacyModels={showLegacyModels}
+            toggleLegacyModels={() =>
+              setShowLegacyModels((currentValue) => !currentValue)
+            }
+          />
+        </div>
       ) : null}
-      <SpielwieseModelPickerPreview previewModel={previewModel} />
+      {previewModel ? (
+        <div className="flex min-h-[17rem] min-w-0 flex-col border-l border-black/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.82)_0%,rgba(242,244,241,0.88)_100%)] px-2.5 py-2.5">
+          <SpielwieseModelPickerPreview previewModel={previewModel} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -282,9 +291,10 @@ export function SpielwieseModelPickerPanel({
   return (
     <div
       className={cn(
-        "border-border/60 bg-popover absolute top-full left-0 z-30 mt-2 overflow-hidden rounded-xl border p-3 shadow-md",
+        "absolute top-full left-0 z-30 mt-2 overflow-hidden rounded-[20px] border border-[rgba(0,0,0,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,246,244,0.96)_100%)] p-2 shadow-[0_24px_56px_rgba(15,23,42,0.16),0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/5 backdrop-blur-xl",
         panelClassName,
       )}
+      aria-label="Model picker"
       data-testid="spielwiese-model-picker-panel"
       role="dialog"
     >

@@ -53,7 +53,7 @@ function SpielwieseCanvasPane({
       data-testid="spielwiese-editor-canvas-pane"
     >
       <div
-        className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-[8px] px-4 py-0 shadow-xs sm:px-5"
+        className="bg-background flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-4 py-0 shadow-xs sm:px-5"
         data-testid="spielwiese-editor-canvas-pane-shell"
       >
         <SpielwieseAgentNodeStack

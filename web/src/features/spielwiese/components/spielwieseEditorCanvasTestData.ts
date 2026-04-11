@@ -18,6 +18,10 @@ export const spielwieseEditorCanvasTestCanvas = {
       settings: [
         { id: "model", label: "Model", value: "GPT-4.1 mini" },
         { id: "temperature", label: "Temperature", value: "0.1" },
+        { id: "top-p", label: "Top P", value: "1.0" },
+        { id: "response-format", label: "Response format", value: "json" },
+        { id: "stop-sequence", label: "Stop sequence", value: "none" },
+        { id: "reasoning", label: "Reasoning", value: "off / 0 tok" },
       ],
       promptSections: [
         { id: "user", label: "User", value: "[image]" },
@@ -48,6 +52,10 @@ export const spielwieseEditorCanvasTestCanvas = {
         { id: "model", label: "Model", value: "GPT-4.1" },
         { id: "output", label: "Output", value: "macro_estimates" },
         { id: "temperature", label: "Temperature", value: "0.2" },
+        { id: "top-p", label: "Top P", value: "0.9" },
+        { id: "response-format", label: "Response format", value: "json" },
+        { id: "stop-sequence", label: "Stop sequence", value: "none" },
+        { id: "reasoning", label: "Reasoning", value: "on / 512 tok" },
       ],
       promptSections: [
         { id: "user", label: "User", value: "[JSON from Step 1]" },
@@ -76,6 +84,10 @@ export const spielwieseEditorCanvasTestCanvas = {
         { id: "input", label: "Input", value: "macro_estimates" },
         { id: "output", label: "Output", value: "coach_summary" },
         { id: "temperature", label: "Temperature", value: "0.4" },
+        { id: "top-p", label: "Top P", value: "0.85" },
+        { id: "response-format", label: "Response format", value: "text" },
+        { id: "stop-sequence", label: "Stop sequence", value: "none" },
+        { id: "reasoning", label: "Reasoning", value: "off / 0 tok" },
       ],
       promptSections: [
         { id: "user", label: "User", value: "[JSON from Step 2]" },

@@ -39,6 +39,6 @@ export function getMessageToneClassNames(_sectionId: string) {
     label: "text-foreground/70",
     surface: "bg-muted/24",
     field:
-      "rounded-[10px] border-transparent bg-[#dfe0e0] px-3 py-2 text-foreground placeholder:text-foreground/46 shadow-none focus-visible:border-transparent focus-visible:ring-0",
+      "rounded-[10px] border-transparent bg-transparent text-foreground placeholder:text-foreground/46 shadow-none focus-visible:border-transparent focus-visible:ring-0",
   };
 }

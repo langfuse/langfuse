@@ -1,4 +1,5 @@
-import { Brackets, Settings2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Brackets, Settings2, type LucideIcon, UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
@@ -8,6 +9,22 @@ import {
   getMessageToneClassNames,
   getPlaceholderCount,
 } from "./spielwieseMessageTone";
+
+function getMessageSectionPrefixIcon(messageKind: string) {
+  if (messageKind === "system") {
+    return Settings2;
+  }
+
+  if (messageKind === "assistant") {
+    return Settings2;
+  }
+
+  if (messageKind === "user") {
+    return UserRound;
+  }
+
+  return null;
+}
 
 function MessageSectionChipButton({
   isCollapsed,
@@ -26,7 +43,7 @@ function MessageSectionChipButton({
   sectionId: string;
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
 }) {
-  const hasLeadingIcon = messageKind === "system";
+  const prefixIcon = getMessageSectionPrefixIcon(messageKind);
 
   return (
     <Button
@@ -38,8 +55,10 @@ function MessageSectionChipButton({
       variant="ghost"
       onClick={onToggleCollapse}
     >
-      {hasLeadingIcon ? (
+      {prefixIcon ? (
         <MessageSectionChipPrefix
+          icon={prefixIcon}
+          messageKind={messageKind}
           nodeId={nodeId}
           sectionId={sectionId}
           toneClassNames={toneClassNames}
@@ -58,10 +77,14 @@ function MessageSectionChipButton({
 }
 
 function MessageSectionChipPrefix({
+  icon: Icon,
+  messageKind,
   nodeId,
   sectionId,
   toneClassNames,
 }: {
+  icon: LucideIcon;
+  messageKind: string;
   nodeId: string;
   sectionId: string;
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
@@ -77,9 +100,13 @@ function MessageSectionChipPrefix({
       data-size="20"
       data-suffix="true"
     >
-      <Settings2
+      <Icon
         className={cn("size-3 shrink-0", toneClassNames.label)}
-        data-testid={`${nodeId}-${sectionId}-icon`}
+        data-testid={
+          messageKind === "user"
+            ? `${nodeId}-user-tag-icon`
+            : `${nodeId}-${sectionId}-icon`
+        }
       />
     </span>
   );
@@ -106,6 +133,7 @@ function MessageSectionMetrics({
 }
 
 function MessageSectionSummary({
+  inlineAccessory,
   isCollapsed,
   onToggleCollapse,
   nodeId,
@@ -113,6 +141,7 @@ function MessageSectionSummary({
   label,
   value,
 }: {
+  inlineAccessory?: ReactNode;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   nodeId: string;
@@ -124,7 +153,7 @@ function MessageSectionSummary({
   const messageKind = getMessageKind(sectionId);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
       <MessageSectionChipButton
         isCollapsed={isCollapsed}
         label={label}
@@ -135,6 +164,7 @@ function MessageSectionSummary({
         toneClassNames={toneClassNames}
       />
       <MessageSectionMetrics toneClassNames={toneClassNames} value={value} />
+      {inlineAccessory}
       {isCollapsed ? (
         <SpielwieseCollapsedPromptPreview
           className={toneClassNames.count}
@@ -146,6 +176,7 @@ function MessageSectionSummary({
 }
 
 function MessageSectionLeading({
+  inlineAccessory,
   isCollapsed,
   label,
   nodeId,
@@ -153,6 +184,7 @@ function MessageSectionLeading({
   sectionId,
   value,
 }: {
+  inlineAccessory?: ReactNode;
   isCollapsed: boolean;
   label: string;
   nodeId: string;
@@ -161,8 +193,9 @@ function MessageSectionLeading({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-visible">
       <MessageSectionSummary
+        inlineAccessory={inlineAccessory}
         isCollapsed={isCollapsed}
         label={label}
         nodeId={nodeId}
@@ -177,6 +210,7 @@ function MessageSectionLeading({
 type SpielwieseMessageSectionHeaderProps = {
   canMoveDown: boolean;
   canMoveUp: boolean;
+  inlineAccessory?: ReactNode;
   isCollapsed: boolean;
   label: string;
   nodeId: string;
@@ -185,12 +219,14 @@ type SpielwieseMessageSectionHeaderProps = {
   onMoveUp: () => void;
   onToggleCollapse: () => void;
   sectionId: string;
+  trailingAccessory?: ReactNode;
   value: string;
 };
 
 export function SpielwieseMessageSectionHeader({
   canMoveDown,
   canMoveUp,
+  inlineAccessory,
   isCollapsed,
   label,
   nodeId,
@@ -199,6 +235,7 @@ export function SpielwieseMessageSectionHeader({
   onMoveUp,
   onToggleCollapse,
   sectionId,
+  trailingAccessory,
   value,
 }: SpielwieseMessageSectionHeaderProps) {
   const toneClassNames = getMessageToneClassNames(sectionId);
@@ -206,11 +243,12 @@ export function SpielwieseMessageSectionHeader({
   return (
     <div
       className={cn(
-        "flex min-h-6 w-full items-start justify-between gap-3 py-0.5",
+        "flex w-full items-center justify-between gap-3",
         toneClassNames.header,
       )}
     >
       <MessageSectionLeading
+        inlineAccessory={inlineAccessory}
         isCollapsed={isCollapsed}
         label={label}
         nodeId={nodeId}
@@ -218,16 +256,19 @@ export function SpielwieseMessageSectionHeader({
         sectionId={sectionId}
         value={value}
       />
-      <SpielwieseMessageSectionActions
-        canMoveDown={canMoveDown}
-        canMoveUp={canMoveUp}
-        nodeId={nodeId}
-        onDelete={onDelete}
-        onMoveDown={onMoveDown}
-        onMoveUp={onMoveUp}
-        sectionId={sectionId}
-        sectionLabel={label}
-      />
+      <div className="flex shrink-0 items-center gap-1">
+        <SpielwieseMessageSectionActions
+          canMoveDown={canMoveDown}
+          canMoveUp={canMoveUp}
+          nodeId={nodeId}
+          onDelete={onDelete}
+          onMoveDown={onMoveDown}
+          onMoveUp={onMoveUp}
+          sectionId={sectionId}
+          sectionLabel={label}
+        />
+        {trailingAccessory}
+      </div>
     </div>
   );
 }

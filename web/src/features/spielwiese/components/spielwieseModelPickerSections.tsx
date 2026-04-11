@@ -23,10 +23,15 @@ function ProviderButton({
 }) {
   return (
     <Button
-      className="justify-between rounded-lg"
+      className={cn(
+        "h-8 justify-between rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+        isActive
+          ? "text-foreground bg-white ring-1 ring-black/6 hover:bg-white"
+          : "text-foreground hover:bg-black/[0.03]",
+      )}
       size="sm"
       type="button"
-      variant={isActive ? "secondary" : "ghost"}
+      variant="ghost"
       onFocus={onFocus}
       onClick={onClick}
       onMouseEnter={onFocus}
@@ -38,7 +43,10 @@ function ProviderButton({
         <SpielwieseModelProviderMark providerId={provider.id} />
         <span className="truncate">{provider.label}</span>
       </span>
-      <ChevronRight data-icon="inline-end" />
+      <ChevronRight
+        aria-hidden="true"
+        className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]"
+      />
     </Button>
   );
 }
@@ -95,8 +103,10 @@ function ModelOptionButton({
     <button
       aria-label={model.label}
       className={cn(
-        "hover:bg-accent/60 focus-visible:ring-ring/40 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left outline-none focus-visible:ring-2",
-        isActive && "bg-accent/80",
+        "focus-visible:ring-ring/30 flex w-full items-center justify-between gap-3 rounded-[12px] px-2.5 py-2.5 text-left outline-none focus-visible:ring-2",
+        isActive
+          ? "bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] ring-1 ring-black/5"
+          : "hover:bg-white/72",
       )}
       onClick={onSelect}
       onFocus={onFocus}
@@ -106,11 +116,13 @@ function ModelOptionButton({
       onPointerMove={onFocus}
       type="button"
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2.5">
         <SpielwieseModelProviderMark providerId={provider.id} />
-        <p className="truncate text-sm font-medium">{model.label}</p>
+        <p className="truncate text-[0.8125rem] leading-5 font-medium">
+          {model.label}
+        </p>
       </div>
-      <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
+      <ChevronRight className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]" />
     </button>
   );
 }
@@ -137,7 +149,7 @@ export function SpielwieseModelColumn({
     : provider.latestModels;
 
   return (
-    <div className="flex min-h-0 w-[15rem] flex-col gap-1">
+    <div className="flex min-h-0 w-[15rem] flex-col gap-1.5">
       {models.map((model) => (
         <ModelOptionButton
           isActive={
@@ -152,7 +164,7 @@ export function SpielwieseModelColumn({
       ))}
       {provider.legacyModels.length > 0 ? (
         <Button
-          className="mt-1 justify-start rounded-lg"
+          className="text-foreground/64 hover:text-foreground mt-2 justify-start rounded-[10px] px-2.5 text-[0.75rem] hover:bg-black/[0.03]"
           size="sm"
           type="button"
           variant="ghost"
@@ -171,15 +183,20 @@ export function SpielwieseBenchmarkPreview({
   model: SpielwieseModelOption;
 }) {
   return (
-    <div className="bg-muted/25 flex w-[14rem] flex-col gap-3 rounded-xl p-3">
-      <div className="flex flex-col gap-2">
+    <div className="flex w-[14rem] flex-col gap-3 rounded-[14px] border border-[rgba(0,0,0,0.05)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(243,244,241,0.92)_100%)] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+      <div className="flex flex-col gap-1.5">
+        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+          Model profile
+        </p>
         <p className="text-sm font-semibold">{model.label}</p>
-        <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-black/5 bg-white/76 px-2.5 py-2 text-sm">
           <span className="text-muted-foreground">Token cost</span>
-          <span className="font-medium">{getTokenCostLabel(model)}</span>
+          <span className="font-medium tabular-nums">
+            {getTokenCostLabel(model)}
+          </span>
         </div>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5 rounded-[10px] border border-black/5 bg-white/58 p-2.5">
         {model.benchmarks.map((benchmark) => (
           <div
             className="flex items-center justify-between gap-3"
@@ -202,7 +219,12 @@ export function SpielwieseProviderColumn({
   onSelectProvider: (provider: SpielwieseModelProvider) => void;
 }) {
   return (
-    <div className="flex w-[11rem] flex-col gap-2">
+    <div className="flex w-[11rem] flex-col gap-3">
+      <div className="px-0.5">
+        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+          Providers
+        </p>
+      </div>
       <div className="flex flex-1 flex-col gap-1">
         {spielwieseModelProviders.map((provider) => (
           <ProviderButton
@@ -215,7 +237,12 @@ export function SpielwieseProviderColumn({
         ))}
       </div>
       <div className="flex justify-center">
-        <Button size="sm" type="button" variant="secondary">
+        <Button
+          className="text-foreground/64 hover:text-foreground h-7 rounded-full border border-black/6 bg-white/76 px-3 text-[0.75rem] shadow-none hover:bg-white"
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
           Recommend me a model
         </Button>
       </div>

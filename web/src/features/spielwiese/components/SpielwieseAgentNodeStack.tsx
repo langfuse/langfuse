@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
+import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
 
 type SpielwieseAgentNodeStackProps = {
@@ -30,11 +31,11 @@ type SpielwieseAgentNodeStackProps = {
 };
 
 type SpielwieseAgentNodeProps = {
-  isCollapsed: boolean;
+  isCompact: boolean;
   node: SpielwieseAgentNodeVM;
   onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseAgentNodeStackProps["onPromptSectionInsert"];
-  onToggleCollapse: () => void;
+  onToggleCompact: () => void;
   onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionMove: SpielwieseAgentNodeStackProps["onPromptSectionMove"];
   onSettingValueChange: SpielwieseAgentNodeStackProps["onSettingValueChange"];
@@ -65,7 +66,7 @@ function SpielwieseDetachedUserSections({
       data-testid={`${node.id}-detached-user-sections`}
     >
       <SpielwieseAgentNodePromptSections
-        className="pt-0"
+        className="pt-0 pb-1"
         includeKinds={["user"]}
         nodeId={node.id}
         onPromptSectionDelete={onPromptSectionDelete}
@@ -82,7 +83,7 @@ function SpielwieseDetachedUserSections({
 }
 
 function SpielwieseAgentNodeCard({
-  isCollapsed,
+  isCompact,
   modelSetting,
   node,
   onPromptSectionDelete,
@@ -90,11 +91,11 @@ function SpielwieseAgentNodeCard({
   onPromptSectionChange,
   onPromptSectionMove,
   onSettingValueChange,
-  onToggleCollapse,
+  onToggleCompact,
   onTitleChange,
   toolOptions,
 }: {
-  isCollapsed: boolean;
+  isCompact: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
   onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
@@ -102,7 +103,7 @@ function SpielwieseAgentNodeCard({
   onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionMove: SpielwieseAgentNodeStackProps["onPromptSectionMove"];
   onSettingValueChange: SpielwieseAgentNodeStackProps["onSettingValueChange"];
-  onToggleCollapse: () => void;
+  onToggleCompact: () => void;
   onTitleChange: SpielwieseAgentNodeStackProps["onTitleChange"];
   toolOptions: ReturnType<typeof getNodeToolOptions>;
 }) {
@@ -112,37 +113,36 @@ function SpielwieseAgentNodeCard({
       data-testid="spielwiese-agent-node-card"
     >
       <SpielwieseAgentNodeHeader
-        isCollapsed={isCollapsed}
+        isCompact={isCompact}
         modelSetting={modelSetting}
         node={node}
-        onToggleCollapse={onToggleCollapse}
+        onToggleCompact={onToggleCompact}
         onSettingValueChange={onSettingValueChange}
         onTitleChange={onTitleChange}
       />
-      {isCollapsed ? null : (
-        <div id={`${node.id}-content`}>
-          <SpielwieseAgentNodePromptSections
-            includeKinds={["system", "assistant", "tool"]}
-            nodeId={node.id}
-            onPromptSectionDelete={onPromptSectionDelete}
-            onPromptSectionInsert={onPromptSectionInsert}
-            onPromptSectionChange={onPromptSectionChange}
-            onPromptSectionMove={onPromptSectionMove}
-            promptSections={node.promptSections}
-            toolOptions={toolOptions}
-          />
-        </div>
-      )}
+      <div>
+        <SpielwieseAgentNodePromptSections
+          includeKinds={["system", "assistant", "tool"]}
+          isCompact={isCompact}
+          nodeId={node.id}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
+          onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionMove={onPromptSectionMove}
+          promptSections={node.promptSections}
+          toolOptions={toolOptions}
+        />
+      </div>
     </div>
   );
 }
 
 function SpielwieseAgentNode({
-  isCollapsed,
+  isCompact,
   node,
   onPromptSectionDelete,
   onPromptSectionInsert,
-  onToggleCollapse,
+  onToggleCompact,
   onPromptSectionChange,
   onPromptSectionMove,
   onSettingValueChange,
@@ -152,7 +152,7 @@ function SpielwieseAgentNode({
   const toolOptions = getNodeToolOptions(node.notes);
 
   return (
-    <li className="grid gap-1.5" data-testid="spielwiese-agent-node">
+    <li className="grid gap-1.5 last:pb-5" data-testid="spielwiese-agent-node">
       <SpielwieseDetachedUserSections
         node={node}
         onPromptSectionChange={onPromptSectionChange}
@@ -162,7 +162,7 @@ function SpielwieseAgentNode({
         toolOptions={toolOptions}
       />
       <SpielwieseAgentNodeCard
-        isCollapsed={isCollapsed}
+        isCompact={isCompact}
         modelSetting={modelSetting}
         node={node}
         onPromptSectionChange={onPromptSectionChange}
@@ -171,8 +171,14 @@ function SpielwieseAgentNode({
         onPromptSectionMove={onPromptSectionMove}
         onSettingValueChange={onSettingValueChange}
         onTitleChange={onTitleChange}
-        onToggleCollapse={onToggleCollapse}
+        onToggleCompact={onToggleCompact}
         toolOptions={toolOptions}
+      />
+      <SpielwieseMessageInsertRow
+        nodeId={node.id}
+        onPromptSectionInsert={onPromptSectionInsert}
+        rowTestId="spielwiese-message-insert-external-row"
+        variant="text"
       />
     </li>
   );
@@ -187,25 +193,25 @@ export function SpielwieseAgentNodeStack({
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseAgentNodeStackProps) {
-  const [collapsedNodeIds, setCollapsedNodeIds] = useState<
-    Record<string, boolean>
-  >({});
+  const [compactNodeIds, setCompactNodeIds] = useState<Record<string, boolean>>(
+    {},
+  );
 
   return (
     <ol
-      className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pt-4 pb-2 sm:pt-5"
+      className="flex min-h-full flex-col gap-1.5 pt-4 pb-2 sm:pt-5"
       data-testid="spielwiese-agent-node-stack"
       role="list"
     >
       {nodes.map((node) => (
         <SpielwieseAgentNode
-          isCollapsed={Boolean(collapsedNodeIds[node.id])}
+          isCompact={Boolean(compactNodeIds[node.id])}
           key={node.id}
           node={node}
           onPromptSectionDelete={onPromptSectionDelete}
           onPromptSectionInsert={onPromptSectionInsert}
-          onToggleCollapse={() =>
-            setCollapsedNodeIds((currentIds) => ({
+          onToggleCompact={() =>
+            setCompactNodeIds((currentIds) => ({
               ...currentIds,
               [node.id]: !currentIds[node.id],
             }))

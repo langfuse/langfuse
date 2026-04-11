@@ -20,6 +20,7 @@ import {
 type SpielwieseAgentNodePromptSectionsProps = {
   className?: string;
   includeKinds?: Array<"user" | "system" | "assistant" | "tool">;
+  isCompact?: boolean;
   nodeId: string;
   onPromptSectionChange: (
     nodeId: string,
@@ -46,6 +47,7 @@ type SpielwieseMessageSectionRowProps = {
   assistantReceivesValue?: string;
   canMoveDown: boolean;
   canMoveUp: boolean;
+  defaultCollapsed?: boolean;
   displayLabel: string;
   nodeId: string;
   onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
@@ -105,6 +107,7 @@ function renderExpandedStandardMessageSectionContent({
 function SpielwieseStandardMessageSectionRow({
   canMoveDown,
   canMoveUp,
+  defaultCollapsed = false,
   displayLabel,
   nodeId,
   onPromptSectionChange,
@@ -124,7 +127,7 @@ function SpielwieseStandardMessageSectionRow({
   section: SpielwieseAgentNodeVM["promptSections"][number];
   toolOptions: SpielwieseToolOption[];
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
@@ -163,6 +166,7 @@ function SpielwieseStandardMessageSectionRow({
 }
 
 function SpielwieseMessageSectionRow({
+  defaultCollapsed = false,
   userLayout = "standard",
   ...props
 }: SpielwieseMessageSectionRowProps & {
@@ -187,6 +191,7 @@ function SpielwieseMessageSectionRow({
         onPromptSectionChange={props.onPromptSectionChange}
         receivesValue={props.assistantReceivesValue}
         section={props.section}
+        startCollapsed={defaultCollapsed}
       />
     );
   }
@@ -195,10 +200,20 @@ function SpielwieseMessageSectionRow({
     userLayout === "detached" &&
     getMessageKind(props.section.id) === "user"
   ) {
-    return <SpielwieseDetachedUserMessageSectionRow {...props} />;
+    return (
+      <SpielwieseDetachedUserMessageSectionRow
+        {...props}
+        startCollapsed={defaultCollapsed}
+      />
+    );
   }
 
-  return <SpielwieseStandardMessageSectionRow {...props} />;
+  return (
+    <SpielwieseStandardMessageSectionRow
+      {...props}
+      defaultCollapsed={defaultCollapsed}
+    />
+  );
 }
 
 function getVisiblePromptSections(
@@ -241,6 +256,7 @@ function findAssistantReceivesValue(
 export function SpielwieseAgentNodePromptSections({
   className,
   includeKinds,
+  isCompact = false,
   nodeId,
   onPromptSectionChange,
   onPromptSectionDelete,
@@ -260,7 +276,7 @@ export function SpielwieseAgentNodePromptSections({
   }
 
   return (
-    <div className={cn("grid gap-[7px] pt-2.5", className)}>
+    <div className={cn("grid gap-[7px] pt-1 pb-1", className)}>
       {visibleSections.map((section, index) => (
         <SpielwieseMessageSectionRow
           assistantReceivesValue={findAssistantReceivesValue(
@@ -276,8 +292,9 @@ export function SpielwieseAgentNodePromptSections({
             index > 0 &&
             getMessageKind(visibleSections[index - 1]?.id ?? "") !== "system"
           }
+          defaultCollapsed={isCompact}
           displayLabel={getPromptSectionDisplayLabel(section.id, section.label)}
-          key={section.id}
+          key={`${section.id}-${isCompact ? "compact" : "expanded"}`}
           nodeId={nodeId}
           onPromptSectionChange={onPromptSectionChange}
           onPromptSectionDelete={onPromptSectionDelete}

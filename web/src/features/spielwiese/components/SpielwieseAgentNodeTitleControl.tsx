@@ -5,7 +5,6 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { getModelProvider } from "./spielwieseModelCatalog";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import { SpielwieseModelPickerPanel } from "./SpielwieseModelPicker";
@@ -98,16 +97,17 @@ function SpielwieseAgentTitleField({
   onTitleChange,
 }: Pick<SpielwieseAgentNodeTitleControlProps, "node" | "onTitleChange">) {
   return (
-    <div className="flex min-w-0 flex-1 items-center px-3">
+    <div className="flex min-w-0 shrink-0 items-center px-2.5">
       <Input
         aria-label={`${node.id} title`}
         className={cn(
           spielwieseInlineInputClassName,
           spielwieseStripItemFieldClassName,
-          "text-foreground min-w-0 flex-1 px-0 text-[13px] font-semibold tracking-[-0.01em] max-sm:text-base/5",
+          "text-foreground [field-sizing:content] w-auto max-w-[14rem] min-w-[1ch] px-0 text-[13px] font-semibold tracking-[-0.01em] max-sm:text-base/5 sm:max-w-[18rem]",
         )}
         name={`${node.id}-title`}
         onChange={(event) => onTitleChange(node.id, event.target.value)}
+        size={Math.max(node.title.length, 1)}
         value={node.title}
       />
     </div>
@@ -127,17 +127,16 @@ function SpielwieseAgentModelSegment({
 }) {
   return (
     <div className="flex shrink-0 items-center pr-1">
-      <Button
+      <button
         aria-expanded={isOpen}
         aria-label={`${nodeId} Model`}
-        className="text-foreground h-7 min-w-[11rem] justify-between gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium hover:bg-black/[0.03]"
-        size="sm"
+        className="text-foreground inline-flex h-7 w-auto max-w-[14rem] shrink-0 items-center gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium whitespace-nowrap outline-none hover:bg-transparent focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50 sm:max-w-[18rem]"
         type="button"
-        variant="ghost"
         onClick={onClick}
       >
-        <span className="flex min-w-0 flex-1 items-center">
+        <span className="inline-flex min-w-0 items-center">
           <SpielwieseHeaderStripTag
+            className="bg-transparent"
             label=""
             revealLabelWidthClassName="max-w-0"
             revealWidthClassName="w-6"
@@ -146,8 +145,11 @@ function SpielwieseAgentModelSegment({
           </SpielwieseHeaderStripTag>
           <span className="min-w-0 truncate px-2.5">{currentModel}</span>
         </span>
-        <ChevronDown data-icon="inline-end" />
-      </Button>
+        <ChevronDown
+          aria-hidden="true"
+          className="text-foreground/36 size-3 shrink-0 stroke-[2.2px]"
+        />
+      </button>
     </div>
   );
 }
@@ -168,7 +170,7 @@ function SpielwieseAgentTitleSurface({
   return (
     <div
       className={cn(
-        "flex h-7 min-w-0 items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4",
+        "inline-flex h-7 max-w-full items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4",
         getModelTintClassName(currentModel),
       )}
       data-testid="spielwiese-agent-title-control"
@@ -179,7 +181,7 @@ function SpielwieseAgentTitleSurface({
         isOpen={isModelPickerOpen}
         onClick={togglePicker}
       />
-      <div className="h-[calc(100%-10px)] w-px shrink-0 bg-black/8" />
+      <div className="w-px shrink-0 self-stretch bg-black/8" />
       <SpielwieseAgentTitleField node={node} onTitleChange={onTitleChange} />
     </div>
   );
@@ -206,7 +208,7 @@ export function SpielwieseAgentNodeTitleControl({
 
   return (
     <div
-      className="relative max-w-[31rem] min-w-[19rem] flex-1 basis-[19rem] sm:flex-none"
+      className="relative max-w-full shrink-0"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           closePicker();

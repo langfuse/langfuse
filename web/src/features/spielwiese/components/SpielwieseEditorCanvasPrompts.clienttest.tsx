@@ -11,9 +11,7 @@ function getPromptSectionOrder(nodeElement: HTMLElement) {
 
 function insertToolMessage(nodeElement: HTMLElement) {
   fireEvent.click(
-    within(nodeElement).getByRole("button", {
-      name: "New message",
-    }),
+    within(nodeElement).getByTestId("spielwiese-message-insert-text-trigger"),
   );
   fireEvent.click(within(nodeElement).getByRole("button", { name: "Tool" }));
 
@@ -22,66 +20,111 @@ function insertToolMessage(nodeElement: HTMLElement) {
   });
 }
 
+function getInsertControls(nodeElement: HTMLElement) {
+  return {
+    compactPicker: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-picker-compact",
+    ),
+    compactShell: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-compact-shell",
+    ),
+    compactTrigger: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-compact-trigger",
+    ),
+    insertRow: within(nodeElement).getByTestId("spielwiese-message-insert-row"),
+    externalRow: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-external-row",
+    ),
+    textPicker: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-picker-text",
+    ),
+    textShell: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-text-shell",
+    ),
+    textTrigger: within(nodeElement).getByTestId(
+      "spielwiese-message-insert-text-trigger",
+    ),
+  };
+}
+
+function expectInsertRowChrome({
+  compactPicker,
+  compactShell,
+  compactTrigger,
+  externalRow,
+  insertRow,
+  textPicker,
+  textShell,
+  textTrigger,
+  visionNode,
+}: ReturnType<typeof getInsertControls> & { visionNode: HTMLElement }) {
+  const nodeCard = within(visionNode).getByTestId("spielwiese-agent-node-card");
+
+  expect(compactPicker.className).not.toContain("absolute");
+  expect(compactPicker.getAttribute("data-state")).toBe("open");
+  expect(compactPicker.className).toContain("border-l");
+  expect(compactPicker.className).toContain("bg-[rgba(0,0,0,0.035)]");
+  expect(textPicker.getAttribute("data-state")).toBe("closed");
+  expect(insertRow.parentElement).toBe(
+    nodeCard.lastElementChild?.firstElementChild,
+  );
+  expect(insertRow.className).toContain("w-fit");
+  expect(insertRow.className).toContain("pt-[7px]");
+  expect(insertRow.className).toContain("pl-[18px]");
+  expect(insertRow.className).toContain("pb-[14px]");
+  expect(externalRow.className).toContain("w-fit");
+  expect(externalRow.className).toContain("pl-[18px]");
+  expect(nodeCard.nextElementSibling).toBe(externalRow);
+  expect(compactShell.className).toContain("overflow-hidden");
+  expect(compactShell.className).toContain("rounded-[8px]");
+  expect(textShell.className).toContain("overflow-hidden");
+  expect(textShell.className).toContain("rounded-[8px]");
+  expect(compactTrigger.textContent).toBe("+");
+  expect(compactTrigger.getAttribute("aria-expanded")).toBe("true");
+  expect(compactTrigger.className).toContain("size-7");
+  expect(textTrigger.textContent).toBe("New message");
+  expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
+  expect(nodeCard.lastElementChild?.firstElementChild?.className).toContain(
+    "gap-[7px]",
+  );
+}
+
+function renderVisionNode() {
+  render(<SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />);
+  return screen.getAllByTestId("spielwiese-agent-node")[0];
+}
+
 describe("SpielwieseEditorCanvas prompt insertion", () => {
   it("reveals an inline message tray that stays open until toggled closed", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
-    );
+    const visionNode = renderVisionNode();
+    const controls = getInsertControls(visionNode);
 
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const newMessageButton = within(visionNode).getByRole("button", {
-      name: "New message",
-    });
+    controls.compactTrigger.focus();
+    fireEvent.click(controls.compactTrigger);
 
-    newMessageButton.focus();
-    fireEvent.click(newMessageButton);
+    expectInsertRowChrome({ ...controls, visionNode });
 
-    const picker = within(visionNode).getByTestId(
-      "spielwiese-message-insert-picker",
-    );
-    const insertRow = within(visionNode).getByTestId(
-      "spielwiese-message-insert-row",
-    );
+    fireEvent.blur(controls.compactTrigger, { relatedTarget: null });
 
-    expect(picker.className).not.toContain("absolute");
-    expect(picker.getAttribute("data-state")).toBe("open");
-    expect(picker.className).toContain("border-l");
-    expect(picker.className).toContain("bg-[rgba(0,0,0,0.035)]");
-    expect(insertRow.className).toContain("w-fit");
-    expect(insertRow.className).toContain("items-center");
-    expect(insertRow.className).toContain("pt-[7px]");
-    expect(insertRow.className).toContain("pl-[18px]");
-    expect(insertRow.className).toContain("pb-[14px]");
-    expect(insertRow.firstElementChild?.className).toContain("overflow-hidden");
-    expect(insertRow.firstElementChild?.className).toContain("rounded-[8px]");
-    expect(
-      within(visionNode)
-        .getByTestId("spielwiese-agent-node-card")
-        .querySelector("#vision-agent-content > div")?.className,
-    ).toContain("gap-[7px]");
+    expect(controls.compactPicker.getAttribute("data-state")).toBe("open");
 
-    fireEvent.blur(newMessageButton, { relatedTarget: null });
+    fireEvent.click(controls.textTrigger);
 
-    expect(picker.getAttribute("data-state")).toBe("open");
-
-    fireEvent.click(newMessageButton);
-
-    expect(picker.getAttribute("data-state")).toBe("closed");
+    expect(controls.compactPicker.getAttribute("data-state")).toBe("open");
+    expect(controls.textPicker.getAttribute("data-state")).toBe("open");
+    expect(controls.compactTrigger.getAttribute("aria-expanded")).toBe("true");
+    expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
   });
 });
 
 describe("SpielwieseEditorCanvas prompt insertion actions", () => {
   it("lets a node append a new user, system, or assistant message from the footer control", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
+    const visionNode = renderVisionNode();
+    const textTrigger = within(visionNode).getByTestId(
+      "spielwiese-message-insert-text-trigger",
     );
 
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const newMessageButton = within(visionNode).getByRole("button", {
-      name: "New message",
-    });
-
-    fireEvent.click(newMessageButton);
+    fireEvent.click(textTrigger);
     fireEvent.click(
       within(visionNode).getByRole("button", { name: "Assistant" }),
     );
@@ -98,24 +141,20 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
   });
 
   it("still inserts a message when the trigger blurs before the option click lands", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
+    const visionNode = renderVisionNode();
+    const compactTrigger = within(visionNode).getByTestId(
+      "spielwiese-message-insert-compact-trigger",
     );
 
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const newMessageButton = within(visionNode).getByRole("button", {
-      name: "New message",
-    });
-
-    newMessageButton.focus();
-    fireEvent.click(newMessageButton);
+    compactTrigger.focus();
+    fireEvent.click(compactTrigger);
 
     const assistantOption = within(visionNode).getByRole("button", {
       name: "Assistant",
     });
 
     fireEvent.mouseDown(assistantOption);
-    fireEvent.blur(newMessageButton, { relatedTarget: null });
+    fireEvent.blur(compactTrigger, { relatedTarget: null });
     fireEvent.click(assistantOption);
 
     expect(
@@ -128,11 +167,7 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
 
 describe("SpielwieseEditorCanvas tool messages", () => {
   it("shows only the picker first and reveals sent/back after a tool is picked", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
-    );
-
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const visionNode = renderVisionNode();
     const toolPicker = insertToolMessage(visionNode);
     const toolSection = within(visionNode).getByTestId(
       "spielwiese-tool-message-section",
@@ -165,11 +200,7 @@ describe("SpielwieseEditorCanvas tool messages", () => {
   });
 
   it("opens the add-tool popup from the node header", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
-    );
-
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const visionNode = renderVisionNode();
     const createToolButton = within(visionNode).getByRole("button", {
       name: "Create tool",
     });
@@ -192,11 +223,7 @@ describe("SpielwieseEditorCanvas tool messages", () => {
 
 describe("SpielwieseEditorCanvas prompt section controls", () => {
   it("lets a node delete a prompt section", () => {
-    render(
-      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
-    );
-
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const visionNode = renderVisionNode();
 
     fireEvent.click(
       within(visionNode).getByLabelText(
