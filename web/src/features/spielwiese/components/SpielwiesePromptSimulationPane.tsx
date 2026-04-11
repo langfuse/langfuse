@@ -1,6 +1,7 @@
-import { ChevronRight, UserRound } from "lucide-react";
+import { ChevronRight, History, UserRound } from "lucide-react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
+import { Button } from "../ui/button";
 import {
   getMessageKind,
   getMessageToneClassNames,
@@ -29,11 +30,11 @@ function PlaygroundFlowNode({
   return (
     <>
       <div
-        className="group flex w-fit shrink-0 flex-col gap-1.5 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
+        className="group flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
         data-testid="spielwiese-playground-flow-step"
       >
         <div
-          className="border-border/40 bg-background/96 flex min-w-0 items-center gap-2 rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border px-2.5 py-2"
+          className="border-border/40 bg-background/96 flex w-full min-w-0 items-center gap-2 rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border px-2.5 py-2"
           data-testid="spielwiese-playground-flow-node"
         >
           {nodeHasUserSection(node) ? (
@@ -71,11 +72,31 @@ function PlaygroundSurface({ nodes }: { nodes: SpielwieseAgentNodeVM[] }) {
       data-testid="spielwiese-prompt-simulation-pane"
     >
       <div
-        className="bg-background flex min-h-0 flex-1 items-start rounded-[8px] px-4 py-3 shadow-xs"
+        className="bg-background flex min-h-0 flex-1 flex-col items-start gap-3 rounded-[8px] px-4 py-3 shadow-xs"
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div
-          className="flex min-w-0 flex-1 items-start gap-2 overflow-x-auto"
+          className="ml-[13px] flex items-center gap-2"
+          data-testid="spielwiese-playground-header"
+        >
+          <div
+            className="text-foreground/54 text-[0.75rem] font-medium tracking-[0.02em]"
+            data-testid="spielwiese-playground-title"
+          >
+            Playground
+          </div>
+          <Button
+            className="text-foreground/62 hover:text-foreground inline-flex h-6 items-center gap-1.25 rounded-[8px] bg-[#F7F7F7] py-0 pr-2 pl-1.5 text-[11px] font-medium ring-1 ring-black/5 hover:bg-[#F4F4F4]"
+            data-testid="spielwiese-playground-history-button"
+            size="sm"
+            variant="ghost"
+          >
+            <History aria-hidden="true" className="size-3 shrink-0" />
+            <span>History</span>
+          </Button>
+        </div>
+        <div
+          className="flex w-full min-w-0 flex-1 items-start gap-2 overflow-x-auto"
           data-testid="spielwiese-playground-flow-strip"
         >
           {nodes.map((node, index) => (

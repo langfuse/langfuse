@@ -6,6 +6,15 @@ function getPromptSimulationElements() {
   const simulationPane = screen.getByTestId(
     "spielwiese-prompt-simulation-pane",
   );
+  const header = within(simulationPane).getByTestId(
+    "spielwiese-playground-header",
+  );
+  const historyButton = within(header).getByTestId(
+    "spielwiese-playground-history-button",
+  );
+  const title = within(simulationPane).getByTestId(
+    "spielwiese-playground-title",
+  );
   const terminalShell = within(simulationPane).getByTestId(
     "spielwiese-playground-terminal-shell",
   );
@@ -26,8 +35,11 @@ function getPromptSimulationElements() {
     flowNodes,
     flowSteps,
     flowStrip,
+    header,
+    historyButton,
     simulationPane,
     terminalShell,
+    title,
     userIcons: within(flowStrip).getAllByTestId(
       "spielwiese-playground-flow-user-icon",
     ),
@@ -46,9 +58,20 @@ function expectPromptSimulationPaneChrome(
   expect(simulationPane.className).not.toContain("border-b");
   expect(terminalShell.className).toContain("rounded-[8px]");
   expect(terminalShell.className).toContain("bg-background");
+  expect(terminalShell.className).toContain("flex-col");
   expect(terminalShell.className).toContain("items-start");
+  expect(terminalShell.className).toContain("gap-3");
+  expect(elements.header.className).toContain("ml-[13px]");
+  expect(elements.header.className).toContain("gap-2");
+  expect(elements.title.textContent).toBe("Playground");
+  expect(elements.title.className).toContain("text-[0.75rem]");
+  expect(elements.historyButton.textContent).toContain("History");
+  expect(elements.historyButton.className).toContain("h-6");
+  expect(elements.historyButton.className).toContain("rounded-[8px]");
+  expect(elements.historyButton.className).toContain("ring-1");
+  expect(elements.historyButton.querySelector("svg")).not.toBeNull();
   expect(flowStrip.className).toContain("items-start");
-  expect(simulationPane.textContent).not.toContain("Playground");
+  expect(flowStrip.className).toContain("w-full");
   expect(simulationPane.textContent).not.toContain("Sample message");
   expect(simulationPane.textContent).not.toContain("Preview");
   expect(screen.queryByLabelText("Playground input")).toBeNull();
@@ -70,6 +93,8 @@ function expectPromptSimulationNodeShells(
 
   expect(firstFlowStep.className).toContain("[--node-shell-gap:2px]");
   expect(firstFlowStep.className).toContain("[--node-shell-radius:16px]");
+  expect(firstFlowStep.className).toContain("flex-1");
+  expect(firstFlowStep.className).not.toContain("w-fit");
   expect(firstFlowStep.className).toContain("bg-[#FBFBFB]");
   expect(firstFlowStep.className).toContain("px-[2px]");
   expect(firstFlowStep.className).toContain("pt-[2px]");
@@ -83,6 +108,7 @@ function expectPromptSimulationNodeShells(
   );
   expect(firstFlowNode.className).toContain("border-border/40");
   expect(firstFlowNode.className).toContain("bg-background/96");
+  expect(firstFlowNode.className).toContain("w-full");
   expect(firstFlowNode.className).toContain("px-2.5");
   expect(firstFlowNode.className).toContain("py-2");
   expect(firstFlowNode.textContent).toContain("Vision Agent");
