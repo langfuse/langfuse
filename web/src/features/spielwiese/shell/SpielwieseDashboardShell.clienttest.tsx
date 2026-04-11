@@ -101,6 +101,12 @@ describe("SpielwieseDashboardShell render", () => {
     expect(screen.getByTestId("spielwiese-shell-main").className).toContain(
       "overflow-hidden",
     );
+    expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+      "px-3",
+    );
+    expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+      "sm:px-5",
+    );
     expectShellChromeBackground();
     expectShellChromeWithoutBorders();
     expect(
@@ -188,12 +194,12 @@ describe("SpielwieseDashboardShell finder interactions", () => {
     const searchInput = within(panel).getByLabelText("Find in workspace");
 
     expect(searchInput).toBeTruthy();
-    expect(within(panel).getByText("All Docs")).toBeTruthy();
+    expect(within(panel).getByText("Comedian Bot")).toBeTruthy();
 
     fireEvent.change(searchInput, { target: { value: "vision" } });
 
     expect(within(panel).getByText("Vision Agent")).toBeTruthy();
-    expect(within(panel).queryByText("Calendar")).toBeNull();
+    expect(within(panel).queryByText("Documentation")).toBeNull();
   });
 
   it("opens the finder from the F shortcut but ignores editable targets", () => {

@@ -149,7 +149,7 @@ function ShellBodyGrid({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <main
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-0 sm:px-5 sm:pt-4"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3 pb-0 sm:pt-4"
           data-testid="spielwiese-shell-main"
         >
           {children}

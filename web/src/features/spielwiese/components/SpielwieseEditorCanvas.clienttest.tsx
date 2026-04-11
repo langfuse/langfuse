@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
@@ -20,16 +21,40 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     );
 
     const widget = screen.getByTestId("spielwiese-editor-canvas");
-    const panes = screen.getAllByTestId("spielwiese-editor-canvas-pane");
+    const editorPane = screen.getByTestId("spielwiese-editor-canvas-pane");
+    const simulationPane = screen.getByTestId(
+      "spielwiese-prompt-simulation-pane",
+    );
+    const resizeHandle = screen.getByTestId(
+      "spielwiese-canvas-pane-resize-handle",
+    );
     const nodes = screen.getAllByTestId("spielwiese-agent-node");
 
     expect(widget.className).toContain("@container");
     expect(widget.className).toContain("h-full");
     expect(widget.className).toContain("overflow-hidden");
     expect(widget.className).toContain("flex-1");
-    expect(panes).toHaveLength(1);
-    expect(panes[0]?.className).toContain("rounded-lg");
+    expect(editorPane.className).toContain("rounded-t-lg");
+    expect(editorPane.className).toContain("rounded-b-none");
+    expect(simulationPane.className).toContain("rounded-none");
+    expect(simulationPane.className).toContain("border-t-0");
+    expect(resizeHandle).toBeTruthy();
     expect(nodes).toHaveLength(3);
+  });
+
+  it("renders a thin pane divider that thickens on hover without a grab pill", () => {
+    render(
+      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
+    );
+
+    const resizeHandle = screen.getByTestId(
+      "spielwiese-canvas-pane-resize-handle",
+    );
+
+    expect(resizeHandle.className).toContain("bg-border/70");
+    expect(resizeHandle.className).toContain("h-px");
+    expect(resizeHandle.className).toContain("hover:h-0.5");
+    expect(resizeHandle.firstElementChild).toBeNull();
   });
 
   it("renders three agent nodes with visible settings and no stats footer", () => {
@@ -51,6 +76,34 @@ describe("SpielwieseEditorCanvas layout shell", () => {
       screen.queryByText(spielwieseEditorCanvasTestCanvas.helper),
     ).toBeNull();
     expect(screen.queryByText("01")).toBeNull();
+  });
+});
+
+describe("SpielwieseEditorCanvas simulation runner", () => {
+  it("renders a Playground label with only the simulation buttons in the lower pane", () => {
+    render(
+      <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
+    );
+
+    const simulationPane = screen.getByTestId(
+      "spielwiese-prompt-simulation-pane",
+    );
+    const simulationButtons = within(simulationPane).getAllByRole("button");
+
+    expect(simulationButtons).toHaveLength(2);
+    expect(within(simulationPane).getByText("Playground")).toBeTruthy();
+    expect(
+      within(simulationPane).getByRole("button", {
+        name: "Reset sample",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(simulationPane).getByRole("button", {
+        name: "Run simulation",
+      }),
+    ).toBeTruthy();
+    expect(within(simulationPane).queryByText("Simulation Runner")).toBeNull();
+    expect(within(simulationPane).queryByText("Preview only")).toBeNull();
   });
 });
 
@@ -100,7 +153,7 @@ describe("SpielwieseEditorCanvas prompt layout", () => {
 });
 
 describe("SpielwieseEditorCanvas assistant prompt layout", () => {
-  it("renders the assistant section as a receives/responds behavior card", () => {
+  it("renders the assistant section with the standard flat row header and keeps the receives/responds behavior box", () => {
     render(
       <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
     );
@@ -109,18 +162,28 @@ describe("SpielwieseEditorCanvas assistant prompt layout", () => {
     const nodeCard = within(visionNode).getByTestId(
       "spielwiese-agent-node-card",
     );
-    const behaviorCard = within(nodeCard).getByTestId(
+    const sectionRows = within(nodeCard).getAllByTestId(
+      "spielwiese-message-section-row",
+    );
+    const assistantRow = sectionRows.find(
+      (row) => row.getAttribute("data-section-id") === "assistant",
+    );
+    const behaviorCard = within(assistantRow ?? nodeCard).getByTestId(
       "spielwiese-assistant-reply-card",
     );
 
+    expect(assistantRow).toBeTruthy();
+    expect(assistantRow?.className).toContain("rounded-lg");
     expect(
-      within(nodeCard).getByText("How the assistant should reply"),
-    ).toBeTruthy();
-    expect(
-      within(nodeCard).getByText(
-        "When it receives this \u2192 it should respond like this",
+      within(assistantRow ?? nodeCard).getByText(
+        "How the assistant should reply",
       ),
     ).toBeTruthy();
+    expect(
+      within(nodeCard).queryByText(
+        "When it receives this \u2192 it should respond like this",
+      ),
+    ).toBeNull();
     expect(within(behaviorCard).getByText("RECEIVES")).toBeTruthy();
     expect(within(behaviorCard).getByText("RESPONDS")).toBeTruthy();
     expect(
@@ -190,6 +253,7 @@ describe("SpielwieseEditorCanvas editing", () => {
     );
     expect(screen.queryByLabelText("vision-agent step")).toBeNull();
     expect(titleInput.className).toContain("w-full");
+    expect(titleInput.parentElement?.className).toContain("bg-muted/28");
     expect(screen.queryByLabelText("vision-agent description")).toBeNull();
     expect(modelInput.className).toContain("min-w-[11rem]");
     expect(systemInput.className).toContain("[field-sizing:content]");
