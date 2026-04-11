@@ -63,9 +63,11 @@ function getMustacheSegments(value: string): MustacheSegment[] {
   return segments;
 }
 
-const mustacheTagChipClassName = "inline-flex items-center align-middle py-0.5";
+const mustacheTagChipClassName =
+  "relative inline-flex items-center align-middle py-0.5";
+const mustacheTagMeasureClassName = "invisible whitespace-pre";
 const mustacheTagInnerClassName =
-  "inline-flex min-h-[1.375rem] items-center rounded-[5px] border px-1.5 py-px";
+  "pointer-events-none absolute inset-0 inline-flex min-h-[1.375rem] box-border items-center justify-center rounded-[5px] px-1 py-px";
 const mustacheTagLabelClassName =
   "whitespace-nowrap text-[12px] leading-4 font-medium tracking-[-0.01em]";
 
@@ -104,8 +106,8 @@ function getMustacheTagToneStyles(isValid: boolean, tagIndex: number) {
     return {
       chip: {
         backgroundColor: "oklch(96.412% 0.014744 17.932)",
-        borderColor: "oklch(63.611% 0.184756 20.116)",
         color: "oklch(48.937% 0.194273 20.734)",
+        boxShadow: "inset 0 0 0 1px oklch(63.611% 0.184756 20.116)",
       },
     };
   }
@@ -118,14 +120,14 @@ function getMustacheTagToneStyles(isValid: boolean, tagIndex: number) {
         ...baseMustacheFillOklch,
         hue: baseMustacheFillOklch.hue + hueShift,
       }),
-      borderColor: getOklchColorString({
-        ...baseMustacheAccentOklch,
-        hue: baseMustacheAccentOklch.hue + hueShift,
-      }),
       color: getOklchColorString({
         ...baseMustacheAccentOklch,
         hue: baseMustacheAccentOklch.hue + hueShift,
       }),
+      boxShadow: `inset 0 0 0 1px ${getOklchColorString({
+        ...baseMustacheAccentOklch,
+        hue: baseMustacheAccentOklch.hue + hueShift,
+      })}`,
     },
   };
 }
@@ -154,8 +156,16 @@ function MustacheTagChip({
       data-testid={`spielwiese-mustache-tag-${variableName}`}
     >
       <span
+        aria-hidden="true"
+        className={mustacheTagMeasureClassName}
+        data-testid={`spielwiese-mustache-tag-${variableName}-measure`}
+      >
+        {value}
+      </span>
+      <span
         className={mustacheTagInnerClassName}
         data-size="20"
+        data-testid={`spielwiese-mustache-tag-${variableName}-surface`}
         style={toneStyles.chip}
       >
         <span className={mustacheTagLabelClassName}>{visibleLabel}</span>

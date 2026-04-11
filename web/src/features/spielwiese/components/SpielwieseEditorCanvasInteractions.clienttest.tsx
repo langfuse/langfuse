@@ -21,6 +21,40 @@ function renderCanvas() {
   );
 }
 
+function expectVisibleMustacheTag(variableName: string, rawValue: string) {
+  const mustacheTag = screen.getByTestId(
+    `spielwiese-mustache-tag-${variableName}`,
+  );
+  const mustacheTagMeasure = screen.getByTestId(
+    `spielwiese-mustache-tag-${variableName}-measure`,
+  );
+  const mustacheTagSurface = screen.getByTestId(
+    `spielwiese-mustache-tag-${variableName}-surface`,
+  );
+  const mustacheTagLabel = mustacheTagSurface.firstElementChild as HTMLElement;
+
+  expect(mustacheTag).toBeTruthy();
+  expect(mustacheTag.className).toContain("relative");
+  expect(mustacheTag.className).toContain("align-middle");
+  expect(mustacheTag.className).toContain("items-center");
+  expect(mustacheTag.className).toContain("py-0.5");
+  expect(mustacheTagMeasure.textContent).toBe(rawValue);
+  expect(mustacheTagMeasure.className).toContain("invisible");
+  expect(mustacheTagMeasure.className).toContain("whitespace-pre");
+  expect(mustacheTagSurface.className).toContain("absolute");
+  expect(mustacheTagSurface.className).toContain("inset-0");
+  expect(mustacheTagSurface.className).toContain("box-border");
+  expect(mustacheTagSurface.className).toContain("min-h-[1.375rem]");
+  expect(mustacheTagSurface.className).toContain("rounded-[5px]");
+  expect(mustacheTagSurface.className).toContain("justify-center");
+  expect(mustacheTagSurface.className).not.toContain("px-1.5");
+  expect(mustacheTagSurface.className).toContain("py-px");
+  expect(mustacheTagLabel.className).toContain("text-[12px]");
+  expect(mustacheTagLabel.className).toContain("leading-4");
+  expect(mustacheTagLabel.className).toContain("font-medium");
+  expect(mustacheTagLabel.textContent).toBe(variableName);
+}
+
 function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
   return within(nodeElement)
     .getAllByTestId("spielwiese-message-section-row")
@@ -110,24 +144,7 @@ describe("SpielwieseEditorCanvas editing tags", () => {
 
     fireEvent.blur(systemInput);
 
-    const mustacheTag = screen.getByTestId("spielwiese-mustache-tag-food_name");
-    const mustacheTagSurface = mustacheTag.firstElementChild as HTMLElement;
-    const mustacheTagLabel =
-      mustacheTagSurface.firstElementChild as HTMLElement;
-
-    expect(mustacheTag).toBeTruthy();
-    expect(mustacheTag.className).toContain("align-middle");
-    expect(mustacheTag.className).toContain("items-center");
-    expect(mustacheTag.className).toContain("py-0.5");
-    expect(mustacheTagSurface.className).toContain("min-h-[1.375rem]");
-    expect(mustacheTagSurface.className).toContain("rounded-[5px]");
-    expect(mustacheTagSurface.className).toContain("border");
-    expect(mustacheTagSurface.className).toContain("px-1.5");
-    expect(mustacheTagSurface.className).toContain("py-px");
-    expect(mustacheTagLabel.className).toContain("text-[12px]");
-    expect(mustacheTagLabel.className).toContain("leading-4");
-    expect(mustacheTagLabel.className).toContain("font-medium");
-    expect(mustacheTag.textContent).toBe("food_name");
+    expectVisibleMustacheTag("food_name", "{{food_name}}");
   });
 
   it("renders detached user variables as chips immediately after a mustache token closes", () => {

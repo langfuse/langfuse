@@ -1,4 +1,7 @@
+/* eslint-disable max-lines-per-function */
+import { useState } from "react";
 import { ChevronRight, History, Play, UserRound } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import { Button } from "../ui/button";
@@ -21,6 +24,8 @@ function nodeHasUserSection(node: SpielwieseAgentNodeVM) {
 
 const playgroundActionButtonClassName =
   "text-foreground/62 hover:text-foreground inline-flex h-6 items-center gap-1.25 rounded-[8px] bg-[#F7F7F7] py-0 pr-2 pl-1.5 text-[11px] font-medium ring-1 ring-black/5 hover:bg-[#F4F4F4]";
+const playgroundThinkingCardClassName =
+  "relative flex h-7 min-w-[11rem] items-center overflow-hidden rounded-[10px] border border-[rgba(201,120,62,0.12)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(247,243,239,0.96)_100%)] px-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] ring-1 ring-[rgba(201,120,62,0.06)]";
 
 function PlaygroundFlowUserIcon({
   toneClassNames,
@@ -80,12 +85,59 @@ function PlaygroundFlowAgentSurface({
   );
 }
 
+function PlaygroundThinkingCard({ isVisible }: { isVisible: boolean }) {
+  return (
+    <div
+      className={cn(
+        "overflow-hidden transition-[max-width,opacity,transform,margin] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        isVisible
+          ? "ml-1.5 max-w-[12rem] translate-x-0 opacity-100"
+          : "pointer-events-none ml-0 max-w-0 translate-x-1 opacity-0",
+      )}
+      data-state={isVisible ? "open" : "closed"}
+      data-testid="spielwiese-playground-thinking-card-shell"
+    >
+      <div
+        className={playgroundThinkingCardClassName}
+        data-testid="spielwiese-playground-thinking-card"
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 animate-[rainbow_2.8s_linear_infinite] bg-[linear-gradient(90deg,rgba(201,120,62,0.02)_0%,rgba(201,120,62,0.16)_42%,rgba(255,255,255,0.02)_68%,rgba(201,120,62,0.1)_100%)] bg-[length:220%_100%]"
+          data-testid="spielwiese-playground-thinking-card-glow"
+        />
+        <div className="relative flex min-w-0 items-center gap-2">
+          <div
+            aria-hidden="true"
+            className="flex shrink-0 items-center gap-1"
+            data-testid="spielwiese-playground-thinking-card-dots"
+          >
+            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.78)]" />
+            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.58)] [animation-delay:140ms]" />
+            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.42)] [animation-delay:280ms]" />
+          </div>
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="text-foreground text-[12px] font-semibold tracking-[-0.01em]">
+              Thinking
+            </span>
+            <span className="text-foreground/44 truncate text-[11px] font-medium">
+              analyzing prompt
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlaygroundFlowHeaderShell({
   hasUserSection,
+  isThinking,
   modelLabel,
   title,
 }: {
   hasUserSection: boolean;
+  isThinking: boolean;
   modelLabel?: string;
   title: string;
 }) {
@@ -93,19 +145,19 @@ function PlaygroundFlowHeaderShell({
 
   return (
     <div
-      className="border-border/40 bg-background/96 flex w-full min-w-0 items-center rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border"
+      className="border-border/40 bg-background/96 inline-flex shrink-0 items-center rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border"
       data-testid="spielwiese-playground-flow-node"
     >
       <div
-        className="flex w-full min-w-0 items-center gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
+        className="inline-flex items-center pt-[6px] pr-[6px] pb-[6px] pl-[6px]"
         data-testid="spielwiese-playground-flow-header-row"
       >
         {hasUserSection ? (
           <PlaygroundFlowUserIcon toneClassNames={userToneClassNames} />
         ) : null}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <PlaygroundFlowAgentSurface modelLabel={modelLabel} title={title} />
-        </div>
+        {hasUserSection ? <div className="w-1.5 shrink-0" /> : null}
+        <PlaygroundFlowAgentSurface modelLabel={modelLabel} title={title} />
+        <PlaygroundThinkingCard isVisible={isThinking} />
       </div>
     </div>
   );
@@ -113,9 +165,11 @@ function PlaygroundFlowHeaderShell({
 
 function PlaygroundFlowNode({
   isLast,
+  isThinking,
   node,
 }: {
   isLast: boolean;
+  isThinking: boolean;
   node: SpielwieseAgentNodeVM;
 }) {
   const modelLabel = getNodeModelLabel(node);
@@ -124,11 +178,12 @@ function PlaygroundFlowNode({
   return (
     <>
       <div
-        className="group flex w-full min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
+        className="group inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
         data-testid="spielwiese-playground-flow-step"
       >
         <PlaygroundFlowHeaderShell
           hasUserSection={hasUserSection}
+          isThinking={isThinking}
           modelLabel={modelLabel}
           title={node.title}
         />
@@ -145,6 +200,11 @@ function PlaygroundFlowNode({
 }
 
 function PlaygroundSurface({ nodes }: { nodes: SpielwieseAgentNodeVM[] }) {
+  const [activeThinkingNodeId, setActiveThinkingNodeId] = useState<
+    string | null
+  >(null);
+  const defaultThinkingNodeId = nodes[0]?.id ?? null;
+
   return (
     <div
       className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-[#15181C] p-2"
@@ -178,10 +238,22 @@ function PlaygroundSurface({ nodes }: { nodes: SpielwieseAgentNodeVM[] }) {
               <span>History</span>
             </Button>
             <Button
-              className={playgroundActionButtonClassName}
+              aria-pressed={activeThinkingNodeId === defaultThinkingNodeId}
+              className={cn(
+                playgroundActionButtonClassName,
+                activeThinkingNodeId === defaultThinkingNodeId &&
+                  "text-foreground border-[rgba(201,120,62,0.12)] bg-[rgba(250,245,241,0.96)] ring-[rgba(201,120,62,0.08)]",
+              )}
               data-testid="spielwiese-playground-play-button"
               size="sm"
               variant="ghost"
+              onClick={() =>
+                setActiveThinkingNodeId((currentValue) =>
+                  currentValue === defaultThinkingNodeId
+                    ? null
+                    : defaultThinkingNodeId,
+                )
+              }
             >
               <Play aria-hidden="true" className="size-3 shrink-0" />
               <span>Play</span>
@@ -195,6 +267,7 @@ function PlaygroundSurface({ nodes }: { nodes: SpielwieseAgentNodeVM[] }) {
           {nodes.map((node, index) => (
             <PlaygroundFlowNode
               isLast={index === nodes.length - 1}
+              isThinking={activeThinkingNodeId === node.id}
               key={node.id}
               node={node}
             />

@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+/* eslint-disable max-lines-per-function */
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
@@ -28,6 +29,9 @@ function getPromptSimulationElements() {
   const flowNodes = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-node",
   );
+  const thinkingCardShells = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-thinking-card-shell",
+  );
   const flowHeaderRows = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-header-row",
   );
@@ -56,6 +60,7 @@ function getPromptSimulationElements() {
     playButton,
     simulationPane,
     terminalShell,
+    thinkingCardShells,
     title,
     titleSurfaces,
     userIcons: within(flowStrip).getAllByTestId(
@@ -94,6 +99,7 @@ function expectPromptSimulationPaneChrome(
   expect(elements.playButton.className).toContain("h-6");
   expect(elements.playButton.className).toContain("rounded-[8px]");
   expect(elements.playButton.className).toContain("ring-1");
+  expect(elements.playButton.getAttribute("aria-pressed")).toBe("false");
   expect(elements.playButton.querySelector("svg")).not.toBeNull();
   expect(flowStrip.className).toContain("items-start");
   expect(flowStrip.className).toContain("w-full");
@@ -114,6 +120,7 @@ function expectPromptSimulationNodeShells(
   const thirdFlowNode = elements.flowNodes[2]!;
   const firstFlowHeaderRow = elements.flowHeaderRows[0]!;
   const firstFlowStep = elements.flowSteps[0]!;
+  const firstThinkingCardShell = elements.thinkingCardShells[0]!;
   const firstUserIcon = elements.userIcons[0]!;
   const secondUserIcon = elements.userIcons[1]!;
   const firstModelSegment = elements.modelSegments[0]!;
@@ -121,27 +128,28 @@ function expectPromptSimulationNodeShells(
 
   expect(firstFlowStep.className).toContain("[--node-shell-gap:2px]");
   expect(firstFlowStep.className).toContain("[--node-shell-radius:16px]");
-  expect(firstFlowStep.className).toContain("flex");
-  expect(firstFlowStep.className).toContain("w-full");
-  expect(firstFlowStep.className).toContain("flex-1");
-  expect(firstFlowStep.className).not.toContain("shrink-0");
+  expect(firstFlowStep.className).toContain("inline-flex");
+  expect(firstFlowStep.className).toContain("shrink-0");
+  expect(firstFlowStep.className).not.toContain("w-full");
+  expect(firstFlowStep.className).not.toContain("flex-1");
   expect(firstFlowStep.className).toContain("bg-[#FBFBFB]");
   expect(firstFlowStep.className).toContain("items-center");
   expect(firstFlowStep.className).toContain("px-[2px]");
   expect(firstFlowStep.className).toContain("pt-[2px]");
   expect(firstFlowStep.className).toContain("pb-[2px]");
   expect(firstFlowStep.firstElementChild).toBe(firstFlowNode);
+  expect(firstThinkingCardShell.getAttribute("data-state")).toBe("closed");
   expect(firstFlowNode.contains(firstUserIcon)).toBe(true);
   expect(secondFlowNode.contains(secondUserIcon)).toBe(true);
   expect(firstFlowNode.className).toContain("border-border/40");
   expect(firstFlowNode.className).toContain("bg-background/96");
-  expect(firstFlowNode.className).toContain("w-full");
+  expect(firstFlowNode.className).toContain("inline-flex");
+  expect(firstFlowNode.className).toContain("shrink-0");
   expect(firstFlowNode.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
-  expect(firstFlowHeaderRow.className).toContain("w-full");
-  expect(firstFlowHeaderRow.className).toContain("gap-1.5");
-  expect(firstFlowHeaderRow.className).toContain("pr-2.5");
+  expect(firstFlowHeaderRow.className).toContain("inline-flex");
+  expect(firstFlowHeaderRow.className).toContain("pr-[6px]");
   expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
   expect(
     firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
@@ -164,6 +172,38 @@ function expectPromptSimulationNodeShells(
   expect(thirdFlowNode.textContent).toContain("Coach Agent");
 }
 
+function expectPlaygroundThinkingState(
+  elements: ReturnType<typeof getPromptSimulationElements>,
+) {
+  const firstFlowStep = elements.flowSteps[0]!;
+  const firstThinkingCardShell = elements.thinkingCardShells[0]!;
+
+  fireEvent.click(elements.playButton);
+
+  expect(elements.playButton.getAttribute("aria-pressed")).toBe("true");
+  expect(elements.playButton.className).toContain(
+    "bg-[rgba(250,245,241,0.96)]",
+  );
+  expect(firstThinkingCardShell.getAttribute("data-state")).toBe("open");
+  expect(
+    within(firstThinkingCardShell).getByTestId(
+      "spielwiese-playground-thinking-card",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(firstThinkingCardShell).getByTestId(
+      "spielwiese-playground-thinking-card-glow",
+    ).className,
+  ).toContain("animate-[rainbow_2.8s_linear_infinite]");
+  expect(
+    within(firstThinkingCardShell).getByTestId(
+      "spielwiese-playground-thinking-card-dots",
+    ),
+  ).toBeTruthy();
+  expect(firstFlowStep.textContent).toContain("Thinking");
+  expect(firstFlowStep.textContent).toContain("analyzing prompt");
+}
+
 describe("SpielwiesePromptSimulationPane", () => {
   it("renders the present nodes as a flow strip with chevrons between them", () => {
     render(
@@ -176,5 +216,6 @@ describe("SpielwiesePromptSimulationPane", () => {
 
     expectPromptSimulationPaneChrome(elements);
     expectPromptSimulationNodeShells(elements);
+    expectPlaygroundThinkingState(elements);
   });
 });
