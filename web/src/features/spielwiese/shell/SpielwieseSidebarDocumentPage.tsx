@@ -46,10 +46,10 @@ const documentPanelTabs: {
 
 function DocumentPreviewCard({ shell }: { shell: SpielwieseShellVM }) {
   return (
-    <div className="border-sidebar-border/70 bg-muted/40 flex items-center gap-3 rounded-2xl border p-3">
+    <div className="bg-muted/40 flex items-center gap-3 rounded-2xl p-3">
       <div
         aria-hidden="true"
-        className="border-sidebar-border/70 bg-background flex h-14 w-10 shrink-0 flex-col gap-1.5 rounded-lg border px-2 py-2"
+        className="bg-background flex h-14 w-10 shrink-0 flex-col gap-1.5 rounded-lg px-2 py-2"
       >
         <div className="bg-foreground/30 h-1.5 rounded-full" />
         <div className="bg-foreground/30 h-1.5 w-4 rounded-full" />

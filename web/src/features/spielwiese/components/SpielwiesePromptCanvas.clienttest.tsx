@@ -12,7 +12,7 @@ describe("SpielwiesePromptCanvas", () => {
       },
       {
         id: "system",
-        label: "System",
+        label: "Instructions",
         content: ["Return only JSON."],
       },
     ],
@@ -47,7 +47,7 @@ describe("SpielwiesePromptCanvas", () => {
     render(<SpielwiesePromptCanvas promptCanvas={promptCanvas} />);
 
     expect(screen.queryByText("User:")).toBeNull();
-    expect(screen.queryByText("System:")).toBeNull();
+    expect(screen.queryByText("Instructions:")).toBeNull();
     expect(screen.getByText("[image]")).toBeTruthy();
     expect(screen.getByText("Return only JSON.")).toBeTruthy();
   });

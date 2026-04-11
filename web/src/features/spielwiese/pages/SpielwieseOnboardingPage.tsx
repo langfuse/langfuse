@@ -16,7 +16,7 @@ export default function SpielwieseOnboardingPage({
 
   return (
     <div
-      className="bg-background isolate min-h-dvh antialiased"
+      className="bg-background isolate min-h-dvh [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
     >
       <div className="flex min-h-dvh flex-col overflow-hidden">

@@ -5,17 +5,21 @@ import {
   CircleHelp,
   PanelLeft,
   PanelRight,
-  Search,
 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button, buttonVariants } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import type { SpielwieseShellVM } from "../types/shell";
+import { SpielwieseHeaderFinder } from "./SpielwieseHeaderFinder";
 import { useSpielwieseShell } from "./SpielwieseShellProvider";
 
 type SpielwieseTopBarProps = {
   header: SpielwieseDashboardVM["header"];
+  isFinderOpen: boolean;
+  onFinderClose: () => void;
+  onFinderOpen: () => void;
+  pageId: SpielwieseDashboardVM["pageId"];
   shell: SpielwieseShellVM;
 };
 
@@ -65,23 +69,6 @@ function HeaderPrimaryActions({
   );
 }
 
-function HeaderBreadcrumb({
-  breadcrumb,
-}: {
-  breadcrumb: SpielwieseDashboardVM["header"]["breadcrumb"];
-}) {
-  return (
-    <div className="flex min-w-0 justify-center">
-      <div className="bg-muted/55 border-border/70 flex h-9 min-w-0 items-center gap-2 rounded-full border px-3 sm:max-w-[28rem] sm:px-4">
-        <Search className="text-muted-foreground shrink-0" size={15} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{breadcrumb}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HeaderSecondaryActions({
   toggleSecondarySidebar,
   updatedAt,
@@ -104,7 +91,7 @@ function HeaderSecondaryActions({
       <Button
         className="hidden rounded-full sm:inline-flex"
         size="sm"
-        variant="outline"
+        variant="ghost"
       >
         Share
       </Button>
@@ -127,12 +114,19 @@ function HeaderSecondaryActions({
   );
 }
 
-export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
+export function SpielwieseTopBar({
+  header,
+  isFinderOpen,
+  onFinderClose,
+  onFinderOpen,
+  pageId,
+  shell,
+}: SpielwieseTopBarProps) {
   const { togglePrimarySidebar, toggleSecondarySidebar } = useSpielwieseShell();
 
   return (
     <header
-      className="border-border/70 bg-card/95 top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full border-b"
+      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#FCFDFE]"
       data-testid="spielwiese-shell-header"
     >
       <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 sm:px-5">
@@ -141,7 +135,14 @@ export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
           teamInitial={shell.team.initials.slice(0, 1)}
           togglePrimarySidebar={togglePrimarySidebar}
         />
-        <HeaderBreadcrumb breadcrumb={header.breadcrumb} />
+        <SpielwieseHeaderFinder
+          breadcrumb={header.breadcrumb}
+          isOpen={isFinderOpen}
+          onClose={onFinderClose}
+          onOpen={onFinderOpen}
+          pageId={pageId}
+          shell={shell}
+        />
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
           updatedAt={header.updatedAt}

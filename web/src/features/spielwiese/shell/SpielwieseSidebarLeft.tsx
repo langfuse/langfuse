@@ -7,7 +7,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarSeparator,
   SidebarSurface,
 } from "../ui/sidebar";
 import type {
@@ -33,7 +32,7 @@ function SpaceSwitcher({
   shell,
 }: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
   const avatar = (
-    <Avatar className="border-sidebar-border/60 size-9 rounded-lg border">
+    <Avatar className="size-9 rounded-lg">
       <AvatarFallback className="rounded-lg text-sm font-medium">
         {shell.team.initials}
       </AvatarFallback>
@@ -43,7 +42,7 @@ function SpaceSwitcher({
   if (compact) {
     return (
       <a
-        className="border-sidebar-border/70 hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl border transition-colors"
+        className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl transition-colors"
         href="#assistant"
         title={shell.team.name}
       >
@@ -84,7 +83,7 @@ function CreateDocumentButton({ compact }: { compact: boolean }) {
     <Button
       className="h-10 w-full justify-start rounded-xl px-3 text-sm font-medium shadow-none"
       data-testid="spielwiese-left-new-document"
-      variant="outline"
+      variant="secondary"
     >
       <Plus size={16} />
       <span>New Document</span>
@@ -179,7 +178,6 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
 
         <SidebarContent className="items-center gap-2 p-2.5 pt-0">
           <CompactUtilityNav items={compactUtilityNav} />
-          <SidebarSeparator className="w-full" />
           <div className="flex flex-col gap-1.5">
             {shell.sidebarSections.map((section) => {
               const Icon = section.icon;
@@ -243,7 +241,7 @@ function ExpandedSidebar({
       </div>
 
       <SidebarFooter
-        className="border-sidebar-border bg-background mt-0 shrink-0 border-t p-3"
+        className="mt-0 shrink-0 bg-[#FCFDFE] p-3"
         data-testid="spielwiese-left-sidebar-sticky-footer"
       >
         <SidebarBottomModeSwitch
@@ -265,7 +263,7 @@ export function SpielwieseSidebarLeft({
 
   return (
     <SidebarSurface
-      className="border-sidebar-border bg-background overflow-hidden border-r"
+      className="overflow-hidden bg-[#FCFDFE]"
       data-testid="spielwiese-left-sidebar"
     >
       {compact ? (

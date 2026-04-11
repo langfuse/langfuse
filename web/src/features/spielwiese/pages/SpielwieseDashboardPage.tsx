@@ -22,7 +22,11 @@ function getPageIdFromHash() {
   return hash || "assistant";
 }
 
-function renderCanvas(dashboard: SpielwieseDashboardVM) {
+function SpielwieseDashboardCanvas({
+  dashboard,
+}: {
+  dashboard: SpielwieseDashboardVM;
+}) {
   if (dashboard.promptCanvas) {
     return <SpielwiesePromptCanvas promptCanvas={dashboard.promptCanvas} />;
   }
@@ -40,9 +44,12 @@ export default function SpielwieseDashboardPage() {
   const shell = getSpielwieseShellVm(pageId);
 
   return (
-    <div className="isolate min-h-dvh antialiased" data-spielwiese>
+    <div
+      className="isolate min-h-dvh [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
+      data-spielwiese
+    >
       <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
-        {renderCanvas(dashboard)}
+        <SpielwieseDashboardCanvas dashboard={dashboard} />
       </SpielwieseDashboardShell>
     </div>
   );

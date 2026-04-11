@@ -12,6 +12,12 @@ export type SpielwieseAgentNodeSettingVM = {
   value: string;
 };
 
+export type SpielwieseAgentNodePromptSectionKind =
+  | "user"
+  | "system"
+  | "assistant"
+  | "tool";
+
 export type SpielwieseAgentNodePromptSectionVM = {
   id: string;
   label: string;

@@ -3,10 +3,20 @@ import { SpielwieseAgentNodeStack } from "./SpielwieseAgentNodeStack";
 
 type SpielwieseCanvasPaneProps = {
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
+  onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
+  onPromptSectionInsert: (
+    nodeId: string,
+    kind: "user" | "system" | "assistant" | "tool",
+  ) => void;
   onPromptSectionChange: (
     nodeId: string,
     sectionId: string,
     value: string,
+  ) => void;
+  onPromptSectionMove: (
+    nodeId: string,
+    sectionId: string,
+    direction: "up" | "down",
   ) => void;
   onSettingValueChange: (
     nodeId: string,
@@ -18,7 +28,10 @@ type SpielwieseCanvasPaneProps = {
 
 function SpielwieseCanvasPane({
   nodes,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
   onPromptSectionChange,
+  onPromptSectionMove,
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseCanvasPaneProps) {
@@ -30,7 +43,10 @@ function SpielwieseCanvasPane({
       <div className="flex min-h-0 flex-1 flex-col pb-0">
         <SpielwieseAgentNodeStack
           nodes={nodes}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
           onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionMove={onPromptSectionMove}
           onSettingValueChange={onSettingValueChange}
           onTitleChange={onTitleChange}
         />
@@ -41,14 +57,20 @@ function SpielwieseCanvasPane({
 
 export function SpielwieseCanvasPaneStack({
   nodes,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
   onPromptSectionChange,
+  onPromptSectionMove,
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseCanvasPaneProps) {
   return (
     <SpielwieseCanvasPane
       nodes={nodes}
+      onPromptSectionDelete={onPromptSectionDelete}
+      onPromptSectionInsert={onPromptSectionInsert}
       onPromptSectionChange={onPromptSectionChange}
+      onPromptSectionMove={onPromptSectionMove}
       onSettingValueChange={onSettingValueChange}
       onTitleChange={onTitleChange}
     />

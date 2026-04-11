@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
 describe("SpielwieseDashboardPage", () => {
@@ -32,5 +32,23 @@ describe("SpielwieseDashboardPage", () => {
     expect(
       screen.getByText(/You are a food identification expert/i),
     ).toBeTruthy();
+  });
+
+  it("keeps the recommendation button inert in the picker", () => {
+    render(<SpielwieseDashboardPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "vision-agent Model",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Recommend me a model" }),
+    );
+
+    expect(screen.getAllByText("3 variables").length >= 1).toBeTruthy();
+    expect(
+      screen.queryByTestId("spielwiese-model-recommendation-panel"),
+    ).toBeNull();
   });
 });

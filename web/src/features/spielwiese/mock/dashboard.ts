@@ -21,19 +21,21 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Classifier",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1 mini" },
-      { id: "input", label: "Input", value: "meal_photo" },
-      { id: "output", label: "Output", value: "detected_foods" },
       { id: "temperature", label: "Temperature", value: "0.1" },
     ],
     promptSections: [
       { id: "user", label: "User", value: "[image]" },
       {
         id: "system",
-        label: "System",
+        label: "Instructions",
         value:
           'You are a food identification expert. Identify every food item in the image.\nFor each item, estimate the weight in grams based on visual cues like plate size, hand, utensils, and known object references.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
       },
-      { id: "assistant", label: "Assistant", value: "[JSON]" },
+      {
+        id: "assistant",
+        label: "How the assistant should reply",
+        value: "[JSON]",
+      },
     ],
     notes: [
       { id: "tools", value: "No tools." },
@@ -52,7 +54,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Calculator",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1" },
-      { id: "input", label: "Input", value: "detected_foods" },
       { id: "output", label: "Output", value: "macro_estimates" },
       { id: "temperature", label: "Temperature", value: "0.2" },
     ],
@@ -60,11 +61,15 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
       { id: "user", label: "User", value: "[JSON from Step 1]" },
       {
         id: "system",
-        label: "System",
+        label: "Instructions",
         value:
           'You are a clinical nutritionist. Given food items and weights, return precise nutritional data per item and totals.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[{"item":"grilled salmon","weight_g":180,"kcal":354,"protein_g":39.2,"carbs_g":0,"fat_g":21.6,"fiber_g":0,"vitamins":{"A_mcg":12,"D_mcg":11,"B12_mcg":5.2},"minerals":{"iron_mg":0.5,"zinc_mg":0.7},"polyphenols_mg":0}],"totals":{...}}',
       },
-      { id: "assistant", label: "Assistant", value: "[JSON]" },
+      {
+        id: "assistant",
+        label: "How the assistant should reply",
+        value: "[JSON]",
+      },
     ],
     notes: [
       { id: "source", value: "USDA FoodData Central" },
@@ -87,11 +92,15 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
       { id: "user", label: "User", value: "[JSON from Step 2]" },
       {
         id: "system",
-        label: "System",
+        label: "Instructions",
         value:
           "You are a nutrition coach.\nTurn the nutrition JSON into a concise user-facing summary with calories, macros, and the biggest takeaways.\nKeep it short, concrete, and easy to scan.\nReturn natural language only.",
       },
-      { id: "assistant", label: "Assistant", value: "[final summary]" },
+      {
+        id: "assistant",
+        label: "How the assistant should reply",
+        value: "[final summary]",
+      },
     ],
     notes: [
       { id: "tools", value: "No tools." },
@@ -212,14 +221,18 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
         { id: "user", label: "User", content: ["[image]"] },
         {
           id: "system",
-          label: "System",
+          label: "Instructions",
           content: [
             "You are a food identification expert. Identify every food item in the image.",
             "For each item, estimate the weight in grams based on plate size, utensils, and other visible references.",
             'Return only JSON, for example: [{"item":"grilled salmon","estimated_weight_g":180}].',
           ],
         },
-        { id: "assistant", label: "Assistant", content: ["[JSON]"] },
+        {
+          id: "assistant",
+          label: "How the assistant should reply",
+          content: ["[JSON]"],
+        },
       ],
     },
     variablesPanel: defaultVariablesPanel,

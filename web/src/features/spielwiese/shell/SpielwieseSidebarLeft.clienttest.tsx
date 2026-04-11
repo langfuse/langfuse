@@ -17,6 +17,18 @@ function expectModeButtons(folderPressed: "true" | "false") {
   ).toBe(documentPressed);
 }
 
+function expectBorderlessSidebarChrome() {
+  expect(screen.getByTestId("spielwiese-left-sidebar").className).toContain(
+    "bg-[#FCFDFE]",
+  );
+  expect(screen.getByTestId("spielwiese-left-sidebar").className).not.toContain(
+    "border-r",
+  );
+  expect(
+    screen.getByTestId("spielwiese-left-sidebar-sticky-footer").className,
+  ).not.toContain("border-t");
+}
+
 describe("SpielwieseSidebarLeft expanded", () => {
   it("renders the denser left rail structure", () => {
     renderExpandedSidebar("search");
@@ -44,6 +56,7 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expect(
       screen.getByTestId("spielwiese-left-sidebar-sticky-footer"),
     ).toBeTruthy();
+    expectBorderlessSidebarChrome();
     expectModeButtons("true");
     expect(screen.getByLabelText("Folder view")).toBeTruthy();
     expect(screen.getByLabelText("Document view")).toBeTruthy();

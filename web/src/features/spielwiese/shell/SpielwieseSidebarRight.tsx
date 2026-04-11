@@ -1,10 +1,15 @@
 import { SidebarContent, SidebarHeader, SidebarSurface } from "../ui/sidebar";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import {
+  SpielwieseModelRecommendationHeader,
+  SpielwieseModelRecommendationPanel,
+} from "../components/SpielwieseModelRecommendationPanel";
+import {
   SpielwieseVariablesPanel,
   SpielwieseVariablesSummary,
 } from "../components/SpielwieseVariablesPanel";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
+import { useSpielwieseShell } from "./SpielwieseShellProvider";
 
 type SpielwieseSidebarRightProps = {
   dashboard: SpielwieseDashboardVM;
@@ -13,22 +18,55 @@ type SpielwieseSidebarRightProps = {
 export function SpielwieseSidebarRight({
   dashboard,
 }: SpielwieseSidebarRightProps) {
+  const {
+    closeModelRecommendation,
+    modelRecommendationTarget,
+    rightPanelMode,
+  } = useSpielwieseShell();
   const variablesState = useSpielwieseVariablesPanelState(
     dashboard.variablesPanel.items,
   );
 
   return (
-    <SidebarSurface className="border-sidebar-border bg-background overflow-hidden border-l">
-      <SidebarHeader className="border-sidebar-border border-b px-4 py-3">
-        <SpielwieseVariablesSummary
-          actionLabel={dashboard.variablesPanel.actionLabel}
-          count={variablesState.items.length}
-          onCreate={variablesState.onCreate}
-        />
-      </SidebarHeader>
-      <SidebarContent className="overflow-y-auto px-3 py-3">
-        <SpielwieseVariablesPanel state={variablesState} />
-      </SidebarContent>
+    <SidebarSurface
+      className="overflow-hidden bg-[#FCFDFE]"
+      data-testid="spielwiese-right-sidebar"
+    >
+      {rightPanelMode === "model-recommendation" &&
+      modelRecommendationTarget ? (
+        <>
+          <SidebarHeader
+            className="px-4 py-3"
+            data-testid="spielwiese-right-sidebar-header"
+          >
+            <SpielwieseModelRecommendationHeader
+              onBack={closeModelRecommendation}
+              target={modelRecommendationTarget}
+            />
+          </SidebarHeader>
+          <SidebarContent className="overflow-y-auto px-3 py-3">
+            <SpielwieseModelRecommendationPanel
+              target={modelRecommendationTarget}
+            />
+          </SidebarContent>
+        </>
+      ) : (
+        <>
+          <SidebarHeader
+            className="px-4 py-3"
+            data-testid="spielwiese-right-sidebar-header"
+          >
+            <SpielwieseVariablesSummary
+              actionLabel={dashboard.variablesPanel.actionLabel}
+              count={variablesState.items.length}
+              onCreate={variablesState.onCreate}
+            />
+          </SidebarHeader>
+          <SidebarContent className="overflow-y-auto px-3 py-3">
+            <SpielwieseVariablesPanel state={variablesState} />
+          </SidebarContent>
+        </>
+      )}
     </SidebarSurface>
   );
 }

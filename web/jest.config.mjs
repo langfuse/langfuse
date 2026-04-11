@@ -35,7 +35,7 @@ const endToEndServerTestConfig = {
 
 // To avoid the "Cannot use import statement outside a module" errors while transforming ESM.
 // jsonpath-plus is needed because @langfuse/shared barrel exports evals/utilities which imports it
-const esModules = ["superjson", "jsonpath-plus"];
+const esModules = ["superjson", "jsonpath-plus", "@chenglou/pretext"];
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {

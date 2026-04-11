@@ -7,7 +7,7 @@ export function UsageMeter({ shell }: { shell: SpielwieseShellVM }) {
   const progress = Math.min(100, (shell.usage.used / shell.usage.limit) * 100);
 
   return (
-    <div className="border-sidebar-border/70 bg-muted/35 flex flex-col gap-3 rounded-2xl border p-3">
+    <div className="bg-muted/35 flex flex-col gap-3 rounded-2xl p-3">
       <p className="text-sm font-medium">{shell.usage.label}</p>
       <div className="bg-border h-2 overflow-hidden rounded-full">
         <div
@@ -33,8 +33,8 @@ export function FooterTools({
   return (
     <div
       className={cn(
-        "border-sidebar-border/70 flex items-center gap-1.5 border-t pt-3",
-        compact && "flex-col border-t-0 pt-0",
+        "flex items-center gap-1.5 pt-3",
+        compact && "flex-col pt-0",
       )}
     >
       {tools.map((tool) => {
