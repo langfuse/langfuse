@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Plus } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 
@@ -114,17 +115,15 @@ function getInsertRowConfig(
   return {
     ariaLabel: "Toggle new message tray",
     buttonClassName:
-      "text-foreground/78 hover:text-foreground size-7 rounded-none border-0 bg-transparent p-0 text-[17px] leading-none font-medium shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985] [&_span]:inline-flex [&_span]:items-center [&_span]:justify-center",
+      "text-foreground/78 hover:text-foreground inline-flex size-7 items-center justify-center rounded-none border-0 bg-transparent p-0 shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985]",
     buttonContent: (
-      <span aria-hidden="true" className="relative top-[-0.5px]">
-        +
-      </span>
+      <Plus aria-hidden="true" className="size-3.5 shrink-0 stroke-[2.2px]" />
     ),
     buttonTestId: "spielwiese-message-insert-compact-trigger",
     pickerId: `${nodeId}-message-insert-picker-compact`,
     pickerTestId: "spielwiese-message-insert-picker-compact",
     rowClassName:
-      "relative inline-flex w-fit items-start pt-[7px] pb-[14px] pl-[18px]",
+      "relative inline-flex w-fit items-start pt-4 pb-[14px] pl-[18px]",
     shellTestId: "spielwiese-message-insert-compact-shell",
   };
 }

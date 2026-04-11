@@ -27,7 +27,7 @@ function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
     .find((row) => row.getAttribute("data-section-id") === sectionId);
 }
 
-describe("SpielwieseEditorCanvas editing", () => {
+describe("SpielwieseEditorCanvas editing shell", () => {
   it("keeps inline fields editable with fixed widths", async () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0]!;
@@ -90,6 +90,24 @@ describe("SpielwieseEditorCanvas editing", () => {
   });
 });
 
+describe("SpielwieseEditorCanvas editing tags", () => {
+  it("renders mustache variables as inline tags inside prompt fields", () => {
+    renderCanvas();
+    const systemInput = screen.getByLabelText("vision-agent Instructions");
+
+    fireEvent.change(systemInput, {
+      target: { value: "Return {{food_name}} as JSON." },
+    });
+
+    expect((systemInput as HTMLTextAreaElement).value).toBe(
+      "Return {{food_name}} as JSON.",
+    );
+    expect(
+      screen.getByTestId("spielwiese-mustache-tag-food_name"),
+    ).toBeTruthy();
+  });
+});
+
 describe("SpielwieseEditorCanvas model picker", () => {
   it("reveals older models behind the more-models control", () => {
     renderCanvas();
@@ -108,12 +126,11 @@ describe("SpielwieseEditorCanvas model picker", () => {
   });
 });
 
-describe("SpielwieseEditorCanvas node collapse interactions", () => {
+describe("SpielwieseEditorCanvas node collapse sections", () => {
   it("lets each node minimize its prompt sections into single-row previews", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
     const instructionsRow = findPromptRowBySectionId(visionNode, "system");
-    const assistantRow = findPromptRowBySectionId(visionNode, "assistant");
     const toggleButton = screen.getByRole("button", {
       name: "Minimize vision-agent node sections",
     });
@@ -122,7 +139,6 @@ describe("SpielwieseEditorCanvas node collapse interactions", () => {
 
     expect(within(visionNode).getByLabelText("vision-agent User")).toBeTruthy();
     expect(instructionsRow).toBeTruthy();
-    expect(assistantRow).toBeTruthy();
     expect(
       within(instructionsRow ?? visionNode).getByLabelText(
         "Toggle vision-agent Instructions section",
@@ -132,17 +148,14 @@ describe("SpielwieseEditorCanvas node collapse interactions", () => {
     expect(
       screen.queryByLabelText("vision-agent How the assistant should reply"),
     ).toBeNull();
-    expect(
-      within(assistantRow ?? visionNode).getByLabelText(
-        "Toggle vision-agent How the assistant should reply section",
-      ),
-    ).toBeTruthy();
     expect(toggleButton.getAttribute("aria-pressed")).toBe("true");
     expect(toggleButton.getAttribute("aria-label")).toBe(
       "Maximize vision-agent node sections",
     );
   });
+});
 
+describe("SpielwieseEditorCanvas node collapse detached user", () => {
   it("lets the detached user row minimize into a single-row preview", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
@@ -166,6 +179,8 @@ describe("SpielwieseEditorCanvas node collapse interactions", () => {
         "Toggle vision-agent User section",
       ),
     ).toBeTruthy();
+    expect(detachedUserRow.className).toContain("pb-2");
+    expect(detachedUserRow.className).not.toContain("pb-[2px]");
     expect(detachedUserToggle.getAttribute("aria-pressed")).toBe("true");
     expect(detachedUserToggle.getAttribute("aria-label")).toBe(
       "Maximize vision-agent User section",

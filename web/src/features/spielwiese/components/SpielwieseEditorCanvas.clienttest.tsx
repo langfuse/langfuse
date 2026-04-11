@@ -25,6 +25,15 @@ function expectAssistantReplyRowShell(assistantRow: HTMLElement | undefined) {
   expect(assistantRow?.className).not.toContain("border-border/40");
 }
 
+function insertAssistantSection(nodeElement: HTMLElement) {
+  fireEvent.click(
+    within(nodeElement).getByTestId("spielwiese-message-insert-text-trigger"),
+  );
+  fireEvent.click(
+    within(nodeElement).getByRole("button", { name: "Assistant" }),
+  );
+}
+
 function getInstructionsSectionElements(nodeCard: HTMLElement) {
   const sectionRows = within(nodeCard).getAllByTestId(
     "spielwiese-message-section-row",
@@ -32,7 +41,7 @@ function getInstructionsSectionElements(nodeCard: HTMLElement) {
   const instructionsInput = within(nodeCard).getByLabelText(
     "vision-agent Instructions",
   );
-  const instructionsFieldShell = instructionsInput.parentElement;
+  const instructionsFieldShell = instructionsInput.parentElement?.parentElement;
   const instructionsBody = instructionsFieldShell?.parentElement;
   const instructionsToggle = within(nodeCard).getByRole("button", {
     name: "Toggle vision-agent Instructions section",
@@ -161,13 +170,34 @@ describe("SpielwieseEditorCanvas instructions prompt layout", () => {
     expectInstructionsJsonFormatComposer(nodeCard);
   });
 });
-describe("SpielwieseEditorCanvas assistant prompt layout", () => {
-  it("renders the assistant section with the same surface treatment as other prompt rows and a two-row body", () => {
+describe("SpielwieseEditorCanvas assistant prompt defaults", () => {
+  it("does not render the assistant section by default", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
     const nodeCard = within(visionNode).getByTestId(
       "spielwiese-agent-node-card",
     );
+
+    expect(
+      within(nodeCard).queryByText("How the assistant should reply"),
+    ).toBeNull();
+    expect(
+      within(nodeCard).queryByLabelText(
+        "vision-agent How the assistant should reply",
+      ),
+    ).toBeNull();
+  });
+});
+describe("SpielwieseEditorCanvas assistant prompt layout", () => {
+  it("renders the assistant section with the same surface treatment as other prompt rows and a two-row body once inserted", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const nodeCard = within(visionNode).getByTestId(
+      "spielwiese-agent-node-card",
+    );
+
+    insertAssistantSection(visionNode);
+
     const sectionRows = within(nodeCard).getAllByTestId(
       "spielwiese-message-section-row",
     );

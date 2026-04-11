@@ -1,11 +1,11 @@
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Textarea } from "../ui/textarea";
 import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
 import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
+import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
   SpielwieseToolMessageSection,
   type SpielwieseToolOption,
@@ -54,7 +54,7 @@ function StandardPromptTextarea({
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
-    <Textarea
+    <SpielwieseMustacheTextarea
       aria-label={`${nodeId} ${section.label}`}
       className={cn(
         spielwieseSingleLineTextareaClassName,

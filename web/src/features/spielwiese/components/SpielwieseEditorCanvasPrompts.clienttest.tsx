@@ -69,7 +69,7 @@ function expectInsertRowChrome({
     nodeCard.lastElementChild?.firstElementChild,
   );
   expect(insertRow.className).toContain("w-fit");
-  expect(insertRow.className).toContain("pt-[7px]");
+  expect(insertRow.className).toContain("pt-4");
   expect(insertRow.className).toContain("pl-[18px]");
   expect(insertRow.className).toContain("pb-[14px]");
   expect(externalRow.className).toContain("w-fit");
@@ -79,8 +79,10 @@ function expectInsertRowChrome({
   expect(compactShell.className).toContain("rounded-[8px]");
   expect(textShell.className).toContain("overflow-hidden");
   expect(textShell.className).toContain("rounded-[8px]");
-  expect(compactTrigger.textContent).toBe("+");
+  expect(compactTrigger.querySelector("svg")).toBeTruthy();
   expect(compactTrigger.getAttribute("aria-expanded")).toBe("true");
+  expect(compactTrigger.className).toContain("items-center");
+  expect(compactTrigger.className).toContain("justify-center");
   expect(compactTrigger.className).toContain("size-7");
   expect(textTrigger.textContent).toBe("New message");
   expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
@@ -133,8 +135,8 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
       "vision-agent How the assistant should reply",
     );
 
-    expect(assistantInputs).toHaveLength(2);
-    expect((assistantInputs[1] as HTMLTextAreaElement).value).toBe("");
+    expect(assistantInputs).toHaveLength(1);
+    expect((assistantInputs[0] as HTMLTextAreaElement).value).toBe("");
     expect(
       within(visionNode).queryByRole("button", { name: "Assistant" }),
     ).toBeNull();
@@ -161,7 +163,7 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
       within(visionNode).getAllByLabelText(
         "vision-agent How the assistant should reply",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 });
 
@@ -226,6 +228,12 @@ describe("SpielwieseEditorCanvas prompt section controls", () => {
     const visionNode = renderVisionNode();
 
     fireEvent.click(
+      within(visionNode).getByTestId("spielwiese-message-insert-text-trigger"),
+    );
+    fireEvent.click(
+      within(visionNode).getByRole("button", { name: "Assistant" }),
+    );
+    fireEvent.click(
       within(visionNode).getByLabelText(
         "Delete vision-agent How the assistant should reply message",
       ),
@@ -245,6 +253,15 @@ describe("SpielwieseEditorCanvas prompt section controls", () => {
     );
 
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+
+    expect(getPromptSectionOrder(visionNode)).toEqual(["user", "system"]);
+
+    fireEvent.click(
+      within(visionNode).getByTestId("spielwiese-message-insert-text-trigger"),
+    );
+    fireEvent.click(
+      within(visionNode).getByRole("button", { name: "Assistant" }),
+    );
 
     expect(getPromptSectionOrder(visionNode)).toEqual([
       "user",

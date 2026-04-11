@@ -31,11 +31,6 @@ export const spielwieseEditorCanvasTestCanvas = {
           value:
             'You are a food identification expert. Identify every food item in the image.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
         },
-        {
-          id: "assistant",
-          label: "How the assistant should reply",
-          value: "[JSON]",
-        },
       ],
       notes: [
         { id: "tools", value: "No tools." },
@@ -65,11 +60,6 @@ export const spielwieseEditorCanvasTestCanvas = {
           value:
             'You are a clinical nutritionist.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[...],"totals":{...}}',
         },
-        {
-          id: "assistant",
-          label: "How the assistant should reply",
-          value: "[JSON]",
-        },
       ],
       notes: [{ id: "source", value: "USDA FoodData Central" }],
     },
@@ -95,11 +85,6 @@ export const spielwieseEditorCanvasTestCanvas = {
           id: "system",
           label: "Instructions",
           value: "You are a nutrition coach.\nReturn natural language only.",
-        },
-        {
-          id: "assistant",
-          label: "How the assistant should reply",
-          value: "[final summary]",
         },
       ],
       notes: [{ id: "tools", value: "No tools." }],

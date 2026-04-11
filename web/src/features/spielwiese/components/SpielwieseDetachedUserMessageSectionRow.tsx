@@ -3,9 +3,9 @@ import Image from "next/image";
 import { Maximize2, Minimize2, Paperclip } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
+import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
   getMessageKind,
   getMessageToneClassNames,
@@ -57,7 +57,7 @@ function DetachedUserInputShell({
       data-testid="spielwiese-detached-user-input-shell"
     >
       <div className={spielwieseMessageFieldShellClassName}>
-        <Textarea
+        <SpielwieseMustacheTextarea
           aria-label={`${nodeId} ${section.label}`}
           className={cn(
             spielwieseSingleLineTextareaClassName,
@@ -86,20 +86,20 @@ function DetachedUserUploadFileTag() {
       type="button"
     >
       <span
-        className="inline-flex items-center gap-1.25"
+        className="inline-flex h-full items-center gap-1.25"
         data-testid="spielwiese-detached-user-upload-tag-content"
       >
         <span
           aria-hidden="true"
-          className="relative -ml-0.5 size-[1.375rem] shrink-0 overflow-hidden rounded-[7px] shadow-[0_1px_2px_rgba(0,0,0,0.22)] after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.98)]"
+          className="relative -ml-px aspect-square h-full shrink-0 overflow-hidden rounded-[7px] shadow-[0_1px_2px_rgba(0,0,0,0.22)] after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.98)]"
           data-testid="spielwiese-detached-user-upload-thumb"
         >
           <Image
             alt=""
             className="h-full w-full object-cover"
             src="/spielwiese/upload-file-thumb.webp"
-            height={22}
-            width={22}
+            height={24}
+            width={24}
           />
         </span>
         <Paperclip
@@ -163,7 +163,7 @@ export function SpielwieseDetachedUserMessageSectionRow({
     <div className="grid gap-1.5">
       <div
         className={cn(
-          "group flex w-full flex-col overflow-visible px-2.5 py-2",
+          "group flex w-full flex-col overflow-visible px-2.5 pt-2 pb-2",
           getMessageSectionRowRadiusClassName(section.id),
           toneClassNames.surface,
         )}

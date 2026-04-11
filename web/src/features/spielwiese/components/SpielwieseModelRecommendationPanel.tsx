@@ -26,6 +26,9 @@ type RecommendationQuestion = {
   title: string;
 };
 
+const recommendationOptionClassName =
+  "border-border/40 bg-background/88 text-foreground/76 hover:bg-background hover:text-foreground h-8 rounded-lg border px-3 text-[0.8125rem] font-medium shadow-[inset_0_1px_0_hsl(var(--background)/0.96)] transition-colors";
+
 const recommendationQuestions: RecommendationQuestion[] = [
   {
     id: "goal",
@@ -74,10 +77,16 @@ function RecommendationOptionButton({
 }) {
   return (
     <Button
-      className="justify-start"
+      aria-pressed={isActive}
+      className={cn(
+        recommendationOptionClassName,
+        "justify-start",
+        isActive && "bg-background text-foreground",
+      )}
+      data-state={isActive ? "active" : "inactive"}
       size="sm"
       type="button"
-      variant={isActive ? "secondary" : "ghost"}
+      variant="ghost"
       onClick={onClick}
     >
       {label}
@@ -100,7 +109,7 @@ function RecommendationQuestionCard({
         <CardTitle className="text-sm">{question.title}</CardTitle>
         <CardDescription>{question.description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2 pt-0">
+      <CardContent className="flex flex-wrap gap-2 pt-0">
         {question.options.map((option) => (
           <RecommendationOptionButton
             isActive={answer === option.id}

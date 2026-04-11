@@ -1,59 +1,86 @@
-import { useState } from "react";
+import { ChevronRight, UserRound } from "lucide-react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Input } from "../ui/input";
+import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import {
-  getDefaultEditableInput,
-  getPlaygroundSignature,
-} from "./spielwiesePlaygroundPreview";
+  getMessageKind,
+  getMessageToneClassNames,
+} from "./spielwieseMessageTone";
 
-function PlaygroundTerminalLine({
-  draftValue,
-  onDraftChange,
-}: {
-  draftValue: string;
-  onDraftChange: (value: string) => void;
-}) {
-  return (
-    <label
-      className="flex min-w-0 items-center gap-3"
-      data-testid="spielwiese-playground-terminal-line"
-    >
-      <div className="text-muted-foreground/55 font-mono text-base sm:text-sm">
-        {">"}
-      </div>
-      <Input
-        aria-label="Playground input"
-        className="caret-foreground text-foreground placeholder:text-muted-foreground/55 h-auto border-0 bg-transparent px-0 py-0 font-mono text-base shadow-none focus-visible:ring-0 sm:text-sm"
-        name="playground-input"
-        onChange={(event) => onDraftChange(event.target.value)}
-        placeholder="Type a message"
-        spellCheck={false}
-        value={draftValue}
-      />
-    </label>
+function getNodeModelLabel(node: SpielwieseAgentNodeVM) {
+  return node.settings.find((setting) => setting.id === "model")?.value;
+}
+
+function nodeHasUserSection(node: SpielwieseAgentNodeVM) {
+  return node.promptSections.some(
+    (section) => getMessageKind(section.id) === "user",
   );
 }
 
-function PlaygroundSurface({
-  draftValue,
-  onDraftChange,
+function PlaygroundFlowNode({
+  isLast,
+  node,
 }: {
-  draftValue: string;
-  onDraftChange: (value: string) => void;
+  isLast: boolean;
+  node: SpielwieseAgentNodeVM;
 }) {
+  const modelLabel = getNodeModelLabel(node);
+  const userToneClassNames = getMessageToneClassNames("user");
+
+  return (
+    <>
+      <div
+        className="border-border/70 bg-background flex min-w-0 shrink-0 items-center gap-2 rounded-[10px] border px-3 py-2"
+        data-testid="spielwiese-playground-flow-node"
+      >
+        {nodeHasUserSection(node) ? (
+          <span
+            aria-hidden="true"
+            className={`inline-flex size-5 shrink-0 items-center justify-center rounded-[6px] border shadow-none ${userToneClassNames.chip}`}
+            data-testid="spielwiese-playground-flow-user-icon"
+          >
+            <UserRound
+              className={`size-3 shrink-0 ${userToneClassNames.label}`}
+            />
+          </span>
+        ) : null}
+        <SpielwieseModelProviderMark currentModel={modelLabel} />
+        <span className="text-foreground truncate text-[0.8125rem] font-medium">
+          {node.title}
+        </span>
+      </div>
+      {isLast ? null : (
+        <ChevronRight
+          aria-hidden="true"
+          className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]"
+          data-testid="spielwiese-playground-flow-chevron"
+        />
+      )}
+    </>
+  );
+}
+
+function PlaygroundSurface({ nodes }: { nodes: SpielwieseAgentNodeVM[] }) {
   return (
     <div
       className="border-border/70 flex h-full min-h-0 flex-col overflow-hidden rounded-none border-x border-t-0 border-b bg-[#F5F5F5] p-2"
       data-testid="spielwiese-prompt-simulation-pane"
     >
       <div
-        className="bg-background flex min-h-0 flex-1 items-start rounded-[8px] px-4 py-3 shadow-xs"
+        className="bg-background flex min-h-0 flex-1 items-center rounded-[8px] px-4 py-3 shadow-xs"
         data-testid="spielwiese-playground-terminal-shell"
       >
-        <PlaygroundTerminalLine
-          draftValue={draftValue}
-          onDraftChange={onDraftChange}
-        />
+        <div
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+          data-testid="spielwiese-playground-flow-strip"
+        >
+          {nodes.map((node, index) => (
+            <PlaygroundFlowNode
+              isLast={index === nodes.length - 1}
+              key={node.id}
+              node={node}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -64,29 +91,5 @@ export function SpielwiesePromptSimulationPane({
 }: {
   nodes: SpielwieseAgentNodeVM[];
 }) {
-  const defaultEditableInput = getDefaultEditableInput(nodes);
-  const signature = getPlaygroundSignature(nodes);
-  const [playgroundState, setPlaygroundState] = useState(() => ({
-    draftValue: defaultEditableInput,
-    signature,
-  }));
-
-  if (playgroundState.signature !== signature) {
-    setPlaygroundState({
-      draftValue: defaultEditableInput,
-      signature,
-    });
-  }
-
-  return (
-    <PlaygroundSurface
-      draftValue={playgroundState.draftValue}
-      onDraftChange={(value) =>
-        setPlaygroundState((currentState) => ({
-          ...currentState,
-          draftValue: value,
-        }))
-      }
-    />
-  );
+  return <PlaygroundSurface nodes={nodes} />;
 }

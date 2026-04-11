@@ -47,7 +47,7 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
   expect(detachedUserSections.className).toContain("pt-[2px]");
   expect(detachedUserSections.className).toContain("pb-[2px]");
   expect(detachedUserPromptSections?.className).toContain("pt-0");
-  expect(detachedUserPromptSections?.className).toContain("pb-1");
+  expect(detachedUserPromptSections?.className).toContain("pb-0");
 }
 
 export function expectDetachedUserRowChrome(
@@ -80,7 +80,7 @@ export function expectDetachedUserRowChrome(
     "spielwiese-detached-user-upload-thumb",
   );
   const uploadThumbImage = uploadThumb.querySelector("img");
-  const detachedUserField = detachedUserTextarea.parentElement;
+  const detachedUserField = detachedUserTextarea.parentElement?.parentElement;
 
   expectDetachedUserRowShell({
     detachedUserCompactButton,
@@ -165,11 +165,13 @@ function expectDetachedUploadTag({
   expect(uploadFileTag.className).toContain("pr-1.5");
   expect(uploadFileTag.textContent).toContain("Upload file");
   expect(uploadTagContent.className).toContain("items-center");
+  expect(uploadTagContent.className).toContain("h-full");
   expect(uploadTagContent.className).toContain("gap-1.25");
   expect(uploadTagContent.children[1]).toBe(uploadSuffixIcon);
   expect(uploadTagContent.children[2]?.textContent).toBe("Upload file");
-  expect(uploadThumb.className).toContain("-ml-0.5");
-  expect(uploadThumb.className).toContain("size-[1.375rem]");
+  expect(uploadThumb.className).toContain("-ml-px");
+  expect(uploadThumb.className).toContain("h-full");
+  expect(uploadThumb.className).toContain("aspect-square");
   expect(uploadThumb.className).toContain("rounded-[7px]");
   expect(uploadSuffixIcon.getAttribute("class")).toContain("size-3");
   expect(uploadSuffixIcon.getAttribute("class")).toContain(

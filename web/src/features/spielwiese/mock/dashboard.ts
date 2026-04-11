@@ -35,11 +35,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
         value:
           'You are a food identification expert. Identify every food item in the image.\nFor each item, estimate the weight in grams based on visual cues like plate size, hand, utensils, and known object references.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
       },
-      {
-        id: "assistant",
-        label: "How the assistant should reply",
-        value: "[JSON]",
-      },
     ],
     notes: [
       { id: "tools", value: "No tools." },
@@ -73,11 +68,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
         value:
           'You are a clinical nutritionist. Given food items and weights, return precise nutritional data per item and totals.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[{"item":"grilled salmon","weight_g":180,"kcal":354,"protein_g":39.2,"carbs_g":0,"fat_g":21.6,"fiber_g":0,"vitamins":{"A_mcg":12,"D_mcg":11,"B12_mcg":5.2},"minerals":{"iron_mg":0.5,"zinc_mg":0.7},"polyphenols_mg":0}],"totals":{...}}',
       },
-      {
-        id: "assistant",
-        label: "How the assistant should reply",
-        value: "[JSON]",
-      },
     ],
     notes: [
       { id: "source", value: "USDA FoodData Central" },
@@ -107,11 +97,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
         label: "Instructions",
         value:
           "You are a nutrition coach.\nTurn the nutrition JSON into a concise user-facing summary with calories, macros, and the biggest takeaways.\nKeep it short, concrete, and easy to scan.\nReturn natural language only.",
-      },
-      {
-        id: "assistant",
-        label: "How the assistant should reply",
-        value: "[final summary]",
       },
     ],
     notes: [
@@ -241,11 +226,6 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
             "For each item, estimate the weight in grams based on plate size, utensils, and other visible references.",
             'Return only JSON, for example: [{"item":"grilled salmon","estimated_weight_g":180}].',
           ],
-        },
-        {
-          id: "assistant",
-          label: "How the assistant should reply",
-          content: ["[JSON]"],
         },
       ],
     },

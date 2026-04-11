@@ -66,7 +66,7 @@ function SpielwieseDetachedUserSections({
       data-testid={`${node.id}-detached-user-sections`}
     >
       <SpielwieseAgentNodePromptSections
-        className="pt-0 pb-1"
+        className="pt-0 pb-0"
         includeKinds={["user"]}
         nodeId={node.id}
         onPromptSectionDelete={onPromptSectionDelete}

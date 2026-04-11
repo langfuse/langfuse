@@ -1,13 +1,13 @@
 import { type ReactNode, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Textarea } from "../ui/textarea";
 import { getMessageToneClassNames } from "./spielwieseMessageTone";
 import {
   spielwieseMessageFieldShellClassName,
   spielwieseSingleLineTextareaClassName,
 } from "./SpielwieseMessageSectionBody";
 import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
+import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 
 type SpielwieseAssistantReplySectionProps = {
   canMoveDown: boolean;
@@ -79,7 +79,7 @@ function AssistantReplyTextareaPane({
       fieldShellClassName={spielwieseMessageFieldShellClassName}
       label={label}
     >
-      <Textarea
+      <SpielwieseMustacheTextarea
         aria-label={ariaLabel}
         className={cn(
           fieldClassName,

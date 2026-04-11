@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { cn } from "@/src/utils/tailwind";
-import { Textarea } from "../ui/textarea";
 import { SpielwieseAssistantReplySection } from "./SpielwieseAssistantReplySection";
 import { SpielwieseDetachedUserMessageSectionRow } from "./SpielwieseDetachedUserMessageSectionRow";
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
@@ -10,6 +9,7 @@ import {
   spielwieseInlineTextareaClassName,
 } from "./SpielwieseMessageSectionBody";
 import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
+import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { getPromptSectionDisplayLabel } from "./spielwiesePromptSectionLabels";
 import {
@@ -78,7 +78,7 @@ function renderExpandedStandardMessageSectionContent({
 
   if (getMessageKind(section.id) === "user") {
     return (
-      <Textarea
+      <SpielwieseMustacheTextarea
         aria-label={`${nodeId} ${section.label}`}
         className={cn(
           `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden px-0 pt-1 pb-0.5 text-base leading-7 sm:text-[0.9375rem]`,

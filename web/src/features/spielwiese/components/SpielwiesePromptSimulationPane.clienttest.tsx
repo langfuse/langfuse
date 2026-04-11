@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
 describe("SpielwiesePromptSimulationPane", () => {
-  it("renders as a terminal-style single input line", () => {
+  it("renders the present nodes as a flow strip with chevrons between them", () => {
     render(
       <SpielwiesePromptSimulationPane
         nodes={spielwieseEditorCanvasTestCanvas.agentNodes}
@@ -16,41 +16,35 @@ describe("SpielwiesePromptSimulationPane", () => {
     const terminalShell = within(simulationPane).getByTestId(
       "spielwiese-playground-terminal-shell",
     );
-    const terminalLine = within(simulationPane).getByTestId(
-      "spielwiese-playground-terminal-line",
+    const flowStrip = within(simulationPane).getByTestId(
+      "spielwiese-playground-flow-strip",
     );
-    const playgroundInput = within(terminalLine).getByLabelText(
-      "Playground input",
-    ) as HTMLInputElement;
+    const flowNodes = within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-node",
+    );
+    const chevrons = within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-chevron",
+    );
+    const userIcons = within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-user-icon",
+    );
 
     expect(simulationPane.className).toContain("bg-[#F5F5F5]");
     expect(simulationPane.className).toContain("p-2");
     expect(terminalShell.className).toContain("rounded-[8px]");
     expect(terminalShell.className).toContain("bg-background");
+    expect(terminalShell.className).toContain("items-center");
     expect(simulationPane.textContent).not.toContain("Playground");
     expect(simulationPane.textContent).not.toContain("Sample message");
     expect(simulationPane.textContent).not.toContain("Preview");
-    expect(terminalLine.textContent).toContain(">");
-    expect(playgroundInput.value).toBe(
-      "attached photo notes: grilled salmon lunch, rice on the side, natural light",
-    );
-  });
-
-  it("keeps the terminal input editable", () => {
-    render(
-      <SpielwiesePromptSimulationPane
-        nodes={spielwieseEditorCanvasTestCanvas.agentNodes}
-      />,
-    );
-
-    const playgroundInput = screen.getByLabelText(
-      "Playground input",
-    ) as HTMLInputElement;
-
-    fireEvent.change(playgroundInput, {
-      target: { value: "tell me if this lunch fits my macros" },
-    });
-
-    expect(playgroundInput.value).toBe("tell me if this lunch fits my macros");
+    expect(screen.queryByLabelText("Playground input")).toBeNull();
+    expect(flowNodes).toHaveLength(3);
+    expect(chevrons).toHaveLength(2);
+    expect(userIcons).toHaveLength(3);
+    expect(flowNodes[0]?.firstElementChild).toBe(userIcons[0]);
+    expect(flowNodes[1]?.firstElementChild).toBe(userIcons[1]);
+    expect(flowNodes[0]?.textContent).toContain("Vision Agent");
+    expect(flowNodes[1]?.textContent).toContain("Nutrition Agent");
+    expect(flowNodes[2]?.textContent).toContain("Coach Agent");
   });
 });

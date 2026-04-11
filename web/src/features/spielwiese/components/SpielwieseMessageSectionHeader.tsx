@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Brackets, Settings2, type LucideIcon, UserRound } from "lucide-react";
+import { Settings2, type LucideIcon, UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
@@ -7,7 +7,6 @@ import { SpielwieseMessageSectionActions } from "./SpielwieseMessageSectionActio
 import {
   getMessageKind,
   getMessageToneClassNames,
-  getPlaceholderCount,
 } from "./spielwieseMessageTone";
 
 function getMessageSectionPrefixIcon(messageKind: string) {
@@ -112,26 +111,6 @@ function MessageSectionChipPrefix({
   );
 }
 
-function MessageSectionMetrics({
-  toneClassNames,
-  value,
-}: {
-  toneClassNames: ReturnType<typeof getMessageToneClassNames>;
-  value: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center gap-1 text-[0.8125rem] font-medium transition-all",
-        toneClassNames.count,
-      )}
-    >
-      <Brackets className="size-2.5 shrink-0 stroke-[2.65px]" />
-      <div className="tabular-nums">{getPlaceholderCount(value)}</div>
-    </div>
-  );
-}
-
 function MessageSectionSummary({
   inlineAccessory,
   isCollapsed,
@@ -163,7 +142,6 @@ function MessageSectionSummary({
         sectionId={sectionId}
         toneClassNames={toneClassNames}
       />
-      <MessageSectionMetrics toneClassNames={toneClassNames} value={value} />
       {inlineAccessory}
       {isCollapsed ? (
         <SpielwieseCollapsedPromptPreview
