@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
+  getCanonicalModelLabel,
   spielwieseModelProviders,
   type SpielwieseModelOption,
   type SpielwieseModelProvider,
@@ -144,6 +145,7 @@ export function SpielwieseModelColumn({
   showLegacyModels: boolean;
   toggleLegacyModels: () => void;
 }) {
+  const canonicalCurrentModel = getCanonicalModelLabel(currentModel);
   const models = showLegacyModels
     ? [...provider.latestModels, ...provider.legacyModels]
     : provider.latestModels;
@@ -153,7 +155,8 @@ export function SpielwieseModelColumn({
       {models.map((model) => (
         <ModelOptionButton
           isActive={
-            hoveredModelLabel === model.label || currentModel === model.label
+            hoveredModelLabel === model.label ||
+            canonicalCurrentModel === model.label
           }
           key={model.id}
           model={model}

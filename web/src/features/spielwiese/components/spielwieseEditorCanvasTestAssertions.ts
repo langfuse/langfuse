@@ -43,6 +43,7 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
   expect(detachedUserSections.className).toContain("px-[2px]");
   expect(detachedUserSections.className).toContain("pt-[2px]");
   expect(detachedUserSections.className).toContain("pb-[2px]");
+  expect(detachedUserSections.className).toContain("overflow-visible");
   expect(detachedUserPromptSections?.className).toContain("pt-0");
   expect(detachedUserPromptSections?.className).toContain("pb-0");
 }
@@ -113,6 +114,9 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
   );
   const thumb = row.getByTestId("spielwiese-detached-user-upload-thumb");
   const thumbImage = thumb.querySelector("img");
+  const datasetAccessory = row.getByTestId(
+    "spielwiese-detached-user-upload-dataset-accessory",
+  );
   const datasetTag = row.getByRole("button", { name: "Upload dataset" });
   const datasetInfo = row.getByTestId(
     "spielwiese-detached-user-upload-dataset-info-affordance",
@@ -127,8 +131,9 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
     "spielwiese-detached-user-upload-dataset-tooltip",
   );
   return {
-    fileTag,
+    datasetAccessory,
     datasetInfo,
+    fileTag,
     datasetInfoIcon,
     tagContent,
     datasetIcon,
@@ -195,31 +200,37 @@ function expectDetachedUserRowShell({
   expect(detachedUserHeader?.className).not.toContain("py-0.5");
 }
 function expectDetachedDatasetTag({
+  datasetAccessory,
   datasetInfo,
   datasetInfoIcon,
   datasetIcon,
   datasetTag,
   datasetTooltip,
 }: {
+  datasetAccessory: HTMLElement;
   datasetInfo: HTMLElement;
   datasetInfoIcon: HTMLElement;
   datasetIcon: HTMLElement;
   datasetTag: HTMLElement;
   datasetTooltip: HTMLElement;
 }) {
+  expect(datasetAccessory.className).toContain("relative");
+  expect(datasetAccessory.className).toContain("overflow-visible");
+  expect(datasetAccessory.className).toContain("group/dataset-tooltip");
+  expect(datasetAccessory.children[0]).toBe(datasetTag);
+  expect(datasetAccessory.children[1]).toBe(datasetTooltip);
   expect(datasetTag.className).toContain("h-6");
   expect(datasetTag.className).toContain("rounded-[8px]");
   expect(datasetTag.className).toContain("border");
   expect(datasetTag.className).toContain("pl-1.5");
-  expect(datasetTag.className).toContain("pr-2");
+  expect(datasetTag.className).toContain("pr-1.5");
   expect(datasetTag.className).toContain("gap-1.25");
-  expect(datasetTag.className).toContain("relative");
-  expect(datasetTag.className).toContain("group/dataset-tooltip");
   expect(datasetTag.textContent).toContain("Upload dataset");
   expect(datasetInfo.className).toContain("inline-flex");
   expect(datasetInfo.className).toContain("size-3.5");
   expect(datasetInfo.className).not.toContain("border");
   expect(datasetInfo.className).not.toContain("bg-");
+  expect(datasetTag.lastElementChild).toBe(datasetInfo);
   expect(datasetTooltip.getAttribute("role")).toBe("tooltip");
   expect(datasetTooltip.className).toContain("left-0");
   expect(datasetTooltip.className).not.toContain("right-0");

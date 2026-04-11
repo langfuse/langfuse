@@ -83,7 +83,7 @@ function SpielwieseSystemMessageSectionBody({
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
-    <div className={cn("pt-3.5 pb-0.5 text-base", toneClassNames.body)}>
+    <div className={cn("pt-[17px] pb-0.5 text-base", toneClassNames.body)}>
       <div
         className={cn(
           spielwieseMessageFieldShellClassName,
@@ -116,7 +116,7 @@ function SpielwieseDefaultMessageSectionBody({
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
-    <div className={cn("pt-3.5 pb-0.5 text-base", toneClassNames.body)}>
+    <div className={cn("pt-[17px] pb-0.5 text-base", toneClassNames.body)}>
       <div className={spielwieseMessageFieldShellClassName}>
         <StandardPromptTextarea
           nodeId={nodeId}

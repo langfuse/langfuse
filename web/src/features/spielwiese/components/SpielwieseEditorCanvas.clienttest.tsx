@@ -85,7 +85,7 @@ function expectInstructionsSectionChrome(
   expect(sectionRowGroup.className).toContain("pb-1");
   expect(firstSectionRow.className).toContain("pt-3.5");
   expect(firstSectionRow.className).toContain("pb-2");
-  expect(instructionsBodyElement.className).toContain("pt-3.5");
+  expect(instructionsBodyElement.className).toContain("pt-[17px]");
   expect(instructionsInput).toBeTruthy();
   expect(instructionsTextareaRootElement.className).toContain("rounded-[10px]");
   expectShadowedMessageFieldShell(

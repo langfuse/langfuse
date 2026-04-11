@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Input } from "../ui/input";
+import { getModelDisplayLabel } from "./spielwieseModelCatalog";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import { SpielwieseModelPickerPanel } from "./SpielwieseModelPicker";
 import {
@@ -111,6 +112,8 @@ function SpielwieseAgentModelSegment({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const displayModelLabel = getModelDisplayLabel(currentModel);
+
   return (
     <div className="flex shrink-0 items-center pr-1">
       <button
@@ -129,7 +132,7 @@ function SpielwieseAgentModelSegment({
           >
             <SpielwieseModelProviderMark currentModel={currentModel} />
           </SpielwieseHeaderStripTag>
-          <span className="min-w-0 truncate px-2.5">{currentModel}</span>
+          <span className="min-w-0 truncate px-2.5">{displayModelLabel}</span>
         </span>
         <ChevronDown
           aria-hidden="true"

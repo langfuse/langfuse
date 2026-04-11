@@ -51,8 +51,8 @@ function PlaygroundFlowAgentSurface({
     <div
       className={`${getModelTintClassName(
         modelLabel,
-      )} text-foreground inline-flex h-7 w-full min-w-[15rem] items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4`}
-      data-testid="spielwiese-playground-flow-node"
+      )} text-foreground inline-flex h-7 min-w-[15rem] items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4`}
+      data-testid="spielwiese-playground-flow-title-surface"
     >
       <div
         className="flex min-w-0 shrink-0 items-center pr-1"
@@ -80,6 +80,37 @@ function PlaygroundFlowAgentSurface({
   );
 }
 
+function PlaygroundFlowHeaderShell({
+  hasUserSection,
+  modelLabel,
+  title,
+}: {
+  hasUserSection: boolean;
+  modelLabel?: string;
+  title: string;
+}) {
+  const userToneClassNames = getMessageToneClassNames("user");
+
+  return (
+    <div
+      className="border-border/40 bg-background/96 flex w-full min-w-0 items-center rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border"
+      data-testid="spielwiese-playground-flow-node"
+    >
+      <div
+        className="flex w-full min-w-0 items-center gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
+        data-testid="spielwiese-playground-flow-header-row"
+      >
+        {hasUserSection ? (
+          <PlaygroundFlowUserIcon toneClassNames={userToneClassNames} />
+        ) : null}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <PlaygroundFlowAgentSurface modelLabel={modelLabel} title={title} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlaygroundFlowNode({
   isLast,
   node,
@@ -88,18 +119,16 @@ function PlaygroundFlowNode({
   node: SpielwieseAgentNodeVM;
 }) {
   const modelLabel = getNodeModelLabel(node);
-  const userToneClassNames = getMessageToneClassNames("user");
+  const hasUserSection = nodeHasUserSection(node);
 
   return (
     <>
       <div
-        className="group flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
+        className="group flex w-full min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]"
         data-testid="spielwiese-playground-flow-step"
       >
-        {nodeHasUserSection(node) ? (
-          <PlaygroundFlowUserIcon toneClassNames={userToneClassNames} />
-        ) : null}
-        <PlaygroundFlowAgentSurface
+        <PlaygroundFlowHeaderShell
+          hasUserSection={hasUserSection}
           modelLabel={modelLabel}
           title={node.title}
         />

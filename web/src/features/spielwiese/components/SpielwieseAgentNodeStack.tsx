@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import { cn } from "@/src/utils/tailwind";
 import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
@@ -62,7 +63,7 @@ function SpielwieseDetachedUserSections({
 }) {
   return (
     <div
-      className={spielwieseAgentNodeShellClassName}
+      className={cn(spielwieseAgentNodeShellClassName, "overflow-visible")}
       data-testid={`${node.id}-detached-user-sections`}
     >
       <SpielwieseAgentNodePromptSections

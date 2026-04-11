@@ -59,6 +59,14 @@ function createCanvasWithVisionSettings(
   };
 }
 
+function createCanvasWithVisionModelValue(modelValue: string) {
+  return createCanvasWithVisionSettings(
+    spielwieseEditorCanvasTestCanvas.agentNodes[0]!.settings.map((setting) =>
+      setting.id === "model" ? { ...setting, value: modelValue } : setting,
+    ),
+  );
+}
+
 function expectHeaderParamValues({
   reasoningInput,
   responseFormatInput,
@@ -170,6 +178,25 @@ describe("SpielwieseAgentNodeHeader strip items", () => {
     expectHeaderParamValues(header);
     expectHeaderChrome(header);
     expectTitleControlLayout(header);
+  });
+
+  it("shows only the canonical model name in the header shell when the setting includes a provider suffix", () => {
+    const canvas = createCanvasWithVisionModelValue(
+      "Claude Haiku 4.5 / Anthropic",
+    );
+
+    render(<SpielwieseEditorCanvas canvas={canvas} />);
+
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const modelButton = within(visionNode).getByRole("button", {
+      name: "vision-agent Model",
+    });
+
+    expect(
+      within(modelButton).getByTestId("spielwiese-provider-mark-anthropic"),
+    ).toBeTruthy();
+    expect(modelButton.textContent).toContain("Claude Haiku 4.5");
+    expect(modelButton.textContent).not.toContain("Anthropic");
   });
 
   it("refreshes the visible params when the source canvas settings change", () => {

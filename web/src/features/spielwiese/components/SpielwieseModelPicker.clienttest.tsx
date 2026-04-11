@@ -24,6 +24,25 @@ describe("SpielwieseModelPickerTrigger icons", () => {
 
     expect(within(trigger).getByTestId(testId)).toBeTruthy();
   });
+
+  it("renders only the model name when the selected value includes a trailing provider label", () => {
+    render(
+      <SpielwieseModelPickerTrigger
+        ariaLabel="Model picker"
+        currentModel="GPT-4.1 mini / OpenAI"
+        isOpen={false}
+        onClick={() => {}}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Model picker" });
+
+    expect(
+      within(trigger).getByTestId("spielwiese-provider-mark-openai"),
+    ).toBeTruthy();
+    expect(trigger.textContent).toContain("GPT-4.1 mini");
+    expect(trigger.textContent).not.toContain("OpenAI");
+  });
 });
 
 describe("SpielwieseModelPickerPanel chrome", () => {

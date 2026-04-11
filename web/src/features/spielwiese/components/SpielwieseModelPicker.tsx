@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
+  getModelDisplayLabel,
   getModelOption,
   spielwieseModelProviders,
   type SpielwieseModelProvider,
@@ -47,6 +48,8 @@ function RowModelPickerTrigger({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const displayModelLabel = getModelDisplayLabel(currentModel);
+
   return (
     <Button
       aria-expanded={isOpen}
@@ -59,7 +62,7 @@ function RowModelPickerTrigger({
     >
       <span className="flex min-w-0 items-center gap-2">
         <SpielwieseModelProviderMark currentModel={currentModel} />
-        <span className="min-w-0 truncate">{currentModel}</span>
+        <span className="min-w-0 truncate">{displayModelLabel}</span>
       </span>
       <ChevronDown data-icon="inline-end" />
     </Button>
@@ -77,6 +80,8 @@ function EmbeddedModelPickerTrigger({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const displayModelLabel = getModelDisplayLabel(currentModel);
+
   return (
     <Button
       aria-expanded={isOpen}
@@ -89,7 +94,9 @@ function EmbeddedModelPickerTrigger({
     >
       <span className="flex min-w-0 items-center gap-2">
         <SpielwieseModelProviderMark currentModel={currentModel} />
-        <span className="min-w-0 truncate font-medium">{currentModel}</span>
+        <span className="min-w-0 truncate font-medium">
+          {displayModelLabel}
+        </span>
       </span>
       <ChevronDown data-icon="inline-end" />
     </Button>
@@ -107,6 +114,8 @@ function DefaultModelPickerTrigger({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const displayModelLabel = getModelDisplayLabel(currentModel);
+
   return (
     <Button
       aria-expanded={isOpen}
@@ -121,7 +130,7 @@ function DefaultModelPickerTrigger({
         <SpielwieseModelProviderMark currentModel={currentModel} />
       </span>
       <span className="min-w-0 flex-1 truncate px-2 font-medium">
-        {currentModel}
+        {displayModelLabel}
       </span>
       <ChevronDown data-icon="inline-end" />
     </Button>

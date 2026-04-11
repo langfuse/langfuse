@@ -28,8 +28,14 @@ function getPromptSimulationElements() {
   const flowNodes = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-node",
   );
+  const flowHeaderRows = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-header-row",
+  );
   const modelSegments = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-model-segment",
+  );
+  const titleSurfaces = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-title-surface",
   );
   const flowSteps = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-step",
@@ -40,6 +46,7 @@ function getPromptSimulationElements() {
       "spielwiese-playground-flow-chevron",
     ),
     actions,
+    flowHeaderRows,
     flowNodes,
     flowSteps,
     flowStrip,
@@ -50,6 +57,7 @@ function getPromptSimulationElements() {
     simulationPane,
     terminalShell,
     title,
+    titleSurfaces,
     userIcons: within(flowStrip).getAllByTestId(
       "spielwiese-playground-flow-user-icon",
     ),
@@ -104,33 +112,50 @@ function expectPromptSimulationNodeShells(
   const firstFlowNode = elements.flowNodes[0]!;
   const secondFlowNode = elements.flowNodes[1]!;
   const thirdFlowNode = elements.flowNodes[2]!;
+  const firstFlowHeaderRow = elements.flowHeaderRows[0]!;
   const firstFlowStep = elements.flowSteps[0]!;
   const firstUserIcon = elements.userIcons[0]!;
   const secondUserIcon = elements.userIcons[1]!;
   const firstModelSegment = elements.modelSegments[0]!;
+  const firstTitleSurface = elements.titleSurfaces[0]!;
 
   expect(firstFlowStep.className).toContain("[--node-shell-gap:2px]");
   expect(firstFlowStep.className).toContain("[--node-shell-radius:16px]");
+  expect(firstFlowStep.className).toContain("flex");
+  expect(firstFlowStep.className).toContain("w-full");
   expect(firstFlowStep.className).toContain("flex-1");
-  expect(firstFlowStep.className).not.toContain("w-fit");
+  expect(firstFlowStep.className).not.toContain("shrink-0");
   expect(firstFlowStep.className).toContain("bg-[#FBFBFB]");
   expect(firstFlowStep.className).toContain("items-center");
   expect(firstFlowStep.className).toContain("px-[2px]");
   expect(firstFlowStep.className).toContain("pt-[2px]");
   expect(firstFlowStep.className).toContain("pb-[2px]");
-  expect(firstFlowNode.contains(firstUserIcon)).toBe(false);
-  expect(secondFlowNode.contains(secondUserIcon)).toBe(false);
-  expect(firstFlowStep.firstElementChild).toBe(firstUserIcon);
-  expect(firstFlowNode.className).toContain("h-7");
-  expect(firstFlowNode.className).toContain("rounded-[10px]");
-  expect(firstFlowNode.className).toContain("border-[rgba(0,0,0,0.08)]");
-  expect(firstFlowNode.className).toContain("ring-1");
+  expect(firstFlowStep.firstElementChild).toBe(firstFlowNode);
+  expect(firstFlowNode.contains(firstUserIcon)).toBe(true);
+  expect(secondFlowNode.contains(secondUserIcon)).toBe(true);
+  expect(firstFlowNode.className).toContain("border-border/40");
+  expect(firstFlowNode.className).toContain("bg-background/96");
+  expect(firstFlowNode.className).toContain("w-full");
   expect(firstFlowNode.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(firstFlowHeaderRow.className).toContain("w-full");
+  expect(firstFlowHeaderRow.className).toContain("gap-1.5");
+  expect(firstFlowHeaderRow.className).toContain("pr-2.5");
+  expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
+  expect(
+    firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
+  ).toBeNull();
+  expect(firstTitleSurface).toBe(firstModelSegment.parentElement);
+  expect(firstTitleSurface.className).toContain("h-7");
+  expect(firstTitleSurface.className).toContain("rounded-[10px]");
+  expect(firstTitleSurface.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(firstTitleSurface.className).toContain("ring-1");
+  expect(firstTitleSurface.className).toContain(
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
   );
-  expect(firstFlowNode.className).toContain("w-full");
-  expect(firstFlowNode.className).toContain("min-w-[15rem]");
-  expect(firstFlowNode.className).toContain(
+  expect(firstTitleSurface.className).toContain("min-w-[15rem]");
+  expect(firstTitleSurface.className).toContain(
     "rgba(16,163,127,0.18)_0%,rgba(16,163,127,0.08)_32%",
   );
   expect(firstModelSegment.textContent).toContain("GPT-4.1 mini");
