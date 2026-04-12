@@ -1,7 +1,12 @@
 "use client";
 
 import { Eye, Maximize2, Minimize2 } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
+import {
+  spielwieseHeaderButtonAccentClassName,
+  spielwieseHeaderButtonBaseClassName,
+} from "./spielwieseHeaderButtonStyles";
 
 type SpielwieseAgentNodeHeaderActionsProps = {
   isCompact: boolean;
@@ -13,8 +18,7 @@ type SpielwieseAgentNodeHeaderActionsProps = {
   onToggleCompact: () => void;
 };
 
-const headerActionButtonClassName =
-  "text-foreground/58 hover:text-foreground flex h-full shrink-0 items-center justify-center rounded-none bg-transparent";
+const headerActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`;
 
 export function SpielwieseAgentNodeHeaderActions({
   isCompact,
@@ -32,13 +36,13 @@ export function SpielwieseAgentNodeHeaderActions({
 
   return (
     <div
-      className="bg-background flex h-7 shrink-0 items-center overflow-hidden rounded-[8px] border border-[rgba(0,0,0,0.08)]"
+      className="flex shrink-0 items-center gap-1"
       data-testid="spielwiese-agent-node-header-actions"
     >
       <Button
         aria-label={headerToggleLabel}
         aria-pressed={isCompact}
-        className={`${headerActionButtonClassName} hover:bg-background w-7`}
+        className={headerActionButtonClassName}
         size="icon-sm"
         type="button"
         variant="ghost"
@@ -49,11 +53,10 @@ export function SpielwieseAgentNodeHeaderActions({
       <Button
         aria-label={`Preview ${nodeId} node`}
         aria-pressed={isPreviewFocused}
-        className={`${headerActionButtonClassName} w-7 border-l border-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.03)] ${
-          isPreviewFocused
-            ? "bg-[rgba(201,120,62,0.12)] text-[#6F4124]"
-            : "bg-[rgba(0,0,0,0.02)]"
-        }`}
+        className={cn(
+          headerActionButtonClassName,
+          isPreviewFocused && spielwieseHeaderButtonAccentClassName,
+        )}
         size="icon-sm"
         type="button"
         variant="ghost"

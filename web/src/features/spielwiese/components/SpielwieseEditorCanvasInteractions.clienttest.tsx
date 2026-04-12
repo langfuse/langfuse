@@ -10,11 +10,6 @@ import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 import { expectInlineEditingShell } from "./spielwieseEditorCanvasTestAssertions";
 
-function hoverOption(element: HTMLElement) {
-  fireEvent.pointerEnter(element);
-  fireEvent.pointerMove(element);
-}
-
 function renderCanvas() {
   return render(
     <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
@@ -82,24 +77,25 @@ describe("SpielwieseEditorCanvas editing shell", () => {
     fireEvent.change(titleInput, { target: { value: "Vision Agent Draft" } });
     fireEvent.click(modelInput);
 
-    expect(
-      screen.queryByRole("button", { name: "Claude Haiku 4.5" }),
-    ).toBeNull();
-    expect(screen.queryByText("Token cost")).toBeNull();
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+    const anthropicProvider = within(panel).getByRole("button", {
+      name: "Anthropic",
+    });
 
-    const providerOption = screen.getByRole("button", { name: "Anthropic" });
-    hoverOption(providerOption);
-    expect(
-      screen.getByRole("button", { name: "Claude Opus 4.6" }),
-    ).toBeTruthy();
-    expect(screen.queryByText("Token cost")).toBeNull();
+    fireEvent.click(anthropicProvider);
 
-    const modelOption = screen.getByRole("button", {
+    const modelOption = within(panel).getByRole("button", {
       name: "Claude Haiku 4.5",
     });
-    hoverOption(modelOption);
-    expect(screen.getByText("Token cost")).toBeTruthy();
-    expect(screen.getByText("Low")).toBeTruthy();
+
+    fireEvent.mouseEnter(modelOption);
+
+    expect(within(panel).getByText("Token cost")).toBeTruthy();
+    expect(
+      within(panel).getByText(
+        "Leanest Claude option when you still want Claude tone.",
+      ),
+    ).toBeTruthy();
     fireEvent.click(modelOption);
     fireEvent.change(systemInput, {
       target: { value: "Updated system prompt\nwith two fixed lines." },
@@ -175,7 +171,7 @@ describe("SpielwieseEditorCanvas editing tags", () => {
 });
 
 describe("SpielwieseEditorCanvas model picker", () => {
-  it("reveals older models behind the more-models control without clipping the open panel", () => {
+  it("renders provider-first browsing with benchmark hover and an older-model toggle", () => {
     renderCanvas();
     const modelButton = screen.getByRole("button", {
       name: "vision-agent Model",
@@ -190,14 +186,33 @@ describe("SpielwieseEditorCanvas model picker", () => {
     expect(nodeCard.className).toContain("overflow-visible");
     expect(nodeCard.className).not.toContain("overflow-hidden");
     expect(modelButton.closest(".z-40")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "OpenAI" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "GPT-5.4" })).toBeTruthy();
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+    const preview = within(panel).getByTestId(
+      "spielwiese-model-picker-benchmark-preview",
+    );
+    const gpt54Button = within(panel).getByRole("button", {
+      name: "GPT-5.4",
+    });
 
-    expect(screen.queryByRole("button", { name: "GPT-4.1 mini" })).toBeNull();
+    expect(within(panel).getByRole("button", { name: "OpenAI" })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "GPT-5.4" })).toBeTruthy();
+    expect(
+      within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
+    ).toBeNull();
+    expect(
+      within(panel).getByRole("button", { name: "Recommend model" }),
+    ).toBeTruthy();
+    fireEvent.mouseEnter(gpt54Button);
+    expect(preview.textContent).toContain("GPT-5.4");
+    expect(within(panel).getByText("Token cost")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "More models" }));
+    fireEvent.click(
+      within(panel).getByTestId("spielwiese-model-picker-older-toggle"),
+    );
 
-    expect(screen.getByRole("button", { name: "GPT-4.1 mini" })).toBeTruthy();
+    expect(
+      within(panel).getByRole("button", { name: "GPT-4.1 mini" }),
+    ).toBeTruthy();
   });
 });
 

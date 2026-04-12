@@ -1,88 +1,31 @@
 import { Baby, UserRound } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import type { SpielwieseDashboardVM } from "../types/dashboard";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "../ui/resizable";
-import { SpielwieseAgentNodeStack } from "./SpielwieseAgentNodeStack";
+import {
+  SpielwieseCanvasPane,
+  type SpielwieseCanvasPaneProps,
+} from "./SpielwieseCanvasPane";
 import { SpielwieseEvaluationPane } from "./SpielwieseEvaluationPane";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
+import {
+  spielwieseHeaderButtonBaseClassName,
+  spielwieseHeaderButtonSelectedClassName,
+} from "./spielwieseHeaderButtonStyles";
 
 type CanvasBottomPaneMode = "playground" | "evaluation";
 
 const paneModeToggleClassName =
-  "pointer-events-auto inline-flex items-center gap-px rounded-[8px] bg-[#F7F7F7] p-0 ring-1 ring-black/5";
+  "pointer-events-auto inline-flex items-center gap-1";
 
-const paneModeToggleButtonClassName =
-  "text-foreground/62 hover:text-foreground inline-flex h-6 items-center gap-1.25 rounded-[8px] py-0 pr-2 pl-1.5 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
+const paneModeToggleButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex h-6 items-center gap-1.25 rounded-[10px] py-0 pr-2 pl-1.5 text-[11px] font-medium tracking-[0.01em]`;
 
 const paneModeToggleButtonActiveClassName =
-  "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
-
-type SpielwieseCanvasPaneProps = {
-  className?: string;
-  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
-  onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
-  onPromptSectionInsert: (
-    nodeId: string,
-    kind: "user" | "system" | "assistant" | "tool",
-  ) => void;
-  onPromptSectionChange: (
-    nodeId: string,
-    sectionId: string,
-    value: string,
-  ) => void;
-  onPromptSectionMove: (
-    nodeId: string,
-    sectionId: string,
-    direction: "up" | "down",
-  ) => void;
-  onSettingValueChange: (
-    nodeId: string,
-    settingId: string,
-    value: string,
-  ) => void;
-  onTitleChange: (nodeId: string, value: string) => void;
-};
-
-function SpielwieseCanvasPane({
-  className,
-  nodes,
-  onPromptSectionDelete,
-  onPromptSectionInsert,
-  onPromptSectionChange,
-  onPromptSectionMove,
-  onSettingValueChange,
-  onTitleChange,
-}: SpielwieseCanvasPaneProps) {
-  return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0 pb-2",
-        className,
-      )}
-      data-testid="spielwiese-editor-canvas-pane"
-    >
-      <div
-        className="bg-background flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-0 py-0 shadow-xs"
-        data-testid="spielwiese-editor-canvas-pane-shell"
-      >
-        <SpielwieseAgentNodeStack
-          nodes={nodes}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionMove={onPromptSectionMove}
-          onSettingValueChange={onSettingValueChange}
-          onTitleChange={onTitleChange}
-        />
-      </div>
-    </div>
-  );
-}
+  spielwieseHeaderButtonSelectedClassName;
 
 function CanvasPaneModeToggle({
   activeMode,

@@ -161,6 +161,7 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "remark-stringify": "^11.0.0",
+    "shaders": "^2.5.89",
     "sonner": "^2.0.7",
     "stripe": "^18.5.0",
     "superjson": "2.2.2",

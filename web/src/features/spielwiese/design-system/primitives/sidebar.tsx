@@ -14,10 +14,24 @@ const sidebarMenuButtonVariants = cva(
         true: "size-8 justify-center gap-0 rounded-[10px] px-0 [&_[data-sidebar-action]]:hidden [&_[data-sidebar-badge]]:hidden [&_[data-sidebar-label]]:hidden [&_[data-sidebar-meta]]:hidden",
         false: "",
       },
+      tone: {
+        default: "",
+        primary:
+          "h-7 gap-1.5 rounded-[9px] pr-1 pl-2 text-[0.875rem] leading-5 font-medium tracking-[-0.14px] text-[#242529] hover:bg-black/[0.06] hover:text-[#242529] [&_[data-sidebar-action]]:text-black/[0.4] [&_[data-sidebar-icon]]:text-black/[0.55] [&_[data-sidebar-label]]:font-medium [&_[data-sidebar-meta]]:text-black/[0.4]",
+      },
     },
+    compoundVariants: [
+      {
+        active: true,
+        tone: "primary",
+        className:
+          "bg-[#EEEFF1] text-[#242529] shadow-none [&_[data-sidebar-icon]]:text-black/[0.55]",
+      },
+    ],
     defaultVariants: {
       active: false,
       compact: false,
+      tone: "default",
     },
   },
 );
@@ -34,7 +48,7 @@ export function SidebarSurface({
   return (
     <div
       className={cn(
-        "bg-sidebar text-sidebar-foreground flex h-full flex-col",
+        "flex h-full flex-col bg-[#F3F3F4] text-[#242529]",
         className,
       )}
       {...props}
@@ -122,12 +136,16 @@ export function SidebarMenuButton({
   className,
   compact,
   href,
+  tone,
   ...props
 }: SidebarMenuButtonProps) {
   return (
     <a
       aria-current={active ? "page" : undefined}
-      className={cn(sidebarMenuButtonVariants({ active, compact }), className)}
+      className={cn(
+        sidebarMenuButtonVariants({ active, compact, tone }),
+        className,
+      )}
       href={href}
       {...props}
     />

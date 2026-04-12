@@ -1,3 +1,4 @@
+import SpielwieseIntroPage from "./SpielwieseIntroPage";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 import SpielwieseOnboardingPage from "./SpielwieseOnboardingPage";
 
@@ -6,15 +7,29 @@ type SpielwieseRoutePageProps = {
 };
 
 export function getSpielwieseRoute(slug?: string[]) {
-  return slug?.[0] === "onboarding" ? "onboarding" : "dashboard";
+  if (slug?.[0] === "onboarding") {
+    return "onboarding";
+  }
+
+  if (slug?.[0] === "dashboard") {
+    return "dashboard";
+  }
+
+  return "intro";
 }
 
 export default function SpielwieseRoutePage({
   slug,
 }: SpielwieseRoutePageProps) {
-  return getSpielwieseRoute(slug) === "onboarding" ? (
-    <SpielwieseOnboardingPage stepId={slug?.[1]} />
-  ) : (
-    <SpielwieseDashboardPage />
-  );
+  const route = getSpielwieseRoute(slug);
+
+  if (route === "onboarding") {
+    return <SpielwieseOnboardingPage stepId={slug?.[1]} />;
+  }
+
+  if (route === "dashboard") {
+    return <SpielwieseDashboardPage />;
+  }
+
+  return <SpielwieseIntroPage />;
 }

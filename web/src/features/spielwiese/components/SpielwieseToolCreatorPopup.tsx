@@ -17,6 +17,7 @@ import {
   type ToolCreatorMode,
 } from "./SpielwieseToolCreatorPopupContent";
 import { SpielwieseHeaderStripTag } from "./SpielwieseHeaderStrip";
+import { spielwieseHeaderButtonBaseClassName } from "./spielwieseHeaderButtonStyles";
 
 const toolCreatorModes = [
   { label: "Builder", value: "builder" },
@@ -130,7 +131,7 @@ export function SpielwieseToolCreatorPopup({
         className={cn(
           variant === "row"
             ? "border-border/40 bg-background/88 text-foreground/78 hover:bg-background hover:text-foreground h-8 rounded-lg border px-3 text-[0.8125rem] font-medium shadow-[inset_0_1px_0_hsl(var(--background)/0.96)]"
-            : "bg-background text-foreground/78 hover:bg-background hover:text-foreground h-7 gap-0 overflow-hidden rounded-[8px] border border-[rgba(0,0,0,0.08)] px-0 text-[13px] font-medium",
+            : `${spielwieseHeaderButtonBaseClassName} h-7 gap-0 overflow-hidden rounded-[10px] px-0 text-[13px] font-medium`,
         )}
         size="sm"
         type="button"

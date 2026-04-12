@@ -3,6 +3,11 @@
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
+  spielwieseHeaderButtonAccentClassName,
+  spielwieseHeaderButtonBaseClassName,
+  spielwieseHeaderButtonSelectedClassName,
+} from "./spielwieseHeaderButtonStyles";
+import {
   getCanonicalModelLabel,
   spielwieseModelProviders,
   type SpielwieseModelOption,
@@ -10,210 +15,91 @@ import {
 } from "./spielwieseModelCatalog";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 
+function PickerSectionLabel({ children }: { children: string }) {
+  return (
+    <p className="text-foreground/42 px-0.5 pt-0.5 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+      {children}
+    </p>
+  );
+}
+
 function ProviderButton({
   isActive,
-  provider,
-  onFocus,
   onClick,
+  provider,
 }: {
   isActive: boolean;
-  provider: SpielwieseModelProvider;
-  onFocus: () => void;
   onClick: () => void;
+  provider: SpielwieseModelProvider;
 }) {
   return (
     <Button
+      aria-pressed={isActive}
       className={cn(
-        "h-8 justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+        spielwieseHeaderButtonBaseClassName,
+        "h-8 w-full justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
         isActive
-          ? "text-foreground bg-white ring-1 ring-black/6 hover:bg-white"
-          : "text-foreground hover:bg-black/[0.025]",
+          ? spielwieseHeaderButtonSelectedClassName
+          : "hover:bg-[rgba(255,255,255,0.92)]",
       )}
+      data-state={isActive ? "active" : "inactive"}
       size="sm"
       type="button"
       variant="ghost"
-      onFocus={onFocus}
       onClick={onClick}
-      onMouseEnter={onFocus}
-      onMouseMove={onFocus}
-      onPointerEnter={onFocus}
-      onPointerMove={onFocus}
     >
       <span className="flex min-w-0 items-center gap-2">
         <SpielwieseModelProviderMark providerId={provider.id} />
-        <p className="truncate">{provider.label}</p>
+        <span className="truncate">{provider.label}</span>
       </span>
     </Button>
   );
 }
 
-function BenchmarkDots({ score }: { score: number }) {
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: 5 }, (_, index) => (
-        <span
-          className={cn(
-            "bg-border size-1.5 rounded-full",
-            index < score && "bg-foreground",
-          )}
-          key={index}
-        />
-      ))}
-    </div>
-  );
-}
-
-function getTokenCostLabel(model: SpielwieseModelOption) {
-  const costScore = model.benchmarks.find(
-    (benchmark) => benchmark.label === "Cost",
-  )?.score;
-
-  switch (costScore) {
-    case 5:
-      return "Low";
-    case 4:
-      return "Moderate";
-    case 3:
-      return "Mid";
-    case 2:
-      return "High";
-    default:
-      return "Very high";
-  }
-}
-
-function ModelOptionButton({
+function ModelButton({
+  description,
   isActive,
-  model,
-  onFocus,
+  label,
+  onHover,
   onSelect,
-  provider,
+  providerId,
 }: {
+  description: string;
   isActive: boolean;
-  model: SpielwieseModelOption;
-  onFocus: () => void;
+  label: string;
+  onHover: () => void;
   onSelect: () => void;
-  provider: SpielwieseModelProvider;
+  providerId: SpielwieseModelProvider["id"];
 }) {
   return (
     <button
-      aria-label={model.label}
+      aria-label={label}
+      aria-pressed={isActive}
       className={cn(
-        "focus-visible:ring-ring/30 flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left outline-none focus-visible:ring-2",
+        "focus-visible:ring-ring/30 flex w-full items-start gap-2.5 rounded-[10px] border border-transparent px-2.5 py-2.5 text-left transition-[background-color,border-color,box-shadow] outline-none focus-visible:ring-2",
         isActive
-          ? "bg-[#F6F7F4] ring-1 ring-black/6"
-          : "hover:bg-black/[0.025]",
+          ? "border-black/8 bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
+          : "hover:border-black/6 hover:bg-black/[0.025]",
       )}
-      onClick={onSelect}
-      onFocus={onFocus}
-      onMouseEnter={onFocus}
-      onMouseMove={onFocus}
-      onPointerEnter={onFocus}
-      onPointerMove={onFocus}
+      data-state={isActive ? "active" : "inactive"}
       type="button"
+      onClick={onSelect}
+      onFocus={onHover}
+      onMouseEnter={onHover}
+      onPointerEnter={onHover}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
-        <SpielwieseModelProviderMark providerId={provider.id} />
-        <p className="truncate text-[0.8125rem] leading-5 font-medium">
-          {model.label}
-        </p>
-      </div>
+      <span className="text-foreground/62 mt-0.5 grid size-6 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.06)] bg-[rgba(247,247,244,0.92)]">
+        <SpielwieseModelProviderMark providerId={providerId} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[0.8125rem] leading-5 font-medium">
+          {label}
+        </span>
+        <span className="text-foreground/56 line-clamp-2 text-[0.75rem] leading-[1.15rem]">
+          {description}
+        </span>
+      </span>
     </button>
-  );
-}
-
-export function SpielwieseModelColumn({
-  currentModel,
-  hoveredModelLabel,
-  onHoverModel,
-  onSelectModel,
-  provider,
-  showLegacyModels,
-  toggleLegacyModels,
-}: {
-  currentModel: string;
-  hoveredModelLabel: string | null;
-  onHoverModel: (modelLabel: string) => void;
-  onSelectModel: (modelLabel: string) => void;
-  provider: SpielwieseModelProvider;
-  showLegacyModels: boolean;
-  toggleLegacyModels: () => void;
-}) {
-  const canonicalCurrentModel = getCanonicalModelLabel(currentModel);
-  const models = showLegacyModels
-    ? [...provider.latestModels, ...provider.legacyModels]
-    : provider.latestModels;
-
-  return (
-    <div className="flex min-h-0 w-[13.75rem] flex-col gap-2">
-      <div className="px-0.5 pt-0.5">
-        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
-          Models
-        </p>
-      </div>
-      <div className="flex flex-1 flex-col gap-0.5">
-        {models.map((model) => (
-          <ModelOptionButton
-            isActive={
-              hoveredModelLabel === model.label ||
-              canonicalCurrentModel === model.label
-            }
-            key={model.id}
-            model={model}
-            onFocus={() => onHoverModel(model.label)}
-            onSelect={() => onSelectModel(model.label)}
-            provider={provider}
-          />
-        ))}
-      </div>
-      {provider.legacyModels.length > 0 ? (
-        <div className="border-t border-black/6 pt-2">
-          <Button
-            className="text-foreground/54 hover:text-foreground h-7 justify-start rounded-[8px] px-2 text-[0.75rem] hover:bg-black/[0.03]"
-            size="sm"
-            type="button"
-            variant="ghost"
-            onClick={toggleLegacyModels}
-          >
-            {showLegacyModels ? "Hide older models" : "More models"}
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-export function SpielwieseBenchmarkPreview({
-  model,
-}: {
-  model: SpielwieseModelOption;
-}) {
-  return (
-    <div className="flex w-[12.5rem] flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
-          Model profile
-        </p>
-        <p className="text-[0.9375rem] font-semibold">{model.label}</p>
-      </div>
-      <div className="divide-y divide-black/6 overflow-hidden rounded-[10px] border border-black/6 bg-white/72">
-        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-          <p className="text-muted-foreground text-sm">Token cost</p>
-          <p className="text-sm font-medium tabular-nums">
-            {getTokenCostLabel(model)}
-          </p>
-        </div>
-        {model.benchmarks.map((benchmark) => (
-          <div
-            className="flex items-center justify-between gap-3 px-3 py-2.5"
-            key={benchmark.label}
-          >
-            <p className="text-muted-foreground text-sm">{benchmark.label}</p>
-            <BenchmarkDots score={benchmark.score} />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -222,36 +108,91 @@ export function SpielwieseProviderColumn({
   onSelectProvider,
 }: {
   currentProviderId: string | null;
-  onSelectProvider: (provider: SpielwieseModelProvider) => void;
+  onSelectProvider: (providerId: string) => void;
 }) {
   return (
-    <div className="flex w-[10.5rem] flex-1 flex-col gap-2">
-      <div className="px-0.5 pt-0.5">
-        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
-          Providers
-        </p>
-      </div>
-      <div className="flex flex-1 flex-col gap-0.5">
+    <div className="flex h-full w-[11.5rem] flex-col gap-2">
+      <PickerSectionLabel>Providers</PickerSectionLabel>
+      <div className="flex flex-1 flex-col gap-1">
         {spielwieseModelProviders.map((provider) => (
           <ProviderButton
             isActive={provider.id === currentProviderId}
             key={provider.id}
-            onFocus={() => onSelectProvider(provider)}
-            onClick={() => onSelectProvider(provider)}
+            onClick={() => onSelectProvider(provider.id)}
             provider={provider}
           />
         ))}
       </div>
       <div className="mt-auto border-t border-black/6 pt-2">
         <Button
-          className="text-foreground/54 hover:text-foreground h-7 justify-start rounded-[8px] px-2 text-[0.75rem] shadow-none hover:bg-black/[0.03]"
+          className={cn(
+            spielwieseHeaderButtonBaseClassName,
+            spielwieseHeaderButtonAccentClassName,
+            "h-8 w-full justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+          )}
           size="sm"
           type="button"
           variant="ghost"
         >
-          Recommend me a model
+          Recommend model
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function SpielwieseModelColumn({
+  currentModel,
+  models,
+  onHoverModel,
+  onSelectModel,
+  providerId,
+  showLegacyModels,
+  showOlderModelsButton,
+  toggleLegacyModels,
+}: {
+  currentModel: string;
+  models: SpielwieseModelOption[];
+  onHoverModel: (modelLabel: string | null) => void;
+  onSelectModel: (modelLabel: string) => void;
+  providerId: SpielwieseModelProvider["id"];
+  showLegacyModels: boolean;
+  showOlderModelsButton: boolean;
+  toggleLegacyModels: () => void;
+}) {
+  return (
+    <div className="flex h-full w-[15rem] flex-col gap-2">
+      <PickerSectionLabel>Models</PickerSectionLabel>
+      <div
+        className="flex flex-1 flex-col gap-1"
+        onMouseLeave={() => onHoverModel(null)}
+      >
+        {models.map((model) => (
+          <ModelButton
+            description={model.description}
+            isActive={getCanonicalModelLabel(currentModel) === model.label}
+            key={model.id}
+            label={model.label}
+            onHover={() => onHoverModel(model.label)}
+            onSelect={() => onSelectModel(model.label)}
+            providerId={providerId}
+          />
+        ))}
+      </div>
+      {showOlderModelsButton ? (
+        <div className="border-t border-black/6 pt-2">
+          <Button
+            className="text-foreground/54 hover:text-foreground h-7 justify-start rounded-[8px] px-2 text-[0.75rem] shadow-none hover:bg-black/[0.03]"
+            data-testid="spielwiese-model-picker-older-toggle"
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={toggleLegacyModels}
+          >
+            {showLegacyModels ? "Hide older models" : "Show older models"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

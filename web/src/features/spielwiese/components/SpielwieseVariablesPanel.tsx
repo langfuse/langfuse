@@ -26,7 +26,7 @@ export function SpielwieseVariablesSummary({
 
       <button
         aria-label={actionLabel}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/40 inline-flex size-8 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+        className="text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] border border-[rgba(15,23,42,0.08)] bg-white/72 shadow-[0_0_0_1px_rgba(255,255,255,0.48)_inset] transition-[background-color,color,box-shadow] outline-none hover:bg-white/92 focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.08)] focus-visible:ring-offset-0"
         onClick={onCreate}
         type="button"
       >
@@ -45,13 +45,14 @@ export function SpielwieseVariablesPanel({
 }: SpielwieseVariablesPanelProps) {
   return (
     <section
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-2.5"
       data-testid="spielwiese-variables-panel"
     >
-      <ul className="flex flex-col gap-1" role="list">
-        {state.items.map((item) => (
+      <ul className="flex flex-col gap-2.5" role="list">
+        {state.items.map((item, index) => (
           <SpielwieseVariableEditor
             item={item}
+            itemIndex={index}
             key={item.id}
             onChange={state.onChange}
             onDelete={state.onDelete}

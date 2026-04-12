@@ -1,17 +1,10 @@
-import Link from "next/link";
-import {
-  Bell,
-  ChevronDown,
-  CircleHelp,
-  PanelLeft,
-  PanelRight,
-} from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
+import { Bell, CircleHelp, PanelLeft, PanelRight } from "lucide-react";
 import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Button, buttonVariants } from "../ui/button";
+import { Button } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import type { SpielwieseShellVM } from "../types/shell";
 import { useSpielwieseShell } from "./SpielwieseShellProvider";
+import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 
 const topBarActionClassName =
   "rounded-md text-foreground/72 hover:bg-black/4 hover:text-foreground";
@@ -22,38 +15,15 @@ type SpielwieseTopBarProps = {
 };
 
 function HeaderPrimaryActions({
-  productLabel,
-  teamInitial,
+  teamName,
   togglePrimarySidebar,
 }: {
-  productLabel: string;
-  teamInitial: string;
+  teamName: string;
   togglePrimarySidebar: () => void;
 }) {
   return (
     <div className="flex h-full min-w-0 items-center gap-1.5">
-      <Link
-        aria-label="Homepage"
-        className={cn(
-          buttonVariants({ size: "icon-sm", variant: "ghost" }),
-          topBarActionClassName,
-        )}
-        href="/"
-      >
-        <div className="bg-foreground text-background grid size-[1.125rem] place-items-center rounded-[4px] text-[0.625rem] font-semibold uppercase">
-          {teamInitial}
-        </div>
-      </Link>
-      <Button
-        className={cn("min-w-0 gap-1 px-2", topBarActionClassName)}
-        size="sm"
-        variant="ghost"
-      >
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[13px] font-medium">{productLabel}</p>
-          <ChevronDown size={13} />
-        </div>
-      </Button>
+      <SpielwieseWorkspaceSwitcher name={teamName} variant="topbar" />
       <Button
         aria-label="Toggle primary sidebar"
         className={topBarActionClassName}
@@ -134,8 +104,7 @@ export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
     >
       <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-2 px-2.5 pb-0 sm:px-4">
         <HeaderPrimaryActions
-          productLabel={shell.productLabel}
-          teamInitial={shell.team.initials.slice(0, 1)}
+          teamName={shell.team.name}
           togglePrimarySidebar={togglePrimarySidebar}
         />
         <div className="min-w-0" />

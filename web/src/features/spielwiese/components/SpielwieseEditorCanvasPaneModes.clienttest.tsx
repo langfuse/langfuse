@@ -117,26 +117,27 @@ function expectPaneModeToggleButtons({
   ReturnType<typeof getPaneModeElements>,
   "evaluationToggle" | "paneModeToggle" | "playgroundToggle"
 >) {
-  expect(paneModeToggle.className).toContain("rounded-[8px]");
-  expect(paneModeToggle.className).toContain("bg-[#F7F7F7]");
-  expect(paneModeToggle.className).toContain("ring-1");
-  expect(paneModeToggle.className).not.toContain("border");
+  expect(paneModeToggle.className).toContain("gap-1");
+  expect(paneModeToggle.className).not.toContain("bg-[#F7F7F7]");
+  expect(paneModeToggle.className).not.toContain("ring-1");
   expect(playgroundToggle.className).toContain("h-6");
-  expect(playgroundToggle.className).toContain("rounded-[8px]");
+  expect(playgroundToggle.className).toContain("rounded-[10px]");
+  expect(playgroundToggle.className).toContain("border-[rgba(0,0,0,0.12)]");
   expect(playgroundToggle.className).toContain("pl-1.5");
   expect(playgroundToggle.className).toContain("pr-2");
   expect(playgroundToggle.className).not.toContain("px-3.5");
   expect(playgroundToggle.className).toContain("text-[11px]");
   expect(playgroundToggle.className).toContain("py-0");
-  expect(playgroundToggle.className).toContain("bg-white");
+  expect(playgroundToggle.className).toContain("bg-background");
   expect(playgroundToggle.className).toContain("text-[#202427]");
   expect(playgroundToggle.className).toContain(
     "shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
   );
   expect(playgroundToggle.className).not.toContain("bg-[linear-gradient");
-  expect(evaluationToggle.className).toContain("text-foreground/62");
+  expect(evaluationToggle.className).toContain("text-foreground/68");
   expect(evaluationToggle.className).toContain("text-[11px]");
   expect(evaluationToggle.className).toContain("hover:text-foreground");
+  expect(evaluationToggle.className).toContain("border-[rgba(0,0,0,0.08)]");
   expectPaneModeSvgSize(playgroundToggle);
   expectPaneModeSvgSize(evaluationToggle);
 }
@@ -159,8 +160,12 @@ function expectPaneModeToggleActions({
   expect(evaluationToggle.getAttribute("aria-pressed")).toBe("false");
   expect(historyButton.className).toContain("h-6");
   expect(historyButton.className).toContain("text-[11px]");
+  expect(historyButton.className).toContain("rounded-[10px]");
+  expect(historyButton.className).toContain("border-[rgba(0,0,0,0.08)]");
   expect(playButton.className).toContain("h-6");
   expect(playButton.className).toContain("text-[11px]");
+  expect(playButton.className).toContain("rounded-[10px]");
+  expect(playButton.className).toContain("border-[rgba(0,0,0,0.08)]");
   expect(within(paneModeToggle).getByText("Playground")).toBeTruthy();
   expect(within(paneModeToggle).getByText("Evaluation")).toBeTruthy();
 }

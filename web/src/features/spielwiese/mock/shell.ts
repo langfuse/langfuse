@@ -16,9 +16,9 @@ export const spielwieseShellMock: SpielwieseShellVM = {
   productLabel: "Macroextractor",
   workspaceLabel: "Assistant",
   team: {
-    name: "My Space",
+    name: "Rudel",
     plan: "Free plan",
-    initials: "MS",
+    initials: "RU",
   },
   user: {
     name: "Louis Ville",
@@ -76,17 +76,18 @@ export const spielwieseShellMock: SpielwieseShellVM = {
           defaultOpen: false,
           children: [
             {
+              id: "comedian-bot",
+              label: "Comedian Bot",
+              href: "#comedian-bot",
+              icon: FileText,
+            },
+            {
               id: "vision-agent",
               label: "Vision Agent",
               href: "#vision-agent",
+              icon: FileText,
             },
           ],
-        },
-        {
-          id: "assistant",
-          label: "Comedian Bot",
-          href: "#assistant",
-          icon: FileText,
         },
       ],
     },

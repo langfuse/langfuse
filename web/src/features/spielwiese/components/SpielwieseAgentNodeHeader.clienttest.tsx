@@ -145,17 +145,18 @@ function expectHeaderActionChrome({
 
   expect(headerActions?.contains(toggleButton)).toBe(true);
   expect(headerActions?.contains(previewButton)).toBe(true);
-  expect(headerActions?.className).toContain("h-7");
-  expect(headerActions?.className).toContain("rounded-[8px]");
-  expect(headerActions?.className).toContain("border-[rgba(0,0,0,0.08)]");
-  expect(headerActions?.className).toContain("overflow-hidden");
+  expect(headerActions?.className).toContain("gap-1");
+  expect(headerActions?.className).not.toContain("border-[rgba(0,0,0,0.08)]");
+  expect(headerActions?.className).not.toContain("overflow-hidden");
   expect(toggleButton.className).not.toContain("ml-auto");
-  expect(toggleButton.className).toContain("bg-transparent");
-  expect(toggleButton.className).toContain("w-7");
-  expect(previewButton.className).toContain("w-7");
-  expect(previewButton.className).toContain("border-l");
-  expect(previewButton.className).toContain("bg-[rgba(0,0,0,0.02)]");
-  expect(toggleButton.className).not.toContain("border-[rgba(0,0,0,0.08)]");
+  expect(toggleButton.className).toContain("size-7");
+  expect(toggleButton.className).toContain("rounded-[10px]");
+  expect(toggleButton.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(toggleButton.className).toContain("bg-background");
+  expect(previewButton.className).toContain("size-7");
+  expect(previewButton.className).toContain("rounded-[10px]");
+  expect(previewButton.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(previewButton.className).not.toContain("border-l");
   expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
 }
@@ -253,16 +254,28 @@ describe("SpielwieseAgentNodeHeader strip items", () => {
     expect(screen.queryByLabelText("vision-agent Response format")).toBeNull();
     expect(screen.getByLabelText("vision-agent Reasoning")).toBeTruthy();
   });
+});
 
-  it("renders the title-shell model picker in a fixed portal layer", () => {
+describe("SpielwieseAgentNodeHeader model picker popup", () => {
+  it("renders the title-shell model picker as an anchored popover panel", () => {
     const header = renderVisionNodeHeader();
 
     fireEvent.click(header.modelButton);
 
     const panel = screen.getByRole("dialog", { name: "Model picker" });
 
-    expect(panel.className).toContain("fixed");
     expect(panel.className).not.toContain("absolute");
+    expect(panel.className).not.toContain("fixed");
     expect(header.titleControl.contains(panel)).toBe(false);
+  });
+
+  it("does not stamp manual inline coordinates onto the panel near the viewport edge", () => {
+    const header = renderVisionNodeHeader();
+    fireEvent.click(header.modelButton);
+
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+
+    expect(panel.style.left).toBe("");
+    expect(panel.style.top).toBe("");
   });
 });

@@ -1,0 +1,78 @@
+import Image from "next/image";
+import { ChevronDown } from "lucide-react";
+
+type SpielwieseWorkspaceSwitcherProps = {
+  name: string;
+  variant: "compact" | "sidebar" | "topbar";
+};
+
+function SpielwieseWorkspaceMark({ size }: { size: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 overflow-hidden rounded-[7px] ${size}`}
+    >
+      <Image
+        alt=""
+        className="size-full object-cover"
+        draggable={false}
+        height={240}
+        priority
+        src="/assets/rudel-logo.jpg"
+        width={240}
+      />
+    </span>
+  );
+}
+
+export function SpielwieseWorkspaceSwitcher({
+  name,
+  variant,
+}: SpielwieseWorkspaceSwitcherProps) {
+  const markSizeByVariant = {
+    compact: "size-[1.625rem]",
+    sidebar: "size-[1.625rem]",
+    topbar: "size-6",
+  } satisfies Record<SpielwieseWorkspaceSwitcherProps["variant"], string>;
+  const markSize = markSizeByVariant[variant];
+  const mark = <SpielwieseWorkspaceMark size={markSize} />;
+
+  if (variant === "compact") {
+    return (
+      <a
+        className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl transition-colors"
+        href="#assistant"
+        title={name}
+      >
+        <span className="scale-[0.89]">{mark}</span>
+      </a>
+    );
+  }
+
+  if (variant === "topbar") {
+    return (
+      <a
+        className="flex h-[calc(var(--spielwiese-header-height)-4px)] max-w-[12rem] min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 text-[#242529] transition-[background-color,color] hover:bg-black/[0.03]"
+        href="#assistant"
+      >
+        {mark}
+        <span className="min-w-0 flex-1 truncate text-[0.875rem] leading-5 font-medium tracking-[-0.14px]">
+          {name}
+        </span>
+        <ChevronDown className="size-3.5 shrink-0 text-black/[0.55]" />
+      </a>
+    );
+  }
+
+  return (
+    <a
+      className="flex h-12 items-center gap-2.5 px-3 pr-12 text-[#242529] transition-[background-color,color] hover:bg-black/[0.03]"
+      href="#assistant"
+    >
+      {mark}
+      <span className="min-w-0 flex-1 truncate text-[1rem] leading-5 font-semibold tracking-[-0.32px]">
+        {name}
+      </span>
+      <ChevronDown className="size-3.5 shrink-0 text-black/[0.55]" />
+    </a>
+  );
+}

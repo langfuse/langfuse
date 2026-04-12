@@ -3,6 +3,7 @@ import {
   SpielwieseVariablesPanel,
   SpielwieseVariablesSummary,
 } from "./SpielwieseVariablesPanel";
+import { getSpielwieseToneStyles } from "./spielwieseToneStyles";
 import { useSpielwieseVariablesPanelState } from "./useSpielwieseVariablesPanelState";
 
 const variablesPanel = {
@@ -38,14 +39,57 @@ function renderVariablesPanel() {
   render(<TestVariablesPanel />);
 }
 
+function expectEditorTone(editorIndex: number, toneIndex: number) {
+  const editor = screen.getAllByTestId("spielwiese-variable-editor")[
+    editorIndex
+  ]!;
+  const surface = screen.getAllByTestId("spielwiese-variable-editor-surface")[
+    editorIndex
+  ]!;
+  const tone = getSpielwieseToneStyles(toneIndex);
+  const nameField = screen.getAllByLabelText(/Variable name/)[editorIndex]!;
+  const helperField = screen.getAllByLabelText(/Variable helper/)[editorIndex]!;
+
+  expect(editor.className).toContain("[--variable-shell-gap:2px]");
+  expect(editor.className).toContain("rounded-[var(--variable-shell-radius)]");
+  expect(editor.style.getPropertyValue("--variable-shell-fill")).toBe(
+    tone.shellFill,
+  );
+  expect(editor.style.getPropertyValue("--variable-surface-fill")).toBe(
+    tone.surfaceFill,
+  );
+  expect(editor.style.getPropertyValue("--variable-field-fill")).toBe(
+    tone.fill,
+  );
+  expect(editor.style.getPropertyValue("--variable-accent")).toBe(tone.accent);
+  expect(editor.className).not.toContain("shadow-[");
+  expect(surface.className).toContain(
+    "rounded-[calc(var(--variable-shell-radius)-var(--variable-shell-gap))]",
+  );
+  expect(surface.className).toContain(
+    "[background-color:var(--variable-surface-fill)]",
+  );
+  expect(nameField.className).toContain(
+    "[background-color:var(--variable-field-fill)]",
+  );
+  expect(nameField.className).toContain("text-foreground");
+  expect(nameField.className).toContain("shadow-none");
+  expect(helperField.className).toContain(
+    "[background-color:var(--variable-field-fill)]",
+  );
+  expect(helperField.className).toContain("text-foreground");
+  expect(helperField.className).toContain("shadow-none");
+}
+
 describe("SpielwieseVariablesPanel", () => {
   it("renders the variable count header and action button", () => {
     renderVariablesPanel();
 
     expect(screen.getByText(variablesPanel.countLabel)).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: variablesPanel.actionLabel }),
-    ).toBeTruthy();
+      screen.getByRole("button", { name: variablesPanel.actionLabel })
+        .className,
+    ).toContain("rounded-[10px]");
   });
 
   it("renders editable fields for existing variables", () => {
@@ -58,9 +102,7 @@ describe("SpielwieseVariablesPanel", () => {
   it("keeps the active variable card tinted while editing", () => {
     renderVariablesPanel();
 
-    expect(
-      screen.getByTestId("spielwiese-variable-editor").className,
-    ).toContain("bg-light-green/70");
+    expectEditorTone(0, 0);
   });
 });
 
@@ -71,6 +113,7 @@ describe("SpielwieseVariablesPanel editing", () => {
     fireEvent.click(
       screen.getByRole("button", { name: variablesPanel.actionLabel }),
     );
+    const secondTone = getSpielwieseToneStyles(1);
 
     expect(screen.getByText("2 variables")).toBeTruthy();
     expect(screen.getAllByLabelText(/Variable name/).length).toBe(2);
@@ -79,6 +122,12 @@ describe("SpielwieseVariablesPanel editing", () => {
         "Add a sample value so you can test the prompt with it.",
       ).length,
     ).toBe(2);
+    expectEditorTone(1, 1);
+    expect(
+      screen
+        .getAllByTestId("spielwiese-variable-editor")[1]
+        ?.style.getPropertyValue("--variable-shell-fill"),
+    ).toBe(secondTone.shellFill);
   });
 
   it("edits an existing variable directly", () => {

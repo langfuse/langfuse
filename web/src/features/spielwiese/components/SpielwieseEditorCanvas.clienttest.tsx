@@ -84,8 +84,6 @@ function expectInstructionsSectionChrome(
     instructionsTextareaRoot as HTMLElement;
   const instructionsPromptShellElement = instructionsPromptShell as HTMLElement;
   const instructionsFieldShellElement = instructionsFieldShell as HTMLElement;
-  const instructionsToggleShell =
-    instructionsToggle.parentElement as HTMLElement;
   const instructionsHeader = within(instructionsFieldShellElement).getByTestId(
     "spielwiese-message-section-header",
   );
@@ -105,7 +103,6 @@ function expectInstructionsSectionChrome(
     instructionsInput,
     instructionsPromptShellElement,
     instructionsToggle,
-    instructionsToggleShell,
     nodeCard,
   });
 }
@@ -162,7 +159,6 @@ function expectInstructionsPromptChrome({
   instructionsInput,
   instructionsPromptShellElement,
   instructionsToggle,
-  instructionsToggleShell,
   nodeCard,
 }: {
   instructionsBodyElement: HTMLElement;
@@ -171,7 +167,6 @@ function expectInstructionsPromptChrome({
   instructionsInput: HTMLElement;
   instructionsPromptShellElement: HTMLElement;
   instructionsToggle: HTMLElement;
-  instructionsToggleShell: HTMLElement;
   nodeCard: HTMLElement;
 }) {
   const fieldShellClassName = instructionsFieldShellElement.className;
@@ -208,40 +203,14 @@ function expectInstructionsPromptChrome({
   expect(instructionsInput.getAttribute("placeholder")).toBe(
     "Add instructions for this step",
   );
-  expectInstructionsToggleChrome({
-    instructionsToggle,
-    instructionsToggleShell,
-    nodeCard,
-  });
-}
-
-function expectInstructionsToggleChrome({
-  instructionsToggle,
-  instructionsToggleShell,
-  nodeCard,
-}: {
-  instructionsToggle: HTMLElement;
-  instructionsToggleShell: HTMLElement;
-  nodeCard: HTMLElement;
-}) {
   expect(instructionsToggle.textContent).toContain("Instructions");
   expect(instructionsToggle.querySelector("div")?.className).toContain(
     "text-[12px]",
   );
-  expectInstructionsToggleShellChrome(instructionsToggleShell);
   expect(instructionsToggle.querySelector("[data-prefix='true']")).toBeTruthy();
   expect(instructionsToggle.querySelector("[data-suffix='true']")).toBeTruthy();
   expect(within(nodeCard).getByTestId("vision-agent-system-icon")).toBeTruthy();
   expectAttioSectionChip(instructionsToggle, nodeCard);
-}
-
-function expectInstructionsToggleShellChrome(
-  instructionsToggleShell: HTMLElement,
-) {
-  expect(instructionsToggleShell.className).toContain(
-    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
-  );
-  expect(instructionsToggleShell.className).toContain("p-[2px]");
 }
 
 function expectEmbeddedInstructionsHeaderChrome(
@@ -397,6 +366,8 @@ function expectResponseFormatControlsCluster({
     "Response Format",
   );
   expect(responseFormatSwitch.className).not.toContain("ml-auto");
+  expect(responseFormatSwitch.className).toContain("gap-1");
+  expect(responseFormatSwitch.className).not.toContain("border");
 }
 
 function expectResponseFormatInsertTriggerChrome({
@@ -423,6 +394,15 @@ function expectResponseFormatInsertTriggerChrome({
     "p-[var(--message-insert-padding)]",
   );
   expect(responseFormatInsertTextTrigger.className).toContain("h-full");
+  expect(responseFormatInsertTextTrigger.className).toContain("relative");
+  expect(responseFormatInsertTextTrigger.className).toContain("z-10");
+  expect(responseFormatInsertTextTrigger.className).toContain("bg-background");
+  expect(responseFormatInsertTextTrigger.className).not.toContain(
+    "bg-transparent",
+  );
+  expect(responseFormatInsertTextTrigger.className).toContain(
+    "shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]",
+  );
   expect(responseFormatInsertTextTrigger.className).toContain(
     "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
   );
@@ -448,15 +428,27 @@ function expectResponseFormatInsertPickerOptionChrome(nodeCard: HTMLElement) {
   expect(responseFormatInsertPicker.className).toContain(
     "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
   );
-  expect(pickerButtonRow.className).toContain(
-    "px-[var(--message-insert-padding)]",
+  expect(responseFormatInsertPicker.className).toContain("-ml-[2px]");
+  expect(responseFormatInsertPicker.className).toContain("relative");
+  expect(responseFormatInsertPicker.className).toContain("z-0");
+  expect(responseFormatInsertPicker.className).not.toContain("border-l");
+  expect(responseFormatInsertPicker.className).not.toContain(
+    "border-[rgba(0,0,0,0.05)]",
   );
+  expect(pickerButtonRow.className).toContain("pl-1");
+  expect(pickerButtonRow.className).toContain("pr-px");
+  expect(pickerButtonRow.className).toContain("py-0.5");
+  expect(pickerButtonRow.className).toContain("items-center");
+  expect(pickerButtonRow.className).not.toContain("items-stretch");
   expect(pickerButtonRow.className).toContain("gap-px");
   for (const pickerButton of responseFormatPickerButtons) {
     expect(pickerButton.className).toContain(
       "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
     );
-    expect(pickerButton.className).toContain("px-1.5");
+    expect(pickerButton.className).toContain("h-4");
+    expect(pickerButton.className).not.toContain("h-full");
+    expect(pickerButton.className).toContain("pl-1.5");
+    expect(pickerButton.className).toContain("pr-[5px]");
     expect(pickerButton.className).toContain("text-[0.6875rem]");
   }
 }
@@ -566,8 +558,9 @@ function expectResponseFormatBaseChrome(
   expect(responseFormatInsertTextTrigger.getAttribute("aria-expanded")).toBe(
     "false",
   );
-  expect(responseFormatSwitch.className).toContain("rounded-[9px]");
-  expect(responseFormatSwitch.className).toContain("border");
+  expect(responseFormatSwitch.className).toContain("gap-1");
+  expect(responseFormatSwitch.className).not.toContain("rounded-[9px]");
+  expect(responseFormatSwitch.className).not.toContain("border");
 }
 
 function expectResponseFormatNoneState(

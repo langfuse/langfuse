@@ -30,7 +30,7 @@ const insertOptions: Array<{
 ];
 
 const insertShellClassName =
-  "bg-background inline-flex h-7 items-stretch overflow-hidden rounded-[8px] border border-[rgba(0,0,0,0.08)] shadow-[0_1px_0_rgba(255,255,255,0.5)_inset]";
+  "[--message-insert-inner-radius:7px] [--message-insert-padding:2px] [--message-insert-outer-radius:calc(var(--message-insert-inner-radius)+var(--message-insert-padding))] bg-background inline-flex h-7 items-stretch overflow-hidden rounded-[var(--message-insert-outer-radius)] border border-[rgba(0,0,0,0.08)] p-[var(--message-insert-padding)] shadow-[0_1px_0_rgba(255,255,255,0.5)_inset]";
 const bareInsertShellClassName =
   "inline-flex h-7 items-stretch overflow-visible";
 const responseFormatInsertRadiusClassName =
@@ -42,20 +42,21 @@ function getInsertPickerChrome(
   if (styleVariant === "response-format") {
     return {
       pickerClassName:
-        "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+        "relative z-0 -ml-[2px] rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
       optionClassName:
-        "text-foreground/72 hover:bg-background/88 hover:text-foreground inline-flex h-full items-center rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-transparent px-1.5 text-[0.6875rem] font-medium tracking-[0.01em] shadow-none transition-colors outline-none focus-visible:ring-0 active:scale-[0.985]",
+        "text-foreground/72 hover:bg-background/88 hover:text-foreground inline-flex h-4 items-center rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-transparent pl-1.5 pr-[5px] text-[0.6875rem] font-medium tracking-[0.01em] shadow-none transition-colors outline-none focus-visible:ring-0 active:scale-[0.985]",
       optionsClassName:
-        "flex h-full w-max items-center gap-px px-[var(--message-insert-padding)] transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        "flex h-full w-max items-center gap-px pl-1 pr-px py-0.5 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
     };
   }
 
   return {
-    pickerClassName: "",
+    pickerClassName:
+      "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
     optionClassName:
-      "text-foreground/72 hover:bg-background/80 hover:text-foreground h-5 rounded-md px-2 text-[11px] font-medium",
+      "text-foreground/72 hover:bg-background/80 hover:text-foreground inline-flex h-full items-center rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-transparent px-2 text-[11px] font-medium",
     optionsClassName:
-      "flex w-max items-center gap-0.5 pr-px pl-0 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+      "flex h-full w-max items-center gap-px px-[var(--message-insert-padding)] transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
   };
 }
 
@@ -81,17 +82,17 @@ function SpielwieseMessageInsertPicker({
   const { optionClassName, optionsClassName, pickerClassName } =
     getInsertPickerChrome(styleVariant);
   const pickerStateClassName = isOpen
-    ? "max-w-[14.5rem] border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.035)]"
-    : "pointer-events-none max-w-0 border-transparent bg-transparent";
+    ? "max-w-[14.5rem] bg-[rgba(0,0,0,0.035)]"
+    : "pointer-events-none max-w-0 bg-transparent";
   const optionsStateClassName = isOpen
     ? "translate-x-0 opacity-100 delay-75"
-    : "translate-x-1 opacity-0 delay-0";
+    : "-translate-x-0.5 opacity-0 delay-0";
 
   return (
     <div
       aria-hidden={!isOpen}
       className={cn(
-        "flex h-full shrink-0 items-stretch overflow-hidden border-l transition-[max-width,border-color,background-color] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        "flex h-full shrink-0 items-stretch overflow-hidden transition-[max-width,background-color] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
         pickerClassName,
         pickerStateClassName,
       )}
@@ -167,7 +168,7 @@ function getTextInsertRowConfig({
     return {
       ...baseConfig,
       buttonClassName:
-        "text-foreground/72 hover:text-foreground inline-flex h-full items-center rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-transparent px-2 text-[0.6875rem] font-medium tracking-[0.01em] shadow-none transition-colors outline-none focus-visible:ring-0 hover:bg-transparent active:scale-[0.985]",
+        "text-foreground/72 hover:text-foreground relative z-10 inline-flex h-full items-center rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-background px-2 text-[0.6875rem] font-medium tracking-[0.01em] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] transition-colors outline-none focus-visible:ring-0 hover:bg-background active:scale-[0.985]",
       shellClassName: `${responseFormatInsertRadiusClassName} inline-flex h-6 items-stretch overflow-hidden rounded-[var(--message-insert-outer-radius)] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.52)] p-[var(--message-insert-padding)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]`,
     };
   }
@@ -175,7 +176,7 @@ function getTextInsertRowConfig({
   return {
     ...baseConfig,
     buttonClassName:
-      "text-foreground/78 hover:text-foreground h-full rounded-none border-0 bg-transparent px-3 text-[13px] font-medium shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985]",
+      "text-foreground/78 hover:text-foreground h-full rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))] border-0 bg-transparent px-3 text-[13px] font-medium shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985]",
   };
 }
 

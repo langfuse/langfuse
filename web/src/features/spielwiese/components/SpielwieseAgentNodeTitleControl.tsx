@@ -1,23 +1,25 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { SpielwieseAgentNodeTitleControlContent } from "./SpielwieseAgentNodeTitleControlContent";
-import type { TitleControlModelPickerPortalProps } from "./SpielwieseAgentNodeTitleControlModelPickerPortal";
-import { useTitleControlModelPickerPortal } from "./SpielwieseAgentNodeTitleControlModelPickerPortal";
+import type { SpielwieseModelPickerProps } from "./SpielwieseModelPicker";
 
 function resetModelPickerState({
   setHoveredModelLabel,
+  setIsModelPickerOpen,
   setProviderId,
   setShowLegacyModels,
 }: {
-  setHoveredModelLabel: (modelLabel: string | null) => void;
-  setProviderId: (providerId: string | null) => void;
-  setShowLegacyModels: (updater: (currentValue: boolean) => boolean) => void;
+  setHoveredModelLabel: (value: string | null) => void;
+  setIsModelPickerOpen: (open: boolean) => void;
+  setProviderId: (value: string | null) => void;
+  setShowLegacyModels: (value: boolean) => void;
 }) {
+  setIsModelPickerOpen(false);
   setProviderId(null);
   setHoveredModelLabel(null);
-  setShowLegacyModels(() => false);
+  setShowLegacyModels(false);
 }
 
 function useModelPickerControlState() {
@@ -31,11 +33,11 @@ function useModelPickerControlState() {
   const resetState = () =>
     resetModelPickerState({
       setHoveredModelLabel,
+      setIsModelPickerOpen,
       setProviderId,
       setShowLegacyModels,
     });
   const closePicker = () => {
-    setIsModelPickerOpen(false);
     resetState();
   };
 
@@ -45,17 +47,10 @@ function useModelPickerControlState() {
     isModelPickerOpen,
     providerId,
     setHoveredModelLabel,
+    setIsModelPickerOpen,
     setProviderId,
     setShowLegacyModels,
     showLegacyModels,
-    togglePicker: () =>
-      setIsModelPickerOpen((currentValue) => {
-        if (currentValue) {
-          resetState();
-        }
-
-        return !currentValue;
-      }),
   };
 }
 
@@ -70,53 +65,42 @@ type SpielwieseAgentNodeTitleControlProps = {
   onTitleChange: (nodeId: string, value: string) => void;
 };
 
-function getTitleControlPickerProps({
-  closePortaledPicker,
+function getTitleControlPickerPanelProps({
   currentModel,
-  handlePickerBlur,
   hoveredModelLabel,
-  isModelPickerOpen,
   modelSetting,
   node,
+  onClose,
   onSettingValueChange,
-  panelPosition,
-  panelRef,
-  portalTarget,
   providerId,
   setHoveredModelLabel,
   setProviderId,
   setShowLegacyModels,
   showLegacyModels,
 }: {
-  closePortaledPicker: () => void;
   currentModel: string;
-  handlePickerBlur: ComponentProps<"div">["onBlur"];
   hoveredModelLabel: string | null;
-  isModelPickerOpen: boolean;
   modelSetting: SpielwieseAgentNodeTitleControlProps["modelSetting"];
   node: SpielwieseAgentNodeVM;
+  onClose: () => void;
   onSettingValueChange: SpielwieseAgentNodeTitleControlProps["onSettingValueChange"];
-  panelPosition: { left: number; top: number } | null;
-  panelRef: TitleControlModelPickerPortalProps["panelRef"];
-  portalTarget: HTMLElement | null;
   providerId: string | null;
-  setHoveredModelLabel: (modelLabel: string | null) => void;
-  setProviderId: (providerId: string | null) => void;
-  setShowLegacyModels: (updater: (currentValue: boolean) => boolean) => void;
+  setHoveredModelLabel: (value: string | null) => void;
+  setProviderId: (value: string | null) => void;
+  setShowLegacyModels: (value: boolean | ((value: boolean) => boolean)) => void;
   showLegacyModels: boolean;
-}): TitleControlModelPickerPortalProps {
+}): SpielwieseModelPickerProps {
   return {
     currentModel,
     hoveredModelLabel,
-    isOpen: isModelPickerOpen,
-    modelSetting,
-    node,
-    onBlurCapture: handlePickerBlur,
-    onClose: closePortaledPicker,
-    onSettingValueChange,
-    panelPosition,
-    panelRef,
-    portalTarget,
+    onClose,
+    onValueChange: (value) => {
+      if (!modelSetting) {
+        return;
+      }
+
+      onSettingValueChange(node.id, modelSetting.id, value);
+    },
     providerId,
     setHoveredModelLabel,
     setProviderId,
@@ -137,52 +121,40 @@ export function SpielwieseAgentNodeTitleControl({
     isModelPickerOpen,
     providerId,
     setHoveredModelLabel,
+    setIsModelPickerOpen,
     setProviderId,
     setShowLegacyModels,
     showLegacyModels,
-    togglePicker,
   } = useModelPickerControlState();
-  const {
-    closePortaledPicker,
-    handlePickerBlur,
-    handleTogglePicker,
-    panelPosition,
-    panelRef,
-    portalTarget,
-    titleControlRef,
-  } = useTitleControlModelPickerPortal({
-    closePicker,
-    isModelPickerOpen,
-    togglePicker,
-  });
+  const currentModel = modelSetting?.value ?? "GPT-4.1 mini";
 
   return (
     <SpielwieseAgentNodeTitleControlContent
-      currentModel={modelSetting?.value ?? "GPT-4.1 mini"}
-      handlePickerBlur={handlePickerBlur}
-      handleTogglePicker={handleTogglePicker}
+      currentModel={currentModel}
       isModelPickerOpen={isModelPickerOpen}
       node={node}
+      onModelPickerOpenChange={(open) => {
+        if (!open) {
+          closePicker();
+          return;
+        }
+
+        setIsModelPickerOpen(true);
+      }}
       onTitleChange={onTitleChange}
-      pickerProps={getTitleControlPickerProps({
-        closePortaledPicker,
-        currentModel: modelSetting?.value ?? "GPT-4.1 mini",
-        handlePickerBlur,
+      pickerPanelProps={getTitleControlPickerPanelProps({
+        currentModel,
         hoveredModelLabel,
-        isModelPickerOpen,
         modelSetting,
         node,
+        onClose: closePicker,
         onSettingValueChange,
-        panelPosition,
-        panelRef,
-        portalTarget,
         providerId,
         setHoveredModelLabel,
         setProviderId,
         setShowLegacyModels,
         showLegacyModels,
       })}
-      titleControlRef={titleControlRef}
     />
   );
 }

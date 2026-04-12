@@ -1,20 +1,33 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { getSpielwieseShellVm } from "../adapters/dashboardVm";
+import { render, screen } from "@testing-library/react";
+import {
+  getSpielwieseDashboardVm,
+  getSpielwieseShellVm,
+} from "../adapters/dashboardVm";
 import { SpielwieseSidebarLeft } from "./SpielwieseSidebarLeft";
 
-function renderExpandedSidebar(pageId = "assistant") {
-  render(<SpielwieseSidebarLeft shell={getSpielwieseShellVm(pageId)} />);
+function getFinderProps(pageId = "assistant") {
+  const shell = getSpielwieseShellVm(pageId);
+  const dashboard = getSpielwieseDashboardVm(pageId);
+
+  return {
+    breadcrumb: dashboard.header.breadcrumb,
+    isOpen: false,
+    onClose: () => {},
+    onOpen: () => {},
+    pageId: dashboard.pageId,
+    shell,
+  };
 }
 
-function expectModeButtons(folderPressed: "true" | "false") {
-  const documentPressed = folderPressed === "true" ? "false" : "true";
+function renderExpandedSidebar(pageId = "assistant") {
+  const shell = getSpielwieseShellVm(pageId);
 
-  expect(
-    screen.getByLabelText("Folder view").getAttribute("aria-pressed"),
-  ).toBe(folderPressed);
-  expect(
-    screen.getByLabelText("Document view").getAttribute("aria-pressed"),
-  ).toBe(documentPressed);
+  render(
+    <SpielwieseSidebarLeft
+      finderProps={getFinderProps(pageId)}
+      shell={shell}
+    />,
+  );
 }
 
 function expectBorderlessSidebarChrome() {
@@ -25,40 +38,78 @@ function expectBorderlessSidebarChrome() {
     "border-r",
   );
   expect(
-    screen.getByTestId("spielwiese-left-sidebar-sticky-footer").className,
-  ).not.toContain("border-t");
+    screen.queryByTestId("spielwiese-left-sidebar-sticky-footer"),
+  ).toBeNull();
+  expect(screen.queryByTestId("spielwiese-left-bottom-mode-switch")).toBeNull();
 }
 
-function expectSidebarButtonChrome(
-  label: string,
-  options?: { active?: boolean },
-) {
-  const link = screen.getByText(label).closest("a");
+function expectPrimarySidebarButtonChrome(label: string) {
+  const control = screen.getByText(label).closest("a, button, summary");
 
-  expect(link).toBeTruthy();
-  expect(link?.className).toContain("h-8");
-  expect(link?.className).toContain("rounded-[10px]");
-  expect(link?.className).toContain("text-[13px]");
-  expect(link?.querySelector("[data-sidebar-icon]")).toBeTruthy();
+  expect(control).toBeTruthy();
+  expect(control?.className).toContain("h-7");
+  expect(control?.className).toContain("rounded-[9px]");
+  expect(control?.className).toContain("pl-2");
+  expect(control?.className).toContain("pr-1");
+  expect(control?.className).toContain("text-[0.875rem]");
+  expect(control?.className).toContain("text-[#242529]");
+  expect(control?.className).toContain("hover:bg-black/[0.06]");
+  expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
+}
 
-  if (options?.active) {
-    expect(link?.className).toContain("bg-background");
-  }
+function expectPrimarySidebarActionChrome(label: string) {
+  const control = screen.getByText(label).closest("button");
+
+  expect(control).toBeTruthy();
+  expect(control?.className).toContain("rounded-[9px]");
+  expect(control?.className).toContain("pl-2");
+  expect(control?.className).toContain("pr-1");
+  expect(control?.className).toContain("text-[0.875rem]");
+  expect(control?.className).toContain("text-black/[0.55]");
+  expect(control?.className).toContain("hover:text-[#242529]");
+  expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
+}
+
+function expectNestedTreeChrome(label: string) {
+  const control = screen.getByText(label).closest("a");
+
+  expect(control).toBeTruthy();
+  expect(control?.className).toContain("rounded-[9px]");
+  expect(control?.className).toContain("text-[0.875rem]");
+  expect(control?.parentElement?.className).toContain("border-l");
+  expect(control?.parentElement?.className).toContain("pl-2");
+}
+
+function expectSidebarGroupRowChrome(label: string) {
+  const control = screen.getByText(label).closest("summary");
+
+  expect(control).toBeTruthy();
+  expect(control?.className).toContain("rounded-[9px]");
+  expect(control?.className).toContain("text-black/[0.55]");
+  expect(control?.className).toContain("hover:text-black/[0.55]");
+}
+
+function expectSidebarHeaderChrome() {
+  const sidebarHeader = screen.getByTestId(
+    "spielwiese-left-sidebar-scroll-area",
+  ).firstElementChild;
+
+  expect(sidebarHeader?.className).toContain(
+    "shadow-[rgb(238,239,241)_0px_1px_0px_0px]",
+  );
+  expect(sidebarHeader?.className).toContain("pt-2");
+  expect(screen.queryByText("Rudel")).toBeNull();
 }
 
 describe("SpielwieseSidebarLeft expanded", () => {
-  it("renders the denser left rail structure", () => {
-    renderExpandedSidebar("search");
+  it("renders the simplified left rail structure and keeps search interactive", () => {
+    renderExpandedSidebar();
+
+    ["spielwiese-left-sidebar", "spielwiese-left-sidebar-scroll-area"].forEach(
+      (testId) => expect(screen.getByTestId(testId)).toBeTruthy(),
+    );
 
     [
-      "spielwiese-left-sidebar-scroll-area",
-      "spielwiese-left-bottom-mode-switch",
-      "spielwiese-left-sidebar-sticky-footer",
-    ].forEach((testId) => expect(screen.getByTestId(testId)).toBeTruthy());
-
-    [
-      "My Space",
-      "New Document",
       "Home",
       "Search",
       "Library",
@@ -66,59 +117,22 @@ describe("SpielwieseSidebarLeft expanded", () => {
       "Documentation",
       "Files",
       "Example Evaluators",
-      "Comedian Bot",
       "New",
     ].forEach((label) => expect(screen.getByText(label)).toBeTruthy());
 
-    ["All Docs", "Folders", "Go Unlimited"].forEach((label) =>
-      expect(screen.queryByText(label)).toBeNull(),
-    );
+    expect(screen.queryByText("New Document")).toBeNull();
+    expect(
+      screen.getByText("Example Evaluators").closest("details")?.open,
+    ).toBe(false);
+
     expectBorderlessSidebarChrome();
-    expectModeButtons("true");
-    expect(screen.getByLabelText("Folder view")).toBeTruthy();
-    expect(screen.getByLabelText("Document view")).toBeTruthy();
-    expectSidebarButtonChrome("Home");
-    expectSidebarButtonChrome("Search", { active: true });
-    expectSidebarButtonChrome("Comedian Bot");
-  });
-});
-
-describe("SpielwieseSidebarLeft document mode", () => {
-  it("switches the scrollable rail to the second page from the sticky footer", () => {
-    renderExpandedSidebar();
-
-    fireEvent.click(screen.getByLabelText("Document view"));
-
-    expect(screen.queryByText("My Space")).toBeNull();
-    ["Prompt Engineering", "Deployment", "Observability"].forEach((label) => {
-      expect(screen.getByLabelText(label)).toBeTruthy();
-    });
-    expect(screen.queryByLabelText("Evaluation")).toBeNull();
-    expect(
-      screen.getByTestId("spielwiese-document-panel-tabs").className,
-    ).toContain("flex-col");
-    expect(
-      screen.getByText(
-        "Draft, test, refine, and evaluate prompt behavior before promoting changes.",
-      ),
-    ).toBeTruthy();
-    expectModeButtons("false");
-  });
-
-  it("switches the second page inner tabs", () => {
-    renderExpandedSidebar();
-
-    fireEvent.click(screen.getByLabelText("Document view"));
-    fireEvent.click(screen.getByLabelText("Deployment"));
-
-    expect(
-      screen.getByTestId("spielwiese-document-panel-title").textContent,
-    ).toBe("Deployment");
-    expect(
-      screen.getByTestId("spielwiese-document-panel-description").textContent,
-    ).toBe(
-      "Promote prompt versions with deployment labels so applications resolve the intended prompt in production.",
-    );
+    expectSidebarHeaderChrome();
+    expectPrimarySidebarButtonChrome("Home");
+    expectPrimarySidebarButtonChrome("Search");
+    expectSidebarGroupRowChrome("Example Evaluators");
+    expectPrimarySidebarActionChrome("New");
+    expectNestedTreeChrome("Vision Agent");
+    expect(screen.getByLabelText("Open workspace finder")).toBeTruthy();
   });
 });
 

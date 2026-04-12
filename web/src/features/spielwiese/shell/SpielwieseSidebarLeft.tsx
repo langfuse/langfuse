@@ -1,6 +1,4 @@
-import { ChevronDown, Plus } from "lucide-react";
-import { useState } from "react";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   SidebarContent,
@@ -16,60 +14,19 @@ import type {
   SpielwieseNavItem,
   SpielwieseShellVM,
 } from "../types/shell";
-import {
-  FooterTools,
-  SidebarBottomModeSwitch,
-} from "./SpielwieseSidebarLeftExtras";
-import { SpielwieseSidebarDocumentPage } from "./SpielwieseSidebarDocumentPage";
+import { FooterTools } from "./SpielwieseSidebarLeftExtras";
 import {
   SpielwieseHeaderFinder,
   type SpielwieseHeaderFinderProps,
 } from "./SpielwieseHeaderFinder";
 import { SidebarSectionList } from "./SpielwieseSidebarLeftTree";
+import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 
 type SpielwieseSidebarLeftProps = {
   compact?: boolean;
   finderProps?: Omit<SpielwieseHeaderFinderProps, "variant">;
   shell: SpielwieseShellVM;
 };
-
-function SpaceSwitcher({
-  compact,
-  shell,
-}: Pick<SpielwieseSidebarLeftProps, "compact" | "shell">) {
-  const avatar = (
-    <Avatar className="size-9 rounded-lg">
-      <AvatarFallback className="rounded-lg text-sm font-medium">
-        {shell.team.initials}
-      </AvatarFallback>
-    </Avatar>
-  );
-
-  if (compact) {
-    return (
-      <a
-        className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl transition-colors"
-        href="#assistant"
-        title={shell.team.name}
-      >
-        <span className="scale-[0.89]">{avatar}</span>
-      </a>
-    );
-  }
-
-  return (
-    <a
-      className="hover:bg-sidebar-accent flex items-center gap-3 rounded-xl px-2 py-2 transition-colors"
-      href="#assistant"
-    >
-      {avatar}
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {shell.team.name}
-      </span>
-      <ChevronDown className="text-muted-foreground size-4 shrink-0" />
-    </a>
-  );
-}
 
 function CreateDocumentButton({ compact }: { compact: boolean }) {
   if (compact) {
@@ -102,7 +59,7 @@ function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   const Icon = item.icon;
 
   return (
-    <SidebarMenuButton active={item.isActive} href={item.href}>
+    <SidebarMenuButton active={item.isActive} href={item.href} tone="primary">
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
       <span data-sidebar-label>{item.label}</span>
       {item.count ? <span data-sidebar-meta>{item.count}</span> : null}
@@ -125,7 +82,7 @@ function ExpandedUtilityNav({
   return (
     <nav aria-label="Primary workspace links" className="flex flex-col gap-1.5">
       {groups.map((group) => (
-        <SidebarMenu key={group.id}>
+        <SidebarMenu className="px-2" key={group.id}>
           {group.items.map((item) => (
             <SidebarMenuItem key={item.id}>
               {finderProps && item.id === "search" ? (
@@ -175,7 +132,10 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
         data-testid="spielwiese-left-sidebar-scroll-area"
       >
         <SidebarHeader className="items-center gap-2 p-2.5">
-          <SpaceSwitcher compact shell={shell} />
+          <SpielwieseWorkspaceSwitcher
+            name={shell.team.name}
+            variant="compact"
+          />
           <CreateDocumentButton compact />
         </SidebarHeader>
 
@@ -208,52 +168,28 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
 }
 
 function ExpandedSidebar({
-  activeMode,
   finderProps,
-  onModeChange,
   shell,
 }: {
-  activeMode: "folders" | "document";
   finderProps?: Omit<SpielwieseHeaderFinderProps, "variant">;
-  onModeChange: (mode: "folders" | "document") => void;
   shell: SpielwieseShellVM;
 }) {
   return (
-    <>
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-        data-testid="spielwiese-left-sidebar-scroll-area"
-      >
-        {activeMode === "folders" ? (
-          <>
-            <SidebarHeader className="gap-3 p-3">
-              <SpaceSwitcher compact={false} shell={shell} />
-              <CreateDocumentButton compact={false} />
-              <ExpandedUtilityNav
-                finderProps={finderProps}
-                groups={shell.utilityNavGroups}
-              />
-            </SidebarHeader>
-
-            <SidebarContent className="gap-4 p-3 pt-0">
-              <SidebarSectionList sections={shell.sidebarSections} />
-            </SidebarContent>
-          </>
-        ) : (
-          <SpielwieseSidebarDocumentPage shell={shell} />
-        )}
-      </div>
-
-      <SidebarFooter
-        className="mt-0 shrink-0 bg-[#F3F3F4] p-3"
-        data-testid="spielwiese-left-sidebar-sticky-footer"
-      >
-        <SidebarBottomModeSwitch
-          activeMode={activeMode}
-          onModeChange={onModeChange}
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      data-testid="spielwiese-left-sidebar-scroll-area"
+    >
+      <SidebarHeader className="p-0 pt-2 pb-[11px] shadow-[rgb(238,239,241)_0px_1px_0px_0px]">
+        <ExpandedUtilityNav
+          finderProps={finderProps}
+          groups={shell.utilityNavGroups}
         />
-      </SidebarFooter>
-    </>
+      </SidebarHeader>
+
+      <SidebarContent className="gap-5 px-2 pt-3 pb-4">
+        <SidebarSectionList sections={shell.sidebarSections} />
+      </SidebarContent>
+    </div>
   );
 }
 
@@ -262,24 +198,15 @@ export function SpielwieseSidebarLeft({
   finderProps,
   shell,
 }: SpielwieseSidebarLeftProps) {
-  const [activeMode, setActiveMode] = useState<"folders" | "document">(
-    "folders",
-  );
-
   return (
     <SidebarSurface
-      className="overflow-hidden bg-[#F3F3F4]"
+      className="overflow-hidden"
       data-testid="spielwiese-left-sidebar"
     >
       {compact ? (
         <CompactSidebar shell={shell} />
       ) : (
-        <ExpandedSidebar
-          activeMode={activeMode}
-          finderProps={finderProps}
-          onModeChange={setActiveMode}
-          shell={shell}
-        />
+        <ExpandedSidebar finderProps={finderProps} shell={shell} />
       )}
     </SidebarSurface>
   );

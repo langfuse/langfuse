@@ -25,12 +25,12 @@ function getGridClassName(leftCollapsed: boolean, rightOpen: boolean) {
   if (!rightOpen) {
     return leftCollapsed
       ? "md:grid-cols-[4.75rem_minmax(0,1fr)]"
-      : "md:grid-cols-[14rem_minmax(0,1fr)]";
+      : "md:grid-cols-[15.625rem_minmax(0,1fr)]";
   }
 
   return leftCollapsed
     ? "md:grid-cols-[4.75rem_minmax(0,1fr)] xl:grid-cols-[4.75rem_minmax(0,1fr)_17rem]"
-    : "md:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_17rem]";
+    : "md:grid-cols-[15.625rem_minmax(0,1fr)] xl:grid-cols-[15.625rem_minmax(0,1fr)_17rem]";
 }
 
 function isEditableEventTarget(target: EventTarget | null) {
@@ -107,7 +107,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#F3F3F4] transition-transform md:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[15.625rem] max-w-[88vw] bg-[#EEEFF1] transition-transform md:hidden",
           mobileLeftOpen ? "translate-x-0" : "-translate-x-full",
         )}
         data-testid="spielwiese-mobile-left-drawer"
@@ -143,7 +143,7 @@ function ShellLeftRail({
   return (
     <aside className="hidden min-h-0 md:block">
       <div
-        className="box-border h-full min-h-0 bg-[#F3F3F4] pb-2 pl-2"
+        className="box-border h-full min-h-0 bg-[#EEEFF1] pb-2 pl-2 shadow-[inset_8px_0_0_#F3F3F4,inset_0_-8px_0_#F3F3F4]"
         data-testid="spielwiese-shell-left"
       >
         <div className="h-full min-h-0 overflow-hidden rounded-l-[8px]">

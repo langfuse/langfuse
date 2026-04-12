@@ -1,103 +1,189 @@
 "use client";
 
-import type { CSSProperties, FocusEventHandler, Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
-  getModelOption,
-  getModelProvider,
   spielwieseModelProviders,
+  type SpielwieseModelOption,
   type SpielwieseModelProvider,
 } from "./spielwieseModelCatalog";
 import {
-  SpielwieseBenchmarkPreview,
   SpielwieseModelColumn,
   SpielwieseProviderColumn,
 } from "./spielwieseModelPickerSections";
+import { SpielwieseBenchmarkPreview } from "./spielwieseModelPickerBenchmarkPreview";
+import {
+  createModelSelectHandler,
+  createProviderSelectHandler,
+  getPreviewModel,
+  getSelectedProvider,
+  getVisibleModels,
+  isCurrentModel,
+} from "./spielwieseModelPickerState";
+
 export { SpielwieseModelPickerTrigger } from "./SpielwieseModelPickerTrigger";
 
-function getSelectedProvider(providerId: string | null) {
-  if (!providerId) {
-    return null;
-  }
+const spielwieseModelPickerPanelClassName =
+  "w-[min(42rem,var(--available-width))] max-w-[calc(100vw-1rem)] max-h-[min(28rem,var(--available-height))] overflow-auto overscroll-contain rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] p-1 shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)]";
 
-  const selectedProvider = spielwieseModelProviders.find(
-    (provider) => provider.id === providerId,
-  );
-
-  return selectedProvider ?? null;
-}
-
-function getGridClassName(hasProvider: boolean, hasPreview: boolean) {
-  if (!hasProvider) {
-    return "grid-cols-[10.5rem]";
-  }
-
-  if (hasPreview) {
-    return "grid-cols-[10.5rem_13.75rem_12.5rem]";
-  }
-
-  return "grid-cols-[10.5rem_13.75rem]";
-}
-
-type SpielwieseModelPickerPanelProps = {
+export type SpielwieseModelPickerProps = {
   currentModel: string;
   hoveredModelLabel: string | null;
   onClose: () => void;
   onValueChange: (value: string) => void;
-  panelClassName?: string;
-  panelRef?: Ref<HTMLDivElement>;
-  panelStyle?: CSSProperties;
   providerId: string | null;
   setHoveredModelLabel: (modelLabel: string | null) => void;
   setProviderId: (providerId: string | null) => void;
-  setShowLegacyModels: (updater: (currentValue: boolean) => boolean) => void;
+  setShowLegacyModels: (
+    value: boolean | ((currentValue: boolean) => boolean),
+  ) => void;
   showLegacyModels: boolean;
-  positionMode?: "absolute" | "fixed";
-  onBlurCapture?: FocusEventHandler<HTMLDivElement>;
 };
 
-function getPreviewModel(hoveredModelLabel: string | null) {
-  return hoveredModelLabel ? getModelOption(hoveredModelLabel) : null;
-}
-
-function createProviderSelectHandler({
+function SpielwieseModelPickerProviderPane({
+  currentProviderId,
   setHoveredModelLabel,
   setProviderId,
   setShowLegacyModels,
-}: Pick<
-  SpielwieseModelPickerPanelProps,
-  "setHoveredModelLabel" | "setProviderId" | "setShowLegacyModels"
->) {
-  return (provider: SpielwieseModelProvider) => {
-    setProviderId(provider.id);
-    setHoveredModelLabel(null);
-    setShowLegacyModels(() => false);
-  };
+}: {
+  currentProviderId: string | null;
+  setHoveredModelLabel: (modelLabel: string | null) => void;
+  setProviderId: (providerId: string | null) => void;
+  setShowLegacyModels: (
+    value: boolean | ((currentValue: boolean) => boolean),
+  ) => void;
+}) {
+  return (
+    <div className="flex min-h-[17rem] min-w-0 flex-col rounded-l-[8px] bg-[#FAFAF9] px-2 py-2">
+      <SpielwieseProviderColumn
+        currentProviderId={currentProviderId}
+        onSelectProvider={createProviderSelectHandler({
+          setHoveredModelLabel,
+          setProviderId,
+          setShowLegacyModels,
+        })}
+      />
+    </div>
+  );
 }
 
-function createModelSelectHandler({
+function SpielwieseModelPickerModelPane({
+  currentModel,
   onClose,
   onValueChange,
-}: Pick<SpielwieseModelPickerPanelProps, "onClose" | "onValueChange">) {
-  return (modelLabel: string) => {
-    onValueChange(modelLabel);
-    onClose();
-  };
+  provider,
+  setHoveredModelLabel,
+  setShowLegacyModels,
+  showLegacyModels,
+  visibleModels,
+}: {
+  currentModel: string;
+  onClose: () => void;
+  onValueChange: (value: string) => void;
+  provider: SpielwieseModelProvider | null;
+  setHoveredModelLabel: (modelLabel: string | null) => void;
+  setShowLegacyModels: (
+    value: boolean | ((currentValue: boolean) => boolean),
+  ) => void;
+  showLegacyModels: boolean;
+  visibleModels: SpielwieseModelOption[];
+}) {
+  return (
+    <div className="flex min-h-[17rem] min-w-0 flex-col border-l border-black/6 bg-white px-2 py-2">
+      <SpielwieseModelColumn
+        currentModel={currentModel}
+        models={visibleModels}
+        onHoverModel={setHoveredModelLabel}
+        onSelectModel={createModelSelectHandler({
+          onClose,
+          onValueChange,
+        })}
+        providerId={provider?.id ?? spielwieseModelProviders[0]!.id}
+        showLegacyModels={showLegacyModels}
+        showOlderModelsButton={Boolean(provider?.legacyModels.length)}
+        toggleLegacyModels={() =>
+          setShowLegacyModels((currentValue) => !currentValue)
+        }
+      />
+    </div>
+  );
 }
 
-function SpielwieseModelPickerPreview({
+function SpielwieseModelPickerBenchmarkPane({
+  currentModel,
   previewModel,
+  provider,
 }: {
-  previewModel: ReturnType<typeof getPreviewModel>;
+  currentModel: string;
+  previewModel: SpielwieseModelOption | null;
+  provider: SpielwieseModelProvider | null;
 }) {
-  if (!previewModel) {
-    return null;
-  }
-
-  return <SpielwieseBenchmarkPreview model={previewModel} />;
+  return (
+    <div className="flex min-h-[17rem] min-w-0 flex-col rounded-r-[8px] border-l border-black/6 bg-[#F7F7F4] px-2.5 py-2.5">
+      <SpielwieseBenchmarkPreview
+        currentModel={currentModel}
+        model={previewModel}
+        selectedProvider={provider}
+      />
+    </div>
+  );
 }
 
 function SpielwieseModelPickerGrid({
+  currentModel,
+  onClose,
+  onValueChange,
+  previewModel,
+  provider,
+  setHoveredModelLabel,
+  setProviderId,
+  setShowLegacyModels,
+  showLegacyModels,
+  visibleModels,
+}: {
+  currentModel: string;
+  onClose: () => void;
+  onValueChange: (value: string) => void;
+  previewModel: SpielwieseModelOption | null;
+  provider: SpielwieseModelProvider | null;
+  setHoveredModelLabel: (modelLabel: string | null) => void;
+  setProviderId: (providerId: string | null) => void;
+  setShowLegacyModels: (
+    value: boolean | ((currentValue: boolean) => boolean),
+  ) => void;
+  showLegacyModels: boolean;
+  visibleModels: SpielwieseModelOption[];
+}) {
+  return (
+    <div
+      className="grid min-w-max grid-cols-[11.5rem_15rem_13rem] rounded-[8px] bg-[#FCFCFA]"
+      data-testid="spielwiese-model-picker-grid"
+    >
+      <SpielwieseModelPickerProviderPane
+        currentProviderId={provider?.id ?? null}
+        setHoveredModelLabel={setHoveredModelLabel}
+        setProviderId={setProviderId}
+        setShowLegacyModels={setShowLegacyModels}
+      />
+      <SpielwieseModelPickerModelPane
+        currentModel={currentModel}
+        onClose={onClose}
+        onValueChange={onValueChange}
+        provider={provider}
+        setHoveredModelLabel={setHoveredModelLabel}
+        setShowLegacyModels={setShowLegacyModels}
+        showLegacyModels={showLegacyModels}
+        visibleModels={visibleModels}
+      />
+      <SpielwieseModelPickerBenchmarkPane
+        currentModel={currentModel}
+        previewModel={previewModel}
+        provider={provider}
+      />
+    </div>
+  );
+}
+
+export function SpielwieseModelPickerContents({
   currentModel,
   hoveredModelLabel,
   onClose,
@@ -107,81 +193,43 @@ function SpielwieseModelPickerGrid({
   setProviderId,
   setShowLegacyModels,
   showLegacyModels,
-}: SpielwieseModelPickerPanelProps) {
-  const resolvedProviderId =
-    providerId ?? getModelProvider(currentModel)?.id ?? null;
-  const provider = getSelectedProvider(resolvedProviderId);
-  const previewModel = getPreviewModel(hoveredModelLabel);
+}: SpielwieseModelPickerProps) {
+  const provider = getSelectedProvider({ currentModel, providerId });
+  const visibleModels = getVisibleModels({ provider, showLegacyModels });
+  const previewModel = getPreviewModel({
+    currentModel,
+    hoveredModelLabel,
+    provider,
+    visibleModels,
+  });
 
   return (
-    <div
-      className={cn(
-        "grid min-w-max overflow-hidden bg-[#FCFCFA]",
-        getGridClassName(Boolean(provider), Boolean(previewModel)),
-      )}
-      data-testid="spielwiese-model-picker-grid"
-    >
-      <div className="flex min-h-[16rem] min-w-0 flex-col bg-[#FBFBFA] px-2 py-2">
-        <SpielwieseProviderColumn
-          currentProviderId={resolvedProviderId}
-          onSelectProvider={createProviderSelectHandler({
-            setHoveredModelLabel,
-            setProviderId,
-            setShowLegacyModels,
-          })}
-        />
-      </div>
-      {provider ? (
-        <div className="flex min-h-[16rem] min-w-0 flex-col border-l border-black/6 bg-white px-2 py-2">
-          <SpielwieseModelColumn
-            currentModel={currentModel}
-            hoveredModelLabel={hoveredModelLabel}
-            onHoverModel={setHoveredModelLabel}
-            onSelectModel={createModelSelectHandler({
-              onClose,
-              onValueChange,
-            })}
-            provider={provider}
-            showLegacyModels={showLegacyModels}
-            toggleLegacyModels={() =>
-              setShowLegacyModels((currentValue) => !currentValue)
-            }
-          />
-        </div>
-      ) : null}
-      {previewModel ? (
-        <div className="flex min-h-[16rem] min-w-0 flex-col border-l border-black/6 bg-[#F7F7F4] px-2.5 py-2.5">
-          <SpielwieseModelPickerPreview previewModel={previewModel} />
-        </div>
-      ) : null}
-    </div>
+    <SpielwieseModelPickerGrid
+      currentModel={currentModel}
+      onClose={onClose}
+      onValueChange={onValueChange}
+      previewModel={previewModel}
+      provider={provider}
+      setHoveredModelLabel={setHoveredModelLabel}
+      setProviderId={setProviderId}
+      setShowLegacyModels={setShowLegacyModels}
+      showLegacyModels={showLegacyModels}
+      visibleModels={visibleModels}
+    />
   );
 }
 
-export function SpielwieseModelPickerPanel({
-  onBlurCapture,
-  panelClassName,
-  panelRef,
-  panelStyle,
-  positionMode = "absolute",
-  ...props
-}: SpielwieseModelPickerPanelProps) {
+export function SpielwieseModelPickerPanel(props: SpielwieseModelPickerProps) {
   return (
     <div
-      ref={panelRef}
-      className={cn(
-        positionMode === "fixed"
-          ? "fixed z-[140] w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)]"
-          : "absolute top-full left-0 z-30 mt-1.5 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)]",
-        panelClassName,
-      )}
       aria-label="Model picker"
+      className={cn(spielwieseModelPickerPanelClassName)}
       data-testid="spielwiese-model-picker-panel"
-      onBlurCapture={onBlurCapture}
       role="dialog"
-      style={panelStyle}
     >
-      <SpielwieseModelPickerGrid {...props} />
+      <SpielwieseModelPickerContents {...props} />
     </div>
   );
 }
+
+export { isCurrentModel, spielwieseModelPickerPanelClassName };

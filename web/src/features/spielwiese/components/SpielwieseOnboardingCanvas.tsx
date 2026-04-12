@@ -2,17 +2,21 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import { Button } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
+import { SpielwieseCanvasPane } from "./SpielwieseCanvasPane";
 import {
   EMPTY_ONBOARDING_ANSWERS,
   getActiveOnboardingStepIndex,
   getOnboardingCompletionCount,
+  getSpielwieseDashboardPath,
   getOnboardingStepPath,
   getOnboardingSummary,
   ONBOARDING_QUESTIONS,
   type OnboardingAnswers,
 } from "./spielwieseOnboardingFlow";
+import { useSpielwieseEditableCanvas } from "./useSpielwieseEditableCanvas";
 
 type SpielwieseOnboardingCanvasProps = {
+  canvas: SpielwieseDashboardVM["canvas"];
   onboardingCanvas: NonNullable<SpielwieseDashboardVM["onboardingCanvas"]>;
   requestedStepId?: string;
 };
@@ -57,13 +61,28 @@ function OnboardingIntro({ greeting }: { greeting: string }) {
   );
 }
 
-function OnboardingPlaceholder() {
+function OnboardingCanvasPreview({
+  canvas,
+}: {
+  canvas: SpielwieseDashboardVM["canvas"];
+}) {
+  const editableCanvas = useSpielwieseEditableCanvas(canvas);
+
   return (
     <div
-      className="border-border/80 bg-background/70 text-muted-foreground rounded-lg border border-dashed px-5 py-6 text-sm text-pretty"
-      data-testid="spielwiese-onboarding-placeholder"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-testid="spielwiese-onboarding-upper-canvas"
     >
-      Canvas placeholder.
+      <SpielwieseCanvasPane
+        className="h-full"
+        nodes={editableCanvas.nodes}
+        onPromptSectionChange={editableCanvas.onPromptSectionChange}
+        onPromptSectionDelete={editableCanvas.onPromptSectionDelete}
+        onPromptSectionInsert={editableCanvas.onPromptSectionInsert}
+        onPromptSectionMove={editableCanvas.onPromptSectionMove}
+        onSettingValueChange={editableCanvas.onSettingValueChange}
+        onTitleChange={editableCanvas.onTitleChange}
+      />
     </div>
   );
 }
@@ -169,7 +188,7 @@ function OnboardingNavigation({
         ) : null}
         <Button disabled={!activeAnswer} onClick={onContinue} size="lg">
           {isLastStep
-            ? "Open the canvas"
+            ? "Open dashboard"
             : `Continue ${completionCount + 1}/${ONBOARDING_QUESTIONS.length}`}
         </Button>
       </div>
@@ -181,6 +200,7 @@ function OnboardingCanvasFrame({
   activeAnswer,
   activeStepIndex,
   answers,
+  canvas,
   greeting,
   onBack,
   onContinue,
@@ -189,6 +209,7 @@ function OnboardingCanvasFrame({
   activeAnswer: string;
   activeStepIndex: number;
   answers: OnboardingAnswers;
+  canvas: SpielwieseDashboardVM["canvas"];
   greeting: string;
   onBack: () => void;
   onContinue: () => void;
@@ -199,11 +220,13 @@ function OnboardingCanvasFrame({
       className="@container flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="spielwiese-onboarding-canvas"
     >
-      <div className="mx-auto flex h-full w-full max-w-[48rem] flex-col px-3 pt-10 pb-0 sm:px-5 sm:pt-14">
-        <OnboardingIntro greeting={greeting} />
-        <div className="flex min-h-0 flex-1 flex-col justify-end gap-4 overflow-hidden pb-4">
+      <div className="flex h-full w-full min-w-0 flex-col px-3 pt-10 pb-0 sm:px-5 sm:pt-14">
+        <div className="mx-auto w-full max-w-[48rem]">
+          <OnboardingIntro greeting={greeting} />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pb-4">
           <div
-            className="border-border bg-card/35 flex min-h-[18rem] flex-col gap-6 rounded-t-lg border px-6 py-8 text-base sm:min-h-[22rem] sm:px-10"
+            className="border-border bg-card/35 mx-auto flex min-h-[18rem] w-full max-w-[48rem] flex-col gap-6 rounded-t-lg border px-6 py-8 text-base sm:min-h-[22rem] sm:px-10"
             data-testid="spielwiese-onboarding-questionnaire"
           >
             <OnboardingQuestion
@@ -219,7 +242,9 @@ function OnboardingCanvasFrame({
               onContinue={onContinue}
             />
           </div>
-          <OnboardingPlaceholder />
+          <div className="mx-auto flex min-h-0 w-full max-w-[1000px] flex-1">
+            <OnboardingCanvasPreview canvas={canvas} />
+          </div>
         </div>
       </div>
     </section>
@@ -227,6 +252,7 @@ function OnboardingCanvasFrame({
 }
 
 export function SpielwieseOnboardingCanvas({
+  canvas,
   onboardingCanvas,
   requestedStepId,
 }: SpielwieseOnboardingCanvasProps) {
@@ -263,7 +289,7 @@ export function SpielwieseOnboardingCanvas({
     const nextQuestion = ONBOARDING_QUESTIONS[activeStepIndex + 1];
     const nextPath = nextQuestion
       ? getOnboardingStepPath(nextQuestion.id)
-      : "/dev/spielwiese";
+      : getSpielwieseDashboardPath();
 
     void router.push(nextPath, undefined, { shallow: true });
   };
@@ -273,6 +299,7 @@ export function SpielwieseOnboardingCanvas({
       activeAnswer={activeAnswer}
       activeStepIndex={activeStepIndex}
       answers={answers}
+      canvas={canvas}
       greeting={onboardingCanvas.greeting}
       onBack={handleBack}
       onContinue={handleContinue}

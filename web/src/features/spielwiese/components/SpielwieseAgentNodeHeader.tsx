@@ -311,7 +311,7 @@ export function SpielwieseAgentNodeHeader({
 }: SpielwieseAgentNodeHeaderProps) {
   return (
     <div
-      className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[3px]"
+      className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]"
       data-testid="spielwiese-agent-node-header-shell"
     >
       <SpielwieseAgentNodeHeaderRow {...props} />

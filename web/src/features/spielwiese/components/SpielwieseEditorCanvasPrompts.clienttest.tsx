@@ -64,9 +64,41 @@ function expectInsertRowChrome({
   expect(externalRow.parentElement).toBe(visionNode);
   expect(visionNode.lastElementChild).toBe(externalRow);
   expect(textShell.className).toContain("overflow-hidden");
-  expect(textShell.className).toContain("rounded-[8px]");
+  expect(textShell.className).toContain("[--message-insert-inner-radius:7px]");
+  expect(textShell.className).toContain("[--message-insert-padding:2px]");
+  expect(textShell.className).toContain(
+    "rounded-[var(--message-insert-outer-radius)]",
+  );
+  expect(textShell.className).toContain("p-[var(--message-insert-padding)]");
+  expect(textTrigger.className).toContain(
+    "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+  );
+  expect(textTrigger.className).toContain("h-full");
   expect(textTrigger.textContent).toBe("New message");
   expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
+}
+
+function expectInsertPickerRailChrome(nodeElement: HTMLElement) {
+  const textPicker = within(nodeElement).getByTestId(
+    "spielwiese-message-insert-picker-text",
+  );
+  const pickerButtons = ["User", "Instructions", "Assistant", "Tool"].map(
+    (label) => within(nodeElement).getByRole("button", { name: label }),
+  );
+  const pickerButtonRow = pickerButtons[0]?.parentElement as HTMLElement;
+
+  expect(textPicker.className).toContain(
+    "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+  );
+  expect(pickerButtonRow.className).toContain(
+    "px-[var(--message-insert-padding)]",
+  );
+  expect(pickerButtonRow.className).toContain("gap-px");
+  for (const pickerButton of pickerButtons) {
+    expect(pickerButton.className).toContain(
+      "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+    );
+  }
 }
 
 function renderVisionNode() {
@@ -85,6 +117,7 @@ describe("SpielwieseEditorCanvas prompt insertion", () => {
 
     expect(controls.textPicker.getAttribute("data-state")).toBe("open");
     expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
+    expectInsertPickerRailChrome(visionNode);
   });
 
   it("keeps the footer insert control hidden until the node is hovered or focused", () => {

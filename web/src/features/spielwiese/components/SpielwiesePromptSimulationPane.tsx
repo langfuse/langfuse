@@ -19,6 +19,10 @@ import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
+import {
+  spielwieseHeaderButtonAccentClassName,
+  spielwieseHeaderButtonBaseClassName,
+} from "./spielwieseHeaderButtonStyles";
 import { getModelTintClassName } from "./spielwieseModelTint";
 import { cn } from "@/src/utils/tailwind";
 
@@ -32,8 +36,7 @@ function nodeHasUserSection(node: SpielwieseAgentNodeVM) {
   );
 }
 
-const playgroundActionButtonClassName =
-  "text-foreground/62 hover:text-foreground inline-flex h-6 items-center gap-1.25 rounded-[8px] bg-[#F7F7F7] py-0 pr-2 pl-1.5 text-[11px] font-medium ring-1 ring-black/5 hover:bg-[#F4F4F4]";
+const playgroundActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex h-6 items-center gap-1.25 rounded-[10px] py-0 pr-2 pl-1.5 text-[11px] font-medium`;
 
 function PlaygroundFlowUserIcon({
   toneClassNames,
@@ -237,7 +240,7 @@ function PlaygroundSurface({
               className={cn(
                 playgroundActionButtonClassName,
                 activeThinkingNodeId === defaultThinkingNodeId &&
-                  "text-foreground border-[rgba(201,120,62,0.12)] bg-[rgba(250,245,241,0.96)] ring-[rgba(201,120,62,0.08)]",
+                  spielwieseHeaderButtonAccentClassName,
               )}
               data-testid="spielwiese-playground-play-button"
               size="sm"

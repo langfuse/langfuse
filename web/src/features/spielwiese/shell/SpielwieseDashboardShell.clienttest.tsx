@@ -71,9 +71,12 @@ function expectInsetSidebarShells() {
   const rightInnerShell = rightShell.firstElementChild;
 
   expect(leftShell.className).toContain("box-border");
-  expect(leftShell.className).toContain("bg-[#F3F3F4]");
+  expect(leftShell.className).toContain("bg-[#EEEFF1]");
   expect(leftShell.className).toContain("pl-2");
   expect(leftShell.className).toContain("pb-2");
+  expect(leftShell.className).toContain(
+    "shadow-[inset_8px_0_0_#F3F3F4,inset_0_-8px_0_#F3F3F4]",
+  );
   expect(leftShell.className).not.toContain("pt-2");
   expect(leftShell.className).not.toContain("p-2");
   expect(leftInnerShell?.className).toContain("rounded-l-[8px]");
@@ -110,6 +113,21 @@ function expectCenteredHeaderContent() {
   expect(headerInnerClassName).toContain("pb-0");
 }
 
+function expectWorkspaceSwitcherMovedToHeader() {
+  const header = screen.getByTestId("spielwiese-shell-header");
+  const workspaceSwitch = within(header).getByText("Rudel").closest("a");
+
+  expect(workspaceSwitch).toBeTruthy();
+  expect(workspaceSwitch?.className).toContain(
+    "h-[calc(var(--spielwiese-header-height)-4px)]",
+  );
+  expect(workspaceSwitch?.className).toContain("max-w-[12rem]");
+  expect(workspaceSwitch?.querySelector("svg")).toBeTruthy();
+  expect(
+    within(screen.getByTestId("spielwiese-shell-left")).queryByText("Rudel"),
+  ).toBeNull();
+}
+
 function expectFinderMovedToLeftSidebar() {
   expect(
     within(screen.getByTestId("spielwiese-shell-header")).queryByTestId(
@@ -120,6 +138,55 @@ function expectFinderMovedToLeftSidebar() {
     within(screen.getByTestId("spielwiese-shell-left")).getByTestId(
       "spielwiese-header-finder-trigger",
     ),
+  ).toBeTruthy();
+}
+
+function expectShellRenderStructure(container: HTMLElement) {
+  expect(screen.getByText("Shell content")).toBeTruthy();
+  expect(screen.queryByText("langofuso")).toBeNull();
+  expect(screen.queryByText("langfuse-redesign")).toBeNull();
+  expect(screen.queryByText("Macroextractor")).toBeNull();
+  expect(screen.getAllByText("0 variables").length >= 1).toBeTruthy();
+  expect(screen.queryByTestId("spielwiese-insert-panel")).toBeNull();
+  expect(
+    container.querySelector("[data-testid='spielwiese-shell']"),
+  ).toBeTruthy();
+  expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
+  expectCenteredHeaderContent();
+  expectWorkspaceSwitcherMovedToHeader();
+  expect(screen.getByTestId("spielwiese-shell-body")).toBeTruthy();
+  expectFinderMovedToLeftSidebar();
+  expect(screen.getAllByText("Search").length >= 1).toBeTruthy();
+  expect(screen.getByTestId("spielwiese-shell").className).toContain(
+    "h-screen-with-banner",
+  );
+  expect(screen.getByTestId("spielwiese-shell").className).toContain(
+    "[--spielwiese-header-height:2.75rem]",
+  );
+  expect(screen.getByTestId("spielwiese-shell").className).toContain(
+    "sm:[--spielwiese-header-height:3rem]",
+  );
+  expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
+    "overflow-hidden",
+  );
+  expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
+    "md:grid-cols-[15.625rem_minmax(0,1fr)]",
+  );
+  expectMainColumnWithoutExtraTopInset();
+  expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+    "px-3",
+  );
+  expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
+    "sm:px-5",
+  );
+  expectShellChromeBackground();
+  expectShellChromeWithoutBorders();
+  expectInsetSidebarShells();
+  expect(
+    screen
+      .getByTestId("spielwiese-shell-header")
+      .compareDocumentPosition(screen.getByTestId("spielwiese-shell-body")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 }
 
@@ -138,48 +205,7 @@ describe("SpielwieseDashboardShell render", () => {
       </SpielwieseDashboardShell>,
     );
 
-    expect(screen.getAllByText("Macroextractor").length >= 1).toBeTruthy();
-    expect(screen.getByText("Shell content")).toBeTruthy();
-    expect(screen.queryByText("langofuso")).toBeNull();
-    expect(screen.queryByText("langfuse-redesign")).toBeNull();
-    expect(screen.getAllByText("0 variables").length >= 1).toBeTruthy();
-    expect(screen.queryByTestId("spielwiese-insert-panel")).toBeNull();
-    expect(
-      container.querySelector("[data-testid='spielwiese-shell']"),
-    ).toBeTruthy();
-    expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
-    expectCenteredHeaderContent();
-    expect(screen.getByTestId("spielwiese-shell-body")).toBeTruthy();
-    expectFinderMovedToLeftSidebar();
-    expect(screen.getAllByText("Find…").length >= 1).toBeTruthy();
-    expect(screen.getByTestId("spielwiese-shell").className).toContain(
-      "h-screen-with-banner",
-    );
-    expect(screen.getByTestId("spielwiese-shell").className).toContain(
-      "[--spielwiese-header-height:2.75rem]",
-    );
-    expect(screen.getByTestId("spielwiese-shell").className).toContain(
-      "sm:[--spielwiese-header-height:3rem]",
-    );
-    expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
-      "overflow-hidden",
-    );
-    expectMainColumnWithoutExtraTopInset();
-    expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
-      "px-3",
-    );
-    expect(screen.getByTestId("spielwiese-shell-main").className).not.toContain(
-      "sm:px-5",
-    );
-    expectShellChromeBackground();
-    expectShellChromeWithoutBorders();
-    expectInsetSidebarShells();
-    expect(
-      screen
-        .getByTestId("spielwiese-shell-header")
-        .compareDocumentPosition(screen.getByTestId("spielwiese-shell-body")) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expectShellRenderStructure(container);
   });
 });
 
@@ -223,7 +249,10 @@ describe("SpielwieseDashboardShell sidebar interactions", () => {
     ).toBe(true);
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).toContain("bg-[#F3F3F4]");
+    ).toContain("bg-[#EEEFF1]");
+    expect(
+      screen.getByTestId("spielwiese-mobile-left-drawer").className,
+    ).toContain("w-[15.625rem]");
     expect(
       screen.getByTestId("spielwiese-mobile-left-drawer").className,
     ).not.toContain("border-r");
@@ -262,13 +291,17 @@ describe("SpielwieseDashboardShell finder interactions", () => {
     const searchInput = within(panel).getByLabelText("Find in workspace");
 
     expect(searchInput).toBeTruthy();
-    expect(within(panel).getByText("Comedian Bot")).toBeTruthy();
+    expect(within(panel).getByText("Home")).toBeTruthy();
     expect(panelContainer.className).toContain("absolute");
     expect(panelContainer.className).toContain("top-0");
     expect(panelContainer.className).toContain("inset-x-0");
     expect(panelContainer.className).not.toContain("fixed");
     expect(panelContainer.className).not.toContain("mt-2");
     expect(panel.className).toContain("max-w-none");
+
+    fireEvent.change(searchInput, { target: { value: "comed" } });
+
+    expect(within(panel).getByText("Comedian Bot")).toBeTruthy();
 
     fireEvent.change(searchInput, { target: { value: "vision" } });
 

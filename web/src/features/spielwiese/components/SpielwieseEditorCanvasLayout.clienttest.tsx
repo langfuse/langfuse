@@ -51,7 +51,7 @@ function expectVisionNodeChrome({
   );
   expect(headerShell.className).toContain("border-border/40");
   expect(headerShell.className).toContain("bg-background/96");
-  expect(headerShell.className).toContain("pb-[3px]");
+  expect(headerShell.className).toContain("pb-[4px]");
   expect(headerShell.className).not.toContain("shadow-[");
   expect(headerRow.className).toContain("pl-[6px]");
   expect(headerRow.className).toContain("pr-[6px]");
@@ -77,6 +77,7 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     const nodes = screen.getAllByTestId("spielwiese-agent-node");
 
     expect(widget.className).toContain("@container");
+    expect(widget.className).toContain("isolate");
     expect(widget.className).toContain("h-full");
     expect(widget.className).toContain("overflow-hidden");
     expect(widget.className).toContain("flex-1");

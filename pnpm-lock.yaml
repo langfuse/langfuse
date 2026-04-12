@@ -713,6 +713,9 @@ importers:
       remark-stringify:
         specifier: ^11.0.0
         version: 11.0.0
+      shaders:
+        specifier: ^2.5.89
+        version: 2.5.89(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -10233,6 +10236,29 @@ packages:
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
+  shaders@2.5.89:
+    resolution: {integrity: sha512-+KD0f9tgG6AkkUQ4ynOACIzmcuAczdrMO+2rPjcIpMzPstfxYWJA3VD4jWdCbzO3bEnnPZW/L7jrGmS3487iiw==}
+    peerDependencies:
+      pixi.js: ^8.0.0
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+      solid-js: ^1.8.0
+      svelte: ^5
+      vue: ^3.5.0
+    peerDependenciesMeta:
+      pixi.js:
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      solid-js:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+
   shallow-equal@3.1.0:
     resolution: {integrity: sha512-pfVOw8QZIXpMbhBWvzBISicvToTiM5WBF1EeAUZDDSb5Dt29yl4AYbyywbJFSEsRUMr7gJaxqCdr4L3tQf9wVg==}
 
@@ -10608,6 +10634,9 @@ packages:
 
   text-hex@1.0.0:
     resolution: {integrity: sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg==}
+
+  three@0.183.2:
+    resolution: {integrity: sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ==}
 
   through@2.3.8:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
@@ -22389,6 +22418,13 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
+  shaders@2.5.89(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      three: 0.183.2
+    optionalDependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
   shallow-equal@3.1.0: {}
 
   sharp@0.34.5:
@@ -22787,6 +22823,8 @@ snapshots:
       minimatch: 3.1.5
 
   text-hex@1.0.0: {}
+
+  three@0.183.2: {}
 
   through@2.3.8: {}
 

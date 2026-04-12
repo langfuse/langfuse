@@ -25,6 +25,14 @@ export const EMPTY_ONBOARDING_ANSWERS: OnboardingAnswers = {
   opening: "",
 };
 
+export function getOnboardingStartPath() {
+  return "/dev/spielwiese/onboarding";
+}
+
+export function getSpielwieseDashboardPath() {
+  return "/dev/spielwiese/dashboard";
+}
+
 export function getOnboardingStepIndex(stepId?: string) {
   const stepIndex = ONBOARDING_QUESTIONS.findIndex(
     (question) => question.id === stepId,
@@ -50,9 +58,7 @@ export function getActiveOnboardingStepIndex(
 }
 
 export function getOnboardingStepPath(stepId: OnboardingAnswerKey) {
-  return stepId === ONBOARDING_QUESTIONS[0].id
-    ? "/dev/spielwiese/onboarding"
-    : `/dev/spielwiese/onboarding/${stepId}`;
+  return `/dev/spielwiese/onboarding/${stepId}`;
 }
 
 export function getOnboardingCompletionCount(answers: OnboardingAnswers) {

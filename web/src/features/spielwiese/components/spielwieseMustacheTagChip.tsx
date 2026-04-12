@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type MouseEvent } from "react";
 import { isValidVariableName } from "@langfuse/shared";
 import { createPortal } from "react-dom";
 import { cn } from "@/src/utils/tailwind";
+import { getSpielwieseToneStyles } from "./spielwieseToneStyles";
 
 const mustacheTagChipClassName =
   "relative inline-flex items-center align-middle";
@@ -15,36 +16,6 @@ const mustacheTagLabelClassName =
 const mustacheTagTooltipClassName =
   "pointer-events-none fixed left-[var(--spielwiese-mustache-tooltip-left)] top-[var(--spielwiese-mustache-tooltip-top)] z-[80] w-max max-w-[14rem] -translate-x-1/2 -translate-y-2 rounded-[10px] bg-[rgba(255,255,255,0.98)] px-2.5 py-1.5 text-[0.6875rem] leading-[1.05rem] font-medium whitespace-pre-wrap break-words text-[#202427] shadow-[0_16px_40px_rgba(15,23,42,0.12),0_4px_14px_rgba(15,23,42,0.06)] backdrop-blur-sm";
 
-const baseMustacheFillOklch = {
-  chroma: 0.024493,
-  hue: 265.591,
-  lightness: 0.948129,
-};
-const baseMustacheAccentOklch = {
-  chroma: 0.175166,
-  hue: 261.143,
-  lightness: 0.497467,
-};
-const mustacheHueStep = 47;
-
-function wrapHue(hue: number) {
-  return ((hue % 360) + 360) % 360;
-}
-
-function getOklchColorString({
-  chroma,
-  hue,
-  lightness,
-}: {
-  chroma: number;
-  hue: number;
-  lightness: number;
-}) {
-  return `oklch(${(lightness * 100).toFixed(3)}% ${chroma.toFixed(6)} ${wrapHue(
-    hue,
-  ).toFixed(3)})`;
-}
-
 function getMustacheTagToneStyles(isValid: boolean, tagIndex: number) {
   if (!isValid) {
     return {
@@ -56,22 +27,13 @@ function getMustacheTagToneStyles(isValid: boolean, tagIndex: number) {
     };
   }
 
-  const hueShift = tagIndex * mustacheHueStep;
+  const toneStyles = getSpielwieseToneStyles(tagIndex);
 
   return {
     chip: {
-      backgroundColor: getOklchColorString({
-        ...baseMustacheFillOklch,
-        hue: baseMustacheFillOklch.hue + hueShift,
-      }),
-      color: getOklchColorString({
-        ...baseMustacheAccentOklch,
-        hue: baseMustacheAccentOklch.hue + hueShift,
-      }),
-      boxShadow: `inset 0 0 0 1px ${getOklchColorString({
-        ...baseMustacheAccentOklch,
-        hue: baseMustacheAccentOklch.hue + hueShift,
-      })}`,
+      backgroundColor: toneStyles.fill,
+      color: toneStyles.accent,
+      boxShadow: `inset 0 0 0 1px ${toneStyles.accent}`,
     },
   };
 }

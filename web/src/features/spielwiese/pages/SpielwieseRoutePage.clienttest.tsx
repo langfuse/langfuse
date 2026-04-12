@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import SpielwieseRoutePage, { getSpielwieseRoute } from "./SpielwieseRoutePage";
 
+jest.mock("./SpielwieseIntroPage", () => ({
+  __esModule: true,
+  default: function MockSpielwieseIntroPage() {
+    return <div data-testid="spielwiese-route-intro" />;
+  },
+}));
+
 jest.mock("./SpielwieseDashboardPage", () => ({
   __esModule: true,
   default: function MockSpielwieseDashboardPage() {
@@ -25,10 +32,19 @@ jest.mock("./SpielwieseOnboardingPage", () => ({
 }));
 
 describe("SpielwieseRoutePage", () => {
-  it("routes the base path to the dashboard page", () => {
+  it("routes the base path to the intro page", () => {
     render(<SpielwieseRoutePage />);
 
+    expect(screen.getByTestId("spielwiese-route-intro")).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-route-dashboard")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-route-onboarding")).toBeNull();
+  });
+
+  it("routes the dashboard path to the dashboard page", () => {
+    render(<SpielwieseRoutePage slug={["dashboard"]} />);
+
     expect(screen.getByTestId("spielwiese-route-dashboard")).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-route-intro")).toBeNull();
     expect(screen.queryByTestId("spielwiese-route-onboarding")).toBeNull();
   });
 
@@ -49,10 +65,11 @@ describe("SpielwieseRoutePage", () => {
     ).toBe("intent");
   });
 
-  it("resolves unknown nested paths back to the dashboard", () => {
-    expect(getSpielwieseRoute()).toBe("dashboard");
-    expect(getSpielwieseRoute(["drafts"])).toBe("dashboard");
+  it("resolves unknown nested paths back to the intro page", () => {
+    expect(getSpielwieseRoute()).toBe("intro");
+    expect(getSpielwieseRoute(["drafts"])).toBe("intro");
     expect(getSpielwieseRoute(["onboarding"])).toBe("onboarding");
     expect(getSpielwieseRoute(["onboarding", "role"])).toBe("onboarding");
+    expect(getSpielwieseRoute(["dashboard"])).toBe("dashboard");
   });
 });

@@ -125,13 +125,17 @@ function expectPromptSimulationPaneChrome(
   expect(elements.title).toBeNull();
   expect(elements.historyButton.textContent).toContain("History");
   expect(elements.historyButton.className).toContain("h-6");
-  expect(elements.historyButton.className).toContain("rounded-[8px]");
-  expect(elements.historyButton.className).toContain("ring-1");
+  expect(elements.historyButton.className).toContain("rounded-[10px]");
+  expect(elements.historyButton.className).toContain(
+    "border-[rgba(0,0,0,0.08)]",
+  );
+  expect(elements.historyButton.className).toContain("bg-background");
   expect(elements.historyButton.querySelector("svg")).not.toBeNull();
   expect(elements.playButton.textContent).toContain("Play");
   expect(elements.playButton.className).toContain("h-6");
-  expect(elements.playButton.className).toContain("rounded-[8px]");
-  expect(elements.playButton.className).toContain("ring-1");
+  expect(elements.playButton.className).toContain("rounded-[10px]");
+  expect(elements.playButton.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(elements.playButton.className).toContain("bg-background");
   expect(elements.playButton.getAttribute("aria-pressed")).toBe("false");
   expect(elements.playButton.querySelector("svg")).not.toBeNull();
   expect(flowScroller.className).toContain("w-full");

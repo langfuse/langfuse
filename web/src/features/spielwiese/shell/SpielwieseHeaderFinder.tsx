@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import type { SpielwieseShellVM } from "../types/shell";
+import { sidebarMenuButtonVariants } from "../ui/sidebar";
 import { SpielwieseHeaderFinderPanel } from "./SpielwieseHeaderFinderPanel";
 import { FinderShortcut } from "./spielwieseHeaderFinderPrimitives";
 import { useSpielwieseHeaderFinderMotion } from "./useSpielwieseHeaderFinderMotion";
@@ -34,7 +35,7 @@ function FinderTriggerBackground({
       className={cn(
         "absolute inset-0 origin-top-left outline outline-1",
         variant === "sidebar"
-          ? "rounded-[10px] bg-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] outline-black/5"
+          ? "rounded-[10px] bg-transparent shadow-none outline-transparent"
           : "rounded-full bg-white/72 outline-black/6 md:rounded",
       )}
       data-bg-layer="true"
@@ -54,7 +55,7 @@ function FinderTriggerShortcut({
     <span
       className={cn(
         variant === "sidebar"
-          ? "grid size-7 place-content-center pr-1"
+          ? "hidden"
           : "hidden size-8 place-content-center pr-0.5 md:grid",
       )}
     >
@@ -80,7 +81,10 @@ function getFinderTriggerClassName({
   return cn(
     "relative z-[calc(var(--header-zindex)_+_1)] h-8 w-full cursor-pointer overflow-visible border-0 bg-transparent p-0 text-left [webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-[3px]",
     variant === "sidebar"
-      ? "max-w-none rounded-[10px]"
+      ? cn(
+          "max-w-none rounded-[10px] focus-visible:outline-0",
+          sidebarMenuButtonVariants({ tone: "primary" }),
+        )
       : "max-w-[21rem] rounded-full md:cursor-text md:rounded",
     isOpen ? "invisible" : "pointer-events-auto",
   );
@@ -101,27 +105,36 @@ function FinderTriggerContent({
     <span
       className={cn(
         "relative flex flex-row items-center",
-        variant === "sidebar" && "px-0.5",
+        variant === "sidebar" && "w-full",
       )}
     >
       <span
         className={cn(
           "grid size-8 shrink-0 place-content-center",
-          variant === "sidebar" ? "pl-2.5" : "pl-0.5",
+          variant === "sidebar" ? "pl-0.5" : "pl-0.5",
         )}
         data-search-icon="true"
       >
-        <Search className="text-foreground/62 size-[0.9375rem]" ref={iconRef} />
+        <Search
+          className={cn(
+            "size-[0.9375rem]",
+            variant === "sidebar" ? "" : "text-foreground/62",
+          )}
+          data-sidebar-icon={variant === "sidebar" ? "true" : undefined}
+          ref={iconRef}
+        />
       </span>
       <span
         className={cn(
           "text-foreground/52 min-w-0 flex-1 truncate text-[13px]",
-          variant === "sidebar" ? "flex pl-2.5" : "hidden pl-0.5 md:flex",
+          variant === "sidebar"
+            ? "flex pl-0.5 text-[0.875rem] leading-5"
+            : "hidden pl-0.5 md:flex",
         )}
         data-placeholder="true"
         ref={placeholderRef}
       >
-        Find…
+        {variant === "sidebar" ? "Search" : "Find…"}
       </span>
       <FinderTriggerShortcut shortcutRef={shortcutRef} variant={variant} />
     </span>

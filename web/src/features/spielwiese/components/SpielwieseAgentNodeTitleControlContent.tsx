@@ -1,18 +1,22 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import type { ComponentProps } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Input } from "../ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { getModelDisplayLabel } from "./spielwieseModelCatalog";
+import {
+  SpielwieseModelPickerContents,
+  spielwieseModelPickerPanelClassName,
+  type SpielwieseModelPickerProps,
+} from "./SpielwieseModelPicker";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import {
   SpielwieseHeaderStripTag,
   spielwieseInlineInputClassName,
   spielwieseStripItemFieldClassName,
 } from "./SpielwieseHeaderStrip";
-import { TitleControlModelPickerPortal } from "./SpielwieseAgentNodeTitleControlModelPickerPortal";
 import { getModelTintClassName } from "./spielwieseModelTint";
 
 function SpielwieseAgentTitleField({
@@ -41,26 +45,19 @@ function SpielwieseAgentTitleField({
 }
 
 function SpielwieseAgentModelSegment({
-  nodeId,
   currentModel,
-  isOpen,
-  onClick,
+  nodeId,
 }: {
-  nodeId: string;
   currentModel: string;
-  isOpen: boolean;
-  onClick: () => void;
+  nodeId: string;
 }) {
   const displayModelLabel = getModelDisplayLabel(currentModel);
 
   return (
     <div className="flex shrink-0 items-center pr-1">
-      <button
-        aria-expanded={isOpen}
+      <PopoverTrigger
         aria-label={`${nodeId} Model`}
         className="text-foreground inline-flex h-7 w-auto max-w-[14rem] shrink-0 items-center gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium whitespace-nowrap outline-none hover:bg-transparent focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50 sm:max-w-[18rem]"
-        type="button"
-        onClick={onClick}
       >
         <span className="inline-flex min-w-0 items-center">
           <SpielwieseHeaderStripTag
@@ -77,23 +74,19 @@ function SpielwieseAgentModelSegment({
           aria-hidden="true"
           className="text-foreground/36 size-3 shrink-0 stroke-[2.2px]"
         />
-      </button>
+      </PopoverTrigger>
     </div>
   );
 }
 
 function SpielwieseAgentTitleSurface({
   currentModel,
-  isModelPickerOpen,
   node,
   onTitleChange,
-  togglePicker,
 }: {
   currentModel: string;
-  isModelPickerOpen: boolean;
   node: SpielwieseAgentNodeVM;
   onTitleChange: (nodeId: string, value: string) => void;
-  togglePicker: () => void;
 }) {
   return (
     <div
@@ -104,10 +97,8 @@ function SpielwieseAgentTitleSurface({
       data-testid="spielwiese-agent-title-control"
     >
       <SpielwieseAgentModelSegment
-        nodeId={node.id}
         currentModel={currentModel}
-        isOpen={isModelPickerOpen}
-        onClick={togglePicker}
+        nodeId={node.id}
       />
       <div className="w-px shrink-0 self-stretch bg-black/8" />
       <SpielwieseAgentTitleField node={node} onTitleChange={onTitleChange} />
@@ -117,40 +108,41 @@ function SpielwieseAgentTitleSurface({
 
 export function SpielwieseAgentNodeTitleControlContent({
   currentModel,
-  handlePickerBlur,
-  handleTogglePicker,
   isModelPickerOpen,
   node,
+  onModelPickerOpenChange,
   onTitleChange,
-  pickerProps,
-  titleControlRef,
+  pickerPanelProps,
 }: {
   currentModel: string;
-  handlePickerBlur: ComponentProps<"div">["onBlur"];
-  handleTogglePicker: () => void;
   isModelPickerOpen: boolean;
   node: SpielwieseAgentNodeVM;
+  onModelPickerOpenChange: (open: boolean) => void;
   onTitleChange: (nodeId: string, value: string) => void;
-  pickerProps: ComponentProps<typeof TitleControlModelPickerPortal>;
-  titleControlRef: ComponentProps<"div">["ref"];
+  pickerPanelProps: SpielwieseModelPickerProps;
 }) {
   return (
-    <div
-      ref={titleControlRef}
-      className={cn(
-        "relative max-w-full shrink-0",
-        isModelPickerOpen && "z-40",
-      )}
-      onBlur={handlePickerBlur}
-    >
-      <SpielwieseAgentTitleSurface
-        currentModel={currentModel}
-        isModelPickerOpen={isModelPickerOpen}
-        node={node}
-        onTitleChange={onTitleChange}
-        togglePicker={handleTogglePicker}
-      />
-      <TitleControlModelPickerPortal {...pickerProps} />
-    </div>
+    <Popover open={isModelPickerOpen} onOpenChange={onModelPickerOpenChange}>
+      <div
+        className={cn(
+          "relative max-w-full shrink-0",
+          isModelPickerOpen && "z-40",
+        )}
+      >
+        <SpielwieseAgentTitleSurface
+          currentModel={currentModel}
+          node={node}
+          onTitleChange={onTitleChange}
+        />
+        <PopoverContent
+          aria-label="Model picker"
+          className={spielwieseModelPickerPanelClassName}
+          data-testid="spielwiese-model-picker-panel"
+          role="dialog"
+        >
+          <SpielwieseModelPickerContents {...pickerPanelProps} />
+        </PopoverContent>
+      </div>
+    </Popover>
   );
 }

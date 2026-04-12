@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
+import { getSpielwieseDashboardVm } from "../adapters/dashboardVm";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
 
 jest.mock("next/router", () => ({
@@ -8,17 +9,34 @@ jest.mock("next/router", () => ({
 
 const mockedUseRouter = jest.mocked(useRouter);
 const push = jest.fn();
-const onboardingCanvas = {
-  greeting: "Hello Leonard",
-};
+const dashboard = getSpielwieseDashboardVm("assistant");
+const onboardingCanvas = dashboard.onboardingCanvas!;
+const canvas = dashboard.canvas;
 
 function renderOnboardingCanvas(requestedStepId?: string) {
   return render(
     <SpielwieseOnboardingCanvas
+      canvas={canvas}
       onboardingCanvas={onboardingCanvas}
       requestedStepId={requestedStepId}
     />,
   );
+}
+
+function expectVisibleQuestion({
+  progressStep,
+  prompt,
+}: {
+  progressStep: number;
+  prompt: string;
+}) {
+  expect(screen.getByText(`Question ${progressStep} of 3`)).toBeTruthy();
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Onboarding progress" })
+      .getAttribute("aria-valuenow"),
+  ).toBe(String(progressStep));
+  expect(screen.getByText(prompt)).toBeTruthy();
 }
 
 describe("SpielwieseOnboardingCanvas setup", () => {
@@ -29,8 +47,8 @@ describe("SpielwieseOnboardingCanvas setup", () => {
     } as ReturnType<typeof useRouter>);
   });
 
-  it("renders one onboarding question at a time with a persistent placeholder", () => {
-    renderOnboardingCanvas();
+  it("renders one onboarding question at a time above the live upper canvas", () => {
+    renderOnboardingCanvas("role");
 
     expect(screen.getByTestId("spielwiese-onboarding-canvas")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-onboarding-greeting")).toBeTruthy();
@@ -38,15 +56,16 @@ describe("SpielwieseOnboardingCanvas setup", () => {
       screen.getByTestId("spielwiese-onboarding-questionnaire"),
     ).toBeTruthy();
     expect(
-      screen.getByTestId("spielwiese-onboarding-placeholder"),
+      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
     ).toBeTruthy();
-    expect(screen.getByText("Question 1 of 3")).toBeTruthy();
     expect(
-      screen
-        .getByRole("progressbar", { name: "Onboarding progress" })
-        .getAttribute("aria-valuenow"),
-    ).toBe("1");
-    expect(screen.getByText("What describes you best?")).toBeTruthy();
+      screen.queryByTestId("spielwiese-onboarding-placeholder"),
+    ).toBeNull();
+    expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
+    expectVisibleQuestion({
+      progressStep: 1,
+      prompt: "What describes you best?",
+    });
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
     expect(screen.queryByText("What should feel strongest first?")).toBeNull();
   });
@@ -61,7 +80,7 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
   });
 
   it("moves through the current questions and opens the canvas at the end", () => {
-    const { rerender } = renderOnboardingCanvas();
+    const { rerender } = renderOnboardingCanvas("role");
 
     fireEvent.click(screen.getByRole("button", { name: "Builder" }));
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -73,17 +92,15 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
 
     rerender(
       <SpielwieseOnboardingCanvas
+        canvas={canvas}
         onboardingCanvas={onboardingCanvas}
         requestedStepId="intent"
       />,
     );
-    expect(screen.getByText("Question 2 of 3")).toBeTruthy();
-    expect(
-      screen
-        .getByRole("progressbar", { name: "Onboarding progress" })
-        .getAttribute("aria-valuenow"),
-    ).toBe("2");
-    expect(screen.getByText("Why are you opening this room?")).toBeTruthy();
+    expectVisibleQuestion({
+      progressStep: 2,
+      prompt: "Why are you opening this room?",
+    });
     expect(screen.queryByText("What describes you best?")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Shape a workflow" }));
@@ -96,24 +113,26 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
 
     rerender(
       <SpielwieseOnboardingCanvas
+        canvas={canvas}
         onboardingCanvas={onboardingCanvas}
         requestedStepId="opening"
       />,
     );
-    expect(screen.getByText("Question 3 of 3")).toBeTruthy();
-    expect(
-      screen
-        .getByRole("progressbar", { name: "Onboarding progress" })
-        .getAttribute("aria-valuenow"),
-    ).toBe("3");
-    expect(screen.getByText("What should feel strongest first?")).toBeTruthy();
+    expectVisibleQuestion({
+      progressStep: 3,
+      prompt: "What should feel strongest first?",
+    });
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-    fireEvent.click(screen.getByRole("button", { name: /open the canvas/i }));
+    fireEvent.click(screen.getByRole("button", { name: /open dashboard/i }));
 
-    expect(push).toHaveBeenLastCalledWith("/dev/spielwiese", undefined, {
-      shallow: true,
-    });
+    expect(push).toHaveBeenLastCalledWith(
+      "/dev/spielwiese/dashboard",
+      undefined,
+      {
+        shallow: true,
+      },
+    );
   });
 });

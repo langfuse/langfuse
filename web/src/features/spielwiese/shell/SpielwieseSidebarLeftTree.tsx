@@ -12,7 +12,9 @@ function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
   return (
     <a
       aria-current={item.isActive ? "page" : undefined}
-      className={cn(sidebarMenuButtonVariants({ active: item.isActive }))}
+      className={cn(
+        sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
+      )}
       href={item.href}
     >
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
@@ -27,7 +29,7 @@ function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
 }
 
 function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
-  const isOpen = item.defaultOpen || item.isActive;
+  const isOpen = item.defaultOpen;
 
   return (
     <details
@@ -36,8 +38,8 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
     >
       <summary
         className={cn(
-          sidebarMenuButtonVariants({ active: item.isActive }),
-          "list-none",
+          sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
+          "list-none text-black/[0.55] hover:text-black/[0.55]",
         )}
       >
         <ChevronRight
@@ -47,7 +49,7 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
         <span data-sidebar-label>{item.label}</span>
       </summary>
 
-      <div className="ml-4 flex flex-col gap-0.5">
+      <div className="ml-4 flex flex-col gap-0.5 border-l border-black/[0.05] pl-2">
         {item.children?.map((child) => {
           if (child.children?.length) {
             return <SidebarFileBranch item={child} key={child.id} />;
@@ -66,11 +68,11 @@ function SidebarSectionBlock({
   section: SpielwieseSidebarSection;
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <div className="text-muted-foreground px-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
+    <section className="flex flex-col gap-2.5">
+      <div className="px-2 text-[0.6875rem] font-semibold tracking-[0.08em] text-black/[0.4] uppercase">
         {section.label}
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {section.items.map((item) =>
           item.children?.length ? (
             <SidebarFileBranch item={item} key={item.id} />
@@ -80,8 +82,8 @@ function SidebarSectionBlock({
         )}
         <button
           className={cn(
-            sidebarMenuButtonVariants({}),
-            "text-muted-foreground hover:text-sidebar-foreground",
+            sidebarMenuButtonVariants({ tone: "primary" }),
+            "text-black/[0.55] hover:text-[#242529]",
           )}
           type="button"
         >
@@ -99,7 +101,7 @@ export function SidebarSectionList({
   sections: SpielwieseSidebarSection[];
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {sections.map((section) => (
         <SidebarSectionBlock key={section.id} section={section} />
       ))}
