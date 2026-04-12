@@ -6,17 +6,11 @@ import type {
   SpielwieseSidebarTreeItem,
 } from "../types/shell";
 
-function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
+function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
   const Icon = item.icon ?? FileText;
 
   return (
-    <a
-      aria-current={item.isActive ? "page" : undefined}
-      className={cn(
-        sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
-      )}
-      href={item.href}
-    >
+    <>
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
       <span data-sidebar-label>{item.label}</span>
       {item.isActive ? (
@@ -24,6 +18,36 @@ function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
           <MoreHorizontal className="size-3.5" />
         </span>
       ) : null}
+    </>
+  );
+}
+
+function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
+  const className = cn(
+    sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
+    item.isDummy ? "cursor-default" : undefined,
+  );
+
+  if (item.isDummy) {
+    return (
+      <button
+        aria-disabled="true"
+        className={className}
+        data-sidebar-dummy
+        type="button"
+      >
+        <SidebarFileLeafContent item={item} />
+      </button>
+    );
+  }
+
+  return (
+    <a
+      aria-current={item.isActive ? "page" : undefined}
+      className={className}
+      href={item.href}
+    >
+      <SidebarFileLeafContent item={item} />
     </a>
   );
 }
@@ -69,8 +93,17 @@ function SidebarSectionBlock({
 }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <div className="px-2 text-[0.6875rem] font-semibold tracking-[0.08em] text-black/[0.4] uppercase">
-        {section.label}
+      <div className="flex items-center justify-between gap-2 px-2">
+        <div className="text-[0.6875rem] font-semibold tracking-[0.08em] text-black/[0.4] uppercase">
+          {section.label}
+        </div>
+        <button
+          aria-label={`Add to ${section.label}`}
+          className="inline-flex size-5 items-center justify-center rounded-[7px] text-black/[0.46] transition-colors hover:bg-black/[0.045] hover:text-[#242529]"
+          type="button"
+        >
+          <Plus className="size-3.5 shrink-0" data-sidebar-icon />
+        </button>
       </div>
       <div className="flex flex-col gap-1.5">
         {section.items.map((item) =>
@@ -80,16 +113,6 @@ function SidebarSectionBlock({
             <SidebarFileLeaf item={item} key={item.id} />
           ),
         )}
-        <button
-          className={cn(
-            sidebarMenuButtonVariants({ tone: "primary" }),
-            "text-black/[0.55] hover:text-[#242529]",
-          )}
-          type="button"
-        >
-          <Plus className="size-3.5 shrink-0" data-sidebar-icon />
-          <span data-sidebar-label>New</span>
-        </button>
       </div>
     </section>
   );

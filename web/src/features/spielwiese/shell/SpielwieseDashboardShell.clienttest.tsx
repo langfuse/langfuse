@@ -320,9 +320,9 @@ describe("SpielwieseDashboardShell finder interactions", () => {
     expect(panelContainer.className).not.toContain("mt-2");
     expect(panel.className).toContain("max-w-none");
 
-    fireEvent.change(searchInput, { target: { value: "comed" } });
+    fireEvent.change(searchInput, { target: { value: "micro" } });
 
-    expect(within(panel).getByText("Comedian Bot")).toBeTruthy();
+    expect(within(panel).getByText("Micronutrient tracker")).toBeTruthy();
 
     fireEvent.change(searchInput, { target: { value: "vision" } });
 

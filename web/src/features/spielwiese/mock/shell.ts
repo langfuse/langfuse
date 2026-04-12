@@ -14,7 +14,7 @@ import type { SpielwieseShellVM } from "../types/shell";
 
 export const spielwieseShellMock: SpielwieseShellVM = {
   productLabel: "Macroextractor",
-  workspaceLabel: "Assistant",
+  workspaceLabel: "Micronutrient tracker",
   team: {
     name: "Rudel",
     plan: "Free plan",
@@ -73,12 +73,12 @@ export const spielwieseShellMock: SpielwieseShellVM = {
           id: "example-evaluators",
           label: "Example Evaluators",
           href: "#example-evaluators",
-          defaultOpen: false,
+          defaultOpen: true,
           children: [
             {
-              id: "comedian-bot",
-              label: "Comedian Bot",
-              href: "#comedian-bot",
+              id: "assistant",
+              label: "Micronutrient tracker",
+              href: "#assistant",
               icon: FileText,
             },
             {
@@ -86,6 +86,7 @@ export const spielwieseShellMock: SpielwieseShellVM = {
               label: "Vision Agent",
               href: "#vision-agent",
               icon: FileText,
+              isDummy: true,
             },
           ],
         },

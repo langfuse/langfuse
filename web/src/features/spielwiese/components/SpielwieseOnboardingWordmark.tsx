@@ -13,8 +13,8 @@ function LangfuseWordmark() {
         aria-hidden="true"
         className="h-[1.125rem] w-auto shrink-0"
         height="18"
-        src="/spielwiese/lf-new-logo.png"
-        width="96"
+        src="/spielwiese/lf-onboarding-wordmark.png"
+        width="98"
       />
     </div>
   );

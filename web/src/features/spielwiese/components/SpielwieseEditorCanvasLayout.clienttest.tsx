@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
@@ -7,6 +7,130 @@ function renderCanvas() {
   return render(
     <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
   );
+}
+
+function getLayoutShellElements() {
+  const editorModeHeader = screen.getByTestId(
+    "spielwiese-canvas-editor-mode-header",
+  );
+
+  return {
+    editorModeHeader,
+    editorModeToggle: within(editorModeHeader).getByTestId(
+      "spielwiese-canvas-editor-mode-toggle",
+    ),
+    editorNodeStack: screen.getByTestId("spielwiese-agent-node-stack"),
+    editorPane: screen.getByTestId("spielwiese-editor-canvas-pane"),
+    editorPaneShell: screen.getByTestId("spielwiese-editor-canvas-pane-shell"),
+    editorPaneSurface: screen.getByTestId(
+      "spielwiese-editor-canvas-pane-surface",
+    ),
+    nodes: screen.getAllByTestId("spielwiese-agent-node"),
+    resizeHandle: screen.getByTestId("spielwiese-canvas-pane-resize-handle"),
+    simulationPane: screen.getByTestId("spielwiese-prompt-simulation-pane"),
+    widget: screen.getByTestId("spielwiese-editor-canvas"),
+  };
+}
+
+function expectLayoutShellChrome({
+  editorPane,
+  editorPaneShell,
+  editorPaneSurface,
+  widget,
+}: ReturnType<typeof getLayoutShellElements>) {
+  expect(widget.className).toContain("@container");
+  expect(widget.className).toContain("isolate");
+  expect(widget.className).toContain("h-full");
+  expect(widget.className).toContain("overflow-hidden");
+  expect(widget.className).toContain("flex-1");
+  expect(editorPane.className).toContain("bg-[#F3F3F4]");
+  expect(editorPane.className).toContain("px-0");
+  expect(editorPane.className).toContain("pb-2");
+  expect(editorPane.className).not.toContain("pt-2");
+  expect(editorPane.className).not.toContain("px-2");
+  expect(editorPane.className).not.toContain("border-x");
+  expect(editorPane.className).not.toContain("border-t");
+  expect(editorPane.className).not.toContain("border-b-0");
+  expect(editorPaneShell.className).toContain(
+    "[--canvas-pane-inner-radius:18px]",
+  );
+  expect(editorPaneShell.className).toContain("[--canvas-pane-shell-gap:2px]");
+  expect(editorPaneShell.className).toContain(
+    "[--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))]",
+  );
+  expect(editorPaneShell.className).toContain(
+    "rounded-[var(--canvas-pane-outer-radius)]",
+  );
+  expect(editorPaneShell.className).toContain("bg-[#F3F3F4]");
+  expect(editorPaneShell.className).toContain("overflow-y-auto");
+  expect(editorPaneShell.className).toContain("overflow-x-hidden");
+  expect(editorPaneShell.className).toContain(
+    "p-[var(--canvas-pane-shell-gap)]",
+  );
+  expect(editorPaneShell.className).not.toContain("px-4");
+  expect(editorPaneShell.className).not.toContain("sm:px-5");
+  expect(editorPaneSurface.className).toContain("bg-background");
+  expect(editorPaneSurface.className).toContain(
+    "rounded-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(editorPaneSurface.className).toContain("min-h-full");
+  expect(editorPaneSurface.className).toContain("flex-1");
+}
+
+function expectLayoutAccessories({
+  editorModeHeader,
+  editorModeToggle,
+  editorNodeStack,
+  nodes,
+  resizeHandle,
+  simulationPane,
+}: ReturnType<typeof getLayoutShellElements>) {
+  expect(editorModeHeader.className).toContain("pt-2");
+  expect(editorModeHeader.className).toContain("px-2");
+  expect(editorModeHeader.className).toContain("justify-end");
+  expect(editorModeToggle.className).toContain("rounded-[9px]");
+  expect(editorModeToggle.className).toContain("bg-[#F7F7F7]");
+  expect(editorNodeStack.className).not.toContain("overflow-y-auto");
+  expect(editorNodeStack.className).toContain("pt-2");
+  expect(editorNodeStack.className).toContain("pb-2");
+  expect(simulationPane.className).toContain("px-0");
+  expect(simulationPane.className).toContain("pb-0");
+  expect(simulationPane.className).not.toContain("px-2");
+  expect(simulationPane.className).not.toContain("border-t-0");
+  expect(resizeHandle).toBeTruthy();
+  expect(nodes).toHaveLength(3);
+}
+
+function getVisionNodeChromeElements() {
+  const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+
+  return {
+    headerFrame: within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-frame",
+    ),
+    headerRow: within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-row",
+    ),
+    headerShell: within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-shell",
+    ),
+    nodeCard: within(visionNode).getByTestId("spielwiese-agent-node-card"),
+    visionModelButton: screen.getByRole("button", {
+      name: "vision-agent Model",
+    }),
+    visionNode,
+  };
+}
+
+function expectVisibleAgentNodeLabels() {
+  expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
+  expect(screen.getByDisplayValue("Nutrition Agent")).toBeTruthy();
+  expect(screen.getByDisplayValue("Coach Agent")).toBeTruthy();
+  expect(screen.getByDisplayValue("coach_summary")).toBeTruthy();
+  expect(
+    screen.queryByText(spielwieseEditorCanvasTestCanvas.helper),
+  ).toBeNull();
+  expect(screen.queryByText("01")).toBeNull();
 }
 
 function expectVisionNodeChrome({
@@ -62,128 +186,39 @@ function expectVisionNodeChrome({
 describe("SpielwieseEditorCanvas layout shell", () => {
   it("renders with a local container-query root", () => {
     renderCanvas();
-    const widget = screen.getByTestId("spielwiese-editor-canvas");
-    const editorPane = screen.getByTestId("spielwiese-editor-canvas-pane");
-    const editorPaneShell = screen.getByTestId(
-      "spielwiese-editor-canvas-pane-shell",
-    );
-    const editorNodeStack = screen.getByTestId("spielwiese-agent-node-stack");
-    const simulationPane = screen.getByTestId(
-      "spielwiese-prompt-simulation-pane",
-    );
-    const resizeHandle = screen.getByTestId(
-      "spielwiese-canvas-pane-resize-handle",
-    );
-    const nodes = screen.getAllByTestId("spielwiese-agent-node");
+    const layoutElements = getLayoutShellElements();
 
-    expect(widget.className).toContain("@container");
-    expect(widget.className).toContain("isolate");
-    expect(widget.className).toContain("h-full");
-    expect(widget.className).toContain("overflow-hidden");
-    expect(widget.className).toContain("flex-1");
-    expect(editorPane.className).toContain("bg-[#F3F3F4]");
-    expect(editorPane.className).toContain("px-0");
-    expect(editorPane.className).toContain("pb-2");
-    expect(editorPane.className).not.toContain("pt-2");
-    expect(editorPane.className).not.toContain("px-2");
-    expect(editorPane.className).not.toContain("border-x");
-    expect(editorPane.className).not.toContain("border-t");
-    expect(editorPane.className).not.toContain("border-b-0");
-    expect(editorPaneShell.className).toContain("rounded-[8px]");
-    expect(editorPaneShell.className).not.toContain("rounded-b-[8px]");
-    expect(editorPaneShell.className).toContain("bg-background");
-    expect(editorPaneShell.className).toContain("overflow-y-auto");
-    expect(editorPaneShell.className).toContain("overflow-x-hidden");
-    expect(editorPaneShell.className).toContain("px-0");
-    expect(editorPaneShell.className).toContain("py-0");
-    expect(editorPaneShell.className).not.toContain("px-4");
-    expect(editorPaneShell.className).not.toContain("sm:px-5");
-    expect(editorNodeStack.className).not.toContain("overflow-y-auto");
-    expect(editorNodeStack.className).toContain("pt-4");
-    expect(editorNodeStack.className).toContain("pb-2");
-    expect(simulationPane.className).toContain("px-0");
-    expect(simulationPane.className).toContain("pb-0");
-    expect(simulationPane.className).not.toContain("px-2");
-    expect(simulationPane.className).not.toContain("border-t-0");
-    expect(resizeHandle).toBeTruthy();
-    expect(nodes).toHaveLength(3);
+    expectLayoutShellChrome(layoutElements);
+    expectLayoutAccessories(layoutElements);
   });
 });
 
 describe("SpielwieseEditorCanvas node chrome", () => {
   it("renders three agent nodes with visible settings and no stats footer", () => {
     renderCanvas();
-    const visionModelButton = screen.getByRole("button", {
-      name: "vision-agent Model",
-    });
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const nodeCard = within(visionNode).getByTestId(
-      "spielwiese-agent-node-card",
-    );
-    const headerFrame = within(visionNode).getByTestId(
-      "spielwiese-agent-node-header-frame",
-    );
-    const headerShell = within(visionNode).getByTestId(
-      "spielwiese-agent-node-header-shell",
-    );
-    const headerRow = within(visionNode).getByTestId(
-      "spielwiese-agent-node-header-row",
-    );
-
-    expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
-    expect(screen.getByDisplayValue("Nutrition Agent")).toBeTruthy();
-    expect(screen.getByDisplayValue("Coach Agent")).toBeTruthy();
-    expect(screen.getByDisplayValue("coach_summary")).toBeTruthy();
-    expect(
-      screen.queryByText(spielwieseEditorCanvasTestCanvas.helper),
-    ).toBeNull();
-    expect(screen.queryByText("01")).toBeNull();
-    expectVisionNodeChrome({
-      headerFrame,
-      headerRow,
-      headerShell,
-      nodeCard,
-      visionModelButton,
-      visionNode,
-    });
+    expectVisibleAgentNodeLabels();
+    expectVisionNodeChrome(getVisionNodeChromeElements());
   });
 });
 
 describe("SpielwieseEditorCanvas inline setting tags", () => {
-  it("reveals inline setting tags on click or delayed hover and collapses them on pointer leave", () => {
-    jest.useFakeTimers();
+  it("reveals inline setting tags on click and collapses them on blur", () => {
+    renderCanvas();
+    const coachNode = screen.getAllByTestId("spielwiese-agent-node")[2];
+    const inputSettingTag = within(coachNode).getByTestId(
+      "spielwiese-inline-setting-tag-input",
+    );
 
-    try {
-      renderCanvas();
-      const coachNode = screen.getAllByTestId("spielwiese-agent-node")[2];
-      const inputSettingTag = within(coachNode).getByTestId(
-        "spielwiese-inline-setting-tag-input",
-      );
+    expect(inputSettingTag.tagName).toBe("BUTTON");
+    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
 
-      expect(inputSettingTag.tagName).toBe("BUTTON");
-      expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
+    fireEvent.mouseEnter(inputSettingTag);
+    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
 
-      fireEvent.mouseEnter(inputSettingTag);
-      act(() => {
-        jest.advanceTimersByTime(999);
-      });
-      expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
+    fireEvent.click(inputSettingTag);
+    expect(inputSettingTag.getAttribute("data-state")).toBe("open");
 
-      act(() => {
-        jest.advanceTimersByTime(1);
-      });
-      expect(inputSettingTag.getAttribute("data-state")).toBe("open");
-
-      fireEvent.mouseLeave(inputSettingTag);
-      expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
-
-      fireEvent.click(inputSettingTag);
-      expect(inputSettingTag.getAttribute("data-state")).toBe("open");
-
-      fireEvent.mouseLeave(inputSettingTag);
-      expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
-    } finally {
-      jest.useRealTimers();
-    }
+    fireEvent.blur(inputSettingTag);
+    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
   });
 });

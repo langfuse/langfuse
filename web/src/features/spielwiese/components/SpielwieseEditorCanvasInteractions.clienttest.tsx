@@ -69,22 +69,37 @@ function openAnthropicHaikuPreview(panel: HTMLElement) {
   const modelOption = within(panel).getByRole("button", {
     name: "Claude Haiku 4.5",
   });
-  const preview = within(panel).getByTestId(
-    "spielwiese-model-picker-benchmark-preview",
+  const selectionPane = within(panel).getByTestId(
+    "spielwiese-model-picker-selection-pane",
   );
 
-  expect(preview.textContent).toContain("Hover a model to inspect benchmarks.");
+  expect(selectionPane.className).toContain("w-[16.25rem]");
+  expect(
+    within(panel).queryByTestId("spielwiese-model-picker-benchmark-preview"),
+  ).toBeNull();
 
   fireEvent.mouseEnter(modelOption);
 
-  expect(within(panel).getByText("Intelligence")).toBeTruthy();
-  expect(
-    within(panel).getByText(
-      "Leanest Claude option when you still want Claude tone.",
-    ),
-  ).toBeTruthy();
+  const preview = within(panel).getByTestId(
+    "spielwiese-model-picker-benchmark-preview",
+  );
+  const hoveredSelectionPane = within(panel).getByTestId(
+    "spielwiese-model-picker-selection-pane",
+  );
 
-  return modelOption;
+  expect(hoveredSelectionPane.className).toContain("w-[31rem]");
+  expect(within(panel).getByText("Intelligence")).toBeTruthy();
+  expect(preview.textContent).not.toContain("Claude Haiku 4.5");
+  expect(preview.textContent).not.toContain(
+    "Leanest Claude option when you still want Claude tone.",
+  );
+  expect(preview.textContent).not.toContain(
+    "Hover a model to inspect benchmarks.",
+  );
+
+  return within(panel).getByRole("button", {
+    name: "Claude Haiku 4.5",
+  });
 }
 
 function getBenchmarkPreview(panel: HTMLElement) {
@@ -211,11 +226,11 @@ describe("SpielwieseEditorCanvas model picker", () => {
       within(panel).getByRole("button", { name: "Recommend model" }),
     ).toBeTruthy();
     expect(within(panel).queryByText("Models")).toBeNull();
+    expect(within(panel).queryByText("Providers")).toBeNull();
     expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
 
     fireEvent.click(within(panel).getByRole("button", { name: "OpenAI" }));
 
-    const preview = getBenchmarkPreview(panel);
     const gpt54Button = within(panel).getByRole("button", {
       name: "GPT-5.4",
     });
@@ -223,24 +238,25 @@ describe("SpielwieseEditorCanvas model picker", () => {
     expect(
       within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
     ).toBeNull();
-    expect(preview.textContent).toContain(
-      "Hover a model to inspect benchmarks.",
-    );
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-older-toggle"),
+    ).toBeNull();
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-benchmark-preview"),
+    ).toBeNull();
 
     fireEvent.mouseEnter(gpt54Button);
 
     const hoveredPreview = getBenchmarkPreview(panel);
 
-    expect(hoveredPreview.textContent).toContain("GPT-5.4");
+    expect(hoveredPreview.textContent).not.toContain("GPT-5.4");
     expect(within(panel).getByText("Intelligence")).toBeTruthy();
-
-    fireEvent.click(
-      within(panel).getByTestId("spielwiese-model-picker-older-toggle"),
-    );
-
     expect(
-      within(panel).getByRole("button", { name: "GPT-4.1 mini" }),
-    ).toBeTruthy();
+      within(panel).queryByTestId("spielwiese-model-picker-older-toggle"),
+    ).toBeNull();
+    expect(
+      within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
+    ).toBeNull();
   });
 });
 
@@ -307,7 +323,7 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
       "spielwiese-message-section-row",
     );
     const detachedUserToggle = within(detachedUserRow).getByRole("button", {
-      name: "Minimize vision-agent User message section",
+      name: "Minimize vision-agent User section",
     });
 
     fireEvent.click(detachedUserToggle);
@@ -319,17 +335,17 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
     ).toBeNull();
     expect(
       within(detachedUserRow).getByLabelText(
-        "Toggle vision-agent User message section",
+        "Toggle vision-agent User section",
       ),
     ).toBeTruthy();
     const collapsedCompactButton = within(detachedUserRow).getByRole("button", {
-      name: "Maximize vision-agent User message section",
+      name: "Maximize vision-agent User section",
     });
 
-    expect(detachedUserRow.className).toContain("pb-[5px]");
+    expect(detachedUserRow.className).toContain("pb-[2px]");
     expect(collapsedCompactButton.getAttribute("aria-pressed")).toBe("true");
     expect(collapsedCompactButton.getAttribute("aria-label")).toBe(
-      "Maximize vision-agent User message section",
+      "Maximize vision-agent User section",
     );
   });
 });

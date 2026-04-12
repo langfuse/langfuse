@@ -17,7 +17,7 @@ import {
   type ToolCreatorMode,
 } from "./SpielwieseToolCreatorPopupContent";
 import { SpielwieseHeaderStripTag } from "./SpielwieseHeaderStrip";
-import { spielwieseHeaderButtonBaseClassName } from "./spielwieseHeaderButtonStyles";
+import { spielwieseHeaderButtonStaticClassName } from "./spielwieseHeaderButtonStyles";
 
 const toolCreatorModes = [
   { label: "Builder", value: "builder" },
@@ -104,8 +104,8 @@ function ToolCreatorTriggerContent({
     <>
       <SpielwieseHeaderStripTag
         label="Tools"
-        revealLabelWidthClassName="group-hover/setting-tag:max-w-[2rem]"
-        revealWidthClassName="hover:w-[4rem]"
+        revealLabelWidthClassName="max-w-0"
+        revealWidthClassName="w-6"
       >
         <Wrench aria-hidden="true" className="size-3.5 shrink-0" />
       </SpielwieseHeaderStripTag>
@@ -123,26 +123,28 @@ export function SpielwieseToolCreatorPopup({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<ToolCreatorMode>("builder");
+  const triggerClassName =
+    variant === "row"
+      ? "border-border/40 bg-background/88 text-foreground/78 hover:bg-background hover:text-foreground h-8 rounded-lg border px-3 text-[0.8125rem] font-medium shadow-[inset_0_1px_0_hsl(var(--background)/0.96)]"
+      : `${spielwieseHeaderButtonStaticClassName} inline-flex h-7 items-center justify-center gap-0 overflow-hidden rounded-[10px] px-0 text-[13px] font-medium whitespace-nowrap`;
+  const TriggerElement = variant === "row" ? Button : "button";
 
   return (
     <div className="relative shrink-0">
-      <Button
+      <TriggerElement
         aria-label="Create tool"
-        className={cn(
-          variant === "row"
-            ? "border-border/40 bg-background/88 text-foreground/78 hover:bg-background hover:text-foreground h-8 rounded-lg border px-3 text-[0.8125rem] font-medium shadow-[inset_0_1px_0_hsl(var(--background)/0.96)]"
-            : `${spielwieseHeaderButtonBaseClassName} h-7 gap-0 overflow-hidden rounded-[10px] px-0 text-[13px] font-medium`,
-        )}
-        size="sm"
+        className={cn(triggerClassName)}
+        {...(variant === "row"
+          ? { size: "sm", variant: "ghost" as const }
+          : {})}
         type="button"
-        variant="ghost"
         onClick={() => setIsOpen(true)}
       >
         <ToolCreatorTriggerContent
           summaryLabel={summaryLabel}
           variant={variant}
         />
-      </Button>
+      </TriggerElement>
       {isOpen ? (
         <div
           className="bg-background/80 fixed inset-0 z-40 flex items-center justify-center p-4"

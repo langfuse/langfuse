@@ -1,5 +1,5 @@
 import { Baby, CircleQuestionMark, UserRound } from "lucide-react";
-import { useRef, useState, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   ResizableHandle,
@@ -13,6 +13,7 @@ import {
 } from "./SpielwieseCanvasPane";
 import { SpielwieseEvaluationPane } from "./SpielwieseEvaluationPane";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
+import { useEvaluationPaneFit } from "./spielwieseCanvasPaneSizing";
 
 type CanvasBottomPaneMode = "playground" | "evaluation";
 
@@ -138,66 +139,6 @@ function CanvasPaneHeaderAccessory({
   );
 }
 
-function getEvaluationOverflowInPixels(shellElement: HTMLDivElement | null) {
-  if (!shellElement) {
-    return 0;
-  }
-
-  return Math.max(shellElement.scrollHeight - shellElement.clientHeight, 0);
-}
-
-function expandBottomPaneToFitEvaluation({
-  bottomPanelRef,
-  extraBottomSpace = 8,
-  shellElement,
-}: {
-  bottomPanelRef: RefObject<ResizablePanelHandle | null>;
-  extraBottomSpace?: number;
-  shellElement: HTMLDivElement | null;
-}) {
-  const overflowInPixels = getEvaluationOverflowInPixels(shellElement);
-  const bottomPanel = bottomPanelRef.current;
-
-  if (!bottomPanel || overflowInPixels <= 0) {
-    return;
-  }
-
-  bottomPanel.resize(
-    bottomPanel.getSize().inPixels + overflowInPixels + extraBottomSpace,
-  );
-}
-
-function scheduleBottomPaneFit({
-  bottomPanelRef,
-  evaluationShellRef,
-}: {
-  bottomPanelRef: RefObject<ResizablePanelHandle | null>;
-  evaluationShellRef: RefObject<HTMLDivElement | null>;
-}) {
-  window.setTimeout(() => {
-    expandBottomPaneToFitEvaluation({
-      bottomPanelRef,
-      shellElement: evaluationShellRef.current,
-    });
-  }, 0);
-}
-
-function useEvaluationPaneFit() {
-  const bottomPanelRef = useRef<ResizablePanelHandle | null>(null);
-  const evaluationShellRef = useRef<HTMLDivElement | null>(null);
-  const requestBottomPaneFit = () =>
-    scheduleBottomPaneFit({
-      bottomPanelRef,
-      evaluationShellRef,
-    });
-
-  return {
-    bottomPanelRef,
-    evaluationShellRef,
-    requestBottomPaneFit,
-  };
-}
-
 function createPaneModeChangeHandler({
   requestBottomPaneFit,
   setBottomPaneMode,
@@ -214,8 +155,82 @@ function createPaneModeChangeHandler({
   };
 }
 
+function CanvasPaneMainPanel({
+  nodes,
+  onNodesReplace,
+  onAgentNodeInsert,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
+  onPromptSectionChange,
+  onPromptSectionMove,
+  onSettingValueChange,
+  onTitleChange,
+}: SpielwieseCanvasPaneProps) {
+  return (
+    <ResizablePanel
+      data-testid="spielwiese-canvas-main-panel"
+      defaultSize="68%"
+      minSize="20%"
+    >
+      <SpielwieseCanvasPane
+        className="h-full rounded-none"
+        nodes={nodes}
+        onNodesReplace={onNodesReplace}
+        onAgentNodeInsert={onAgentNodeInsert}
+        onPromptSectionDelete={onPromptSectionDelete}
+        onPromptSectionInsert={onPromptSectionInsert}
+        onPromptSectionChange={onPromptSectionChange}
+        onPromptSectionMove={onPromptSectionMove}
+        onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
+      />
+    </ResizablePanel>
+  );
+}
+
+function CanvasPaneBottomPanel({
+  bottomPaneMode,
+  bottomPanelRef,
+  evaluationShellRef,
+  nodes,
+  paneModeToggle,
+  requestBottomPaneFit,
+}: {
+  bottomPaneMode: CanvasBottomPaneMode;
+  bottomPanelRef: RefObject<ResizablePanelHandle | null>;
+  evaluationShellRef: RefObject<HTMLDivElement | null>;
+  nodes: SpielwieseCanvasPaneProps["nodes"];
+  paneModeToggle: ReactNode;
+  requestBottomPaneFit: () => void;
+}) {
+  return (
+    <ResizablePanel
+      data-testid="spielwiese-canvas-bottom-panel"
+      defaultSize="32%"
+      minSize="12%"
+      panelRef={bottomPanelRef}
+    >
+      {bottomPaneMode === "playground" ? (
+        <SpielwiesePromptSimulationPane
+          headerAccessory={paneModeToggle}
+          nodes={nodes}
+        />
+      ) : (
+        <SpielwieseEvaluationPane
+          headerAccessory={paneModeToggle}
+          nodes={nodes}
+          onRequestFit={requestBottomPaneFit}
+          shellRef={evaluationShellRef}
+        />
+      )}
+    </ResizablePanel>
+  );
+}
+
 export function SpielwieseCanvasPaneStack({
   nodes,
+  onNodesReplace,
+  onAgentNodeInsert,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
@@ -242,46 +257,29 @@ export function SpielwieseCanvasPaneStack({
       className="flex-1 overflow-hidden"
       orientation="vertical"
     >
-      <ResizablePanel
-        data-testid="spielwiese-canvas-main-panel"
-        defaultSize="68%"
-        minSize="20%"
-      >
-        <SpielwieseCanvasPane
-          className="h-full rounded-none"
-          nodes={nodes}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionMove={onPromptSectionMove}
-          onSettingValueChange={onSettingValueChange}
-          onTitleChange={onTitleChange}
-        />
-      </ResizablePanel>
+      <CanvasPaneMainPanel
+        nodes={nodes}
+        onNodesReplace={onNodesReplace}
+        onAgentNodeInsert={onAgentNodeInsert}
+        onPromptSectionChange={onPromptSectionChange}
+        onPromptSectionDelete={onPromptSectionDelete}
+        onPromptSectionInsert={onPromptSectionInsert}
+        onPromptSectionMove={onPromptSectionMove}
+        onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
+      />
       <ResizableHandle
         className="aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 bg-[#F3F3F4] aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
         data-testid="spielwiese-canvas-pane-resize-handle"
       />
-      <ResizablePanel
-        data-testid="spielwiese-canvas-bottom-panel"
-        defaultSize="32%"
-        minSize="12%"
-        panelRef={bottomPanelRef}
-      >
-        {bottomPaneMode === "playground" ? (
-          <SpielwiesePromptSimulationPane
-            headerAccessory={paneModeToggle}
-            nodes={nodes}
-          />
-        ) : (
-          <SpielwieseEvaluationPane
-            headerAccessory={paneModeToggle}
-            nodes={nodes}
-            onRequestFit={requestBottomPaneFit}
-            shellRef={evaluationShellRef}
-          />
-        )}
-      </ResizablePanel>
+      <CanvasPaneBottomPanel
+        bottomPaneMode={bottomPaneMode}
+        bottomPanelRef={bottomPanelRef}
+        evaluationShellRef={evaluationShellRef}
+        nodes={nodes}
+        paneModeToggle={paneModeToggle}
+        requestBottomPaneFit={requestBottomPaneFit}
+      />
     </ResizablePanelGroup>
   );
 }

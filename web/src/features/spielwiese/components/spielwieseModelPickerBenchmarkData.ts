@@ -4,46 +4,22 @@ import type {
   SpielwieseModelOption,
   SpielwieseModelScore,
 } from "./spielwieseModelCatalog";
-
-export const artificialAnalysisMethodologyHref =
-  "https://artificialanalysis.ai/methodology/intelligence-benchmarking";
-
-export const intelligenceBenchmarkInfo =
-  "Derived by the Artificial Analysis Index.";
-
-export const codingBenchmarkInfo =
-  "Represents the weighted average of coding benchmarks in the Artificial Analysis Intelligence Index (Terminal-Bench Hard, SciCode).";
-
-export const agenticBenchmarkInfo =
-  "Represents the average of agentic capabilities benchmarks in the Artificial Analysis Intelligence Index (GDPval-AA, tau^2-Bench Telecom).";
-
-export type SpielwieseBenchmarkMetricTone =
-  | "danger"
-  | "good"
-  | "muted"
-  | "warning";
-
-export type SpielwieseBenchmarkRowValue =
-  | {
-      kind: "badges";
-      values: { active: boolean; label: string }[];
-    }
-  | {
-      kind: "metric";
-      text: string;
-      tone: SpielwieseBenchmarkMetricTone;
-    };
-
-export type SpielwieseBenchmarkTableRow = {
-  info?: {
-    description: string;
-    href?: string;
-    label: string;
-  };
-  label: string;
-  note?: string;
-  value: SpielwieseBenchmarkRowValue;
-};
+import {
+  createMetricRow,
+  createRankRow,
+  type SpielwieseBenchmarkTableRow,
+} from "./spielwieseModelPickerBenchmarkHelpers";
+import {
+  agenticBenchmarkInfo,
+  artificialAnalysisMethodologyHref,
+  codingBenchmarkInfo,
+  imageEditBenchmarkInfo,
+  imageGenBenchmarkInfo,
+  intelligenceBenchmarkInfo,
+  priceBenchmarkInfo,
+  speedBenchmarkInfo,
+  weightsBenchmarkInfo,
+} from "./spielwieseModelPickerBenchmarkInfo";
 
 export type SpielwieseModelBenchmarkProfile = {
   agentic: number;
@@ -55,6 +31,49 @@ export type SpielwieseModelBenchmarkProfile = {
   speed: number;
   textToImageRank: number | null;
 };
+
+const primaryMetricRows = [
+  {
+    description: intelligenceBenchmarkInfo,
+    direction: "higher" as const,
+    href: artificialAnalysisMethodologyHref,
+    key: "intelligence" as const,
+    label: "Intelligence",
+    prefix: "",
+  },
+  {
+    description: speedBenchmarkInfo,
+    direction: "higher" as const,
+    href: artificialAnalysisMethodologyHref,
+    key: "speed" as const,
+    label: "Speed",
+    prefix: "",
+  },
+  {
+    description: priceBenchmarkInfo,
+    direction: "lower" as const,
+    href: artificialAnalysisMethodologyHref,
+    key: "price" as const,
+    label: "Cost",
+    prefix: "$",
+  },
+  {
+    description: codingBenchmarkInfo,
+    direction: "higher" as const,
+    href: artificialAnalysisMethodologyHref,
+    key: "coding" as const,
+    label: "Coding",
+    prefix: "",
+  },
+  {
+    description: agenticBenchmarkInfo,
+    direction: "higher" as const,
+    href: artificialAnalysisMethodologyHref,
+    key: "agentic" as const,
+    label: "Agentic",
+    prefix: "",
+  },
+];
 
 const indexScoreMap: Record<SpielwieseModelScore, number> = {
   1: 44,
@@ -140,162 +159,22 @@ export function getModelBenchmarkProfile(
   };
 }
 
-export function getBenchmarkTone({
-  direction,
-  value,
-}: {
-  direction: "higher" | "lower" | "rank";
-  value: number | null;
-}): SpielwieseBenchmarkMetricTone {
-  if (value === null) {
-    return "muted";
-  }
-
-  if (direction === "rank") {
-    if (value <= 8) {
-      return "good";
-    }
-
-    if (value <= 16) {
-      return "warning";
-    }
-
-    return "danger";
-  }
-
-  if (direction === "lower") {
-    if (value <= 55) {
-      return "good";
-    }
-
-    if (value <= 75) {
-      return "warning";
-    }
-
-    return "danger";
-  }
-
-  if (value >= 82) {
-    return "good";
-  }
-
-  if (value >= 65) {
-    return "warning";
-  }
-
-  return "danger";
-}
-
-function formatLeaderboardValue(rank: number | null) {
-  if (rank === null) {
-    return {
-      text: "n/a",
-      tone: "muted" as const,
-    };
-  }
-
-  return {
-    text: `#${rank}`,
-    tone: getBenchmarkTone({ direction: "rank", value: rank }),
-  };
-}
-
-function createMetricRow({
-  direction,
-  info,
-  label,
-  note,
-  text,
-  value,
-}: {
-  direction: "higher" | "lower";
-  info?: SpielwieseBenchmarkTableRow["info"];
-  label: string;
-  note?: string;
-  text: string;
-  value: number;
-}): SpielwieseBenchmarkTableRow {
-  return {
-    info,
-    label,
-    note,
-    value: {
-      kind: "metric",
-      text,
-      tone: getBenchmarkTone({ direction, value }),
-    },
-  };
-}
-
-function createRankRow({
-  label,
-  rank,
-}: {
-  label: string;
-  rank: number | null;
-}): SpielwieseBenchmarkTableRow {
-  const value = formatLeaderboardValue(rank);
-
-  return {
-    label,
-    value: {
-      kind: "metric",
-      text: value.text,
-      tone: value.tone,
-    },
-  };
-}
-
 function getPrimaryMetricRows(
   profile: SpielwieseModelBenchmarkProfile,
 ): SpielwieseBenchmarkTableRow[] {
-  return [
+  return primaryMetricRows.map((row) =>
     createMetricRow({
-      direction: "higher",
+      direction: row.direction,
       info: {
-        description: intelligenceBenchmarkInfo,
-        href: artificialAnalysisMethodologyHref,
-        label: "Intelligence",
+        description: row.description,
+        href: row.href,
+        label: row.label,
       },
-      label: "Intelligence",
-      text: `${profile.intelligence}`,
-      value: profile.intelligence,
+      label: row.label,
+      text: `${row.prefix}${profile[row.key]}`,
+      value: profile[row.key],
     }),
-    createMetricRow({
-      direction: "higher",
-      label: "Speed",
-      note: "Output tokens per second. Higher is better.",
-      text: `${profile.speed}`,
-      value: profile.speed,
-    }),
-    createMetricRow({
-      direction: "lower",
-      label: "Price",
-      note: "USD per 1M tokens. Lower is better.",
-      text: `$${profile.price}`,
-      value: profile.price,
-    }),
-    createMetricRow({
-      direction: "higher",
-      info: {
-        description: codingBenchmarkInfo,
-        label: "Coding index",
-      },
-      label: "Coding index",
-      text: `${profile.coding}`,
-      value: profile.coding,
-    }),
-    createMetricRow({
-      direction: "higher",
-      info: {
-        description: agenticBenchmarkInfo,
-        label: "Agentic index",
-      },
-      label: "Agentic index",
-      text: `${profile.agentic}`,
-      value: profile.agentic,
-    }),
-  ];
+  );
 }
 
 function getSupplementaryRows(
@@ -303,21 +182,34 @@ function getSupplementaryRows(
 ): SpielwieseBenchmarkTableRow[] {
   return [
     {
+      info: {
+        description: weightsBenchmarkInfo,
+        href: artificialAnalysisMethodologyHref,
+        label: "Weights",
+      },
       label: "Weights",
       value: {
-        kind: "badges",
-        values: [
-          { active: profile.isOpenWeights, label: "Open weights" },
-          { active: !profile.isOpenWeights, label: "Proprietary" },
-        ],
+        kind: "metric",
+        text: profile.isOpenWeights ? "Open" : "Closed",
+        tone: profile.isOpenWeights ? "good" : "muted",
       },
     },
     createRankRow({
-      label: "Text to image place",
+      info: {
+        description: imageGenBenchmarkInfo,
+        href: artificialAnalysisMethodologyHref,
+        label: "Image gen",
+      },
+      label: "Image gen",
       rank: profile.textToImageRank,
     }),
     createRankRow({
-      label: "Image editing place",
+      info: {
+        description: imageEditBenchmarkInfo,
+        href: artificialAnalysisMethodologyHref,
+        label: "Image edit",
+      },
+      label: "Image edit",
       rank: profile.imageEditingRank,
     }),
   ];

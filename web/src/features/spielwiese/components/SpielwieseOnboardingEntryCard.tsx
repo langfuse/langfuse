@@ -1,7 +1,6 @@
 import type { FormEvent, MouseEvent } from "react";
 import { useRouter } from "next/router";
 import { Mail } from "lucide-react";
-import SpielwieseOnboardingPreviewPlaceholder from "./SpielwieseOnboardingPreviewPlaceholder";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import {
@@ -145,7 +144,7 @@ function SignUpWelcomePanel({ isActive }: { isActive: boolean }) {
   return (
     <div className="flex min-h-[22rem] bg-white px-8 py-14 sm:px-12 sm:py-16 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
       <div className="flex items-center">
-        <div className="grid max-w-[24.5rem] gap-4">
+        <div className="grid max-w-[24.5rem] translate-y-[4px] gap-4">
           <h1
             className={`max-w-[16ch] text-[1.5rem]/7 font-semibold tracking-[-0.02em] text-balance text-[rgb(36,37,41)] ${getOnboardingEntryTextMotionClassName(isActive, "none")}`}
           >
@@ -216,8 +215,12 @@ function getEntryContentClassName(isActive: boolean) {
 }
 
 export default function SpielwieseOnboardingEntryCard({
+  isPersonalDetailsTransitioning = false,
+  onPersonalDetailsContinue,
   step,
 }: {
+  isPersonalDetailsTransitioning?: boolean;
+  onPersonalDetailsContinue?: () => void;
   step: SpielwieseOnboardingEntryStep;
 }) {
   const isPersonalDetails = step === PERSONAL_DETAILS_STEP_ID;
@@ -259,13 +262,8 @@ export default function SpielwieseOnboardingEntryCard({
         >
           <SpielwiesePersonalDetailsPanels
             isActive={isPersonalDetails}
-            preview={
-              <SpielwieseOnboardingPreviewPlaceholder
-                eyebrow="Temporary placeholder"
-                isActive={isPersonalDetails}
-                title="Dashboard preview is temporarily simplified while the entry flow is being shaped."
-              />
-            }
+            isTransitioning={isPersonalDetailsTransitioning}
+            onContinue={onPersonalDetailsContinue}
           />
         </div>
       </div>

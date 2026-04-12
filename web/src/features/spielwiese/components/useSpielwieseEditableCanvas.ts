@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
-import { getMessageKind } from "./spielwieseMessageTone";
+import {
+  cloneAgentNode,
+  insertAgentNodeAfter,
+} from "./spielwieseEditableCanvasNodeInsert";
+import {
+  createPromptSectionId,
+  movePromptSection,
+  sortPromptSections,
+} from "./spielwieseEditableCanvasPromptSections";
 import { getPromptSectionLabel } from "./spielwiesePromptSectionLabels";
 
 type EditableCanvasState = {
@@ -12,14 +20,14 @@ type EditableCanvasState = {
 };
 
 function cloneAgentNodes(nodes: SpielwieseDashboardVM["canvas"]["agentNodes"]) {
-  return nodes.map((node) => ({
-    ...node,
-    settings: node.settings.map((setting) => ({ ...setting })),
-    promptSections: sortPromptSections(
-      node.promptSections.map((section) => ({ ...section })),
-    ),
-    notes: node.notes.map((note) => ({ ...note })),
-  }));
+  return nodes.map((node) => {
+    const clonedNode = cloneAgentNode(node);
+
+    return {
+      ...clonedNode,
+      promptSections: sortPromptSections(clonedNode.promptSections),
+    };
+  });
 }
 
 function getEditableCanvasSourceSignature(
@@ -29,6 +37,7 @@ function getEditableCanvasSourceSignature(
     title: canvas.title,
     agentNodes: canvas.agentNodes.map((node) => ({
       id: node.id,
+      layout: node.layout,
       title: node.title,
       settings: node.settings,
       promptSections: node.promptSections,
@@ -52,66 +61,16 @@ function updateEditableNode(
   };
 }
 
-function createPromptSectionId(
-  kind: string,
-  sections: SpielwieseDashboardVM["canvas"]["agentNodes"][number]["promptSections"],
+function updateEditableNodes(
+  state: EditableCanvasState,
+  updater: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => SpielwieseDashboardVM["canvas"]["agentNodes"],
 ) {
-  const nextIndex =
-    sections.filter(
-      (section) => section.id === kind || section.id.startsWith(`${kind}-`),
-    ).length + 1;
-
-  return nextIndex === 1 ? kind : `${kind}-${nextIndex}`;
-}
-
-function getPromptSectionRank(sectionId: string) {
-  const messageKind = getMessageKind(sectionId);
-
-  if (messageKind === "user") {
-    return 0;
-  }
-
-  return messageKind === "system" ? 1 : 2;
-}
-
-function sortPromptSections(
-  sections: SpielwieseDashboardVM["canvas"]["agentNodes"][number]["promptSections"],
-) {
-  return sections
-    .map((section, index) => ({ index, section }))
-    .sort((left, right) => {
-      const rankDifference =
-        getPromptSectionRank(left.section.id) -
-        getPromptSectionRank(right.section.id);
-
-      return rankDifference === 0 ? left.index - right.index : rankDifference;
-    })
-    .map(({ section }) => section);
-}
-
-function movePromptSection(
-  sections: SpielwieseDashboardVM["canvas"]["agentNodes"][number]["promptSections"],
-  sectionId: string,
-  direction: "up" | "down",
-) {
-  const currentIndex = sections.findIndex(
-    (section) => section.id === sectionId,
-  );
-  const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-
-  if (currentIndex === -1 || nextIndex < 0 || nextIndex >= sections.length) {
-    return sections;
-  }
-
-  const nextSections = [...sections];
-  const [section] = nextSections.splice(currentIndex, 1);
-
-  if (!section) {
-    return sections;
-  }
-
-  nextSections.splice(nextIndex, 0, section);
-  return nextSections;
+  return {
+    ...state,
+    nodes: updater(state.nodes),
+  };
 }
 
 function getDetectedMustacheVariables(
@@ -142,6 +101,12 @@ function reportDetectedVariables({
 function useEditableCanvas(
   canvas: SpielwieseDashboardVM["canvas"],
 ): EditableCanvasState & {
+  updateNodes: (
+    updater: (
+      nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+    ) => SpielwieseDashboardVM["canvas"]["agentNodes"],
+    onNextCanvas?: (nextCanvas: EditableCanvasState) => void,
+  ) => void;
   updateNode: (
     nodeId: string,
     updater: (
@@ -167,6 +132,12 @@ function useEditableCanvas(
 
   return {
     ...editableCanvas,
+    updateNodes: (updater, onNextCanvas) =>
+      setEditableCanvas((currentCanvas) => {
+        const nextCanvas = updateEditableNodes(currentCanvas, updater);
+        onNextCanvas?.(nextCanvas);
+        return nextCanvas;
+      }),
     updateNode: (nodeId, updater, onNextCanvas) =>
       setEditableCanvas((currentCanvas) => {
         const nextCanvas = updateEditableNode(currentCanvas, nodeId, updater);
@@ -292,8 +263,29 @@ function getPromptSectionHandlers(config: PromptSectionHandlerConfig) {
 
 function getCanvasValueHandlers(
   editableCanvas: ReturnType<typeof useEditableCanvas>,
+  onDetectedVariablesChange?: (labels: string[]) => void,
 ) {
   return {
+    onNodesReplace: (
+      nextNodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+    ) =>
+      editableCanvas.updateNodes(
+        () => cloneAgentNodes(nextNodes),
+        (nextCanvas) =>
+          reportDetectedVariables({
+            nextCanvas,
+            onDetectedVariablesChange,
+          }),
+      ),
+    onAgentNodeInsert: (nodeId: string, kind: "user" | "agent") =>
+      editableCanvas.updateNodes(
+        (nodes) => insertAgentNodeAfter(nodes, nodeId, kind),
+        (nextCanvas) =>
+          reportDetectedVariables({
+            nextCanvas,
+            onDetectedVariablesChange,
+          }),
+      ),
     onSettingValueChange: (nodeId: string, settingId: string, value: string) =>
       editableCanvas.updateNode(nodeId, (node) => ({
         ...node,
@@ -320,7 +312,7 @@ export function useSpielwieseEditableCanvas(
   });
 
   return {
-    ...getCanvasValueHandlers(editableCanvas),
+    ...getCanvasValueHandlers(editableCanvas, onDetectedVariablesChange),
     ...promptSectionHandlers,
     nodes: editableCanvas.nodes,
   };

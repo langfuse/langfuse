@@ -57,15 +57,13 @@ function expectPrimarySidebarButtonChrome(label: string) {
   expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
 }
 
-function expectPrimarySidebarActionChrome(label: string) {
-  const control = screen.getByText(label).closest("button");
+function expectSidebarSectionHeaderActionChrome(label: string) {
+  const control = screen.getByRole("button", { name: `Add to ${label}` });
 
   expect(control).toBeTruthy();
-  expect(control?.className).toContain("rounded-[9px]");
-  expect(control?.className).toContain("pl-2");
-  expect(control?.className).toContain("pr-1");
-  expect(control?.className).toContain("text-[0.875rem]");
-  expect(control?.className).toContain("text-black/[0.55]");
+  expect(control?.className).toContain("size-5");
+  expect(control?.className).toContain("rounded-[7px]");
+  expect(control?.className).toContain("text-black/[0.46]");
   expect(control?.className).toContain("hover:text-[#242529]");
   expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
 }
@@ -76,6 +74,18 @@ function expectNestedTreeChrome(label: string) {
   expect(control).toBeTruthy();
   expect(control?.className).toContain("rounded-[9px]");
   expect(control?.className).toContain("text-[0.875rem]");
+  expect(control?.parentElement?.className).toContain("border-l");
+  expect(control?.parentElement?.className).toContain("pl-2");
+}
+
+function expectDummyNestedTreeChrome(label: string) {
+  const control = screen.getByText(label).closest("button");
+
+  expect(control).toBeTruthy();
+  expect(control?.className).toContain("rounded-[9px]");
+  expect(control?.className).toContain("text-[0.875rem]");
+  expect(control?.getAttribute("aria-disabled")).toBe("true");
+  expect(control?.hasAttribute("data-sidebar-dummy")).toBe(true);
   expect(control?.parentElement?.className).toContain("border-l");
   expect(control?.parentElement?.className).toContain("pl-2");
 }
@@ -117,21 +127,30 @@ describe("SpielwieseSidebarLeft expanded", () => {
       "Documentation",
       "Files",
       "Example Evaluators",
-      "New",
+      "Micronutrient tracker",
+      "Vision Agent",
     ].forEach((label) => expect(screen.getByText(label)).toBeTruthy());
 
     expect(screen.queryByText("New Document")).toBeNull();
+    expect(screen.queryByText("New")).toBeNull();
     expect(
       screen.getByText("Example Evaluators").closest("details")?.open,
-    ).toBe(false);
+    ).toBe(true);
 
     expectBorderlessSidebarChrome();
     expectSidebarHeaderChrome();
     expectPrimarySidebarButtonChrome("Home");
     expectPrimarySidebarButtonChrome("Search");
     expectSidebarGroupRowChrome("Example Evaluators");
-    expectPrimarySidebarActionChrome("New");
-    expectNestedTreeChrome("Vision Agent");
+    expectSidebarSectionHeaderActionChrome("Files");
+    expectNestedTreeChrome("Micronutrient tracker");
+    expectDummyNestedTreeChrome("Vision Agent");
+    expect(
+      screen
+        .getByText("Micronutrient tracker")
+        .closest("a")
+        ?.getAttribute("aria-current"),
+    ).toBe("page");
     expect(screen.getByLabelText("Open workspace finder")).toBeTruthy();
   });
 });

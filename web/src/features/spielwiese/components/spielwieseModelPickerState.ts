@@ -21,17 +21,11 @@ export function getSelectedProvider({
 
 export function getVisibleModels({
   provider,
-  showLegacyModels,
 }: {
   provider: SpielwieseModelProvider | null;
-  showLegacyModels: boolean;
 }) {
   if (!provider) {
     return [];
-  }
-
-  if (showLegacyModels) {
-    return [...provider.latestModels.slice(0, 3), ...provider.legacyModels];
   }
 
   return provider.latestModels.slice(0, 3);
@@ -52,18 +46,13 @@ export function getPreviewModel({
 export function createProviderSelectHandler({
   setHoveredModelLabel,
   setProviderId,
-  setShowLegacyModels,
 }: {
   setHoveredModelLabel: (modelLabel: string | null) => void;
   setProviderId: (providerId: string | null) => void;
-  setShowLegacyModels: (
-    value: boolean | ((currentValue: boolean) => boolean),
-  ) => void;
 }) {
   return (nextProviderId: string) => {
     setProviderId(nextProviderId);
     setHoveredModelLabel(null);
-    setShowLegacyModels(() => false);
   };
 }
 

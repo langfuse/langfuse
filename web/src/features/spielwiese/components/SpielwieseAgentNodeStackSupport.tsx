@@ -1,7 +1,6 @@
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
-import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
 import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
@@ -281,27 +280,6 @@ export function SpielwieseAgentNodeCardDeck({
       secondaryCard={secondaryCard}
       onShowPrimary={onShowPrimary}
       onShowSecondary={onShowSecondary}
-    />
-  );
-}
-
-export function SpielwieseAgentNodeExternalInsertRow({
-  nodeId,
-  onPromptSectionInsert,
-}: {
-  nodeId: string;
-  onPromptSectionInsert: (
-    nodeId: string,
-    kind: "user" | "system" | "assistant" | "tool",
-  ) => void;
-}) {
-  return (
-    <SpielwieseMessageInsertRow
-      className="pointer-events-auto mt-[8px] ml-[18px] opacity-100"
-      nodeId={nodeId}
-      onPromptSectionInsert={onPromptSectionInsert}
-      rowTestId="spielwiese-message-insert-external-row"
-      variant="text"
     />
   );
 }

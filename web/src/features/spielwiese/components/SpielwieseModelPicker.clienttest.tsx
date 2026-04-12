@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import {
   SpielwieseModelPickerPanel,
@@ -15,7 +21,6 @@ function ModelPickerHarness({
   const [hoveredModelLabel, setHoveredModelLabel] = useState<string | null>(
     null,
   );
-  const [showLegacyModels, setShowLegacyModels] = useState(false);
 
   return (
     <SpielwieseModelPickerPanel
@@ -26,8 +31,6 @@ function ModelPickerHarness({
       providerId={providerId}
       setHoveredModelLabel={setHoveredModelLabel}
       setProviderId={setProviderId}
-      setShowLegacyModels={setShowLegacyModels}
-      showLegacyModels={showLegacyModels}
     />
   );
 }
@@ -43,14 +46,11 @@ function renderModelPickerPanel({
 function expectDefaultPickerChrome() {
   const panel = screen.getByRole("dialog", { name: "Model picker" });
   const grid = screen.getByTestId("spielwiese-model-picker-grid");
-  const selectionPane = screen.getByTestId(
-    "spielwiese-model-picker-selection-pane",
-  );
   const recommendButton = within(panel).getByRole("button", {
     name: "Recommend model",
   });
 
-  expect(panel.className).toContain("w-[42rem]");
+  expect(panel.className).toContain("w-fit");
   expect(panel.className).toContain(
     "rounded-[var(--spielwiese-picker-outer-radius)]",
   );
@@ -62,39 +62,69 @@ function expectDefaultPickerChrome() {
     "max-h-[min(28rem,var(--available-height))]",
   );
   expect(panel.className).not.toContain("min-w-[22rem]");
-  expect(grid.className).toContain("h-[31rem]");
+  expect(panel.className).not.toContain("w-[42rem]");
+  expect(grid.className).not.toContain("h-[24rem]");
+  expect(grid.className).toContain("h-auto");
+  expect(grid.className).toContain("grid-cols-[11.5rem]");
   expect(grid.className).toContain("min-w-0");
   expect(grid.className).toContain("overflow-hidden");
   expect(grid.className).toContain(
     "rounded-[var(--spielwiese-picker-inner-radius)]",
   );
   expect(within(panel).getByRole("button", { name: "OpenAI" })).toBeTruthy();
-  expect(within(panel).getByText("Providers")).toBeTruthy();
   expect(within(panel).queryByText("Models")).toBeNull();
   expect(within(panel).queryByText("Benchmarks")).toBeNull();
+  expect(within(panel).queryByText("Providers")).toBeNull();
   expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
   expect(within(panel).queryByText(/Frontier general-purpose/i)).toBeNull();
   expect(recommendButton.className).toContain("text-[#6F4124]");
 
-  return { panel, selectionPane };
+  return { panel, grid };
 }
 
 function selectProvider(panel: HTMLElement, providerName: string) {
   fireEvent.click(within(panel).getByRole("button", { name: providerName }));
 }
 
-function expectHoverPrompt(preview: HTMLElement) {
-  expect(preview.textContent).toContain("Hover a model to inspect benchmarks.");
-}
-
 function getBenchmarkPreview(panel: HTMLElement) {
   return within(panel).getByTestId("spielwiese-model-picker-benchmark-preview");
+}
+
+function expectOpenAIBenchmarkPreview(panel: HTMLElement) {
+  const hoveredPreview = getBenchmarkPreview(panel);
+  const selectionPane = within(panel).getByTestId(
+    "spielwiese-model-picker-selection-pane",
+  );
+
+  expect(selectionPane.className).toContain("w-[31rem]");
+  expect(hoveredPreview.className).not.toContain("justify-center");
+  expect(hoveredPreview.textContent).toContain("Intelligence");
+  expect(hoveredPreview.textContent).toContain("Speed");
+  expect(hoveredPreview.textContent).toContain("$82");
+  expect(hoveredPreview.textContent).toContain("Image gen");
+  expect(hoveredPreview.textContent).not.toContain("GPT-5.4");
+  expect(hoveredPreview.textContent).not.toContain(
+    "Strongest overall quality in the current OpenAI family.",
+  );
+}
+
+function expectAnthropicBenchmarkPreview(panel: HTMLElement) {
+  const hoveredPreview = getBenchmarkPreview(panel);
+
+  expect(hoveredPreview.textContent).toContain("Agentic");
+  expect(hoveredPreview.textContent).toContain("Weights");
+  expect(hoveredPreview.textContent).not.toContain("Claude Sonnet 4.6");
+  expect(hoveredPreview.textContent).not.toContain(
+    "Leanest Claude option when you still want Claude tone.",
+  );
 }
 
 function hoverModel(panel: HTMLElement, modelName: string) {
   const modelButton = within(panel).getByRole("button", { name: modelName });
 
   fireEvent.mouseEnter(modelButton);
+  fireEvent.pointerEnter(modelButton);
+  fireEvent.focus(modelButton);
 
   return modelButton;
 }
@@ -140,42 +170,79 @@ describe("SpielwieseModelPickerTrigger icons", () => {
   });
 });
 
-describe("SpielwieseModelPickerPanel chrome", () => {
-  it("starts provider-only, then reveals recent models and benchmark details without changing the shell size", () => {
+describe("SpielwieseModelPickerPanel initial chrome", () => {
+  it("starts provider-only, then reveals recent models without changing the shell size", () => {
     renderModelPickerPanel();
 
-    const { panel, selectionPane } = expectDefaultPickerChrome();
+    const { panel, grid } = expectDefaultPickerChrome();
 
-    expect(selectionPane.childElementCount).toBe(0);
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-selection-pane"),
+    ).toBeNull();
 
     selectProvider(panel, "OpenAI");
 
-    const preview = getBenchmarkPreview(panel);
-    const olderToggle = within(panel).getByTestId(
-      "spielwiese-model-picker-older-toggle",
+    const selectionPane = within(panel).getByTestId(
+      "spielwiese-model-picker-selection-pane",
     );
 
-    expect(within(panel).getByText("Models")).toBeTruthy();
-    expect(within(panel).getByText("Benchmarks")).toBeTruthy();
-    expectHoverPrompt(preview);
+    expect(grid.className).toContain("grid-cols-[11.5rem_auto]");
+    expect(within(panel).queryByText("Benchmarks")).toBeNull();
+    expect(within(panel).queryByText("Models")).toBeNull();
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-benchmark-preview"),
+    ).toBeNull();
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-older-toggle"),
+    ).toBeNull();
+    expect(selectionPane.className).toContain("w-[16.25rem]");
+    expect(selectionPane.className).not.toContain("h-full");
+    expect(selectionPane.className).toContain("h-auto");
+  });
+});
+
+describe("SpielwieseModelPickerPanel OpenAI benchmark preview", () => {
+  it("reveals compact benchmark details without an older-model toggle", async () => {
+    renderModelPickerPanel();
+
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+
+    selectProvider(panel, "OpenAI");
 
     hoverModel(panel, "GPT-5.4");
 
-    const hoveredPreview = getBenchmarkPreview(panel);
-
-    expect(hoveredPreview.textContent).toContain("GPT-5.4");
-    expect(hoveredPreview.textContent).toContain("Intelligence");
-    expect(hoveredPreview.textContent).toContain("$82");
-    expect(hoveredPreview.textContent).toContain("Text to image place");
-
-    fireEvent.click(olderToggle);
-
+    expectOpenAIBenchmarkPreview(panel);
     expect(
-      within(panel).getByRole("button", { name: "GPT-4.1 mini" }),
-    ).toBeTruthy();
-  });
+      within(panel).queryByTestId("spielwiese-model-picker-older-toggle"),
+    ).toBeNull();
+    expect(
+      within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
+    ).toBeNull();
 
-  it("switches providers, keeps only the latest models visible first, and reveals older models on demand", () => {
+    const intelligenceTrigger = within(panel).getByLabelText(
+      "Intelligence benchmark details",
+    );
+
+    fireEvent.mouseEnter(intelligenceTrigger);
+    fireEvent.focus(intelligenceTrigger);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: "Artificial Analysis" }),
+      ).toBeTruthy();
+    });
+    expect(
+      screen
+        .getByRole("link", { name: "Artificial Analysis" })
+        .getAttribute("href"),
+    ).toBe(
+      "https://artificialanalysis.ai/methodology/intelligence-benchmarking",
+    );
+  });
+});
+
+describe("SpielwieseModelPickerPanel Anthropic provider switching", () => {
+  it("switches providers and keeps only the latest models visible", () => {
     renderModelPickerPanel();
 
     const panel = screen.getByRole("dialog", { name: "Model picker" });
@@ -192,24 +259,14 @@ describe("SpielwieseModelPickerPanel chrome", () => {
       within(panel).queryByRole("button", { name: "Claude 3.7 Sonnet" }),
     ).toBeNull();
     expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
-
-    const preview = getBenchmarkPreview(panel);
-
-    expectHoverPrompt(preview);
     hoverModel(panel, "Claude Sonnet 4.6");
 
-    const hoveredPreview = getBenchmarkPreview(panel);
-
-    expect(hoveredPreview.textContent).toContain("Claude Sonnet 4.6");
-    expect(hoveredPreview.textContent).toContain("Agentic index");
-    expect(hoveredPreview.textContent).toContain("Weights");
-
-    fireEvent.click(
-      within(panel).getByTestId("spielwiese-model-picker-older-toggle"),
-    );
-
+    expectAnthropicBenchmarkPreview(panel);
     expect(
-      within(panel).getByRole("button", { name: "Claude 3.7 Sonnet" }),
-    ).toBeTruthy();
+      within(panel).queryByTestId("spielwiese-model-picker-older-toggle"),
+    ).toBeNull();
+    expect(
+      within(panel).queryByRole("button", { name: "Claude 3.7 Sonnet" }),
+    ).toBeNull();
   });
 });

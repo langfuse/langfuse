@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /* eslint-disable max-lines-per-function */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
@@ -38,17 +39,17 @@ function getPromptSimulationElements() {
   const flowHeaderRows = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-header-row",
   );
-  const modelSegments = within(flowStrip).getAllByTestId(
-    "spielwiese-playground-flow-model-segment",
-  );
   const previewRows = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-preview-row",
   );
-  const titleSurfaces = within(flowStrip).getAllByTestId(
-    "spielwiese-playground-flow-title-surface",
+  const previewShells = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-preview-shell",
   );
   const flowSteps = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-step",
+  );
+  const cardFrames = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-card-frame",
   );
 
   return {
@@ -56,6 +57,7 @@ function getPromptSimulationElements() {
       "spielwiese-playground-flow-chevron",
     ),
     actions,
+    cardFrames,
     flowHeaderRows,
     flowNodes,
     flowScroller,
@@ -63,17 +65,19 @@ function getPromptSimulationElements() {
     flowStrip,
     header,
     historyButton,
-    modelSegments,
+    nodeKindIcons: within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-kind-icon",
+    ),
+    nodeTags: within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-node-tag",
+    ),
     playButton,
     previewRows,
+    previewShells,
     simulationPane,
     terminalShell,
     thinkingCardShells,
     title,
-    titleSurfaces,
-    userIcons: within(flowStrip).getAllByTestId(
-      "spielwiese-playground-flow-user-icon",
-    ),
   };
 }
 
@@ -157,8 +161,13 @@ function expectPromptSimulationPaneChrome(
   expect(flowSteps).toHaveLength(3);
   expect(flowNodes).toHaveLength(3);
   expect(previewRows).toHaveLength(3);
+  expect(elements.previewShells).toHaveLength(3);
   expect(elements.chevrons).toHaveLength(2);
-  expect(elements.userIcons).toHaveLength(3);
+  expect(elements.nodeTags).toHaveLength(3);
+  expect(elements.nodeKindIcons).toHaveLength(3);
+  expect(
+    within(flowStrip).queryByRole("button", { name: /Preview .* node/i }),
+  ).toBeNull();
 }
 
 function expectPromptSimulationNodeShells(
@@ -167,16 +176,19 @@ function expectPromptSimulationNodeShells(
   const firstFlowNode = elements.flowNodes[0]!;
   const secondFlowNode = elements.flowNodes[1]!;
   const thirdFlowNode = elements.flowNodes[2]!;
+  const firstCardFrame = elements.cardFrames[0]!;
   const firstFlowHeaderRow = elements.flowHeaderRows[0]!;
   const firstFlowStep = elements.flowSteps[0]!;
+  const firstNodeTag = elements.nodeTags[0]!;
   const firstThinkingCardShell = elements.thinkingCardShells[0]!;
-  const firstUserIcon = elements.userIcons[0]!;
-  const secondUserIcon = elements.userIcons[1]!;
-  const firstModelSegment = elements.modelSegments[0]!;
-  const firstTitleSurface = elements.titleSurfaces[0]!;
+  const firstNodeKindIcon = elements.nodeKindIcons[0]!;
+  const firstPreviewShell = elements.previewShells[0]!;
   const firstPreviewRow = elements.previewRows[0]!;
   const firstPreviewBody = within(firstPreviewRow).getByTestId(
     "spielwiese-playground-flow-preview-body",
+  );
+  const firstPreviewEmbeddedHeader = within(firstPreviewRow).getByTestId(
+    "spielwiese-playground-flow-preview-embedded-header",
   );
   const firstPreviewFieldShell = within(firstPreviewRow).getByTestId(
     "spielwiese-playground-flow-preview-field-shell",
@@ -184,72 +196,90 @@ function expectPromptSimulationNodeShells(
   const firstPreviewValue = within(firstPreviewRow).getByTestId(
     "spielwiese-playground-flow-preview-value",
   );
+  const firstPreviewValueShell = firstPreviewValue.parentElement;
 
   expect(firstFlowStep.className).toContain("[--node-shell-gap:2px]");
-  expect(firstFlowStep.className).toContain("[--node-shell-radius:16px]");
+  expect(firstFlowStep.className).toContain("[--node-shell-radius:18px]");
   expect(firstFlowStep.className).toContain("flex");
   expect(firstFlowStep.className).toContain("flex-col");
   expect(firstFlowStep.className).toContain("min-w-full");
   expect(firstFlowStep.className).toContain("shrink-0");
-  expect(firstFlowStep.className).not.toContain("w-[30rem]");
-  expect(firstFlowStep.className).toContain("bg-[#FBFBFB]");
-  expect(firstFlowStep.className).toContain("gap-1.5");
-  expect(firstFlowStep.className).toContain("px-[2px]");
-  expect(firstFlowStep.className).toContain("pt-[2px]");
-  expect(firstFlowStep.className).toContain("pb-[2px]");
-  expect(firstFlowStep.firstElementChild).toBe(firstFlowNode);
+  expect(firstFlowStep.className).toContain("rounded-(--node-shell-radius)");
+  expect(firstFlowStep.className).toContain("border-[rgba(15,23,42,0.08)]");
+  expect(firstFlowStep.className).toContain("bg-[#F1F2F2]");
+  expect(firstFlowStep.className).toContain("gap-0.5");
+  expect(firstFlowStep.className).toContain(
+    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+  );
+  expect(firstFlowStep.firstElementChild).toBe(firstCardFrame);
+  expect(firstCardFrame.className).toContain(
+    "rounded-[var(--node-shell-radius)]",
+  );
+  expect(firstCardFrame.className).toContain("bg-[#F1F2F2]");
+  expect(firstCardFrame.className).toContain("p-0.5");
+  expect(firstCardFrame.className).not.toContain("-mb-0.5");
   expect(firstThinkingCardShell.getAttribute("data-state")).toBe("closed");
-  expect(firstFlowNode.contains(firstUserIcon)).toBe(true);
-  expect(secondFlowNode.contains(secondUserIcon)).toBe(true);
+  expect(firstFlowNode.contains(firstNodeTag)).toBe(true);
+  expect(firstFlowNode.contains(firstPreviewShell)).toBe(true);
   expect(firstFlowNode.className).toContain("border-border/40");
   expect(firstFlowNode.className).toContain("bg-background/96");
   expect(firstFlowNode.className).toContain("flex");
   expect(firstFlowNode.className).toContain("w-full");
   expect(firstFlowNode.className).toContain("min-w-0");
+  expect(firstFlowNode.className).toContain("flex-col");
   expect(firstFlowNode.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
+  expect(firstFlowNode.className).toContain("pb-[4px]");
   expect(firstFlowHeaderRow.className).toContain("flex");
   expect(firstFlowHeaderRow.className).toContain("w-full");
   expect(firstFlowHeaderRow.className).toContain("min-w-0");
+  expect(firstFlowHeaderRow.className).toContain("gap-1.5");
   expect(firstFlowHeaderRow.className).toContain("pr-[6px]");
   expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
   expect(
     firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
   ).toBeNull();
-  expect(firstTitleSurface).toBe(firstModelSegment.parentElement);
-  expect(firstTitleSurface.className).toContain("h-7");
-  expect(firstTitleSurface.className).toContain("rounded-[10px]");
-  expect(firstTitleSurface.className).toContain("border-[rgba(0,0,0,0.08)]");
-  expect(firstTitleSurface.className).toContain("ring-1");
-  expect(firstTitleSurface.className).toContain(
+  expect(firstNodeTag.className).toContain("h-7");
+  expect(firstNodeTag.className).toContain("rounded-[10px]");
+  expect(firstNodeTag.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(firstNodeTag.className).toContain("ring-1");
+  expect(firstNodeTag.className).toContain(
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
   );
-  expect(firstTitleSurface.className).toContain("max-w-full");
-  expect(firstTitleSurface.className).toContain("min-w-0");
-  expect(firstTitleSurface.className).not.toContain("flex-1");
-  expect(firstTitleSurface.className).toContain(
-    "rgba(16,163,127,0.18)_0%,rgba(16,163,127,0.08)_32%",
-  );
-  expect(firstModelSegment.textContent).toContain("GPT-4.1 mini");
-  expect(firstModelSegment.className).toContain("shrink-0");
-  expect(firstModelSegment.className).not.toContain("flex-1");
+  expect(firstNodeTag.className).toContain("max-w-full");
+  expect(firstNodeTag.className).toContain("min-w-0");
+  expect(firstNodeKindIcon.getAttribute("class")).toContain("size-3");
+  expect(firstNodeTag.textContent).toContain("Vision Agent");
+  expect(firstPreviewShell.className).toContain("px-[5px]");
+  expect(firstPreviewShell.className).toContain("w-full");
+  expect(firstPreviewShell.className).toContain("min-w-0");
   expect(firstPreviewRow.className).toContain("rounded-xl");
   expect(firstPreviewRow.className).toContain("bg-muted/24");
+  expect(firstPreviewRow.className).toContain("px-[5px]");
+  expect(firstPreviewRow.className).toContain("pt-0");
+  expect(firstPreviewRow.className).toContain("pb-0");
   expect(firstPreviewRow.getAttribute("data-section-id")).toBe("system");
-  expect(firstPreviewBody.className).toContain("pt-[9px]");
+  expect(firstPreviewBody.className).toContain("pt-0");
+  expect(firstPreviewBody.className).toContain("pb-px");
+  expect(firstPreviewEmbeddedHeader.className).toContain("ml-[5px]");
   expect(firstPreviewFieldShell.className).toContain("bg-[#F1F2F2]");
   expect(firstPreviewFieldShell.className).toContain("flex-col");
-  expect(firstPreviewValue.className).toContain("bg-[#FBFBFB]");
-  expect(firstPreviewValue.className).toContain("font-mono");
-  expect(firstPreviewValue.className).toContain("whitespace-pre-wrap");
-  expect(firstPreviewValue.className).toContain(
+  expect(firstPreviewFieldShell.className).toContain(
+    "border-[rgba(0,0,0,0.05)]",
+  );
+  expect(firstPreviewFieldShell.className).toContain("px-[2px]");
+  expect(firstPreviewFieldShell.className).toContain("pb-[2px]");
+  expect(firstPreviewValueShell?.className).toContain("bg-[#FBFBFB]");
+  expect(firstPreviewValueShell?.className).toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
   );
+  expect(firstPreviewValue.className).toContain("bg-transparent");
+  expect(firstPreviewValue.className).toContain("font-mono");
+  expect(firstPreviewValue.className).toContain("whitespace-pre-wrap");
   expect(firstPreviewRow.textContent).toContain("Answer");
   expect(firstPreviewValue.textContent).toContain('"item": "grilled salmon"');
   expect(firstPreviewValue.textContent).toContain('"estimated_weight_g": 186');
-  expect(firstFlowNode.textContent).toContain("Vision Agent");
   expect(secondFlowNode.textContent).toContain("Nutrition Agent");
   expect(thirdFlowNode.textContent).toContain("Coach Agent");
 }

@@ -9,17 +9,14 @@ function resetModelPickerState({
   setHoveredModelLabel,
   setIsModelPickerOpen,
   setProviderId,
-  setShowLegacyModels,
 }: {
   setHoveredModelLabel: (value: string | null) => void;
   setIsModelPickerOpen: (open: boolean) => void;
   setProviderId: (value: string | null) => void;
-  setShowLegacyModels: (value: boolean) => void;
 }) {
   setIsModelPickerOpen(false);
   setProviderId(null);
   setHoveredModelLabel(null);
-  setShowLegacyModels(false);
 }
 
 function useModelPickerControlState() {
@@ -28,14 +25,12 @@ function useModelPickerControlState() {
   const [hoveredModelLabel, setHoveredModelLabel] = useState<string | null>(
     null,
   );
-  const [showLegacyModels, setShowLegacyModels] = useState(false);
 
   const resetState = () =>
     resetModelPickerState({
       setHoveredModelLabel,
       setIsModelPickerOpen,
       setProviderId,
-      setShowLegacyModels,
     });
   const closePicker = () => {
     resetState();
@@ -49,8 +44,6 @@ function useModelPickerControlState() {
     setHoveredModelLabel,
     setIsModelPickerOpen,
     setProviderId,
-    setShowLegacyModels,
-    showLegacyModels,
   };
 }
 
@@ -75,8 +68,6 @@ function getTitleControlPickerPanelProps({
   providerId,
   setHoveredModelLabel,
   setProviderId,
-  setShowLegacyModels,
-  showLegacyModels,
 }: {
   currentModel: string;
   hoveredModelLabel: string | null;
@@ -87,8 +78,6 @@ function getTitleControlPickerPanelProps({
   providerId: string | null;
   setHoveredModelLabel: (value: string | null) => void;
   setProviderId: (value: string | null) => void;
-  setShowLegacyModels: (value: boolean | ((value: boolean) => boolean)) => void;
-  showLegacyModels: boolean;
 }): SpielwieseModelPickerProps {
   return {
     currentModel,
@@ -104,8 +93,6 @@ function getTitleControlPickerPanelProps({
     providerId,
     setHoveredModelLabel,
     setProviderId,
-    setShowLegacyModels,
-    showLegacyModels,
   };
 }
 
@@ -123,8 +110,6 @@ export function SpielwieseAgentNodeTitleControl({
     setHoveredModelLabel,
     setIsModelPickerOpen,
     setProviderId,
-    setShowLegacyModels,
-    showLegacyModels,
   } = useModelPickerControlState();
   const currentModel = modelSetting?.value ?? "GPT-4.1 mini";
 
@@ -152,8 +137,6 @@ export function SpielwieseAgentNodeTitleControl({
         providerId,
         setHoveredModelLabel,
         setProviderId,
-        setShowLegacyModels,
-        showLegacyModels,
       })}
     />
   );

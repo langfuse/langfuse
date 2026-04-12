@@ -9,11 +9,11 @@ import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 const topBarActionClassName =
   "rounded-md text-foreground/72 hover:bg-black/4 hover:text-foreground";
 const topBarPageNavButtonClassName =
-  "text-foreground border border-[rgba(0,0,0,0.08)] bg-background shadow-none transition-colors duration-75 hover:border-[rgba(0,0,0,0.12)] hover:bg-black/[0.03] active:border-[rgba(0,0,0,0.12)] active:bg-black/[0.05] h-8 rounded-[0.6rem] px-2.5 text-[0.75rem] font-medium";
+  "text-[#242529] border-0 bg-transparent shadow-none transition-colors duration-75 hover:bg-black/[0.06] hover:text-[#242529] active:bg-black/[0.08] h-8 rounded-[0.6rem] px-2.5 text-[0.75rem] font-medium";
 const topBarPageNavIconButtonClassName =
-  "text-foreground size-8 border border-[rgba(0,0,0,0.08)] bg-background p-0 shadow-none transition-colors duration-75 hover:border-[rgba(0,0,0,0.12)] hover:bg-black/[0.03] active:border-[rgba(0,0,0,0.12)] active:bg-black/[0.05] rounded-[0.6rem]";
+  "text-[#242529] size-8 border-0 bg-transparent p-0 shadow-none transition-colors duration-75 hover:bg-black/[0.06] hover:text-[#242529] active:bg-black/[0.08] rounded-[0.6rem]";
 const topBarPageNavToggleButtonClassName =
-  "text-foreground/72 size-8 justify-center rounded-[0.6rem] border-0 bg-transparent p-0 shadow-none transition-colors duration-75 hover:bg-black/[0.03] hover:text-foreground active:bg-black/[0.05]";
+  "text-[#242529] size-8 justify-center rounded-[0.6rem] border-0 bg-transparent p-0 shadow-none transition-colors duration-75 hover:bg-black/[0.06] hover:text-[#242529] active:bg-black/[0.08]";
 const topBarProfileButtonClassName =
   "group inline-flex size-10 items-center justify-center rounded-lg transition-[background-color,transform] duration-150 hover:bg-black/[0.05] active:scale-[0.985]";
 const headerDocsHref = "https://langfuse.com/docs";
@@ -49,12 +49,10 @@ function HeaderPrimaryActions({
 
 function HeaderSecondaryActions({
   toggleSecondarySidebar,
-  updatedAt,
   userName,
   userInitials,
 }: {
   toggleSecondarySidebar: () => void;
-  updatedAt: string;
   userName: string;
   userInitials: string;
 }) {
@@ -63,9 +61,6 @@ function HeaderSecondaryActions({
       className="flex h-full max-h-full w-fit items-center gap-2"
       data-testid="spielwiese-header-secondary-actions"
     >
-      <p className="text-foreground/48 hidden text-xs tabular-nums xl:block">
-        {updatedAt}
-      </p>
       <HeaderDesktopActions />
       <Button
         aria-label="Notifications"
@@ -134,7 +129,10 @@ function HeaderProfileButton({
   );
 }
 
-export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
+export function SpielwieseTopBar({
+  header: _header,
+  shell,
+}: SpielwieseTopBarProps) {
   const { togglePrimarySidebar, toggleSecondarySidebar } = useSpielwieseShell();
 
   return (
@@ -150,7 +148,6 @@ export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
         <div className="min-w-0" />
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
-          updatedAt={header.updatedAt}
           userName={shell.user.name}
           userInitials={shell.user.initials}
         />

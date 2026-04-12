@@ -216,15 +216,15 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
   assistant: {
     pageId: "assistant",
     header: {
-      breadcrumb: "Macroextractor / Assistant",
-      title: "Assistant",
+      breadcrumb: "Macroextractor / Micronutrient tracker",
+      title: "Micronutrient tracker",
       updatedAt: "02m",
     },
     onboardingCanvas: {
       greeting: "Hello Leonard",
     },
     canvas: {
-      title: "Assistant",
+      title: "Micronutrient tracker",
       helper:
         "Start from a blank page, then drop in structure block by block as the layout sharpens.",
       stats: [

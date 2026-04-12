@@ -25,6 +25,7 @@ export type SpielwieseSidebarTreeItem = {
   emoji?: string;
   icon?: LucideIcon;
   isActive?: boolean;
+  isDummy?: boolean;
   children?: SpielwieseSidebarTreeItem[];
 };
 

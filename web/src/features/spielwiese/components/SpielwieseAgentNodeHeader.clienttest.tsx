@@ -88,6 +88,7 @@ function expectHeaderParamValues({
   expect(temperatureInput.className).toContain("tabular-nums");
 }
 
+// eslint-disable-next-line complexity
 function expectHeaderChromeTags({
   responseFormatInput,
   temperatureInput,
@@ -108,9 +109,12 @@ function expectHeaderChromeTags({
   expect(temperatureShell?.className).toContain("rounded-[8px]");
   expect(temperatureTag?.className).toContain("w-6");
   expect(temperatureTag?.getAttribute("data-state")).toBe("closed");
-  expect(toolTag?.className).toContain("hover:w-[4rem]");
+  expect(toolTag?.className).toContain("w-6");
+  expect(toolTag?.className).not.toContain("hover:w-[4rem]");
   expect(temperatureTag?.textContent).toContain("Temperature");
   expect(toolTag?.textContent).toContain("Tools");
+  expect(toolButton.className).not.toContain("hover:bg-");
+  expect(toolButton.className).not.toContain("hover:text-");
 }
 
 function expectHeaderChromeModelButton({
@@ -124,7 +128,7 @@ function expectHeaderChromeModelButton({
   expect(modelRail?.className).toContain("w-6");
   expect(modelRail?.className).toContain("bg-transparent");
   expect(modelRail?.className).not.toContain("rounded-full");
-  expect(modelButton.className).toContain("hover:bg-transparent");
+  expect(modelButton.className).not.toContain("hover:bg-");
   expect(modelButton.className).toContain("w-auto");
   expect(modelButton.className).toContain("max-w-[14rem]");
   expect(modelButton.className).not.toContain("hover:w-[6.5rem]");
@@ -153,10 +157,14 @@ function expectHeaderActionChrome({
   expect(toggleButton.className).toContain("rounded-[10px]");
   expect(toggleButton.className).toContain("border-[rgba(0,0,0,0.08)]");
   expect(toggleButton.className).toContain("bg-background");
+  expect(toggleButton.className).toContain("hover:bg-[rgba(255,255,255,0.88)]");
   expect(previewButton.className).toContain("size-7");
   expect(previewButton.className).toContain("rounded-[10px]");
   expect(previewButton.className).toContain("border-[rgba(0,0,0,0.08)]");
   expect(previewButton.className).not.toContain("border-l");
+  expect(previewButton.className).toContain(
+    "hover:bg-[rgba(255,255,255,0.88)]",
+  );
   expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
 }
@@ -212,6 +220,22 @@ describe("SpielwieseAgentNodeHeader strip items", () => {
     expectHeaderParamValues(header);
     expectHeaderChrome(header);
     expectTitleControlLayout(header);
+  });
+
+  it("keeps the left header controls static on hover while leaving panel actions interactive", () => {
+    const { temperatureInput, toggleButton, toolButton } =
+      renderVisionNodeHeader();
+    const temperatureTag = temperatureInput.parentElement?.firstElementChild as
+      | HTMLElement
+      | undefined;
+
+    fireEvent.mouseEnter(temperatureTag ?? temperatureInput);
+
+    expect(temperatureTag?.getAttribute("data-state")).toBe("closed");
+    expect(toolButton.className).not.toContain("hover:bg-");
+    expect(toggleButton.className).toContain(
+      "hover:bg-[rgba(255,255,255,0.88)]",
+    );
   });
 
   it("shows only the canonical model name in the header shell when the setting includes a provider suffix", () => {

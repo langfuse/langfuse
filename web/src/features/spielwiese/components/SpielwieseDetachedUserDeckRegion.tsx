@@ -1,4 +1,4 @@
-import { useState, type FocusEvent } from "react";
+import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
@@ -46,6 +46,7 @@ function SpielwieseDetachedUserCard({
       data-testid={cardTestId ?? `${node.id}-detached-user-sections`}
     >
       <SpielwiesePromptDeckCardHeaderFrame
+        className="p-0"
         data-testid="spielwiese-detached-user-card-frame"
         overlap={false}
       >
@@ -69,22 +70,10 @@ function SpielwieseDetachedUserCard({
 
 function useDetachedUserCardNavigationVisibilityState() {
   const [isHovered, setIsHovered] = useState(false);
-  const [isFocusWithin, setIsFocusWithin] = useState(false);
 
   return {
-    areNavButtonsVisible: isHovered || isFocusWithin,
+    areNavButtonsVisible: isHovered,
     interactionProps: {
-      onBlurCapture: (event: FocusEvent<HTMLElement>) => {
-        const nextFocusedElement = event.relatedTarget;
-
-        if (
-          !(nextFocusedElement instanceof Node) ||
-          !event.currentTarget.contains(nextFocusedElement)
-        ) {
-          setIsFocusWithin(false);
-        }
-      },
-      onFocusCapture: () => setIsFocusWithin(true),
       onMouseEnter: () => setIsHovered(true),
       onMouseLeave: () => setIsHovered(false),
     },

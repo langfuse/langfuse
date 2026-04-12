@@ -57,7 +57,7 @@ function SpielwieseAgentModelSegment({
     <div className="flex shrink-0 items-center pr-1">
       <PopoverTrigger
         aria-label={`${nodeId} Model`}
-        className="text-foreground inline-flex h-7 w-auto max-w-[14rem] shrink-0 items-center gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium whitespace-nowrap outline-none hover:bg-transparent focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50 sm:max-w-[18rem]"
+        className="text-foreground inline-flex h-7 w-auto max-w-[14rem] shrink-0 items-center gap-2 rounded-none border-0 bg-transparent px-0 text-[13px] font-medium whitespace-nowrap outline-none focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50 sm:max-w-[18rem]"
       >
         <span className="inline-flex min-w-0 items-center">
           <SpielwieseHeaderStripTag

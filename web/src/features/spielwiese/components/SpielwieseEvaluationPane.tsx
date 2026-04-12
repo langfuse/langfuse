@@ -84,6 +84,75 @@ function useEvaluationStrategyState() {
   };
 }
 
+function EvaluationPaneHeader({
+  headerAccessory,
+}: {
+  headerAccessory?: ReactNode;
+}) {
+  return (
+    <div
+      className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[8px] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+      data-testid="spielwiese-evaluation-header-bar"
+    >
+      {headerAccessory ? (
+        <div
+          className="shrink-0"
+          data-testid="spielwiese-evaluation-header-accessory"
+        >
+          {headerAccessory}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function EvaluationPaneContent({
+  activeStrategy,
+  activeStrategyId,
+  nodes,
+  onRequestFit,
+  setActiveStrategyId,
+  setStrategyConfigs,
+  strategyConfigs,
+}: {
+  activeStrategy: EvaluationStrategy;
+  activeStrategyId: EvaluationStrategyId;
+  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
+  onRequestFit?: () => void;
+  setActiveStrategyId: (strategyId: EvaluationStrategyId) => void;
+  setStrategyConfigs: (
+    value:
+      | EvaluationStrategyConfigs
+      | ((current: EvaluationStrategyConfigs) => EvaluationStrategyConfigs),
+  ) => void;
+  strategyConfigs: EvaluationStrategyConfigs;
+}) {
+  return (
+    <div
+      className="flex flex-col gap-3 pt-3 pb-3"
+      data-testid="spielwiese-evaluation-content"
+    >
+      <EvaluationStrategyList
+        activeStrategyId={activeStrategyId}
+        onSelect={(strategyId) => {
+          setActiveStrategyId(strategyId);
+          onRequestFit?.();
+        }}
+      />
+      <EvaluationStrategyDetail
+        config={strategyConfigs[activeStrategy.id]}
+        nodesCount={nodes.length}
+        onUpdate={(patch) =>
+          setStrategyConfigs((current) =>
+            patchStrategyConfig(current, activeStrategy.id, patch),
+          )
+        }
+        strategy={activeStrategy}
+      />
+    </div>
+  );
+}
+
 export function SpielwieseEvaluationPane({
   headerAccessory,
   nodes,
@@ -113,41 +182,16 @@ export function SpielwieseEvaluationPane({
         data-testid="spielwiese-evaluation-pane-shell"
         ref={shellRef}
       >
-        <div
-          className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[8px] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
-          data-testid="spielwiese-evaluation-header-bar"
-        >
-          {headerAccessory ? (
-            <div
-              className="shrink-0"
-              data-testid="spielwiese-evaluation-header-accessory"
-            >
-              {headerAccessory}
-            </div>
-          ) : null}
-        </div>
-        <div
-          className="flex flex-col gap-3 pt-3 pb-3"
-          data-testid="spielwiese-evaluation-content"
-        >
-          <EvaluationStrategyList
-            activeStrategyId={activeStrategy.id}
-            onSelect={(strategyId) => {
-              setActiveStrategyId(strategyId);
-              onRequestFit?.();
-            }}
-          />
-          <EvaluationStrategyDetail
-            config={strategyConfigs[activeStrategy.id]}
-            nodesCount={nodes.length}
-            onUpdate={(patch) =>
-              setStrategyConfigs((current) =>
-                patchStrategyConfig(current, activeStrategy.id, patch),
-              )
-            }
-            strategy={activeStrategy}
-          />
-        </div>
+        <EvaluationPaneHeader headerAccessory={headerAccessory} />
+        <EvaluationPaneContent
+          activeStrategy={activeStrategy}
+          activeStrategyId={activeStrategyId}
+          nodes={nodes}
+          onRequestFit={onRequestFit}
+          setActiveStrategyId={setActiveStrategyId}
+          setStrategyConfigs={setStrategyConfigs}
+          strategyConfigs={strategyConfigs}
+        />
       </div>
     </div>
   );

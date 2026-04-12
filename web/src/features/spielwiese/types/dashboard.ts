@@ -48,12 +48,18 @@ export type SpielwieseAgentNodePlaygroundPreviewVM = {
   value: string;
 };
 
+export type SpielwieseAgentNodeLayout =
+  | "composite"
+  | "user-only"
+  | "agent-only";
+
 export type SpielwieseAgentNodeVM = {
   id: string;
   stepLabel: string;
   title: string;
   description: string;
   kind: string;
+  layout?: SpielwieseAgentNodeLayout;
   settings: SpielwieseAgentNodeSettingVM[];
   promptSections: SpielwieseAgentNodePromptSectionVM[];
   notes: SpielwieseAgentNodeNoteVM[];

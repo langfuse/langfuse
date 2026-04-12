@@ -10,94 +10,30 @@ function getPromptSectionOrder(nodeElement: HTMLElement) {
 }
 
 function insertToolMessage(nodeElement: HTMLElement) {
-  fireEvent.click(
-    within(nodeElement).getByTestId("spielwiese-message-insert-text-trigger"),
+  const nodeCard = within(nodeElement).getByTestId(
+    "spielwiese-agent-node-card",
   );
-  fireEvent.click(within(nodeElement).getByRole("button", { name: "Tool" }));
+
+  fireEvent.click(
+    within(nodeCard).getByTestId(
+      "spielwiese-response-format-insert-text-trigger",
+    ),
+  );
+  fireEvent.click(within(nodeCard).getByRole("button", { name: "Tool" }));
 
   return within(nodeElement).getByRole("combobox", {
     name: "vision-agent Tool picker",
   });
 }
 
-function getInsertControls(nodeElement: HTMLElement) {
-  return {
-    externalRow: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-external-row",
-    ),
-    inlineInsertRow: within(nodeElement).queryByTestId(
-      "spielwiese-message-insert-row",
-    ),
-    textPicker: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-picker-text",
-    ),
-    textShell: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-text-shell",
-    ),
-    textTrigger: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-text-trigger",
-    ),
-  };
-}
+function getResponseFormatInsertTrigger(nodeElement: HTMLElement) {
+  const nodeCard = within(nodeElement).getByTestId(
+    "spielwiese-agent-node-card",
+  );
 
-function expectInsertRowChrome({
-  externalRow,
-  inlineInsertRow,
-  textPicker,
-  textShell,
-  textTrigger,
-  visionNode,
-}: ReturnType<typeof getInsertControls> & { visionNode: HTMLElement }) {
-  expect(textPicker.getAttribute("data-state")).toBe("closed");
-  expect(inlineInsertRow).toBeNull();
-  expect(externalRow.className).toContain("w-fit");
-  expect(externalRow.className).toContain("pl-[18px]");
-  expect(externalRow.className).toContain("ml-[18px]");
-  expect(externalRow.className).toContain("mt-[8px]");
-  expect(externalRow.className).toContain("opacity-100");
-  expect(externalRow.className).toContain("pointer-events-auto");
-  expect(externalRow.className).not.toContain("opacity-0");
-  expect(externalRow.className).not.toContain("pointer-events-none");
-  expect(externalRow.className).not.toContain("group-hover/agent-node");
-  expect(externalRow.className).not.toContain("group-focus-within/agent-node");
-  expect(externalRow.parentElement).toBe(visionNode);
-  expect(visionNode.lastElementChild).toBe(externalRow);
-  expect(textShell.className).toContain("overflow-hidden");
-  expect(textShell.className).toContain("[--message-insert-inner-radius:7px]");
-  expect(textShell.className).toContain("[--message-insert-padding:2px]");
-  expect(textShell.className).toContain(
-    "rounded-[var(--message-insert-outer-radius)]",
+  return within(nodeCard).getByTestId(
+    "spielwiese-response-format-insert-text-trigger",
   );
-  expect(textShell.className).toContain("p-[var(--message-insert-padding)]");
-  expect(textTrigger.className).toContain(
-    "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
-  );
-  expect(textTrigger.className).toContain("h-full");
-  expect(textTrigger.textContent).toBe("New message");
-  expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
-}
-
-function expectInsertPickerRailChrome(nodeElement: HTMLElement) {
-  const textPicker = within(nodeElement).getByTestId(
-    "spielwiese-message-insert-picker-text",
-  );
-  const pickerButtons = ["User", "Instructions", "Assistant", "Tool"].map(
-    (label) => within(nodeElement).getByRole("button", { name: label }),
-  );
-  const pickerButtonRow = pickerButtons[0]?.parentElement as HTMLElement;
-
-  expect(textPicker.className).toContain(
-    "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
-  );
-  expect(pickerButtonRow.className).toContain(
-    "px-[var(--message-insert-padding)]",
-  );
-  expect(pickerButtonRow.className).toContain("gap-px");
-  for (const pickerButton of pickerButtons) {
-    expect(pickerButton.className).toContain(
-      "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
-    );
-  }
 }
 
 function renderVisionNode() {
@@ -105,44 +41,26 @@ function renderVisionNode() {
   return screen.getAllByTestId("spielwiese-agent-node")[0];
 }
 
-describe("SpielwieseEditorCanvas prompt insertion", () => {
-  it("keeps prompt insertion in the footer tray instead of the response section", () => {
+describe("SpielwieseEditorCanvas node insertion", () => {
+  it("keeps prompt insertion scoped to the response format control", () => {
     const visionNode = renderVisionNode();
-    const controls = getInsertControls(visionNode);
+    const textTrigger = getResponseFormatInsertTrigger(visionNode);
 
-    expectInsertRowChrome({ ...controls, visionNode });
+    fireEvent.click(textTrigger);
 
-    fireEvent.click(controls.textTrigger);
-
-    expect(controls.textPicker.getAttribute("data-state")).toBe("open");
-    expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
-    expectInsertPickerRailChrome(visionNode);
-  });
-
-  it("keeps the footer insert control always visible with the external offset", () => {
-    const visionNode = renderVisionNode();
-    const { externalRow, textTrigger } = getInsertControls(visionNode);
-
-    expect(externalRow.className).toContain("ml-[18px]");
-    expect(externalRow.className).toContain("mt-[8px]");
-    expect(externalRow.className).toContain("opacity-100");
-    expect(externalRow.className).toContain("pointer-events-auto");
-    expect(externalRow.className).not.toContain("opacity-0");
-    expect(externalRow.className).not.toContain("pointer-events-none");
-
-    textTrigger.focus();
-
-    expect(externalRow.className).toContain("opacity-100");
-    expect(externalRow.className).toContain("pointer-events-auto");
+    expect(
+      within(visionNode).getByRole("button", { name: "Assistant" }),
+    ).toBeTruthy();
+    expect(
+      within(visionNode).getByRole("button", { name: "Tool" }),
+    ).toBeTruthy();
   });
 });
 
 describe("SpielwieseEditorCanvas prompt insertion actions", () => {
-  it("lets a node append a new user, system, or assistant message from the footer control", () => {
+  it("lets a node append a new user, system, or assistant message from the response format control", () => {
     const visionNode = renderVisionNode();
-    const textTrigger = within(visionNode).getByTestId(
-      "spielwiese-message-insert-text-trigger",
-    );
+    const textTrigger = getResponseFormatInsertTrigger(visionNode);
 
     fireEvent.click(textTrigger);
     fireEvent.click(
@@ -160,11 +78,9 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
     ).toBeNull();
   });
 
-  it("still inserts a message when the trigger blurs before the option click lands", () => {
+  it("still inserts a message when the response format trigger blurs before the option click lands", () => {
     const visionNode = renderVisionNode();
-    const textTrigger = within(visionNode).getByTestId(
-      "spielwiese-message-insert-text-trigger",
-    );
+    const textTrigger = getResponseFormatInsertTrigger(visionNode);
 
     textTrigger.focus();
     fireEvent.click(textTrigger);
@@ -245,9 +161,7 @@ describe("SpielwieseEditorCanvas prompt section controls", () => {
   it("lets a node delete a prompt section", () => {
     const visionNode = renderVisionNode();
 
-    fireEvent.click(
-      within(visionNode).getByTestId("spielwiese-message-insert-text-trigger"),
-    );
+    fireEvent.click(getResponseFormatInsertTrigger(visionNode));
     fireEvent.click(
       within(visionNode).getByRole("button", { name: "Assistant" }),
     );
@@ -274,9 +188,7 @@ describe("SpielwieseEditorCanvas prompt section controls", () => {
 
     expect(getPromptSectionOrder(visionNode)).toEqual(["user", "system"]);
 
-    fireEvent.click(
-      within(visionNode).getByTestId("spielwiese-message-insert-text-trigger"),
-    );
+    fireEvent.click(getResponseFormatInsertTrigger(visionNode));
     fireEvent.click(
       within(visionNode).getByRole("button", { name: "Assistant" }),
     );

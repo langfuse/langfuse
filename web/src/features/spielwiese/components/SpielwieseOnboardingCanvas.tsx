@@ -76,6 +76,7 @@ function OnboardingCanvasPreview({
       <SpielwieseCanvasPane
         className="h-full"
         nodes={editableCanvas.nodes}
+        onAgentNodeInsert={editableCanvas.onAgentNodeInsert}
         onPromptSectionChange={editableCanvas.onPromptSectionChange}
         onPromptSectionDelete={editableCanvas.onPromptSectionDelete}
         onPromptSectionInsert={editableCanvas.onPromptSectionInsert}

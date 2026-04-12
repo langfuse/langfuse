@@ -1,5 +1,5 @@
 /* eslint-disable max-lines */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
@@ -46,28 +46,34 @@ type SpielwieseDetachedUserMessageSectionRowProps = {
   startCollapsed?: boolean;
 };
 
-const detachedUserSectionLabel = "User message";
+const detachedUserPromptLabel = "User message";
 
 // The detached user shell intentionally mirrors the agent card anatomy in one place.
 // eslint-disable-next-line max-lines-per-function
 function DetachedUserInputShell({
+  header,
   nodeId,
   onPromptSectionChange,
   section,
 }: Pick<
   SpielwieseDetachedUserMessageSectionRowProps,
   "nodeId" | "onPromptSectionChange" | "section"
->) {
+> & {
+  header?: ReactNode;
+}) {
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
     <div
       className={cn(
         toneClassNames.body,
-        "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[rgba(0,0,0,0.04)] bg-[#FBFBFB] p-[2px]",
+        "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[rgba(0,0,0,0.04)] bg-[#FBFBFB] p-0",
       )}
       data-testid="spielwiese-detached-user-content-frame"
     >
+      {header ? (
+        <div className="px-[2px] pt-[2px] pb-[3px]">{header}</div>
+      ) : null}
       <div
         className={cn(
           "flex min-h-0 w-full min-w-0 flex-col items-stretch gap-px overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
@@ -76,11 +82,11 @@ function DetachedUserInputShell({
         )}
         data-testid="spielwiese-detached-user-embedded-shell"
       >
-        <div className="pb-px">
+        <div className="pt-px pb-px">
           <DetachedUserEmbeddedHeader
             nodeId={nodeId}
             section={section}
-            sectionLabel={detachedUserSectionLabel}
+            sectionLabel={detachedUserPromptLabel}
           />
         </div>
         <label
@@ -95,7 +101,7 @@ function DetachedUserInputShell({
             data-testid="spielwiese-detached-user-prompt-shell"
           >
             <SpielwieseMustacheTextarea
-              aria-label={`${nodeId} ${detachedUserSectionLabel}`}
+              aria-label={`${nodeId} ${detachedUserPromptLabel}`}
               className={cn(
                 spielwieseEmbeddedSingleLineTextareaClassName,
                 toneClassNames.field,
@@ -283,6 +289,7 @@ function DetachedUserCompactToggleButton({
 export function SpielwieseDetachedUserMessageSectionRow({
   canMoveDown,
   canMoveUp,
+  displayLabel,
   nodeId,
   onPromptSectionChange,
   onPromptSectionDelete,
@@ -292,7 +299,6 @@ export function SpielwieseDetachedUserMessageSectionRow({
 }: SpielwieseDetachedUserMessageSectionRowProps) {
   const [isCollapsed, setIsCollapsed] = useState(startCollapsed);
   const toggleCollapsed = () => setIsCollapsed((currentValue) => !currentValue);
-  const sectionLabel = detachedUserSectionLabel;
   const sectionHeader = (
     <DetachedUserHeaderStrip
       canMoveDown={canMoveDown}
@@ -303,27 +309,28 @@ export function SpielwieseDetachedUserMessageSectionRow({
       onPromptSectionMove={onPromptSectionMove}
       onToggleCollapse={toggleCollapsed}
       section={section}
-      sectionLabel={sectionLabel}
+      sectionLabel={displayLabel}
     />
   );
 
   return (
     <div
       className={cn(
-        "group flex w-full flex-col gap-1.5 overflow-visible px-[5px] pt-[5px] pb-[5px]",
+        "group flex w-full flex-col gap-1 overflow-visible px-[2px] pt-[2px] pb-[2px]",
         getMessageSectionRowRadiusClassName(section.id),
       )}
       data-section-id={section.id}
       data-testid="spielwiese-message-section-row"
     >
-      {sectionHeader}
       {isCollapsed ? null : (
         <DetachedUserInputShell
+          header={sectionHeader}
           nodeId={nodeId}
           onPromptSectionChange={onPromptSectionChange}
           section={section}
         />
       )}
+      {isCollapsed ? sectionHeader : null}
     </div>
   );
 }

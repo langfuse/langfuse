@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -123,40 +123,19 @@ function getSettingIcon(settingId: string): LucideIcon {
 
 function useInlineSettingTagState() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const hoverTimeoutRef = useRef<number | null>(null);
-
-  const clearHoverTimer = () => {
-    if (hoverTimeoutRef.current === null) {
-      return;
-    }
-
-    window.clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = null;
-  };
 
   const close = () => {
-    clearHoverTimer();
     setIsExpanded(false);
   };
 
   const openImmediately = () => {
-    clearHoverTimer();
     setIsExpanded(true);
-  };
-
-  const openOnHoverIntent = () => {
-    clearHoverTimer();
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setIsExpanded(true);
-      hoverTimeoutRef.current = null;
-    }, 1000);
   };
 
   return {
     close,
     isExpanded,
     openImmediately,
-    openOnHoverIntent,
   };
 }
 
@@ -176,8 +155,7 @@ function SpielwieseInlineSettingTag({
   label: string;
   settingId: string;
 }) {
-  const { close, isExpanded, openImmediately, openOnHoverIntent } =
-    useInlineSettingTagState();
+  const { close, isExpanded, openImmediately } = useInlineSettingTagState();
 
   return (
     <button
@@ -192,8 +170,6 @@ function SpielwieseInlineSettingTag({
       type="button"
       onBlur={close}
       onClick={openImmediately}
-      onMouseEnter={openOnHoverIntent}
-      onMouseLeave={close}
     >
       <span className={inlineSettingTagContentClassName}>
         {children}
@@ -278,6 +254,7 @@ function SpielwieseAgentNodeHeaderRow({
       className="flex w-full min-w-0 items-center justify-between gap-1.5 pt-[6px] pr-[6px] pb-[6px] pl-[6px]"
       data-testid="spielwiese-agent-node-header-row"
     >
+      {/* Demo block: keep the header-control column visually quiet; only the trailing panel actions should advertise hover. */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         <SpielwieseAgentNodeTitleControl
           modelSetting={modelSetting}

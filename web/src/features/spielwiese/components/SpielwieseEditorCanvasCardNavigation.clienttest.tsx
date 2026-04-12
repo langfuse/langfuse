@@ -28,9 +28,15 @@ function getCardNavigationElements(nodeElement: HTMLElement, nodeId: string) {
   const addCardButton = within(nodeElement).getByRole("button", {
     name: `Add a new card after ${nodeId}`,
   });
+  const addCardButtonTrigger = within(nodeElement).getByTestId(
+    "spielwiese-agent-node-card-add-button-trigger",
+  );
   const previousCardButton = within(nodeElement).getByRole("button", {
     name: `Show previous card for ${nodeId}`,
   });
+  const previousCardButtonTrigger = within(nodeElement).getByTestId(
+    "spielwiese-agent-node-card-back-button-trigger",
+  );
   const cardViewport = within(nodeElement).getByTestId(
     "spielwiese-agent-node-card-viewport",
   );
@@ -48,10 +54,12 @@ function getCardNavigationElements(nodeElement: HTMLElement, nodeId: string) {
   return {
     addCardButton,
     addCardButtonShell,
+    addCardButtonTrigger,
     cardDeck,
     cardSwitcher,
     previousCardButton,
     previousCardButtonShell,
+    previousCardButtonTrigger,
   };
 }
 
@@ -59,10 +67,12 @@ function getCardNavigationChrome(nodeElement: HTMLElement, nodeId: string) {
   const {
     addCardButton,
     addCardButtonShell,
+    addCardButtonTrigger,
     cardDeck,
     cardSwitcher,
     previousCardButton,
     previousCardButtonShell,
+    previousCardButtonTrigger,
   } = getCardNavigationElements(nodeElement, nodeId);
 
   expect(
@@ -81,9 +91,11 @@ function getCardNavigationChrome(nodeElement: HTMLElement, nodeId: string) {
   return {
     addCardButton,
     addCardButtonShell,
+    addCardButtonTrigger,
     cardDeck,
     previousCardButton,
     previousCardButtonShell,
+    previousCardButtonTrigger,
   };
 }
 
@@ -91,9 +103,15 @@ function getDetachedUserCardNavigationChrome(nodeElement: HTMLElement) {
   const addCardButton = within(nodeElement).getByRole("button", {
     name: "Add a new card after vision-agent user",
   });
+  const addCardButtonTrigger = within(nodeElement).getByTestId(
+    "spielwiese-detached-user-card-add-button-trigger",
+  );
   const previousCardButton = within(nodeElement).getByRole("button", {
     name: "Show previous card for vision-agent user",
   });
+  const previousCardButtonTrigger = within(nodeElement).getByTestId(
+    "spielwiese-detached-user-card-back-button-trigger",
+  );
   const cardViewport = within(nodeElement).getByTestId(
     "spielwiese-detached-user-card-viewport",
   );
@@ -118,10 +136,12 @@ function getDetachedUserCardNavigationChrome(nodeElement: HTMLElement) {
   return {
     addCardButton,
     addCardButtonShell,
+    addCardButtonTrigger,
     cardDeck,
     cardSwitcher,
     previousCardButton,
     previousCardButtonShell,
+    previousCardButtonTrigger,
   };
 }
 
@@ -137,6 +157,26 @@ function expectVisibleCardNavigationChrome(shell: HTMLElement) {
   expect(shell.className).toContain("pointer-events-auto");
   expect(shell.className).not.toContain("opacity-0");
   expect(shell.className).not.toContain("pointer-events-none");
+}
+
+function expectCardNavigationGroupHidden(
+  chrome: Pick<
+    ReturnType<typeof getCardNavigationChrome>,
+    "addCardButtonShell" | "previousCardButtonShell"
+  >,
+) {
+  expectHiddenCardNavigationChrome(chrome.addCardButtonShell);
+  expectHiddenCardNavigationChrome(chrome.previousCardButtonShell);
+}
+
+function expectCardNavigationGroupVisible(
+  chrome: Pick<
+    ReturnType<typeof getCardNavigationChrome>,
+    "addCardButtonShell" | "previousCardButtonShell"
+  >,
+) {
+  expectVisibleCardNavigationChrome(chrome.addCardButtonShell);
+  expectVisibleCardNavigationChrome(chrome.previousCardButtonShell);
 }
 
 function expectSecondaryCardVisible(visionNode: HTMLElement) {
@@ -167,57 +207,48 @@ describe("SpielwieseEditorCanvas node card navigation visibility", () => {
       "nutrition-agent",
     );
 
-    expectHiddenCardNavigationChrome(visionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(visionChrome.previousCardButtonShell);
-    expectHiddenCardNavigationChrome(
-      visionDetachedUserChrome.addCardButtonShell,
-    );
-    expectHiddenCardNavigationChrome(
-      visionDetachedUserChrome.previousCardButtonShell,
-    );
-    expectHiddenCardNavigationChrome(nutritionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(nutritionChrome.previousCardButtonShell);
+    expectCardNavigationGroupHidden(visionChrome);
+    expectCardNavigationGroupHidden(visionDetachedUserChrome);
+    expectCardNavigationGroupHidden(nutritionChrome);
 
     fireEvent.mouseEnter(visionDetachedUserChrome.cardSwitcher);
 
-    expectHiddenCardNavigationChrome(visionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(visionChrome.previousCardButtonShell);
-    expectVisibleCardNavigationChrome(
-      visionDetachedUserChrome.addCardButtonShell,
-    );
-    expectVisibleCardNavigationChrome(
-      visionDetachedUserChrome.previousCardButtonShell,
-    );
-    expectHiddenCardNavigationChrome(nutritionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(nutritionChrome.previousCardButtonShell);
+    expectCardNavigationGroupHidden(visionChrome);
+    expectCardNavigationGroupVisible(visionDetachedUserChrome);
+    expectCardNavigationGroupHidden(nutritionChrome);
 
     fireEvent.mouseLeave(visionDetachedUserChrome.cardSwitcher);
     fireEvent.mouseEnter(visionChrome.cardDeck);
 
-    expectVisibleCardNavigationChrome(visionChrome.addCardButtonShell);
-    expectVisibleCardNavigationChrome(visionChrome.previousCardButtonShell);
-    expectHiddenCardNavigationChrome(
-      visionDetachedUserChrome.addCardButtonShell,
-    );
-    expectHiddenCardNavigationChrome(
-      visionDetachedUserChrome.previousCardButtonShell,
-    );
-    expectHiddenCardNavigationChrome(nutritionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(nutritionChrome.previousCardButtonShell);
+    expectCardNavigationGroupVisible(visionChrome);
+    expectCardNavigationGroupHidden(visionDetachedUserChrome);
+    expectCardNavigationGroupHidden(nutritionChrome);
 
     fireEvent.mouseLeave(visionChrome.cardDeck);
     fireEvent.mouseEnter(nutritionChrome.cardDeck);
 
-    expectHiddenCardNavigationChrome(visionChrome.addCardButtonShell);
-    expectHiddenCardNavigationChrome(visionChrome.previousCardButtonShell);
+    expectCardNavigationGroupHidden(visionChrome);
+    expectCardNavigationGroupHidden(visionDetachedUserChrome);
+    expectCardNavigationGroupVisible(nutritionChrome);
+  });
+
+  it("keeps detached user card navigation hidden when only the user input is focused", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0]!;
+    const visionDetachedUserChrome =
+      getDetachedUserCardNavigationChrome(visionNode);
+    const detachedUserInput = within(visionNode).getByLabelText(
+      "vision-agent User message",
+    );
+
+    fireEvent.focus(detachedUserInput);
+
     expectHiddenCardNavigationChrome(
       visionDetachedUserChrome.addCardButtonShell,
     );
     expectHiddenCardNavigationChrome(
       visionDetachedUserChrome.previousCardButtonShell,
     );
-    expectVisibleCardNavigationChrome(nutritionChrome.addCardButtonShell);
-    expectVisibleCardNavigationChrome(nutritionChrome.previousCardButtonShell);
   });
 });
 

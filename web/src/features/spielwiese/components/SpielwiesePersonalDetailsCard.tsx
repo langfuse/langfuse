@@ -1,4 +1,5 @@
-import type { FormEvent, MouseEvent, ReactNode } from "react";
+import type { FormEvent, MouseEvent } from "react";
+import { useState } from "react";
 import { useRouter } from "next/router";
 import { Upload } from "lucide-react";
 import { getOnboardingStepPath } from "./spielwieseOnboardingFlow";
@@ -6,33 +7,35 @@ import {
   type EntryTextMotionDelay,
   getOnboardingEntryTextMotionClassName,
 } from "./spielwieseOnboardingEntryMotion";
-import SpielwiesePersonalDetailsPreview from "./SpielwiesePersonalDetailsPreview";
+import {
+  onboardingDetailsFieldShellClassName,
+  onboardingDetailsInputClassName,
+  onboardingDetailsMutedClassName,
+  onboardingDetailsPrimaryButtonClassName,
+  onboardingDetailsSecondaryButtonClassName,
+  onboardingDetailsSelectContentClassName,
+  onboardingDetailsSelectItemClassName,
+  onboardingDetailsSelectTriggerClassName,
+  onboardingCanCodeOptions,
+  onboardingPositionOptions,
+} from "./spielwieseOnboardingPersonalDetailsOptions";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
-const onboardingDetailsLabelClassName =
-  "text-[0.75rem]/4 font-medium tracking-[-0.01em] text-[rgba(0,0,0,0.55)]";
-const onboardingDetailsFieldShellClassName =
-  "h-[2.125rem] rounded-[10px] bg-transparent px-3 shadow-[inset_0_0_0_1px_rgb(238,239,241)]";
-const onboardingDetailsInputClassName =
-  "h-full w-full appearance-none border-0 bg-transparent px-0 text-sm/5 font-medium tracking-[-0.01em] text-[rgb(36,37,41)] shadow-none outline-none placeholder:text-[rgb(137,138,141)] focus:border-transparent focus:outline-none focus:ring-0 focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-0 max-sm:text-base/5";
-const onboardingDetailsMutedClassName =
-  "text-[0.75rem]/4 font-medium tracking-[-0.01em] text-[rgba(0,0,0,0.55)]";
-const onboardingDetailsSectionDividerClassName =
-  "h-px w-full bg-[rgb(238,239,241)]";
-const onboardingDetailsSecondaryButtonClassName =
-  "inline-flex h-9 items-center justify-center gap-1.5 rounded-[10px] bg-white px-3 text-sm/5 font-medium tracking-[-0.01em] text-[rgb(36,37,41)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0),0_0_2px_0_rgba(28,40,64,0.18),0_1px_3px_0_rgba(24,41,75,0.04)] transition-colors hover:bg-[rgb(248,249,250)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(78,140,252)]";
-const onboardingDetailsPrimaryButtonClassName =
-  "inline-flex h-9 w-full items-center justify-center rounded-[10px] bg-[rgb(38,109,240)] px-3 text-sm/5 font-medium tracking-[-0.01em] text-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(38,109,240,0.12),0_3px_6px_-2px_rgba(38,109,240,0.08)] transition-colors hover:bg-[rgb(46,117,248)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(78,140,252)]";
 function preventDummyClick(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
 }
 
-function createNavigationSubmitHandler(
-  push: (path: string) => Promise<boolean>,
-  path: string,
-) {
+function createNavigationSubmitHandler(onSubmit: () => void) {
   return (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void push(path);
+    onSubmit();
   };
 }
 
@@ -103,68 +106,79 @@ function OnboardingDetailsField({
   placeholder?: string;
   value?: string;
 }) {
-  return (
-    <label
-      className={`grid gap-2 ${getOnboardingEntryTextMotionClassName(isActive, delay)}`}
+  const motionClassName = getOnboardingEntryTextMotionClassName(isActive, delay);
+  const inputField = (
+    <span
+      className={`${onboardingDetailsFieldShellClassName} ${disabled ? "bg-[rgb(251,251,251)]" : ""} flex items-center`}
     >
-      <span className={onboardingDetailsLabelClassName}>{label}</span>
-      <span
-        className={`${onboardingDetailsFieldShellClassName} ${disabled ? "bg-[rgb(251,251,251)]" : ""} flex items-center`}
-      >
-        <input
-          aria-label={label}
-          className={onboardingDetailsInputClassName}
-          defaultValue={value}
-          disabled={disabled}
-          name={name}
-          placeholder={placeholder}
-          type="text"
-        />
-      </span>
-    </label>
+      <input
+        aria-label={label}
+        className={onboardingDetailsInputClassName}
+        defaultValue={value}
+        disabled={disabled}
+        name={name}
+        placeholder={placeholder}
+        type="text"
+      />
+    </span>
   );
+
+  return <div className={motionClassName}>{inputField}</div>;
 }
 
-function OnboardingDetailsToggleRow({
+function OnboardingDetailsSelectField({
   delay,
   isActive,
+  label,
+  options,
+  placeholder,
+  value,
+  onValueChange,
 }: {
   delay: EntryTextMotionDelay;
   isActive: boolean;
+  label: string;
+  options: readonly string[];
+  placeholder: string;
+  value: string | null;
+  onValueChange: (value: string) => void;
 }) {
   return (
-    <div
-      className={`grid gap-5 ${getOnboardingEntryTextMotionClassName(isActive, delay)}`}
-    >
-      <div className={onboardingDetailsSectionDividerClassName} />
-      <div className="flex items-start gap-4">
-        <div className="grid flex-1 gap-1">
-          <div className="text-[0.8125rem]/5 font-medium tracking-[-0.01em] text-[rgb(36,37,41)]">
-            Subscribe to product update emails
-          </div>
-          <p className={onboardingDetailsMutedClassName}>
-            Get the latest updates about features and product updates.
-          </p>
-        </div>
-        <button
-          aria-checked="false"
-          className="relative mt-0.5 h-4 w-6 rounded-full bg-black/10 transition-colors"
-          onClick={preventDummyClick}
-          role="switch"
-          type="button"
+    <div className={getOnboardingEntryTextMotionClassName(isActive, delay)}>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger
+          aria-label={label}
+          className={onboardingDetailsSelectTriggerClassName}
         >
-          <span className="absolute top-0.5 left-0.5 size-3 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.05)]" />
-        </button>
-      </div>
+          <SelectValue
+            className="data-[placeholder]:text-[rgb(137,138,141)]"
+            placeholder={placeholder}
+          />
+        </SelectTrigger>
+        <SelectContent
+          align="start"
+          alignItemWithTrigger={false}
+          className={onboardingDetailsSelectContentClassName}
+          sideOffset={8}
+        >
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem
+                className={onboardingDetailsSelectItemClassName}
+                key={option}
+                value={option}
+              >
+                {option}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
     </div>
   );
 }
 
-function OnboardingDetailsIdentitySection({
-  isActive,
-}: {
-  isActive: boolean;
-}) {
+function OnboardingDetailsIdentitySection({ isActive }: { isActive: boolean }) {
   return (
     <div className="grid gap-8">
       <div
@@ -172,7 +186,7 @@ function OnboardingDetailsIdentitySection({
       >
         Let&apos;s get to know you
       </div>
-      <div className={getOnboardingEntryTextMotionClassName(isActive, 250)}>
+      <div className={getOnboardingEntryTextMotionClassName(isActive, 50)}>
         <OnboardingDetailsAvatar />
       </div>
     </div>
@@ -181,56 +195,88 @@ function OnboardingDetailsIdentitySection({
 
 function OnboardingDetailsFieldsSection({
   isActive,
+  canCodeValue,
+  onCanCodeChange,
+  onPositionChange,
+  positionValue,
 }: {
   isActive: boolean;
+  canCodeValue: string | null;
+  onCanCodeChange: (value: string) => void;
+  onPositionChange: (value: string) => void;
+  positionValue: string | null;
 }) {
   return (
     <div className="grid gap-5">
       <OnboardingDetailsField
-        delay={500}
+        delay={100}
         isActive={isActive}
-        label="First name"
-        name="firstName"
-        placeholder="Enter your first name..."
+        label="Full name"
+        name="fullName"
+        placeholder="Full name"
       />
-      <OnboardingDetailsField
-        delay={750}
+      <OnboardingDetailsSelectField
+        delay={150}
         isActive={isActive}
-        label="Last name"
-        name="lastName"
-        placeholder="Enter your last name..."
+        label="Position"
+        onValueChange={onPositionChange}
+        options={onboardingPositionOptions}
+        placeholder="Position"
+        value={positionValue}
       />
-      <OnboardingDetailsField
-        delay={1000}
-        disabled
+      <OnboardingDetailsSelectField
+        delay={200}
         isActive={isActive}
-        label="Email"
-        name="email"
-        value="me@evren.so"
+        label="Can you code"
+        onValueChange={onCanCodeChange}
+        options={onboardingCanCodeOptions}
+        placeholder="Can you code"
+        value={canCodeValue}
       />
     </div>
   );
 }
 
-function OnboardingDetailsFormPanel({ isActive }: { isActive: boolean }) {
+function OnboardingDetailsFormPanel({
+  isActive,
+  isTransitioning,
+  onContinue,
+}: {
+  isActive: boolean;
+  isTransitioning?: boolean;
+  onContinue?: () => void;
+}) {
   const router = useRouter();
+  const [positionValue, setPositionValue] = useState<string | null>(null);
+  const [canCodeValue, setCanCodeValue] = useState<string | null>(null);
+  const handleContinue =
+    onContinue ?? (() => void router.push(getOnboardingStepPath("role")));
+  const formPanelStateClassName = isTransitioning
+    ? "pointer-events-none -translate-y-6 opacity-0 blur-[8px]"
+    : "blur-0 translate-y-0 opacity-100";
 
   return (
-    <div className="flex min-h-[27.5rem] bg-white px-6 py-10 sm:px-10 lg:px-[5.375rem] lg:py-12">
-      <div className="flex w-full flex-col">
+    <div
+      className={`flex min-h-[43.125rem] items-center bg-white px-6 py-10 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)] sm:px-10 lg:px-[5.375rem] lg:py-12 ${formPanelStateClassName}`}
+      data-testid="spielwiese-personal-details-form-panel"
+    >
+      <div className="grid w-full place-items-center">
         <div className="grid w-full max-w-[26.25rem] gap-8">
           <OnboardingDetailsIdentitySection isActive={isActive} />
           <form
             className="grid gap-7"
-            onSubmit={createNavigationSubmitHandler(
-              router.push,
-              getOnboardingStepPath("role"),
-            )}
+            onSubmit={createNavigationSubmitHandler(handleContinue)}
           >
-            <OnboardingDetailsFieldsSection isActive={isActive} />
-            <OnboardingDetailsToggleRow delay={1250} isActive={isActive} />
+            <OnboardingDetailsFieldsSection
+              canCodeValue={canCodeValue}
+              isActive={isActive}
+              onCanCodeChange={setCanCodeValue}
+              onPositionChange={setPositionValue}
+              positionValue={positionValue}
+            />
             <button
-              className={`${onboardingDetailsPrimaryButtonClassName} ${getOnboardingEntryTextMotionClassName(isActive, 1500)}`}
+              className={`${onboardingDetailsPrimaryButtonClassName} ${getOnboardingEntryTextMotionClassName(isActive, 250)}`}
+              disabled={isTransitioning}
               type="submit"
             >
               Continue
@@ -242,19 +288,22 @@ function OnboardingDetailsFormPanel({ isActive }: { isActive: boolean }) {
   );
 }
 
-type SpielwiesePersonalDetailsPanelsProps = {
-  isActive?: boolean;
-  preview?: ReactNode;
-};
-
 export function SpielwiesePersonalDetailsPanels({
   isActive = true,
-  preview,
-}: SpielwiesePersonalDetailsPanelsProps) {
+  isTransitioning = false,
+  onContinue,
+}: {
+  isActive?: boolean;
+  isTransitioning?: boolean;
+  onContinue?: () => void;
+}) {
   return (
-    <div className="grid min-h-[43.125rem] grid-rows-[auto_1fr]">
-      <OnboardingDetailsFormPanel isActive={isActive} />
-      {preview ?? <SpielwiesePersonalDetailsPreview />}
+    <div className="min-h-[43.125rem]">
+      <OnboardingDetailsFormPanel
+        isActive={isActive}
+        isTransitioning={isTransitioning}
+        onContinue={onContinue}
+      />
     </div>
   );
 }
