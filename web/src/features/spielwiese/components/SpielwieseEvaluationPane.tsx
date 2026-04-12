@@ -1,51 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
-
-type EvaluationStrategyId =
-  | "llm-judge"
-  | "cost"
-  | "latency"
-  | "response-length"
-  | "javascript"
-  | "text-matcher";
-
-const evaluationStrategies: Array<{
-  description: string;
-  id: EvaluationStrategyId;
-  label: string;
-}> = [
-  {
-    id: "llm-judge",
-    label: "LLM as a Judge",
-    description: "Evaluate using other models",
-  },
-  {
-    id: "cost",
-    label: "Cost",
-    description: "Cost of the response",
-  },
-  {
-    id: "latency",
-    label: "Latency",
-    description: "Time to get a full response",
-  },
-  {
-    id: "response-length",
-    label: "Response Length",
-    description: "Word, character, or token count",
-  },
-  {
-    id: "javascript",
-    label: "JavaScript",
-    description: "Write a JavaScript code",
-  },
-  {
-    id: "text-matcher",
-    label: "Text Matcher",
-    description: "Match text with various operators",
-  },
-];
+import {
+  evaluationStrategies,
+  initialStrategyConfigs,
+  patchStrategyConfig,
+  type EvaluationStrategy,
+  type EvaluationStrategyConfigs,
+  type EvaluationStrategyId,
+} from "./spielwieseEvaluationPaneConfig";
+import { EvaluationStrategyDetail } from "./spielwieseEvaluationPaneDetail";
 
 function EvaluationStrategyButton({
   isActive,
@@ -54,7 +18,7 @@ function EvaluationStrategyButton({
 }: {
   isActive: boolean;
   onClick: () => void;
-  strategy: (typeof evaluationStrategies)[number];
+  strategy: EvaluationStrategy;
 }) {
   return (
     <button
@@ -78,27 +42,26 @@ function EvaluationStrategyButton({
   );
 }
 
-function EvaluationStrategyDetail({
-  nodesCount,
-  strategy,
+function EvaluationStrategyList({
+  activeStrategyId,
+  onSelect,
 }: {
-  nodesCount: number;
-  strategy: (typeof evaluationStrategies)[number];
+  activeStrategyId: EvaluationStrategyId;
+  onSelect: (strategyId: EvaluationStrategyId) => void;
 }) {
   return (
     <div
-      className="border-border/40 flex flex-col gap-2 rounded-[12px] border bg-[#FBFBFB] px-3 py-3"
-      data-testid="spielwiese-evaluation-strategy-detail"
+      className="flex gap-2 overflow-x-auto pb-1"
+      data-testid="spielwiese-evaluation-strategy-list"
     >
-      <div className="flex items-center gap-2">
-        <p className="text-foreground text-sm font-medium">{strategy.label}</p>
-        <span className="text-foreground/54 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-medium tracking-[0.04em] uppercase">
-          {nodesCount} steps
-        </span>
-      </div>
-      <p className="text-foreground/58 text-[12px] leading-5">
-        {strategy.description}
-      </p>
+      {evaluationStrategies.map((strategy) => (
+        <EvaluationStrategyButton
+          isActive={strategy.id === activeStrategyId}
+          key={strategy.id}
+          strategy={strategy}
+          onClick={() => onSelect(strategy.id)}
+        />
+      ))}
     </div>
   );
 }
@@ -106,27 +69,34 @@ function EvaluationStrategyDetail({
 export function SpielwieseEvaluationPane({
   headerAccessory,
   nodes,
+  onRequestFit,
+  shellRef,
 }: {
   headerAccessory?: ReactNode;
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
+  onRequestFit?: () => void;
+  shellRef?: RefObject<HTMLDivElement | null>;
 }) {
   const [activeStrategyId, setActiveStrategyId] =
     useState<EvaluationStrategyId>("llm-judge");
+  const [strategyConfigs, setStrategyConfigs] =
+    useState<EvaluationStrategyConfigs>(initialStrategyConfigs);
   const activeStrategy =
     evaluationStrategies.find((strategy) => strategy.id === activeStrategyId) ??
     evaluationStrategies[0];
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-2 pt-0 pb-2"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0 pb-0"
       data-testid="spielwiese-evaluation-pane"
     >
       <div
-        className="bg-background flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-4 py-0 shadow-xs"
+        className="bg-background relative flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-4 pt-0 pb-[6px] shadow-xs after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
         data-testid="spielwiese-evaluation-pane-shell"
+        ref={shellRef}
       >
         <div
-          className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-start gap-3 border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-4 pt-3 pb-3 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+          className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[8px] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
           data-testid="spielwiese-evaluation-header-bar"
         >
           {headerAccessory ? (
@@ -142,21 +112,21 @@ export function SpielwieseEvaluationPane({
           className="flex flex-col gap-3 pt-3 pb-3"
           data-testid="spielwiese-evaluation-content"
         >
-          <div
-            className="flex gap-2 overflow-x-auto pb-1"
-            data-testid="spielwiese-evaluation-strategy-list"
-          >
-            {evaluationStrategies.map((strategy) => (
-              <EvaluationStrategyButton
-                isActive={strategy.id === activeStrategy.id}
-                key={strategy.id}
-                strategy={strategy}
-                onClick={() => setActiveStrategyId(strategy.id)}
-              />
-            ))}
-          </div>
+          <EvaluationStrategyList
+            activeStrategyId={activeStrategy.id}
+            onSelect={(strategyId) => {
+              setActiveStrategyId(strategyId);
+              onRequestFit?.();
+            }}
+          />
           <EvaluationStrategyDetail
+            config={strategyConfigs[activeStrategy.id]}
             nodesCount={nodes.length}
+            onUpdate={(patch) =>
+              setStrategyConfigs((current) =>
+                patchStrategyConfig(current, activeStrategy.id, patch),
+              )
+            }
             strategy={activeStrategy}
           />
         </div>
