@@ -67,6 +67,7 @@ export function expectDetachedUserRowChrome(
   const {
     detachedUserCompactButton,
     detachedUserContentFrame,
+    detachedUserContentHeader,
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
     detachedUserHeader,
@@ -89,6 +90,7 @@ export function expectDetachedUserRowChrome(
   expectDetachedDatasetTag(detachedUploadElements);
   expectDetachedUserFieldChrome({
     detachedUserContentFrame,
+    detachedUserContentHeader,
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
     detachedUserPromptShell,
@@ -118,6 +120,9 @@ function getDetachedUserRowElements(
   const detachedUserContentFrame = within(detachedUserRow).getByTestId(
     "spielwiese-detached-user-content-frame",
   );
+  const detachedUserContentHeader = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-content-header",
+  );
   const detachedUserEmbeddedHeader = within(detachedUserRow).getByTestId(
     "spielwiese-detached-user-embedded-header",
   );
@@ -130,6 +135,7 @@ function getDetachedUserRowElements(
   return {
     detachedUserCompactButton,
     detachedUserContentFrame,
+    detachedUserContentHeader,
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
     detachedUserHeader,
@@ -189,8 +195,19 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
     thumbImage,
   };
 }
+
+function expectDetachedUserContentHeaderSpacing(
+  detachedUserContentHeader: HTMLElement,
+) {
+  expect(detachedUserContentHeader.className).toContain("pt-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pr-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pb-[10px]");
+  expect(detachedUserContentHeader.className).toContain("pl-[6px]");
+}
+
 function expectDetachedUserFieldChrome({
   detachedUserContentFrame,
+  detachedUserContentHeader,
   detachedUserEmbeddedHeader,
   detachedUserEmbeddedShell,
   detachedUserPromptShell,
@@ -198,6 +215,7 @@ function expectDetachedUserFieldChrome({
   detachedUserTextarea,
 }: {
   detachedUserContentFrame: HTMLElement;
+  detachedUserContentHeader: HTMLElement;
   detachedUserEmbeddedHeader: HTMLElement;
   detachedUserEmbeddedShell: HTMLElement;
   detachedUserPromptShell: HTMLElement;
@@ -212,6 +230,7 @@ function expectDetachedUserFieldChrome({
   );
   expect(detachedUserContentFrame.className).toContain("bg-[#FBFBFB]");
   expect(detachedUserContentFrame.className).toContain("p-0");
+  expectDetachedUserContentHeaderSpacing(detachedUserContentHeader);
   expect(detachedUserEmbeddedShell.className).toContain("w-full");
   expect(detachedUserEmbeddedShell.className).toContain(
     "border-[rgba(0,0,0,0.05)]",
@@ -220,6 +239,11 @@ function expectDetachedUserFieldChrome({
   expect(detachedUserEmbeddedShell.className).toContain("gap-px");
   expect(detachedUserEmbeddedShell.className).toContain("px-[2px]");
   expect(detachedUserEmbeddedShell.className).toContain("pb-[2px]");
+  expect(detachedUserEmbeddedHeader.className).toContain("gap-1.5");
+  expect(detachedUserEmbeddedHeader.className).toContain("ml-[2px]");
+  expect(detachedUserEmbeddedHeader.firstElementChild?.className).toContain(
+    "ml-[3px]",
+  );
   expect(detachedUserEmbeddedShell.className).toContain(
     "[--embedded-prompt-radius:calc(var(--embedded-prompt-outer-radius)-var(--embedded-prompt-padding))]",
   );
@@ -297,8 +321,10 @@ function expectDetachedUserRowShell({
   expect(detachedUserCompactButton.className).toContain("w-7");
   expect(detachedUserCompactButton.getAttribute("aria-pressed")).toBe("false");
   expect(
-    detachedUserHeader?.lastElementChild?.lastElementChild?.firstElementChild,
-  ).toBe(detachedUserCompactButton);
+    detachedUserHeader?.lastElementChild?.lastElementChild?.contains(
+      detachedUserCompactButton,
+    ),
+  ).toBe(true);
   expect(detachedUserHeader?.className).toContain("justify-between");
   expect(detachedUserHeader?.textContent).toContain("User");
 }

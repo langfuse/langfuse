@@ -1,6 +1,10 @@
 import type { FormEvent, MouseEvent } from "react";
 import { useRouter } from "next/router";
 import { Mail } from "lucide-react";
+import {
+  preventInertOnboardingClick,
+  SpielwieseOnboardingFooter,
+} from "./SpielwieseOnboardingFooter";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import {
@@ -25,8 +29,6 @@ const signUpButtonClassName =
   "inline-flex items-center justify-center text-sm/5 font-medium tracking-[-0.01em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(78,140,252)]";
 const signUpSecondaryButtonClassName = `${signUpButtonClassName} h-10 w-full gap-1.5 rounded-[10px] bg-white px-3 text-[rgb(36,37,41)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0),0_0_2px_0_rgba(28,40,64,0.18),0_1px_3px_0_rgba(24,41,75,0.04)] hover:bg-[rgb(248,249,250)] active:scale-[0.985]`;
 const signUpPrimaryButtonClassName = `${signUpButtonClassName} h-8 w-full rounded-[9px] bg-[rgb(38,109,240)] px-3 text-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(38,109,240,0.12),0_3px_6px_-2px_rgba(38,109,240,0.08)] hover:bg-[rgb(46,117,248)] active:scale-[0.985]`;
-const signUpFooterButtonClassName =
-  "text-[0.75rem]/4 font-medium tracking-[-0.01em] text-[rgba(0,0,0,0.55)] transition-colors hover:text-[rgba(0,0,0,0.72)]";
 
 function createNavigationSubmitHandler(
   navigate: () => Promise<boolean> | void,
@@ -170,41 +172,6 @@ function SignUpWelcomePanel({ isActive }: { isActive: boolean }) {
   );
 }
 
-function SignUpFooter() {
-  return (
-    <footer className="flex w-full justify-center">
-      <ul
-        className="flex flex-wrap items-center justify-center gap-5"
-        role="list"
-      >
-        <li>
-          <button className={signUpFooterButtonClassName} type="button">
-            © 2022-2026 Langfuse GmbH / Finto Technologies Inc.
-          </button>
-        </li>
-        <li>
-          <button
-            className={signUpFooterButtonClassName}
-            onClick={preventDummyClick}
-            type="button"
-          >
-            Privacy Policy
-          </button>
-        </li>
-        <li>
-          <button
-            className={signUpFooterButtonClassName}
-            onClick={preventDummyClick}
-            type="button"
-          >
-            Support
-          </button>
-        </li>
-      </ul>
-    </footer>
-  );
-}
-
 function getEntryContentClassName(isActive: boolean) {
   return [
     "absolute inset-0 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
@@ -227,9 +194,11 @@ export default function SpielwieseOnboardingEntryCard({
 
   return (
     <SpielwieseOnboardingSurface
-      footer={<SignUpFooter />}
+      footer={<SpielwieseOnboardingFooter />}
       header={
-        <SpielwieseOnboardingWordmarkButton onClick={preventDummyClick} />
+        <SpielwieseOnboardingWordmarkButton
+          onClick={preventInertOnboardingClick}
+        />
       }
       pauseShaderMotion={isPersonalDetails}
       showShader

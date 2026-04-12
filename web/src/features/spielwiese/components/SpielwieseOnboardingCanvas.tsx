@@ -1,25 +1,33 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { Button } from "../ui/button";
-import type { SpielwieseDashboardVM } from "../types/dashboard";
-import { SpielwieseCanvasPane } from "./SpielwieseCanvasPane";
+import {
+  preventInertOnboardingClick,
+  SpielwieseOnboardingFooter,
+} from "./SpielwieseOnboardingFooter";
+import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
+import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
+import { getOnboardingEntryTextMotionClassName } from "./spielwieseOnboardingEntryMotion";
+import {
+  onboardingDetailsPrimaryButtonClassName,
+  onboardingDetailsSecondaryButtonClassName,
+} from "./spielwieseOnboardingPersonalDetailsOptions";
 import {
   EMPTY_ONBOARDING_ANSWERS,
   getActiveOnboardingStepIndex,
-  getOnboardingCompletionCount,
   getSpielwieseDashboardPath,
   getOnboardingStepPath,
-  getOnboardingSummary,
   ONBOARDING_QUESTIONS,
-  type OnboardingAnswers,
 } from "./spielwieseOnboardingFlow";
-import { useSpielwieseEditableCanvas } from "./useSpielwieseEditableCanvas";
+import { onboardingStepCopy } from "./spielwieseOnboardingStepCopy";
 
 type SpielwieseOnboardingCanvasProps = {
-  canvas: SpielwieseDashboardVM["canvas"];
-  onboardingCanvas: NonNullable<SpielwieseDashboardVM["onboardingCanvas"]>;
   requestedStepId?: string;
 };
+
+const onboardingQuestionPanelClassName =
+  "flex min-h-[22rem] flex-col bg-white px-6 py-12 sm:px-10 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]";
+const onboardingSupportPanelClassName =
+  "flex min-h-[22rem] bg-white px-8 py-14 sm:px-12 sm:py-16 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]";
 
 function ChoiceButton({
   isSelected,
@@ -32,120 +40,78 @@ function ChoiceButton({
 }) {
   return (
     <button
-      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+      aria-pressed={isSelected}
+      className={[
+        "inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-[10px] px-3 py-3 text-left text-sm/5 font-medium tracking-[-0.01em] transition-[background-color,box-shadow,transform,color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(78,140,252)] active:scale-[0.985]",
         isSelected
-          ? "border-foreground/15 bg-foreground text-background"
-          : "border-border bg-background hover:bg-muted"
-      }`}
+          ? "bg-[rgb(244,248,255)] text-[rgb(36,37,41)] shadow-[inset_0_0_0_1px_rgba(38,109,240,0.48),0_0_2px_0_rgba(28,40,64,0.18),0_1px_3px_0_rgba(24,41,75,0.04)]"
+          : "bg-white text-[rgb(36,37,41)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0),0_0_2px_0_rgba(28,40,64,0.18),0_1px_3px_0_rgba(24,41,75,0.04)] hover:bg-[rgb(248,249,250)]",
+      ].join(" ")}
       onClick={onClick}
       type="button"
     >
-      {label}
+      <span>{label}</span>
+      <span
+        aria-hidden="true"
+        className={[
+          "size-4 rounded-full border transition-colors",
+          isSelected
+            ? "border-[rgb(38,109,240)] bg-[rgb(38,109,240)] shadow-[inset_0_0_0_3px_rgb(244,248,255)]"
+            : "border-[rgb(201,205,212)] bg-white",
+        ].join(" ")}
+      />
     </button>
   );
 }
 
-function OnboardingIntro({ greeting }: { greeting: string }) {
+function OnboardingQuestionIntro({
+  activeStepIndex,
+  prompt,
+}: {
+  activeStepIndex: number;
+  prompt: string;
+}) {
   return (
-    <div className="pb-6 sm:pb-8">
-      <h1
-        className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl"
-        data-testid="spielwiese-onboarding-greeting"
+    <div className="grid gap-3">
+      <p
+        className={`text-[0.75rem]/4 font-medium tracking-[0.2em] text-[rgba(0,0,0,0.55)] uppercase ${getOnboardingEntryTextMotionClassName(true, 0)}`}
+        data-testid="spielwiese-onboarding-step-label"
       >
-        {greeting}
+        Question {activeStepIndex + 1} of {ONBOARDING_QUESTIONS.length}
+      </p>
+      <h1
+        className={`text-[1.75rem]/[2.1rem] font-semibold tracking-[-0.04em] text-[rgb(36,37,41)] sm:text-[2rem]/[2.35rem] ${getOnboardingEntryTextMotionClassName(true, 50)}`}
+      >
+        {prompt}
       </h1>
-      <p className="text-muted-foreground mt-3 text-base text-pretty">
-        Move through the questions one by one while the room stays in view.
+      <p
+        className={`text-sm/5 font-medium tracking-[-0.01em] text-[rgb(80,81,84)] ${getOnboardingEntryTextMotionClassName(true, 100)}`}
+      >
+        Pick the closest answer. We can tune the room from there.
       </p>
     </div>
   );
 }
 
-function OnboardingCanvasPreview({
-  canvas,
+function OnboardingQuestionChoices({
+  activeAnswer,
+  options,
+  onSelect,
 }: {
-  canvas: SpielwieseDashboardVM["canvas"];
+  activeAnswer: string;
+  onSelect: (value: string) => void;
+  options: readonly string[];
 }) {
-  const editableCanvas = useSpielwieseEditableCanvas(canvas);
-
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
-      data-testid="spielwiese-onboarding-upper-canvas"
+      className={getOnboardingEntryTextMotionClassName(true, 150)}
+      data-testid="spielwiese-onboarding-options"
+      role="group"
     >
-      <SpielwieseCanvasPane
-        className="h-full"
-        nodes={editableCanvas.nodes}
-        onAgentNodeInsert={editableCanvas.onAgentNodeInsert}
-        onPromptSectionChange={editableCanvas.onPromptSectionChange}
-        onPromptSectionDelete={editableCanvas.onPromptSectionDelete}
-        onPromptSectionInsert={editableCanvas.onPromptSectionInsert}
-        onPromptSectionMove={editableCanvas.onPromptSectionMove}
-        onSettingValueChange={editableCanvas.onSettingValueChange}
-        onTitleChange={editableCanvas.onTitleChange}
-      />
-    </div>
-  );
-}
-
-function OnboardingProgress({ stepIndex }: { stepIndex: number }) {
-  const progressValue = stepIndex + 1;
-  const progressPercent = (progressValue / ONBOARDING_QUESTIONS.length) * 100;
-
-  return (
-    <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <p
-          className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase"
-          data-testid="spielwiese-onboarding-step-label"
-        >
-          Question {progressValue} of {ONBOARDING_QUESTIONS.length}
-        </p>
-        <p className="text-muted-foreground text-xs font-medium">
-          {progressPercent}%
-        </p>
-      </div>
-      <div
-        aria-label="Onboarding progress"
-        aria-valuemax={ONBOARDING_QUESTIONS.length}
-        aria-valuemin={1}
-        aria-valuenow={progressValue}
-        className="bg-border/70 h-1.5 overflow-hidden rounded-full"
-        data-testid="spielwiese-onboarding-progress"
-        role="progressbar"
-      >
-        <div
-          className="bg-foreground/80 h-full rounded-full transition-[width] duration-200"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function OnboardingQuestion({
-  answer,
-  onSelect,
-  stepIndex,
-}: {
-  answer: string;
-  onSelect: (value: string) => void;
-  stepIndex: number;
-}) {
-  const question = ONBOARDING_QUESTIONS[stepIndex];
-
-  return (
-    <div className="grid gap-5">
-      <div className="grid gap-2">
-        <OnboardingProgress stepIndex={stepIndex} />
-        <h2 className="text-xl font-semibold tracking-tight text-balance sm:text-2xl">
-          {question.prompt}
-        </h2>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {question.options.map((option) => (
+      <div className="grid gap-3">
+        {options.map((option) => (
           <ChoiceButton
-            isSelected={answer === option}
+            isSelected={activeAnswer === option}
             key={option}
             label={option}
             onClick={() => onSelect(option)}
@@ -156,105 +122,129 @@ function OnboardingQuestion({
   );
 }
 
-function OnboardingNavigation({
+function OnboardingQuestionActions({
   activeAnswer,
   activeStepIndex,
-  answers,
   onBack,
   onContinue,
 }: {
   activeAnswer: string;
   activeStepIndex: number;
-  answers: OnboardingAnswers;
   onBack: () => void;
   onContinue: () => void;
 }) {
   const isFirstStep = activeStepIndex === 0;
   const isLastStep = activeStepIndex === ONBOARDING_QUESTIONS.length - 1;
-  const completionCount = getOnboardingCompletionCount(answers);
 
   return (
-    <div className="border-border/70 mt-auto flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-      <p
-        className="text-muted-foreground text-sm text-pretty"
-        data-testid="spielwiese-onboarding-summary"
+    <div
+      className={`flex items-center gap-3 ${isFirstStep ? "justify-end" : "justify-between"} ${getOnboardingEntryTextMotionClassName(true, 200)}`}
+    >
+      {!isFirstStep ? (
+        <button
+          className={`${onboardingDetailsSecondaryButtonClassName} w-auto px-4`}
+          onClick={onBack}
+          type="button"
+        >
+          Back
+        </button>
+      ) : null}
+      <button
+        className={`${onboardingDetailsPrimaryButtonClassName} w-auto min-w-[8.5rem] px-4 disabled:pointer-events-none disabled:opacity-40`}
+        disabled={!activeAnswer}
+        onClick={onContinue}
+        type="button"
       >
-        {getOnboardingSummary(answers)}
-      </p>
-      <div className="flex items-center gap-2 self-end sm:self-auto">
-        {!isFirstStep ? (
-          <Button onClick={onBack} size="lg" variant="ghost">
-            Back
-          </Button>
-        ) : null}
-        <Button disabled={!activeAnswer} onClick={onContinue} size="lg">
-          {isLastStep
-            ? "Open dashboard"
-            : `Continue ${completionCount + 1}/${ONBOARDING_QUESTIONS.length}`}
-        </Button>
-      </div>
+        {isLastStep ? "Open dashboard" : "Continue"}
+      </button>
     </div>
   );
 }
 
-function OnboardingCanvasFrame({
+function OnboardingQuestionPanel({
   activeAnswer,
   activeStepIndex,
-  answers,
-  canvas,
-  greeting,
   onBack,
   onContinue,
   onSelect,
 }: {
   activeAnswer: string;
   activeStepIndex: number;
-  answers: OnboardingAnswers;
-  canvas: SpielwieseDashboardVM["canvas"];
-  greeting: string;
   onBack: () => void;
   onContinue: () => void;
   onSelect: (value: string) => void;
 }) {
+  const activeQuestion = ONBOARDING_QUESTIONS[activeStepIndex];
+
   return (
-    <section
-      className="@container flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-      data-testid="spielwiese-onboarding-canvas"
-    >
-      <div className="flex h-full w-full min-w-0 flex-col px-3 pt-10 pb-0 sm:px-5 sm:pt-14">
-        <div className="mx-auto w-full max-w-[48rem]">
-          <OnboardingIntro greeting={greeting} />
+    <div className={onboardingQuestionPanelClassName}>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="grid w-full max-w-[23.25rem] gap-7">
+          <OnboardingQuestionIntro
+            activeStepIndex={activeStepIndex}
+            prompt={activeQuestion.prompt}
+          />
+          <OnboardingQuestionChoices
+            activeAnswer={activeAnswer}
+            onSelect={onSelect}
+            options={activeQuestion.options}
+          />
+          <OnboardingQuestionActions
+            activeAnswer={activeAnswer}
+            activeStepIndex={activeStepIndex}
+            onBack={onBack}
+            onContinue={onContinue}
+          />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pb-4">
-          <div
-            className="border-border bg-card/35 mx-auto flex min-h-[18rem] w-full max-w-[48rem] flex-col gap-6 rounded-t-lg border px-6 py-8 text-base sm:min-h-[22rem] sm:px-10"
-            data-testid="spielwiese-onboarding-questionnaire"
+      </div>
+    </div>
+  );
+}
+
+function OnboardingSupportPanel({
+  activeAnswer,
+  activeStepIndex,
+}: {
+  activeAnswer: string;
+  activeStepIndex: number;
+}) {
+  const activeQuestion = ONBOARDING_QUESTIONS[activeStepIndex];
+  const copy = onboardingStepCopy[activeQuestion.id];
+
+  return (
+    <div className={onboardingSupportPanelClassName}>
+      <div className="flex items-center">
+        <div className="grid max-w-[24.5rem] translate-y-[4px] gap-4">
+          <p
+            className={`text-[0.75rem]/4 font-medium tracking-[0.2em] text-[rgba(0,0,0,0.45)] uppercase ${getOnboardingEntryTextMotionClassName(true, 50)}`}
           >
-            <OnboardingQuestion
-              answer={activeAnswer}
-              onSelect={onSelect}
-              stepIndex={activeStepIndex}
-            />
-            <OnboardingNavigation
-              activeAnswer={activeAnswer}
-              activeStepIndex={activeStepIndex}
-              answers={answers}
-              onBack={onBack}
-              onContinue={onContinue}
-            />
-          </div>
-          <div className="mx-auto flex min-h-0 w-full max-w-[1000px] flex-1">
-            <OnboardingCanvasPreview canvas={canvas} />
+            {copy.eyebrow}
+          </p>
+          <h2
+            className={`max-w-[17ch] text-[1.5rem]/7 font-semibold tracking-[-0.02em] text-balance text-[rgb(36,37,41)] ${getOnboardingEntryTextMotionClassName(true, 100)}`}
+          >
+            {copy.title}
+          </h2>
+          <p
+            className={`text-sm/5 font-medium tracking-[-0.01em] text-pretty text-[rgb(80,81,84)] ${getOnboardingEntryTextMotionClassName(true, 150)}`}
+          >
+            {copy.body}
+          </p>
+          <div className={getOnboardingEntryTextMotionClassName(true, 200)}>
+            <div className="inline-flex items-center gap-2 rounded-full bg-[rgb(248,249,250)] px-3 py-1.5 text-[0.75rem]/4 font-medium tracking-[-0.01em] text-[rgb(80,81,84)] shadow-[inset_0_0_0_1px_rgb(238,239,241)]">
+              <span>Current answer</span>
+              <span className="text-[rgb(36,37,41)]">
+                {activeAnswer || "Not chosen yet"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
 export function SpielwieseOnboardingCanvas({
-  canvas,
-  onboardingCanvas,
   requestedStepId,
 }: SpielwieseOnboardingCanvasProps) {
   const router = useRouter();
@@ -296,15 +286,27 @@ export function SpielwieseOnboardingCanvas({
   };
 
   return (
-    <OnboardingCanvasFrame
-      activeAnswer={activeAnswer}
-      activeStepIndex={activeStepIndex}
-      answers={answers}
-      canvas={canvas}
-      greeting={onboardingCanvas.greeting}
-      onBack={handleBack}
-      onContinue={handleContinue}
-      onSelect={handleSelect}
-    />
+    <SpielwieseOnboardingSurface
+      footer={<SpielwieseOnboardingFooter />}
+      header={
+        <SpielwieseOnboardingWordmarkButton
+          onClick={preventInertOnboardingClick}
+        />
+      }
+      showShader
+      testId="spielwiese-onboarding-step"
+    >
+      <OnboardingQuestionPanel
+        activeAnswer={activeAnswer}
+        activeStepIndex={activeStepIndex}
+        onBack={handleBack}
+        onContinue={handleContinue}
+        onSelect={handleSelect}
+      />
+      <OnboardingSupportPanel
+        activeAnswer={activeAnswer}
+        activeStepIndex={activeStepIndex}
+      />
+    </SpielwieseOnboardingSurface>
   );
 }

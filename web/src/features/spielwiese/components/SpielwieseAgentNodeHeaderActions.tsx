@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Maximize2, Minimize2 } from "lucide-react";
+import { Archive, Eye, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
@@ -12,37 +12,53 @@ type SpielwieseAgentNodeHeaderActionsProps = {
   isCompact: boolean;
   isPreviewFocused: boolean;
   nodeId: string;
+  onArchiveNode: () => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
   onTogglePreviewFocus: () => void;
   onToggleCompact: () => void;
 };
 
-const headerActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`;
+export const spielwieseHeaderActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`;
 
-export function SpielwieseAgentNodeHeaderActions({
+type SpielwieseNodeActionButtonsProps = {
+  archiveButtonLabel?: string;
+  compactButtonLabel?: string;
+  containerTestId?: string;
+  isCompact: boolean;
+  isPreviewFocused: boolean;
+  onArchiveNode: () => void;
+  onPreviewHoverEnd?: () => void;
+  onPreviewHoverStart?: () => void;
+  onTogglePreviewFocus?: () => void;
+  onToggleCompact: () => void;
+  previewButtonLabel?: string;
+};
+
+export function SpielwieseNodeActionButtons({
+  archiveButtonLabel = "Archive node",
+  compactButtonLabel = "Toggle compact state",
+  containerTestId,
   isCompact,
   isPreviewFocused,
-  nodeId,
-  onPreviewHoverEnd,
-  onPreviewHoverStart,
-  onTogglePreviewFocus,
+  onArchiveNode,
+  onPreviewHoverEnd = () => {},
+  onPreviewHoverStart = () => {},
+  onTogglePreviewFocus = () => {},
   onToggleCompact,
-}: SpielwieseAgentNodeHeaderActionsProps) {
+  previewButtonLabel = "Preview node",
+}: SpielwieseNodeActionButtonsProps) {
   const HeaderToggleIcon = isCompact ? Maximize2 : Minimize2;
-  const headerToggleLabel = `${
-    isCompact ? "Maximize" : "Minimize"
-  } ${nodeId} node sections`;
 
   return (
     <div
       className="flex shrink-0 items-center gap-1"
-      data-testid="spielwiese-agent-node-header-actions"
+      data-testid={containerTestId}
     >
       <Button
-        aria-label={headerToggleLabel}
+        aria-label={compactButtonLabel}
         aria-pressed={isCompact}
-        className={headerActionButtonClassName}
+        className={spielwieseHeaderActionButtonClassName}
         size="icon-sm"
         type="button"
         variant="ghost"
@@ -51,10 +67,10 @@ export function SpielwieseAgentNodeHeaderActions({
         <HeaderToggleIcon className="size-3.5" />
       </Button>
       <Button
-        aria-label={`Preview ${nodeId} node`}
+        aria-label={previewButtonLabel}
         aria-pressed={isPreviewFocused}
         className={cn(
-          headerActionButtonClassName,
+          spielwieseHeaderActionButtonClassName,
           isPreviewFocused && spielwieseHeaderButtonAccentClassName,
         )}
         size="icon-sm"
@@ -70,6 +86,48 @@ export function SpielwieseAgentNodeHeaderActions({
       >
         <Eye className="size-3.5" />
       </Button>
+      <Button
+        aria-label={archiveButtonLabel}
+        className={spielwieseHeaderActionButtonClassName}
+        size="icon-sm"
+        type="button"
+        variant="ghost"
+        onClick={onArchiveNode}
+      >
+        <Archive className="size-3.5" />
+      </Button>
     </div>
+  );
+}
+
+// eslint-disable-next-line max-lines-per-function
+export function SpielwieseAgentNodeHeaderActions({
+  isCompact,
+  isPreviewFocused,
+  nodeId,
+  onArchiveNode,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
+  onTogglePreviewFocus,
+  onToggleCompact,
+}: SpielwieseAgentNodeHeaderActionsProps) {
+  const headerToggleLabel = `${
+    isCompact ? "Maximize" : "Minimize"
+  } ${nodeId} node sections`;
+
+  return (
+    <SpielwieseNodeActionButtons
+      archiveButtonLabel={`Archive ${nodeId} node`}
+      compactButtonLabel={headerToggleLabel}
+      containerTestId="spielwiese-agent-node-header-actions"
+      isCompact={isCompact}
+      isPreviewFocused={isPreviewFocused}
+      onArchiveNode={onArchiveNode}
+      onPreviewHoverEnd={onPreviewHoverEnd}
+      onPreviewHoverStart={onPreviewHoverStart}
+      onToggleCompact={onToggleCompact}
+      onTogglePreviewFocus={onTogglePreviewFocus}
+      previewButtonLabel={`Preview ${nodeId} node`}
+    />
   );
 }

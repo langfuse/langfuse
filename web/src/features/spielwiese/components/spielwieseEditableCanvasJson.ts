@@ -15,6 +15,10 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function isSetting(
   value: unknown,
 ): value is EditableCanvasNode["settings"][number] {
@@ -54,6 +58,14 @@ function isThinkingStep(
   );
 }
 
+function hasValidThinkingMetrics(value: Record<string, unknown>) {
+  return (
+    (value.reasonedSteps === undefined || isNumber(value.reasonedSteps)) &&
+    (value.thinkingTokens === undefined || isNumber(value.thinkingTokens)) &&
+    (value.toolCalls === undefined || isNumber(value.toolCalls))
+  );
+}
+
 function isThinking(
   value: unknown,
 ): value is NonNullable<EditableCanvasNode["playgroundThinking"]> {
@@ -61,6 +73,7 @@ function isThinking(
     isRecord(value) &&
     isString(value.summary) &&
     isString(value.title) &&
+    hasValidThinkingMetrics(value) &&
     Array.isArray(value.steps) &&
     value.steps.every(isThinkingStep)
   );

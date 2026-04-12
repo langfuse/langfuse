@@ -9,7 +9,12 @@ import {
 } from "./SpielwiesePromptDeckCardChrome";
 
 type SpielwieseDetachedUserDeckRegionProps = {
+  isCompact: boolean;
+  isPreviewFocused: boolean;
   node: SpielwieseAgentNodeVM;
+  onAgentNodeArchive: (nodeId: string) => void;
+  onPreviewHoverEnd: () => void;
+  onPreviewHoverStart: () => void;
   onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
   onPromptSectionInsert: (
     nodeId: string,
@@ -25,6 +30,8 @@ type SpielwieseDetachedUserDeckRegionProps = {
     sectionId: string,
     direction: "up" | "down",
   ) => void;
+  onToggleCompact: () => void;
+  onTogglePreviewFocus: () => void;
   toolOptions: SpielwieseToolOption[];
 };
 
@@ -34,11 +41,18 @@ type SpielwieseDetachedUserCardProps = SpielwieseDetachedUserDeckRegionProps & {
 
 function SpielwieseDetachedUserCard({
   cardTestId,
+  isCompact,
+  isPreviewFocused,
   node,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
   toolOptions,
 }: SpielwieseDetachedUserCardProps) {
   return (
@@ -53,11 +67,18 @@ function SpielwieseDetachedUserCard({
         <SpielwieseAgentNodePromptSections
           className="pt-0 pb-0"
           includeKinds={["user"]}
+          isCompact={isCompact}
+          isPreviewFocused={isPreviewFocused}
           nodeId={node.id}
+          onAgentNodeArchive={onAgentNodeArchive}
+          onPreviewHoverEnd={onPreviewHoverEnd}
+          onPreviewHoverStart={onPreviewHoverStart}
           onPromptSectionDelete={onPromptSectionDelete}
           onPromptSectionInsert={onPromptSectionInsert}
           onPromptSectionChange={onPromptSectionChange}
           onPromptSectionMove={onPromptSectionMove}
+          onToggleCompact={onToggleCompact}
+          onTogglePreviewFocus={onTogglePreviewFocus}
           promptSections={node.promptSections}
           showInsertRow={false}
           toolOptions={toolOptions}
@@ -81,11 +102,18 @@ function useDetachedUserCardNavigationVisibilityState() {
 }
 
 export function SpielwieseDetachedUserDeckRegion({
+  isCompact,
+  isPreviewFocused,
   node,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
   toolOptions,
 }: SpielwieseDetachedUserDeckRegionProps) {
   const [activeView, setActiveView] = useState<"primary" | "secondary">(
@@ -93,11 +121,18 @@ export function SpielwieseDetachedUserDeckRegion({
   );
   const interactionState = useDetachedUserCardNavigationVisibilityState();
   const sharedCardProps = {
+    isCompact,
+    isPreviewFocused,
     node,
+    onAgentNodeArchive,
+    onPreviewHoverEnd,
+    onPreviewHoverStart,
     onPromptSectionChange,
     onPromptSectionDelete,
     onPromptSectionInsert,
     onPromptSectionMove,
+    onToggleCompact,
+    onTogglePreviewFocus,
     toolOptions,
   };
 

@@ -22,7 +22,9 @@ export function SpielwieseEditorCanvas({
       data-testid="spielwiese-editor-canvas"
     >
       <SpielwieseCanvasPaneStack
+        insertAnchorNodeId={editableCanvas.insertAnchorNodeId}
         onNodesReplace={editableCanvas.onNodesReplace}
+        onAgentNodeArchive={editableCanvas.onAgentNodeArchive}
         onAgentNodeInsert={editableCanvas.onAgentNodeInsert}
         nodes={editableCanvas.nodes}
         onPromptSectionChange={editableCanvas.onPromptSectionChange}

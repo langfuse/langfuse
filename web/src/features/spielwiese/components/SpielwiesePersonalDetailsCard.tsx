@@ -106,7 +106,10 @@ function OnboardingDetailsField({
   placeholder?: string;
   value?: string;
 }) {
-  const motionClassName = getOnboardingEntryTextMotionClassName(isActive, delay);
+  const motionClassName = getOnboardingEntryTextMotionClassName(
+    isActive,
+    delay,
+  );
   const inputField = (
     <span
       className={`${onboardingDetailsFieldShellClassName} ${disabled ? "bg-[rgb(251,251,251)]" : ""} flex items-center`}

@@ -1,48 +1,99 @@
-import {
-  Bot,
-  Calculator,
-  MessageSquareText,
-  ScanSearch,
-  type LucideIcon,
-} from "lucide-react";
+import { UserRound } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import { PlaygroundThinkingCard } from "./SpielwiesePlaygroundThinkingCard";
 
-function getPlaygroundNodeKindIcon(kind: string): LucideIcon {
-  switch (kind) {
-    case "Classifier":
-      return ScanSearch;
-    case "Calculator":
-      return Calculator;
-    case "Responder":
-      return MessageSquareText;
-    default:
-      return Bot;
+type PlaygroundFlowHeaderTagEntry = {
+  currentModel?: string;
+  id: string;
+  kind: "agent" | "user";
+  title: string;
+};
+
+function getPlaygroundFlowHeaderTagEntries(
+  node: Pick<
+    SpielwieseAgentNodeVM,
+    "id" | "layout" | "promptSections" | "settings" | "title"
+  >,
+): PlaygroundFlowHeaderTagEntry[] {
+  const entries: PlaygroundFlowHeaderTagEntry[] = [];
+  const nodeLayout = node.layout ?? "composite";
+  const userSection = node.promptSections.find((section) =>
+    section.id.startsWith("user"),
+  );
+  const currentModel =
+    node.settings.find((setting) => setting.id === "model")?.value ?? undefined;
+
+  if (nodeLayout !== "agent-only") {
+    entries.push({
+      id: `${node.id}-user`,
+      kind: "user",
+      title: userSection?.label ?? "User",
+    });
   }
+
+  if (nodeLayout !== "user-only") {
+    entries.push({
+      currentModel,
+      id: `${node.id}-agent`,
+      kind: "agent",
+      title: node.title,
+    });
+  }
+
+  return entries;
 }
 
 function PlaygroundFlowNodeTag({
+  currentModel,
+  isActive,
   kind,
   title,
 }: {
-  kind: string;
+  currentModel?: string;
+  isActive: boolean;
+  kind: "agent" | "user";
   title: string;
 }) {
-  const Icon = getPlaygroundNodeKindIcon(kind);
-
   return (
     <div
-      className="bg-background text-foreground inline-flex h-7 max-w-full min-w-0 shrink-0 items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4"
+      className={cn(
+        "inline-flex h-7 max-w-full min-w-0 shrink-0 items-center overflow-hidden rounded-[10px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1",
+        isActive
+          ? "bg-background text-foreground border-[rgba(0,0,0,0.08)] ring-black/4"
+          : "text-foreground/72 border-[rgba(0,0,0,0.05)] bg-[rgba(247,247,247,0.92)] ring-black/[0.02]",
+      )}
+      data-state={isActive ? "active" : "inactive"}
       data-kind={kind}
       data-testid="spielwiese-playground-flow-node-tag"
     >
       <span
         aria-hidden="true"
-        className="flex h-full w-6 shrink-0 items-center justify-center border-r border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)]"
+        className={cn(
+          "flex h-full w-6 shrink-0 items-center justify-center border-r",
+          isActive
+            ? "border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)]"
+            : "border-[rgba(0,0,0,0.04)] bg-[rgba(0,0,0,0.015)]",
+        )}
       >
-        <Icon
-          className="text-foreground/70 size-3 shrink-0"
-          data-testid="spielwiese-playground-flow-kind-icon"
-        />
+        {kind === "agent" ? (
+          <SpielwieseModelProviderMark
+            className={cn(
+              "size-3 object-contain",
+              isActive ? "opacity-100" : "opacity-76",
+            )}
+            currentModel={currentModel}
+          />
+        ) : (
+          <UserRound
+            className={cn(
+              "size-3 shrink-0",
+              isActive ? "text-foreground/70" : "text-foreground/54",
+            )}
+            data-testid="spielwiese-playground-flow-user-icon"
+          />
+        )}
       </span>
       <span className="min-w-0 truncate px-2.5 text-[13px] font-medium tracking-[-0.01em]">
         {title}
@@ -51,35 +102,63 @@ function PlaygroundFlowNodeTag({
   );
 }
 
+function PlaygroundFlowNodeTagStrip({
+  activeTagId,
+  entries,
+}: {
+  activeTagId: string;
+  entries: PlaygroundFlowHeaderTagEntry[];
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-1 overflow-hidden"
+      data-testid="spielwiese-playground-flow-node-tag-strip"
+    >
+      {entries.map((entry) => (
+        <PlaygroundFlowNodeTag
+          currentModel={entry.currentModel}
+          isActive={entry.id === activeTagId}
+          key={entry.id}
+          kind={entry.kind}
+          title={entry.title}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PlaygroundFlowNodeHeader({
+  activeTagId,
   isThinkingDetailOpen,
   isThinking,
-  kind,
+  node,
+  thinkingMeta,
   onThinkingCardClick,
   thinkingSummary,
-  title,
 }: {
+  activeTagId: string;
   isThinkingDetailOpen: boolean;
   isThinking: boolean;
-  kind: string;
+  node: Pick<
+    SpielwieseAgentNodeVM,
+    "id" | "layout" | "promptSections" | "settings" | "title"
+  >;
+  thinkingMeta: Parameters<typeof PlaygroundThinkingCard>[0]["meta"];
   onThinkingCardClick: () => void;
   thinkingSummary: string;
-  title: string;
 }) {
+  const entries = getPlaygroundFlowHeaderTagEntries(node);
+
   return (
     <div
       className="flex w-full min-w-0 items-center gap-1.5 pt-[6px] pr-[6px] pb-[5px] pl-[6px]"
       data-testid="spielwiese-playground-flow-header-row"
     >
-      <div
-        className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
-        data-testid="spielwiese-playground-flow-node-leading"
-      >
-        <PlaygroundFlowNodeTag kind={kind} title={title} />
-      </div>
+      <PlaygroundFlowNodeTagStrip activeTagId={activeTagId} entries={entries} />
       <PlaygroundThinkingCard
         isDetailOpen={isThinkingDetailOpen}
         isVisible={isThinking}
+        meta={thinkingMeta}
         onClick={onThinkingCardClick}
         summary={thinkingSummary}
       />

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
@@ -9,9 +8,10 @@ import { SpielwieseFocusedAgentNodeModal } from "./SpielwieseFocusedAgentNodeMod
 import { SpielwieseAgentNodeItem } from "./SpielwieseAgentNodeItem";
 
 type SpielwieseAgentNodeStackProps = {
+  compactNodeIds: Record<string, boolean>;
   listClassName?: string;
   nodes: SpielwieseAgentNodeVM[];
-  onAgentNodeInsert: (nodeId: string, kind: "user" | "agent") => void;
+  onAgentNodeArchive: (nodeId: string) => void;
   onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
   onPromptSectionInsert: (
     nodeId: string,
@@ -32,6 +32,7 @@ type SpielwieseAgentNodeStackProps = {
     settingId: string,
     value: string,
   ) => void;
+  onToggleCompact: (nodeId: string) => void;
   onTitleChange: (nodeId: string, value: string) => void;
 };
 
@@ -40,7 +41,7 @@ type SpielwieseAgentNodeListProps = {
   compactNodeIds: Record<string, boolean>;
   focusMode: ReturnType<typeof useSpielwieseAgentNodeFocusMode>;
   nodes: SpielwieseAgentNodeVM[];
-  onAgentNodeInsert: SpielwieseAgentNodeStackProps["onAgentNodeInsert"];
+  onAgentNodeArchive: SpielwieseAgentNodeStackProps["onAgentNodeArchive"];
   onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseAgentNodeStackProps["onPromptSectionInsert"];
@@ -54,7 +55,7 @@ function renderAgentNodeItems({
   compactNodeIds,
   focusMode,
   nodes,
-  onAgentNodeInsert,
+  onAgentNodeArchive,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
@@ -69,9 +70,9 @@ function renderAgentNodeItems({
       isPreviewFocused={focusMode.focusedNodeId === node.id}
       isPreviewFocusHidden={focusMode.focusedNodeId === node.id}
       isPreviewSpotlighted={focusMode.hoveredPreviewNodeId === node.id}
-      key={node.id}
+      key={`${node.id}-${compactNodeIds[node.id] ? "compact" : "expanded"}`}
       node={node}
-      onAgentNodeInsert={onAgentNodeInsert}
+      onAgentNodeArchive={onAgentNodeArchive}
       onPreviewHoverEnd={() => focusMode.handlePreviewHoverEnd(node.id)}
       onPreviewHoverStart={() => focusMode.handlePreviewHoverStart(node.id)}
       onPromptSectionChange={onPromptSectionChange}
@@ -92,7 +93,7 @@ function SpielwieseAgentNodeList({
   compactNodeIds,
   focusMode,
   nodes,
-  onAgentNodeInsert,
+  onAgentNodeArchive,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
@@ -114,7 +115,7 @@ function SpielwieseAgentNodeList({
         compactNodeIds,
         focusMode,
         nodes,
-        onAgentNodeInsert,
+        onAgentNodeArchive,
         onPromptSectionChange,
         onPromptSectionDelete,
         onPromptSectionInsert,
@@ -128,26 +129,19 @@ function SpielwieseAgentNodeList({
 }
 
 export function SpielwieseAgentNodeStack({
+  compactNodeIds,
   listClassName,
   nodes,
-  onAgentNodeInsert,
+  onAgentNodeArchive,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
   onSettingValueChange,
+  onToggleCompact,
   onTitleChange,
 }: SpielwieseAgentNodeStackProps) {
-  const [compactNodeIds, setCompactNodeIds] = useState<Record<string, boolean>>(
-    {},
-  );
   const focusMode = useSpielwieseAgentNodeFocusMode(nodes);
-  const toggleCompact = (nodeId: string) => {
-    setCompactNodeIds((currentIds) => ({
-      ...currentIds,
-      [nodeId]: !currentIds[nodeId],
-    }));
-  };
 
   return (
     <>
@@ -156,14 +150,14 @@ export function SpielwieseAgentNodeStack({
         compactNodeIds={compactNodeIds}
         focusMode={focusMode}
         nodes={nodes}
-        onAgentNodeInsert={onAgentNodeInsert}
+        onAgentNodeArchive={onAgentNodeArchive}
         onPromptSectionChange={onPromptSectionChange}
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}
         onPromptSectionMove={onPromptSectionMove}
         onSettingValueChange={onSettingValueChange}
+        onToggleCompact={onToggleCompact}
         onTitleChange={onTitleChange}
-        onToggleCompact={toggleCompact}
       />
       <SpielwieseAgentNodePreviewSpotlight
         frame={focusMode.activePreviewSpotlightFrame}
@@ -171,13 +165,14 @@ export function SpielwieseAgentNodeStack({
       <SpielwieseFocusedAgentNodeModal
         compactNodeIds={compactNodeIds}
         focusMode={focusMode}
+        onAgentNodeArchive={onAgentNodeArchive}
         onPromptSectionChange={onPromptSectionChange}
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}
         onPromptSectionMove={onPromptSectionMove}
         onSettingValueChange={onSettingValueChange}
+        onToggleCompact={onToggleCompact}
         onTitleChange={onTitleChange}
-        onToggleCompact={toggleCompact}
       />
     </>
   );

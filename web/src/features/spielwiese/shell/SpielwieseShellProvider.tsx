@@ -9,6 +9,7 @@ import {
 import type { SpielwieseModelRecommendationTarget } from "../components/spielwieseModelRecommendationState";
 
 type SpielwieseShellContextValue = {
+  closeSidePanels: () => void;
   leftCollapsed: boolean;
   modelRecommendationTarget: SpielwieseModelRecommendationTarget | null;
   rightOpen: boolean;
@@ -75,6 +76,19 @@ function useResponsivePanelState() {
   return {
     closeMobilePanels: () =>
       closeMobilePanelsState(setMobileLeftOpen, setMobileRightOpen),
+    closeSidePanels: () => {
+      if (isDesktopViewport("(min-width: 768px)")) {
+        setLeftCollapsed(true);
+      } else {
+        setMobileLeftOpen(false);
+      }
+
+      if (isDesktopViewport("(min-width: 1280px)")) {
+        setRightOpen(false);
+      } else {
+        setMobileRightOpen(false);
+      }
+    },
     leftCollapsed,
     mobileLeftOpen,
     mobileRightOpen,
@@ -112,6 +126,7 @@ function useResponsivePanelState() {
 export function SpielwieseShellProvider({ children }: PropsWithChildren) {
   const {
     closeMobilePanels,
+    closeSidePanels,
     leftCollapsed,
     mobileLeftOpen,
     mobileRightOpen,
@@ -142,6 +157,7 @@ export function SpielwieseShellProvider({ children }: PropsWithChildren) {
       value={getShellContextValue({
         closeMobilePanels,
         closeModelRecommendation,
+        closeSidePanels,
         leftCollapsed,
         modelRecommendationTarget,
         mobileLeftOpen,

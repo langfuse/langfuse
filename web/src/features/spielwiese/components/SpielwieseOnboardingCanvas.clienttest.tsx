@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
-import { getSpielwieseDashboardVm } from "../adapters/dashboardVm";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
 
 jest.mock("next/router", () => ({
@@ -9,17 +8,10 @@ jest.mock("next/router", () => ({
 
 const mockedUseRouter = jest.mocked(useRouter);
 const push = jest.fn();
-const dashboard = getSpielwieseDashboardVm("assistant");
-const onboardingCanvas = dashboard.onboardingCanvas!;
-const canvas = dashboard.canvas;
 
 function renderOnboardingCanvas(requestedStepId?: string) {
   return render(
-    <SpielwieseOnboardingCanvas
-      canvas={canvas}
-      onboardingCanvas={onboardingCanvas}
-      requestedStepId={requestedStepId}
-    />,
+    <SpielwieseOnboardingCanvas requestedStepId={requestedStepId} />,
   );
 }
 
@@ -30,12 +22,9 @@ function expectVisibleQuestion({
   progressStep: number;
   prompt: string;
 }) {
-  expect(screen.getByText(`Question ${progressStep} of 3`)).toBeTruthy();
   expect(
-    screen
-      .getByRole("progressbar", { name: "Onboarding progress" })
-      .getAttribute("aria-valuenow"),
-  ).toBe(String(progressStep));
+    screen.getByTestId("spielwiese-onboarding-step-label").textContent,
+  ).toBe(`Question ${progressStep} of 3`);
   expect(screen.getByText(prompt)).toBeTruthy();
 }
 
@@ -47,25 +36,29 @@ describe("SpielwieseOnboardingCanvas setup", () => {
     } as ReturnType<typeof useRouter>);
   });
 
-  it("renders one onboarding question at a time above the live upper canvas", () => {
+  it("renders the first onboarding step as a simple centered yes or no question", () => {
     renderOnboardingCanvas("role");
 
-    expect(screen.getByTestId("spielwiese-onboarding-canvas")).toBeTruthy();
-    expect(screen.getByTestId("spielwiese-onboarding-greeting")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-onboarding-step")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
-      screen.getByTestId("spielwiese-onboarding-questionnaire"),
+      screen.getByRole("button", {
+        name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
+      }),
     ).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-onboarding-greeting")).toBeNull();
     expect(
-      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
-    ).toBeTruthy();
-    expect(
-      screen.queryByTestId("spielwiese-onboarding-placeholder"),
+      screen.queryByTestId("spielwiese-onboarding-questionnaire"),
     ).toBeNull();
-    expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
     expectVisibleQuestion({
       progressStep: 1,
-      prompt: "What describes you best?",
+      prompt: "Do you know what to build?",
     });
+    expect(screen.getByRole("button", { name: "Yes" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "No" })).toBeTruthy();
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
     expect(screen.queryByText("What should feel strongest first?")).toBeNull();
   });
@@ -79,10 +72,10 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
     } as ReturnType<typeof useRouter>);
   });
 
-  it("moves through the current questions and opens the canvas at the end", () => {
+  it("moves through the current questions and opens the dashboard at the end", () => {
     const { rerender } = renderOnboardingCanvas("role");
 
-    fireEvent.click(screen.getByRole("button", { name: "Builder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(push).toHaveBeenLastCalledWith(
       "/dev/spielwiese/onboarding/intent",
@@ -90,13 +83,7 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
       { shallow: true },
     );
 
-    rerender(
-      <SpielwieseOnboardingCanvas
-        canvas={canvas}
-        onboardingCanvas={onboardingCanvas}
-        requestedStepId="intent"
-      />,
-    );
+    rerender(<SpielwieseOnboardingCanvas requestedStepId="intent" />);
     expectVisibleQuestion({
       progressStep: 2,
       prompt: "Why are you opening this room?",
@@ -111,13 +98,7 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
       { shallow: true },
     );
 
-    rerender(
-      <SpielwieseOnboardingCanvas
-        canvas={canvas}
-        onboardingCanvas={onboardingCanvas}
-        requestedStepId="opening"
-      />,
-    );
+    rerender(<SpielwieseOnboardingCanvas requestedStepId="opening" />);
     expectVisibleQuestion({
       progressStep: 3,
       prompt: "What should feel strongest first?",

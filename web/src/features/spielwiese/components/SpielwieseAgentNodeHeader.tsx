@@ -27,6 +27,7 @@ type SpielwieseAgentNodeHeaderProps = {
   isPreviewFocused: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
+  onArchiveNode: () => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
   onTogglePreviewFocus: () => void;
@@ -240,6 +241,7 @@ function SpielwieseAgentNodeHeaderRow({
   isPreviewFocused,
   modelSetting,
   node,
+  onArchiveNode,
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onTogglePreviewFocus,
@@ -273,6 +275,7 @@ function SpielwieseAgentNodeHeaderRow({
         isCompact={isCompact}
         isPreviewFocused={isPreviewFocused}
         nodeId={node.id}
+        onArchiveNode={onArchiveNode}
         onPreviewHoverEnd={onPreviewHoverEnd}
         onPreviewHoverStart={onPreviewHoverStart}
         onTogglePreviewFocus={onTogglePreviewFocus}

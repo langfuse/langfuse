@@ -1,5 +1,4 @@
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { SpielwieseAgentNodeExternalInsertRow } from "./SpielwieseAgentNodeExternalInsertRow";
 import { SpielwieseDetachedUserDeckRegion } from "./SpielwieseDetachedUserDeckRegion";
 import { SpielwiesePrimaryAgentDeckRegion } from "./SpielwiesePrimaryAgentDeckRegion";
 import {
@@ -15,7 +14,7 @@ export type SpielwieseAgentNodeItemProps = {
   isPreviewFocusHidden: boolean;
   isPreviewSpotlighted: boolean;
   node: SpielwieseAgentNodeVM;
-  onAgentNodeInsert: (nodeId: string, kind: "user" | "agent") => void;
+  onAgentNodeArchive: (nodeId: string) => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
   onPromptSectionChange: (
@@ -45,27 +44,48 @@ export type SpielwieseAgentNodeItemProps = {
 };
 
 function AgentNodeDetachedUserDeck({
+  isCompact,
+  isPreviewFocused,
   node,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
   toolOptions,
 }: {
+  isCompact: boolean;
+  isPreviewFocused: boolean;
   node: SpielwieseAgentNodeVM;
+  onAgentNodeArchive: SpielwieseAgentNodeItemProps["onAgentNodeArchive"];
+  onPreviewHoverEnd: SpielwieseAgentNodeItemProps["onPreviewHoverEnd"];
+  onPreviewHoverStart: SpielwieseAgentNodeItemProps["onPreviewHoverStart"];
   onPromptSectionChange: SpielwieseAgentNodeItemProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseAgentNodeItemProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseAgentNodeItemProps["onPromptSectionInsert"];
   onPromptSectionMove: SpielwieseAgentNodeItemProps["onPromptSectionMove"];
+  onToggleCompact: SpielwieseAgentNodeItemProps["onToggleCompact"];
+  onTogglePreviewFocus: SpielwieseAgentNodeItemProps["onTogglePreviewFocus"];
   toolOptions: SpielwieseToolOption[];
 }) {
   return (
     <SpielwieseDetachedUserDeckRegion
+      isCompact={isCompact}
+      isPreviewFocused={isPreviewFocused}
       node={node}
+      onAgentNodeArchive={onAgentNodeArchive}
+      onPreviewHoverEnd={onPreviewHoverEnd}
+      onPreviewHoverStart={onPreviewHoverStart}
       onPromptSectionChange={onPromptSectionChange}
       onPromptSectionDelete={onPromptSectionDelete}
       onPromptSectionInsert={onPromptSectionInsert}
       onPromptSectionMove={onPromptSectionMove}
+      onToggleCompact={onToggleCompact}
+      onTogglePreviewFocus={onTogglePreviewFocus}
       toolOptions={toolOptions}
     />
   );
@@ -83,7 +103,7 @@ function getAgentNodeLayout(node: SpielwieseAgentNodeVM) {
 }
 
 function AgentNodePrimaryDeck(
-  props: Omit<SpielwieseAgentNodeItemProps, "onAgentNodeInsert"> & {
+  props: SpielwieseAgentNodeItemProps & {
     modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
     toolOptions: SpielwieseToolOption[];
   },
@@ -91,31 +111,15 @@ function AgentNodePrimaryDeck(
   return <SpielwiesePrimaryAgentDeckRegion {...props} />;
 }
 
-function AgentNodeInsertFooter({
-  nodeId,
-  onAgentNodeInsert,
-}: {
-  nodeId: string;
-  onAgentNodeInsert: SpielwieseAgentNodeItemProps["onAgentNodeInsert"];
-}) {
-  return (
-    <SpielwieseAgentNodeExternalInsertRow
-      nodeId={nodeId}
-      onAgentNodeInsert={onAgentNodeInsert}
-    />
-  );
-}
-
-type AgentNodeDecksProps = Omit<
-  SpielwieseAgentNodeItemProps,
-  "onAgentNodeInsert"
-> & {
+type AgentNodeDecksProps = SpielwieseAgentNodeItemProps & {
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   nodeLayout: ReturnType<typeof getAgentNodeLayout>;
   toolOptions: SpielwieseToolOption[];
 };
 
+// eslint-disable-next-line max-lines-per-function
 function AgentNodeDecks({
+  onAgentNodeArchive,
   isCompact,
   isPreviewFocused,
   isPreviewFocusHidden,
@@ -140,11 +144,24 @@ function AgentNodeDecks({
     <>
       {nodeLayout !== "agent-only" ? (
         <AgentNodeDetachedUserDeck
+          isCompact={isCompact}
+          isPreviewFocused={nodeLayout === "user-only" ? false : isPreviewFocused}
           node={node}
+          onAgentNodeArchive={onAgentNodeArchive}
+          onPreviewHoverEnd={
+            nodeLayout === "user-only" ? () => {} : onPreviewHoverEnd
+          }
+          onPreviewHoverStart={
+            nodeLayout === "user-only" ? () => {} : onPreviewHoverStart
+          }
           onPromptSectionChange={onPromptSectionChange}
           onPromptSectionDelete={onPromptSectionDelete}
           onPromptSectionInsert={onPromptSectionInsert}
           onPromptSectionMove={onPromptSectionMove}
+          onToggleCompact={onToggleCompact}
+          onTogglePreviewFocus={
+            nodeLayout === "user-only" ? () => {} : onTogglePreviewFocus
+          }
           toolOptions={toolOptions}
         />
       ) : null}
@@ -156,6 +173,7 @@ function AgentNodeDecks({
           isPreviewSpotlighted={isPreviewSpotlighted}
           modelSetting={modelSetting}
           node={node}
+          onAgentNodeArchive={onAgentNodeArchive}
           onPreviewHoverEnd={onPreviewHoverEnd}
           onPreviewHoverStart={onPreviewHoverStart}
           onPromptSectionChange={onPromptSectionChange}
@@ -180,7 +198,7 @@ export function SpielwieseAgentNodeItem({
   isPreviewFocusHidden,
   isPreviewSpotlighted,
   node,
-  onAgentNodeInsert,
+  onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onPromptSectionChange,
@@ -209,6 +227,7 @@ export function SpielwieseAgentNodeItem({
         modelSetting={modelSetting}
         node={node}
         nodeLayout={nodeLayout}
+        onAgentNodeArchive={onAgentNodeArchive}
         onPreviewHoverEnd={onPreviewHoverEnd}
         onPreviewHoverStart={onPreviewHoverStart}
         onPromptSectionChange={onPromptSectionChange}
@@ -221,10 +240,6 @@ export function SpielwieseAgentNodeItem({
         onToggleCompact={onToggleCompact}
         onTogglePreviewFocus={onTogglePreviewFocus}
         toolOptions={toolOptions}
-      />
-      <AgentNodeInsertFooter
-        nodeId={node.id}
-        onAgentNodeInsert={onAgentNodeInsert}
       />
     </li>
   );

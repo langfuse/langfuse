@@ -91,7 +91,7 @@ function EvaluationPaneHeader({
 }) {
   return (
     <div
-      className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[8px] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+      className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
       data-testid="spielwiese-evaluation-header-bar"
     >
       {headerAccessory ? (
@@ -174,24 +174,29 @@ export function SpielwieseEvaluationPane({
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0 pb-0"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-1 pb-0"
       data-testid="spielwiese-evaluation-pane"
     >
       <div
-        className="bg-background relative flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-4 pt-0 pb-[6px] shadow-xs after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+        className="flex min-h-0 flex-1 flex-col rounded-[var(--canvas-pane-outer-radius)] bg-[#F3F3F4] p-[var(--canvas-pane-shell-gap)] shadow-xs [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]"
         data-testid="spielwiese-evaluation-pane-shell"
-        ref={shellRef}
       >
-        <EvaluationPaneHeader headerAccessory={headerAccessory} />
-        <EvaluationPaneContent
-          activeStrategy={activeStrategy}
-          activeStrategyId={activeStrategyId}
-          nodes={nodes}
-          onRequestFit={onRequestFit}
-          setActiveStrategyId={setActiveStrategyId}
-          setStrategyConfigs={setStrategyConfigs}
-          strategyConfigs={strategyConfigs}
-        />
+        <div
+          className="bg-background relative flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[var(--canvas-pane-inner-radius)] px-4 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+          data-testid="spielwiese-evaluation-pane-surface"
+          ref={shellRef}
+        >
+          <EvaluationPaneHeader headerAccessory={headerAccessory} />
+          <EvaluationPaneContent
+            activeStrategy={activeStrategy}
+            activeStrategyId={activeStrategyId}
+            nodes={nodes}
+            onRequestFit={onRequestFit}
+            setActiveStrategyId={setActiveStrategyId}
+            setStrategyConfigs={setStrategyConfigs}
+            strategyConfigs={strategyConfigs}
+          />
+        </div>
       </div>
     </div>
   );

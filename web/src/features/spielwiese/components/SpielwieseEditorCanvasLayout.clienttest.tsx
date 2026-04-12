@@ -19,6 +19,9 @@ function getLayoutShellElements() {
     editorModeToggle: within(editorModeHeader).getByTestId(
       "spielwiese-canvas-editor-mode-toggle",
     ),
+    editorNodeInsertFooter: screen.getByTestId(
+      "spielwiese-agent-node-insert-footer",
+    ),
     editorNodeStack: screen.getByTestId("spielwiese-agent-node-stack"),
     editorPane: screen.getByTestId("spielwiese-editor-canvas-pane"),
     editorPaneShell: screen.getByTestId("spielwiese-editor-canvas-pane-shell"),
@@ -45,7 +48,7 @@ function expectLayoutShellChrome({
   expect(widget.className).toContain("flex-1");
   expect(editorPane.className).toContain("bg-[#F3F3F4]");
   expect(editorPane.className).toContain("px-0");
-  expect(editorPane.className).toContain("pb-2");
+  expect(editorPane.className).toContain("pb-1");
   expect(editorPane.className).not.toContain("pt-2");
   expect(editorPane.className).not.toContain("px-2");
   expect(editorPane.className).not.toContain("border-x");
@@ -62,8 +65,7 @@ function expectLayoutShellChrome({
     "rounded-[var(--canvas-pane-outer-radius)]",
   );
   expect(editorPaneShell.className).toContain("bg-[#F3F3F4]");
-  expect(editorPaneShell.className).toContain("overflow-y-auto");
-  expect(editorPaneShell.className).toContain("overflow-x-hidden");
+  expect(editorPaneShell.className).toContain("overflow-hidden");
   expect(editorPaneShell.className).toContain(
     "p-[var(--canvas-pane-shell-gap)]",
   );
@@ -80,6 +82,7 @@ function expectLayoutShellChrome({
 function expectLayoutAccessories({
   editorModeHeader,
   editorModeToggle,
+  editorNodeInsertFooter,
   editorNodeStack,
   nodes,
   resizeHandle,
@@ -93,7 +96,10 @@ function expectLayoutAccessories({
   expect(editorNodeStack.className).not.toContain("overflow-y-auto");
   expect(editorNodeStack.className).toContain("pt-2");
   expect(editorNodeStack.className).toContain("pb-2");
+  expect(editorNodeInsertFooter.className).toContain("flex-none");
+  expect(editorNodeInsertFooter.className).toContain("pb-2");
   expect(simulationPane.className).toContain("px-0");
+  expect(simulationPane.className).toContain("pt-1");
   expect(simulationPane.className).toContain("pb-0");
   expect(simulationPane.className).not.toContain("px-2");
   expect(simulationPane.className).not.toContain("border-t-0");

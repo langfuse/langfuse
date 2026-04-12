@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 "use client";
 
 import { useState } from "react";
@@ -15,6 +16,7 @@ import {
 import { getPromptSectionLabel } from "./spielwiesePromptSectionLabels";
 
 type EditableCanvasState = {
+  archivedNodeIds: string[];
   sourceSignature: string;
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
 };
@@ -53,11 +55,14 @@ function updateEditableNode(
     node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
   ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number],
 ) {
+  const nextNodes = state.nodes.map((node) =>
+    node.id === nodeId ? updater(node) : node,
+  );
+
   return {
     ...state,
-    nodes: state.nodes.map((node) =>
-      node.id === nodeId ? updater(node) : node,
-    ),
+    nodes: nextNodes,
+    archivedNodeIds: syncArchivedNodeIds(state.archivedNodeIds, nextNodes),
   };
 }
 
@@ -67,10 +72,34 @@ function updateEditableNodes(
     nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
   ) => SpielwieseDashboardVM["canvas"]["agentNodes"],
 ) {
+  const nextNodes = updater(state.nodes);
+
   return {
     ...state,
-    nodes: updater(state.nodes),
+    nodes: nextNodes,
+    archivedNodeIds: syncArchivedNodeIds(state.archivedNodeIds, nextNodes),
   };
+}
+
+function syncArchivedNodeIds(
+  archivedNodeIds: EditableCanvasState["archivedNodeIds"],
+  nodes: EditableCanvasState["nodes"],
+) {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+
+  return archivedNodeIds.filter((nodeId) => nodeIds.has(nodeId));
+}
+
+function getVisibleNodes(state: EditableCanvasState) {
+  const archivedNodeIds = new Set(state.archivedNodeIds);
+
+  return state.nodes.filter((node) => !archivedNodeIds.has(node.id));
+}
+
+function getInsertAnchorNodeId(state: EditableCanvasState) {
+  const visibleNodes = getVisibleNodes(state);
+
+  return visibleNodes.at(-1)?.id ?? state.nodes.at(-1)?.id ?? null;
 }
 
 function getDetectedMustacheVariables(
@@ -95,12 +124,19 @@ function reportDetectedVariables({
   nextCanvas: EditableCanvasState;
   onDetectedVariablesChange?: (labels: string[]) => void;
 }) {
-  onDetectedVariablesChange?.(getDetectedMustacheVariables(nextCanvas.nodes));
+  onDetectedVariablesChange?.(
+    getDetectedMustacheVariables(getVisibleNodes(nextCanvas)),
+  );
 }
 
+// eslint-disable-next-line max-lines-per-function
 function useEditableCanvas(
   canvas: SpielwieseDashboardVM["canvas"],
 ): EditableCanvasState & {
+  archiveNode: (
+    nodeId: string,
+    onNextCanvas?: (nextCanvas: EditableCanvasState) => void,
+  ) => void;
   updateNodes: (
     updater: (
       nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
@@ -120,6 +156,7 @@ function useEditableCanvas(
     () => ({
       sourceSignature,
       nodes: cloneAgentNodes(canvas.agentNodes),
+      archivedNodeIds: [],
     }),
   );
 
@@ -127,11 +164,25 @@ function useEditableCanvas(
     setEditableCanvas({
       sourceSignature,
       nodes: cloneAgentNodes(canvas.agentNodes),
+      archivedNodeIds: [],
     });
   }
 
   return {
     ...editableCanvas,
+    archiveNode: (nodeId, onNextCanvas) =>
+      setEditableCanvas((currentCanvas) => {
+        const archivedNodeIds = currentCanvas.archivedNodeIds.includes(nodeId)
+          ? currentCanvas.archivedNodeIds
+          : [...currentCanvas.archivedNodeIds, nodeId];
+        const nextCanvas = {
+          ...currentCanvas,
+          archivedNodeIds,
+        };
+
+        onNextCanvas?.(nextCanvas);
+        return nextCanvas;
+      }),
     updateNodes: (updater, onNextCanvas) =>
       setEditableCanvas((currentCanvas) => {
         const nextCanvas = updateEditableNodes(currentCanvas, updater);
@@ -286,6 +337,13 @@ function getCanvasValueHandlers(
             onDetectedVariablesChange,
           }),
       ),
+    onAgentNodeArchive: (nodeId: string) =>
+      editableCanvas.archiveNode(nodeId, (nextCanvas) =>
+        reportDetectedVariables({
+          nextCanvas,
+          onDetectedVariablesChange,
+        }),
+      ),
     onSettingValueChange: (nodeId: string, settingId: string, value: string) =>
       editableCanvas.updateNode(nodeId, (node) => ({
         ...node,
@@ -314,6 +372,7 @@ export function useSpielwieseEditableCanvas(
   return {
     ...getCanvasValueHandlers(editableCanvas, onDetectedVariablesChange),
     ...promptSectionHandlers,
-    nodes: editableCanvas.nodes,
+    insertAnchorNodeId: getInsertAnchorNodeId(editableCanvas),
+    nodes: getVisibleNodes(editableCanvas),
   };
 }

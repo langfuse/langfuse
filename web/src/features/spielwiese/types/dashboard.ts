@@ -36,8 +36,11 @@ export type SpielwieseAgentNodeThinkingStepVM = {
 };
 
 export type SpielwieseAgentNodeThinkingVM = {
+  reasonedSteps?: number;
   summary: string;
+  thinkingTokens?: number;
   title: string;
+  toolCalls?: number;
   steps: SpielwieseAgentNodeThinkingStepVM[];
 };
 

@@ -33,6 +33,10 @@ function getDetachedUserSections() {
   return screen.getByTestId("vision-agent-detached-user-sections");
 }
 
+function getCanvasHeader() {
+  return screen.getByTestId("spielwiese-canvas-editor-mode-header");
+}
+
 describe("SpielwieseDashboardPage rendering", () => {
   it("renders the route with a scoped spielwiese root", () => {
     const { container } = renderPage();
@@ -79,6 +83,61 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(
       screen.queryByTestId("spielwiese-model-recommendation-panel"),
     ).toBeNull();
+  });
+
+  it("uses the shared three-button header action cluster on the detached user card", () => {
+    renderPage();
+
+    const detachedUserSections = getDetachedUserSections();
+    const collapseButton = within(detachedUserSections).getByRole("button", {
+      name: "Minimize vision-agent User section",
+    });
+    const previewButton = within(detachedUserSections).getByRole("button", {
+      name: "Preview vision-agent node",
+    });
+    const archiveButton = within(detachedUserSections).getByRole("button", {
+      name: "Archive vision-agent node",
+    });
+
+    expect(collapseButton.className).toContain("size-7");
+    expect(collapseButton.className).toContain("rounded-[10px]");
+    expect(previewButton.className).toContain("size-7");
+    expect(previewButton.className).toContain("rounded-[10px]");
+    expect(archiveButton.className).toContain("size-7");
+    expect(archiveButton.className).toContain("rounded-[10px]");
+  });
+
+  it("renders canvas-level card controls that collapse nodes, close both side panels, and keep archive inert", () => {
+    renderPage();
+
+    const shell = screen.getByTestId("spielwiese-shell");
+    const canvasHeader = getCanvasHeader();
+    const collapseAllButton = within(canvasHeader).getByRole("button", {
+      name: "Collapse all canvas cards",
+    });
+    const closePanelsButton = within(canvasHeader).getByRole("button", {
+      name: "Close side panels",
+    });
+    const archiveCanvasButton = within(canvasHeader).getByRole("button", {
+      name: "Archive canvas nodes",
+    });
+
+    expect(shell.getAttribute("data-left-collapsed")).toBe("false");
+    expect(shell.getAttribute("data-right-open")).toBe("true");
+    expect(screen.getByLabelText("vision-agent User message")).toBeTruthy();
+
+    fireEvent.click(collapseAllButton);
+
+    expect(screen.queryByLabelText("vision-agent User message")).toBeNull();
+
+    fireEvent.click(closePanelsButton);
+
+    expect(shell.getAttribute("data-left-collapsed")).toBe("true");
+    expect(shell.getAttribute("data-right-open")).toBe("false");
+
+    fireEvent.click(archiveCanvasButton);
+
+    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
   });
 });
 

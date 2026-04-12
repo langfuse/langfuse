@@ -9,6 +9,7 @@ import { SpielwiesePrimaryAgentNodeCard } from "./SpielwieseAgentNodeStackSuppor
 type SpielwieseFocusedAgentNodeModalProps = {
   compactNodeIds: Record<string, boolean>;
   focusMode: ReturnType<typeof useSpielwieseAgentNodeFocusMode>;
+  onAgentNodeArchive: (nodeId: string) => void;
   onPromptSectionChange: (
     nodeId: string,
     sectionId: string,
@@ -36,6 +37,7 @@ type SpielwieseFocusedAgentNodeModalProps = {
 function FocusedAgentNodeCard({
   compactNodeIds,
   focusedNode,
+  onAgentNodeArchive,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
@@ -47,6 +49,7 @@ function FocusedAgentNodeCard({
 }: {
   compactNodeIds: Record<string, boolean>;
   focusedNode: SpielwieseAgentNodeVM;
+  onAgentNodeArchive: SpielwieseFocusedAgentNodeModalProps["onAgentNodeArchive"];
   onPromptSectionChange: SpielwieseFocusedAgentNodeModalProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseFocusedAgentNodeModalProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseFocusedAgentNodeModalProps["onPromptSectionInsert"];
@@ -65,6 +68,7 @@ function FocusedAgentNodeCard({
         (setting) => setting.id === "model",
       )}
       node={focusedNode}
+      onAgentNodeArchive={onAgentNodeArchive}
       onPreviewHoverEnd={() => {}}
       onPreviewHoverStart={() => {}}
       onPromptSectionChange={onPromptSectionChange}
@@ -83,6 +87,7 @@ function FocusedAgentNodeCard({
 export function SpielwieseFocusedAgentNodeModal({
   compactNodeIds,
   focusMode,
+  onAgentNodeArchive,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
@@ -101,6 +106,7 @@ export function SpielwieseFocusedAgentNodeModal({
         <FocusedAgentNodeCard
           compactNodeIds={compactNodeIds}
           focusedNode={focusMode.focusedNode}
+          onAgentNodeArchive={onAgentNodeArchive}
           onPromptSectionChange={onPromptSectionChange}
           onPromptSectionDelete={onPromptSectionDelete}
           onPromptSectionInsert={onPromptSectionInsert}

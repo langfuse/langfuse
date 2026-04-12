@@ -156,7 +156,9 @@ function createPaneModeChangeHandler({
 }
 
 function CanvasPaneMainPanel({
+  insertAnchorNodeId,
   nodes,
+  onAgentNodeArchive,
   onNodesReplace,
   onAgentNodeInsert,
   onPromptSectionDelete,
@@ -174,7 +176,9 @@ function CanvasPaneMainPanel({
     >
       <SpielwieseCanvasPane
         className="h-full rounded-none"
+        insertAnchorNodeId={insertAnchorNodeId}
         nodes={nodes}
+        onAgentNodeArchive={onAgentNodeArchive}
         onNodesReplace={onNodesReplace}
         onAgentNodeInsert={onAgentNodeInsert}
         onPromptSectionDelete={onPromptSectionDelete}
@@ -228,7 +232,9 @@ function CanvasPaneBottomPanel({
 }
 
 export function SpielwieseCanvasPaneStack({
+  insertAnchorNodeId,
   nodes,
+  onAgentNodeArchive,
   onNodesReplace,
   onAgentNodeInsert,
   onPromptSectionDelete,
@@ -258,7 +264,9 @@ export function SpielwieseCanvasPaneStack({
       orientation="vertical"
     >
       <CanvasPaneMainPanel
+        insertAnchorNodeId={insertAnchorNodeId}
         nodes={nodes}
+        onAgentNodeArchive={onAgentNodeArchive}
         onNodesReplace={onNodesReplace}
         onAgentNodeInsert={onAgentNodeInsert}
         onPromptSectionChange={onPromptSectionChange}

@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
   SidebarContent,
@@ -9,6 +10,7 @@ import {
   SidebarMenuItem,
   SidebarSurface,
 } from "../ui/sidebar";
+import { sidebarMenuButtonVariants } from "../ui/sidebar";
 import type {
   SpielwieseNavGroup,
   SpielwieseNavItem,
@@ -57,10 +59,25 @@ function CreateDocumentButton({ compact }: { compact: boolean }) {
 function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   const ActionIcon = item.actionIcon;
   const Icon = item.icon;
+  const className = cn(
+    sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
+    "h-8 rounded-[10px] border border-[rgba(0,0,0,0.04)] bg-[rgba(255,255,255,0.38)] px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.68)] hover:border-[rgba(0,0,0,0.05)] hover:bg-[rgba(255,255,255,0.62)]",
+    item.isActive && "border-[rgba(0,0,0,0.06)] bg-[#FBFBFB]",
+  );
 
   return (
-    <SidebarMenuButton active={item.isActive} href={item.href} tone="primary">
-      <Icon className="size-3.5 shrink-0" data-sidebar-icon />
+    <SidebarMenuButton
+      active={item.isActive}
+      className={className}
+      href={item.href}
+      tone="primary"
+    >
+      <span
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-[6px] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.88)] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]"
+        data-sidebar-icon-shell
+      >
+        <Icon className="size-3.5 shrink-0" data-sidebar-icon />
+      </span>
       <span data-sidebar-label>{item.label}</span>
       {item.count ? <span data-sidebar-meta>{item.count}</span> : null}
       {ActionIcon ? (

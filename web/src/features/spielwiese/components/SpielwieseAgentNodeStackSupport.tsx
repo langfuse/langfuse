@@ -16,6 +16,7 @@ type SpielwiesePrimaryAgentNodeCardProps = {
   isPreviewFocused: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
+  onAgentNodeArchive: (nodeId: string) => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
   onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
@@ -155,12 +156,14 @@ function createAgentNodeCard(
   return <SpielwiesePrimaryAgentNodeCard {...sharedCardProps} cardTestId={cardTestId} />;
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwiesePrimaryAgentNodeCard({
   cardTestId = "spielwiese-agent-node-card",
   isCompact,
   isPreviewFocused,
   modelSetting,
   node,
+  onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onPromptSectionDelete,
@@ -189,6 +192,7 @@ export function SpielwiesePrimaryAgentNodeCard({
     isPreviewFocused,
     modelSetting,
     node,
+    onArchiveNode: () => onAgentNodeArchive(node.id),
     onPreviewHoverEnd,
     onPreviewHoverStart,
     onSettingValueChange,
@@ -235,6 +239,7 @@ export function SpielwieseAgentNodeCardDeck({
   isPreviewFocused,
   modelSetting,
   node,
+  onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onPromptSectionDelete,
@@ -254,6 +259,7 @@ export function SpielwieseAgentNodeCardDeck({
     isPreviewFocused,
     modelSetting,
     node,
+    onAgentNodeArchive,
     onPreviewHoverEnd,
     onPreviewHoverStart,
     onPromptSectionChange,

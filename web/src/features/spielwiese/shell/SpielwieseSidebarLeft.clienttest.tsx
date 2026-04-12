@@ -47,14 +47,20 @@ function expectPrimarySidebarButtonChrome(label: string) {
   const control = screen.getByText(label).closest("a, button, summary");
 
   expect(control).toBeTruthy();
-  expect(control?.className).toContain("h-7");
-  expect(control?.className).toContain("rounded-[9px]");
-  expect(control?.className).toContain("pl-2");
-  expect(control?.className).toContain("pr-1");
-  expect(control?.className).toContain("text-[0.875rem]");
-  expect(control?.className).toContain("text-[#242529]");
-  expect(control?.className).toContain("hover:bg-black/[0.06]");
+  const className = control?.className ?? "";
+
+  [
+    "h-8",
+    "rounded-[10px]",
+    "px-1.5",
+    "text-[0.875rem]",
+    "text-[#242529]",
+    "bg-[rgba(255,255,255,0.38)]",
+    "border-[rgba(0,0,0,0.04)]",
+    "hover:bg-[rgba(255,255,255,0.62)]",
+  ].forEach((token) => expect(className).toContain(token));
   expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
+  expect(control?.querySelector("[data-sidebar-icon-shell]")).toBeTruthy();
 }
 
 function expectSidebarSectionHeaderActionChrome(label: string) {
@@ -140,7 +146,7 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectBorderlessSidebarChrome();
     expectSidebarHeaderChrome();
     expectPrimarySidebarButtonChrome("Home");
-    expectPrimarySidebarButtonChrome("Search");
+    expectPrimarySidebarButtonChrome("Library");
     expectSidebarGroupRowChrome("Example Evaluators");
     expectSidebarSectionHeaderActionChrome("Files");
     expectNestedTreeChrome("Micronutrient tracker");

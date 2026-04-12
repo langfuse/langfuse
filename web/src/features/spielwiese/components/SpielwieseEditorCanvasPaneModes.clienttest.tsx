@@ -256,7 +256,7 @@ describe("SpielwieseEditorCanvas pane mode switching", () => {
       fireEvent.click(evaluationToggle);
 
       const evaluationShell = screen.getByTestId(
-        "spielwiese-evaluation-pane-shell",
+        "spielwiese-evaluation-pane-surface",
       );
       mockElementHeights({
         clientHeight: 240,

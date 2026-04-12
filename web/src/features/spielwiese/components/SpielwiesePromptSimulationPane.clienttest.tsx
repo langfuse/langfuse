@@ -1,6 +1,6 @@
 /* eslint-disable max-lines */
 /* eslint-disable max-lines-per-function */
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
@@ -24,6 +24,9 @@ function getPromptSimulationElements() {
   const terminalShell = within(simulationPane).getByTestId(
     "spielwiese-playground-terminal-shell",
   );
+  const terminalSurface = within(simulationPane).getByTestId(
+    "spielwiese-playground-terminal-surface",
+  );
   const flowStrip = within(simulationPane).getByTestId(
     "spielwiese-playground-flow-strip",
   );
@@ -38,6 +41,9 @@ function getPromptSimulationElements() {
   );
   const flowHeaderRows = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-header-row",
+  );
+  const tagStrips = within(flowStrip).getAllByTestId(
+    "spielwiese-playground-flow-node-tag-strip",
   );
   const previewRows = within(flowStrip).getAllByTestId(
     "spielwiese-playground-flow-preview-row",
@@ -65,9 +71,6 @@ function getPromptSimulationElements() {
     flowStrip,
     header,
     historyButton,
-    nodeKindIcons: within(flowStrip).getAllByTestId(
-      "spielwiese-playground-flow-kind-icon",
-    ),
     nodeTags: within(flowStrip).getAllByTestId(
       "spielwiese-playground-flow-node-tag",
     ),
@@ -75,9 +78,14 @@ function getPromptSimulationElements() {
     previewRows,
     previewShells,
     simulationPane,
+    tagStrips,
     terminalShell,
+    terminalSurface,
     thinkingCardShells,
     title,
+    userIcons: within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-user-icon",
+    ),
   };
 }
 
@@ -92,36 +100,51 @@ function expectPromptSimulationPaneChrome(
     previewRows,
     simulationPane,
     terminalShell,
+    terminalSurface,
   } = elements;
 
   expect(simulationPane.className).toContain("bg-[#F3F3F4]");
   expect(simulationPane.className).toContain("px-0");
+  expect(simulationPane.className).toContain("pt-1");
   expect(simulationPane.className).toContain("pb-0");
   expect(simulationPane.className).not.toContain("pt-2");
   expect(simulationPane.className).not.toContain("px-2");
   expect(simulationPane.className).toContain("overflow-hidden");
   expect(simulationPane.className).not.toContain("border-x");
   expect(simulationPane.className).not.toContain("border-b");
-  expect(terminalShell.className).toContain("rounded-[8px]");
-  expect(terminalShell.className).not.toContain("rounded-t-[8px]");
-  expect(terminalShell.className).not.toContain("rounded-b-[8px]");
-  expect(terminalShell.className).toContain("bg-background");
+  expect(terminalShell.className).toContain(
+    "[--canvas-pane-inner-radius:18px]",
+  );
+  expect(terminalShell.className).toContain("[--canvas-pane-shell-gap:2px]");
+  expect(terminalShell.className).toContain(
+    "[--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))]",
+  );
+  expect(terminalShell.className).toContain(
+    "rounded-[var(--canvas-pane-outer-radius)]",
+  );
+  expect(terminalShell.className).toContain("bg-[#F3F3F4]");
   expect(terminalShell.className).toContain("w-full");
   expect(terminalShell.className).toContain("min-w-0");
   expect(terminalShell.className).toContain("flex-1");
   expect(terminalShell.className).toContain("flex-col");
-  expect(terminalShell.className).toContain("relative");
-  expect(terminalShell.className).toContain("overflow-visible");
-  expect(terminalShell.className).toContain("pt-0");
-  expect(terminalShell.className).toContain("pb-[6px]");
-  expect(terminalShell.className).toContain("after:h-[6px]");
-  expect(terminalShell.className).toContain("after:bg-[#F3F3F4]");
+  expect(terminalShell.className).toContain("p-[var(--canvas-pane-shell-gap)]");
+  expect(terminalSurface.className).toContain("bg-background");
+  expect(terminalSurface.className).toContain(
+    "rounded-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(terminalSurface.className).toContain("relative");
+  expect(terminalSurface.className).toContain("pt-0");
+  expect(terminalSurface.className).toContain("pb-[6px]");
+  expect(terminalSurface.className).toContain("after:h-[6px]");
+  expect(terminalSurface.className).toContain("after:bg-[#F3F3F4]");
   expect(elements.header.className).toContain("sticky");
   expect(elements.header.className).toContain("w-[calc(100%+2rem)]");
   expect(elements.header.className).toContain("pt-3");
   expect(elements.header.className).toContain("pb-3");
   expect(elements.header.className).toContain("pl-[13px]");
-  expect(elements.header.className).toContain("rounded-t-[8px]");
+  expect(elements.header.className).toContain(
+    "rounded-t-[var(--canvas-pane-inner-radius)]",
+  );
   expect(elements.header.className).toContain("bg-[rgba(251,251,251,0.82)]");
   expect(elements.header.className).toContain("backdrop-blur");
   expect(elements.actions.className).toContain("ml-auto");
@@ -163,8 +186,12 @@ function expectPromptSimulationPaneChrome(
   expect(previewRows).toHaveLength(3);
   expect(elements.previewShells).toHaveLength(3);
   expect(elements.chevrons).toHaveLength(2);
-  expect(elements.nodeTags).toHaveLength(3);
-  expect(elements.nodeKindIcons).toHaveLength(3);
+  expect(elements.nodeTags).toHaveLength(6);
+  expect(elements.tagStrips).toHaveLength(3);
+  expect(elements.userIcons).toHaveLength(3);
+  expect(
+    flowStrip.querySelectorAll('[data-testid^="spielwiese-provider-mark-"]'),
+  ).toHaveLength(3);
   expect(
     within(flowStrip).queryByRole("button", { name: /Preview .* node/i }),
   ).toBeNull();
@@ -178,10 +205,12 @@ function expectPromptSimulationNodeShells(
   const thirdFlowNode = elements.flowNodes[2]!;
   const firstCardFrame = elements.cardFrames[0]!;
   const firstFlowHeaderRow = elements.flowHeaderRows[0]!;
+  const firstTagStrip = elements.tagStrips[0]!;
   const firstFlowStep = elements.flowSteps[0]!;
-  const firstNodeTag = elements.nodeTags[0]!;
+  const [firstUserTag, firstAgentTag] = within(firstTagStrip).getAllByTestId(
+    "spielwiese-playground-flow-node-tag",
+  );
   const firstThinkingCardShell = elements.thinkingCardShells[0]!;
-  const firstNodeKindIcon = elements.nodeKindIcons[0]!;
   const firstPreviewShell = elements.previewShells[0]!;
   const firstPreviewRow = elements.previewRows[0]!;
   const firstPreviewBody = within(firstPreviewRow).getByTestId(
@@ -219,7 +248,8 @@ function expectPromptSimulationNodeShells(
   expect(firstCardFrame.className).toContain("p-0.5");
   expect(firstCardFrame.className).not.toContain("-mb-0.5");
   expect(firstThinkingCardShell.getAttribute("data-state")).toBe("closed");
-  expect(firstFlowNode.contains(firstNodeTag)).toBe(true);
+  expect(firstFlowNode.contains(firstUserTag!)).toBe(true);
+  expect(firstFlowNode.contains(firstAgentTag!)).toBe(true);
   expect(firstFlowNode.contains(firstPreviewShell)).toBe(true);
   expect(firstFlowNode.className).toContain("border-border/40");
   expect(firstFlowNode.className).toContain("bg-background/96");
@@ -231,26 +261,12 @@ function expectPromptSimulationNodeShells(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
   expect(firstFlowNode.className).toContain("pb-[4px]");
-  expect(firstFlowHeaderRow.className).toContain("flex");
-  expect(firstFlowHeaderRow.className).toContain("w-full");
-  expect(firstFlowHeaderRow.className).toContain("min-w-0");
-  expect(firstFlowHeaderRow.className).toContain("gap-1.5");
-  expect(firstFlowHeaderRow.className).toContain("pr-[6px]");
-  expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
-  expect(
-    firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
-  ).toBeNull();
-  expect(firstNodeTag.className).toContain("h-7");
-  expect(firstNodeTag.className).toContain("rounded-[10px]");
-  expect(firstNodeTag.className).toContain("border-[rgba(0,0,0,0.08)]");
-  expect(firstNodeTag.className).toContain("ring-1");
-  expect(firstNodeTag.className).toContain(
-    "shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
-  );
-  expect(firstNodeTag.className).toContain("max-w-full");
-  expect(firstNodeTag.className).toContain("min-w-0");
-  expect(firstNodeKindIcon.getAttribute("class")).toContain("size-3");
-  expect(firstNodeTag.textContent).toContain("Vision Agent");
+  expectPromptSimulationHeaderTags({
+    firstAgentTag: firstAgentTag!,
+    firstFlowHeaderRow,
+    firstTagStrip,
+    firstUserTag: firstUserTag!,
+  });
   expect(firstPreviewShell.className).toContain("px-[5px]");
   expect(firstPreviewShell.className).toContain("w-full");
   expect(firstPreviewShell.className).toContain("min-w-0");
@@ -280,8 +296,63 @@ function expectPromptSimulationNodeShells(
   expect(firstPreviewRow.textContent).toContain("Answer");
   expect(firstPreviewValue.textContent).toContain('"item": "grilled salmon"');
   expect(firstPreviewValue.textContent).toContain('"estimated_weight_g": 186');
+  expect(secondFlowNode.textContent).toContain("User");
   expect(secondFlowNode.textContent).toContain("Nutrition Agent");
+  expect(thirdFlowNode.textContent).toContain("User");
   expect(thirdFlowNode.textContent).toContain("Coach Agent");
+}
+
+function expectPromptSimulationHeaderTags({
+  firstAgentTag,
+  firstFlowHeaderRow,
+  firstTagStrip,
+  firstUserTag,
+}: {
+  firstAgentTag: HTMLElement;
+  firstFlowHeaderRow: HTMLElement;
+  firstTagStrip: HTMLElement;
+  firstUserTag: HTMLElement;
+}) {
+  expect(firstFlowHeaderRow.className).toContain("flex");
+  expect(firstFlowHeaderRow.className).toContain("w-full");
+  expect(firstFlowHeaderRow.className).toContain("min-w-0");
+  expect(firstFlowHeaderRow.className).toContain("gap-1.5");
+  expect(firstFlowHeaderRow.className).toContain("pr-[6px]");
+  expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
+  expectPromptSimulationHeaderTagStrip(firstTagStrip);
+  expect(
+    firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
+  ).toBeNull();
+  expect(firstUserTag.className).toContain("h-7");
+  expect(firstUserTag.className).toContain("rounded-[10px]");
+  expect(firstUserTag.className).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(firstAgentTag.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(firstAgentTag.className).toContain("ring-1");
+  expect(firstAgentTag.className).toContain(
+    "shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
+  );
+  expect(firstAgentTag.className).toContain("max-w-full");
+  expect(firstAgentTag.className).toContain("min-w-0");
+  expect(firstUserTag.textContent).toContain("User");
+  expect(firstAgentTag.textContent).toContain("Vision Agent");
+}
+
+function expectPromptSimulationHeaderTagStrip(firstTagStrip: HTMLElement) {
+  expect(firstTagStrip.textContent).toContain("User");
+  expect(firstTagStrip.textContent).toContain("Vision Agent");
+  expect(
+    within(firstTagStrip).getAllByTestId("spielwiese-playground-flow-node-tag"),
+  ).toHaveLength(2);
+  expect(
+    within(firstTagStrip).getAllByTestId(
+      "spielwiese-playground-flow-user-icon",
+    ),
+  ).toHaveLength(1);
+  expect(
+    firstTagStrip.querySelector(
+      '[data-testid="spielwiese-provider-mark-openai"]',
+    ),
+  ).not.toBeNull();
 }
 
 function expectPlaygroundThinkingState(
@@ -314,6 +385,21 @@ function expectPlaygroundThinkingState(
       "spielwiese-playground-thinking-card-dots",
     ),
   ).toBeTruthy();
+  expect(
+    within(firstThinkingCard).getByTestId(
+      "spielwiese-playground-thinking-stat-tools",
+    ).textContent,
+  ).toContain("Tools 1");
+  expect(
+    within(firstThinkingCard).getByTestId(
+      "spielwiese-playground-thinking-stat-reasoned",
+    ).textContent,
+  ).toContain("Reasoned 3");
+  expect(
+    within(firstThinkingCard).getByTestId(
+      "spielwiese-playground-thinking-stat-tokens",
+    ).textContent,
+  ).toContain("428 tok");
   expect(firstFlowStep.textContent).toContain("Thinking");
   expect(firstFlowStep.textContent).toContain("analyzing prompt");
 
@@ -326,6 +412,32 @@ function expectPlaygroundThinkingState(
   expect(firstFlowStep.textContent).toContain(
     "Identify distinct food candidates from the plate image.",
   );
+}
+
+function getNodesWithSimulatedUserAnswer() {
+  const visionNode = spielwieseEditorCanvasTestCanvas.agentNodes[0]!;
+
+  return [
+    visionNode,
+    {
+      ...visionNode,
+      id: "vision-agent-user-answer",
+      layout: "user-only" as const,
+      notes: [],
+      playgroundPreview: undefined,
+      playgroundThinking: undefined,
+      promptSections: [
+        {
+          id: "user",
+          label: "User",
+          value: "I had adana kebab with lavash and grilled peppers.",
+        },
+      ],
+      settings: visionNode.settings.map((setting) => ({ ...setting })),
+      title: visionNode.title,
+    },
+    ...spielwieseEditorCanvasTestCanvas.agentNodes.slice(1),
+  ];
 }
 
 describe("SpielwiesePromptSimulationPane", () => {
@@ -341,5 +453,68 @@ describe("SpielwiesePromptSimulationPane", () => {
     expectPromptSimulationPaneChrome(elements);
     expectPromptSimulationNodeShells(elements);
     expectPlaygroundThinkingState(elements);
+  });
+
+  it("keeps user-only nodes blank until play and then streams an adana kebab nutrient JSON answer", () => {
+    jest.useFakeTimers();
+
+    try {
+      render(
+        <SpielwiesePromptSimulationPane
+          nodes={getNodesWithSimulatedUserAnswer()}
+        />,
+      );
+
+      const simulationPane = screen.getByTestId(
+        "spielwiese-prompt-simulation-pane",
+      );
+      const flowNodes = within(simulationPane).getAllByTestId(
+        "spielwiese-playground-flow-node",
+      );
+      const userOnlyNode = flowNodes[1]!;
+      const playButton = within(simulationPane).getByTestId(
+        "spielwiese-playground-play-button",
+      );
+
+      expect(
+        within(userOnlyNode).queryByTestId(
+          "spielwiese-playground-flow-preview-row",
+        ),
+      ).toBeNull();
+      expect(
+        screen.queryByText(
+          "I had adana kebab with lavash and grilled peppers.",
+        ),
+      ).toBeNull();
+
+      fireEvent.click(playButton);
+
+      expect(playButton.getAttribute("aria-pressed")).toBe("true");
+      expect(
+        within(userOnlyNode).getByTestId("spielwiese-playground-thinking-card"),
+      ).toBeTruthy();
+      expect(userOnlyNode.textContent).toContain("drafting nutrient JSON");
+
+      act(() => {
+        jest.runAllTimers();
+      });
+
+      expect(playButton.getAttribute("aria-pressed")).toBe("false");
+      expect(
+        within(userOnlyNode)
+          .getByTestId("spielwiese-playground-thinking-card-shell")
+          .getAttribute("data-state"),
+      ).toBe("closed");
+
+      const streamedPreview = within(userOnlyNode).getByTestId(
+        "spielwiese-playground-flow-preview-value",
+      );
+
+      expect(streamedPreview.textContent).toContain('"food": "adana kebab"');
+      expect(streamedPreview.textContent).toContain('"protein_g": 28.4');
+      expect(streamedPreview.textContent).toContain('"vitamin_b12_mcg": 2.6');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { cn } from "@/src/utils/tailwind";
 import { SpielwieseAssistantReplySection } from "./SpielwieseAssistantReplySection";
@@ -12,7 +13,11 @@ type SpielwieseAgentNodePromptSectionsProps = {
   className?: string;
   includeKinds?: Array<"user" | "system" | "assistant" | "tool">;
   isCompact?: boolean;
+  isPreviewFocused?: boolean;
   nodeId: string;
+  onAgentNodeArchive?: (nodeId: string) => void;
+  onPreviewHoverEnd?: () => void;
+  onPreviewHoverStart?: () => void;
   onPromptSectionChange: (
     nodeId: string,
     sectionId: string,
@@ -28,6 +33,8 @@ type SpielwieseAgentNodePromptSectionsProps = {
     sectionId: string,
     direction: "up" | "down",
   ) => void;
+  onToggleCompact?: () => void;
+  onTogglePreviewFocus?: () => void;
   insertSurface?: "bare" | "framed";
   promptSections: SpielwieseAgentNodeVM["promptSections"];
   rowTopPadding?: "default" | "none";
@@ -43,10 +50,17 @@ type SpielwieseMessageSectionRowProps = {
   canMoveUp: boolean;
   defaultCollapsed?: boolean;
   displayLabel: string;
+  isCompact?: boolean;
+  isPreviewFocused?: boolean;
   nodeId: string;
+  onAgentNodeArchive?: SpielwieseAgentNodePromptSectionsProps["onAgentNodeArchive"];
+  onPreviewHoverEnd?: SpielwieseAgentNodePromptSectionsProps["onPreviewHoverEnd"];
+  onPreviewHoverStart?: SpielwieseAgentNodePromptSectionsProps["onPreviewHoverStart"];
   onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseAgentNodePromptSectionsProps["onPromptSectionDelete"];
   onPromptSectionMove: SpielwieseAgentNodePromptSectionsProps["onPromptSectionMove"];
+  onToggleCompact?: SpielwieseAgentNodePromptSectionsProps["onToggleCompact"];
+  onTogglePreviewFocus?: SpielwieseAgentNodePromptSectionsProps["onTogglePreviewFocus"];
   rowTopPadding?: "default" | "none";
   section: SpielwieseAgentNodeVM["promptSections"][number];
   toolOptions: SpielwieseToolOption[];
@@ -91,6 +105,12 @@ function SpielwieseMessageSectionRow({
     return (
       <SpielwieseDetachedUserMessageSectionRow
         {...props}
+        isCompact={props.isCompact}
+        isPreviewFocused={props.isPreviewFocused}
+        onPreviewHoverEnd={props.onPreviewHoverEnd}
+        onPreviewHoverStart={props.onPreviewHoverStart}
+        onToggleCompact={props.onToggleCompact}
+        onTogglePreviewFocus={props.onTogglePreviewFocus}
         startCollapsed={defaultCollapsed}
       />
     );
@@ -163,24 +183,37 @@ function shouldHidePromptSections({
   return visibleSections.length === 0 && !showInsertRow;
 }
 
+// eslint-disable-next-line max-lines-per-function
 function renderPromptSectionRows({
   isCompact,
+  isPreviewFocused,
   nodeId,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionMove,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   promptSections,
   rowTopPadding,
   toolOptions,
   userLayout,
+  onToggleCompact,
+  onTogglePreviewFocus,
   visibleSections,
 }: Pick<
   SpielwieseAgentNodePromptSectionsProps,
   | "isCompact"
+  | "isPreviewFocused"
   | "nodeId"
+  | "onAgentNodeArchive"
+  | "onPreviewHoverEnd"
+  | "onPreviewHoverStart"
   | "onPromptSectionChange"
   | "onPromptSectionDelete"
   | "onPromptSectionMove"
+  | "onToggleCompact"
+  | "onTogglePreviewFocus"
   | "promptSections"
   | "rowTopPadding"
   | "toolOptions"
@@ -205,11 +238,18 @@ function renderPromptSectionRows({
       }
       defaultCollapsed={isCompact}
       displayLabel={getPromptSectionDisplayLabel(section.id, section.label)}
+      isCompact={isCompact}
+      isPreviewFocused={isPreviewFocused}
       key={`${section.id}-${isCompact ? "compact" : "expanded"}`}
       nodeId={nodeId}
+      onAgentNodeArchive={onAgentNodeArchive}
+      onPreviewHoverEnd={onPreviewHoverEnd}
+      onPreviewHoverStart={onPreviewHoverStart}
       onPromptSectionChange={onPromptSectionChange}
       onPromptSectionDelete={onPromptSectionDelete}
       onPromptSectionMove={onPromptSectionMove}
+      onToggleCompact={onToggleCompact}
+      onTogglePreviewFocus={onTogglePreviewFocus}
       rowTopPadding={rowTopPadding}
       section={section}
       toolOptions={toolOptions}
@@ -222,11 +262,17 @@ export function SpielwieseAgentNodePromptSections({
   className,
   includeKinds,
   isCompact = false,
+  isPreviewFocused = false,
   nodeId,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
   insertSurface = "framed",
   promptSections,
   rowTopPadding = "default",
@@ -247,10 +293,16 @@ export function SpielwieseAgentNodePromptSections({
     <div className={getPromptSectionsClassName({ className, spacing })}>
       {renderPromptSectionRows({
         isCompact,
+        isPreviewFocused,
         nodeId,
+        onAgentNodeArchive,
+        onPreviewHoverEnd,
+        onPreviewHoverStart,
         onPromptSectionChange,
         onPromptSectionDelete,
         onPromptSectionMove,
+        onToggleCompact,
+        onTogglePreviewFocus,
         promptSections,
         rowTopPadding,
         toolOptions,

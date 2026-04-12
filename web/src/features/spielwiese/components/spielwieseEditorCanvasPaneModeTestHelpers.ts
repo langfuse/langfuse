@@ -19,29 +19,81 @@ export function mockElementHeights({
   });
 }
 
-export function expectEvaluationPaneChrome() {
-  const strategyList = screen.getByTestId(
-    "spielwiese-evaluation-strategy-list",
-  );
+function getEvaluationPaneElements() {
   const evaluationPane = screen.getByTestId("spielwiese-evaluation-pane");
   const evaluationPaneShell = screen.getByTestId(
     "spielwiese-evaluation-pane-shell",
   );
+  const evaluationPaneSurface = screen.getByTestId(
+    "spielwiese-evaluation-pane-surface",
+  );
+  const evaluationHeaderBar = screen.getByTestId(
+    "spielwiese-evaluation-header-bar",
+  );
+  const strategyList = screen.getByTestId(
+    "spielwiese-evaluation-strategy-list",
+  );
 
-  expect(
-    screen.getByTestId("spielwiese-evaluation-header-bar").firstElementChild,
-  ).toBe(screen.getByTestId("spielwiese-evaluation-header-accessory"));
+  return {
+    evaluationHeaderBar,
+    evaluationPane,
+    evaluationPaneShell,
+    evaluationPaneSurface,
+    strategyList,
+  };
+}
+
+function expectEvaluationPaneShellChrome({
+  evaluationPane,
+  evaluationPaneShell,
+  evaluationPaneSurface,
+}: Pick<
+  ReturnType<typeof getEvaluationPaneElements>,
+  "evaluationPane" | "evaluationPaneShell" | "evaluationPaneSurface"
+>) {
   expect(evaluationPane).toBeTruthy();
   expect(evaluationPane.className).toContain("px-0");
+  expect(evaluationPane.className).toContain("pt-1");
   expect(evaluationPane.className).toContain("pb-0");
   expect(evaluationPane.className).not.toContain("pt-2");
   expect(evaluationPane.className).not.toContain("px-2");
-  expect(evaluationPaneShell.className).toContain("rounded-[8px]");
-  expect(evaluationPaneShell.className).toContain("relative");
-  expect(evaluationPaneShell.className).toContain("pb-[6px]");
-  expect(evaluationPaneShell.className).toContain("after:h-[6px]");
-  expect(evaluationPaneShell.className).not.toContain("rounded-t-[8px]");
-  expect(evaluationPaneShell.className).not.toContain("rounded-b-[8px]");
+  expect(evaluationPaneShell.className).toContain(
+    "[--canvas-pane-inner-radius:18px]",
+  );
+  expect(evaluationPaneShell.className).toContain(
+    "[--canvas-pane-shell-gap:2px]",
+  );
+  expect(evaluationPaneShell.className).toContain(
+    "rounded-[var(--canvas-pane-outer-radius)]",
+  );
+  expect(evaluationPaneShell.className).toContain(
+    "p-[var(--canvas-pane-shell-gap)]",
+  );
+  expect(evaluationPaneSurface.className).toContain(
+    "rounded-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(evaluationPaneSurface.className).toContain("relative");
+  expect(evaluationPaneSurface.className).toContain("pb-[6px]");
+  expect(evaluationPaneSurface.className).toContain("after:h-[6px]");
+}
+
+function expectEvaluationPaneHeader({
+  evaluationHeaderBar,
+}: Pick<ReturnType<typeof getEvaluationPaneElements>, "evaluationHeaderBar">) {
+  expect(evaluationHeaderBar.firstElementChild).toBe(
+    screen.getByTestId("spielwiese-evaluation-header-accessory"),
+  );
+  expect(evaluationHeaderBar.className).toContain("sticky");
+  expect(evaluationHeaderBar.className).toContain("backdrop-blur");
+  expect(evaluationHeaderBar.className).toContain(
+    "rounded-t-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(evaluationHeaderBar.className).toContain("pl-[13px]");
+}
+
+function expectEvaluationPaneStrategyChrome({
+  strategyList,
+}: Pick<ReturnType<typeof getEvaluationPaneElements>, "strategyList">) {
   expect(strategyList).toBeTruthy();
   expect(strategyList.className).toContain("overflow-x-auto");
   expect(strategyList.className).not.toContain("flex-col");
@@ -54,16 +106,12 @@ export function expectEvaluationPaneChrome() {
   expect(
     screen.getByTestId("spielwiese-evaluation-strategy-detail").textContent,
   ).toContain("LLM as a Judge");
-  expect(
-    screen.getByTestId("spielwiese-evaluation-header-bar").className,
-  ).toContain("sticky");
-  expect(
-    screen.getByTestId("spielwiese-evaluation-header-bar").className,
-  ).toContain("backdrop-blur");
-  expect(
-    screen.getByTestId("spielwiese-evaluation-header-bar").className,
-  ).toContain("rounded-t-[8px]");
-  expect(
-    screen.getByTestId("spielwiese-evaluation-header-bar").className,
-  ).toContain("pl-[13px]");
+}
+
+export function expectEvaluationPaneChrome() {
+  const evaluationPaneElements = getEvaluationPaneElements();
+
+  expectEvaluationPaneShellChrome(evaluationPaneElements);
+  expectEvaluationPaneHeader(evaluationPaneElements);
+  expectEvaluationPaneStrategyChrome(evaluationPaneElements);
 }

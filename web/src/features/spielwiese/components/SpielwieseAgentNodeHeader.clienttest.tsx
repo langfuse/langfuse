@@ -31,6 +31,9 @@ function renderVisionNodeHeader() {
   const previewButton = within(visionNode).getByRole("button", {
     name: "Preview vision-agent node",
   });
+  const archiveButton = within(visionNode).getByRole("button", {
+    name: "Archive vision-agent node",
+  });
   const toggleButton = within(visionNode).getByRole("button", {
     name: "Minimize vision-agent node sections",
   });
@@ -47,6 +50,7 @@ function renderVisionNodeHeader() {
     responseFormatInput,
     reasoningInput,
     modelButton,
+    archiveButton,
     previewButton,
     toggleButton,
     toolButton,
@@ -139,16 +143,18 @@ function expectHeaderChromeModelButton({
 }
 
 function expectHeaderActionChrome({
+  archiveButton,
   previewButton,
   toggleButton,
 }: Pick<
   ReturnType<typeof renderVisionNodeHeader>,
-  "previewButton" | "toggleButton"
+  "archiveButton" | "previewButton" | "toggleButton"
 >) {
   const headerActions = toggleButton.parentElement as HTMLElement | null;
 
   expect(headerActions?.contains(toggleButton)).toBe(true);
   expect(headerActions?.contains(previewButton)).toBe(true);
+  expect(headerActions?.contains(archiveButton)).toBe(true);
   expect(headerActions?.className).toContain("gap-1");
   expect(headerActions?.className).not.toContain("border-[rgba(0,0,0,0.08)]");
   expect(headerActions?.className).not.toContain("overflow-hidden");
@@ -165,11 +171,18 @@ function expectHeaderActionChrome({
   expect(previewButton.className).toContain(
     "hover:bg-[rgba(255,255,255,0.88)]",
   );
+  expect(archiveButton.className).toContain("size-7");
+  expect(archiveButton.className).toContain("rounded-[10px]");
+  expect(archiveButton.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(archiveButton.className).toContain(
+    "hover:bg-[rgba(255,255,255,0.88)]",
+  );
   expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
 }
 
 function expectHeaderChrome({
+  archiveButton,
   toggleButton,
   modelButton,
   previewButton,
@@ -189,7 +202,7 @@ function expectHeaderChrome({
   expect(headerContent?.contains(titleInput)).toBe(true);
   expect(headerRow?.lastElementChild).toBe(headerActions);
 
-  expectHeaderActionChrome({ previewButton, toggleButton });
+  expectHeaderActionChrome({ archiveButton, previewButton, toggleButton });
   expectHeaderChromeTags({ responseFormatInput, temperatureInput, toolButton });
   expectHeaderChromeModelButton({ modelButton });
 }

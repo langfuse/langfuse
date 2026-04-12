@@ -1,4 +1,5 @@
 import type { GetServerSideProps } from "next";
+import { useRouter } from "next/router";
 import SpielwieseRoutePage from "@/src/features/spielwiese/pages/SpielwieseRoutePage";
 
 type DevSpielwiesePageProps = {
@@ -30,5 +31,8 @@ export const getServerSideProps: GetServerSideProps<
 };
 
 export default function DevSpielwiesePage({ slug }: DevSpielwiesePageProps) {
-  return <SpielwieseRoutePage slug={slug} />;
+  const router = useRouter();
+  const clientSlug = getDevSpielwieseRouteProps(router.query.slug).slug;
+
+  return <SpielwieseRoutePage slug={clientSlug ?? slug} />;
 }

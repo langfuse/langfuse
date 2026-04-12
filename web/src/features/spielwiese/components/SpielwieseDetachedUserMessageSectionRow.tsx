@@ -1,10 +1,9 @@
 /* eslint-disable max-lines */
 import { useState, type ReactNode } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Button } from "../ui/button";
 import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
+import { SpielwieseNodeActionButtons } from "./SpielwieseAgentNodeHeaderActions";
 import { SpielwieseDetachedUserInlineAccessories } from "./SpielwieseDetachedUserInlineAccessories";
 import { MessageSectionChipButton } from "./SpielwieseMessageSectionChip";
 import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
@@ -12,7 +11,6 @@ import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
-import { SpielwieseMessageSectionTrailing } from "./SpielwieseMessageSectionHeaderSupport";
 import {
   spielwieseEmbeddedPromptInnerRadiusClassName,
   spielwieseEmbeddedPromptRadiusClassName,
@@ -30,7 +28,12 @@ type SpielwieseDetachedUserMessageSectionRowProps = {
   canMoveDown: boolean;
   canMoveUp: boolean;
   displayLabel: string;
+  isCompact?: boolean;
+  isPreviewFocused?: boolean;
   nodeId: string;
+  onAgentNodeArchive?: (nodeId: string) => void;
+  onPreviewHoverEnd?: () => void;
+  onPreviewHoverStart?: () => void;
   onPromptSectionChange: (
     nodeId: string,
     sectionId: string,
@@ -42,6 +45,8 @@ type SpielwieseDetachedUserMessageSectionRowProps = {
     sectionId: string,
     direction: "up" | "down",
   ) => void;
+  onToggleCompact?: () => void;
+  onTogglePreviewFocus?: () => void;
   section: SpielwieseAgentNodeVM["promptSections"][number];
   startCollapsed?: boolean;
 };
@@ -72,7 +77,12 @@ function DetachedUserInputShell({
       data-testid="spielwiese-detached-user-content-frame"
     >
       {header ? (
-        <div className="px-[2px] pt-[2px] pb-[3px]">{header}</div>
+        <div
+          className="pt-[6px] pr-[6px] pb-[10px] pl-[6px]"
+          data-testid="spielwiese-detached-user-content-header"
+        >
+          {header}
+        </div>
       ) : null}
       <div
         className={cn(
@@ -137,10 +147,10 @@ function DetachedUserEmbeddedHeader({
 
   return (
     <div
-      className="ml-[2px] flex w-full items-center justify-between gap-3 bg-transparent"
+      className="ml-[2px] flex w-full items-center justify-between gap-1.5 bg-transparent"
       data-testid="spielwiese-detached-user-embedded-header"
     >
-      <div className="ml-[3px] flex min-w-0 flex-1 items-center gap-2 overflow-visible">
+      <div className="ml-[3px] flex min-w-0 flex-1 items-center gap-1.5 overflow-visible">
         <MessageSectionChipButton
           interactive={false}
           isCollapsed={false}
@@ -197,26 +207,29 @@ function DetachedUserHeaderLeading({
 
 type DetachedUserHeaderStripProps = Pick<
   SpielwieseDetachedUserMessageSectionRowProps,
-  "canMoveDown" | "canMoveUp" | "nodeId" | "section"
+  | "isPreviewFocused"
+  | "nodeId"
+  | "onAgentNodeArchive"
+  | "onPreviewHoverEnd"
+  | "onPreviewHoverStart"
+  | "onToggleCompact"
+  | "onTogglePreviewFocus"
+  | "section"
 > & {
   isCollapsed: boolean;
-  onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
-  onPromptSectionMove: (
-    nodeId: string,
-    sectionId: string,
-    direction: "up" | "down",
-  ) => void;
   onToggleCollapse: () => void;
   sectionLabel: string;
 };
 
 function DetachedUserHeaderStrip({
-  canMoveDown,
-  canMoveUp,
   isCollapsed,
+  isPreviewFocused = false,
   nodeId,
-  onPromptSectionDelete,
-  onPromptSectionMove,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
+  onToggleCompact,
+  onTogglePreviewFocus,
   onToggleCollapse,
   section,
   sectionLabel,
@@ -233,80 +246,54 @@ function DetachedUserHeaderStrip({
         section={section}
         sectionLabel={sectionLabel}
       />
-      <SpielwieseMessageSectionTrailing
-        canMoveDown={canMoveDown}
-        canMoveUp={canMoveUp}
-        controlRevealMode="section"
-        label={sectionLabel}
-        nodeId={nodeId}
-        onDelete={() => onPromptSectionDelete(nodeId, section.id)}
-        onMoveDown={() => onPromptSectionMove(nodeId, section.id, "down")}
-        onMoveUp={() => onPromptSectionMove(nodeId, section.id, "up")}
-        sectionId={section.id}
-        trailingAccessory={
-          <DetachedUserCompactToggleButton
-            isCollapsed={isCollapsed}
-            nodeId={nodeId}
-            onToggleCollapse={onToggleCollapse}
-            sectionLabel={sectionLabel}
-          />
-        }
+      <SpielwieseNodeActionButtons
+        archiveButtonLabel={`Archive ${nodeId} node`}
+        compactButtonLabel={`${
+          isCollapsed ? "Maximize" : "Minimize"
+        } ${nodeId} ${sectionLabel} section`}
+        isCompact={isCollapsed}
+        isPreviewFocused={isPreviewFocused}
+        onArchiveNode={() => onAgentNodeArchive?.(nodeId)}
+        onPreviewHoverEnd={onPreviewHoverEnd}
+        onPreviewHoverStart={onPreviewHoverStart}
+        onToggleCompact={onToggleCompact ?? onToggleCollapse}
+        onTogglePreviewFocus={onTogglePreviewFocus}
+        previewButtonLabel={`Preview ${nodeId} node`}
       />
     </div>
   );
 }
 
-function DetachedUserCompactToggleButton({
-  isCollapsed,
-  nodeId,
-  onToggleCollapse,
-  sectionLabel,
-}: {
-  isCollapsed: boolean;
-  nodeId: string;
-  onToggleCollapse: () => void;
-  sectionLabel: string;
-}) {
-  const ToggleIcon = isCollapsed ? Maximize2 : Minimize2;
-  const compactToggleLabel = `${
-    isCollapsed ? "Maximize" : "Minimize"
-  } ${nodeId} ${sectionLabel} section`;
-
-  return (
-    <Button
-      aria-label={compactToggleLabel}
-      aria-pressed={isCollapsed}
-      className="bg-background text-foreground/58 hover:bg-background hover:text-foreground h-7 w-7 shrink-0 rounded-[8px] border border-[rgba(0,0,0,0.08)]"
-      size="icon-sm"
-      variant="ghost"
-      onClick={onToggleCollapse}
-    >
-      <ToggleIcon className="size-3.5" />
-    </Button>
-  );
-}
-
 export function SpielwieseDetachedUserMessageSectionRow({
-  canMoveDown,
-  canMoveUp,
   displayLabel,
+  isCompact,
+  isPreviewFocused,
   nodeId,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionChange,
-  onPromptSectionDelete,
-  onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
   section,
   startCollapsed = false,
 }: SpielwieseDetachedUserMessageSectionRowProps) {
-  const [isCollapsed, setIsCollapsed] = useState(startCollapsed);
-  const toggleCollapsed = () => setIsCollapsed((currentValue) => !currentValue);
+  const [uncontrolledCollapsed, setUncontrolledCollapsed] =
+    useState(startCollapsed);
+  const isCollapsed = isCompact ?? uncontrolledCollapsed;
+  const toggleCollapsed = onToggleCompact
+    ? onToggleCompact
+    : () => setUncontrolledCollapsed((currentValue) => !currentValue);
   const sectionHeader = (
     <DetachedUserHeaderStrip
-      canMoveDown={canMoveDown}
-      canMoveUp={canMoveUp}
       isCollapsed={isCollapsed}
+      isPreviewFocused={isPreviewFocused}
       nodeId={nodeId}
-      onPromptSectionDelete={onPromptSectionDelete}
-      onPromptSectionMove={onPromptSectionMove}
+      onAgentNodeArchive={onAgentNodeArchive}
+      onPreviewHoverEnd={onPreviewHoverEnd}
+      onPreviewHoverStart={onPreviewHoverStart}
+      onToggleCompact={onToggleCompact}
+      onTogglePreviewFocus={onTogglePreviewFocus}
       onToggleCollapse={toggleCollapsed}
       section={section}
       sectionLabel={displayLabel}

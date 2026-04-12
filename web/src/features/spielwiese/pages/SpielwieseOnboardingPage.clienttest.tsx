@@ -145,11 +145,14 @@ describe("SpielwieseOnboardingPage personal details layout", () => {
 });
 
 describe("SpielwieseOnboardingPage personal details transition", () => {
-  it("animates the form out before advancing into the onboarding canvas", () => {
+  it("animates only the current personal details card out before advancing", () => {
     jest.useFakeTimers();
     renderHashStep(getOnboardingPersonalDetailsPath());
 
-    expect(screen.queryByTestId("spielwiese-onboarding-canvas")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-onboarding-step")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -157,13 +160,13 @@ describe("SpielwieseOnboardingPage personal details transition", () => {
     expect(
       screen.getByTestId("spielwiese-personal-details-form-panel").className,
     ).toContain("opacity-0");
-    expect(screen.getByTestId("spielwiese-onboarding-canvas")).toBeTruthy();
     expect(
-      screen.getAllByTestId("spielwiese-agent-node").length,
-    ).toBeGreaterThan(0);
+      screen.getByTestId("spielwiese-onboarding-entry-layer").className,
+    ).toContain("opacity-0");
+    expect(screen.queryByTestId("spielwiese-onboarding-step")).toBeNull();
 
     act(() => {
-      jest.advanceTimersByTime(320);
+      jest.advanceTimersByTime(420);
     });
 
     expect(push).toHaveBeenCalledWith(
@@ -199,14 +202,25 @@ describe("SpielwieseOnboardingPage personal details compatibility", () => {
 });
 
 describe("SpielwieseOnboardingPage routed steps", () => {
-  it("renders the interactive onboarding route without dashboard shell chrome", () => {
+  it("renders the stripped-down onboarding route without dashboard shell chrome", () => {
     const { container } = render(<SpielwieseOnboardingPage stepId="role" />);
 
-    expect(screen.getByTestId("spielwiese-onboarding-canvas")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-onboarding-step")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
-      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
+      screen.getByRole("button", {
+        name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
+      }),
     ).toBeTruthy();
-    expect(screen.getByText("Hello Leonard")).toBeTruthy();
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-questionnaire"),
+    ).toBeNull();
+    expect(screen.getByText("Do you know what to build?")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Yes" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "No" })).toBeTruthy();
     expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
     expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
     expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
@@ -217,7 +231,7 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     render(<SpielwieseOnboardingPage stepId="intent" />);
 
     expect(screen.getByText("Question 1 of 3")).toBeTruthy();
-    expect(screen.getByText("What describes you best?")).toBeTruthy();
+    expect(screen.getByText("Do you know what to build?")).toBeTruthy();
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
   });
 });

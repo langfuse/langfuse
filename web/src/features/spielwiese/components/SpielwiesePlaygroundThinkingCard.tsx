@@ -2,20 +2,120 @@ import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 
 const playgroundThinkingCardClassName =
-  "relative flex h-7 w-full items-center overflow-hidden rounded-[10px] border border-[rgba(201,120,62,0.12)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(247,243,239,0.96)_100%)] px-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] ring-1 ring-[rgba(201,120,62,0.06)]";
+  "relative flex h-7 w-full items-center overflow-hidden rounded-[10px] border border-[rgba(184,139,76,0.12)] bg-[linear-gradient(180deg,rgba(251,249,244,0.98)_0%,rgba(247,244,238,0.98)_100%)] px-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.84)] ring-1 ring-[rgba(184,139,76,0.08)]";
+const thinkingStatClassName =
+  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(0,0,0,0.05)] bg-[rgba(255,255,255,0.74)] px-1.5 text-[10px] font-medium tracking-[-0.01em] text-foreground/58 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]";
+const thinkingTokenClassName =
+  "inline-flex h-5 shrink-0 items-center rounded-[6px] border border-[rgba(184,139,76,0.16)] bg-[rgba(255,255,255,0.84)] px-1.5 text-[10px] font-semibold tracking-[-0.01em] text-[#8C5B24] shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]";
+
+type PlaygroundThinkingCardMeta = {
+  reasonedLabel: string;
+  tokensLabel: string;
+  toolCallsLabel: string;
+};
+
+function formatThinkingMetricLabel({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return `${label} ${value}`;
+}
+
+export function getThinkingCardMeta({
+  playgroundThinking,
+}: Pick<
+  SpielwieseAgentNodeVM,
+  "playgroundThinking"
+>): PlaygroundThinkingCardMeta {
+  const reasonedSteps =
+    playgroundThinking?.reasonedSteps ?? playgroundThinking?.steps.length ?? 0;
+  const toolCalls = playgroundThinking?.toolCalls ?? 0;
+  const thinkingTokens =
+    playgroundThinking?.thinkingTokens ?? Math.max(reasonedSteps, 1) * 128;
+
+  return {
+    reasonedLabel: formatThinkingMetricLabel({
+      label: "Reasoned",
+      value: reasonedSteps,
+    }),
+    tokensLabel: `${new Intl.NumberFormat("en-US").format(thinkingTokens)} tok`,
+    toolCallsLabel: formatThinkingMetricLabel({
+      label: "Tools",
+      value: toolCalls,
+    }),
+  };
+}
 
 export function getThinkingSummary(node: SpielwieseAgentNodeVM) {
   return node.playgroundThinking?.summary ?? "analyzing prompt";
 }
 
+function PlaygroundThinkingCardMetrics({
+  meta,
+}: {
+  meta: PlaygroundThinkingCardMeta;
+}) {
+  return (
+    <>
+      <span
+        className={thinkingStatClassName}
+        data-testid="spielwiese-playground-thinking-stat-tools"
+      >
+        {meta.toolCallsLabel}
+      </span>
+      <span
+        className={thinkingStatClassName}
+        data-testid="spielwiese-playground-thinking-stat-reasoned"
+      >
+        {meta.reasonedLabel}
+      </span>
+      <span
+        className={cn("ml-auto", thinkingTokenClassName)}
+        data-testid="spielwiese-playground-thinking-stat-tokens"
+      >
+        {meta.tokensLabel}
+      </span>
+    </>
+  );
+}
+
+function PlaygroundThinkingCardSummary({ summary }: { summary: string }) {
+  return (
+    <div className="flex w-full min-w-0 items-center gap-1.5">
+      <div
+        aria-hidden="true"
+        className="flex shrink-0 items-center gap-1"
+        data-testid="spielwiese-playground-thinking-card-dots"
+      >
+        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.78)]" />
+        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.58)] [animation-delay:140ms]" />
+        <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.42)] [animation-delay:280ms]" />
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+        <span className="text-foreground shrink-0 text-[12px] font-semibold tracking-[-0.01em]">
+          Thinking
+        </span>
+        <span className="text-foreground/42 truncate text-[11px] font-medium">
+          {summary}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function PlaygroundThinkingCard({
   isDetailOpen,
   isVisible,
+  meta,
   onClick,
   summary,
 }: {
   isDetailOpen: boolean;
   isVisible: boolean;
+  meta: PlaygroundThinkingCardMeta;
   onClick: () => void;
   summary: string;
 }) {
@@ -43,24 +143,9 @@ export function PlaygroundThinkingCard({
           className="absolute inset-0 animate-[rainbow_2.8s_linear_infinite] bg-[linear-gradient(90deg,rgba(201,120,62,0.02)_0%,rgba(201,120,62,0.16)_42%,rgba(255,255,255,0.02)_68%,rgba(201,120,62,0.1)_100%)] bg-[length:220%_100%]"
           data-testid="spielwiese-playground-thinking-card-glow"
         />
-        <div className="relative flex min-w-0 items-center gap-2">
-          <div
-            aria-hidden="true"
-            className="flex shrink-0 items-center gap-1"
-            data-testid="spielwiese-playground-thinking-card-dots"
-          >
-            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.78)]" />
-            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.58)] [animation-delay:140ms]" />
-            <span className="size-1.5 animate-pulse rounded-full bg-[rgba(201,120,62,0.42)] [animation-delay:280ms]" />
-          </div>
-          <div className="flex min-w-0 items-baseline gap-1.5">
-            <span className="text-foreground text-[12px] font-semibold tracking-[-0.01em]">
-              Thinking
-            </span>
-            <span className="text-foreground/44 truncate text-[11px] font-medium">
-              {summary}
-            </span>
-          </div>
+        <div className="relative flex w-full min-w-0 items-center gap-1.5">
+          <PlaygroundThinkingCardSummary summary={summary} />
+          <PlaygroundThinkingCardMetrics meta={meta} />
         </div>
       </button>
     </div>

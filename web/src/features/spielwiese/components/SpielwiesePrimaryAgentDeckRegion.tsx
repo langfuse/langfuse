@@ -12,6 +12,7 @@ type SpielwiesePrimaryAgentDeckRegionProps = {
   isPreviewSpotlighted: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
+  onAgentNodeArchive: (nodeId: string) => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
   onPromptSectionChange: (
@@ -125,6 +126,7 @@ function SpielwiesePrimaryAgentDeckSwitcher({
   isPreviewFocused,
   modelSetting,
   node,
+  onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
   onPromptSectionChange,
@@ -150,6 +152,7 @@ function SpielwiesePrimaryAgentDeckSwitcher({
       isPreviewFocused={isPreviewFocused}
       modelSetting={modelSetting}
       node={node}
+      onAgentNodeArchive={onAgentNodeArchive}
       onPreviewHoverEnd={onPreviewHoverEnd}
       onPreviewHoverStart={onPreviewHoverStart}
       onPromptSectionChange={onPromptSectionChange}

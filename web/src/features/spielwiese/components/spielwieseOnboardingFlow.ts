@@ -1,8 +1,8 @@
 export const ONBOARDING_QUESTIONS = [
   {
     id: "role",
-    prompt: "What describes you best?",
-    options: ["Builder", "Reviewer", "Operator"],
+    prompt: "Do you know what to build?",
+    options: ["Yes", "No"],
   },
   {
     id: "intent",
@@ -77,7 +77,7 @@ export function getOnboardingSummary(answers: OnboardingAnswers) {
   const completionCount = getOnboardingCompletionCount(answers);
 
   if (completionCount === 0) {
-    return "Three short questions shape the room before you enter the canvas.";
+    return "Three short questions shape the room before you enter.";
   }
 
   const fragments = [

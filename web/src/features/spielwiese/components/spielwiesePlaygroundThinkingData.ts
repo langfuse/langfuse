@@ -1,8 +1,11 @@
 import type { SpielwieseAgentNodeThinkingVM } from "../types/dashboard";
 
 export const visionAgentThinking: SpielwieseAgentNodeThinkingVM = {
+  reasonedSteps: 3,
   summary: "analyzing prompt",
+  thinkingTokens: 428,
   title: "Vision reasoning trace",
+  toolCalls: 1,
   steps: [
     {
       id: "vision-pass",
@@ -24,8 +27,11 @@ export const visionAgentThinking: SpielwieseAgentNodeThinkingVM = {
 };
 
 export const nutritionAgentThinking: SpielwieseAgentNodeThinkingVM = {
+  reasonedSteps: 2,
   summary: "checking totals",
+  thinkingTokens: 684,
   title: "Nutrition reasoning trace",
+  toolCalls: 2,
   steps: [
     {
       id: "reference-lookup",
@@ -41,8 +47,11 @@ export const nutritionAgentThinking: SpielwieseAgentNodeThinkingVM = {
 };
 
 export const coachAgentThinking: SpielwieseAgentNodeThinkingVM = {
+  reasonedSteps: 2,
   summary: "drafting summary",
+  thinkingTokens: 236,
   title: "Coach reasoning trace",
+  toolCalls: 1,
   steps: [
     {
       id: "signal-pick",

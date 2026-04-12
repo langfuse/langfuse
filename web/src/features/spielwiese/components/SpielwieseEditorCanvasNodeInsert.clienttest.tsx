@@ -3,18 +3,23 @@ import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
-function getExternalInsertControls(nodeElement: HTMLElement) {
+function getExternalInsertControls() {
+  const insertFooter = screen.getByTestId(
+    "spielwiese-agent-node-insert-footer",
+  );
+
   return {
-    externalRow: within(nodeElement).getByTestId(
+    insertFooter,
+    externalRow: within(insertFooter).getByTestId(
       "spielwiese-agent-node-external-insert-row",
     ),
-    textPicker: within(nodeElement).getByTestId(
+    textPicker: within(insertFooter).getByTestId(
       "spielwiese-agent-node-insert-picker",
     ),
-    textShell: within(nodeElement).getByTestId(
+    textShell: within(insertFooter).getByTestId(
       "spielwiese-agent-node-insert-shell",
     ),
-    textTrigger: within(nodeElement).getByTestId(
+    textTrigger: within(insertFooter).getByTestId(
       "spielwiese-agent-node-insert-trigger",
     ),
   };
@@ -22,11 +27,16 @@ function getExternalInsertControls(nodeElement: HTMLElement) {
 
 function expectExternalInsertRowChrome({
   externalRow,
+  insertFooter,
   textPicker,
   textShell,
   textTrigger,
-  visionNode,
-}: ReturnType<typeof getExternalInsertControls> & { visionNode: HTMLElement }) {
+}: ReturnType<typeof getExternalInsertControls>) {
+  const stack = screen.getByTestId("spielwiese-agent-node-stack");
+  const paneSurface = screen.getByTestId(
+    "spielwiese-editor-canvas-pane-surface",
+  );
+
   expect(textPicker.getAttribute("data-state")).toBe("closed");
   expect(externalRow.className).toContain("w-fit");
   expect(externalRow.className).toContain("pl-[18px]");
@@ -38,8 +48,13 @@ function expectExternalInsertRowChrome({
   expect(externalRow.className).not.toContain("pointer-events-none");
   expect(externalRow.className).not.toContain("group-hover/agent-node");
   expect(externalRow.className).not.toContain("group-focus-within/agent-node");
-  expect(externalRow.parentElement).toBe(visionNode);
-  expect(visionNode.lastElementChild).toBe(externalRow);
+  expect(insertFooter.className).toContain("flex-none");
+  expect(insertFooter.className).toContain("pb-2");
+  expect(insertFooter.contains(externalRow)).toBe(true);
+  expect(paneSurface.contains(insertFooter)).toBe(true);
+  expect(
+    stack.querySelector("[data-testid='spielwiese-agent-node-insert-slot']"),
+  ).toBeNull();
   expect(textShell.className).toContain("overflow-hidden");
   expect(textShell.className).toContain("[--message-insert-inner-radius:7px]");
   expect(textShell.className).toContain("[--message-insert-padding:2px]");
@@ -92,70 +107,118 @@ function renderVisionNode() {
   return screen.getAllByTestId("spielwiese-agent-node")[0];
 }
 
+// eslint-disable-next-line max-lines-per-function
 describe("SpielwieseEditorCanvas node insertion", () => {
-  it("keeps a dedicated external node insert tray with only user and agent choices", () => {
+  it("keeps a single trailing external node insert tray with only user and agent choices", () => {
     const visionNode = renderVisionNode();
-    const controls = getExternalInsertControls(visionNode);
+    const controls = getExternalInsertControls();
 
-    expectExternalInsertRowChrome({ ...controls, visionNode });
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(1);
+    expect(
+      within(visionNode).queryByTestId(
+        "spielwiese-agent-node-external-insert-row",
+      ),
+    ).toBeNull();
+    expectExternalInsertRowChrome(controls);
 
     fireEvent.click(controls.textTrigger);
 
     expect(controls.textPicker.getAttribute("data-state")).toBe("open");
     expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
-    expectExternalInsertPickerChrome(visionNode);
+    expectExternalInsertPickerChrome(controls.insertFooter);
   });
 
   it("inserts a blank agent-only node after the current node when the external agent option is chosen", () => {
-    const visionNode = renderVisionNode();
-    const { textTrigger } = getExternalInsertControls(visionNode);
+    renderVisionNode();
+    const { insertFooter, textTrigger } = getExternalInsertControls();
 
     fireEvent.click(textTrigger);
-    fireEvent.click(within(visionNode).getByRole("button", { name: "Agent" }));
+    fireEvent.click(
+      within(insertFooter).getByRole("button", { name: "Agent" }),
+    );
 
     const agentNodes = screen.getAllByTestId("spielwiese-agent-node");
-    const insertedNode = agentNodes[1]!;
+    const insertedNode = agentNodes[3]!;
 
     expect(agentNodes).toHaveLength(4);
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(1);
     expect(
       within(insertedNode).queryByTestId("spielwiese-detached-user-card-deck"),
     ).toBeNull();
     expect(
       (
         within(insertedNode).getByLabelText(
-          "vision-agent-2 title",
+          "coach-agent-2 title",
         ) as HTMLInputElement
       ).value,
     ).toBe("");
     expect(
       (
         within(insertedNode).getByLabelText(
-          "vision-agent-2 Instructions",
+          "coach-agent-2 Instructions",
         ) as HTMLTextAreaElement
       ).value,
     ).toBe("");
   });
 
-  it("inserts a blank user-only node after the current node when the external user option is chosen", () => {
-    const visionNode = renderVisionNode();
-    const { textTrigger } = getExternalInsertControls(visionNode);
+  it("inserts a blank user-only node after the current node when the external user option is chosen and keeps an archive control on that node", () => {
+    renderVisionNode();
+    const { insertFooter, textTrigger } = getExternalInsertControls();
 
     fireEvent.click(textTrigger);
-    fireEvent.click(within(visionNode).getByRole("button", { name: "User" }));
+    fireEvent.click(within(insertFooter).getByRole("button", { name: "User" }));
 
     const agentNodes = screen.getAllByTestId("spielwiese-agent-node");
-    const insertedNode = agentNodes[1]!;
+    const insertedNode = agentNodes[3]!;
 
     expect(agentNodes).toHaveLength(4);
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(1);
     expect(
       within(insertedNode).queryByTestId("spielwiese-agent-node-card"),
     ).toBeNull();
     expect(
+      within(insertedNode).getByRole("button", {
+        name: "Archive coach-agent-2 node",
+      }),
+    ).toBeTruthy();
+    expect(
       (
         within(insertedNode).getByLabelText(
-          "vision-agent-2 User message",
+          "coach-agent-2 User message",
         ) as HTMLTextAreaElement
       ).value,
     ).toBe("");
+  });
+
+  it("archives a node locally and leaves the single insert tray at the end of the remaining stack", () => {
+    const visionNode = renderVisionNode();
+
+    fireEvent.click(
+      within(visionNode).getAllByRole("button", {
+        name: "Archive vision-agent node",
+      })[0] as HTMLButtonElement,
+    );
+
+    const remainingNodes = screen.getAllByTestId("spielwiese-agent-node");
+    const stack = screen.getByTestId("spielwiese-agent-node-stack");
+    const insertFooter = screen.getByTestId(
+      "spielwiese-agent-node-insert-footer",
+    );
+
+    expect(screen.queryByLabelText("vision-agent title")).toBeNull();
+    expect(remainingNodes).toHaveLength(2);
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(1);
+    expect(
+      stack.querySelector("[data-testid='spielwiese-agent-node-insert-slot']"),
+    ).toBeNull();
+    expect(insertFooter).toBeTruthy();
   });
 });

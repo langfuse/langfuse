@@ -25,7 +25,7 @@ function getPreviewPrefixIcon(messageKind: string): LucideIcon | null {
   return null;
 }
 
-type PlaygroundFlowPreviewVM = {
+export type PlaygroundFlowPreviewVM = {
   format: "json" | "text";
   label: string;
   sectionId: string;
@@ -42,6 +42,10 @@ export function getPlaygroundFlowPreview(
       sectionId: node.playgroundPreview.toneSectionId ?? "system",
       value: node.playgroundPreview.value,
     };
+  }
+
+  if ((node.layout ?? "composite") === "user-only") {
+    return undefined;
   }
 
   const section =
