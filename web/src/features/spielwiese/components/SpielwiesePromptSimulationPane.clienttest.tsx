@@ -20,8 +20,23 @@ function getPromptSimulationElements() {
   const composerForm = within(composerShell).getByTestId(
     "spielwiese-playground-composer-form",
   );
+  const composerLeading = within(composerForm).getByTestId(
+    "spielwiese-playground-composer-leading",
+  );
+  const composerAddButton = within(composerLeading).getByTestId(
+    "spielwiese-playground-composer-add-button",
+  );
+  const composerPrimary = within(composerForm).getByTestId(
+    "spielwiese-playground-composer-primary",
+  );
   const composerInput =
     within(composerShell).getByLabelText("Playground input");
+  const composerTrailing = within(composerForm).getByTestId(
+    "spielwiese-playground-composer-trailing",
+  );
+  const composerDictationButton = within(composerTrailing).getByTestId(
+    "spielwiese-playground-composer-dictation-button",
+  );
   const composerSubmitButton = within(composerShell).getByTestId(
     "spielwiese-playground-submit-button",
   );
@@ -67,10 +82,15 @@ function getPromptSimulationElements() {
       "spielwiese-playground-flow-chevron",
     ),
     actions,
+    composerAddButton,
     composerForm,
+    composerLeading,
+    composerPrimary,
     composerInput,
+    composerDictationButton,
     composerShell,
     composerSubmitButton,
+    composerTrailing,
     flowHeaderRows,
     flowNodes,
     flowScroller,
@@ -105,14 +125,16 @@ function expectPromptSimulationPaneChrome(
     terminalShell,
   } = elements;
 
-  expect(simulationPane.className).toContain("bg-[#15181C]");
+  expect(simulationPane.className).toContain("bg-[#F3F3F4]");
   expect(simulationPane.className).toContain("px-2");
   expect(simulationPane.className).toContain("pb-2");
   expect(simulationPane.className).not.toContain("pt-2");
+  expect(simulationPane.className).not.toContain("px-0");
   expect(simulationPane.className).toContain("overflow-hidden");
   expect(simulationPane.className).not.toContain("border-x");
   expect(simulationPane.className).not.toContain("border-b");
   expect(terminalShell.className).toContain("rounded-[8px]");
+  expect(terminalShell.className).not.toContain("rounded-t-[8px]");
   expect(terminalShell.className).not.toContain("rounded-b-[8px]");
   expect(terminalShell.className).toContain("bg-background");
   expect(terminalShell.className).toContain("w-full");
@@ -143,16 +165,39 @@ function expectPromptSimulationPaneChrome(
   expect(elements.playButton.getAttribute("aria-pressed")).toBe("false");
   expect(elements.playButton.querySelector("svg")).not.toBeNull();
   expect(elements.composerShell.className).toContain("bottom-0");
+  expect(elements.composerShell.className).toContain("justify-center");
+  expect(elements.composerShell.className).toContain("bg-transparent");
+  expect(elements.composerShell.className).toContain("pt-2.5");
+  expect(elements.composerShell.className).toContain("pb-3");
   expect(elements.composerForm.className).toContain("rounded-[24px]");
+  expect(elements.composerForm.className).toContain("flex");
+  expect(elements.composerForm.className).toContain("py-1.5");
   expect(elements.composerForm.className).toContain("border");
-  expect(elements.composerForm.className).toContain("w-1/2");
-  expect(elements.composerForm.className).toContain("backdrop-blur");
+  expect(elements.composerForm.className).toContain("w-full");
+  expect(elements.composerForm.className).toContain("max-w-[32rem]");
+  expect(elements.composerForm.className).toContain("bg-transparent");
+  expect(elements.composerForm.className).not.toContain(
+    "bg-[rgba(255,255,255,0.92)]",
+  );
+  expect(elements.composerLeading.className).toContain("flex");
+  expect(elements.composerPrimary.className).toContain("flex-1");
+  expect(elements.composerPrimary.className).toContain("px-0.5");
+  expect(elements.composerTrailing.className).toContain("ml-auto");
+  expect(elements.composerTrailing.className).toContain("gap-0.5");
+  expect(elements.composerAddButton.getAttribute("aria-label")).toBe(
+    "Add files and more",
+  );
+  expect(elements.composerDictationButton.getAttribute("aria-label")).toBe(
+    "Start dictation",
+  );
   expect(elements.composerInput.getAttribute("placeholder")).toBe(
-    "Type a test input for the workflow",
+    "Ask anything",
   );
   expect(elements.composerSubmitButton.getAttribute("aria-label")).toBe(
     "Run playground input",
   );
+  expect(elements.composerSubmitButton.className).toContain("h-9");
+  expect(elements.composerSubmitButton.className).toContain("w-9");
   expect(elements.composerSubmitButton.hasAttribute("disabled")).toBe(true);
   expect(flowScroller.className).toContain("w-full");
   expect(flowScroller.className).toContain("min-w-0");
