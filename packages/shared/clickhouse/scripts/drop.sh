@@ -17,11 +17,19 @@ if [ -z "${CLICKHOUSE_DB}" ]; then
     export CLICKHOUSE_DB="default"
 fi
 
+# URL-encode a string (handles special chars like @, &, #, !, %, etc.)
+url_encode() {
+    python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+}
+
+ENCODED_CLICKHOUSE_PASSWORD=$(url_encode "$CLICKHOUSE_PASSWORD")
+ENCODED_CLICKHOUSE_USER=$(url_encode "$CLICKHOUSE_USER")
+
 # Construct the database URL
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
 else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi
 # Execute the drop command
 migrate -source file://clickhouse/migrations -database "$DATABASE_URL" drop

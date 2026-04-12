@@ -50,21 +50,29 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
+# URL-encode a string (handles special chars like @, &, #, !, %, etc.)
+url_encode() {
+    python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+}
+
+ENCODED_CLICKHOUSE_PASSWORD=$(url_encode "$CLICKHOUSE_PASSWORD")
+ENCODED_CLICKHOUSE_USER=$(url_encode "$CLICKHOUSE_USER")
+
 # Construct the database URL
 if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
   else
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
   fi
 
   # Execute the up command
   migrate -source file://clickhouse/migrations/unclustered -database "$DATABASE_URL" up
 else
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   else
-      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${ENCODED_CLICKHOUSE_USER}&password=${ENCODED_CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
 
   # Execute the up command
