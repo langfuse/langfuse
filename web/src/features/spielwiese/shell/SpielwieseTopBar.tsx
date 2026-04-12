@@ -147,14 +147,16 @@ export function SpielwieseTopBar({
           teamInitial={shell.team.initials.slice(0, 1)}
           togglePrimarySidebar={togglePrimarySidebar}
         />
-        <SpielwieseHeaderFinder
-          breadcrumb={header.breadcrumb}
-          isOpen={isFinderOpen}
-          onClose={onFinderClose}
-          onOpen={onFinderOpen}
-          pageId={pageId}
-          shell={shell}
-        />
+        <div className="min-w-0">
+          <SpielwieseHeaderFinder
+            breadcrumb={header.breadcrumb}
+            isOpen={isFinderOpen}
+            onClose={onFinderClose}
+            onOpen={onFinderOpen}
+            pageId={pageId}
+            shell={shell}
+          />
+        </div>
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
           updatedAt={header.updatedAt}

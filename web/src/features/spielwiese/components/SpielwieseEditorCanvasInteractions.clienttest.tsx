@@ -297,7 +297,7 @@ describe("SpielwieseEditorCanvas section collapse interactions", () => {
 });
 
 describe("SpielwieseEditorCanvas node card navigation", () => {
-  it("switches a node card into a new empty card and back again", () => {
+  it("switches a node card into a matching secondary card and back again", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
     const addCardButton = within(visionNode).getByRole("button", {
@@ -314,14 +314,19 @@ describe("SpielwieseEditorCanvas node card navigation", () => {
 
     fireEvent.click(addCardButton);
 
-    const emptyCard = within(visionNode).getByTestId(
-      "spielwiese-agent-node-empty-card",
+    const secondaryCard = within(visionNode).getByTestId(
+      "spielwiese-agent-node-secondary-card",
     );
 
     expect(
-      within(visionNode).queryByRole("button", { name: "vision-agent Model" }),
-    ).toBeNull();
-    expect(emptyCard.parentElement?.className).toContain("opacity-100");
+      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
+    ).toBeTruthy();
+    expect(
+      within(secondaryCard).getByDisplayValue("Vision Agent"),
+    ).toBeTruthy();
+    expect(
+      within(secondaryCard).getByLabelText("vision-agent Instructions"),
+    ).toBeTruthy();
     expect(previousCardButton.getAttribute("disabled")).toBeNull();
 
     fireEvent.click(previousCardButton);
@@ -329,7 +334,9 @@ describe("SpielwieseEditorCanvas node card navigation", () => {
     expect(
       within(visionNode).getByRole("button", { name: "vision-agent Model" }),
     ).toBeTruthy();
-    expect(emptyCard.parentElement?.className).toContain("opacity-0");
+    expect(
+      within(visionNode).queryByTestId("spielwiese-agent-node-secondary-card"),
+    ).toBeNull();
     expect(previousCardButton.getAttribute("disabled")).toBe("");
   });
 });

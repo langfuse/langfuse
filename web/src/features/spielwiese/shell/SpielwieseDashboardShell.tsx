@@ -154,10 +154,10 @@ function ShellBodyGrid({
     >
       <aside className="hidden min-h-0 md:block">
         <div
-          className="box-border h-full min-h-0 bg-[#15181C] pt-2"
+          className="box-border h-full min-h-0 bg-[#15181C]"
           data-testid="spielwiese-shell-left"
         >
-          <div className="h-full min-h-0 overflow-hidden rounded-t-[8px]">
+          <div className="h-full min-h-0 overflow-hidden rounded-[8px]">
             <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
           </div>
         </div>
@@ -175,10 +175,10 @@ function ShellBodyGrid({
       {rightOpen ? (
         <aside className="hidden min-h-0 xl:block">
           <div
-            className="box-border h-full min-h-0 bg-[#15181C] pt-2"
+            className="box-border h-full min-h-0 bg-[#15181C]"
             data-testid="spielwiese-shell-right"
           >
-            <div className="h-full min-h-0 overflow-hidden rounded-t-[8px]">
+            <div className="h-full min-h-0 overflow-hidden rounded-[8px]">
               <SpielwieseSidebarRight
                 dashboard={dashboard}
                 variablesState={variablesState}

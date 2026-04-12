@@ -1,4 +1,4 @@
-/* eslint-disable max-lines-per-function */
+/* eslint-disable max-lines, max-lines-per-function */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
@@ -13,6 +13,17 @@ function getPromptSimulationElements() {
   const actions = within(header).getByTestId("spielwiese-playground-actions");
   const historyButton = within(header).getByTestId(
     "spielwiese-playground-history-button",
+  );
+  const composerShell = within(simulationPane).getByTestId(
+    "spielwiese-playground-composer-shell",
+  );
+  const composerForm = within(composerShell).getByTestId(
+    "spielwiese-playground-composer-form",
+  );
+  const composerInput =
+    within(composerShell).getByLabelText("Playground input");
+  const composerSubmitButton = within(composerShell).getByTestId(
+    "spielwiese-playground-submit-button",
   );
   const playButton = within(header).getByTestId(
     "spielwiese-playground-play-button",
@@ -56,6 +67,10 @@ function getPromptSimulationElements() {
       "spielwiese-playground-flow-chevron",
     ),
     actions,
+    composerForm,
+    composerInput,
+    composerShell,
+    composerSubmitButton,
     flowHeaderRows,
     flowNodes,
     flowScroller,
@@ -91,19 +106,20 @@ function expectPromptSimulationPaneChrome(
   } = elements;
 
   expect(simulationPane.className).toContain("bg-[#15181C]");
-  expect(simulationPane.className).toContain("p-2");
+  expect(simulationPane.className).toContain("px-2");
+  expect(simulationPane.className).toContain("pb-2");
+  expect(simulationPane.className).not.toContain("pt-2");
   expect(simulationPane.className).toContain("overflow-hidden");
   expect(simulationPane.className).not.toContain("border-x");
   expect(simulationPane.className).not.toContain("border-b");
   expect(terminalShell.className).toContain("rounded-[8px]");
+  expect(terminalShell.className).not.toContain("rounded-b-[8px]");
   expect(terminalShell.className).toContain("bg-background");
   expect(terminalShell.className).toContain("w-full");
   expect(terminalShell.className).toContain("min-w-0");
   expect(terminalShell.className).toContain("flex-1");
   expect(terminalShell.className).toContain("flex-col");
-  expect(terminalShell.className).toContain("overflow-x-hidden");
-  expect(terminalShell.className).toContain("overflow-y-auto");
-  expect(terminalShell.className).toContain("gap-3");
+  expect(terminalShell.className).toContain("overflow-hidden");
   expect(terminalShell.className).toContain("py-0");
   expect(elements.header.className).toContain("sticky");
   expect(elements.header.className).toContain("w-[calc(100%+2rem)]");
@@ -126,18 +142,29 @@ function expectPromptSimulationPaneChrome(
   expect(elements.playButton.className).toContain("ring-1");
   expect(elements.playButton.getAttribute("aria-pressed")).toBe("false");
   expect(elements.playButton.querySelector("svg")).not.toBeNull();
+  expect(elements.composerShell.className).toContain("bottom-0");
+  expect(elements.composerForm.className).toContain("rounded-[24px]");
+  expect(elements.composerForm.className).toContain("border");
+  expect(elements.composerForm.className).toContain("w-1/2");
+  expect(elements.composerForm.className).toContain("backdrop-blur");
+  expect(elements.composerInput.getAttribute("placeholder")).toBe(
+    "Type a test input for the workflow",
+  );
+  expect(elements.composerSubmitButton.getAttribute("aria-label")).toBe(
+    "Run playground input",
+  );
+  expect(elements.composerSubmitButton.hasAttribute("disabled")).toBe(true);
   expect(flowScroller.className).toContain("w-full");
   expect(flowScroller.className).toContain("min-w-0");
+  expect(flowScroller.className).toContain("flex-1");
+  expect(flowScroller.className).toContain("overflow-y-auto");
   expect(flowScroller.className).toContain("pb-3");
-  expect(flowScroller.className).not.toContain("overflow-y-auto");
   expect(flowScroller.className).not.toContain("overflow-x-auto");
-  expect(flowScroller.className).not.toContain("flex-1");
   expect(flowStrip.className).toContain("items-start");
   expect(flowStrip.className).toContain("inline-flex");
   expect(flowStrip.className).toContain("min-w-full");
   expect(simulationPane.textContent).not.toContain("Sample message");
   expect(simulationPane.textContent).not.toContain("Preview");
-  expect(screen.queryByLabelText("Playground input")).toBeNull();
   expect(flowSteps).toHaveLength(3);
   expect(flowNodes).toHaveLength(3);
   expect(previewRows).toHaveLength(3);
@@ -282,6 +309,23 @@ function expectPlaygroundThinkingState(
   );
 }
 
+function expectPlaygroundComposerSubmission(
+  elements: ReturnType<typeof getPromptSimulationElements>,
+) {
+  const firstThinkingCardShell = elements.thinkingCardShells[0]!;
+
+  fireEvent.change(elements.composerInput, {
+    target: { value: "Could you check whether this meal is protein heavy?" },
+  });
+  fireEvent.click(elements.composerSubmitButton);
+
+  expect((elements.composerInput as HTMLTextAreaElement).value).toBe(
+    "Could you check whether this meal is protein heavy?",
+  );
+  expect(elements.composerSubmitButton.hasAttribute("disabled")).toBe(false);
+  expect(firstThinkingCardShell.getAttribute("data-state")).toBe("open");
+}
+
 describe("SpielwiesePromptSimulationPane", () => {
   it("renders the present nodes as a flow strip with chevrons between them", () => {
     render(
@@ -295,5 +339,6 @@ describe("SpielwiesePromptSimulationPane", () => {
     expectPromptSimulationPaneChrome(elements);
     expectPromptSimulationNodeShells(elements);
     expectPlaygroundThinkingState(elements);
+    expectPlaygroundComposerSubmission(elements);
   });
 });

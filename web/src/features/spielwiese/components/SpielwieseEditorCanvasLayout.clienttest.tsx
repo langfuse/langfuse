@@ -48,60 +48,6 @@ function expectVisionNodeChrome({
   expect(headerRow.className).toContain("pb-[6px]");
 }
 
-function getCanvasPaneModeElements() {
-  const paneModeToggle = screen.getByTestId(
-    "spielwiese-canvas-pane-mode-toggle",
-  );
-  const playgroundToggle = within(paneModeToggle).getByRole("button", {
-    name: "Playground",
-  });
-  const evaluationToggle = within(paneModeToggle).getByRole("button", {
-    name: "Evaluation",
-  });
-
-  return {
-    evaluationToggle,
-    paneModeToggle,
-    playgroundToggle,
-  };
-}
-
-function expectPaneModeToggleChrome({
-  evaluationToggle,
-  paneModeToggle,
-  playgroundHeader,
-  playgroundToggle,
-}: ReturnType<typeof getCanvasPaneModeElements> & {
-  playgroundHeader: HTMLElement;
-}) {
-  expect(
-    within(playgroundHeader).queryByTestId("spielwiese-playground-title"),
-  ).toBeNull();
-  expect(paneModeToggle).toBeTruthy();
-  expect(paneModeToggle.className).toContain("bg-muted");
-  expect(paneModeToggle.className).toContain("rounded-2xl");
-  expect(paneModeToggle.className).toContain("p-1");
-  expect(paneModeToggle.className).not.toContain("shadow-[");
-  expect(playgroundToggle.className).toContain("bg-background");
-  expect(playgroundToggle.className).not.toContain("bg-[#15181C]");
-  expect(playgroundToggle.className).not.toContain("shadow-[");
-  expect(evaluationToggle.className).toContain("text-muted-foreground");
-}
-
-function getPlaygroundHeaderElements() {
-  const simulationPane = screen.getByTestId(
-    "spielwiese-prompt-simulation-pane",
-  );
-  const playgroundHeader = within(simulationPane).getByTestId(
-    "spielwiese-playground-header",
-  );
-
-  return {
-    playgroundHeader,
-    simulationPane,
-  };
-}
-
 describe("SpielwieseEditorCanvas layout shell", () => {
   it("renders with a local container-query root", () => {
     renderCanvas();
@@ -117,9 +63,6 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     const resizeHandle = screen.getByTestId(
       "spielwiese-canvas-pane-resize-handle",
     );
-    const { evaluationToggle, paneModeToggle, playgroundToggle } =
-      getCanvasPaneModeElements();
-    const { playgroundHeader } = getPlaygroundHeaderElements();
     const nodes = screen.getAllByTestId("spielwiese-agent-node");
 
     expect(widget.className).toContain("@container");
@@ -127,11 +70,14 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(widget.className).toContain("overflow-hidden");
     expect(widget.className).toContain("flex-1");
     expect(editorPane.className).toContain("bg-[#15181C]");
-    expect(editorPane.className).toContain("p-2");
+    expect(editorPane.className).toContain("px-2");
+    expect(editorPane.className).toContain("pb-2");
+    expect(editorPane.className).not.toContain("pt-2");
     expect(editorPane.className).not.toContain("border-x");
     expect(editorPane.className).not.toContain("border-t");
     expect(editorPane.className).not.toContain("border-b-0");
     expect(editorPaneShell.className).toContain("rounded-[8px]");
+    expect(editorPaneShell.className).not.toContain("rounded-b-[8px]");
     expect(editorPaneShell.className).toContain("bg-background");
     expect(editorPaneShell.className).toContain("overflow-y-auto");
     expect(editorPaneShell.className).toContain("overflow-x-hidden");
@@ -142,82 +88,8 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(simulationPane.className).toContain("rounded-none");
     expect(simulationPane.className).not.toContain("border-t-0");
     expect(resizeHandle).toBeTruthy();
-    expect(playgroundHeader.className).toContain("sticky");
-    expect(playgroundHeader.className).toContain("backdrop-blur");
-    expect(paneModeToggle).toBeTruthy();
-    expect(playgroundToggle.getAttribute("aria-pressed")).toBe("true");
-    expect(evaluationToggle.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByLabelText("Playground input")).toBeTruthy();
     expect(nodes).toHaveLength(3);
-  });
-});
-
-describe("SpielwieseEditorCanvas pane mode toggle chrome", () => {
-  it("renders a sticky lower-pane header with the mode toggle and a plain resize line", () => {
-    renderCanvas();
-    const { evaluationToggle, paneModeToggle, playgroundToggle } =
-      getCanvasPaneModeElements();
-    const resizeHandle = screen.getByTestId(
-      "spielwiese-canvas-pane-resize-handle",
-    );
-    const { playgroundHeader } = getPlaygroundHeaderElements();
-
-    expect(resizeHandle.className).toContain("shrink-0");
-    expect(resizeHandle.className).toContain("bg-[#15181C]");
-    expect(resizeHandle.className).toContain("h-px");
-    expect(resizeHandle.className).toContain("hover:ring-1");
-    expect(resizeHandle.className).toContain("hover:ring-border/70");
-    expect(
-      within(resizeHandle).queryByTestId("spielwiese-canvas-pane-mode-toggle"),
-    ).toBeNull();
-    expect(playgroundHeader.className).toContain("sticky");
-    expect(playgroundHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
-    expect(playgroundHeader.className).toContain("backdrop-blur");
-    expectPaneModeToggleChrome({
-      evaluationToggle,
-      paneModeToggle,
-      playgroundHeader,
-      playgroundToggle,
-    });
-    expect(within(paneModeToggle).getByText("Playground")).toBeTruthy();
-    expect(within(paneModeToggle).getByText("Evaluation")).toBeTruthy();
-  });
-});
-
-describe("SpielwieseEditorCanvas pane mode switching", () => {
-  it("switches the lower pane between playground and evaluation", () => {
-    renderCanvas();
-    const { evaluationToggle } = getCanvasPaneModeElements();
-
-    expect(
-      screen.getByTestId("spielwiese-prompt-simulation-pane"),
-    ).toBeTruthy();
-    expect(screen.queryByTestId("spielwiese-evaluation-pane")).toBeNull();
-
-    fireEvent.click(evaluationToggle);
-
-    expect(
-      screen.queryByTestId("spielwiese-prompt-simulation-pane"),
-    ).toBeNull();
-    expect(screen.getByTestId("spielwiese-evaluation-pane")).toBeTruthy();
-    expect(screen.getByTestId("spielwiese-evaluation-title").textContent).toBe(
-      "Evaluation",
-    );
-    expect(
-      screen.getByTestId("spielwiese-evaluation-header-bar").className,
-    ).toContain("sticky");
-    expect(
-      screen.getByTestId("spielwiese-evaluation-header-bar").className,
-    ).toContain("backdrop-blur");
-    expect(
-      screen
-        .getByTestId("spielwiese-canvas-pane-mode-playground")
-        .getAttribute("aria-pressed"),
-    ).toBe("false");
-    expect(
-      screen
-        .getByTestId("spielwiese-canvas-pane-mode-evaluation")
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
   });
 });
 

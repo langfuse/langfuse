@@ -297,7 +297,7 @@ function SpielwieseAgentNodeHeaderRow({
         variant="ghost"
         onClick={onToggleCompact}
       >
-        <HeaderToggleIcon className={cn("size-3.5")} />
+        <HeaderToggleIcon className="size-3.5" />
       </Button>
     </div>
   );

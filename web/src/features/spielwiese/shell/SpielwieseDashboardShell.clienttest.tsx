@@ -64,31 +64,24 @@ function expectShellChromeWithoutBorders() {
   ).toBe(true);
 }
 
-function expectInsetSidebarShells() {
-  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
-    "box-border",
-  );
-  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
-    "bg-[#15181C]",
-  );
-  expect(screen.getByTestId("spielwiese-shell-left").className).toContain(
-    "pt-2",
-  );
-  expect(screen.getByTestId("spielwiese-shell-left").className).not.toContain(
-    "p-2",
-  );
-  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
-    "box-border",
-  );
-  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
-    "bg-[#15181C]",
-  );
-  expect(screen.getByTestId("spielwiese-shell-right").className).toContain(
-    "pt-2",
-  );
-  expect(screen.getByTestId("spielwiese-shell-right").className).not.toContain(
-    "p-2",
-  );
+function expectFlushSidebarShells() {
+  const leftShell = screen.getByTestId("spielwiese-shell-left");
+  const rightShell = screen.getByTestId("spielwiese-shell-right");
+  const leftInnerShell = leftShell.firstElementChild;
+  const rightInnerShell = rightShell.firstElementChild;
+
+  expect(leftShell.className).toContain("box-border");
+  expect(leftShell.className).toContain("bg-[#15181C]");
+  expect(leftShell.className).not.toContain("pt-2");
+  expect(leftShell.className).not.toContain("p-2");
+  expect(leftInnerShell?.className).toContain("rounded-[8px]");
+  expect(leftInnerShell?.className).not.toContain("rounded-b-[8px]");
+  expect(rightShell.className).toContain("box-border");
+  expect(rightShell.className).toContain("bg-[#15181C]");
+  expect(rightShell.className).not.toContain("pt-2");
+  expect(rightShell.className).not.toContain("p-2");
+  expect(rightInnerShell?.className).toContain("rounded-[8px]");
+  expect(rightInnerShell?.className).not.toContain("rounded-b-[8px]");
 }
 
 function expectMainColumnWithoutExtraTopInset() {
@@ -161,7 +154,7 @@ describe("SpielwieseDashboardShell render", () => {
     );
     expectShellChromeBackground();
     expectShellChromeWithoutBorders();
-    expectInsetSidebarShells();
+    expectFlushSidebarShells();
     expect(
       screen
         .getByTestId("spielwiese-shell-header")

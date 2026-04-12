@@ -15,6 +15,7 @@ import {
   getPlaygroundFlowPreview,
   SpielwiesePlaygroundFlowPromptPreview,
 } from "./SpielwiesePlaygroundFlowPromptPreview";
+import { SpielwiesePlaygroundComposer } from "./SpielwiesePlaygroundComposer";
 import {
   getMessageKind,
   getMessageToneClassNames,
@@ -196,6 +197,7 @@ function PlaygroundSurface({
   const [activeThinkingNodeId, setActiveThinkingNodeId] = useState<
     string | null
   >(null);
+  const [draftPrompt, setDraftPrompt] = useState("");
   const [expandedThinkingNodeId, setExpandedThinkingNodeId] = useState<
     string | null
   >(null);
@@ -203,11 +205,11 @@ function PlaygroundSurface({
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-[#15181C] p-2"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-[#15181C] px-2 pt-0 pb-2"
       data-testid="spielwiese-prompt-simulation-pane"
     >
       <div
-        className="bg-background flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-[8px] px-4 py-0 shadow-xs"
+        className="bg-background flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-[8px] px-4 py-0 shadow-xs"
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div
@@ -263,7 +265,7 @@ function PlaygroundSurface({
           </div>
         </div>
         <div
-          className="w-full min-w-0 pb-3"
+          className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto pt-3 pb-3"
           data-testid="spielwiese-playground-flow-scroller"
         >
           <div
@@ -286,6 +288,17 @@ function PlaygroundSurface({
             ))}
           </div>
         </div>
+        <SpielwiesePlaygroundComposer
+          value={draftPrompt}
+          onSubmit={() => {
+            if (!defaultThinkingNodeId) {
+              return;
+            }
+
+            setActiveThinkingNodeId(defaultThinkingNodeId);
+          }}
+          onValueChange={setDraftPrompt}
+        />
       </div>
     </div>
   );
