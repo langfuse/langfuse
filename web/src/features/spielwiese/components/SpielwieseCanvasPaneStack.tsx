@@ -14,10 +14,10 @@ import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane
 type CanvasBottomPaneMode = "playground" | "evaluation";
 
 const paneModeToggleClassName =
-  "pointer-events-auto inline-flex items-center gap-1 rounded-[11px] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.52)] p-0.5";
+  "pointer-events-auto inline-flex items-center gap-px rounded-[8px] bg-[#F7F7F7] p-0 ring-1 ring-black/5";
 
 const paneModeToggleButtonClassName =
-  "text-foreground/50 hover:text-foreground/72 inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3.5 text-[0.75rem] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
+  "text-foreground/62 hover:text-foreground inline-flex h-6 items-center gap-1.25 rounded-[8px] py-0 pr-2 pl-1.5 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
 
 const paneModeToggleButtonActiveClassName =
   "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
@@ -130,7 +130,7 @@ function CanvasPaneModeToggle({
             onClick={() => onModeChange(option.id)}
             type="button"
           >
-            <Icon className="size-4 shrink-0" />
+            <Icon className="size-3 shrink-0" />
             <span>{option.label}</span>
           </button>
         );

@@ -4,9 +4,10 @@ import { Textarea } from "../ui/textarea";
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
 import { SpielwieseResponseFormatRow } from "./SpielwieseResponseFormatControls";
 
-const spielwieseJsonFormatFooterClassName = "bg-[#F1F2F2]";
+const spielwieseJsonFormatSurfaceClassName =
+  "mx-[5px] overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] bg-[#F1F2F2] px-[2px] pt-[2px] pb-[2px]";
 const spielwieseJsonFormatEditorShellClassName =
-  "overflow-hidden rounded-none border-0 border-t border-[rgba(0,0,0,0.05)] bg-[#F1F2F2]";
+  "mt-px overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap)-2px)] bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]";
 const spielwieseJsonFormatHighlightClassName =
   "m-0 min-h-[4.5rem] whitespace-pre-wrap break-words px-2 py-1.5 font-mono text-[0.6875rem] leading-[1.05rem] text-[#202427]";
 const spielwieseJsonFormatTextareaClassName =
@@ -19,6 +20,15 @@ const jsonTokenPattern =
 
 type JsonTokenKind = "boolean" | "key" | "number" | "punctuation" | "string";
 type ResponseFormatMode = "json" | "none";
+type SpielwieseJsonFormatComposerProps = {
+  className?: string;
+  nodeId: string;
+  onPromptSectionInsert: (
+    nodeId: string,
+    kind: "user" | "system" | "assistant" | "tool",
+  ) => void;
+  sectionLabel: string;
+};
 
 function getJsonTokenClassName(kind: JsonTokenKind) {
   if (kind === "key") {
@@ -192,61 +202,77 @@ function applyResponseFormatSelection(
   setIsOpen(mode === "json");
 }
 
+function useResponseFormatComposerState() {
+  const [responseFormat, setResponseFormat] =
+    useState<ResponseFormatMode>("none");
+  const [isOpen, setIsOpen] = useState(false);
+  const [formatValue, setFormatValue] = useState("");
+
+  return {
+    formatValue,
+    handleChooseJson: () =>
+      applyResponseFormatSelection("json", setIsOpen, setResponseFormat),
+    handleChooseNone: () =>
+      applyResponseFormatSelection("none", setIsOpen, setResponseFormat),
+    handleToggleOpen: () => setIsOpen((currentValue) => !currentValue),
+    isJsonFormat: responseFormat === "json",
+    isOpen,
+    setFormatValue,
+  };
+}
+
 export function SpielwieseJsonFormatComposer({
   className,
   nodeId,
   onPromptSectionInsert,
   sectionLabel,
-}: {
-  className?: string;
-  nodeId: string;
-  onPromptSectionInsert: (
-    nodeId: string,
-    kind: "user" | "system" | "assistant" | "tool",
-  ) => void;
-  sectionLabel: string;
-}) {
-  const [responseFormat, setResponseFormat] =
-    useState<ResponseFormatMode>("none");
-  const [isOpen, setIsOpen] = useState(false);
-  const [formatValue, setFormatValue] = useState("");
-  const isJsonFormat = responseFormat === "json";
-  const handleChooseNone = () =>
-    applyResponseFormatSelection("none", setIsOpen, setResponseFormat);
-  const handleChooseJson = () =>
-    applyResponseFormatSelection("json", setIsOpen, setResponseFormat);
+}: SpielwieseJsonFormatComposerProps) {
+  const {
+    formatValue,
+    handleChooseJson,
+    handleChooseNone,
+    handleToggleOpen,
+    isJsonFormat,
+    isOpen,
+    setFormatValue,
+  } = useResponseFormatComposerState();
+  const leadingAccessory = (
+    <SpielwieseResponseFormatInsertRow
+      nodeId={nodeId}
+      onPromptSectionInsert={onPromptSectionInsert}
+    />
+  );
 
   return (
     <div
       className={cn(
-        spielwieseJsonFormatFooterClassName,
         "overflow-hidden rounded-b-[calc(var(--node-shell-radius)-var(--node-shell-gap))] px-0 pt-0 pb-0",
         className,
       )}
       data-testid="spielwiese-response-format-composer"
     >
-      <SpielwieseResponseFormatRow
-        isJsonFormat={isJsonFormat}
-        isOpen={isOpen}
-        leadingAccessory={
-          <SpielwieseResponseFormatInsertRow
-            nodeId={nodeId}
-            onPromptSectionInsert={onPromptSectionInsert}
-          />
-        }
-        nodeId={nodeId}
-        onChooseJson={handleChooseJson}
-        onChooseNone={handleChooseNone}
-        onToggleOpen={() => setIsOpen((currentValue) => !currentValue)}
-      />
-      {isJsonFormat && isOpen ? (
-        <SpielwieseJsonFormatEditor
-          formatValue={formatValue}
+      <div
+        className={spielwieseJsonFormatSurfaceClassName}
+        data-testid="spielwiese-response-format-surface"
+      >
+        <SpielwieseResponseFormatRow
+          isJsonFormat={isJsonFormat}
+          isOpen={isOpen}
+          leadingAccessory={leadingAccessory}
           nodeId={nodeId}
-          sectionLabel={sectionLabel}
-          setFormatValue={setFormatValue}
+          onChooseJson={handleChooseJson}
+          onChooseNone={handleChooseNone}
+          onToggleOpen={handleToggleOpen}
         />
-      ) : null}
+        {isJsonFormat && isOpen ? (
+          <SpielwieseJsonFormatEditor
+            formatValue={formatValue}
+            nodeId={nodeId}
+            sectionLabel={sectionLabel}
+            setFormatValue={setFormatValue}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

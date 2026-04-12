@@ -169,7 +169,12 @@ function MessageSectionSummary({
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-2 overflow-visible",
+        leadingSurface === "embedded" && "ml-[3px]",
+      )}
+    >
       <MessageSectionChipButton
         isCollapsed={isCollapsed}
         label={label}

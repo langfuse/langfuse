@@ -134,7 +134,14 @@ function expectInstructionsSectionPlacement({
   expect(firstSectionRow.className).toContain("pb-0");
   expect(instructionsBodyElement.className).toContain("pt-0");
   expect(instructionsInput).toBeTruthy();
-  expect(instructionsTextareaRootElement.className).toContain("rounded-[10px]");
+  expect(instructionsTextareaRootElement.className).toContain("rounded-[8px]");
+}
+
+function expectNodeShellInsetRadius(className: string) {
+  expect(className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(className).not.toContain("rounded-[10px]");
 }
 
 function expectInstructionsPromptChrome({
@@ -157,7 +164,7 @@ function expectInstructionsPromptChrome({
   const fieldShellClassName = instructionsFieldShellElement.className;
 
   expect(fieldShellClassName).toContain("w-full");
-  expect(fieldShellClassName).toContain("rounded-[10px]");
+  expectNodeShellInsetRadius(fieldShellClassName);
   expect(fieldShellClassName).toContain("border-[rgba(0,0,0,0.05)]");
   expect(fieldShellClassName).toContain("bg-[#F1F2F2]");
   expect(fieldShellClassName).toContain("shadow-none");
@@ -217,6 +224,7 @@ function expectEmbeddedInstructionsHeaderChrome(
 function expectTransparentInstructionsInput(instructionsInput: HTMLElement) {
   expect(instructionsInput.className).toContain("bg-transparent");
   expect(instructionsInput.className).toContain("px-3");
+  expect(instructionsInput.className).toContain("rounded-[8px]");
   expect(instructionsInput.className).not.toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
   );
@@ -234,50 +242,49 @@ function getResponseFormatShellElements(responseFormatSectionRow: HTMLElement) {
   };
 }
 
-function getResponseFormatElements(nodeCard: HTMLElement) {
-  const responseFormatSectionRow = within(nodeCard)
-    .getAllByTestId("spielwiese-message-section-row")
-    .find(
-      (row) => row.getAttribute("data-section-id") === "system",
-    ) as HTMLElement;
-  const responseFormatComposer = within(nodeCard).getByTestId(
+function getResponseFormatSwitchOptions(responseFormatSwitch: HTMLElement) {
+  return {
+    responseFormatJsonOption: within(responseFormatSwitch).getByRole("button", {
+      name: "Response format JSON",
+    }),
+    responseFormatNoneOption: within(responseFormatSwitch).getByRole("button", {
+      name: "Response format None",
+    }),
+  };
+}
+
+function getResponseFormatControlElements(
+  responseFormatRoot: ReturnType<typeof within>,
+) {
+  const responseFormatComposer = responseFormatRoot.getByTestId(
     "spielwiese-response-format-composer",
   );
-  const responseFormatRow = within(nodeCard).getByTestId(
+  const responseFormatSurface = responseFormatRoot.getByTestId(
+    "spielwiese-response-format-surface",
+  );
+  const responseFormatRow = responseFormatRoot.getByTestId(
     "spielwiese-response-format-row",
   );
-  const responseFormatControlsCluster = within(nodeCard).getByTestId(
+  const responseFormatControlsCluster = responseFormatRoot.getByTestId(
     "spielwiese-response-format-controls-cluster",
   );
-  const responseFormatSwitch = within(nodeCard).getByTestId(
+  const responseFormatSwitch = responseFormatRoot.getByTestId(
     "spielwiese-response-format-switch",
   );
-  const responseFormatLeadingAccessory = within(nodeCard).getByTestId(
+  const responseFormatLeadingAccessory = responseFormatRoot.getByTestId(
     "spielwiese-response-format-leading-accessory",
   );
-  const responseFormatInsertRow = within(nodeCard).getByTestId(
+  const responseFormatInsertRow = responseFormatRoot.getByTestId(
     "spielwiese-response-format-insert-row",
   );
-  const responseFormatInsertTextTrigger = within(nodeCard).getByTestId(
+  const responseFormatInsertTextTrigger = responseFormatRoot.getByTestId(
     "spielwiese-response-format-insert-text-trigger",
   );
-  const responseFormatJsonOption = within(responseFormatSwitch).getByRole(
-    "button",
-    {
-      name: "Response format JSON",
-    },
-  );
-  const responseFormatNoneOption = within(responseFormatSwitch).getByRole(
-    "button",
-    {
-      name: "Response format None",
-    },
-  );
-  const responseFormatExpandTrigger = within(nodeCard).getByTestId(
+  const responseFormatExpandTrigger = responseFormatRoot.getByTestId(
     "spielwiese-response-format-expand-trigger",
   );
-  const { responseFormatSystemBody, responseFormatSystemFieldShell } =
-    getResponseFormatShellElements(responseFormatSectionRow);
+  const { responseFormatJsonOption, responseFormatNoneOption } =
+    getResponseFormatSwitchOptions(responseFormatSwitch);
 
   return {
     responseFormatComposer,
@@ -289,36 +296,94 @@ function getResponseFormatElements(nodeCard: HTMLElement) {
     responseFormatLeadingAccessory,
     responseFormatNoneOption,
     responseFormatRow,
-    responseFormatSectionRow,
+    responseFormatSurface,
     responseFormatSwitch,
+  };
+}
+
+function getResponseFormatElements(nodeCard: HTMLElement) {
+  const responseFormatRoot = within(nodeCard);
+  const responseFormatSectionRow = responseFormatRoot
+    .getAllByTestId("spielwiese-message-section-row")
+    .find(
+      (row) => row.getAttribute("data-section-id") === "system",
+    ) as HTMLElement;
+  const responseFormatControlElements =
+    getResponseFormatControlElements(responseFormatRoot);
+  const { responseFormatSystemBody, responseFormatSystemFieldShell } =
+    getResponseFormatShellElements(responseFormatSectionRow);
+
+  return {
+    responseFormatSectionRow,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
+    ...responseFormatControlElements,
   };
 }
 
 function expectResponseFormatControlsCluster({
   responseFormatControlsCluster,
+  responseFormatExpandTrigger,
   responseFormatSwitch,
 }: Pick<
   ReturnType<typeof getResponseFormatElements>,
-  "responseFormatControlsCluster" | "responseFormatSwitch"
+  | "responseFormatControlsCluster"
+  | "responseFormatExpandTrigger"
+  | "responseFormatSwitch"
 >) {
   expect(responseFormatControlsCluster.className).toContain("ml-auto");
   expect(responseFormatControlsCluster.className).toContain("gap-2.5");
-  expect(responseFormatControlsCluster.className).toContain("rounded-[10px]");
-  expect(responseFormatControlsCluster.className).toContain("border");
-  expect(responseFormatControlsCluster.className).toContain(
+  expect(responseFormatControlsCluster.className).not.toContain(
+    "rounded-[10px]",
+  );
+  expect(responseFormatControlsCluster.className).not.toContain("border");
+  expect(responseFormatControlsCluster.className).not.toContain(
     "border-[rgba(0,0,0,0.06)]",
   );
-  expect(responseFormatControlsCluster.className).toContain("px-2.5");
-  expect(responseFormatControlsCluster.className).toContain("py-1");
+  expect(responseFormatControlsCluster.className).not.toContain("pl-2.5");
+  expect(responseFormatControlsCluster.className).not.toContain("pr-0");
+  expect(responseFormatControlsCluster.className).not.toContain("px-2.5");
+  expect(responseFormatControlsCluster.className).not.toContain("py-1");
   expect(responseFormatControlsCluster.contains(responseFormatSwitch)).toBe(
     true,
   );
+  expect(
+    responseFormatControlsCluster.contains(responseFormatExpandTrigger),
+  ).toBe(false);
   expect(responseFormatControlsCluster.textContent).toContain(
     "Response Format",
   );
   expect(responseFormatSwitch.className).not.toContain("ml-auto");
+}
+
+function expectResponseFormatComposerChrome(
+  nodeCard: HTMLElement,
+  responseFormatComposer: HTMLElement,
+  responseFormatSurface: HTMLElement,
+) {
+  expect(responseFormatComposer.parentElement).toBe(nodeCard);
+  expect(responseFormatComposer.className).not.toContain("bg-[#F1F2F2]");
+  expect(responseFormatComposer.className).toContain("overflow-hidden");
+  expect(responseFormatComposer.className).toContain(
+    "rounded-b-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(responseFormatComposer.className).toContain("-mx-0.5");
+  expect(responseFormatComposer.className).toContain("mt-1");
+  expect(responseFormatComposer.className).not.toContain("-mb-0.5");
+  expect(responseFormatComposer.className).toContain("px-0");
+  expect(responseFormatComposer.className).toContain("pb-0.5");
+  expect(responseFormatSurface.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(responseFormatSurface.className).not.toContain(
+    "border-[rgba(0,0,0,0.05)]",
+  );
+  expect(responseFormatSurface.className).not.toContain("border");
+  expect(responseFormatSurface.className).toContain("bg-[#F1F2F2]");
+  expect(responseFormatSurface.className).toContain("px-[2px]");
+  expect(responseFormatSurface.className).toContain("pt-[2px]");
+  expect(responseFormatSurface.className).toContain("pb-[2px]");
+  expect(nodeCard.lastElementChild).toBe(responseFormatComposer);
 }
 
 function expectResponseFormatBaseChrome(
@@ -330,6 +395,8 @@ function expectResponseFormatBaseChrome(
     responseFormatLeadingAccessory,
     responseFormatInsertRow,
     responseFormatInsertTextTrigger,
+    responseFormatExpandTrigger,
+    responseFormatSurface,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
     responseFormatSwitch,
@@ -341,6 +408,8 @@ function expectResponseFormatBaseChrome(
     | "responseFormatInsertTextTrigger"
     | "responseFormatSectionRow"
     | "responseFormatLeadingAccessory"
+    | "responseFormatExpandTrigger"
+    | "responseFormatSurface"
     | "responseFormatSwitch"
     | "responseFormatSystemBody"
     | "responseFormatSystemFieldShell"
@@ -352,21 +421,17 @@ function expectResponseFormatBaseChrome(
   expect(responseFormatSectionRow.className).toContain("px-[5px]");
   expect(responseFormatSystemBody.className).toContain("pt-0");
   expect(responseFormatSystemFieldShell.className).toContain("bg-[#F1F2F2]");
-  expect(responseFormatComposer.parentElement).toBe(nodeCard);
-  expect(responseFormatComposer.className).toContain("bg-[#F1F2F2]");
-  expect(responseFormatComposer.className).toContain("overflow-hidden");
-  expect(responseFormatComposer.className).toContain(
-    "rounded-b-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  expectResponseFormatComposerChrome(
+    nodeCard,
+    responseFormatComposer,
+    responseFormatSurface,
   );
-  expect(responseFormatComposer.className).toContain("-mx-0.5");
-  expect(responseFormatComposer.className).toContain("mt-1");
-  expect(responseFormatComposer.className).toContain("-mb-0.5");
-  expect(responseFormatComposer.className).toContain("px-0");
   expect(responseFormatLeadingAccessory.contains(responseFormatInsertRow)).toBe(
     true,
   );
   expectResponseFormatControlsCluster({
     responseFormatControlsCluster,
+    responseFormatExpandTrigger,
     responseFormatSwitch,
   });
   expect(responseFormatInsertRow.className).toContain("pl-0");
@@ -378,7 +443,6 @@ function expectResponseFormatBaseChrome(
   );
   expect(responseFormatSwitch.className).toContain("rounded-[9px]");
   expect(responseFormatSwitch.className).toContain("border");
-  expect(nodeCard.lastElementChild).toBe(responseFormatComposer);
 }
 
 function expectResponseFormatNoneState(
@@ -393,6 +457,7 @@ function expectResponseFormatNoneState(
     responseFormatLeadingAccessory,
     responseFormatNoneOption,
     responseFormatSectionRow,
+    responseFormatSurface,
     responseFormatSwitch,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
@@ -405,6 +470,7 @@ function expectResponseFormatNoneState(
     responseFormatInsertTextTrigger,
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
+    responseFormatSurface,
     responseFormatSwitch,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
@@ -437,6 +503,7 @@ function expectResponseFormatJsonState(
     responseFormatLeadingAccessory,
     responseFormatNoneOption,
     responseFormatSectionRow,
+    responseFormatSurface,
     responseFormatSwitch,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
@@ -449,6 +516,7 @@ function expectResponseFormatJsonState(
     responseFormatInsertTextTrigger,
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
+    responseFormatSurface,
     responseFormatSwitch,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
@@ -490,19 +558,41 @@ function expectJsonResponseFormatEditor(nodeCard: HTMLElement) {
   const responseFormatElements = getResponseFormatElements(nodeCard);
 
   expectResponseFormatJsonState(nodeCard, responseFormatElements);
-  expect(responseFormatElements.responseFormatComposer.className).not.toContain(
-    "border-t",
+  expectJsonResponseFormatChrome({
+    jsonFormatHighlight,
+    jsonFormatInput,
+    jsonFormatPanel,
+    responseFormatComposer: responseFormatElements.responseFormatComposer,
+  });
+  expectJsonResponseFormatValueEditing(jsonFormatHighlight, jsonFormatInput);
+}
+
+function expectJsonResponseFormatChrome({
+  jsonFormatHighlight,
+  jsonFormatInput,
+  jsonFormatPanel,
+  responseFormatComposer,
+}: {
+  jsonFormatHighlight: HTMLElement;
+  jsonFormatInput: HTMLElement;
+  jsonFormatPanel: HTMLElement;
+  responseFormatComposer: HTMLElement;
+}) {
+  expect(responseFormatComposer.className).not.toContain("border-t");
+  expect(responseFormatComposer.className).toContain("pt-0");
+  expect(responseFormatComposer.className).toContain("pb-0");
+  expect(jsonFormatPanel.className).toContain("mt-px");
+  expect(jsonFormatPanel.className).toContain("bg-[#FBFBFB]");
+  expect(jsonFormatPanel.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap)-2px)]",
   );
-  expect(responseFormatElements.responseFormatComposer.className).toContain(
-    "pt-0",
-  );
-  expect(responseFormatElements.responseFormatComposer.className).toContain(
-    "pb-0",
-  );
-  expect(jsonFormatPanel.className).toContain("bg-[#F1F2F2]");
-  expect(jsonFormatPanel.className).toContain("rounded-none");
-  expect(jsonFormatPanel.className).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(jsonFormatPanel.className).not.toContain("rounded-[8px]");
+  expect(jsonFormatPanel.className).not.toContain("rounded-none");
+  expect(jsonFormatPanel.className).not.toContain("border-[rgba(0,0,0,0.05)]");
   expect(jsonFormatPanel.className).not.toContain("bg-[linear-gradient");
+  expect(jsonFormatPanel.className).toContain(
+    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+  );
   expect(jsonFormatPanel.className).not.toContain("shadow-[inset_0_1px_0");
   expect(jsonFormatPanel.className).not.toContain("mt-0.5");
   expect(jsonFormatHighlight.className).toContain("font-mono");
@@ -512,7 +602,12 @@ function expectJsonResponseFormatEditor(nodeCard: HTMLElement) {
   expect(jsonFormatInput.className).toContain("text-transparent");
   expect(jsonFormatInput.className).toContain("caret-[#202427]");
   expect(jsonFormatInput.className).toContain("rounded-none");
+}
 
+function expectJsonResponseFormatValueEditing(
+  jsonFormatHighlight: HTMLElement,
+  jsonFormatInput: HTMLElement,
+) {
   fireEvent.change(jsonFormatInput, {
     target: { value: '{\n  "food": "string"\n}' },
   });

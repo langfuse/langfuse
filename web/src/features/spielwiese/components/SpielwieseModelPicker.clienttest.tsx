@@ -69,8 +69,11 @@ describe("SpielwieseModelPickerPanel chrome", () => {
 
     expect(panel.className).toContain("rounded-[16px]");
     expect(panel.className).toContain("bg-[#FCFCFA]");
+    expect(panel.className).toContain("w-max");
+    expect(panel.className).toContain("max-w-[calc(100vw-2rem)]");
     expect(panel.className).not.toContain("backdrop-blur");
     expect(panel.className).not.toContain("bg-[linear-gradient");
+    expect(grid.className).toContain("min-w-max");
     expect(grid.className).toContain("grid-cols-[10.5rem_13.75rem]");
     expect(openAiButton.className).toContain("ring-1");
     expect(gpt54Button).toBeTruthy();

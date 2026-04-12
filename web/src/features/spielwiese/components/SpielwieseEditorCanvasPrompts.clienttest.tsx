@@ -22,18 +22,11 @@ function insertToolMessage(nodeElement: HTMLElement) {
 
 function getInsertControls(nodeElement: HTMLElement) {
   return {
-    compactPicker: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-picker-compact",
-    ),
-    compactShell: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-compact-shell",
-    ),
-    compactTrigger: within(nodeElement).getByTestId(
-      "spielwiese-message-insert-compact-trigger",
-    ),
-    insertRow: within(nodeElement).getByTestId("spielwiese-message-insert-row"),
     externalRow: within(nodeElement).getByTestId(
       "spielwiese-message-insert-external-row",
+    ),
+    inlineInsertRow: within(nodeElement).queryByTestId(
+      "spielwiese-message-insert-row",
     ),
     textPicker: within(nodeElement).getByTestId(
       "spielwiese-message-insert-picker-text",
@@ -48,30 +41,15 @@ function getInsertControls(nodeElement: HTMLElement) {
 }
 
 function expectInsertRowChrome({
-  compactPicker,
-  compactShell,
-  compactTrigger,
   externalRow,
-  insertRow,
+  inlineInsertRow,
   textPicker,
   textShell,
   textTrigger,
   visionNode,
 }: ReturnType<typeof getInsertControls> & { visionNode: HTMLElement }) {
-  const nodeCard = within(visionNode).getByTestId("spielwiese-agent-node-card");
-
-  expect(compactPicker.className).not.toContain("absolute");
-  expect(compactPicker.getAttribute("data-state")).toBe("open");
-  expect(compactPicker.className).toContain("border-l");
-  expect(compactPicker.className).toContain("bg-[rgba(0,0,0,0.035)]");
   expect(textPicker.getAttribute("data-state")).toBe("closed");
-  expect(insertRow.parentElement).toBe(
-    nodeCard.lastElementChild?.previousElementSibling,
-  );
-  expect(insertRow.className).toContain("w-fit");
-  expect(insertRow.className).toContain("pt-0");
-  expect(insertRow.className).toContain("pl-[10px]");
-  expect(insertRow.className).toContain("pb-[6px]");
+  expect(inlineInsertRow).toBeNull();
   expect(externalRow.className).toContain("w-fit");
   expect(externalRow.className).toContain("pl-[18px]");
   expect(externalRow.className).toContain("opacity-0");
@@ -85,21 +63,10 @@ function expectInsertRowChrome({
   );
   expect(externalRow.parentElement).toBe(visionNode);
   expect(visionNode.lastElementChild).toBe(externalRow);
-  expect(compactShell.className).toContain("overflow-visible");
-  expect(compactShell.className).not.toContain("border");
-  expect(compactShell.className).not.toContain("bg-background");
   expect(textShell.className).toContain("overflow-hidden");
   expect(textShell.className).toContain("rounded-[8px]");
-  expect(compactTrigger.querySelector("svg")).toBeTruthy();
-  expect(compactTrigger.getAttribute("aria-expanded")).toBe("true");
-  expect(compactTrigger.className).toContain("items-center");
-  expect(compactTrigger.className).toContain("justify-center");
-  expect(compactTrigger.className).toContain("size-7");
   expect(textTrigger.textContent).toBe("New message");
   expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
-  expect(
-    nodeCard.lastElementChild?.previousElementSibling?.className,
-  ).toContain("gap-0");
 }
 
 function renderVisionNode() {
@@ -108,24 +75,15 @@ function renderVisionNode() {
 }
 
 describe("SpielwieseEditorCanvas prompt insertion", () => {
-  it("reveals an inline message tray that stays open until toggled closed", () => {
+  it("keeps prompt insertion in the footer tray instead of the response section", () => {
     const visionNode = renderVisionNode();
     const controls = getInsertControls(visionNode);
 
-    controls.compactTrigger.focus();
-    fireEvent.click(controls.compactTrigger);
-
     expectInsertRowChrome({ ...controls, visionNode });
-
-    fireEvent.blur(controls.compactTrigger, { relatedTarget: null });
-
-    expect(controls.compactPicker.getAttribute("data-state")).toBe("open");
 
     fireEvent.click(controls.textTrigger);
 
-    expect(controls.compactPicker.getAttribute("data-state")).toBe("open");
     expect(controls.textPicker.getAttribute("data-state")).toBe("open");
-    expect(controls.compactTrigger.getAttribute("aria-expanded")).toBe("true");
     expect(controls.textTrigger.getAttribute("aria-expanded")).toBe("true");
   });
 
@@ -175,19 +133,19 @@ describe("SpielwieseEditorCanvas prompt insertion actions", () => {
 
   it("still inserts a message when the trigger blurs before the option click lands", () => {
     const visionNode = renderVisionNode();
-    const compactTrigger = within(visionNode).getByTestId(
-      "spielwiese-message-insert-compact-trigger",
+    const textTrigger = within(visionNode).getByTestId(
+      "spielwiese-message-insert-text-trigger",
     );
 
-    compactTrigger.focus();
-    fireEvent.click(compactTrigger);
+    textTrigger.focus();
+    fireEvent.click(textTrigger);
 
     const assistantOption = within(visionNode).getByRole("button", {
       name: "Assistant",
     });
 
     fireEvent.mouseDown(assistantOption);
-    fireEvent.blur(compactTrigger, { relatedTarget: null });
+    fireEvent.blur(textTrigger, { relatedTarget: null });
     fireEvent.click(assistantOption);
 
     expect(

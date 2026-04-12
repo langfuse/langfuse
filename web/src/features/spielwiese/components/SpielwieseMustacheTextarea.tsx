@@ -12,6 +12,7 @@ type SpielwieseMustacheTextareaProps = Omit<
   liveInline?: boolean;
   onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
   onFocus?: React.FocusEventHandler<HTMLTextAreaElement>;
+  rootClassName?: string;
 };
 
 type MustacheSegment =
@@ -107,21 +108,44 @@ function MustacheOverlay({
   );
 }
 
+function getMustacheTextareaValue(value: TextareaProps["value"]) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return String(value ?? "");
+}
+
+function shouldMaskMustacheTextareaText({
+  hasMustacheTag,
+  isEditing,
+  liveInline,
+}: {
+  hasMustacheTag: boolean;
+  isEditing: boolean;
+  liveInline: boolean;
+}) {
+  return hasMustacheTag && (liveInline || !isEditing);
+}
+
 export function SpielwieseMustacheTextarea({
   className,
   liveInline = false,
   onBlur,
   onFocus,
+  rootClassName,
   value,
   ...props
 }: SpielwieseMustacheTextareaProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const textValue = typeof value === "string" ? value : String(value ?? "");
+  const textValue = getMustacheTextareaValue(value);
   const segments = getMustacheSegments(textValue);
   const hasMustacheTag = segments.some((segment) => segment.kind === "tag");
-  const shouldRenderMustacheOverlay =
-    hasMustacheTag && (liveInline || !isEditing);
-  const shouldHideTextareaText = hasMustacheTag && (liveInline || !isEditing);
+  const shouldHideTextareaText = shouldMaskMustacheTextareaText({
+    hasMustacheTag,
+    isEditing,
+    liveInline,
+  });
   const textareaClassName = cn(
     className,
     shouldHideTextareaText &&
@@ -130,10 +154,13 @@ export function SpielwieseMustacheTextarea({
 
   return (
     <div
-      className="relative w-full min-w-0 overflow-hidden rounded-[10px]"
+      className={cn(
+        "relative w-full min-w-0 overflow-hidden",
+        rootClassName ?? "rounded-[10px]",
+      )}
       data-testid="spielwiese-mustache-root"
     >
-      {shouldRenderMustacheOverlay ? (
+      {shouldHideTextareaText ? (
         <MustacheOverlay className={className} segments={segments} />
       ) : null}
       <Textarea

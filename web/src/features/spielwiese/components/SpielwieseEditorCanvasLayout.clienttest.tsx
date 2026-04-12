@@ -10,12 +10,14 @@ function renderCanvas() {
 }
 
 function expectVisionNodeChrome({
+  headerFrame,
   headerRow,
   headerShell,
   nodeCard,
   visionModelButton,
   visionNode,
 }: {
+  headerFrame: HTMLElement;
   headerRow: HTMLElement;
   headerShell: HTMLElement;
   nodeCard: HTMLElement;
@@ -32,13 +34,18 @@ function expectVisionNodeChrome({
   expect(nodeCard.className).toContain("rounded-(--node-shell-radius)");
   expect(nodeCard.className).toContain("border");
   expect(nodeCard.className).toContain("border-[rgba(15,23,42,0.08)]");
-  expect(nodeCard.className).toContain("bg-[#FBFBFB]");
-  expect(nodeCard.className).toContain("p-0.5");
+  expect(nodeCard.className).toContain("bg-[#F1F2F2]");
+  expect(nodeCard.className).not.toMatch(/\bp-0\.5\b/);
   expect(nodeCard.className).toContain("gap-0.5");
   expect(nodeCard.className).toContain(
     "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
   );
   expect(visionNode.className).toContain("last:pb-5");
+  expect(headerFrame.className).toContain("bg-[#F1F2F2]");
+  expect(headerFrame.className).toContain("p-0.5");
+  expect(headerFrame.className).toContain("-mb-0.5");
+  expect(headerFrame.className).toContain("rounded-[var(--node-shell-radius)]");
+  expect(headerFrame.contains(headerShell)).toBe(true);
   expect(headerShell.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
@@ -112,6 +119,9 @@ describe("SpielwieseEditorCanvas node chrome", () => {
     const nodeCard = within(visionNode).getByTestId(
       "spielwiese-agent-node-card",
     );
+    const headerFrame = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-frame",
+    );
     const headerShell = within(visionNode).getByTestId(
       "spielwiese-agent-node-header-shell",
     );
@@ -128,6 +138,7 @@ describe("SpielwieseEditorCanvas node chrome", () => {
     ).toBeNull();
     expect(screen.queryByText("01")).toBeNull();
     expectVisionNodeChrome({
+      headerFrame,
       headerRow,
       headerShell,
       nodeCard,

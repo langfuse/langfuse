@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
@@ -251,5 +252,17 @@ describe("SpielwieseAgentNodeHeader strip items", () => {
     expect(screen.getByLabelText("vision-agent Stop sequence")).toBeTruthy();
     expect(screen.queryByLabelText("vision-agent Response format")).toBeNull();
     expect(screen.getByLabelText("vision-agent Reasoning")).toBeTruthy();
+  });
+
+  it("renders the title-shell model picker in a fixed portal layer", () => {
+    const header = renderVisionNodeHeader();
+
+    fireEvent.click(header.modelButton);
+
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+
+    expect(panel.className).toContain("fixed");
+    expect(panel.className).not.toContain("absolute");
+    expect(header.titleControl.contains(panel)).toBe(false);
   });
 });

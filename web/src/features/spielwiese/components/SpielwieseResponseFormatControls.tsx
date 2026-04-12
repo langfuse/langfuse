@@ -117,7 +117,10 @@ export function SpielwieseResponseFormatRow({
 }) {
   return (
     <div
-      className="flex items-center gap-2 px-2.5 pt-1 pb-1"
+      className={cn(
+        "flex items-center gap-2 px-2.5 pt-1",
+        isOpen ? "pb-px" : "pb-1",
+      )}
       data-testid="spielwiese-response-format-row"
     >
       {leadingAccessory ? (
@@ -129,26 +132,24 @@ export function SpielwieseResponseFormatRow({
         </div>
       ) : null}
       <div
-        className="ml-auto flex shrink-0 items-center gap-2.5 rounded-[10px] border border-[rgba(0,0,0,0.06)] px-2.5 py-1"
+        className="ml-auto flex shrink-0 items-center gap-2.5"
         data-testid="spielwiese-response-format-controls-cluster"
       >
         <span className="text-foreground/54 text-[0.6875rem] font-medium tracking-[0.01em]">
           Response Format
         </span>
-        <div className="flex items-center gap-1.5">
-          <ResponseFormatSwitch
-            isJsonFormat={isJsonFormat}
-            onChooseJson={onChooseJson}
-            onChooseNone={onChooseNone}
-          />
-          <ResponseFormatExpandTrigger
-            isEnabled={isJsonFormat}
-            isOpen={isOpen}
-            nodeId={nodeId}
-            onClick={onToggleOpen}
-          />
-        </div>
+        <ResponseFormatSwitch
+          isJsonFormat={isJsonFormat}
+          onChooseJson={onChooseJson}
+          onChooseNone={onChooseNone}
+        />
       </div>
+      <ResponseFormatExpandTrigger
+        isEnabled={isJsonFormat}
+        isOpen={isOpen}
+        nodeId={nodeId}
+        onClick={onToggleOpen}
+      />
     </div>
   );
 }

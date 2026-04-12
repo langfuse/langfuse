@@ -22,10 +22,18 @@ function getPaneModeElements() {
   const playgroundHeader = within(
     screen.getByTestId("spielwiese-prompt-simulation-pane"),
   ).getByTestId("spielwiese-playground-header");
+  const historyButton = within(playgroundHeader).getByTestId(
+    "spielwiese-playground-history-button",
+  );
+  const playButton = within(playgroundHeader).getByTestId(
+    "spielwiese-playground-play-button",
+  );
 
   return {
     evaluationToggle,
+    historyButton,
     paneModeToggle,
+    playButton,
     playgroundHeader,
     playgroundToggle,
   };
@@ -71,54 +79,120 @@ function expectEvaluationPaneChrome() {
   ).toContain("backdrop-blur");
 }
 
+function expectPaneModeSvgSize(button: HTMLElement) {
+  expect(button.querySelector("svg")?.getAttribute("class")).toContain(
+    "size-3",
+  );
+}
+
+function expectResizeHandleChrome() {
+  const resizeHandle = screen.getByTestId(
+    "spielwiese-canvas-pane-resize-handle",
+  );
+
+  expect(resizeHandle.className).toContain("shrink-0");
+  expect(resizeHandle.className).toContain("bg-[#F3F3F4]");
+  expect(resizeHandle.className).toContain("h-px");
+  expect(resizeHandle.className).toContain("hover:ring-1");
+  expect(resizeHandle.className).toContain("hover:ring-border/70");
+  expect(
+    within(resizeHandle).queryByTestId("spielwiese-canvas-pane-mode-toggle"),
+  ).toBeNull();
+}
+
+function expectPlaygroundHeaderChrome(playgroundHeader: HTMLElement) {
+  expect(
+    within(playgroundHeader).queryByTestId("spielwiese-playground-title"),
+  ).toBeNull();
+  expect(playgroundHeader.className).toContain("sticky");
+  expect(playgroundHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
+  expect(playgroundHeader.className).toContain("backdrop-blur");
+}
+
+function expectPaneModeToggleButtons({
+  evaluationToggle,
+  paneModeToggle,
+  playgroundToggle,
+}: Pick<
+  ReturnType<typeof getPaneModeElements>,
+  "evaluationToggle" | "paneModeToggle" | "playgroundToggle"
+>) {
+  expect(paneModeToggle.className).toContain("rounded-[8px]");
+  expect(paneModeToggle.className).toContain("bg-[#F7F7F7]");
+  expect(paneModeToggle.className).toContain("ring-1");
+  expect(paneModeToggle.className).not.toContain("border");
+  expect(playgroundToggle.className).toContain("h-6");
+  expect(playgroundToggle.className).toContain("rounded-[8px]");
+  expect(playgroundToggle.className).toContain("pl-1.5");
+  expect(playgroundToggle.className).toContain("pr-2");
+  expect(playgroundToggle.className).not.toContain("px-3.5");
+  expect(playgroundToggle.className).toContain("text-[11px]");
+  expect(playgroundToggle.className).toContain("py-0");
+  expect(playgroundToggle.className).toContain("bg-white");
+  expect(playgroundToggle.className).toContain("text-[#202427]");
+  expect(playgroundToggle.className).toContain(
+    "shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
+  );
+  expect(playgroundToggle.className).not.toContain("bg-[linear-gradient");
+  expect(evaluationToggle.className).toContain("text-foreground/62");
+  expect(evaluationToggle.className).toContain("text-[11px]");
+  expect(evaluationToggle.className).toContain("hover:text-foreground");
+  expectPaneModeSvgSize(playgroundToggle);
+  expectPaneModeSvgSize(evaluationToggle);
+}
+
+function expectPaneModeToggleActions({
+  evaluationToggle,
+  historyButton,
+  paneModeToggle,
+  playButton,
+  playgroundToggle,
+}: Pick<
+  ReturnType<typeof getPaneModeElements>,
+  | "evaluationToggle"
+  | "historyButton"
+  | "paneModeToggle"
+  | "playButton"
+  | "playgroundToggle"
+>) {
+  expect(playgroundToggle.getAttribute("aria-pressed")).toBe("true");
+  expect(evaluationToggle.getAttribute("aria-pressed")).toBe("false");
+  expect(historyButton.className).toContain("h-6");
+  expect(historyButton.className).toContain("text-[11px]");
+  expect(playButton.className).toContain("h-6");
+  expect(playButton.className).toContain("text-[11px]");
+  expect(within(paneModeToggle).getByText("Playground")).toBeTruthy();
+  expect(within(paneModeToggle).getByText("Evaluation")).toBeTruthy();
+}
+
+function expectPaneModeToggleChrome({
+  evaluationToggle,
+  historyButton,
+  paneModeToggle,
+  playButton,
+  playgroundHeader,
+  playgroundToggle,
+}: ReturnType<typeof getPaneModeElements>) {
+  expectResizeHandleChrome();
+  expectPlaygroundHeaderChrome(playgroundHeader);
+  expectPaneModeToggleButtons({
+    evaluationToggle,
+    paneModeToggle,
+    playgroundToggle,
+  });
+  expectPaneModeToggleActions({
+    evaluationToggle,
+    historyButton,
+    paneModeToggle,
+    playButton,
+    playgroundToggle,
+  });
+}
+
 describe("SpielwieseEditorCanvas pane mode toggle chrome", () => {
   it("renders a sticky lower-pane header with the mode toggle and a plain resize line", () => {
     renderCanvas();
-    const {
-      evaluationToggle,
-      paneModeToggle,
-      playgroundHeader,
-      playgroundToggle,
-    } = getPaneModeElements();
-    const resizeHandle = screen.getByTestId(
-      "spielwiese-canvas-pane-resize-handle",
-    );
-
-    expect(
-      within(playgroundHeader).queryByTestId("spielwiese-playground-title"),
-    ).toBeNull();
-    expect(resizeHandle.className).toContain("shrink-0");
-    expect(resizeHandle.className).toContain("bg-[#F3F3F4]");
-    expect(resizeHandle.className).toContain("h-px");
-    expect(resizeHandle.className).toContain("hover:ring-1");
-    expect(resizeHandle.className).toContain("hover:ring-border/70");
-    expect(
-      within(resizeHandle).queryByTestId("spielwiese-canvas-pane-mode-toggle"),
-    ).toBeNull();
-    expect(playgroundHeader.className).toContain("sticky");
-    expect(playgroundHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
-    expect(playgroundHeader.className).toContain("backdrop-blur");
-    expect(paneModeToggle.className).toContain("rounded-[11px]");
-    expect(paneModeToggle.className).toContain("border-[rgba(0,0,0,0.06)]");
-    expect(paneModeToggle.className).toContain("p-0.5");
-    expect(paneModeToggle.className).toContain("bg-[rgba(255,255,255,0.52)]");
-    expect(paneModeToggle.className).not.toContain("shadow-[");
-    expect(playgroundToggle.className).toContain("h-8");
-    expect(playgroundToggle.className).toContain("rounded-[8px]");
-    expect(playgroundToggle.className).toContain("px-3.5");
-    expect(playgroundToggle.className).toContain("text-[0.75rem]");
-    expect(playgroundToggle.className).toContain("bg-white");
-    expect(playgroundToggle.className).toContain("text-[#202427]");
-    expect(playgroundToggle.className).toContain(
-      "shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
-    );
-    expect(playgroundToggle.className).not.toContain("bg-[linear-gradient");
-    expect(evaluationToggle.className).toContain("text-foreground/50");
-    expect(evaluationToggle.className).toContain("hover:text-foreground/72");
-    expect(playgroundToggle.getAttribute("aria-pressed")).toBe("true");
-    expect(evaluationToggle.getAttribute("aria-pressed")).toBe("false");
-    expect(within(paneModeToggle).getByText("Playground")).toBeTruthy();
-    expect(within(paneModeToggle).getByText("Evaluation")).toBeTruthy();
+    expectPaneModeToggleChrome(getPaneModeElements());
   });
 });
 
