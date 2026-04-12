@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwieseDashboardShell } from "./SpielwieseDashboardShell";
 import {
@@ -141,6 +142,22 @@ function expectFinderMovedToLeftSidebar() {
   ).toBeTruthy();
 }
 
+function expectSmallScreenOverlay() {
+  const overlay = screen.getByTestId("spielwiese-shell-small-screen-overlay");
+
+  expect(overlay).toBeTruthy();
+  expect(overlay.textContent).toContain("Please view on a larger screen.");
+  expect(overlay.className).toContain("absolute");
+  expect(overlay.className).toContain("inset-0");
+  expect(overlay.className).toContain("z-50");
+  expect(overlay.className).toContain("hidden");
+  expect(overlay.className).toContain("max-[499px]:flex");
+  expect(overlay.className).toContain("bg-white");
+  expect(overlay.className).toContain("items-center");
+  expect(overlay.className).toContain("justify-center");
+  expect(overlay.className).toContain("text-[#8B8B8D]");
+}
+
 function expectShellRenderStructure(container: HTMLElement) {
   expect(screen.getByText("Shell content")).toBeTruthy();
   expect(screen.queryByText("langofuso")).toBeNull();
@@ -164,6 +181,9 @@ function expectShellRenderStructure(container: HTMLElement) {
     "[--spielwiese-header-height:2.75rem]",
   );
   expect(screen.getByTestId("spielwiese-shell").className).toContain(
+    "relative",
+  );
+  expect(screen.getByTestId("spielwiese-shell").className).toContain(
     "sm:[--spielwiese-header-height:3rem]",
   );
   expect(screen.getByTestId("spielwiese-shell-body").className).toContain(
@@ -182,6 +202,7 @@ function expectShellRenderStructure(container: HTMLElement) {
   expectShellChromeBackground();
   expectShellChromeWithoutBorders();
   expectInsetSidebarShells();
+  expectSmallScreenOverlay();
   expect(
     screen
       .getByTestId("spielwiese-shell-header")

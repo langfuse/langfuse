@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   fireEvent,
   render,
@@ -58,6 +59,38 @@ function findPromptRowBySectionId(nodeElement: HTMLElement, sectionId: string) {
     .find((row) => row.getAttribute("data-section-id") === sectionId);
 }
 
+function openAnthropicHaikuPreview(panel: HTMLElement) {
+  fireEvent.click(
+    within(panel).getByRole("button", {
+      name: /^Anthropic\b/,
+    }),
+  );
+
+  const modelOption = within(panel).getByRole("button", {
+    name: "Claude Haiku 4.5",
+  });
+  const preview = within(panel).getByTestId(
+    "spielwiese-model-picker-benchmark-preview",
+  );
+
+  expect(preview.textContent).toContain("Hover a model to inspect benchmarks.");
+
+  fireEvent.mouseEnter(modelOption);
+
+  expect(within(panel).getByText("Intelligence")).toBeTruthy();
+  expect(
+    within(panel).getByText(
+      "Leanest Claude option when you still want Claude tone.",
+    ),
+  ).toBeTruthy();
+
+  return modelOption;
+}
+
+function getBenchmarkPreview(panel: HTMLElement) {
+  return within(panel).getByTestId("spielwiese-model-picker-benchmark-preview");
+}
+
 describe("SpielwieseEditorCanvas editing shell", () => {
   it("keeps inline fields editable with fixed widths", async () => {
     renderCanvas();
@@ -78,25 +111,7 @@ describe("SpielwieseEditorCanvas editing shell", () => {
     fireEvent.click(modelInput);
 
     const panel = screen.getByRole("dialog", { name: "Model picker" });
-    const anthropicProvider = within(panel).getByRole("button", {
-      name: "Anthropic",
-    });
-
-    fireEvent.click(anthropicProvider);
-
-    const modelOption = within(panel).getByRole("button", {
-      name: "Claude Haiku 4.5",
-    });
-
-    fireEvent.mouseEnter(modelOption);
-
-    expect(within(panel).getByText("Token cost")).toBeTruthy();
-    expect(
-      within(panel).getByText(
-        "Leanest Claude option when you still want Claude tone.",
-      ),
-    ).toBeTruthy();
-    fireEvent.click(modelOption);
+    fireEvent.click(openAnthropicHaikuPreview(panel));
     fireEvent.change(systemInput, {
       target: { value: "Updated system prompt\nwith two fixed lines." },
     });
@@ -151,8 +166,9 @@ describe("SpielwieseEditorCanvas editing tags", () => {
     const detachedUserSections = within(visionNode).getByTestId(
       "vision-agent-detached-user-sections",
     );
-    const detachedUserInput =
-      within(detachedUserSections).getByLabelText("vision-agent User");
+    const detachedUserInput = within(detachedUserSections).getByLabelText(
+      "vision-agent User message",
+    );
 
     fireEvent.focus(detachedUserInput);
     fireEvent.change(detachedUserInput, {
@@ -187,24 +203,36 @@ describe("SpielwieseEditorCanvas model picker", () => {
     expect(nodeCard.className).not.toContain("overflow-hidden");
     expect(modelButton.closest(".z-40")).toBeTruthy();
     const panel = screen.getByRole("dialog", { name: "Model picker" });
-    const preview = within(panel).getByTestId(
-      "spielwiese-model-picker-benchmark-preview",
-    );
+
+    expect(
+      within(panel).getByRole("button", { name: /^OpenAI\b/ }),
+    ).toBeTruthy();
+    expect(
+      within(panel).getByRole("button", { name: "Recommend model" }),
+    ).toBeTruthy();
+    expect(within(panel).queryByText("Models")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "OpenAI" }));
+
+    const preview = getBenchmarkPreview(panel);
     const gpt54Button = within(panel).getByRole("button", {
       name: "GPT-5.4",
     });
 
-    expect(within(panel).getByRole("button", { name: "OpenAI" })).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: "GPT-5.4" })).toBeTruthy();
     expect(
       within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
     ).toBeNull();
-    expect(
-      within(panel).getByRole("button", { name: "Recommend model" }),
-    ).toBeTruthy();
+    expect(preview.textContent).toContain(
+      "Hover a model to inspect benchmarks.",
+    );
+
     fireEvent.mouseEnter(gpt54Button);
-    expect(preview.textContent).toContain("GPT-5.4");
-    expect(within(panel).getByText("Token cost")).toBeTruthy();
+
+    const hoveredPreview = getBenchmarkPreview(panel);
+
+    expect(hoveredPreview.textContent).toContain("GPT-5.4");
+    expect(within(panel).getByText("Intelligence")).toBeTruthy();
 
     fireEvent.click(
       within(panel).getByTestId("spielwiese-model-picker-older-toggle"),
@@ -227,7 +255,9 @@ describe("SpielwieseEditorCanvas node collapse sections", () => {
 
     fireEvent.click(toggleButton);
 
-    expect(within(visionNode).getByLabelText("vision-agent User")).toBeTruthy();
+    expect(
+      within(visionNode).getByLabelText("vision-agent User message"),
+    ).toBeTruthy();
     expect(instructionsRow).toBeTruthy();
     expect(
       within(instructionsRow ?? visionNode).getByLabelText(
@@ -277,24 +307,29 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
       "spielwiese-message-section-row",
     );
     const detachedUserToggle = within(detachedUserRow).getByRole("button", {
-      name: "Minimize vision-agent User section",
+      name: "Minimize vision-agent User message section",
     });
 
     fireEvent.click(detachedUserToggle);
 
     expect(
-      within(detachedUserSections).queryByLabelText("vision-agent User"),
+      within(detachedUserSections).queryByLabelText(
+        "vision-agent User message",
+      ),
     ).toBeNull();
     expect(
       within(detachedUserRow).getByLabelText(
-        "Toggle vision-agent User section",
+        "Toggle vision-agent User message section",
       ),
     ).toBeTruthy();
-    expect(detachedUserRow.className).toContain("pb-2");
-    expect(detachedUserRow.className).not.toContain("pb-[2px]");
-    expect(detachedUserToggle.getAttribute("aria-pressed")).toBe("true");
-    expect(detachedUserToggle.getAttribute("aria-label")).toBe(
-      "Maximize vision-agent User section",
+    const collapsedCompactButton = within(detachedUserRow).getByRole("button", {
+      name: "Maximize vision-agent User message section",
+    });
+
+    expect(detachedUserRow.className).toContain("pb-[5px]");
+    expect(collapsedCompactButton.getAttribute("aria-pressed")).toBe("true");
+    expect(collapsedCompactButton.getAttribute("aria-label")).toBe(
+      "Maximize vision-agent User message section",
     );
   });
 });

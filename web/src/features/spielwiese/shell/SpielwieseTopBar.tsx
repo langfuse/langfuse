@@ -1,4 +1,4 @@
-import { Bell, CircleHelp, PanelLeft, PanelRight } from "lucide-react";
+import { Bell, PanelLeft, PanelRight } from "lucide-react";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
@@ -8,6 +8,15 @@ import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 
 const topBarActionClassName =
   "rounded-md text-foreground/72 hover:bg-black/4 hover:text-foreground";
+const topBarPageNavButtonClassName =
+  "text-foreground border border-[rgba(0,0,0,0.08)] bg-background shadow-none transition-colors duration-75 hover:border-[rgba(0,0,0,0.12)] hover:bg-black/[0.03] active:border-[rgba(0,0,0,0.12)] active:bg-black/[0.05] h-8 rounded-[0.6rem] px-2.5 text-[0.75rem] font-medium";
+const topBarPageNavIconButtonClassName =
+  "text-foreground size-8 border border-[rgba(0,0,0,0.08)] bg-background p-0 shadow-none transition-colors duration-75 hover:border-[rgba(0,0,0,0.12)] hover:bg-black/[0.03] active:border-[rgba(0,0,0,0.12)] active:bg-black/[0.05] rounded-[0.6rem]";
+const topBarPageNavToggleButtonClassName =
+  "text-foreground/72 size-8 justify-center rounded-[0.6rem] border-0 bg-transparent p-0 shadow-none transition-colors duration-75 hover:bg-black/[0.03] hover:text-foreground active:bg-black/[0.05]";
+const topBarProfileButtonClassName =
+  "group inline-flex size-10 items-center justify-center rounded-lg transition-[background-color,transform] duration-150 hover:bg-black/[0.05] active:scale-[0.985]";
+const headerDocsHref = "https://langfuse.com/docs";
 
 type SpielwieseTopBarProps = {
   header: SpielwieseDashboardVM["header"];
@@ -41,56 +50,87 @@ function HeaderPrimaryActions({
 function HeaderSecondaryActions({
   toggleSecondarySidebar,
   updatedAt,
+  userName,
   userInitials,
 }: {
   toggleSecondarySidebar: () => void;
   updatedAt: string;
+  userName: string;
   userInitials: string;
 }) {
   return (
-    <div className="flex h-full items-center gap-1.5">
-      <p className="text-foreground/48 hidden text-xs tabular-nums sm:block">
+    <div
+      className="flex h-full max-h-full w-fit items-center gap-2"
+      data-testid="spielwiese-header-secondary-actions"
+    >
+      <p className="text-foreground/48 hidden text-xs tabular-nums xl:block">
         {updatedAt}
       </p>
-      <Avatar className="hidden size-7 rounded-full sm:inline-flex">
-        <AvatarFallback className="bg-foreground/6 text-foreground rounded-full text-xs">
-          {userInitials}
-        </AvatarFallback>
-      </Avatar>
+      <HeaderDesktopActions />
       <Button
-        className="text-foreground hidden rounded-full px-2 hover:bg-black/4 sm:inline-flex"
+        aria-label="Notifications"
+        className={topBarPageNavIconButtonClassName}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Bell size={16} />
+      </Button>
+      <Button
+        aria-label="Toggle secondary sidebar"
+        className={topBarPageNavToggleButtonClassName}
+        data-testid="spielwiese-right-toggle"
+        onClick={toggleSecondarySidebar}
+        variant="ghost"
+      >
+        <PanelRight className="size-4 shrink-0" />
+      </Button>
+      <HeaderProfileButton userInitials={userInitials} userName={userName} />
+    </div>
+  );
+}
+
+function HeaderDesktopActions() {
+  return (
+    <>
+      <Button
+        className={`${topBarPageNavButtonClassName} hidden lg:inline-flex`}
         size="sm"
         variant="ghost"
       >
         Share
       </Button>
-      <Button
-        aria-label="Notifications"
-        className={topBarActionClassName}
-        size="icon-sm"
-        variant="ghost"
+      <a
+        className={`${topBarPageNavButtonClassName} hidden inline-flex items-center justify-center whitespace-nowrap lg:inline-flex`}
+        href={headerDocsHref}
+        rel="noreferrer"
+        target="_blank"
       >
-        <Bell size={15} />
-      </Button>
-      <Button
-        aria-label="Help"
-        className={topBarActionClassName}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <CircleHelp size={15} />
-      </Button>
-      <Button
-        aria-label="Toggle secondary sidebar"
-        className={topBarActionClassName}
-        data-testid="spielwiese-right-toggle"
-        onClick={toggleSecondarySidebar}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <PanelRight size={15} />
-      </Button>
-    </div>
+        Docs
+      </a>
+    </>
+  );
+}
+
+function HeaderProfileButton({
+  userInitials,
+  userName,
+}: {
+  userInitials: string;
+  userName: string;
+}) {
+  return (
+    <button
+      aria-label="Your profile"
+      className={topBarProfileButtonClassName}
+      title={userName}
+      type="button"
+    >
+      <Avatar className="size-8 rounded-full">
+        <AvatarFallback className="bg-foreground/6 text-foreground rounded-full text-xs">
+          {userInitials}
+        </AvatarFallback>
+      </Avatar>
+    </button>
   );
 }
 
@@ -111,6 +151,7 @@ export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
           updatedAt={header.updatedAt}
+          userName={shell.user.name}
           userInitials={shell.user.initials}
         />
       </div>

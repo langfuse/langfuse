@@ -1,151 +1,82 @@
 "use client";
 
-import { cn } from "@/src/utils/tailwind";
 import type {
   SpielwieseModelOption,
   SpielwieseModelProvider,
-  SpielwieseModelScore,
 } from "./spielwieseModelCatalog";
+import { SpielwieseBenchmarkTable } from "./spielwieseModelPickerBenchmarkTable";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 
-function getTokenCostLabel(score: SpielwieseModelScore | undefined) {
-  switch (score) {
-    case 5:
-      return "Low";
-    case 4:
-      return "Moderate";
-    case 3:
-      return "Mid";
-    case 2:
-      return "High";
-    default:
-      return "Very high";
-  }
-}
-
-function BenchmarkDots({ score }: { score: SpielwieseModelScore }) {
+function PickerSectionLabel({ children }: { children: string }) {
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      {Array.from({ length: 5 }, (_, index) => (
-        <span
-          className={cn(
-            "bg-border size-1.5 rounded-full",
-            index < score && "bg-foreground",
-          )}
-          key={index}
-        />
-      ))}
-    </div>
+    <p className="text-foreground/42 px-0.5 pt-0.5 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
+      {children}
+    </p>
   );
 }
 
-function BenchmarkPreviewEmptyState() {
-  return (
-    <div className="flex w-[13rem] flex-col gap-3">
-      <p className="text-foreground/42 px-0.5 pt-0.5 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
-        Benchmarks
-      </p>
-      <p className="text-foreground/54 text-sm">
-        Pick a provider to inspect benchmark details.
-      </p>
-    </div>
-  );
-}
-
-function BenchmarkPreviewHeader({
-  currentModel,
+function BenchmarkHeader({
   model,
-  selectedProvider,
+  provider,
 }: {
-  currentModel: string;
   model: SpielwieseModelOption;
-  selectedProvider: SpielwieseModelProvider | null;
+  provider: SpielwieseModelProvider | null;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-foreground/42 px-0.5 pt-0.5 text-[0.6875rem] font-medium tracking-[0.14em] uppercase">
-        Benchmarks
-      </p>
-      <div className="flex items-start gap-2">
-        <span className="text-foreground/62 mt-0.5 grid size-6 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.06)] bg-white/80">
-          <SpielwieseModelProviderMark providerId={selectedProvider?.id} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[0.9375rem] font-semibold">
-            {model.label}
-          </p>
-          <p className="text-foreground/54 text-[0.75rem] leading-[1.1rem]">
-            {selectedProvider?.label ?? currentModel}
-          </p>
-        </div>
+    <div className="flex items-start gap-2 rounded-[12px] border border-black/6 bg-white/74 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.84)]">
+      <span className="text-foreground/62 mt-0.5 grid size-7 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.08)] bg-[#F1F2F1]">
+        <SpielwieseModelProviderMark providerId={provider?.id} />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[0.8125rem] leading-5 font-semibold">
+          {model.label}
+        </p>
+        <p className="text-foreground/54 text-[0.6875rem] leading-4">
+          {provider?.label}
+        </p>
+        <p className="text-foreground/58 mt-1 text-[0.6875rem] leading-4">
+          {model.notes}
+        </p>
       </div>
-      <p className="text-foreground/58 text-[0.75rem] leading-[1.15rem]">
-        {model.notes}
-      </p>
     </div>
   );
 }
 
-function BenchmarkPreviewCards({ model }: { model: SpielwieseModelOption }) {
-  const tokenCostScore = model.benchmarks.find(
-    (benchmark) => benchmark.label === "Cost",
-  )?.score;
-
+function BenchmarkEmptyState() {
   return (
-    <>
-      <div className="rounded-[10px] border border-black/6 bg-white/76">
-        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-black/6 px-3 py-2.5">
-          <p className="text-muted-foreground min-w-0 text-sm">Token cost</p>
-          <p className="shrink-0 text-sm font-medium tabular-nums">
-            {getTokenCostLabel(tokenCostScore)}
-          </p>
-        </div>
-        {model.benchmarks.map((benchmark) => (
-          <div
-            className="flex min-w-0 items-center justify-between gap-3 border-b border-black/6 px-3 py-2.5 last:border-b-0"
-            key={benchmark.label}
-          >
-            <p className="text-muted-foreground min-w-0 text-sm">
-              {benchmark.label}
-            </p>
-            <BenchmarkDots score={benchmark.score} />
-          </div>
-        ))}
-      </div>
-      <div className="rounded-[10px] border border-black/6 bg-white/48 px-3 py-2.5">
-        <p className="text-foreground/42 text-[0.6875rem] font-medium tracking-[0.12em] uppercase">
-          Best for
+    <div
+      className="flex h-full w-full flex-col gap-2"
+      data-testid="spielwiese-model-picker-benchmark-preview"
+    >
+      <PickerSectionLabel>Benchmarks</PickerSectionLabel>
+      <div className="flex flex-1 items-center justify-center rounded-[12px] border border-dashed border-black/8 bg-black/[0.015] px-3 text-center">
+        <p className="text-foreground/52 text-[0.75rem] leading-5">
+          Hover a model to inspect benchmarks.
         </p>
-        <p className="text-foreground/78 mt-1 text-sm">{model.bestFor}</p>
       </div>
-    </>
+    </div>
   );
 }
 
 export function SpielwieseBenchmarkPreview({
-  currentModel,
   model,
   selectedProvider,
 }: {
-  currentModel: string;
   model: SpielwieseModelOption | null;
   selectedProvider: SpielwieseModelProvider | null;
 }) {
   if (!model) {
-    return <BenchmarkPreviewEmptyState />;
+    return <BenchmarkEmptyState />;
   }
 
   return (
     <div
-      className="flex w-[13rem] flex-col gap-3"
+      className="flex h-full w-full min-w-0 flex-col gap-2"
       data-testid="spielwiese-model-picker-benchmark-preview"
     >
-      <BenchmarkPreviewHeader
-        currentModel={currentModel}
-        model={model}
-        selectedProvider={selectedProvider}
-      />
-      <BenchmarkPreviewCards model={model} />
+      <PickerSectionLabel>Benchmarks</PickerSectionLabel>
+      <BenchmarkHeader model={model} provider={selectedProvider} />
+      <SpielwieseBenchmarkTable model={model} />
     </div>
   );
 }

@@ -1,10 +1,6 @@
 import { type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import {
-  spielwieseHeaderButtonBaseClassName,
-  spielwieseHeaderButtonSelectedClassName,
-} from "./spielwieseHeaderButtonStyles";
 
 function ResponseFormatOption({
   isActive,
@@ -20,8 +16,10 @@ function ResponseFormatOption({
       aria-label={`Response format ${label}`}
       aria-pressed={isActive}
       className={cn(
-        `${spielwieseHeaderButtonBaseClassName} inline-flex h-5 items-center rounded-[10px] px-2 text-[0.6875rem] font-medium tracking-[0.01em]`,
-        isActive && spielwieseHeaderButtonSelectedClassName,
+        "inline-flex h-5 items-center rounded-[7px] px-2 text-[0.6875rem] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0",
+        isActive
+          ? "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]"
+          : "text-foreground/50 hover:text-foreground/72",
       )}
       type="button"
       onClick={onClick}
@@ -42,7 +40,7 @@ function ResponseFormatSwitch({
 }) {
   return (
     <div
-      className="inline-flex items-center gap-1"
+      className="inline-flex items-center rounded-[9px] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.52)] p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]"
       data-testid="spielwiese-response-format-switch"
     >
       <ResponseFormatOption
@@ -77,7 +75,7 @@ function ResponseFormatExpandTrigger({
       aria-hidden={!isEnabled}
       aria-label="Toggle JSON response format panel"
       className={cn(
-        `${spielwieseHeaderButtonBaseClassName} inline-flex size-5 shrink-0 items-center justify-center rounded-[10px] p-0`,
+        "text-foreground/50 hover:text-foreground/72 inline-flex size-5 shrink-0 items-center justify-center rounded-[7px] transition-[opacity,color] outline-none focus-visible:ring-0",
         !isEnabled && "pointer-events-none opacity-0",
       )}
       data-testid="spielwiese-response-format-expand-trigger"

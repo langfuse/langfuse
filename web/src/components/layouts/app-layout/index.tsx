@@ -9,7 +9,12 @@
  *
  */
 
-import { type PropsWithChildren, useEffect } from "react";
+import {
+  type PropsWithChildren,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
 import posthog from "posthog-js";
@@ -32,6 +37,13 @@ import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
 import { isDevAuthBypassEnabled } from "@/src/features/auth/lib/devAuthBypass";
 import { AgentationSurface } from "@/src/features/agentation/components/AgentationSurface";
+import SpielwieseLoadingPage, {
+  getSpielwieseLoadingRoute,
+  type SpielwieseLoadingRoute,
+  isSpielwieseLoadingPath,
+} from "@/src/features/spielwiese/pages/SpielwieseLoadingPage";
+
+const spielwieseLoadingFadeDurationMs = 220;
 
 /**
  * Main layout component
@@ -53,6 +65,16 @@ export function AppLayout(props: PropsWithChildren) {
 
   // Check authentication and redirects
   const authGuard = useAuthGuard(session, hideNavigation);
+  const isSpielwieseLoading =
+    authGuard.action === "loading" &&
+    isSpielwieseLoadingPath(router.pathname, router.asPath);
+  const activeSpielwieseLoadingRoute = isSpielwieseLoading
+    ? getSpielwieseLoadingRoute(router.asPath)
+    : null;
+  const [spielwieseFadingRoute, setSpielwieseFadingRoute] =
+    useState<SpielwieseLoadingRoute | null>(activeSpielwieseLoadingRoute);
+  const [isSpielwieseLoadingFading, setIsSpielwieseLoadingFading] =
+    useState(false);
 
   // Check project access
   const projectAccess = useProjectAccess(session.data ?? null);
@@ -74,12 +96,61 @@ export function AppLayout(props: PropsWithChildren) {
     }
   }, [authGuard, router]);
 
+  useEffect(() => {
+    if (activeSpielwieseLoadingRoute) {
+      setSpielwieseFadingRoute(activeSpielwieseLoadingRoute);
+      setIsSpielwieseLoadingFading(false);
+      return;
+    }
+
+    if (!spielwieseFadingRoute) {
+      return;
+    }
+
+    setIsSpielwieseLoadingFading(true);
+    const cleanupTimer = window.setTimeout(() => {
+      setSpielwieseFadingRoute(null);
+      setIsSpielwieseLoadingFading(false);
+    }, spielwieseLoadingFadeDurationMs);
+
+    return () => window.clearTimeout(cleanupTimer);
+  }, [activeSpielwieseLoadingRoute, spielwieseFadingRoute]);
+
+  function wrapWithSpielwieseLoadingFade(content: ReactNode) {
+    if (!spielwieseFadingRoute) {
+      return content;
+    }
+
+    return (
+      <>
+        {content}
+        <div
+          aria-hidden="true"
+          className={`will-change-opacity pointer-events-none fixed inset-0 z-[120] transition-opacity duration-[220ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
+            isSpielwieseLoadingFading ? "opacity-0" : "opacity-100"
+          }`}
+          data-testid="spielwiese-loading-fade-overlay"
+        >
+          <SpielwieseLoadingPage route={spielwieseFadingRoute} />
+        </div>
+      </>
+    );
+  }
+
   // Loading or redirecting state
-  if (
-    authGuard.action === "loading" ||
-    authGuard.action === "redirect" ||
-    authGuard.action === "sign-out"
-  ) {
+  if (authGuard.action === "loading") {
+    if (isSpielwieseLoading) {
+      return (
+        <SpielwieseLoadingPage
+          route={activeSpielwieseLoadingRoute ?? "intro"}
+        />
+      );
+    }
+
+    return <LoadingLayout message={authGuard.message} />;
+  }
+
+  if (authGuard.action === "redirect" || authGuard.action === "sign-out") {
     return <LoadingLayout message={authGuard.message} />;
   }
 
@@ -88,7 +159,9 @@ export function AppLayout(props: PropsWithChildren) {
     // For publishable paths (shared traces/sessions), render minimal layout without sidebar
     // This allows authenticated users to view shared content without seeing project navigation
     if (isPublishable) {
-      return <MinimalLayout>{props.children}</MinimalLayout>;
+      return wrapWithSpielwieseLoadingFade(
+        <MinimalLayout>{props.children}</MinimalLayout>,
+      );
     }
 
     // For non-publishable paths, show error page
@@ -107,18 +180,24 @@ export function AppLayout(props: PropsWithChildren) {
   // Unauthenticated layout (sign-in, sign-up)
   // Must check variant BEFORE hideNavigation since auth pages set hideNavigation=true
   if (variant === "unauthenticated") {
-    return <UnauthenticatedLayout>{props.children}</UnauthenticatedLayout>;
+    return wrapWithSpielwieseLoadingFade(
+      <UnauthenticatedLayout>{props.children}</UnauthenticatedLayout>,
+    );
   }
 
   // Publishable paths (traces, sessions) when unauthenticated
   // Render minimal layout without navigation/sidebar
   if (isPublishable && session.status === "unauthenticated") {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
+    return wrapWithSpielwieseLoadingFade(
+      <MinimalLayout>{props.children}</MinimalLayout>,
+    );
   }
 
   // Render minimal layout (onboarding, public routes)
   if (hideNavigation) {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
+    return wrapWithSpielwieseLoadingFade(
+      <MinimalLayout>{props.children}</MinimalLayout>,
+    );
   }
 
   // Authenticated layout
@@ -143,7 +222,7 @@ export function AppLayout(props: PropsWithChildren) {
     });
   };
 
-  return (
+  const content = (
     <AuthenticatedLayout
       session={session.data}
       navigation={navigation}
@@ -154,4 +233,6 @@ export function AppLayout(props: PropsWithChildren) {
       <AgentationSurface />
     </AuthenticatedLayout>
   );
+
+  return wrapWithSpielwieseLoadingFade(content);
 }

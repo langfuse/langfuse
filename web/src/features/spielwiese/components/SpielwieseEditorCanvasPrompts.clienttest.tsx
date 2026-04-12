@@ -52,15 +52,14 @@ function expectInsertRowChrome({
   expect(inlineInsertRow).toBeNull();
   expect(externalRow.className).toContain("w-fit");
   expect(externalRow.className).toContain("pl-[18px]");
-  expect(externalRow.className).toContain("opacity-0");
-  expect(externalRow.className).toContain("pointer-events-none");
-  expect(externalRow.className).toContain("group-hover/agent-node:opacity-100");
-  expect(externalRow.className).toContain(
-    "group-hover/agent-node:pointer-events-auto",
-  );
-  expect(externalRow.className).toContain(
-    "group-focus-within/agent-node:opacity-100",
-  );
+  expect(externalRow.className).toContain("ml-[18px]");
+  expect(externalRow.className).toContain("mt-[8px]");
+  expect(externalRow.className).toContain("opacity-100");
+  expect(externalRow.className).toContain("pointer-events-auto");
+  expect(externalRow.className).not.toContain("opacity-0");
+  expect(externalRow.className).not.toContain("pointer-events-none");
+  expect(externalRow.className).not.toContain("group-hover/agent-node");
+  expect(externalRow.className).not.toContain("group-focus-within/agent-node");
   expect(externalRow.parentElement).toBe(visionNode);
   expect(visionNode.lastElementChild).toBe(externalRow);
   expect(textShell.className).toContain("overflow-hidden");
@@ -120,24 +119,21 @@ describe("SpielwieseEditorCanvas prompt insertion", () => {
     expectInsertPickerRailChrome(visionNode);
   });
 
-  it("keeps the footer insert control hidden until the node is hovered or focused", () => {
+  it("keeps the footer insert control always visible with the external offset", () => {
     const visionNode = renderVisionNode();
     const { externalRow, textTrigger } = getInsertControls(visionNode);
 
-    expect(externalRow.className).toContain("opacity-0");
-    expect(externalRow.className).toContain("pointer-events-none");
-
-    fireEvent.mouseEnter(visionNode);
-
-    expect(externalRow.className).toContain(
-      "group-hover/agent-node:opacity-100",
-    );
+    expect(externalRow.className).toContain("ml-[18px]");
+    expect(externalRow.className).toContain("mt-[8px]");
+    expect(externalRow.className).toContain("opacity-100");
+    expect(externalRow.className).toContain("pointer-events-auto");
+    expect(externalRow.className).not.toContain("opacity-0");
+    expect(externalRow.className).not.toContain("pointer-events-none");
 
     textTrigger.focus();
 
-    expect(externalRow.className).toContain(
-      "group-focus-within/agent-node:opacity-100",
-    );
+    expect(externalRow.className).toContain("opacity-100");
+    expect(externalRow.className).toContain("pointer-events-auto");
   });
 });
 

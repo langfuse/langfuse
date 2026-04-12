@@ -366,8 +366,11 @@ function expectResponseFormatControlsCluster({
     "Response Format",
   );
   expect(responseFormatSwitch.className).not.toContain("ml-auto");
-  expect(responseFormatSwitch.className).toContain("gap-1");
-  expect(responseFormatSwitch.className).not.toContain("border");
+  expect(responseFormatSwitch.className).toContain("rounded-[9px]");
+  expect(responseFormatSwitch.className).toContain("border");
+  expect(responseFormatSwitch.className).toContain("border-[rgba(0,0,0,0.06)]");
+  expect(responseFormatSwitch.className).toContain("p-0.5");
+  expect(responseFormatExpandTrigger.className).not.toContain("border");
 }
 
 function expectResponseFormatInsertTriggerChrome({
@@ -517,12 +520,12 @@ function expectResponseFormatBaseChrome(
   {
     responseFormatComposer,
     responseFormatControlsCluster,
+    responseFormatExpandTrigger,
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
     responseFormatInsertRow,
     responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
-    responseFormatExpandTrigger,
     responseFormatSurface,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
@@ -558,9 +561,9 @@ function expectResponseFormatBaseChrome(
   expect(responseFormatInsertTextTrigger.getAttribute("aria-expanded")).toBe(
     "false",
   );
-  expect(responseFormatSwitch.className).toContain("gap-1");
-  expect(responseFormatSwitch.className).not.toContain("rounded-[9px]");
-  expect(responseFormatSwitch.className).not.toContain("border");
+  expect(responseFormatSwitch.className).toContain("rounded-[9px]");
+  expect(responseFormatSwitch.className).toContain("border");
+  expect(responseFormatSwitch.className).toContain("p-0.5");
 }
 
 function expectResponseFormatNoneState(
@@ -585,6 +588,7 @@ function expectResponseFormatNoneState(
   expectResponseFormatBaseChrome(nodeCard, {
     responseFormatComposer,
     responseFormatControlsCluster,
+    responseFormatExpandTrigger,
     responseFormatInsertRow,
     responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
@@ -633,6 +637,7 @@ function expectResponseFormatJsonState(
   expectResponseFormatBaseChrome(nodeCard, {
     responseFormatComposer,
     responseFormatControlsCluster,
+    responseFormatExpandTrigger,
     responseFormatInsertRow,
     responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
@@ -804,7 +809,19 @@ describe("SpielwieseEditorCanvas detached user layout", () => {
     );
 
     expectDetachedUserRowChrome(detachedUserSections, detachedUserRow);
-    expect(within(nodeCard).queryByLabelText("vision-agent User")).toBeNull();
+    expect(
+      within(nodeCard).queryByLabelText("vision-agent User message"),
+    ).toBeNull();
+    expect(
+      within(detachedUserSections).queryByTestId(
+        "spielwiese-response-format-composer",
+      ),
+    ).toBeNull();
+    expect(
+      within(detachedUserSections).queryByTestId(
+        "spielwiese-message-insert-text-trigger",
+      ),
+    ).toBeNull();
   });
 });
 

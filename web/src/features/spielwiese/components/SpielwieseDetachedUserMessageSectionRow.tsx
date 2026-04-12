@@ -1,18 +1,23 @@
+/* eslint-disable max-lines */
 import { useState } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Button } from "../ui/button";
+import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
 import { SpielwieseDetachedUserInlineAccessories } from "./SpielwieseDetachedUserInlineAccessories";
-import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
+import { MessageSectionChipButton } from "./SpielwieseMessageSectionChip";
 import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
+import { SpielwieseMessageSectionTrailing } from "./SpielwieseMessageSectionHeaderSupport";
 import {
-  spielwieseMessageFieldShellClassName,
-  spielwieseSingleLineTextareaClassName,
+  spielwieseEmbeddedPromptInnerRadiusClassName,
+  spielwieseEmbeddedPromptRadiusClassName,
+  spielwieseEmbeddedPromptRadiusVariablesClassName,
+  spielwieseEmbeddedSingleLineTextareaClassName,
 } from "./SpielwieseMessageSectionBody";
 
 function getMessageSectionRowRadiusClassName(sectionId: string) {
@@ -41,6 +46,10 @@ type SpielwieseDetachedUserMessageSectionRowProps = {
   startCollapsed?: boolean;
 };
 
+const detachedUserSectionLabel = "User message";
+
+// The detached user shell intentionally mirrors the agent card anatomy in one place.
+// eslint-disable-next-line max-lines-per-function
 function DetachedUserInputShell({
   nodeId,
   onPromptSectionChange,
@@ -52,29 +61,192 @@ function DetachedUserInputShell({
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
-    <label
-      className="block min-w-0"
-      data-testid="spielwiese-detached-user-input-shell"
+    <div
+      className={cn(
+        toneClassNames.body,
+        "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[rgba(0,0,0,0.04)] bg-[#FBFBFB] p-[2px]",
+      )}
+      data-testid="spielwiese-detached-user-content-frame"
     >
-      <div className={spielwieseMessageFieldShellClassName}>
-        <SpielwieseMustacheTextarea
-          aria-label={`${nodeId} ${section.label}`}
-          className={cn(
-            spielwieseSingleLineTextareaClassName,
-            toneClassNames.field,
-            "placeholder:text-foreground/36",
-          )}
-          liveInline
-          name={`${nodeId}-${section.id}`}
-          onChange={(event) =>
-            onPromptSectionChange(nodeId, section.id, event.target.value)
-          }
-          placeholder="Type the user's message"
-          rows={1}
-          value={section.value}
+      <div
+        className={cn(
+          "flex min-h-0 w-full min-w-0 flex-col items-stretch gap-px overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
+          spielwieseEmbeddedPromptRadiusVariablesClassName,
+          spielwieseEmbeddedPromptRadiusClassName,
+        )}
+        data-testid="spielwiese-detached-user-embedded-shell"
+      >
+        <div className="pb-px">
+          <DetachedUserEmbeddedHeader
+            nodeId={nodeId}
+            section={section}
+            sectionLabel={detachedUserSectionLabel}
+          />
+        </div>
+        <label
+          className="block min-w-0"
+          data-testid="spielwiese-detached-user-input-shell"
+        >
+          <div
+            className={cn(
+              "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+              spielwieseEmbeddedPromptInnerRadiusClassName,
+            )}
+            data-testid="spielwiese-detached-user-prompt-shell"
+          >
+            <SpielwieseMustacheTextarea
+              aria-label={`${nodeId} ${detachedUserSectionLabel}`}
+              className={cn(
+                spielwieseEmbeddedSingleLineTextareaClassName,
+                toneClassNames.field,
+                "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
+              )}
+              liveInline
+              name={`${nodeId}-${section.id}`}
+              onChange={(event) =>
+                onPromptSectionChange(nodeId, section.id, event.target.value)
+              }
+              placeholder="Type the user's message"
+              rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
+              rows={1}
+              value={section.value}
+            />
+          </div>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function DetachedUserEmbeddedHeader({
+  nodeId,
+  section,
+  sectionLabel,
+}: {
+  nodeId: string;
+  section: SpielwieseAgentNodeVM["promptSections"][number];
+  sectionLabel: string;
+}) {
+  const toneClassNames = getMessageToneClassNames(section.id);
+
+  return (
+    <div
+      className="ml-[2px] flex w-full items-center justify-between gap-3 bg-transparent"
+      data-testid="spielwiese-detached-user-embedded-header"
+    >
+      <div className="ml-[3px] flex min-w-0 flex-1 items-center gap-2 overflow-visible">
+        <MessageSectionChipButton
+          interactive={false}
+          isCollapsed={false}
+          label={sectionLabel}
+          leadingSurface="embedded"
+          messageKind="user"
+          nodeId={nodeId}
+          onToggleCollapse={() => {}}
+          sectionId={section.id}
+          toneClassNames={toneClassNames}
         />
       </div>
-    </label>
+    </div>
+  );
+}
+
+function DetachedUserHeaderLeading({
+  isCollapsed,
+  nodeId,
+  onToggleCollapse,
+  section,
+  sectionLabel,
+}: {
+  isCollapsed: boolean;
+  nodeId: string;
+  onToggleCollapse: () => void;
+  section: SpielwieseAgentNodeVM["promptSections"][number];
+  sectionLabel: string;
+}) {
+  const toneClassNames = getMessageToneClassNames(section.id);
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-visible">
+      <MessageSectionChipButton
+        isCollapsed={isCollapsed}
+        label={sectionLabel}
+        leadingSurface="plain"
+        messageKind="user"
+        nodeId={nodeId}
+        onToggleCollapse={onToggleCollapse}
+        sectionId={section.id}
+        toneClassNames={toneClassNames}
+      />
+      <SpielwieseDetachedUserInlineAccessories />
+      {isCollapsed ? (
+        <SpielwieseCollapsedPromptPreview
+          className={toneClassNames.count}
+          value={section.value}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type DetachedUserHeaderStripProps = Pick<
+  SpielwieseDetachedUserMessageSectionRowProps,
+  "canMoveDown" | "canMoveUp" | "nodeId" | "section"
+> & {
+  isCollapsed: boolean;
+  onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
+  onPromptSectionMove: (
+    nodeId: string,
+    sectionId: string,
+    direction: "up" | "down",
+  ) => void;
+  onToggleCollapse: () => void;
+  sectionLabel: string;
+};
+
+function DetachedUserHeaderStrip({
+  canMoveDown,
+  canMoveUp,
+  isCollapsed,
+  nodeId,
+  onPromptSectionDelete,
+  onPromptSectionMove,
+  onToggleCollapse,
+  section,
+  sectionLabel,
+}: DetachedUserHeaderStripProps) {
+  return (
+    <div
+      className="flex w-full items-center justify-between gap-3"
+      data-testid="spielwiese-detached-user-header-strip"
+    >
+      <DetachedUserHeaderLeading
+        isCollapsed={isCollapsed}
+        nodeId={nodeId}
+        onToggleCollapse={onToggleCollapse}
+        section={section}
+        sectionLabel={sectionLabel}
+      />
+      <SpielwieseMessageSectionTrailing
+        canMoveDown={canMoveDown}
+        canMoveUp={canMoveUp}
+        controlRevealMode="section"
+        label={sectionLabel}
+        nodeId={nodeId}
+        onDelete={() => onPromptSectionDelete(nodeId, section.id)}
+        onMoveDown={() => onPromptSectionMove(nodeId, section.id, "down")}
+        onMoveUp={() => onPromptSectionMove(nodeId, section.id, "up")}
+        sectionId={section.id}
+        trailingAccessory={
+          <DetachedUserCompactToggleButton
+            isCollapsed={isCollapsed}
+            nodeId={nodeId}
+            onToggleCollapse={onToggleCollapse}
+            sectionLabel={sectionLabel}
+          />
+        }
+      />
+    </div>
   );
 }
 
@@ -111,7 +283,6 @@ function DetachedUserCompactToggleButton({
 export function SpielwieseDetachedUserMessageSectionRow({
   canMoveDown,
   canMoveUp,
-  displayLabel,
   nodeId,
   onPromptSectionChange,
   onPromptSectionDelete,
@@ -120,41 +291,32 @@ export function SpielwieseDetachedUserMessageSectionRow({
   startCollapsed = false,
 }: SpielwieseDetachedUserMessageSectionRowProps) {
   const [isCollapsed, setIsCollapsed] = useState(startCollapsed);
-  const toneClassNames = getMessageToneClassNames(section.id);
   const toggleCollapsed = () => setIsCollapsed((currentValue) => !currentValue);
+  const sectionLabel = detachedUserSectionLabel;
+  const sectionHeader = (
+    <DetachedUserHeaderStrip
+      canMoveDown={canMoveDown}
+      canMoveUp={canMoveUp}
+      isCollapsed={isCollapsed}
+      nodeId={nodeId}
+      onPromptSectionDelete={onPromptSectionDelete}
+      onPromptSectionMove={onPromptSectionMove}
+      onToggleCollapse={toggleCollapsed}
+      section={section}
+      sectionLabel={sectionLabel}
+    />
+  );
 
   return (
     <div
       className={cn(
-        "group flex w-full flex-col gap-1.5 overflow-visible px-2.5 pt-2 pb-2",
+        "group flex w-full flex-col gap-1.5 overflow-visible px-[5px] pt-[5px] pb-[5px]",
         getMessageSectionRowRadiusClassName(section.id),
-        toneClassNames.surface,
       )}
       data-section-id={section.id}
       data-testid="spielwiese-message-section-row"
     >
-      <SpielwieseMessageSectionHeader
-        canMoveDown={canMoveDown}
-        canMoveUp={canMoveUp}
-        inlineAccessory={<SpielwieseDetachedUserInlineAccessories />}
-        isCollapsed={isCollapsed}
-        label={displayLabel}
-        nodeId={nodeId}
-        onDelete={() => onPromptSectionDelete(nodeId, section.id)}
-        onMoveDown={() => onPromptSectionMove(nodeId, section.id, "down")}
-        onMoveUp={() => onPromptSectionMove(nodeId, section.id, "up")}
-        onToggleCollapse={toggleCollapsed}
-        sectionId={section.id}
-        trailingAccessory={
-          <DetachedUserCompactToggleButton
-            isCollapsed={isCollapsed}
-            nodeId={nodeId}
-            onToggleCollapse={toggleCollapsed}
-            sectionLabel={displayLabel}
-          />
-        }
-        value={section.value}
-      />
+      {sectionHeader}
       {isCollapsed ? null : (
         <DetachedUserInputShell
           nodeId={nodeId}

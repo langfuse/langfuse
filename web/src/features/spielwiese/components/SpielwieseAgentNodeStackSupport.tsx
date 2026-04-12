@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
@@ -6,10 +5,11 @@ import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
 import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
+import {
+  SpielwiesePromptDeckCardHeaderFrame,
+  SpielwiesePromptDeckCardShell,
+} from "./SpielwiesePromptDeckCardChrome";
 import { getMessageKind } from "./spielwieseMessageTone";
-
-const spielwieseAgentNodeShellClassName =
-  "group flex w-full flex-col gap-0.5 overflow-visible rounded-(--node-shell-radius) border border-[rgba(15,23,42,0.08)] bg-[#F1F2F2] shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)] [--node-shell-gap:2px] [--node-shell-radius:18px]";
 
 type SpielwiesePrimaryAgentNodeCardProps = {
   cardTestId?: string;
@@ -148,11 +148,6 @@ function PrimaryAgentJsonFormatComposer({
   );
 }
 
-function PrimaryAgentHeaderFrame({ children }: { children: ReactNode }) {
-  // prettier-ignore
-  return <div className="-mb-0.5 rounded-[var(--node-shell-radius)] bg-[#F1F2F2] p-0.5" data-testid="spielwiese-agent-node-header-frame">{children}</div>;
-}
-
 function createAgentNodeCard(
   cardTestId: string,
   sharedCardProps: Omit<SpielwiesePrimaryAgentNodeCardProps, "cardTestId">,
@@ -203,13 +198,13 @@ export function SpielwiesePrimaryAgentNodeCard({
     onTogglePreviewFocus,
   };
   return (
-    <div className={spielwieseAgentNodeShellClassName} data-testid={cardTestId}>
-      <PrimaryAgentHeaderFrame>
+    <SpielwiesePromptDeckCardShell data-testid={cardTestId}>
+      <SpielwiesePromptDeckCardHeaderFrame data-testid="spielwiese-agent-node-header-frame">
         <SpielwieseAgentNodeHeader {...headerProps}>
           {/* prettier-ignore */}
           <PrimaryAgentSystemPromptSections promptSectionProps={promptSectionProps} />
         </SpielwieseAgentNodeHeader>
-      </PrimaryAgentHeaderFrame>
+      </SpielwiesePromptDeckCardHeaderFrame>
       {/* prettier-ignore */}
       <PrimaryAgentResponsePromptSections promptSectionProps={promptSectionProps} />
       <PrimaryAgentJsonFormatComposer
@@ -218,7 +213,7 @@ export function SpielwiesePrimaryAgentNodeCard({
         onPromptSectionInsert={onPromptSectionInsert}
         systemSection={systemSection}
       />
-    </div>
+    </SpielwiesePromptDeckCardShell>
   );
 }
 
@@ -302,7 +297,7 @@ export function SpielwieseAgentNodeExternalInsertRow({
 }) {
   return (
     <SpielwieseMessageInsertRow
-      className="pointer-events-none opacity-0 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/agent-node:pointer-events-auto group-focus-within/agent-node:opacity-100 group-hover/agent-node:pointer-events-auto group-hover/agent-node:opacity-100"
+      className="pointer-events-auto mt-[8px] ml-[18px] opacity-100"
       nodeId={nodeId}
       onPromptSectionInsert={onPromptSectionInsert}
       rowTestId="spielwiese-message-insert-external-row"

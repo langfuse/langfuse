@@ -1,26 +1,20 @@
 import {
-  getCanonicalModelLabel,
   getModelOption,
-  getModelProvider,
   spielwieseModelProviders,
-  type SpielwieseModelOption,
   type SpielwieseModelProvider,
 } from "./spielwieseModelCatalog";
 
 export function getSelectedProvider({
-  currentModel,
   providerId,
 }: {
-  currentModel: string;
   providerId: string | null;
 }) {
-  const resolvedProviderId = providerId ?? getModelProvider(currentModel)?.id;
+  if (!providerId) {
+    return null;
+  }
 
   return (
-    spielwieseModelProviders.find(
-      (provider) => provider.id === resolvedProviderId,
-    ) ??
-    spielwieseModelProviders[0] ??
+    spielwieseModelProviders.find((provider) => provider.id === providerId) ??
     null
   );
 }
@@ -44,32 +38,15 @@ export function getVisibleModels({
 }
 
 export function getPreviewModel({
-  currentModel,
   hoveredModelLabel,
-  provider,
-  visibleModels,
 }: {
-  currentModel: string;
   hoveredModelLabel: string | null;
-  provider: SpielwieseModelProvider | null;
-  visibleModels: SpielwieseModelOption[];
 }) {
-  if (hoveredModelLabel) {
-    return getModelOption(hoveredModelLabel) ?? null;
+  if (!hoveredModelLabel) {
+    return null;
   }
 
-  const currentOption = getModelOption(currentModel);
-  if (
-    currentOption &&
-    provider &&
-    [...provider.latestModels, ...provider.legacyModels].some(
-      (model) => model.label === currentOption.label,
-    )
-  ) {
-    return currentOption;
-  }
-
-  return visibleModels[0] ?? null;
+  return getModelOption(hoveredModelLabel) ?? null;
 }
 
 export function createProviderSelectHandler({
@@ -104,5 +81,5 @@ export function createModelSelectHandler({
 }
 
 export function isCurrentModel(modelLabel: string, currentModel: string) {
-  return getCanonicalModelLabel(currentModel) === modelLabel;
+  return getModelOption(currentModel)?.label === modelLabel;
 }

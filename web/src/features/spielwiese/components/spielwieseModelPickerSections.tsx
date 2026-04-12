@@ -5,7 +5,6 @@ import { Button } from "../ui/button";
 import {
   spielwieseHeaderButtonAccentClassName,
   spielwieseHeaderButtonBaseClassName,
-  spielwieseHeaderButtonSelectedClassName,
 } from "./spielwieseHeaderButtonStyles";
 import {
   getCanonicalModelLabel,
@@ -33,26 +32,25 @@ function ProviderButton({
   provider: SpielwieseModelProvider;
 }) {
   return (
-    <Button
+    <button
       aria-pressed={isActive}
       className={cn(
-        spielwieseHeaderButtonBaseClassName,
-        "h-8 w-full justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+        "flex w-full items-start gap-2.5 rounded-[10px] px-2.5 py-2.5 text-left transition-[background-color,box-shadow] outline-none",
         isActive
-          ? spielwieseHeaderButtonSelectedClassName
-          : "hover:bg-[rgba(255,255,255,0.92)]",
+          ? "bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
+          : "hover:bg-black/[0.025]",
       )}
       data-state={isActive ? "active" : "inactive"}
-      size="sm"
       type="button"
-      variant="ghost"
       onClick={onClick}
     >
-      <span className="flex min-w-0 items-center gap-2">
+      <span className="text-foreground/62 grid size-7 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.08)] bg-[#F1F2F1]">
         <SpielwieseModelProviderMark providerId={provider.id} />
-        <span className="truncate">{provider.label}</span>
       </span>
-    </Button>
+      <span className="min-w-0 truncate pt-0.5 text-[0.8125rem] leading-5 font-medium">
+        {provider.label}
+      </span>
+    </button>
   );
 }
 
@@ -88,7 +86,7 @@ function ModelButton({
       onMouseEnter={onHover}
       onPointerEnter={onHover}
     >
-      <span className="text-foreground/62 mt-0.5 grid size-6 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.06)] bg-[rgba(247,247,244,0.92)]">
+      <span className="text-foreground/62 mt-0.5 grid size-7 shrink-0 place-items-center rounded-[8px] border border-[rgba(0,0,0,0.08)] bg-[#F1F2F1]">
         <SpielwieseModelProviderMark providerId={providerId} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
@@ -111,7 +109,7 @@ export function SpielwieseProviderColumn({
   onSelectProvider: (providerId: string) => void;
 }) {
   return (
-    <div className="flex h-full w-[11.5rem] flex-col gap-2">
+    <div className="flex h-full w-full min-w-0 flex-col gap-2">
       <PickerSectionLabel>Providers</PickerSectionLabel>
       <div className="flex flex-1 flex-col gap-1">
         {spielwieseModelProviders.map((provider) => (
@@ -161,12 +159,9 @@ export function SpielwieseModelColumn({
   toggleLegacyModels: () => void;
 }) {
   return (
-    <div className="flex h-full w-[15rem] flex-col gap-2">
+    <div className="flex h-full w-full min-w-0 flex-col gap-2">
       <PickerSectionLabel>Models</PickerSectionLabel>
-      <div
-        className="flex flex-1 flex-col gap-1"
-        onMouseLeave={() => onHoverModel(null)}
-      >
+      <div className="flex flex-1 flex-col gap-1">
         {models.map((model) => (
           <ModelButton
             description={model.description}

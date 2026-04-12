@@ -1,12 +1,12 @@
 import { useState, type FocusEvent } from "react";
-import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
-
-const spielwieseDetachedUserShellClassName =
-  "group flex w-full flex-col gap-1.5 overflow-visible rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]";
+import {
+  SpielwiesePromptDeckCardHeaderFrame,
+  SpielwiesePromptDeckCardShell,
+} from "./SpielwiesePromptDeckCardChrome";
 
 type SpielwieseDetachedUserDeckRegionProps = {
   node: SpielwieseAgentNodeVM;
@@ -42,24 +42,28 @@ function SpielwieseDetachedUserCard({
   toolOptions,
 }: SpielwieseDetachedUserCardProps) {
   return (
-    <div
-      className={cn(spielwieseDetachedUserShellClassName, "overflow-visible")}
+    <SpielwiesePromptDeckCardShell
       data-testid={cardTestId ?? `${node.id}-detached-user-sections`}
     >
-      <SpielwieseAgentNodePromptSections
-        className="pt-0 pb-0"
-        includeKinds={["user"]}
-        nodeId={node.id}
-        onPromptSectionDelete={onPromptSectionDelete}
-        onPromptSectionInsert={onPromptSectionInsert}
-        onPromptSectionChange={onPromptSectionChange}
-        onPromptSectionMove={onPromptSectionMove}
-        promptSections={node.promptSections}
-        showInsertRow={false}
-        toolOptions={toolOptions}
-        userLayout="detached"
-      />
-    </div>
+      <SpielwiesePromptDeckCardHeaderFrame
+        data-testid="spielwiese-detached-user-card-frame"
+        overlap={false}
+      >
+        <SpielwieseAgentNodePromptSections
+          className="pt-0 pb-0"
+          includeKinds={["user"]}
+          nodeId={node.id}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
+          onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionMove={onPromptSectionMove}
+          promptSections={node.promptSections}
+          showInsertRow={false}
+          toolOptions={toolOptions}
+          userLayout="detached"
+        />
+      </SpielwiesePromptDeckCardHeaderFrame>
+    </SpielwiesePromptDeckCardShell>
   );
 }
 

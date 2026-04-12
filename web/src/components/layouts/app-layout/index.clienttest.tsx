@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { AppLayout } from "./index";
@@ -175,5 +175,101 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("minimal-layout")).toBeTruthy();
     expect(screen.queryByTestId("agentation-surface")).toBeNull();
+  });
+
+  it("renders the spielwiese loading page instead of the generic loading layout on spielwiese routes", () => {
+    mockedUseRouter.mockReturnValue({
+      replace: jest.fn(),
+      push: jest.fn(),
+      query: {},
+      pathname: "/dev/spielwiese/[[...slug]]",
+      asPath: "/dev/spielwiese/dashboard",
+    } as unknown as ReturnType<typeof useRouter>);
+    mockedUseAuthGuard.mockReturnValue({
+      action: "loading",
+      message: "Loading",
+    });
+
+    render(
+      <AppLayout>
+        <div>Spielwiese route content</div>
+      </AppLayout>,
+    );
+
+    expect(screen.getByTestId("spielwiese-loading-page")).toBeTruthy();
+    expect(
+      screen.getByTestId("spielwiese-loading-page").getAttribute("data-route"),
+    ).toBe("dashboard");
+    expect(screen.queryByText("Loading")).toBeNull();
+  });
+
+  it("fades the spielwiese loading page out once the route is ready", () => {
+    jest.useFakeTimers();
+    try {
+      mockedUseRouter.mockReturnValue({
+        replace: jest.fn(),
+        push: jest.fn(),
+        query: {},
+        pathname: "/dev/spielwiese/[[...slug]]",
+        asPath: "/dev/spielwiese/dashboard",
+      } as unknown as ReturnType<typeof useRouter>);
+      mockedUseLayoutConfiguration.mockReturnValue({
+        variant: "minimal",
+        hideNavigation: true,
+        isPublishable: false,
+      });
+      mockedUseAuthGuard.mockReturnValue({
+        action: "loading",
+        message: "Loading",
+      });
+
+      const { rerender } = render(
+        <AppLayout>
+          <div>Spielwiese route content</div>
+        </AppLayout>,
+      );
+
+      mockedUseAuthGuard.mockReturnValue({ action: "allow" });
+      rerender(
+        <AppLayout>
+          <div>Spielwiese route content</div>
+        </AppLayout>,
+      );
+
+      expect(screen.getByTestId("minimal-layout")).toBeTruthy();
+      expect(screen.getByText("Spielwiese route content")).toBeTruthy();
+      expect(
+        screen.getByTestId("spielwiese-loading-fade-overlay"),
+      ).toBeTruthy();
+      expect(
+        screen.getByTestId("spielwiese-loading-fade-overlay").className,
+      ).toContain("opacity-0");
+
+      act(() => {
+        jest.advanceTimersByTime(220);
+      });
+
+      expect(
+        screen.queryByTestId("spielwiese-loading-fade-overlay"),
+      ).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps the generic loading layout for non-spielwiese routes", () => {
+    mockedUseAuthGuard.mockReturnValue({
+      action: "loading",
+      message: "Loading",
+    });
+
+    render(
+      <AppLayout>
+        <div>Regular route content</div>
+      </AppLayout>,
+    );
+
+    expect(screen.getByText("Loading")).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-loading-page")).toBeNull();
   });
 });

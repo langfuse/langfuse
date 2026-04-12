@@ -261,6 +261,17 @@ function getFinderProps({
   };
 }
 
+function SmallScreenOverlay() {
+  return (
+    <div
+      className="absolute inset-0 z-50 hidden items-center justify-center bg-white px-6 text-center text-sm font-medium text-[#8B8B8D] max-[499px]:flex"
+      data-testid="spielwiese-shell-small-screen-overlay"
+    >
+      Please view on a larger screen.
+    </div>
+  );
+}
+
 function SpielwieseDashboardShellFrame({
   dashboard,
   finderProps,
@@ -290,12 +301,13 @@ function SpielwieseDashboardShellFrame({
 }) {
   return (
     <div
-      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F3F3F4] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
+      className="text-foreground h-screen-with-banner relative flex flex-col overflow-hidden bg-[#F3F3F4] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"
       onKeyDownCapture={onKeyDownCapture}
     >
+      <SmallScreenOverlay />
       <MobileSidebars
         dashboard={dashboard}
         mobileLeftOpen={mobileLeftOpen}

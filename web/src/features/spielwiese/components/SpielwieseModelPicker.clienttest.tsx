@@ -43,33 +43,60 @@ function renderModelPickerPanel({
 function expectDefaultPickerChrome() {
   const panel = screen.getByRole("dialog", { name: "Model picker" });
   const grid = screen.getByTestId("spielwiese-model-picker-grid");
-  const preview = screen.getByTestId(
-    "spielwiese-model-picker-benchmark-preview",
+  const selectionPane = screen.getByTestId(
+    "spielwiese-model-picker-selection-pane",
   );
   const recommendButton = within(panel).getByRole("button", {
     name: "Recommend model",
   });
 
-  expect(panel.className).toContain("w-[min(42rem,var(--available-width))]");
-  expect(panel.className).toContain("overflow-auto");
-  expect(panel.className).toContain("overscroll-contain");
+  expect(panel.className).toContain("w-[42rem]");
+  expect(panel.className).toContain(
+    "rounded-[var(--spielwiese-picker-outer-radius)]",
+  );
+  expect(panel.className).toContain("p-[var(--spielwiese-picker-padding)]");
+  expect(panel.className).toContain("overflow-visible");
   expect(panel.className).not.toContain("overflow-hidden");
+  expect(panel.className).not.toContain("overflow-auto");
+  expect(panel.className).not.toContain(
+    "max-h-[min(28rem,var(--available-height))]",
+  );
   expect(panel.className).not.toContain("min-w-[22rem]");
-  expect(grid.className).toContain("min-w-max");
+  expect(grid.className).toContain("h-[31rem]");
+  expect(grid.className).toContain("min-w-0");
+  expect(grid.className).toContain("overflow-hidden");
+  expect(grid.className).toContain(
+    "rounded-[var(--spielwiese-picker-inner-radius)]",
+  );
   expect(within(panel).getByRole("button", { name: "OpenAI" })).toBeTruthy();
   expect(within(panel).getByText("Providers")).toBeTruthy();
-  expect(within(panel).getByText("Models")).toBeTruthy();
-  expect(within(panel).getByText("Benchmarks")).toBeTruthy();
-  expect(preview.textContent).toContain("GPT-4.1 mini");
-  expect(preview.textContent).toContain(
-    "Good compatibility bridge from existing prompts.",
-  );
-  expect(
-    within(panel).queryByRole("button", { name: "GPT-4.1 mini" }),
-  ).toBeNull();
+  expect(within(panel).queryByText("Models")).toBeNull();
+  expect(within(panel).queryByText("Benchmarks")).toBeNull();
+  expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
+  expect(within(panel).queryByText(/Frontier general-purpose/i)).toBeNull();
   expect(recommendButton.className).toContain("text-[#6F4124]");
 
-  return { panel, preview };
+  return { panel, selectionPane };
+}
+
+function selectProvider(panel: HTMLElement, providerName: string) {
+  fireEvent.click(within(panel).getByRole("button", { name: providerName }));
+}
+
+function expectHoverPrompt(preview: HTMLElement) {
+  expect(preview.textContent).toContain("Hover a model to inspect benchmarks.");
+}
+
+function getBenchmarkPreview(panel: HTMLElement) {
+  return within(panel).getByTestId("spielwiese-model-picker-benchmark-preview");
+}
+
+function hoverModel(panel: HTMLElement, modelName: string) {
+  const modelButton = within(panel).getByRole("button", { name: modelName });
+
+  fireEvent.mouseEnter(modelButton);
+
+  return modelButton;
 }
 
 describe("SpielwieseModelPickerTrigger icons", () => {
@@ -114,22 +141,32 @@ describe("SpielwieseModelPickerTrigger icons", () => {
 });
 
 describe("SpielwieseModelPickerPanel chrome", () => {
-  it("renders the provider rail, recent models, benchmark preview, and older-model toggle without clipping the shell", () => {
+  it("starts provider-only, then reveals recent models and benchmark details without changing the shell size", () => {
     renderModelPickerPanel();
 
-    const { panel, preview } = expectDefaultPickerChrome();
-    const gpt54Button = within(panel).getByRole("button", { name: "GPT-5.4" });
+    const { panel, selectionPane } = expectDefaultPickerChrome();
+
+    expect(selectionPane.childElementCount).toBe(0);
+
+    selectProvider(panel, "OpenAI");
+
+    const preview = getBenchmarkPreview(panel);
     const olderToggle = within(panel).getByTestId(
       "spielwiese-model-picker-older-toggle",
     );
 
-    fireEvent.mouseEnter(gpt54Button);
+    expect(within(panel).getByText("Models")).toBeTruthy();
+    expect(within(panel).getByText("Benchmarks")).toBeTruthy();
+    expectHoverPrompt(preview);
 
-    expect(preview.textContent).toContain("GPT-5.4");
-    expect(preview.textContent).toContain(
-      "Strongest overall quality in the current OpenAI family.",
-    );
-    expect(within(preview).getByText("Token cost")).toBeTruthy();
+    hoverModel(panel, "GPT-5.4");
+
+    const hoveredPreview = getBenchmarkPreview(panel);
+
+    expect(hoveredPreview.textContent).toContain("GPT-5.4");
+    expect(hoveredPreview.textContent).toContain("Intelligence");
+    expect(hoveredPreview.textContent).toContain("$82");
+    expect(hoveredPreview.textContent).toContain("Text to image place");
 
     fireEvent.click(olderToggle);
 
@@ -142,11 +179,8 @@ describe("SpielwieseModelPickerPanel chrome", () => {
     renderModelPickerPanel();
 
     const panel = screen.getByRole("dialog", { name: "Model picker" });
-    const preview = screen.getByTestId(
-      "spielwiese-model-picker-benchmark-preview",
-    );
 
-    fireEvent.click(within(panel).getByRole("button", { name: "Anthropic" }));
+    selectProvider(panel, "Anthropic");
 
     expect(
       within(panel).getByRole("button", { name: "Claude Opus 4.6" }),
@@ -158,7 +192,17 @@ describe("SpielwieseModelPickerPanel chrome", () => {
       within(panel).queryByRole("button", { name: "Claude 3.7 Sonnet" }),
     ).toBeNull();
     expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
-    expect(preview.textContent).toContain("Claude Opus 4.6");
+
+    const preview = getBenchmarkPreview(panel);
+
+    expectHoverPrompt(preview);
+    hoverModel(panel, "Claude Sonnet 4.6");
+
+    const hoveredPreview = getBenchmarkPreview(panel);
+
+    expect(hoveredPreview.textContent).toContain("Claude Sonnet 4.6");
+    expect(hoveredPreview.textContent).toContain("Agentic index");
+    expect(hoveredPreview.textContent).toContain("Weights");
 
     fireEvent.click(
       within(panel).getByTestId("spielwiese-model-picker-older-toggle"),

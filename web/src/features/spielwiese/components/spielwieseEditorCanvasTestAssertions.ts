@@ -30,20 +30,32 @@ export function expectInlineEditingShell({
   expect(systemInput.getAttribute("rows")).toBe("1");
 }
 function expectDetachedUserShell(detachedUserSections: HTMLElement) {
-  const detachedUserPromptSections = detachedUserSections.firstElementChild;
+  const detachedUserCardFrame =
+    detachedUserSections.firstElementChild as HTMLElement | null;
+  const detachedUserPromptSections = detachedUserCardFrame?.firstElementChild;
   expect(detachedUserSections.className).toContain("[--node-shell-gap:2px]");
   expect(detachedUserSections.className).toContain(
-    "[--node-shell-radius:16px]",
+    "[--node-shell-radius:18px]",
   );
   expect(detachedUserSections.className).toContain(
     "rounded-(--node-shell-radius)",
   );
   expect(detachedUserSections.className).toContain("border");
-  expect(detachedUserSections.className).toContain("bg-[#FBFBFB]");
-  expect(detachedUserSections.className).toContain("px-[2px]");
-  expect(detachedUserSections.className).toContain("pt-[2px]");
-  expect(detachedUserSections.className).toContain("pb-[2px]");
+  expect(detachedUserSections.className).toContain(
+    "border-[rgba(15,23,42,0.08)]",
+  );
+  expect(detachedUserSections.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserSections.className).toContain("gap-0.5");
+  expect(detachedUserSections.className).toContain(
+    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+  );
   expect(detachedUserSections.className).toContain("overflow-visible");
+  expect(detachedUserCardFrame?.className).toContain(
+    "rounded-[var(--node-shell-radius)]",
+  );
+  expect(detachedUserCardFrame?.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserCardFrame?.className).toContain("p-0.5");
+  expect(detachedUserCardFrame?.className).not.toContain("-mb-0.5");
   expect(detachedUserPromptSections?.className).toContain("pt-0");
   expect(detachedUserPromptSections?.className).toContain("pb-0");
 }
@@ -53,15 +65,20 @@ export function expectDetachedUserRowChrome(
 ) {
   const {
     detachedUserCompactButton,
-    detachedUserField,
+    detachedUserContentFrame,
+    detachedUserEmbeddedHeader,
+    detachedUserEmbeddedShell,
     detachedUserHeader,
+    detachedUserPromptShell,
     detachedUserTextarea,
     detachedUserToggle,
   } = getDetachedUserRowElements(detachedUserRow, detachedUserSections);
   const detachedUploadElements = getDetachedUserUploadElements(detachedUserRow);
   expectDetachedUserRowShell({
     detachedUserCompactButton,
+    detachedUserContentFrame,
     detachedUserHeader,
+    detachedUserPromptShell,
     detachedUserRow,
     detachedUserSections,
     detachedUserTextarea,
@@ -70,7 +87,10 @@ export function expectDetachedUserRowChrome(
   expectDetachedUploadTag(detachedUploadElements);
   expectDetachedDatasetTag(detachedUploadElements);
   expectDetachedUserFieldChrome({
-    detachedUserField,
+    detachedUserContentFrame,
+    detachedUserEmbeddedHeader,
+    detachedUserEmbeddedShell,
+    detachedUserPromptShell,
     detachedUserSections,
     detachedUserTextarea,
   });
@@ -82,23 +102,37 @@ function getDetachedUserRowElements(
   const detachedUserCompactButton = within(detachedUserRow).getByRole(
     "button",
     {
-      name: "Minimize vision-agent User section",
+      name: "Minimize vision-agent User message section",
     },
   );
-  const detachedUserTextarea =
-    within(detachedUserSections).getByLabelText("vision-agent User");
+  const detachedUserTextarea = within(detachedUserSections).getByLabelText(
+    "vision-agent User message",
+  );
   const detachedUserToggle = within(detachedUserRow).getByRole("button", {
-    name: "Toggle vision-agent User section",
+    name: "Toggle vision-agent User message section",
   });
-  const detachedUserHeader =
-    detachedUserRow.firstElementChild as HTMLElement | null;
-  const detachedUserField =
-    detachedUserTextarea.closest("[data-testid='spielwiese-mustache-root']")
-      ?.parentElement ?? detachedUserTextarea.parentElement;
+  const detachedUserHeader = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-header-strip",
+  );
+  const detachedUserContentFrame = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-content-frame",
+  );
+  const detachedUserEmbeddedHeader = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-embedded-header",
+  );
+  const detachedUserEmbeddedShell = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-embedded-shell",
+  );
+  const detachedUserPromptShell = within(detachedUserSections).getByTestId(
+    "spielwiese-detached-user-prompt-shell",
+  );
   return {
     detachedUserCompactButton,
-    detachedUserField,
+    detachedUserContentFrame,
+    detachedUserEmbeddedHeader,
+    detachedUserEmbeddedShell,
     detachedUserHeader,
+    detachedUserPromptShell,
     detachedUserTextarea,
     detachedUserToggle,
   };
@@ -155,33 +189,75 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
   };
 }
 function expectDetachedUserFieldChrome({
-  detachedUserField,
+  detachedUserContentFrame,
+  detachedUserEmbeddedHeader,
+  detachedUserEmbeddedShell,
+  detachedUserPromptShell,
   detachedUserSections,
   detachedUserTextarea,
 }: {
-  detachedUserField: Element | null | undefined;
+  detachedUserContentFrame: HTMLElement;
+  detachedUserEmbeddedHeader: HTMLElement;
+  detachedUserEmbeddedShell: HTMLElement;
+  detachedUserPromptShell: HTMLElement;
   detachedUserSections: HTMLElement;
   detachedUserTextarea: HTMLElement;
 }) {
-  expectShadowedMessageFieldShell(detachedUserField);
-  expect(detachedUserField?.className).toContain("min-h-9");
-  expect(detachedUserField?.className).toContain("items-center");
-  expect(detachedUserTextarea.className).toContain("min-h-6");
+  expect(detachedUserContentFrame.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(detachedUserContentFrame.className).toContain(
+    "border-[rgba(0,0,0,0.04)]",
+  );
+  expect(detachedUserContentFrame.className).toContain("bg-[#FBFBFB]");
+  expect(detachedUserContentFrame.className).toContain("p-[2px]");
+  expect(detachedUserEmbeddedShell.className).toContain("w-full");
+  expect(detachedUserEmbeddedShell.className).toContain(
+    "border-[rgba(0,0,0,0.05)]",
+  );
+  expect(detachedUserEmbeddedShell.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserEmbeddedShell.className).toContain("gap-px");
+  expect(detachedUserEmbeddedShell.className).toContain("px-[2px]");
+  expect(detachedUserEmbeddedShell.className).toContain("pb-[2px]");
+  expect(detachedUserEmbeddedShell.className).toContain(
+    "[--embedded-prompt-radius:calc(var(--embedded-prompt-outer-radius)-var(--embedded-prompt-padding))]",
+  );
+  expect(detachedUserEmbeddedHeader.textContent).toContain("User message");
   expect(
-    within(detachedUserSections).getByTestId("vision-agent-user-tag-icon"),
+    within(detachedUserEmbeddedHeader).getByTestId(
+      "vision-agent-user-tag-icon",
+    ),
   ).toBeTruthy();
+  expect(detachedUserPromptShell.className).toContain("w-full");
+  expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
+  expect(detachedUserPromptShell.className).toContain(
+    "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
+  );
+  expect(detachedUserPromptShell.className).toContain(
+    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+  );
+  expect(detachedUserTextarea.className).toContain("min-h-6");
+  expect(detachedUserTextarea.className).toContain("px-4");
+  expect(detachedUserTextarea.className).toContain("py-[0.4375rem]");
+  expect(
+    within(detachedUserSections).getAllByTestId("vision-agent-user-tag-icon"),
+  ).toHaveLength(2);
 }
 
 function expectDetachedUserRowShell({
   detachedUserCompactButton,
+  detachedUserContentFrame,
   detachedUserHeader,
+  detachedUserPromptShell,
   detachedUserRow,
   detachedUserSections,
   detachedUserTextarea,
   detachedUserToggle,
 }: {
   detachedUserCompactButton: HTMLElement;
+  detachedUserContentFrame: HTMLElement;
   detachedUserHeader: HTMLElement | null;
+  detachedUserPromptShell: HTMLElement;
   detachedUserRow: HTMLElement;
   detachedUserSections: HTMLElement;
   detachedUserTextarea: HTMLElement;
@@ -189,16 +265,19 @@ function expectDetachedUserRowShell({
 }) {
   expect(detachedUserTextarea).toBeTruthy();
   expectDetachedUserShell(detachedUserSections);
-  expect(detachedUserRow.className).toContain("border-border/40");
-  expect(detachedUserRow.className).toContain("bg-background/96");
   expect(detachedUserRow.className).toContain("overflow-visible");
   expect(detachedUserRow.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
   expect(detachedUserRow.className).toContain("gap-1.5");
+  expect(detachedUserRow.className).toContain("px-[5px]");
+  expect(detachedUserRow.className).toContain("pt-[5px]");
+  expect(detachedUserRow.className).toContain("pb-[5px]");
   expect(detachedUserRow.className).not.toContain("shadow-[");
   expect(detachedUserRow.contains(detachedUserTextarea)).toBe(true);
   expect(detachedUserSections.contains(detachedUserTextarea)).toBe(true);
+  expect(detachedUserHeader.nextElementSibling).toBe(detachedUserContentFrame);
+  expect(detachedUserContentFrame.contains(detachedUserPromptShell)).toBe(true);
   expect(
     detachedUserToggle.querySelector("[data-prefix='true']")?.className,
   ).toContain("h-full");
@@ -219,8 +298,8 @@ function expectDetachedUserRowShell({
   expect(
     detachedUserHeader?.lastElementChild?.lastElementChild?.firstElementChild,
   ).toBe(detachedUserCompactButton);
-  expect(detachedUserHeader?.className).not.toContain("min-h-6");
-  expect(detachedUserHeader?.className).not.toContain("py-0.5");
+  expect(detachedUserHeader?.className).toContain("justify-between");
+  expect(detachedUserHeader?.textContent).toContain("User message");
 }
 function expectDetachedDatasetTag({
   datasetAccessory,

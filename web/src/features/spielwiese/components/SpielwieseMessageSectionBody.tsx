@@ -24,6 +24,12 @@ const spielwieseEmbeddedPromptRadiusClassName =
 const spielwieseEmbeddedPromptInnerRadiusClassName =
   "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]";
 const spielwieseEmbeddedSingleLineTextareaClassName = `${spielwieseSingleLineTextareaBaseClassName} ${spielwieseEmbeddedPromptInnerRadiusClassName}`;
+export {
+  spielwieseEmbeddedPromptInnerRadiusClassName,
+  spielwieseEmbeddedPromptRadiusClassName,
+  spielwieseEmbeddedPromptRadiusVariablesClassName,
+  spielwieseEmbeddedSingleLineTextareaClassName,
+};
 
 type SpielwieseMessageSectionBodyProps = {
   header?: ReactNode;

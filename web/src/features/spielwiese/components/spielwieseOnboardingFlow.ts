@@ -24,9 +24,14 @@ export const EMPTY_ONBOARDING_ANSWERS: OnboardingAnswers = {
   intent: "",
   opening: "",
 };
+export const PERSONAL_DETAILS_STEP_ID = "personal-details";
 
 export function getOnboardingStartPath() {
   return "/dev/spielwiese/onboarding";
+}
+
+export function getOnboardingPersonalDetailsPath() {
+  return `${getOnboardingStartPath()}#${PERSONAL_DETAILS_STEP_ID}`;
 }
 
 export function getSpielwieseDashboardPath() {

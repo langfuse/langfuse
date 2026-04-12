@@ -66,6 +66,24 @@ function EvaluationStrategyList({
   );
 }
 
+function useEvaluationStrategyState() {
+  const [activeStrategyId, setActiveStrategyId] =
+    useState<EvaluationStrategyId>("llm-judge");
+  const [strategyConfigs, setStrategyConfigs] =
+    useState<EvaluationStrategyConfigs>(initialStrategyConfigs);
+  const activeStrategy =
+    evaluationStrategies.find((strategy) => strategy.id === activeStrategyId) ??
+    evaluationStrategies[0];
+
+  return {
+    activeStrategy,
+    activeStrategyId,
+    setActiveStrategyId,
+    setStrategyConfigs,
+    strategyConfigs,
+  };
+}
+
 export function SpielwieseEvaluationPane({
   headerAccessory,
   nodes,
@@ -77,13 +95,13 @@ export function SpielwieseEvaluationPane({
   onRequestFit?: () => void;
   shellRef?: RefObject<HTMLDivElement | null>;
 }) {
-  const [activeStrategyId, setActiveStrategyId] =
-    useState<EvaluationStrategyId>("llm-judge");
-  const [strategyConfigs, setStrategyConfigs] =
-    useState<EvaluationStrategyConfigs>(initialStrategyConfigs);
-  const activeStrategy =
-    evaluationStrategies.find((strategy) => strategy.id === activeStrategyId) ??
-    evaluationStrategies[0];
+  const {
+    activeStrategy,
+    activeStrategyId,
+    setActiveStrategyId,
+    setStrategyConfigs,
+    strategyConfigs,
+  } = useEvaluationStrategyState();
 
   return (
     <div

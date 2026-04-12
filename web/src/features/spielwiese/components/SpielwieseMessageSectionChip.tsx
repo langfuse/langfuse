@@ -143,6 +143,7 @@ function MessageSectionChipContent({
 }
 
 export function MessageSectionChipButton({
+  interactive = true,
   isCollapsed,
   label,
   leadingSurface,
@@ -152,6 +153,7 @@ export function MessageSectionChipButton({
   sectionId,
   toneClassNames,
 }: {
+  interactive?: boolean;
   isCollapsed: boolean;
   label: string;
   leadingSurface: "embedded" | "plain";
@@ -163,26 +165,39 @@ export function MessageSectionChipButton({
 }) {
   const prefixIcon = getMessageSectionPrefixIcon(messageKind);
   const isFilledChip = messageKind === "user" && leadingSurface === "plain";
+  const chipClassName = cn(
+    "hover:text-foreground inline-flex shrink-0 items-center justify-start text-left focus-visible:ring-0 focus-visible:ring-offset-0",
+    getMessageSectionChipButtonClassName({ isFilledChip }),
+  );
+  const chipContent = (
+    <MessageSectionChipContent
+      label={label}
+      leadingSurface={leadingSurface}
+      messageKind={messageKind}
+      nodeId={nodeId}
+      prefixIcon={prefixIcon}
+      sectionId={sectionId}
+      toneClassNames={toneClassNames}
+    />
+  );
+
+  if (!interactive) {
+    return (
+      <div aria-hidden="true" className={chipClassName}>
+        {chipContent}
+      </div>
+    );
+  }
+
   return (
     <Button
       aria-expanded={!isCollapsed}
       aria-label={`Toggle ${nodeId} ${label} section`}
-      className={cn(
-        "hover:text-foreground inline-flex shrink-0 items-center justify-start text-left focus-visible:ring-0 focus-visible:ring-offset-0",
-        getMessageSectionChipButtonClassName({ isFilledChip }),
-      )}
+      className={chipClassName}
       variant="ghost"
       onClick={onToggleCollapse}
     >
-      <MessageSectionChipContent
-        label={label}
-        leadingSurface={leadingSurface}
-        messageKind={messageKind}
-        nodeId={nodeId}
-        prefixIcon={prefixIcon}
-        sectionId={sectionId}
-        toneClassNames={toneClassNames}
-      />
+      {chipContent}
     </Button>
   );
 }

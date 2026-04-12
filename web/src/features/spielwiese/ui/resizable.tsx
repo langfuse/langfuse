@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import * as ResizablePrimitive from "react-resizable-panels";
 import { cn } from "@/src/utils/tailwind";
 
+type ResizablePanelHandle = ResizablePrimitive.PanelImperativeHandle;
+
 function ResizablePanelGroup({
   className,
   orientation,
@@ -67,4 +69,9 @@ function ResizableHandle({
   );
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
+export {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  type ResizablePanelHandle,
+};

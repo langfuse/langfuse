@@ -13,7 +13,7 @@ function renderPage() {
 }
 
 function createDetachedUserVariable(value: string) {
-  fireEvent.change(screen.getByLabelText("vision-agent User"), {
+  fireEvent.change(screen.getByLabelText("vision-agent User message"), {
     target: { value },
   });
 }
@@ -73,9 +73,7 @@ describe("SpielwieseDashboardPage rendering", () => {
         name: "vision-agent Model",
       }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Recommend me a model" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Recommend model" }));
 
     expect(screen.getAllByText("0 variables").length >= 1).toBeTruthy();
     expect(

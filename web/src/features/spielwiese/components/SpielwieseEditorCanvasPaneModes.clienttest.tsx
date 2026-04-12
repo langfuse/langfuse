@@ -9,10 +9,41 @@ function renderCanvas() {
   );
 }
 
+function mockElementHeights({
+  clientHeight,
+  element,
+  scrollHeight,
+}: {
+  clientHeight: number;
+  element: HTMLElement;
+  scrollHeight: number;
+}) {
+  Object.defineProperty(element, "clientHeight", {
+    configurable: true,
+    value: clientHeight,
+  });
+  Object.defineProperty(element, "scrollHeight", {
+    configurable: true,
+    value: scrollHeight,
+  });
+}
+
 function getPaneModeElements() {
   const paneModeToggle = screen.getByTestId(
     "spielwiese-canvas-pane-mode-toggle",
   );
+  const paneModeInfo = screen.getByTestId(
+    "spielwiese-canvas-pane-mode-info-affordance",
+  );
+  const paneModeInfoIcon = screen.getByTestId(
+    "spielwiese-canvas-pane-mode-info-icon",
+  );
+  const paneModeTooltip = screen.getByTestId(
+    "spielwiese-canvas-pane-mode-tooltip",
+  );
+  const paneModeDocsLink = within(paneModeTooltip).getByRole("link", {
+    name: "Docs",
+  });
   const playgroundToggle = within(paneModeToggle).getByRole("button", {
     name: "Playground",
   });
@@ -30,6 +61,10 @@ function getPaneModeElements() {
   );
 
   return {
+    paneModeDocsLink,
+    paneModeInfo,
+    paneModeInfoIcon,
+    paneModeTooltip,
     evaluationToggle,
     historyButton,
     paneModeToggle,
@@ -52,11 +87,14 @@ function expectEvaluationPaneChrome() {
     screen.getByTestId("spielwiese-evaluation-header-bar").firstElementChild,
   ).toBe(screen.getByTestId("spielwiese-evaluation-header-accessory"));
   expect(evaluationPane).toBeTruthy();
-  expect(evaluationPane.className).toContain("px-2");
-  expect(evaluationPane.className).toContain("pb-2");
+  expect(evaluationPane.className).toContain("px-0");
+  expect(evaluationPane.className).toContain("pb-0");
   expect(evaluationPane.className).not.toContain("pt-2");
-  expect(evaluationPane.className).not.toContain("px-0");
+  expect(evaluationPane.className).not.toContain("px-2");
   expect(evaluationPaneShell.className).toContain("rounded-[8px]");
+  expect(evaluationPaneShell.className).toContain("relative");
+  expect(evaluationPaneShell.className).toContain("pb-[6px]");
+  expect(evaluationPaneShell.className).toContain("after:h-[6px]");
   expect(evaluationPaneShell.className).not.toContain("rounded-t-[8px]");
   expect(evaluationPaneShell.className).not.toContain("rounded-b-[8px]");
   expect(strategyList).toBeTruthy();
@@ -77,6 +115,12 @@ function expectEvaluationPaneChrome() {
   expect(
     screen.getByTestId("spielwiese-evaluation-header-bar").className,
   ).toContain("backdrop-blur");
+  expect(
+    screen.getByTestId("spielwiese-evaluation-header-bar").className,
+  ).toContain("rounded-t-[8px]");
+  expect(
+    screen.getByTestId("spielwiese-evaluation-header-bar").className,
+  ).toContain("pl-[13px]");
 }
 
 function expectPaneModeSvgSize(button: HTMLElement) {
@@ -111,33 +155,60 @@ function expectPlaygroundHeaderChrome(playgroundHeader: HTMLElement) {
 
 function expectPaneModeToggleButtons({
   evaluationToggle,
+  paneModeDocsLink,
+  paneModeInfo,
+  paneModeInfoIcon,
+  paneModeTooltip,
   paneModeToggle,
   playgroundToggle,
 }: Pick<
   ReturnType<typeof getPaneModeElements>,
-  "evaluationToggle" | "paneModeToggle" | "playgroundToggle"
+  | "evaluationToggle"
+  | "paneModeDocsLink"
+  | "paneModeInfo"
+  | "paneModeInfoIcon"
+  | "paneModeTooltip"
+  | "paneModeToggle"
+  | "playgroundToggle"
 >) {
-  expect(paneModeToggle.className).toContain("gap-1");
-  expect(paneModeToggle.className).not.toContain("bg-[#F7F7F7]");
-  expect(paneModeToggle.className).not.toContain("ring-1");
+  expect(paneModeToggle.className).toContain("gap-px");
+  expect(paneModeToggle.className).toContain("rounded-[8px]");
+  expect(paneModeToggle.className).toContain("bg-[#F7F7F7]");
+  expect(paneModeToggle.className).toContain("ring-1");
+  expect(paneModeToggle.className).toContain("ring-black/5");
   expect(playgroundToggle.className).toContain("h-6");
-  expect(playgroundToggle.className).toContain("rounded-[10px]");
-  expect(playgroundToggle.className).toContain("border-[rgba(0,0,0,0.12)]");
-  expect(playgroundToggle.className).toContain("pl-1.5");
-  expect(playgroundToggle.className).toContain("pr-2");
-  expect(playgroundToggle.className).not.toContain("px-3.5");
+  expect(playgroundToggle.className).toContain("min-w-24");
+  expect(playgroundToggle.className).toContain("justify-center");
+  expect(playgroundToggle.className).toContain("rounded-[8px]");
+  expect(playgroundToggle.className).toContain("px-2");
   expect(playgroundToggle.className).toContain("text-[11px]");
   expect(playgroundToggle.className).toContain("py-0");
-  expect(playgroundToggle.className).toContain("bg-background");
+  expect(playgroundToggle.className).toContain("bg-white");
   expect(playgroundToggle.className).toContain("text-[#202427]");
   expect(playgroundToggle.className).toContain(
     "shadow-[0_1px_2px_rgba(15,23,42,0.08)]",
   );
-  expect(playgroundToggle.className).not.toContain("bg-[linear-gradient");
-  expect(evaluationToggle.className).toContain("text-foreground/68");
+  expect(evaluationToggle.className).toContain("text-foreground/62");
   expect(evaluationToggle.className).toContain("text-[11px]");
   expect(evaluationToggle.className).toContain("hover:text-foreground");
-  expect(evaluationToggle.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(evaluationToggle.className).toContain("min-w-24");
+  expect(evaluationToggle.className).toContain("justify-center");
+  expect(evaluationToggle.className).not.toContain("border-[rgba(0,0,0,0.08)]");
+  expect(paneModeInfo.className).toContain("group/pane-mode-tooltip");
+  expect(paneModeInfo.className).toContain("inline-flex");
+  expect(paneModeInfo.className).toContain("size-3.5");
+  expect(paneModeTooltip.getAttribute("role")).toBe("tooltip");
+  expect(paneModeTooltip.textContent).toContain(
+    "Playground is for quick, interactive prompt and model iteration.",
+  );
+  expect(paneModeTooltip.textContent).toContain(
+    "Evaluation is for structured scoring, datasets, and repeatable regression checks.",
+  );
+  expect(paneModeDocsLink.getAttribute("href")).toBe(
+    "https://langfuse.com/docs",
+  );
+  expect(paneModeDocsLink.getAttribute("target")).toBe("_blank");
+  expect(paneModeInfoIcon.getAttribute("class")).toContain("size-3");
   expectPaneModeSvgSize(playgroundToggle);
   expectPaneModeSvgSize(evaluationToggle);
 }
@@ -173,6 +244,10 @@ function expectPaneModeToggleActions({
 function expectPaneModeToggleChrome({
   evaluationToggle,
   historyButton,
+  paneModeDocsLink,
+  paneModeInfo,
+  paneModeInfoIcon,
+  paneModeTooltip,
   paneModeToggle,
   playButton,
   playgroundHeader,
@@ -182,6 +257,10 @@ function expectPaneModeToggleChrome({
   expectPlaygroundHeaderChrome(playgroundHeader);
   expectPaneModeToggleButtons({
     evaluationToggle,
+    paneModeDocsLink,
+    paneModeInfo,
+    paneModeInfoIcon,
+    paneModeTooltip,
     paneModeToggle,
     playgroundToggle,
   });
@@ -229,6 +308,33 @@ describe("SpielwieseEditorCanvas pane mode switching", () => {
         .getByTestId("spielwiese-canvas-pane-mode-evaluation")
         .getAttribute("aria-pressed"),
     ).toBe("true");
+  });
+
+  it("expands the bottom pane when evaluation content would otherwise overflow", () => {
+    jest.useFakeTimers();
+
+    try {
+      renderCanvas();
+      const { evaluationToggle } = getPaneModeElements();
+
+      fireEvent.click(evaluationToggle);
+
+      const evaluationShell = screen.getByTestId(
+        "spielwiese-evaluation-pane-shell",
+      );
+      const bottomPanel = screen.getByTestId("spielwiese-canvas-bottom-panel");
+
+      mockElementHeights({
+        clientHeight: 240,
+        element: evaluationShell,
+        scrollHeight: 308,
+      });
+      jest.runOnlyPendingTimers();
+
+      expect(bottomPanel.getAttribute("data-last-resize")).toBe("396");
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 
