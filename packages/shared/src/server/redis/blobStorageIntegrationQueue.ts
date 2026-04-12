@@ -47,7 +47,7 @@ export class BlobStorageIntegrationQueue {
           QueueJobs.BlobStorageIntegrationJob,
           {},
           {
-            repeat: { pattern: "20 * * * *" }, // every hour at 20 minutes past
+            repeat: { pattern: "*/5 * * * *" }, // every 5 minutes
           },
         )
         .catch((err) => {
