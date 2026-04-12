@@ -3,7 +3,10 @@ import { Settings2, type LucideIcon, UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
-import { SpielwieseMessageSectionActions } from "./SpielwieseMessageSectionActions";
+import {
+  getMessageSectionRevealClassName,
+  SpielwieseMessageSectionTrailing,
+} from "./SpielwieseMessageSectionHeaderSupport";
 import {
   getMessageKind,
   getMessageToneClassNames,
@@ -28,6 +31,7 @@ function getMessageSectionPrefixIcon(messageKind: string) {
 function MessageSectionChipButton({
   isCollapsed,
   label,
+  leadingSurface,
   messageKind,
   nodeId,
   onToggleCollapse,
@@ -36,6 +40,7 @@ function MessageSectionChipButton({
 }: {
   isCollapsed: boolean;
   label: string;
+  leadingSurface: "embedded" | "plain";
   messageKind: string;
   nodeId: string;
   onToggleCollapse: () => void;
@@ -43,13 +48,17 @@ function MessageSectionChipButton({
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
 }) {
   const prefixIcon = getMessageSectionPrefixIcon(messageKind);
+  const isFilledChip = messageKind === "user" && leadingSurface === "plain";
 
   return (
     <Button
       aria-expanded={!isCollapsed}
       aria-label={`Toggle ${nodeId} ${label} section`}
       className={cn(
-        "hover:text-foreground inline-flex h-auto shrink-0 items-center justify-start gap-1.5 rounded-none border-0 bg-transparent px-0 py-0 text-left shadow-none hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0",
+        "hover:text-foreground inline-flex shrink-0 items-center justify-start text-left focus-visible:ring-0 focus-visible:ring-offset-0",
+        isFilledChip
+          ? "bg-background hover:bg-background h-7 gap-0 overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] px-0 py-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4"
+          : "h-auto gap-1.5 rounded-none border-0 bg-transparent px-0 py-0 shadow-none hover:bg-transparent",
       )}
       variant="ghost"
       onClick={onToggleCollapse}
@@ -57,6 +66,7 @@ function MessageSectionChipButton({
       {prefixIcon ? (
         <MessageSectionChipPrefix
           icon={prefixIcon}
+          leadingSurface={leadingSurface}
           messageKind={messageKind}
           nodeId={nodeId}
           sectionId={sectionId}
@@ -65,7 +75,11 @@ function MessageSectionChipButton({
       ) : null}
       <div
         className={cn(
-          "min-w-0 text-[13px] leading-5 font-medium tracking-[-0.01em]",
+          "min-w-0 font-medium tracking-[-0.01em]",
+          isFilledChip && "px-2.5",
+          leadingSurface === "embedded"
+            ? "text-[12px] leading-4.5"
+            : "text-[13px] leading-5",
           toneClassNames.label,
         )}
       >
@@ -77,30 +91,46 @@ function MessageSectionChipButton({
 
 function MessageSectionChipPrefix({
   icon: Icon,
+  leadingSurface,
   messageKind,
   nodeId,
   sectionId,
   toneClassNames,
 }: {
   icon: LucideIcon;
+  leadingSurface: "embedded" | "plain";
   messageKind: string;
   nodeId: string;
   sectionId: string;
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
 }) {
+  const isFilledChip = messageKind === "user" && leadingSurface === "plain";
+
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "inline-flex size-5 shrink-0 items-center justify-center rounded-[6px] border shadow-none",
-        toneClassNames.chip,
+        "inline-flex shrink-0 items-center justify-center shadow-none",
+        isFilledChip
+          ? "h-full w-6 border-r border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)]"
+          : cn(
+              "border",
+              leadingSurface === "embedded"
+                ? "size-4 rounded-[5px]"
+                : "size-5 rounded-[6px]",
+              toneClassNames.chip,
+            ),
       )}
       data-prefix="true"
       data-size="20"
       data-suffix="true"
     >
       <Icon
-        className={cn("size-3 shrink-0", toneClassNames.label)}
+        className={cn(
+          leadingSurface === "embedded" ? "size-2.5" : "size-3",
+          "shrink-0",
+          toneClassNames.label,
+        )}
         data-testid={
           messageKind === "user"
             ? `${nodeId}-user-tag-icon`
@@ -113,7 +143,9 @@ function MessageSectionChipPrefix({
 
 function MessageSectionSummary({
   inlineAccessory,
+  inlineAccessoryRevealMode,
   isCollapsed,
+  leadingSurface,
   onToggleCollapse,
   nodeId,
   sectionId,
@@ -121,7 +153,9 @@ function MessageSectionSummary({
   value,
 }: {
   inlineAccessory?: ReactNode;
+  inlineAccessoryRevealMode: "agent-node" | "section";
   isCollapsed: boolean;
+  leadingSurface: "embedded" | "plain";
   onToggleCollapse: () => void;
   nodeId: string;
   sectionId: string;
@@ -130,19 +164,25 @@ function MessageSectionSummary({
 }) {
   const toneClassNames = getMessageToneClassNames(sectionId);
   const messageKind = getMessageKind(sectionId);
+  const inlineAccessoryClassName = getMessageSectionRevealClassName(
+    inlineAccessoryRevealMode,
+  );
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
       <MessageSectionChipButton
         isCollapsed={isCollapsed}
         label={label}
+        leadingSurface={leadingSurface}
         messageKind={messageKind}
         nodeId={nodeId}
         onToggleCollapse={onToggleCollapse}
         sectionId={sectionId}
         toneClassNames={toneClassNames}
       />
-      {inlineAccessory}
+      {inlineAccessory ? (
+        <div className={inlineAccessoryClassName}>{inlineAccessory}</div>
+      ) : null}
       {isCollapsed ? (
         <SpielwieseCollapsedPromptPreview
           className={toneClassNames.count}
@@ -155,16 +195,20 @@ function MessageSectionSummary({
 
 function MessageSectionLeading({
   inlineAccessory,
+  inlineAccessoryRevealMode,
   isCollapsed,
   label,
+  leadingSurface,
   nodeId,
   onToggleCollapse,
   sectionId,
   value,
 }: {
   inlineAccessory?: ReactNode;
+  inlineAccessoryRevealMode: "agent-node" | "section";
   isCollapsed: boolean;
   label: string;
+  leadingSurface: "embedded" | "plain";
   nodeId: string;
   onToggleCollapse: () => void;
   sectionId: string;
@@ -174,8 +218,10 @@ function MessageSectionLeading({
     <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-visible">
       <MessageSectionSummary
         inlineAccessory={inlineAccessory}
+        inlineAccessoryRevealMode={inlineAccessoryRevealMode}
         isCollapsed={isCollapsed}
         label={label}
+        leadingSurface={leadingSurface}
         nodeId={nodeId}
         onToggleCollapse={onToggleCollapse}
         sectionId={sectionId}
@@ -188,9 +234,12 @@ function MessageSectionLeading({
 type SpielwieseMessageSectionHeaderProps = {
   canMoveDown: boolean;
   canMoveUp: boolean;
+  controlRevealMode?: "agent-node" | "section";
   inlineAccessory?: ReactNode;
+  inlineAccessoryRevealMode?: "agent-node" | "section";
   isCollapsed: boolean;
   label: string;
+  leadingSurface?: "embedded" | "plain";
   nodeId: string;
   onDelete: () => void;
   onMoveDown: () => void;
@@ -204,9 +253,12 @@ type SpielwieseMessageSectionHeaderProps = {
 export function SpielwieseMessageSectionHeader({
   canMoveDown,
   canMoveUp,
+  controlRevealMode = "section",
   inlineAccessory,
+  inlineAccessoryRevealMode = "section",
   isCollapsed,
   label,
+  leadingSurface = "plain",
   nodeId,
   onDelete,
   onMoveDown,
@@ -222,31 +274,34 @@ export function SpielwieseMessageSectionHeader({
     <div
       className={cn(
         "flex w-full items-center justify-between gap-3",
+        leadingSurface === "embedded" && "ml-[2px]",
         toneClassNames.header,
       )}
+      data-testid="spielwiese-message-section-header"
     >
       <MessageSectionLeading
         inlineAccessory={inlineAccessory}
+        inlineAccessoryRevealMode={inlineAccessoryRevealMode}
         isCollapsed={isCollapsed}
         label={label}
+        leadingSurface={leadingSurface}
         nodeId={nodeId}
         onToggleCollapse={onToggleCollapse}
         sectionId={sectionId}
         value={value}
       />
-      <div className="flex shrink-0 items-center gap-1">
-        <SpielwieseMessageSectionActions
-          canMoveDown={canMoveDown}
-          canMoveUp={canMoveUp}
-          nodeId={nodeId}
-          onDelete={onDelete}
-          onMoveDown={onMoveDown}
-          onMoveUp={onMoveUp}
-          sectionId={sectionId}
-          sectionLabel={label}
-        />
-        {trailingAccessory}
-      </div>
+      <SpielwieseMessageSectionTrailing
+        canMoveDown={canMoveDown}
+        canMoveUp={canMoveUp}
+        controlRevealMode={controlRevealMode}
+        label={label}
+        nodeId={nodeId}
+        onDelete={onDelete}
+        onMoveDown={onMoveDown}
+        onMoveUp={onMoveUp}
+        sectionId={sectionId}
+        trailingAccessory={trailingAccessory}
+      />
     </div>
   );
 }

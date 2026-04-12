@@ -236,6 +236,22 @@ describe("SpielwieseEditorCanvas node collapse sections", () => {
 });
 
 describe("SpielwieseEditorCanvas node collapse detached user", () => {
+  it("keeps the detached user input shell inside the rounded row shell", () => {
+    renderCanvas();
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const detachedUserSections = within(visionNode).getByTestId(
+      "vision-agent-detached-user-sections",
+    );
+    const detachedUserRow = within(detachedUserSections).getByTestId(
+      "spielwiese-message-section-row",
+    );
+    const detachedUserInputShell = within(detachedUserSections).getByTestId(
+      "spielwiese-detached-user-input-shell",
+    );
+
+    expect(detachedUserRow.contains(detachedUserInputShell)).toBe(true);
+  });
+
   it("lets the detached user row minimize into a single-row preview", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
@@ -284,59 +300,18 @@ describe("SpielwieseEditorCanvas section collapse interactions", () => {
 
     fireEvent.click(collapseButton);
 
+    const collapsedButton = within(visionNode).getByLabelText(
+      "Toggle vision-agent Instructions section",
+    );
+
     expect(
       within(visionNode).queryByLabelText("vision-agent Instructions"),
     ).toBeNull();
-    expect(collapseButton.getAttribute("aria-expanded")).toBe("false");
+    expect(collapsedButton.getAttribute("aria-expanded")).toBe("false");
     expect(
       within(visionNode).getAllByText(
         /You are a food identification expert\. Identify every food item in the image\./i,
       ),
     ).toHaveLength(1);
-  });
-});
-
-describe("SpielwieseEditorCanvas node card navigation", () => {
-  it("switches a node card into a matching secondary card and back again", () => {
-    renderCanvas();
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const addCardButton = within(visionNode).getByRole("button", {
-      name: "Add a new card after vision-agent",
-    });
-    const previousCardButton = within(visionNode).getByRole("button", {
-      name: "Show previous card for vision-agent",
-    });
-
-    expect(
-      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
-    ).toBeTruthy();
-    expect(previousCardButton.getAttribute("disabled")).toBe("");
-
-    fireEvent.click(addCardButton);
-
-    const secondaryCard = within(visionNode).getByTestId(
-      "spielwiese-agent-node-secondary-card",
-    );
-
-    expect(
-      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
-    ).toBeTruthy();
-    expect(
-      within(secondaryCard).getByDisplayValue("Vision Agent"),
-    ).toBeTruthy();
-    expect(
-      within(secondaryCard).getByLabelText("vision-agent Instructions"),
-    ).toBeTruthy();
-    expect(previousCardButton.getAttribute("disabled")).toBeNull();
-
-    fireEvent.click(previousCardButton);
-
-    expect(
-      within(visionNode).getByRole("button", { name: "vision-agent Model" }),
-    ).toBeTruthy();
-    expect(
-      within(visionNode).queryByTestId("spielwiese-agent-node-secondary-card"),
-    ).toBeNull();
-    expect(previousCardButton.getAttribute("disabled")).toBe("");
   });
 });

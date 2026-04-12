@@ -27,6 +27,9 @@ function renderVisionNodeHeader() {
   const modelButton = within(visionNode).getByRole("button", {
     name: "vision-agent Model",
   });
+  const previewButton = within(visionNode).getByRole("button", {
+    name: "Preview vision-agent node",
+  });
   const toggleButton = within(visionNode).getByRole("button", {
     name: "Minimize vision-agent node sections",
   });
@@ -43,6 +46,7 @@ function renderVisionNodeHeader() {
     responseFormatInput,
     reasoningInput,
     modelButton,
+    previewButton,
     toggleButton,
     toolButton,
   };
@@ -129,26 +133,53 @@ function expectHeaderChromeModelButton({
   expect(modelButton.textContent).toContain("GPT-4.1 mini");
 }
 
+function expectHeaderActionChrome({
+  previewButton,
+  toggleButton,
+}: Pick<
+  ReturnType<typeof renderVisionNodeHeader>,
+  "previewButton" | "toggleButton"
+>) {
+  const headerActions = toggleButton.parentElement as HTMLElement | null;
+
+  expect(headerActions?.contains(toggleButton)).toBe(true);
+  expect(headerActions?.contains(previewButton)).toBe(true);
+  expect(headerActions?.className).toContain("h-7");
+  expect(headerActions?.className).toContain("rounded-[8px]");
+  expect(headerActions?.className).toContain("border-[rgba(0,0,0,0.08)]");
+  expect(headerActions?.className).toContain("overflow-hidden");
+  expect(toggleButton.className).not.toContain("ml-auto");
+  expect(toggleButton.className).toContain("bg-transparent");
+  expect(toggleButton.className).toContain("w-7");
+  expect(previewButton.className).toContain("w-7");
+  expect(previewButton.className).toContain("border-l");
+  expect(previewButton.className).toContain("bg-[rgba(0,0,0,0.02)]");
+  expect(toggleButton.className).not.toContain("border-[rgba(0,0,0,0.08)]");
+  expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
+  expect(previewButton.getAttribute("aria-pressed")).toBe("false");
+}
+
 function expectHeaderChrome({
   toggleButton,
   modelButton,
+  previewButton,
   responseFormatInput,
   titleInput,
   titleControl,
   toolButton,
   temperatureInput,
 }: ReturnType<typeof renderVisionNodeHeader>) {
-  const headerRow = toggleButton.parentElement;
+  const headerActions = toggleButton.parentElement as HTMLElement | null;
+  const headerRow = headerActions?.parentElement as HTMLElement | null;
   const headerContent = headerRow?.firstElementChild as HTMLElement | null;
 
   expect(titleControl.className).toContain("bg-[linear-gradient");
   expect(titleControl.contains(modelButton)).toBe(true);
   expect(headerContent?.contains(toolButton)).toBe(true);
   expect(headerContent?.contains(titleInput)).toBe(true);
-  expect(headerRow?.lastElementChild).toBe(toggleButton);
-  expect(toggleButton.className).not.toContain("ml-auto");
-  expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
+  expect(headerRow?.lastElementChild).toBe(headerActions);
 
+  expectHeaderActionChrome({ previewButton, toggleButton });
   expectHeaderChromeTags({ responseFormatInput, temperatureInput, toolButton });
   expectHeaderChromeModelButton({ modelButton });
 }

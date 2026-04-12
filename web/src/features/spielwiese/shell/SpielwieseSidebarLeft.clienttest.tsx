@@ -19,7 +19,7 @@ function expectModeButtons(folderPressed: "true" | "false") {
 
 function expectBorderlessSidebarChrome() {
   expect(screen.getByTestId("spielwiese-left-sidebar").className).toContain(
-    "bg-[#FBFBFB]",
+    "bg-[#F3F3F4]",
   );
   expect(screen.getByTestId("spielwiese-left-sidebar").className).not.toContain(
     "border-r",

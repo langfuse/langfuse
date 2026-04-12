@@ -16,9 +16,9 @@ type ComposerUtilityButtonProps = {
 };
 
 const playgroundComposerTextareaClassName =
-  "placeholder:text-foreground/36 h-9 max-h-36 min-h-0 border-0 bg-transparent px-0 py-0 text-[15px] leading-9 shadow-none focus-visible:ring-0";
+  "h-9 max-h-36 min-h-0 border-0 bg-transparent px-0 py-0 text-[15px] leading-9 text-white shadow-none caret-white/90 placeholder:text-white/34 focus-visible:ring-0";
 const playgroundComposerUtilityButtonClassName =
-  "text-foreground/74 hover:text-foreground inline-flex h-9 w-9 min-h-9 min-w-9 items-center justify-center rounded-full transition-colors hover:bg-black/4 focus-visible:ring-1 focus-visible:ring-black/10 focus-visible:ring-offset-0";
+  "inline-flex h-9 w-9 min-h-9 min-w-9 items-center justify-center rounded-full text-white/64 transition-colors hover:bg-white/8 hover:text-white focus-visible:ring-1 focus-visible:ring-white/12 focus-visible:ring-offset-0";
 
 function shouldSubmitFromComposerShortcut({
   canSubmit,
@@ -84,7 +84,7 @@ function ComposerTrailingControls({ canSubmit }: { canSubmit: boolean }) {
       </ComposerUtilityButton>
       <Button
         aria-label="Run playground input"
-        className="h-9 min-h-9 w-9 min-w-9 rounded-full bg-[#15181C] text-white hover:opacity-70 focus-visible:ring-1 focus-visible:ring-black/12 focus-visible:ring-offset-0 disabled:bg-[#E6E8EB] disabled:text-[#A7ADB4] disabled:opacity-100"
+        className="h-9 min-h-9 w-9 min-w-9 rounded-full bg-white text-[#15181C] hover:bg-white/92 focus-visible:ring-1 focus-visible:ring-white/16 focus-visible:ring-offset-0 disabled:bg-white/12 disabled:text-white/34 disabled:opacity-100"
         data-testid="spielwiese-playground-submit-button"
         disabled={!canSubmit}
         size="icon"
@@ -106,11 +106,11 @@ export function SpielwiesePlaygroundComposer({
 
   return (
     <div
-      className="sticky bottom-0 z-10 -mx-4 flex shrink-0 justify-center bg-transparent px-4 pt-2.5 pb-3"
+      className="pointer-events-none absolute right-0 bottom-0 left-0 z-20 flex justify-center bg-transparent px-4 pt-3 pb-4"
       data-testid="spielwiese-playground-composer-shell"
     >
       <form
-        className="flex w-full max-w-[32rem] items-center gap-1 rounded-[24px] border border-black/8 bg-transparent px-2.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.05),0_1px_2px_rgba(15,23,42,0.04)]"
+        className="pointer-events-auto flex w-full max-w-[32rem] items-center gap-1 rounded-[24px] border border-white/8 bg-[#15181C] px-2.5 py-1.5 shadow-[0_20px_44px_rgba(15,23,42,0.24),0_8px_20px_rgba(15,23,42,0.16)]"
         data-testid="spielwiese-playground-composer-form"
         onSubmit={(event) => {
           event.preventDefault();

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { cn } from "@/src/utils/tailwind";
-import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
-import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
 import {
-  SpielwieseAgentNodeCardDeck,
-  SpielwieseAgentNodeExternalInsertRow,
-} from "./SpielwieseAgentNodeStackSupport";
+  SpielwieseAgentNodePreviewSpotlight,
+  useSpielwieseAgentNodeFocusMode,
+} from "./SpielwieseAgentNodeFocusMode";
+import { SpielwieseDetachedUserDeckRegion } from "./SpielwieseDetachedUserDeckRegion";
+import { SpielwieseFocusedAgentNodeModal } from "./SpielwieseFocusedAgentNodeModal";
+import { SpielwiesePrimaryAgentDeckRegion } from "./SpielwiesePrimaryAgentDeckRegion";
+import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
+import { SpielwieseAgentNodeExternalInsertRow } from "./SpielwieseAgentNodeStackSupport";
 
 type SpielwieseAgentNodeStackProps = {
   nodes: SpielwieseAgentNodeVM[];
@@ -35,9 +37,16 @@ type SpielwieseAgentNodeStackProps = {
 
 type SpielwieseAgentNodeProps = {
   isCompact: boolean;
+  isPreviewFocused: boolean;
+  isPreviewFocusHidden: boolean;
+  isPreviewSpotlighted: boolean;
   node: SpielwieseAgentNodeVM;
+  onPreviewHoverEnd: () => void;
+  onPreviewHoverStart: () => void;
   onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseAgentNodeStackProps["onPromptSectionInsert"];
+  onRegisterPreviewRegion: (element: HTMLDivElement | null) => void;
+  onTogglePreviewFocus: () => void;
   onToggleCompact: () => void;
   onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionMove: SpielwieseAgentNodeStackProps["onPromptSectionMove"];
@@ -45,69 +54,66 @@ type SpielwieseAgentNodeProps = {
   onTitleChange: SpielwieseAgentNodeStackProps["onTitleChange"];
 };
 
-const spielwieseAgentNodeShellClassName =
-  "group flex w-full flex-col gap-1.5 overflow-visible rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]";
-
-function SpielwieseDetachedUserSections({
+function AgentNodeDetachedUserDeck({
   node,
+  onPromptSectionChange,
   onPromptSectionDelete,
   onPromptSectionInsert,
-  onPromptSectionChange,
   onPromptSectionMove,
   toolOptions,
 }: {
   node: SpielwieseAgentNodeVM;
+  onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
   onPromptSectionInsert: SpielwieseAgentNodeStackProps["onPromptSectionInsert"];
-  onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
   onPromptSectionMove: SpielwieseAgentNodeStackProps["onPromptSectionMove"];
   toolOptions: ReturnType<typeof getNodeToolOptions>;
 }) {
   return (
-    <div
-      className={cn(spielwieseAgentNodeShellClassName, "overflow-visible")}
-      data-testid={`${node.id}-detached-user-sections`}
-    >
-      <SpielwieseAgentNodePromptSections
-        className="pt-0 pb-0"
-        includeKinds={["user"]}
-        nodeId={node.id}
-        onPromptSectionDelete={onPromptSectionDelete}
-        onPromptSectionInsert={onPromptSectionInsert}
-        onPromptSectionChange={onPromptSectionChange}
-        onPromptSectionMove={onPromptSectionMove}
-        promptSections={node.promptSections}
-        showInsertRow={false}
-        toolOptions={toolOptions}
-        userLayout="detached"
-      />
-    </div>
+    <SpielwieseDetachedUserDeckRegion
+      node={node}
+      onPromptSectionChange={onPromptSectionChange}
+      onPromptSectionDelete={onPromptSectionDelete}
+      onPromptSectionInsert={onPromptSectionInsert}
+      onPromptSectionMove={onPromptSectionMove}
+      toolOptions={toolOptions}
+    />
   );
+}
+
+function getAgentNodeDeckData(node: SpielwieseAgentNodeVM) {
+  return {
+    modelSetting: node.settings.find((setting) => setting.id === "model"),
+    toolOptions: getNodeToolOptions(node.notes),
+  };
 }
 
 function SpielwieseAgentNode({
   isCompact,
+  isPreviewFocused,
+  isPreviewFocusHidden,
+  isPreviewSpotlighted,
   node,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionDelete,
   onPromptSectionInsert,
+  onRegisterPreviewRegion,
+  onTogglePreviewFocus,
   onToggleCompact,
   onPromptSectionChange,
   onPromptSectionMove,
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseAgentNodeProps) {
-  const [activeCardView, setActiveCardView] = useState<"primary" | "secondary">(
-    "primary",
-  );
-  const modelSetting = node.settings.find((setting) => setting.id === "model");
-  const toolOptions = getNodeToolOptions(node.notes);
+  const { modelSetting, toolOptions } = getAgentNodeDeckData(node);
 
   return (
     <li
       className="group/agent-node grid gap-1.5 last:pb-5"
       data-testid="spielwiese-agent-node"
     >
-      <SpielwieseDetachedUserSections
+      <AgentNodeDetachedUserDeck
         node={node}
         onPromptSectionChange={onPromptSectionChange}
         onPromptSectionDelete={onPromptSectionDelete}
@@ -115,20 +121,24 @@ function SpielwieseAgentNode({
         onPromptSectionMove={onPromptSectionMove}
         toolOptions={toolOptions}
       />
-      <SpielwieseAgentNodeCardDeck
-        activeView={activeCardView}
-        cardTestId="spielwiese-agent-node-card"
+      <SpielwiesePrimaryAgentDeckRegion
+        ariaHidden={isPreviewFocusHidden}
         isCompact={isCompact}
+        isPreviewFocused={isPreviewFocused}
+        isPreviewFocusHidden={isPreviewFocusHidden}
+        isPreviewSpotlighted={isPreviewSpotlighted}
         modelSetting={modelSetting}
         node={node}
+        onPreviewHoverEnd={onPreviewHoverEnd}
+        onPreviewHoverStart={onPreviewHoverStart}
         onPromptSectionChange={onPromptSectionChange}
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}
         onPromptSectionMove={onPromptSectionMove}
+        onRegisterPreviewRegion={onRegisterPreviewRegion}
         onSettingValueChange={onSettingValueChange}
-        onShowPrimary={() => setActiveCardView("primary")}
-        onShowSecondary={() => setActiveCardView("secondary")}
         onTitleChange={onTitleChange}
+        onTogglePreviewFocus={onTogglePreviewFocus}
         onToggleCompact={onToggleCompact}
         toolOptions={toolOptions}
       />
@@ -137,6 +147,60 @@ function SpielwieseAgentNode({
         onPromptSectionInsert={onPromptSectionInsert}
       />
     </li>
+  );
+}
+
+function SpielwieseAgentNodeList({
+  compactNodeIds,
+  focusMode,
+  nodes,
+  onPromptSectionChange,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
+  onPromptSectionMove,
+  onSettingValueChange,
+  onTitleChange,
+  onToggleCompact,
+}: {
+  compactNodeIds: Record<string, boolean>;
+  focusMode: ReturnType<typeof useSpielwieseAgentNodeFocusMode>;
+  nodes: SpielwieseAgentNodeVM[];
+  onPromptSectionChange: SpielwieseAgentNodeStackProps["onPromptSectionChange"];
+  onPromptSectionDelete: SpielwieseAgentNodeStackProps["onPromptSectionDelete"];
+  onPromptSectionInsert: SpielwieseAgentNodeStackProps["onPromptSectionInsert"];
+  onPromptSectionMove: SpielwieseAgentNodeStackProps["onPromptSectionMove"];
+  onSettingValueChange: SpielwieseAgentNodeStackProps["onSettingValueChange"];
+  onTitleChange: SpielwieseAgentNodeStackProps["onTitleChange"];
+  onToggleCompact: (nodeId: string) => void;
+}) {
+  return (
+    <ol
+      className="relative isolate flex min-h-full flex-col gap-1.5 pt-4 pb-2 sm:pt-5"
+      data-testid="spielwiese-agent-node-stack"
+      role="list"
+    >
+      {nodes.map((node) => (
+        <SpielwieseAgentNode
+          isCompact={Boolean(compactNodeIds[node.id])}
+          isPreviewFocused={focusMode.focusedNodeId === node.id}
+          isPreviewFocusHidden={focusMode.focusedNodeId === node.id}
+          isPreviewSpotlighted={focusMode.hoveredPreviewNodeId === node.id}
+          key={node.id}
+          node={node}
+          onPreviewHoverEnd={() => focusMode.handlePreviewHoverEnd(node.id)}
+          onPreviewHoverStart={() => focusMode.handlePreviewHoverStart(node.id)}
+          onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
+          onPromptSectionMove={onPromptSectionMove}
+          onRegisterPreviewRegion={focusMode.getPreviewRegionRef(node.id)}
+          onSettingValueChange={onSettingValueChange}
+          onTitleChange={onTitleChange}
+          onToggleCompact={() => onToggleCompact(node.id)}
+          onTogglePreviewFocus={() => focusMode.togglePreviewFocus(node.id)}
+        />
+      ))}
+    </ol>
   );
 }
 
@@ -152,32 +216,42 @@ export function SpielwieseAgentNodeStack({
   const [compactNodeIds, setCompactNodeIds] = useState<Record<string, boolean>>(
     {},
   );
+  const focusMode = useSpielwieseAgentNodeFocusMode(nodes);
+  const toggleCompact = (nodeId: string) => {
+    setCompactNodeIds((currentIds) => ({
+      ...currentIds,
+      [nodeId]: !currentIds[nodeId],
+    }));
+  };
 
   return (
-    <ol
-      className="flex min-h-full flex-col gap-1.5 pt-4 pb-2 sm:pt-5"
-      data-testid="spielwiese-agent-node-stack"
-      role="list"
-    >
-      {nodes.map((node) => (
-        <SpielwieseAgentNode
-          isCompact={Boolean(compactNodeIds[node.id])}
-          key={node.id}
-          node={node}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onToggleCompact={() =>
-            setCompactNodeIds((currentIds) => ({
-              ...currentIds,
-              [node.id]: !currentIds[node.id],
-            }))
-          }
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionMove={onPromptSectionMove}
-          onSettingValueChange={onSettingValueChange}
-          onTitleChange={onTitleChange}
-        />
-      ))}
-    </ol>
+    <>
+      <SpielwieseAgentNodeList
+        compactNodeIds={compactNodeIds}
+        focusMode={focusMode}
+        nodes={nodes}
+        onPromptSectionChange={onPromptSectionChange}
+        onPromptSectionDelete={onPromptSectionDelete}
+        onPromptSectionInsert={onPromptSectionInsert}
+        onPromptSectionMove={onPromptSectionMove}
+        onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
+        onToggleCompact={toggleCompact}
+      />
+      <SpielwieseAgentNodePreviewSpotlight
+        frame={focusMode.activePreviewSpotlightFrame}
+      />
+      <SpielwieseFocusedAgentNodeModal
+        compactNodeIds={compactNodeIds}
+        focusMode={focusMode}
+        onPromptSectionChange={onPromptSectionChange}
+        onPromptSectionDelete={onPromptSectionDelete}
+        onPromptSectionInsert={onPromptSectionInsert}
+        onPromptSectionMove={onPromptSectionMove}
+        onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
+        onToggleCompact={toggleCompact}
+      />
+    </>
   );
 }

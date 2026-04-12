@@ -5,12 +5,16 @@ import { Button } from "../ui/button";
 
 type SpielwieseMessageInsertRowProps = {
   className?: string;
+  controlIdBase?: string;
   nodeId: string;
   onPromptSectionInsert: (
     nodeId: string,
     kind: "user" | "system" | "assistant" | "tool",
   ) => void;
   rowTestId?: string;
+  surface?: "bare" | "framed";
+  testIdBase?: string;
+  triggerContent?: ReactNode;
   variant?: "compact" | "text";
 };
 
@@ -26,6 +30,7 @@ const insertOptions: Array<{
 
 const insertShellClassName =
   "bg-background inline-flex h-7 items-stretch overflow-hidden rounded-[8px] border border-[rgba(0,0,0,0.08)] shadow-[0_1px_0_rgba(255,255,255,0.5)_inset]";
+const bareInsertShellClassName = "inline-flex h-7 items-stretch overflow-visible";
 
 function SpielwieseMessageInsertPicker({
   isOpen,
@@ -98,17 +103,28 @@ type SpielwieseInsertRowConfig = {
 function getInsertRowConfig(
   nodeId: string,
   variant: NonNullable<SpielwieseMessageInsertRowProps["variant"]>,
+  {
+    controlIdBase,
+    testIdBase,
+    triggerContent,
+  }: Pick<
+    SpielwieseMessageInsertRowProps,
+    "controlIdBase" | "testIdBase" | "triggerContent"
+  >,
 ): SpielwieseInsertRowConfig {
+  const resolvedControlIdBase = controlIdBase ?? `${nodeId}-message-insert`;
+  const resolvedTestIdBase = testIdBase ?? "spielwiese-message-insert";
+
   if (variant === "text") {
     return {
       buttonClassName:
         "text-foreground/78 hover:text-foreground h-full rounded-none border-0 bg-transparent px-3 text-[13px] font-medium shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985]",
-      buttonContent: "New message",
-      buttonTestId: "spielwiese-message-insert-text-trigger",
-      pickerId: `${nodeId}-message-insert-picker-text`,
-      pickerTestId: "spielwiese-message-insert-picker-text",
+      buttonContent: triggerContent ?? "New message",
+      buttonTestId: `${resolvedTestIdBase}-text-trigger`,
+      pickerId: `${resolvedControlIdBase}-picker-text`,
+      pickerTestId: `${resolvedTestIdBase}-picker-text`,
       rowClassName: "relative inline-flex w-fit pl-[18px]",
-      shellTestId: "spielwiese-message-insert-text-shell",
+      shellTestId: `${resolvedTestIdBase}-text-shell`,
     };
   }
 
@@ -116,15 +132,15 @@ function getInsertRowConfig(
     ariaLabel: "Toggle new message tray",
     buttonClassName:
       "text-foreground/78 hover:text-foreground inline-flex size-7 items-center justify-center rounded-none border-0 bg-transparent p-0 shadow-none transition-transform duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] hover:bg-transparent active:scale-[0.985]",
-    buttonContent: (
+    buttonContent: triggerContent ?? (
       <Plus aria-hidden="true" className="size-3.5 shrink-0 stroke-[2.2px]" />
     ),
-    buttonTestId: "spielwiese-message-insert-compact-trigger",
-    pickerId: `${nodeId}-message-insert-picker-compact`,
-    pickerTestId: "spielwiese-message-insert-picker-compact",
+    buttonTestId: `${resolvedTestIdBase}-compact-trigger`,
+    pickerId: `${resolvedControlIdBase}-picker-compact`,
+    pickerTestId: `${resolvedTestIdBase}-picker-compact`,
     rowClassName:
       "relative inline-flex w-fit items-start pt-0 pb-[6px] pl-[10px]",
-    shellTestId: "spielwiese-message-insert-compact-shell",
+    shellTestId: `${resolvedTestIdBase}-compact-shell`,
   };
 }
 
@@ -134,6 +150,7 @@ function SpielwieseMessageInsertTrigger({
   nodeId,
   onClose,
   onPromptSectionInsert,
+  surface,
   onToggle,
 }: {
   config: SpielwieseInsertRowConfig;
@@ -141,10 +158,16 @@ function SpielwieseMessageInsertTrigger({
   nodeId: string;
   onClose: () => void;
   onPromptSectionInsert: SpielwieseMessageInsertRowProps["onPromptSectionInsert"];
+  surface: NonNullable<SpielwieseMessageInsertRowProps["surface"]>;
   onToggle: () => void;
 }) {
   return (
-    <div className={insertShellClassName} data-testid={config.shellTestId}>
+    <div
+      className={
+        surface === "bare" ? bareInsertShellClassName : insertShellClassName
+      }
+      data-testid={config.shellTestId}
+    >
       <Button
         aria-controls={config.pickerId}
         aria-expanded={isOpen}
@@ -172,13 +195,21 @@ function SpielwieseMessageInsertTrigger({
 
 export function SpielwieseMessageInsertRow({
   className,
+  controlIdBase,
   nodeId,
   onPromptSectionInsert,
   rowTestId = "spielwiese-message-insert-row",
+  surface = "framed",
+  testIdBase,
+  triggerContent,
   variant = "compact",
 }: SpielwieseMessageInsertRowProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const config = getInsertRowConfig(nodeId, variant);
+  const config = getInsertRowConfig(nodeId, variant, {
+    controlIdBase,
+    testIdBase,
+    triggerContent,
+  });
 
   const closePicker = () => {
     setIsOpen(false);
@@ -192,6 +223,7 @@ export function SpielwieseMessageInsertRow({
         nodeId={nodeId}
         onClose={closePicker}
         onPromptSectionInsert={onPromptSectionInsert}
+        surface={surface}
         onToggle={() => setIsOpen((currentValue) => !currentValue)}
       />
     </div>

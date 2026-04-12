@@ -29,6 +29,10 @@ function updateFirstVariableHelper(value: string) {
   );
 }
 
+function getDetachedUserSections() {
+  return screen.getByTestId("vision-agent-detached-user-sections");
+}
+
 describe("SpielwieseDashboardPage rendering", () => {
   it("renders the route with a scoped spielwiese root", () => {
     const { container } = renderPage();
@@ -92,17 +96,37 @@ describe("SpielwieseDashboardPage variables", () => {
     ).toBeTruthy();
   });
 
-  it("shows the entered variable value inside the detached user tag", () => {
+  it("keeps the detached user tag label raw and only shows the sample value in a hover tooltip", () => {
     renderPage();
 
     createDetachedUserVariable("Attach {{uploaded_file}}");
     updateFirstVariableHelper("menu-photo.png");
 
+    const detachedUserSections = getDetachedUserSections();
+    const mustacheTag = within(detachedUserSections).getByTestId(
+      "spielwiese-mustache-tag-uploaded_file",
+    );
+    const mustacheTagSurface = within(detachedUserSections).getByTestId(
+      "spielwiese-mustache-tag-uploaded_file-surface",
+    );
+
+    expect(mustacheTagSurface.textContent).toContain("{{uploaded_file}}");
+    expect(mustacheTagSurface.textContent).not.toContain("menu-photo.png");
     expect(
-      within(
-        screen.getByTestId("vision-agent-detached-user-sections"),
-      ).getByTestId("spielwiese-mustache-tag-uploaded_file-surface")
+      screen.queryByTestId("spielwiese-mustache-tag-uploaded_file-tooltip"),
+    ).toBeNull();
+
+    fireEvent.mouseEnter(mustacheTag);
+
+    expect(
+      screen.getByTestId("spielwiese-mustache-tag-uploaded_file-tooltip")
         .textContent,
     ).toContain("menu-photo.png");
+
+    fireEvent.mouseLeave(mustacheTag);
+
+    expect(
+      screen.queryByTestId("spielwiese-mustache-tag-uploaded_file-tooltip"),
+    ).toBeNull();
   });
 });

@@ -66,7 +66,7 @@ function expectInsertRowChrome({
   expect(compactPicker.className).toContain("bg-[rgba(0,0,0,0.035)]");
   expect(textPicker.getAttribute("data-state")).toBe("closed");
   expect(insertRow.parentElement).toBe(
-    nodeCard.lastElementChild?.firstElementChild,
+    nodeCard.lastElementChild?.previousElementSibling,
   );
   expect(insertRow.className).toContain("w-fit");
   expect(insertRow.className).toContain("pt-0");
@@ -83,9 +83,11 @@ function expectInsertRowChrome({
   expect(externalRow.className).toContain(
     "group-focus-within/agent-node:opacity-100",
   );
-  expect(nodeCard.nextElementSibling).toBe(externalRow);
-  expect(compactShell.className).toContain("overflow-hidden");
-  expect(compactShell.className).toContain("rounded-[8px]");
+  expect(externalRow.parentElement).toBe(visionNode);
+  expect(visionNode.lastElementChild).toBe(externalRow);
+  expect(compactShell.className).toContain("overflow-visible");
+  expect(compactShell.className).not.toContain("border");
+  expect(compactShell.className).not.toContain("bg-background");
   expect(textShell.className).toContain("overflow-hidden");
   expect(textShell.className).toContain("rounded-[8px]");
   expect(compactTrigger.querySelector("svg")).toBeTruthy();
@@ -95,9 +97,9 @@ function expectInsertRowChrome({
   expect(compactTrigger.className).toContain("size-7");
   expect(textTrigger.textContent).toBe("New message");
   expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
-  expect(nodeCard.lastElementChild?.firstElementChild?.className).toContain(
-    "gap-[7px]",
-  );
+  expect(
+    nodeCard.lastElementChild?.previousElementSibling?.className,
+  ).toContain("gap-0");
 }
 
 function renderVisionNode() {

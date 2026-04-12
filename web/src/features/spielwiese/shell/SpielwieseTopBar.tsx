@@ -11,15 +11,13 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button, buttonVariants } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import type { SpielwieseShellVM } from "../types/shell";
-import { SpielwieseHeaderFinder } from "./SpielwieseHeaderFinder";
 import { useSpielwieseShell } from "./SpielwieseShellProvider";
+
+const topBarActionClassName =
+  "rounded-md text-foreground/72 hover:bg-black/4 hover:text-foreground";
 
 type SpielwieseTopBarProps = {
   header: SpielwieseDashboardVM["header"];
-  isFinderOpen: boolean;
-  onFinderClose: () => void;
-  onFinderOpen: () => void;
-  pageId: SpielwieseDashboardVM["pageId"];
   shell: SpielwieseShellVM;
 };
 
@@ -38,7 +36,7 @@ function HeaderPrimaryActions({
         aria-label="Homepage"
         className={cn(
           buttonVariants({ size: "icon-sm", variant: "ghost" }),
-          "rounded-md text-white/82 hover:bg-white/8 hover:text-white",
+          topBarActionClassName,
         )}
         href="/"
       >
@@ -47,7 +45,7 @@ function HeaderPrimaryActions({
         </div>
       </Link>
       <Button
-        className="min-w-0 gap-1 rounded-md px-2 text-white/82 hover:bg-white/8 hover:text-white"
+        className={cn("min-w-0 gap-1 px-2", topBarActionClassName)}
         size="sm"
         variant="ghost"
       >
@@ -58,7 +56,7 @@ function HeaderPrimaryActions({
       </Button>
       <Button
         aria-label="Toggle primary sidebar"
-        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        className={topBarActionClassName}
         data-testid="spielwiese-left-toggle"
         onClick={togglePrimarySidebar}
         size="icon-sm"
@@ -81,16 +79,16 @@ function HeaderSecondaryActions({
 }) {
   return (
     <div className="flex h-full items-center gap-1.5">
-      <p className="hidden text-xs text-white/48 tabular-nums sm:block">
+      <p className="text-foreground/48 hidden text-xs tabular-nums sm:block">
         {updatedAt}
       </p>
       <Avatar className="hidden size-7 rounded-full sm:inline-flex">
-        <AvatarFallback className="rounded-full bg-white/10 text-xs text-white">
+        <AvatarFallback className="bg-foreground/6 text-foreground rounded-full text-xs">
           {userInitials}
         </AvatarFallback>
       </Avatar>
       <Button
-        className="hidden rounded-full px-2 text-white/82 hover:bg-white/8 hover:text-white sm:inline-flex"
+        className="text-foreground hidden rounded-full px-2 hover:bg-black/4 sm:inline-flex"
         size="sm"
         variant="ghost"
       >
@@ -98,7 +96,7 @@ function HeaderSecondaryActions({
       </Button>
       <Button
         aria-label="Notifications"
-        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        className={topBarActionClassName}
         size="icon-sm"
         variant="ghost"
       >
@@ -106,7 +104,7 @@ function HeaderSecondaryActions({
       </Button>
       <Button
         aria-label="Help"
-        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        className={topBarActionClassName}
         size="icon-sm"
         variant="ghost"
       >
@@ -114,7 +112,7 @@ function HeaderSecondaryActions({
       </Button>
       <Button
         aria-label="Toggle secondary sidebar"
-        className="rounded-md text-white/82 hover:bg-white/8 hover:text-white"
+        className={topBarActionClassName}
         data-testid="spielwiese-right-toggle"
         onClick={toggleSecondarySidebar}
         size="icon-sm"
@@ -126,19 +124,12 @@ function HeaderSecondaryActions({
   );
 }
 
-export function SpielwieseTopBar({
-  header,
-  isFinderOpen,
-  onFinderClose,
-  onFinderOpen,
-  pageId,
-  shell,
-}: SpielwieseTopBarProps) {
+export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
   const { togglePrimarySidebar, toggleSecondarySidebar } = useSpielwieseShell();
 
   return (
     <header
-      className="top-banner-offset sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#15181C] text-white"
+      className="top-banner-offset text-foreground sticky z-30 h-[var(--spielwiese-header-height)] w-full bg-[#F3F3F4]"
       data-testid="spielwiese-shell-header"
     >
       <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-2 px-2.5 pb-0 sm:px-4">
@@ -147,16 +138,7 @@ export function SpielwieseTopBar({
           teamInitial={shell.team.initials.slice(0, 1)}
           togglePrimarySidebar={togglePrimarySidebar}
         />
-        <div className="min-w-0">
-          <SpielwieseHeaderFinder
-            breadcrumb={header.breadcrumb}
-            isOpen={isFinderOpen}
-            onClose={onFinderClose}
-            onOpen={onFinderOpen}
-            pageId={pageId}
-            shell={shell}
-          />
-        </div>
+        <div className="min-w-0" />
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
           updatedAt={header.updatedAt}

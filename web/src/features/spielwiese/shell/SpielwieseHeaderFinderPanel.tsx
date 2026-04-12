@@ -7,6 +7,26 @@ import { FinderResultsViewport } from "./SpielwieseHeaderFinderResults";
 import type { FinderItem } from "./spielwieseHeaderFinderData";
 import { FinderShortcut } from "./spielwieseHeaderFinderPrimitives";
 
+type FinderPanelVariant = "header" | "sidebar";
+
+type FinderPanelSurfaceProps = {
+  activeIndex: number;
+  backgroundRef: RefObject<HTMLDivElement | null>;
+  inputRef: RefObject<HTMLInputElement | null>;
+  items: FinderItem[];
+  onClose: () => void;
+  onHoverItem: (index: number) => void;
+  onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  onQueryChange: (value: string) => void;
+  onSelectItem: (item: FinderItem) => void;
+  panelResultsRef: RefObject<HTMLDivElement | null>;
+  panelSearchFieldRef: RefObject<HTMLLabelElement | null>;
+  panelShortcutRef: RefObject<HTMLElement | null>;
+  panelSurfaceRef: Ref<HTMLDivElement>;
+  query: string;
+  variant: FinderPanelVariant;
+};
+
 function FinderPanelBackground({
   backgroundRef,
 }: {
@@ -79,15 +99,21 @@ function FinderPanelFrame({
   children,
   onClose,
   panelSurfaceRef,
+  variant,
 }: {
   backgroundRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
   onClose: () => void;
   panelSurfaceRef: Ref<HTMLDivElement>;
+  variant: FinderPanelVariant;
 }) {
   return (
     <div
-      className="relative z-10 flex w-full max-w-[24rem] flex-col self-start"
+      className={
+        variant === "sidebar"
+          ? "relative z-10 flex w-full max-w-none flex-col"
+          : "relative z-10 flex w-full max-w-[24rem] flex-col self-start"
+      }
       data-testid="spielwiese-header-finder-panel"
       id="spielwiese-header-finder-panel"
       onBlur={(event) => {
@@ -125,27 +151,14 @@ function FinderPanelSurface({
   panelShortcutRef,
   panelSurfaceRef,
   query,
-}: {
-  activeIndex: number;
-  backgroundRef: RefObject<HTMLDivElement | null>;
-  inputRef: RefObject<HTMLInputElement | null>;
-  items: FinderItem[];
-  onClose: () => void;
-  onHoverItem: (index: number) => void;
-  onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-  onQueryChange: (value: string) => void;
-  onSelectItem: (item: FinderItem) => void;
-  panelResultsRef: RefObject<HTMLDivElement | null>;
-  panelSearchFieldRef: RefObject<HTMLLabelElement | null>;
-  panelShortcutRef: RefObject<HTMLElement | null>;
-  panelSurfaceRef: Ref<HTMLDivElement>;
-  query: string;
-}) {
+  variant,
+}: FinderPanelSurfaceProps) {
   return (
     <FinderPanelFrame
       backgroundRef={backgroundRef}
       onClose={onClose}
       panelSurfaceRef={panelSurfaceRef}
+      variant={variant}
     >
       <HeaderFinderSearchField
         inputRef={inputRef}
@@ -168,6 +181,35 @@ function FinderPanelSurface({
   );
 }
 
+function SidebarFinderPanelContainer(props: FinderPanelSurfaceProps) {
+  return (
+    <div
+      className="absolute inset-x-0 top-0 z-40"
+      data-testid="spielwiese-header-finder-container"
+    >
+      <FinderPanelSurface {...props} />
+    </div>
+  );
+}
+
+function HeaderFinderPanelContainer(props: FinderPanelSurfaceProps) {
+  return (
+    <div
+      className="fixed inset-x-0 top-[var(--banner-offset)] bottom-0 z-40 flex justify-center px-3 pt-2 sm:px-5 sm:pt-3"
+      data-testid="spielwiese-header-finder-container"
+    >
+      <button
+        aria-label="Dismiss finder"
+        className="absolute inset-0 bg-transparent"
+        onClick={props.onClose}
+        tabIndex={-1}
+        type="button"
+      />
+      <FinderPanelSurface {...props} />
+    </div>
+  );
+}
+
 export function SpielwieseHeaderFinderPanel({
   activeIndex,
   inputRef,
@@ -183,6 +225,7 @@ export function SpielwieseHeaderFinderPanel({
   panelShortcutRef,
   panelSurfaceRef,
   query,
+  variant = "header",
 }: {
   activeIndex: number;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -198,32 +241,29 @@ export function SpielwieseHeaderFinderPanel({
   panelShortcutRef: RefObject<HTMLElement | null>;
   panelSurfaceRef: Ref<HTMLDivElement>;
   query: string;
+  variant?: FinderPanelVariant;
 }) {
-  return (
-    <div className="fixed inset-x-0 top-[var(--banner-offset)] bottom-0 z-40 flex justify-center px-3 pt-2 sm:px-5 sm:pt-3">
-      <button
-        aria-label="Dismiss finder"
-        className="absolute inset-0 bg-transparent"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-      <FinderPanelSurface
-        activeIndex={activeIndex}
-        backgroundRef={panelBackgroundRef}
-        inputRef={inputRef}
-        items={items}
-        onClose={onClose}
-        onHoverItem={onHoverItem}
-        onInputKeyDown={onInputKeyDown}
-        onQueryChange={onQueryChange}
-        onSelectItem={onSelectItem}
-        panelResultsRef={panelResultsRef}
-        panelSearchFieldRef={panelSearchFieldRef}
-        panelShortcutRef={panelShortcutRef}
-        panelSurfaceRef={panelSurfaceRef}
-        query={query}
-      />
-    </div>
+  const surfaceProps = {
+    activeIndex,
+    backgroundRef: panelBackgroundRef,
+    inputRef,
+    items,
+    onClose,
+    onHoverItem,
+    onInputKeyDown,
+    onQueryChange,
+    onSelectItem,
+    panelResultsRef,
+    panelSearchFieldRef,
+    panelShortcutRef,
+    panelSurfaceRef,
+    query,
+    variant,
+  } satisfies FinderPanelSurfaceProps;
+
+  return variant === "sidebar" ? (
+    <SidebarFinderPanelContainer {...surfaceProps} />
+  ) : (
+    <HeaderFinderPanelContainer {...surfaceProps} />
   );
 }

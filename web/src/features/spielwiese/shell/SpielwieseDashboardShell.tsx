@@ -9,6 +9,7 @@ import {
   SpielwieseShellProvider,
   useSpielwieseShell,
 } from "./SpielwieseShellProvider";
+import type { SpielwieseHeaderFinderProps } from "./SpielwieseHeaderFinder";
 import { SpielwieseSidebarLeft } from "./SpielwieseSidebarLeft";
 import { SpielwieseSidebarRight } from "./SpielwieseSidebarRight";
 import { SpielwieseTopBar } from "./SpielwieseTopBar";
@@ -106,7 +107,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#FBFBFB] transition-transform md:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-auto bottom-0 left-0 z-40 w-[18rem] max-w-[88vw] bg-[#F3F3F4] transition-transform md:hidden",
           mobileLeftOpen ? "translate-x-0" : "-translate-x-full",
         )}
         data-testid="spielwiese-mobile-left-drawer"
@@ -116,7 +117,7 @@ function MobileSidebars({
 
       <aside
         className={cn(
-          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#FBFBFB] transition-transform xl:hidden",
+          "fixed top-[var(--spielwiese-shell-offset)] right-0 bottom-0 left-auto z-40 w-[20rem] max-w-[88vw] bg-[#F3F3F4] transition-transform xl:hidden",
           mobileRightOpen ? "translate-x-0" : "translate-x-full",
         )}
         data-testid="spielwiese-mobile-right-drawer"
@@ -130,9 +131,61 @@ function MobileSidebars({
   );
 }
 
+function ShellLeftRail({
+  finderProps,
+  leftCollapsed,
+  shell,
+}: {
+  finderProps: Omit<SpielwieseHeaderFinderProps, "variant">;
+  leftCollapsed: boolean;
+  shell: SpielwieseShellVM;
+}) {
+  return (
+    <aside className="hidden min-h-0 md:block">
+      <div
+        className="box-border h-full min-h-0 bg-[#F3F3F4] pb-2 pl-2"
+        data-testid="spielwiese-shell-left"
+      >
+        <div className="h-full min-h-0 overflow-hidden rounded-l-[8px]">
+          <SpielwieseSidebarLeft
+            compact={leftCollapsed}
+            finderProps={finderProps}
+            shell={shell}
+          />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ShellRightRail({
+  dashboard,
+  variablesState,
+}: {
+  dashboard: SpielwieseDashboardVM;
+  variablesState: SpielwieseVariablesPanelState;
+}) {
+  return (
+    <aside className="hidden min-h-0 xl:block">
+      <div
+        className="box-border h-full min-h-0 bg-[#F3F3F4] pr-2 pb-2"
+        data-testid="spielwiese-shell-right"
+      >
+        <div className="h-full min-h-0 overflow-hidden rounded-r-[8px]">
+          <SpielwieseSidebarRight
+            dashboard={dashboard}
+            variablesState={variablesState}
+          />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function ShellBodyGrid({
   children,
   dashboard,
+  finderProps,
   gridClassName,
   leftCollapsed,
   rightOpen,
@@ -141,6 +194,7 @@ function ShellBodyGrid({
 }: {
   children: ReactNode;
   dashboard: SpielwieseDashboardVM;
+  finderProps: Omit<SpielwieseHeaderFinderProps, "variant">;
   gridClassName: string;
   leftCollapsed: boolean;
   rightOpen: boolean;
@@ -152,16 +206,11 @@ function ShellBodyGrid({
       className={cn("min-h-0 flex-1 overflow-hidden md:grid", gridClassName)}
       data-testid="spielwiese-shell-body"
     >
-      <aside className="hidden min-h-0 md:block">
-        <div
-          className="box-border h-full min-h-0 bg-[#15181C]"
-          data-testid="spielwiese-shell-left"
-        >
-          <div className="h-full min-h-0 overflow-hidden rounded-[8px]">
-            <SpielwieseSidebarLeft compact={leftCollapsed} shell={shell} />
-          </div>
-        </div>
-      </aside>
+      <ShellLeftRail
+        finderProps={finderProps}
+        leftCollapsed={leftCollapsed}
+        shell={shell}
+      />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <main
@@ -173,19 +222,7 @@ function ShellBodyGrid({
       </div>
 
       {rightOpen ? (
-        <aside className="hidden min-h-0 xl:block">
-          <div
-            className="box-border h-full min-h-0 bg-[#15181C]"
-            data-testid="spielwiese-shell-right"
-          >
-            <div className="h-full min-h-0 overflow-hidden rounded-[8px]">
-              <SpielwieseSidebarRight
-                dashboard={dashboard}
-                variablesState={variablesState}
-              />
-            </div>
-          </div>
-        </aside>
+        <ShellRightRail dashboard={dashboard} variablesState={variablesState} />
       ) : null}
     </div>
   );
@@ -203,7 +240,7 @@ function useResolvedVariablesState({
   return variablesState ?? fallbackVariablesState;
 }
 
-function getTopBarProps({
+function getFinderProps({
   dashboard,
   isFinderOpen,
   setIsFinderOpen,
@@ -215,10 +252,10 @@ function getTopBarProps({
   shell: SpielwieseShellVM;
 }) {
   return {
-    header: dashboard.header,
-    isFinderOpen,
-    onFinderClose: () => setIsFinderOpen(false),
-    onFinderOpen: () => setIsFinderOpen(true),
+    breadcrumb: dashboard.header.breadcrumb,
+    isOpen: isFinderOpen,
+    onClose: () => setIsFinderOpen(false),
+    onOpen: () => setIsFinderOpen(true),
     pageId: dashboard.pageId,
     shell,
   };
@@ -226,6 +263,7 @@ function getTopBarProps({
 
 function SpielwieseDashboardShellFrame({
   dashboard,
+  finderProps,
   gridClassName,
   leftCollapsed,
   mobileLeftOpen,
@@ -234,7 +272,6 @@ function SpielwieseDashboardShellFrame({
   onKeyDownCapture,
   rightOpen,
   shell,
-  topBarProps,
   variablesState,
   children,
 }: {
@@ -248,12 +285,12 @@ function SpielwieseDashboardShellFrame({
   onKeyDownCapture: (event: KeyboardEvent<HTMLElement>) => void;
   rightOpen: boolean;
   shell: SpielwieseShellVM;
-  topBarProps: ReturnType<typeof getTopBarProps>;
+  finderProps: Omit<SpielwieseHeaderFinderProps, "variant">;
   variablesState: SpielwieseVariablesPanelState;
 }) {
   return (
     <div
-      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F5F5F5] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
+      className="text-foreground h-screen-with-banner flex flex-col overflow-hidden bg-[#F3F3F4] [--spielwiese-header-height:2.75rem] [--spielwiese-shell-offset:calc(var(--banner-offset)+var(--spielwiese-header-height))] sm:[--spielwiese-header-height:3rem]"
       data-left-collapsed={leftCollapsed}
       data-right-open={rightOpen}
       data-testid="spielwiese-shell"
@@ -267,9 +304,10 @@ function SpielwieseDashboardShellFrame({
         shell={shell}
         variablesState={variablesState}
       />
-      <SpielwieseTopBar {...topBarProps} />
+      <SpielwieseTopBar header={dashboard.header} shell={shell} />
       <ShellBodyGrid
         dashboard={dashboard}
+        finderProps={finderProps}
         gridClassName={gridClassName}
         leftCollapsed={leftCollapsed}
         rightOpen={rightOpen}
@@ -304,6 +342,12 @@ function SpielwieseDashboardShellLayout({
   return (
     <SpielwieseDashboardShellFrame
       dashboard={dashboard}
+      finderProps={getFinderProps({
+        dashboard,
+        isFinderOpen,
+        setIsFinderOpen,
+        shell,
+      })}
       gridClassName={getGridClassName(leftCollapsed, rightOpen)}
       leftCollapsed={leftCollapsed}
       mobileLeftOpen={mobileLeftOpen}
@@ -318,12 +362,6 @@ function SpielwieseDashboardShellLayout({
       }
       rightOpen={rightOpen}
       shell={shell}
-      topBarProps={getTopBarProps({
-        dashboard,
-        isFinderOpen,
-        setIsFinderOpen,
-        shell,
-      })}
       variablesState={resolvedVariablesState}
     >
       {children}

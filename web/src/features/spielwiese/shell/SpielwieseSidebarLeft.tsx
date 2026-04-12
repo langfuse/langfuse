@@ -21,10 +21,15 @@ import {
   SidebarBottomModeSwitch,
 } from "./SpielwieseSidebarLeftExtras";
 import { SpielwieseSidebarDocumentPage } from "./SpielwieseSidebarDocumentPage";
+import {
+  SpielwieseHeaderFinder,
+  type SpielwieseHeaderFinderProps,
+} from "./SpielwieseHeaderFinder";
 import { SidebarSectionList } from "./SpielwieseSidebarLeftTree";
 
 type SpielwieseSidebarLeftProps = {
   compact?: boolean;
+  finderProps?: Omit<SpielwieseHeaderFinderProps, "variant">;
   shell: SpielwieseShellVM;
 };
 
@@ -110,14 +115,24 @@ function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   );
 }
 
-function ExpandedUtilityNav({ groups }: { groups: SpielwieseNavGroup[] }) {
+function ExpandedUtilityNav({
+  finderProps,
+  groups,
+}: {
+  finderProps?: Omit<SpielwieseHeaderFinderProps, "variant">;
+  groups: SpielwieseNavGroup[];
+}) {
   return (
     <nav aria-label="Primary workspace links" className="flex flex-col gap-1.5">
       {groups.map((group) => (
         <SidebarMenu key={group.id}>
           {group.items.map((item) => (
             <SidebarMenuItem key={item.id}>
-              <UtilityNavRow item={item} />
+              {finderProps && item.id === "search" ? (
+                <SpielwieseHeaderFinder {...finderProps} variant="sidebar" />
+              ) : (
+                <UtilityNavRow item={item} />
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
@@ -194,10 +209,12 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
 
 function ExpandedSidebar({
   activeMode,
+  finderProps,
   onModeChange,
   shell,
 }: {
   activeMode: "folders" | "document";
+  finderProps?: Omit<SpielwieseHeaderFinderProps, "variant">;
   onModeChange: (mode: "folders" | "document") => void;
   shell: SpielwieseShellVM;
 }) {
@@ -212,7 +229,10 @@ function ExpandedSidebar({
             <SidebarHeader className="gap-3 p-3">
               <SpaceSwitcher compact={false} shell={shell} />
               <CreateDocumentButton compact={false} />
-              <ExpandedUtilityNav groups={shell.utilityNavGroups} />
+              <ExpandedUtilityNav
+                finderProps={finderProps}
+                groups={shell.utilityNavGroups}
+              />
             </SidebarHeader>
 
             <SidebarContent className="gap-4 p-3 pt-0">
@@ -225,7 +245,7 @@ function ExpandedSidebar({
       </div>
 
       <SidebarFooter
-        className="mt-0 shrink-0 bg-[#FBFBFB] p-3"
+        className="mt-0 shrink-0 bg-[#F3F3F4] p-3"
         data-testid="spielwiese-left-sidebar-sticky-footer"
       >
         <SidebarBottomModeSwitch
@@ -239,6 +259,7 @@ function ExpandedSidebar({
 
 export function SpielwieseSidebarLeft({
   compact = false,
+  finderProps,
   shell,
 }: SpielwieseSidebarLeftProps) {
   const [activeMode, setActiveMode] = useState<"folders" | "document">(
@@ -247,7 +268,7 @@ export function SpielwieseSidebarLeft({
 
   return (
     <SidebarSurface
-      className="overflow-hidden bg-[#FBFBFB]"
+      className="overflow-hidden bg-[#F3F3F4]"
       data-testid="spielwiese-left-sidebar"
     >
       {compact ? (
@@ -255,6 +276,7 @@ export function SpielwieseSidebarLeft({
       ) : (
         <ExpandedSidebar
           activeMode={activeMode}
+          finderProps={finderProps}
           onModeChange={setActiveMode}
           shell={shell}
         />

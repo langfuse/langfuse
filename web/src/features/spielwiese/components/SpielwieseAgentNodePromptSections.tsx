@@ -1,21 +1,12 @@
-import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { cn } from "@/src/utils/tailwind";
 import { SpielwieseAssistantReplySection } from "./SpielwieseAssistantReplySection";
 import { SpielwieseDetachedUserMessageSectionRow } from "./SpielwieseDetachedUserMessageSectionRow";
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
-import {
-  SpielwieseMessageSectionBody,
-  spielwieseInlineTextareaClassName,
-} from "./SpielwieseMessageSectionBody";
-import { SpielwieseMessageSectionHeader } from "./SpielwieseMessageSectionHeader";
-import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { getPromptSectionDisplayLabel } from "./spielwiesePromptSectionLabels";
-import {
-  getMessageKind,
-  getMessageToneClassNames,
-} from "./spielwieseMessageTone";
+import { SpielwieseStandardMessageSectionRow } from "./SpielwieseStandardMessageSectionRow";
+import { getMessageKind } from "./spielwieseMessageTone";
 
 type SpielwieseAgentNodePromptSectionsProps = {
   className?: string;
@@ -37,8 +28,11 @@ type SpielwieseAgentNodePromptSectionsProps = {
     sectionId: string,
     direction: "up" | "down",
   ) => void;
+  insertSurface?: "bare" | "framed";
   promptSections: SpielwieseAgentNodeVM["promptSections"];
+  rowTopPadding?: "default" | "none";
   showInsertRow?: boolean;
+  spacing?: "default" | "flush";
   toolOptions: SpielwieseToolOption[];
   userLayout?: "standard" | "detached";
 };
@@ -53,120 +47,14 @@ type SpielwieseMessageSectionRowProps = {
   onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
   onPromptSectionDelete: SpielwieseAgentNodePromptSectionsProps["onPromptSectionDelete"];
   onPromptSectionMove: SpielwieseAgentNodePromptSectionsProps["onPromptSectionMove"];
+  rowTopPadding?: "default" | "none";
   section: SpielwieseAgentNodeVM["promptSections"][number];
   toolOptions: SpielwieseToolOption[];
 };
 
-function getMessageSectionRowRadiusClassName(sectionId: string) {
-  return getMessageKind(sectionId) === "user"
-    ? "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]"
-    : "rounded-xl";
-}
-
-function renderExpandedStandardMessageSectionContent({
-  nodeId,
-  onPromptSectionChange,
-  section,
-  toolOptions,
-}: {
-  nodeId: string;
-  onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
-  section: SpielwieseAgentNodeVM["promptSections"][number];
-  toolOptions: SpielwieseToolOption[];
-}) {
-  const toneClassNames = getMessageToneClassNames(section.id);
-
-  if (getMessageKind(section.id) === "user") {
-    return (
-      <SpielwieseMustacheTextarea
-        aria-label={`${nodeId} ${section.label}`}
-        className={cn(
-          `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden px-0 pt-1 pb-0.5 text-base leading-7 sm:text-[0.9375rem]`,
-          toneClassNames.field,
-        )}
-        name={`${nodeId}-${section.id}`}
-        onChange={(event) =>
-          onPromptSectionChange(nodeId, section.id, event.target.value)
-        }
-        rows={1}
-        value={section.value}
-      />
-    );
-  }
-
-  return (
-    <SpielwieseMessageSectionBody
-      nodeId={nodeId}
-      onPromptSectionChange={onPromptSectionChange}
-      section={section}
-      toolOptions={toolOptions}
-    />
-  );
-}
-
-function SpielwieseStandardMessageSectionRow({
-  canMoveDown,
-  canMoveUp,
-  defaultCollapsed = false,
-  displayLabel,
-  nodeId,
-  onPromptSectionChange,
-  onPromptSectionDelete,
-  onPromptSectionMove,
-  section,
-  toolOptions,
-}: {
-  assistantReceivesValue?: string;
-  canMoveDown: boolean;
-  canMoveUp: boolean;
-  displayLabel: string;
-  nodeId: string;
-  onPromptSectionChange: SpielwieseAgentNodePromptSectionsProps["onPromptSectionChange"];
-  onPromptSectionDelete: SpielwieseAgentNodePromptSectionsProps["onPromptSectionDelete"];
-  onPromptSectionMove: SpielwieseAgentNodePromptSectionsProps["onPromptSectionMove"];
-  section: SpielwieseAgentNodeVM["promptSections"][number];
-  toolOptions: SpielwieseToolOption[];
-}) {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-  const toneClassNames = getMessageToneClassNames(section.id);
-
-  return (
-    <div
-      className={cn(
-        "group flex w-full flex-col overflow-hidden px-2.5 pt-1 pb-2",
-        getMessageSectionRowRadiusClassName(section.id),
-        toneClassNames.surface,
-      )}
-      data-section-id={section.id}
-      data-testid="spielwiese-message-section-row"
-    >
-      <SpielwieseMessageSectionHeader
-        canMoveDown={canMoveDown}
-        canMoveUp={canMoveUp}
-        isCollapsed={isCollapsed}
-        label={displayLabel}
-        nodeId={nodeId}
-        onDelete={() => onPromptSectionDelete(nodeId, section.id)}
-        onMoveDown={() => onPromptSectionMove(nodeId, section.id, "down")}
-        onMoveUp={() => onPromptSectionMove(nodeId, section.id, "up")}
-        onToggleCollapse={() => setIsCollapsed((currentValue) => !currentValue)}
-        sectionId={section.id}
-        value={section.value}
-      />
-      {isCollapsed
-        ? null
-        : renderExpandedStandardMessageSectionContent({
-            nodeId,
-            onPromptSectionChange,
-            section,
-            toolOptions,
-          })}
-    </div>
-  );
-}
-
 function SpielwieseMessageSectionRow({
   defaultCollapsed = false,
+  rowTopPadding = "default",
   userLayout = "standard",
   ...props
 }: SpielwieseMessageSectionRowProps & {
@@ -212,6 +100,7 @@ function SpielwieseMessageSectionRow({
     <SpielwieseStandardMessageSectionRow
       {...props}
       defaultCollapsed={defaultCollapsed}
+      rowTopPadding={rowTopPadding}
     />
   );
 }
@@ -253,6 +142,82 @@ function findAssistantReceivesValue(
     ?.value;
 }
 
+function getPromptSectionsClassName({
+  className,
+  spacing,
+}: Pick<SpielwieseAgentNodePromptSectionsProps, "className" | "spacing">) {
+  return cn(
+    "grid",
+    spacing === "flush" ? "gap-0 pt-0 pb-0" : "gap-[7px] pt-1 pb-1",
+    className,
+  );
+}
+
+function shouldHidePromptSections({
+  showInsertRow,
+  visibleSections,
+}: {
+  showInsertRow: boolean;
+  visibleSections: SpielwieseAgentNodeVM["promptSections"];
+}) {
+  return visibleSections.length === 0 && !showInsertRow;
+}
+
+function renderPromptSectionRows({
+  isCompact,
+  nodeId,
+  onPromptSectionChange,
+  onPromptSectionDelete,
+  onPromptSectionMove,
+  promptSections,
+  rowTopPadding,
+  toolOptions,
+  userLayout,
+  visibleSections,
+}: Pick<
+  SpielwieseAgentNodePromptSectionsProps,
+  | "isCompact"
+  | "nodeId"
+  | "onPromptSectionChange"
+  | "onPromptSectionDelete"
+  | "onPromptSectionMove"
+  | "promptSections"
+  | "rowTopPadding"
+  | "toolOptions"
+  | "userLayout"
+> & {
+  visibleSections: SpielwieseAgentNodeVM["promptSections"];
+}) {
+  return visibleSections.map((section, index) => (
+    <SpielwieseMessageSectionRow
+      assistantReceivesValue={findAssistantReceivesValue(
+        promptSections,
+        section.id,
+      )}
+      canMoveDown={
+        getMessageKind(section.id) !== "system" &&
+        index < visibleSections.length - 1
+      }
+      canMoveUp={
+        getMessageKind(section.id) !== "system" &&
+        index > 0 &&
+        getMessageKind(visibleSections[index - 1]?.id ?? "") !== "system"
+      }
+      defaultCollapsed={isCompact}
+      displayLabel={getPromptSectionDisplayLabel(section.id, section.label)}
+      key={`${section.id}-${isCompact ? "compact" : "expanded"}`}
+      nodeId={nodeId}
+      onPromptSectionChange={onPromptSectionChange}
+      onPromptSectionDelete={onPromptSectionDelete}
+      onPromptSectionMove={onPromptSectionMove}
+      rowTopPadding={rowTopPadding}
+      section={section}
+      toolOptions={toolOptions}
+      userLayout={userLayout}
+    />
+  ));
+}
+
 export function SpielwieseAgentNodePromptSections({
   className,
   includeKinds,
@@ -262,8 +227,11 @@ export function SpielwieseAgentNodePromptSections({
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionMove,
+  insertSurface = "framed",
   promptSections,
+  rowTopPadding = "default",
   showInsertRow = true,
+  spacing = "default",
   toolOptions,
   userLayout = "standard",
 }: SpielwieseAgentNodePromptSectionsProps) {
@@ -271,43 +239,29 @@ export function SpielwieseAgentNodePromptSections({
     promptSections,
     includeKinds,
   );
-  if (visibleSections.length === 0 && !showInsertRow) {
+  if (shouldHidePromptSections({ showInsertRow, visibleSections })) {
     return null;
   }
 
   return (
-    <div className={cn("grid gap-[7px] pt-1 pb-1", className)}>
-      {visibleSections.map((section, index) => (
-        <SpielwieseMessageSectionRow
-          assistantReceivesValue={findAssistantReceivesValue(
-            promptSections,
-            section.id,
-          )}
-          canMoveDown={
-            getMessageKind(section.id) !== "system" &&
-            index < visibleSections.length - 1
-          }
-          canMoveUp={
-            getMessageKind(section.id) !== "system" &&
-            index > 0 &&
-            getMessageKind(visibleSections[index - 1]?.id ?? "") !== "system"
-          }
-          defaultCollapsed={isCompact}
-          displayLabel={getPromptSectionDisplayLabel(section.id, section.label)}
-          key={`${section.id}-${isCompact ? "compact" : "expanded"}`}
-          nodeId={nodeId}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionMove={onPromptSectionMove}
-          section={section}
-          toolOptions={toolOptions}
-          userLayout={userLayout}
-        />
-      ))}
+    <div className={getPromptSectionsClassName({ className, spacing })}>
+      {renderPromptSectionRows({
+        isCompact,
+        nodeId,
+        onPromptSectionChange,
+        onPromptSectionDelete,
+        onPromptSectionMove,
+        promptSections,
+        rowTopPadding,
+        toolOptions,
+        userLayout,
+        visibleSections,
+      })}
       {showInsertRow && !isCompact ? (
         <SpielwieseMessageInsertRow
           nodeId={nodeId}
           onPromptSectionInsert={onPromptSectionInsert}
+          surface={insertSurface}
         />
       ) : null}
     </div>

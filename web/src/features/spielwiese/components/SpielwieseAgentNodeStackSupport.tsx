@@ -4,15 +4,20 @@ import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitch
 import { SpielwieseMessageInsertRow } from "./SpielwieseMessageInsertRow";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
+import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
+import { getMessageKind } from "./spielwieseMessageTone";
 
 const spielwieseAgentNodeShellClassName =
-  "group flex w-full flex-col gap-1.5 overflow-visible rounded-(--node-shell-radius) border border-[rgba(0,0,0,0.05)] bg-[#FBFBFB] px-[2px] pt-[2px] pb-[2px] [--node-shell-gap:2px] [--node-shell-radius:16px]";
+  "group flex w-full flex-col gap-0.5 overflow-visible rounded-(--node-shell-radius) border border-[rgba(15,23,42,0.08)] bg-[#FBFBFB] p-0.5 shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)] [--node-shell-gap:2px] [--node-shell-radius:18px]";
 
 type SpielwiesePrimaryAgentNodeCardProps = {
   cardTestId?: string;
   isCompact: boolean;
+  isPreviewFocused: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
+  onPreviewHoverEnd: () => void;
+  onPreviewHoverStart: () => void;
   onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
   onPromptSectionInsert: (
     nodeId: string,
@@ -33,64 +38,212 @@ type SpielwiesePrimaryAgentNodeCardProps = {
     settingId: string,
     value: string,
   ) => void;
+  onTogglePreviewFocus: () => void;
   onToggleCompact: () => void;
   onTitleChange: (nodeId: string, value: string) => void;
   toolOptions: SpielwieseToolOption[];
 };
 
+function getSystemPromptSection(node: SpielwieseAgentNodeVM) {
+  return node.promptSections.find(
+    (section) => getMessageKind(section.id) === "system",
+  );
+}
+
+function PrimaryAgentSystemPromptSections({
+  promptSectionProps,
+}: {
+  promptSectionProps: {
+    isCompact: boolean;
+    nodeId: string;
+    onPromptSectionChange: (
+      nodeId: string,
+      sectionId: string,
+      value: string,
+    ) => void;
+    onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
+    onPromptSectionInsert: (
+      nodeId: string,
+      kind: "user" | "system" | "assistant" | "tool",
+    ) => void;
+    onPromptSectionMove: (
+      nodeId: string,
+      sectionId: string,
+      direction: "up" | "down",
+    ) => void;
+    promptSections: SpielwieseAgentNodeVM["promptSections"];
+    toolOptions: SpielwieseToolOption[];
+  };
+}) {
+  return (
+    <SpielwieseAgentNodePromptSections
+      className="pt-0 pb-0"
+      includeKinds={["system"]}
+      rowTopPadding="none"
+      showInsertRow={false}
+      {...promptSectionProps}
+    />
+  );
+}
+
+function PrimaryAgentResponsePromptSections({
+  promptSectionProps,
+}: {
+  promptSectionProps: {
+    isCompact: boolean;
+    nodeId: string;
+    onPromptSectionChange: (
+      nodeId: string,
+      sectionId: string,
+      value: string,
+    ) => void;
+    onPromptSectionDelete: (nodeId: string, sectionId: string) => void;
+    onPromptSectionInsert: (
+      nodeId: string,
+      kind: "user" | "system" | "assistant" | "tool",
+    ) => void;
+    onPromptSectionMove: (
+      nodeId: string,
+      sectionId: string,
+      direction: "up" | "down",
+    ) => void;
+    promptSections: SpielwieseAgentNodeVM["promptSections"];
+    toolOptions: SpielwieseToolOption[];
+  };
+}) {
+  return (
+    <SpielwieseAgentNodePromptSections
+      includeKinds={["assistant", "tool"]}
+      insertSurface="bare"
+      spacing="flush"
+      {...promptSectionProps}
+    />
+  );
+}
+
+function PrimaryAgentJsonFormatComposer({
+  isCompact,
+  nodeId,
+  onPromptSectionInsert,
+  systemSection,
+}: {
+  isCompact: boolean;
+  nodeId: string;
+  onPromptSectionInsert: (
+    nodeId: string,
+    kind: "user" | "system" | "assistant" | "tool",
+  ) => void;
+  systemSection: SpielwieseAgentNodeVM["promptSections"][number] | undefined;
+}) {
+  if (isCompact || !systemSection) {
+    return null;
+  }
+
+  return (
+    <SpielwieseJsonFormatComposer
+      className="-mx-0.5 mt-1 -mb-0.5"
+      nodeId={nodeId}
+      onPromptSectionInsert={onPromptSectionInsert}
+      sectionLabel={systemSection.label}
+    />
+  );
+}
+
+function createAgentNodeCard(
+  cardTestId: string,
+  sharedCardProps: Omit<SpielwiesePrimaryAgentNodeCardProps, "cardTestId">,
+) {
+  return (
+    <SpielwiesePrimaryAgentNodeCard
+      {...sharedCardProps}
+      cardTestId={cardTestId}
+    />
+  );
+}
+
 export function SpielwiesePrimaryAgentNodeCard({
   cardTestId = "spielwiese-agent-node-card",
   isCompact,
+  isPreviewFocused,
   modelSetting,
   node,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
   onSettingValueChange,
+  onTogglePreviewFocus,
   onToggleCompact,
   onTitleChange,
   toolOptions,
 }: SpielwiesePrimaryAgentNodeCardProps) {
+  const systemSection = getSystemPromptSection(node);
+  const promptSectionProps = {
+    isCompact,
+    nodeId: node.id,
+    onPromptSectionChange,
+    onPromptSectionDelete,
+    onPromptSectionInsert,
+    onPromptSectionMove,
+    promptSections: node.promptSections,
+    toolOptions,
+  };
+  const headerProps = {
+    isCompact,
+    isPreviewFocused,
+    modelSetting,
+    node,
+    onPreviewHoverEnd,
+    onPreviewHoverStart,
+    onSettingValueChange,
+    onTitleChange,
+    onToggleCompact,
+    onTogglePreviewFocus,
+  };
+
   return (
     <div className={spielwieseAgentNodeShellClassName} data-testid={cardTestId}>
-      <SpielwieseAgentNodeHeader
-        isCompact={isCompact}
-        modelSetting={modelSetting}
-        node={node}
-        onToggleCompact={onToggleCompact}
-        onSettingValueChange={onSettingValueChange}
-        onTitleChange={onTitleChange}
-      />
-      <div>
-        <SpielwieseAgentNodePromptSections
-          includeKinds={["system", "assistant", "tool"]}
-          isCompact={isCompact}
-          nodeId={node.id}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionMove={onPromptSectionMove}
-          promptSections={node.promptSections}
-          toolOptions={toolOptions}
+      <SpielwieseAgentNodeHeader {...headerProps}>
+        <PrimaryAgentSystemPromptSections
+          promptSectionProps={promptSectionProps}
         />
-      </div>
+      </SpielwieseAgentNodeHeader>
+      <PrimaryAgentResponsePromptSections
+        promptSectionProps={promptSectionProps}
+      />
+      <PrimaryAgentJsonFormatComposer
+        isCompact={isCompact}
+        nodeId={node.id}
+        onPromptSectionInsert={onPromptSectionInsert}
+        systemSection={systemSection}
+      />
     </div>
   );
 }
 
 type SpielwieseAgentNodeCardDeckProps = SpielwiesePrimaryAgentNodeCardProps & {
   activeView: "primary" | "secondary";
+  areNavButtonsVisible: boolean;
+  isPreviewFocused: boolean;
+  onPreviewHoverEnd: () => void;
+  onPreviewHoverStart: () => void;
   onShowPrimary: () => void;
   onShowSecondary: () => void;
+  onTogglePreviewFocus: () => void;
 };
 
 export function SpielwieseAgentNodeCardDeck({
   activeView,
+  areNavButtonsVisible,
   cardTestId,
   isCompact,
+  isPreviewFocused,
   modelSetting,
   node,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
@@ -98,40 +251,41 @@ export function SpielwieseAgentNodeCardDeck({
   onSettingValueChange,
   onShowPrimary,
   onShowSecondary,
+  onTogglePreviewFocus,
   onTitleChange,
   onToggleCompact,
   toolOptions,
 }: SpielwieseAgentNodeCardDeckProps) {
   const sharedCardProps = {
     isCompact,
+    isPreviewFocused,
     modelSetting,
     node,
+    onPreviewHoverEnd,
+    onPreviewHoverStart,
     onPromptSectionChange,
     onPromptSectionDelete,
     onPromptSectionInsert,
     onPromptSectionMove,
     onSettingValueChange,
+    onTogglePreviewFocus,
     onTitleChange,
     onToggleCompact,
     toolOptions,
   };
+  const primaryCard = createAgentNodeCard(cardTestId, sharedCardProps);
+  const secondaryCard = createAgentNodeCard(
+    "spielwiese-agent-node-secondary-card",
+    sharedCardProps,
+  );
 
   return (
     <SpielwieseAgentNodeCardSwitcher
       activeView={activeView}
+      areNavButtonsVisible={areNavButtonsVisible}
       nodeId={node.id}
-      primaryCard={
-        <SpielwiesePrimaryAgentNodeCard
-          {...sharedCardProps}
-          cardTestId={cardTestId}
-        />
-      }
-      secondaryCard={
-        <SpielwiesePrimaryAgentNodeCard
-          {...sharedCardProps}
-          cardTestId="spielwiese-agent-node-secondary-card"
-        />
-      }
+      primaryCard={primaryCard}
+      secondaryCard={secondaryCard}
       onShowPrimary={onShowPrimary}
       onShowSecondary={onShowSecondary}
     />

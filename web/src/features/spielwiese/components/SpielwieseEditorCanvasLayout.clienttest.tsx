@@ -28,22 +28,26 @@ function expectVisionNodeChrome({
   ).toBeTruthy();
   expect(nodeCard.className).toContain("group");
   expect(nodeCard.className).toContain("[--node-shell-gap:2px]");
-  expect(nodeCard.className).toContain("[--node-shell-radius:16px]");
+  expect(nodeCard.className).toContain("[--node-shell-radius:18px]");
   expect(nodeCard.className).toContain("rounded-(--node-shell-radius)");
   expect(nodeCard.className).toContain("border");
-  expect(nodeCard.className).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(nodeCard.className).toContain("border-[rgba(15,23,42,0.08)]");
   expect(nodeCard.className).toContain("bg-[#FBFBFB]");
-  expect(nodeCard.className).toContain("px-[2px]");
-  expect(nodeCard.className).toContain("pt-[2px]");
-  expect(nodeCard.className).toContain("pb-[2px]");
-  expect(nodeCard.className).toContain("gap-1.5");
+  expect(nodeCard.className).toContain("p-0.5");
+  expect(nodeCard.className).toContain("gap-0.5");
+  expect(nodeCard.className).toContain(
+    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+  );
   expect(visionNode.className).toContain("last:pb-5");
   expect(headerShell.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
+  expect(headerShell.className).toContain("border-border/40");
   expect(headerShell.className).toContain("bg-background/96");
+  expect(headerShell.className).toContain("pb-[3px]");
   expect(headerShell.className).not.toContain("shadow-[");
   expect(headerRow.className).toContain("pl-[6px]");
+  expect(headerRow.className).toContain("pr-[6px]");
   expect(headerRow.className).toContain("pt-[6px]");
   expect(headerRow.className).toContain("pb-[6px]");
 }
@@ -69,10 +73,11 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(widget.className).toContain("h-full");
     expect(widget.className).toContain("overflow-hidden");
     expect(widget.className).toContain("flex-1");
-    expect(editorPane.className).toContain("bg-[#15181C]");
-    expect(editorPane.className).toContain("px-2");
+    expect(editorPane.className).toContain("bg-[#F3F3F4]");
+    expect(editorPane.className).toContain("px-0");
     expect(editorPane.className).toContain("pb-2");
     expect(editorPane.className).not.toContain("pt-2");
+    expect(editorPane.className).not.toContain("px-2");
     expect(editorPane.className).not.toContain("border-x");
     expect(editorPane.className).not.toContain("border-t");
     expect(editorPane.className).not.toContain("border-b-0");
@@ -81,14 +86,18 @@ describe("SpielwieseEditorCanvas layout shell", () => {
     expect(editorPaneShell.className).toContain("bg-background");
     expect(editorPaneShell.className).toContain("overflow-y-auto");
     expect(editorPaneShell.className).toContain("overflow-x-hidden");
+    expect(editorPaneShell.className).toContain("px-0");
     expect(editorPaneShell.className).toContain("py-0");
+    expect(editorPaneShell.className).not.toContain("px-4");
+    expect(editorPaneShell.className).not.toContain("sm:px-5");
     expect(editorNodeStack.className).not.toContain("overflow-y-auto");
     expect(editorNodeStack.className).toContain("pt-4");
     expect(editorNodeStack.className).toContain("pb-2");
-    expect(simulationPane.className).toContain("rounded-none");
+    expect(simulationPane.className).toContain("px-0");
+    expect(simulationPane.className).toContain("pb-0");
+    expect(simulationPane.className).not.toContain("px-2");
     expect(simulationPane.className).not.toContain("border-t-0");
     expect(resizeHandle).toBeTruthy();
-    expect(screen.getByLabelText("Playground input")).toBeTruthy();
     expect(nodes).toHaveLength(3);
   });
 });

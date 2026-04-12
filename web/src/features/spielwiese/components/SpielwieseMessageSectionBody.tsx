@@ -1,10 +1,10 @@
+import type { ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
-import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
 import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
   SpielwieseToolMessageSection,
@@ -18,6 +18,7 @@ export const spielwieseMessageFieldShellClassName =
 export const spielwieseSingleLineTextareaClassName = `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden rounded-[10px] bg-transparent text-base leading-7 sm:text-[0.9375rem]`;
 
 type SpielwieseMessageSectionBodyProps = {
+  header?: ReactNode;
   nodeId: string;
   onPromptSectionChange: (
     nodeId: string,
@@ -38,6 +39,14 @@ function getPromptSectionPlaceholder(
   }
 
   return `Write ${section.label.toLowerCase()}`;
+}
+
+function EmbeddedMessageSectionHeader({ header }: { header?: ReactNode }) {
+  if (!header) {
+    return null;
+  }
+
+  return <div className="pb-px">{header}</div>;
 }
 
 function StandardPromptTextarea({
@@ -73,12 +82,50 @@ function StandardPromptTextarea({
 }
 
 function SpielwieseSystemMessageSectionBody({
+  header,
   nodeId,
   onPromptSectionChange,
   section,
 }: Pick<
   SpielwieseMessageSectionBodyProps,
-  "nodeId" | "onPromptSectionChange" | "section"
+  "header" | "nodeId" | "onPromptSectionChange" | "section"
+>) {
+  const toneClassNames = getMessageToneClassNames(section.id);
+  const shouldRenderEmbeddedHeader = Boolean(header);
+
+  return (
+    <div className={cn("pt-0 pb-px text-base", toneClassNames.body)}>
+      <div
+        className={cn(
+          "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
+          shouldRenderEmbeddedHeader && "gap-px shadow-none",
+        )}
+      >
+        {header}
+        <div
+          className="flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden rounded-[8px] bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+          data-testid="spielwiese-system-message-prompt-shell"
+        >
+          <StandardPromptTextarea
+            className="bg-transparent px-3 py-1 shadow-none"
+            nodeId={nodeId}
+            onPromptSectionChange={onPromptSectionChange}
+            section={section}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpielwieseDefaultMessageSectionBody({
+  header,
+  nodeId,
+  onPromptSectionChange,
+  section,
+}: Pick<
+  SpielwieseMessageSectionBodyProps,
+  "header" | "nodeId" | "onPromptSectionChange" | "section"
 >) {
   const toneClassNames = getMessageToneClassNames(section.id);
 
@@ -87,38 +134,12 @@ function SpielwieseSystemMessageSectionBody({
       <div
         className={cn(
           spielwieseMessageFieldShellClassName,
-          "min-h-0 flex-col items-stretch bg-[#F1F2F2] px-0 py-0",
+          header && "min-h-0 flex-col items-stretch px-0 py-0 shadow-none",
         )}
       >
+        <EmbeddedMessageSectionHeader header={header} />
         <StandardPromptTextarea
-          className="bg-[#FBFBFB] px-3 py-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
-          nodeId={nodeId}
-          onPromptSectionChange={onPromptSectionChange}
-          section={section}
-        />
-        <SpielwieseJsonFormatComposer
-          nodeId={nodeId}
-          sectionLabel={section.label}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SpielwieseDefaultMessageSectionBody({
-  nodeId,
-  onPromptSectionChange,
-  section,
-}: Pick<
-  SpielwieseMessageSectionBodyProps,
-  "nodeId" | "onPromptSectionChange" | "section"
->) {
-  const toneClassNames = getMessageToneClassNames(section.id);
-
-  return (
-    <div className={cn("pt-[9px] pb-0.5 text-base", toneClassNames.body)}>
-      <div className={spielwieseMessageFieldShellClassName}>
-        <StandardPromptTextarea
+          className={cn(header && "px-3 pt-0 pb-1")}
           nodeId={nodeId}
           onPromptSectionChange={onPromptSectionChange}
           section={section}
@@ -129,6 +150,7 @@ function SpielwieseDefaultMessageSectionBody({
 }
 
 export function SpielwieseMessageSectionBody({
+  header,
   nodeId,
   onPromptSectionChange,
   section,
@@ -156,6 +178,7 @@ export function SpielwieseMessageSectionBody({
   if (messageKind === "system") {
     return (
       <SpielwieseSystemMessageSectionBody
+        header={header}
         nodeId={nodeId}
         onPromptSectionChange={onPromptSectionChange}
         section={section}
@@ -165,6 +188,7 @@ export function SpielwieseMessageSectionBody({
 
   return (
     <SpielwieseDefaultMessageSectionBody
+      header={header}
       nodeId={nodeId}
       onPromptSectionChange={onPromptSectionChange}
       section={section}

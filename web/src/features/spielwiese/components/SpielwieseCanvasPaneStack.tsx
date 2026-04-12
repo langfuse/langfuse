@@ -13,6 +13,15 @@ import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane
 
 type CanvasBottomPaneMode = "playground" | "evaluation";
 
+const paneModeToggleClassName =
+  "pointer-events-auto inline-flex items-center gap-1 rounded-[11px] border border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.52)] p-0.5";
+
+const paneModeToggleButtonClassName =
+  "text-foreground/50 hover:text-foreground/72 inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3.5 text-[0.75rem] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
+
+const paneModeToggleButtonActiveClassName =
+  "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
+
 type SpielwieseCanvasPaneProps = {
   className?: string;
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
@@ -52,13 +61,13 @@ function SpielwieseCanvasPane({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#15181C] px-2 pt-0 pb-2",
+        "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0 pb-2",
         className,
       )}
       data-testid="spielwiese-editor-canvas-pane"
     >
       <div
-        className="bg-background flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-4 py-0 shadow-xs sm:px-5"
+        className="bg-background flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[8px] px-0 py-0 shadow-xs"
         data-testid="spielwiese-editor-canvas-pane-shell"
       >
         <SpielwieseAgentNodeStack
@@ -101,7 +110,7 @@ function CanvasPaneModeToggle({
 
   return (
     <div
-      className="bg-muted/72 pointer-events-auto inline-flex items-center gap-1 overflow-hidden rounded-2xl p-1"
+      className={paneModeToggleClassName}
       data-testid="spielwiese-canvas-pane-mode-toggle"
     >
       {options.map((option) => {
@@ -113,15 +122,15 @@ function CanvasPaneModeToggle({
             aria-label={option.label}
             aria-pressed={isActive}
             className={cn(
-              "text-muted-foreground hover:bg-background hover:text-foreground inline-flex h-7 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-medium transition-colors",
-              isActive && "bg-background text-foreground",
+              paneModeToggleButtonClassName,
+              isActive && paneModeToggleButtonActiveClassName,
             )}
             data-testid={`spielwiese-canvas-pane-mode-${option.id}`}
             key={option.id}
             onClick={() => onModeChange(option.id)}
             type="button"
           >
-            <Icon className="size-3.5 shrink-0" />
+            <Icon className="size-4 shrink-0" />
             <span>{option.label}</span>
           </button>
         );
@@ -166,7 +175,7 @@ export function SpielwieseCanvasPaneStack({
         />
       </ResizablePanel>
       <ResizableHandle
-        className="aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 bg-[#15181C] aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
+        className="aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 bg-[#F3F3F4] aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
         data-testid="spielwiese-canvas-pane-resize-handle"
       />
       <ResizablePanel defaultSize="32%" minSize="12%">

@@ -37,6 +37,7 @@ type SpielwieseMessageSectionActionsProps = {
   onDelete: () => void;
   onMoveDown: () => void;
   onMoveUp: () => void;
+  revealMode?: "agent-node" | "section";
   sectionLabel: string;
   sectionId: string;
 };
@@ -48,13 +49,18 @@ export function SpielwieseMessageSectionActions({
   onDelete,
   onMoveDown,
   onMoveUp,
+  revealMode = "section",
   sectionLabel,
   sectionId,
 }: SpielwieseMessageSectionActionsProps) {
   const toneClassNames = getMessageToneClassNames(sectionId);
+  const revealClassName =
+    revealMode === "agent-node"
+      ? "pointer-events-none opacity-0 transition-all group-focus-within/agent-node:pointer-events-auto group-focus-within/agent-node:opacity-100 group-hover/agent-node:pointer-events-auto group-hover/agent-node:opacity-100"
+      : "pointer-events-none opacity-0 transition-all group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
 
   return (
-    <div className="flex shrink-0 items-center opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100">
+    <div className={`flex shrink-0 items-center ${revealClassName}`}>
       <MessageSectionActionButton
         ariaLabel={`Move ${nodeId} ${sectionLabel} message up`}
         className={toneClassNames.action}

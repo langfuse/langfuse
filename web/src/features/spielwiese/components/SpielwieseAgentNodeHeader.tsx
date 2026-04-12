@@ -4,29 +4,32 @@ import { useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
-  Maximize2,
-  Minimize2,
   Settings2,
   Thermometer,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
-import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
   spielwieseInlineInputClassName,
   spielwieseStripItemClassName,
   spielwieseStripItemFieldClassName,
 } from "./SpielwieseHeaderStrip";
+import { SpielwieseAgentNodeHeaderActions } from "./SpielwieseAgentNodeHeaderActions";
 import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
 import { SpielwieseAgentNodeTitleControl } from "./SpielwieseAgentNodeTitleControl";
 import { SpielwieseToolCreatorPopup } from "./SpielwieseToolCreatorPopup";
 
 type SpielwieseAgentNodeHeaderProps = {
+  children?: ReactNode;
   isCompact: boolean;
+  isPreviewFocused: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
   node: SpielwieseAgentNodeVM;
+  onPreviewHoverEnd: () => void;
+  onPreviewHoverStart: () => void;
+  onTogglePreviewFocus: () => void;
   onSettingValueChange: (
     nodeId: string,
     settingId: string,
@@ -258,21 +261,21 @@ function SpielwieseAgentNodeInlineSettings({
 
 function SpielwieseAgentNodeHeaderRow({
   isCompact,
+  isPreviewFocused,
   modelSetting,
   node,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
+  onTogglePreviewFocus,
   onSettingValueChange,
   onToggleCompact,
   onTitleChange,
 }: SpielwieseAgentNodeHeaderProps) {
   const inlineSettings = getInlineSettings(node.settings);
-  const HeaderToggleIcon = isCompact ? Maximize2 : Minimize2;
-  const headerToggleLabel = `${
-    isCompact ? "Maximize" : "Minimize"
-  } ${node.id} node sections`;
 
   return (
     <div
-      className="flex w-full min-w-0 items-center justify-between gap-1.5 pt-[6px] pr-2.5 pb-[6px] pl-[6px]"
+      className="flex w-full min-w-0 items-center justify-between gap-1.5 pt-[6px] pr-[6px] pb-[6px] pl-[6px]"
       data-testid="spielwiese-agent-node-header-row"
     >
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -289,29 +292,30 @@ function SpielwieseAgentNodeHeaderRow({
         />
         <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
       </div>
-      <Button
-        aria-label={headerToggleLabel}
-        aria-pressed={isCompact}
-        className="bg-background text-foreground/58 hover:bg-background hover:text-foreground h-7 w-7 shrink-0 rounded-[8px] border border-[rgba(0,0,0,0.08)]"
-        size="icon-sm"
-        variant="ghost"
-        onClick={onToggleCompact}
-      >
-        <HeaderToggleIcon className="size-3.5" />
-      </Button>
+      <SpielwieseAgentNodeHeaderActions
+        isCompact={isCompact}
+        isPreviewFocused={isPreviewFocused}
+        nodeId={node.id}
+        onPreviewHoverEnd={onPreviewHoverEnd}
+        onPreviewHoverStart={onPreviewHoverStart}
+        onTogglePreviewFocus={onTogglePreviewFocus}
+        onToggleCompact={onToggleCompact}
+      />
     </div>
   );
 }
 
-export function SpielwieseAgentNodeHeader(
-  props: SpielwieseAgentNodeHeaderProps,
-) {
+export function SpielwieseAgentNodeHeader({
+  children,
+  ...props
+}: SpielwieseAgentNodeHeaderProps) {
   return (
     <div
-      className="border-border/40 bg-background/96 flex min-w-0 items-center rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border"
+      className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[3px]"
       data-testid="spielwiese-agent-node-header-shell"
     >
       <SpielwieseAgentNodeHeaderRow {...props} />
+      {children}
     </div>
   );
 }
