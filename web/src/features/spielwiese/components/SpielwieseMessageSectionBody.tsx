@@ -17,7 +17,13 @@ export const spielwieseMessageFieldShellClassName =
   "flex min-h-9 w-full min-w-0 items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.05)] bg-white px-3 py-1 shadow-[0_0_0_3px_rgba(0,0,0,0.03)]";
 const spielwieseSingleLineTextareaBaseClassName = `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden bg-transparent text-base leading-7 sm:text-[0.9375rem]`;
 export const spielwieseSingleLineTextareaClassName = `${spielwieseSingleLineTextareaBaseClassName} rounded-[10px]`;
-const spielwieseEmbeddedSingleLineTextareaClassName = `${spielwieseSingleLineTextareaBaseClassName} rounded-[8px]`;
+const spielwieseEmbeddedPromptRadiusVariablesClassName =
+  "[--embedded-prompt-padding:2px] [--embedded-prompt-outer-radius:calc(var(--node-shell-radius)-var(--node-shell-gap))] [--embedded-prompt-radius:calc(var(--embedded-prompt-outer-radius)-var(--embedded-prompt-padding))]";
+const spielwieseEmbeddedPromptRadiusClassName =
+  "rounded-[var(--embedded-prompt-radius)]";
+const spielwieseEmbeddedPromptInnerRadiusClassName =
+  "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]";
+const spielwieseEmbeddedSingleLineTextareaClassName = `${spielwieseSingleLineTextareaBaseClassName} ${spielwieseEmbeddedPromptInnerRadiusClassName}`;
 
 type SpielwieseMessageSectionBodyProps = {
   header?: ReactNode;
@@ -100,20 +106,25 @@ function SpielwieseSystemMessageSectionBody({
     <div className={cn("pt-0 pb-px text-base", toneClassNames.body)}>
       <div
         className={cn(
-          "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
+          "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
+          spielwieseEmbeddedPromptRadiusVariablesClassName,
+          spielwieseEmbeddedPromptRadiusClassName,
           shouldRenderEmbeddedHeader && "gap-px shadow-none",
         )}
       >
         {header}
         <div
-          className="flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden rounded-[8px] bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+          className={cn(
+            "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+            spielwieseEmbeddedPromptInnerRadiusClassName,
+          )}
           data-testid="spielwiese-system-message-prompt-shell"
         >
           <StandardPromptTextarea
             className="bg-transparent px-3 py-1 shadow-none"
             nodeId={nodeId}
             onPromptSectionChange={onPromptSectionChange}
-            rootClassName="rounded-[8px]"
+            rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
             section={section}
             textareaClassName={spielwieseEmbeddedSingleLineTextareaClassName}
           />

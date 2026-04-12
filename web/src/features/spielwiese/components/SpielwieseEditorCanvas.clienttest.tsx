@@ -84,6 +84,8 @@ function expectInstructionsSectionChrome(
     instructionsTextareaRoot as HTMLElement;
   const instructionsPromptShellElement = instructionsPromptShell as HTMLElement;
   const instructionsFieldShellElement = instructionsFieldShell as HTMLElement;
+  const instructionsToggleShell =
+    instructionsToggle.parentElement as HTMLElement;
   const instructionsHeader = within(instructionsFieldShellElement).getByTestId(
     "spielwiese-message-section-header",
   );
@@ -103,6 +105,7 @@ function expectInstructionsSectionChrome(
     instructionsInput,
     instructionsPromptShellElement,
     instructionsToggle,
+    instructionsToggleShell,
     nodeCard,
   });
 }
@@ -134,14 +137,22 @@ function expectInstructionsSectionPlacement({
   expect(firstSectionRow.className).toContain("pb-0");
   expect(instructionsBodyElement.className).toContain("pt-0");
   expect(instructionsInput).toBeTruthy();
-  expect(instructionsTextareaRootElement.className).toContain("rounded-[8px]");
+  expectNodeShellInsetInnerRadius(instructionsTextareaRootElement.className);
 }
 
 function expectNodeShellInsetRadius(className: string) {
   expect(className).toContain(
-    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+    "[--embedded-prompt-radius:calc(var(--embedded-prompt-outer-radius)-var(--embedded-prompt-padding))]",
   );
+  expect(className).toContain("rounded-[var(--embedded-prompt-radius)]");
   expect(className).not.toContain("rounded-[10px]");
+}
+
+function expectNodeShellInsetInnerRadius(className: string) {
+  expect(className).toContain(
+    "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
+  );
+  expect(className).not.toContain("rounded-[8px]");
 }
 
 function expectInstructionsPromptChrome({
@@ -151,6 +162,7 @@ function expectInstructionsPromptChrome({
   instructionsInput,
   instructionsPromptShellElement,
   instructionsToggle,
+  instructionsToggleShell,
   nodeCard,
 }: {
   instructionsBodyElement: HTMLElement;
@@ -159,6 +171,7 @@ function expectInstructionsPromptChrome({
   instructionsInput: HTMLElement;
   instructionsPromptShellElement: HTMLElement;
   instructionsToggle: HTMLElement;
+  instructionsToggleShell: HTMLElement;
   nodeCard: HTMLElement;
 }) {
   const fieldShellClassName = instructionsFieldShellElement.className;
@@ -185,7 +198,7 @@ function expectInstructionsPromptChrome({
   expectEmbeddedInstructionsHeaderChrome(instructionsHeader);
   expect(instructionsBodyElement.className).toContain("pb-px");
   expect(instructionsPromptShellElement.className).toContain("bg-[#FBFBFB]");
-  expect(instructionsPromptShellElement.className).toContain("rounded-[8px]");
+  expectNodeShellInsetInnerRadius(instructionsPromptShellElement.className);
   expect(instructionsPromptShellElement.className).toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
   );
@@ -195,14 +208,40 @@ function expectInstructionsPromptChrome({
   expect(instructionsInput.getAttribute("placeholder")).toBe(
     "Add instructions for this step",
   );
+  expectInstructionsToggleChrome({
+    instructionsToggle,
+    instructionsToggleShell,
+    nodeCard,
+  });
+}
+
+function expectInstructionsToggleChrome({
+  instructionsToggle,
+  instructionsToggleShell,
+  nodeCard,
+}: {
+  instructionsToggle: HTMLElement;
+  instructionsToggleShell: HTMLElement;
+  nodeCard: HTMLElement;
+}) {
   expect(instructionsToggle.textContent).toContain("Instructions");
   expect(instructionsToggle.querySelector("div")?.className).toContain(
     "text-[12px]",
   );
+  expectInstructionsToggleShellChrome(instructionsToggleShell);
   expect(instructionsToggle.querySelector("[data-prefix='true']")).toBeTruthy();
   expect(instructionsToggle.querySelector("[data-suffix='true']")).toBeTruthy();
   expect(within(nodeCard).getByTestId("vision-agent-system-icon")).toBeTruthy();
   expectAttioSectionChip(instructionsToggle, nodeCard);
+}
+
+function expectInstructionsToggleShellChrome(
+  instructionsToggleShell: HTMLElement,
+) {
+  expect(instructionsToggleShell.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(instructionsToggleShell.className).toContain("p-[2px]");
 }
 
 function expectEmbeddedInstructionsHeaderChrome(
@@ -224,7 +263,7 @@ function expectEmbeddedInstructionsHeaderChrome(
 function expectTransparentInstructionsInput(instructionsInput: HTMLElement) {
   expect(instructionsInput.className).toContain("bg-transparent");
   expect(instructionsInput.className).toContain("px-3");
-  expect(instructionsInput.className).toContain("rounded-[8px]");
+  expectNodeShellInsetInnerRadius(instructionsInput.className);
   expect(instructionsInput.className).not.toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
   );
@@ -277,6 +316,9 @@ function getResponseFormatControlElements(
   const responseFormatInsertRow = responseFormatRoot.getByTestId(
     "spielwiese-response-format-insert-row",
   );
+  const responseFormatInsertTextShell = responseFormatRoot.getByTestId(
+    "spielwiese-response-format-insert-text-shell",
+  );
   const responseFormatInsertTextTrigger = responseFormatRoot.getByTestId(
     "spielwiese-response-format-insert-text-trigger",
   );
@@ -291,6 +333,7 @@ function getResponseFormatControlElements(
     responseFormatControlsCluster,
     responseFormatExpandTrigger,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatJsonOption,
     responseFormatLeadingAccessory,
@@ -356,6 +399,68 @@ function expectResponseFormatControlsCluster({
   expect(responseFormatSwitch.className).not.toContain("ml-auto");
 }
 
+function expectResponseFormatInsertTriggerChrome({
+  responseFormatInsertTextShell,
+  responseFormatInsertTextTrigger,
+}: Pick<
+  ReturnType<typeof getResponseFormatElements>,
+  "responseFormatInsertTextShell" | "responseFormatInsertTextTrigger"
+>) {
+  expect(responseFormatInsertTextShell.className).toContain("h-6");
+  expect(responseFormatInsertTextShell.className).toContain(
+    "[--message-insert-inner-radius:7px]",
+  );
+  expect(responseFormatInsertTextShell.className).toContain(
+    "[--message-insert-padding:2px]",
+  );
+  expect(responseFormatInsertTextShell.className).toContain(
+    "rounded-[var(--message-insert-outer-radius)]",
+  );
+  expect(responseFormatInsertTextShell.className).toContain(
+    "border-[rgba(0,0,0,0.06)]",
+  );
+  expect(responseFormatInsertTextShell.className).toContain(
+    "p-[var(--message-insert-padding)]",
+  );
+  expect(responseFormatInsertTextTrigger.className).toContain("h-full");
+  expect(responseFormatInsertTextTrigger.className).toContain(
+    "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+  );
+  expect(responseFormatInsertTextTrigger.className).toContain("px-2");
+  expect(responseFormatInsertTextTrigger.className).toContain(
+    "text-[0.6875rem]",
+  );
+}
+
+function expectResponseFormatInsertPickerOptionChrome(nodeCard: HTMLElement) {
+  const responseFormatInsertPicker = within(nodeCard).getByTestId(
+    "spielwiese-response-format-insert-picker-text",
+  );
+  const responseFormatPickerButtons = [
+    "User",
+    "Instructions",
+    "Assistant",
+    "Tool",
+  ].map((label) => within(nodeCard).getByRole("button", { name: label }));
+  const pickerButtonRow = responseFormatPickerButtons[0]
+    ?.parentElement as HTMLElement;
+
+  expect(responseFormatInsertPicker.className).toContain(
+    "rounded-r-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+  );
+  expect(pickerButtonRow.className).toContain(
+    "px-[var(--message-insert-padding)]",
+  );
+  expect(pickerButtonRow.className).toContain("gap-px");
+  for (const pickerButton of responseFormatPickerButtons) {
+    expect(pickerButton.className).toContain(
+      "rounded-[calc(var(--message-insert-outer-radius)-var(--message-insert-padding))]",
+    );
+    expect(pickerButton.className).toContain("px-1.5");
+    expect(pickerButton.className).toContain("text-[0.6875rem]");
+  }
+}
+
 function expectResponseFormatComposerChrome(
   nodeCard: HTMLElement,
   responseFormatComposer: HTMLElement,
@@ -386,6 +491,35 @@ function expectResponseFormatComposerChrome(
   expect(nodeCard.lastElementChild).toBe(responseFormatComposer);
 }
 
+type ResponseFormatBaseChromeElements = Pick<
+  ReturnType<typeof getResponseFormatElements>,
+  | "responseFormatComposer"
+  | "responseFormatControlsCluster"
+  | "responseFormatInsertRow"
+  | "responseFormatInsertTextTrigger"
+  | "responseFormatSectionRow"
+  | "responseFormatLeadingAccessory"
+  | "responseFormatInsertTextShell"
+  | "responseFormatExpandTrigger"
+  | "responseFormatSurface"
+  | "responseFormatSwitch"
+  | "responseFormatSystemBody"
+  | "responseFormatSystemFieldShell"
+>;
+
+function expectResponseFormatSystemSectionChrome(
+  responseFormatSectionRow: HTMLElement,
+  responseFormatSystemBody: HTMLElement,
+  responseFormatSystemFieldShell: HTMLElement,
+) {
+  expect(responseFormatSectionRow.getAttribute("data-section-id")).toBe(
+    "system",
+  );
+  expect(responseFormatSectionRow.className).toContain("px-[5px]");
+  expect(responseFormatSystemBody.className).toContain("pt-0");
+  expect(responseFormatSystemFieldShell.className).toContain("bg-[#F1F2F2]");
+}
+
 function expectResponseFormatBaseChrome(
   nodeCard: HTMLElement,
   {
@@ -394,33 +528,20 @@ function expectResponseFormatBaseChrome(
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatExpandTrigger,
     responseFormatSurface,
     responseFormatSystemBody,
     responseFormatSystemFieldShell,
     responseFormatSwitch,
-  }: Pick<
-    ReturnType<typeof getResponseFormatElements>,
-    | "responseFormatComposer"
-    | "responseFormatControlsCluster"
-    | "responseFormatInsertRow"
-    | "responseFormatInsertTextTrigger"
-    | "responseFormatSectionRow"
-    | "responseFormatLeadingAccessory"
-    | "responseFormatExpandTrigger"
-    | "responseFormatSurface"
-    | "responseFormatSwitch"
-    | "responseFormatSystemBody"
-    | "responseFormatSystemFieldShell"
-  >,
+  }: ResponseFormatBaseChromeElements,
 ) {
-  expect(responseFormatSectionRow.getAttribute("data-section-id")).toBe(
-    "system",
+  expectResponseFormatSystemSectionChrome(
+    responseFormatSectionRow,
+    responseFormatSystemBody,
+    responseFormatSystemFieldShell,
   );
-  expect(responseFormatSectionRow.className).toContain("px-[5px]");
-  expect(responseFormatSystemBody.className).toContain("pt-0");
-  expect(responseFormatSystemFieldShell.className).toContain("bg-[#F1F2F2]");
   expectResponseFormatComposerChrome(
     nodeCard,
     responseFormatComposer,
@@ -429,6 +550,10 @@ function expectResponseFormatBaseChrome(
   expect(responseFormatLeadingAccessory.contains(responseFormatInsertRow)).toBe(
     true,
   );
+  expectResponseFormatInsertTriggerChrome({
+    responseFormatInsertTextShell,
+    responseFormatInsertTextTrigger,
+  });
   expectResponseFormatControlsCluster({
     responseFormatControlsCluster,
     responseFormatExpandTrigger,
@@ -452,6 +577,7 @@ function expectResponseFormatNoneState(
     responseFormatControlsCluster,
     responseFormatExpandTrigger,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatJsonOption,
     responseFormatLeadingAccessory,
@@ -467,6 +593,7 @@ function expectResponseFormatNoneState(
     responseFormatComposer,
     responseFormatControlsCluster,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
@@ -498,6 +625,7 @@ function expectResponseFormatJsonState(
     responseFormatControlsCluster,
     responseFormatExpandTrigger,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatJsonOption,
     responseFormatLeadingAccessory,
@@ -513,6 +641,7 @@ function expectResponseFormatJsonState(
     responseFormatComposer,
     responseFormatControlsCluster,
     responseFormatInsertRow,
+    responseFormatInsertTextShell,
     responseFormatInsertTextTrigger,
     responseFormatSectionRow,
     responseFormatLeadingAccessory,
@@ -638,6 +767,7 @@ function expectResponseFormatComposer(nodeCard: HTMLElement) {
       .getByTestId("spielwiese-response-format-insert-picker-text")
       .getAttribute("data-state"),
   ).toBe("open");
+  expectResponseFormatInsertPickerOptionChrome(nodeCard);
   fireEvent.click(within(nodeCard).getByRole("button", { name: "Assistant" }));
   expect(
     within(nodeCard).getAllByLabelText(

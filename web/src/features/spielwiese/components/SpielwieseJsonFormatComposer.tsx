@@ -186,6 +186,7 @@ function SpielwieseResponseFormatInsertRow({
       nodeId={nodeId}
       onPromptSectionInsert={onPromptSectionInsert}
       rowTestId="spielwiese-response-format-insert-row"
+      styleVariant="response-format"
       testIdBase="spielwiese-response-format-insert"
       triggerContent="+ New agent message"
       variant="text"
