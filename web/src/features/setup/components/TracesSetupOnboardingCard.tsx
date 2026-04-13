@@ -41,23 +41,25 @@ function CopyableSnippet({
 
   return (
     <div className="space-y-2">
-      <div className="bg-muted/50 mx-auto flex items-start justify-between gap-3 rounded-2xl border px-5 py-4 shadow-xs">
-        <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
+      <div className="bg-muted/50 mx-auto flex flex-col rounded-2xl border shadow-xs">
+        <div className="flex justify-end px-3 pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => void handleCopy()}
+          >
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+            {copied ? "Copied" : "Copy prompt"}
+          </Button>
+        </div>
+        <code className="block min-w-0 px-5 pt-2 pb-4 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
           {value}
         </code>
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => void handleCopy()}
-        >
-          {copied ? (
-            <Check className="h-4 w-4" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-          {copied ? "Copied" : "Copy prompt"}
-        </Button>
       </div>
     </div>
   );
