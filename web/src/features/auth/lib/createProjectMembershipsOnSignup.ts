@@ -4,10 +4,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import {
-  V4_DEFAULT_ENABLED_FROM_AT,
-  shouldAutoEnableV4,
-} from "@/src/features/events/lib/v4Rollout";
+import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -199,7 +196,6 @@ export async function createProjectMembershipsOnSignup(
           !options?.userWasJustCreated &&
           isNewUser &&
           !userRolloutState.v4BetaEnabled &&
-          userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
           shouldAutoEnableV4ForUser;
 
         if (
