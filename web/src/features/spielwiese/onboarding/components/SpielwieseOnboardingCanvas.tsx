@@ -22,6 +22,9 @@ type StepExitAction =
     }
   | {
       kind: "show-role-bridge";
+    }
+  | {
+      kind: "show-role-model-selection";
     };
 type OnboardingAnswers = typeof EMPTY_ONBOARDING_ANSWERS;
 
@@ -83,8 +86,14 @@ function createOnboardingContinueHandler({
       };
     }
 
-    if (activeStepIndex === 0 && roleScene === "preview" && !isRolePromptReady) {
-      return null;
+    if (activeStepIndex === 0 && roleScene === "preview") {
+      if (!isRolePromptReady) {
+        return null;
+      }
+
+      return {
+        kind: "show-role-model-selection" as const,
+      };
     }
 
     return {
@@ -151,6 +160,12 @@ function createStepLayerAnimationEndHandler({
       return;
     }
 
+    if (stepExitAction.kind === "show-role-model-selection") {
+      setStepExitAction(null);
+      setRoleScene("model-selection");
+      return;
+    }
+
     const nextPath = stepExitAction.path;
     void Promise.resolve(router.push(nextPath, undefined, { shallow: true }))
       .then(() => {
@@ -186,8 +201,12 @@ function createOnboardingSceneHandlers({
   isRolePromptReady,
   roleScene,
   router,
+  roleApiKeyValue,
+  roleModelValue,
   roleSystemPromptValue,
   setAnswers,
+  setRoleApiKeyValue,
+  setRoleModelValue,
   setRoleScene,
   setRoleSystemPromptValue,
   stepExitAction,
@@ -200,8 +219,12 @@ function createOnboardingSceneHandlers({
   isRolePromptReady: boolean;
   roleScene: RoleStepScene;
   router: ReturnType<typeof useRouter>;
+  roleApiKeyValue: string;
+  roleModelValue: string;
   roleSystemPromptValue: string;
   setAnswers: Dispatch<SetStateAction<OnboardingAnswers>>;
+  setRoleApiKeyValue: Dispatch<SetStateAction<string>>;
+  setRoleModelValue: Dispatch<SetStateAction<string>>;
   setRoleScene: Dispatch<SetStateAction<RoleStepScene>>;
   setRoleSystemPromptValue: Dispatch<SetStateAction<string>>;
   stepExitAction: StepExitAction | null;
@@ -233,6 +256,20 @@ function createOnboardingSceneHandlers({
       activeQuestionId,
       setAnswers,
     }),
+    handleRoleApiKeyChange: (value: string) => {
+      if (value !== roleApiKeyValue) {
+        setRoleApiKeyValue(value);
+      }
+    },
+    handleRoleModelChange: (value: string) => {
+      if (value !== roleModelValue) {
+        setRoleModelValue(value);
+      }
+
+      if (roleScene === "model-selection") {
+        setRoleScene("api-key");
+      }
+    },
     handleRoleSystemPromptChange: (value: string) => {
       if (value !== roleSystemPromptValue) {
         setRoleSystemPromptValue(value);
@@ -269,7 +306,10 @@ function getOnboardingCanvasStepState({
     activeQuestion,
     activeStepIndex,
     isStepTransitioningOut: stepExitAction !== null,
-    showsUpperCanvas: activeQuestion.id === "role" && roleScene === "preview",
+    showsUpperCanvas:
+      activeQuestion.id === "role" &&
+      roleScene !== "gate" &&
+      roleScene !== "bridge",
   };
 }
 
@@ -279,6 +319,8 @@ export function SpielwieseOnboardingCanvas({
   const router = useRouter();
   const [answers, setAnswers] = useState(EMPTY_ONBOARDING_ANSWERS);
   const [roleScene, setRoleScene] = useState<RoleStepScene>("gate");
+  const [roleApiKeyValue, setRoleApiKeyValue] = useState("");
+  const [roleModelValue, setRoleModelValue] = useState("Claude Opus 4.6");
   const [roleSystemPromptValue, setRoleSystemPromptValue] = useState("");
   const [stepExitAction, setStepExitAction] = useState<StepExitAction | null>(
     null,
@@ -299,7 +341,9 @@ export function SpielwieseOnboardingCanvas({
   const {
     handleBack,
     handleContinue,
+    handleRoleApiKeyChange,
     handleRoleBridgeAnimationEnd,
+    handleRoleModelChange,
     handleRoleSystemPromptChange,
     handleSelect,
     handleStepLayerAnimationEnd,
@@ -311,8 +355,12 @@ export function SpielwieseOnboardingCanvas({
     isRolePromptReady,
     roleScene,
     router,
+    roleApiKeyValue,
+    roleModelValue,
     roleSystemPromptValue,
     setAnswers,
+    setRoleApiKeyValue,
+    setRoleModelValue,
     setRoleScene,
     setRoleSystemPromptValue,
     stepExitAction,
@@ -326,11 +374,15 @@ export function SpielwieseOnboardingCanvas({
       activeStepIndex={activeStepIndex}
       handleBack={handleBack}
       handleContinue={handleContinue}
+      handleRoleApiKeyChange={handleRoleApiKeyChange}
       handleRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+      handleRoleModelChange={handleRoleModelChange}
       handleRoleSystemPromptChange={handleRoleSystemPromptChange}
       handleSelect={handleSelect}
       handleStepLayerAnimationEnd={handleStepLayerAnimationEnd}
       isStepTransitioningOut={isStepTransitioningOut}
+      roleApiKeyValue={roleApiKeyValue}
+      roleModelValue={roleModelValue}
       roleSystemPromptValue={roleSystemPromptValue}
       roleScene={roleScene}
       showsUpperCanvas={showsUpperCanvas}
