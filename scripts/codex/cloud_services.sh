@@ -29,6 +29,7 @@ MINIO_SHA256_AMD64="${MINIO_SHA256_AMD64:-7c5bd8512c6e966455b1d198209358b2d191c7
 MINIO_SHA256_ARM64="${MINIO_SHA256_ARM64:-5c83cd2cf151717ba0243f73e1c7802ff36e272b67144bdd7f1f7d684fd6f03d}"
 MC_SHA256_AMD64="${MC_SHA256_AMD64:-01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891}"
 MC_SHA256_ARM64="${MC_SHA256_ARM64:-14c8c9616cfce4636add161304353244e8de383b2e2752c0e9dad01d4c27c12c}"
+MIGRATE_RELEASE_TAG="${MIGRATE_RELEASE_TAG:-v4.19.1}"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -112,6 +113,45 @@ ensure_clickhouse_binaries() {
   ensure_clickhouse_repo
   apt-get install -y clickhouse-server clickhouse-client
   stop_service_if_running clickhouse-server
+}
+
+detect_migrate_arch() {
+  local machine_arch
+  machine_arch="$(uname -m)"
+
+  case "$machine_arch" in
+    x86_64|amd64)
+      echo "amd64"
+      ;;
+    aarch64|arm64)
+      echo "arm64"
+      ;;
+    *)
+      echo "Unsupported architecture for golang-migrate binary: $machine_arch" >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_migrate_binary() {
+  if command -v migrate >/dev/null 2>&1; then
+    return 0
+  fi
+
+  ensure_apt_package ca-certificates
+  ensure_apt_package curl
+
+  local migrate_arch
+  local tmp_dir
+  migrate_arch="$(detect_migrate_arch)"
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  curl -fsSL "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_RELEASE_TAG}/migrate.linux-${migrate_arch}.tar.gz" \
+    | tar -xz -C "$tmp_dir" migrate
+  install -m 0755 "$tmp_dir/migrate" /usr/local/bin/migrate
+
+  trap - RETURN
 }
 
 detect_minio_arch() {
@@ -454,6 +494,7 @@ ensure_minio_running() {
 ensure_cloud_dependencies() {
   mkdir -p "$CODEX_SERVICES_ROOT"
 
+  ensure_migrate_binary
   ensure_postgres_running
   ensure_redis_running
   ensure_clickhouse_running
