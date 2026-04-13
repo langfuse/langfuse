@@ -1,6 +1,11 @@
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 
+const getServerOrigin = () => {
+  const origin = env.NEXTAUTH_URL?.replace("/api/auth", "") ?? "";
+  return origin && !/^https?:\/\//.test(origin) ? `https://${origin}` : origin;
+};
+
 export function useLangfuseEnvCode(keys?: {
   secretKey: string;
   publicKey: string;
@@ -8,9 +13,7 @@ export function useLangfuseEnvCode(keys?: {
   const uiCustomization = useUiCustomization();
   const baseUrl = `${
     uiCustomization?.hostname ??
-    (typeof window !== "undefined"
-      ? window.origin
-      : (env.NEXTAUTH_URL?.replace("/api/auth", "") ?? ""))
+    (typeof window !== "undefined" ? window.origin : getServerOrigin())
   }${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
   if (keys) {
