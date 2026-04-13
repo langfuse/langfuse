@@ -25,6 +25,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- Server cache utilities: `src/server/cache/*`
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
