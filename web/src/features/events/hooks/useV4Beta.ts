@@ -11,12 +11,17 @@ type SetV4BetaEnabledOptions = {
 const INTRO_DIALOG_SEEN_KEY = "v4-beta-intro-dialog-seen";
 
 export function useV4Beta() {
-  const { data: session, update: updateSession } = useSession();
+  const {
+    data: session,
+    update: updateSession,
+    status: sessionStatus,
+  } = useSession();
 
   const mutation = api.userAccount.setV4BetaEnabled.useMutation();
 
   const isBetaEnabled = session?.user?.v4BetaEnabled ?? false;
-  const joinedPostCutOff = session?.user?.joinedPostCutOff ?? false;
+  const v4JoinedPostCutoff = session?.user?.v4JoinedPostCutoff ?? false;
+  const isInitializing = sessionStatus === "loading";
   const [showIntroDialog, setShowIntroDialog] = useState(false);
   const [pendingOnSuccess, setPendingOnSuccess] =
     useState<SetV4BetaEnabledOptions["onSuccess"]>();
@@ -72,7 +77,8 @@ export function useV4Beta() {
 
   return {
     isBetaEnabled,
-    joinedPostCutOff,
+    v4JoinedPostCutoff,
+    isInitializing,
     setBetaEnabled,
     enableWithIntro,
     showIntroDialog,

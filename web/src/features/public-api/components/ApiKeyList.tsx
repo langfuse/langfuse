@@ -15,6 +15,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableCellWithCopyButton,
   TableHead,
   TableHeader,
   TableRow,
@@ -144,12 +145,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                       scope={scope}
                     />
                   </TableCell>
-                  <TableCell density="comfortable" className="font-mono">
-                    <CodeView
-                      className="inline-block text-xs"
-                      content={apiKey.publicKey}
-                    />
-                  </TableCell>
+                  <TableCellWithCopyButton
+                    density="comfortable"
+                    text={apiKey.publicKey}
+                    className="truncate font-mono"
+                  />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
                   </TableCell>

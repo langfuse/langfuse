@@ -92,10 +92,10 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const joinedPostCutOff = ctx.session?.user?.joinedPostCutOff === true;
+      const v4JoinedPostCutoff = ctx.session?.user?.v4JoinedPostCutoff === true;
       const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
 
-      return !joinedPostCutOff &&
+      return !v4JoinedPostCutoff &&
         (ctx.isLangfuseCloud ||
           ctx.enableExperimentalFeatures ||
           ctx.cloudAdmin ||

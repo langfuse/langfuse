@@ -179,7 +179,7 @@ export const userAccountRouter = createTRPCRouter({
       return {
         success: true,
         v4BetaEnabled: v4BetaState.isEnabled,
-        joinedPostCutOff: v4BetaState.joinedPostCutOff,
+        v4JoinedPostCutoff: v4BetaState.v4JoinedPostCutoff,
       };
     }),
 });
