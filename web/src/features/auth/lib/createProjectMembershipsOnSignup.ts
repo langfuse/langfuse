@@ -4,11 +4,18 @@ import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  V4_DEFAULT_ENABLED_FROM_AT,
+  isV4RolloutManaged,
+} from "@/src/features/events/lib/v4BetaRollout";
 
-export async function createProjectMembershipsOnSignup(user: {
-  id: string;
-  email: string | null;
-}) {
+export async function createProjectMembershipsOnSignup(
+  user: {
+    id: string;
+    email: string | null;
+  },
+  options?: { userWasJustCreated?: boolean },
+) {
   try {
     // in no case do we want to send duplicate sign up events to posthog
     const isNewUser = !(await prisma.organizationMembership.findFirst({
@@ -149,6 +156,54 @@ export async function createProjectMembershipsOnSignup(user: {
 
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
+
+    if (options?.userWasJustCreated || isNewUser) {
+      const userRolloutState = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          createdAt: true,
+          v4BetaEnabled: true,
+          organizationMemberships: {
+            select: {
+              organization: {
+                select: {
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (userRolloutState) {
+        const isManagedByRollout = isV4RolloutManaged({
+          userCreatedAt: userRolloutState.createdAt,
+          organizationCreatedAts: userRolloutState.organizationMemberships.map(
+            (membership) => membership.organization.createdAt,
+          ),
+        });
+        const shouldInitializeForNewUser =
+          options?.userWasJustCreated &&
+          !userRolloutState.v4BetaEnabled &&
+          isManagedByRollout;
+        const shouldInitializeForFirstOrganization =
+          !options?.userWasJustCreated &&
+          isNewUser &&
+          !userRolloutState.v4BetaEnabled &&
+          userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
+          isManagedByRollout;
+
+        if (
+          shouldInitializeForNewUser ||
+          shouldInitializeForFirstOrganization
+        ) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { v4BetaEnabled: true },
+          });
+        }
+      }
+    }
 
     // for conversion metric tracking in posthog: did a new user sign up?
     if (

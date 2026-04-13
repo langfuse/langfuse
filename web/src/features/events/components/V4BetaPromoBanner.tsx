@@ -34,6 +34,7 @@ export function V4BetaPromoBanner() {
   const session = useSession();
   const {
     isBetaEnabled,
+    canToggleV4Beta,
     enableWithIntro,
     showIntroDialog,
     confirmIntroDialog,
@@ -52,9 +53,9 @@ export function V4BetaPromoBanner() {
   const enableExperimentalFeatures =
     session.data?.environment?.enableExperimentalFeatures ?? false;
 
-  // Match the v4BetaToggleVisible logic from navigationFilters.ts
-  // cloudAdmin = isLangfuseCloud && isAdmin (already covered by isLangfuseCloud)
-  const isToggleVisible = isLangfuseCloud || enableExperimentalFeatures;
+  // Match the v4BetaToggleVisible logic from navigationFilters.ts.
+  const isToggleVisible =
+    canToggleV4Beta && (isLangfuseCloud || enableExperimentalFeatures);
   const pageMessage = PAGE_MESSAGES[router.pathname];
 
   const isVisible =

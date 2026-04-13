@@ -15,6 +15,10 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
+import {
+  V4_DEFAULT_ENABLED_FROM_AT,
+  isV4RolloutManaged,
+} from "@/src/features/events/lib/v4BetaRollout";
 
 import { env } from "@/src/env.mjs";
 
@@ -26,6 +30,13 @@ export const organizationsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have permission to create organizations",
+        });
+
+      const organizationCountBeforeCreate =
+        await ctx.prisma.organizationMembership.count({
+          where: {
+            userId: ctx.session.user.id,
+          },
         });
 
       const organization = await ctx.prisma.organization.create({
@@ -48,6 +59,43 @@ export const organizationsRouter = createTRPCRouter({
         userId: ctx.session.user.id,
         after: organization,
       });
+
+      if (organizationCountBeforeCreate === 0) {
+        const userRolloutState = await ctx.prisma.user.findUnique({
+          where: { id: ctx.session.user.id },
+          select: {
+            createdAt: true,
+            v4BetaEnabled: true,
+            organizationMemberships: {
+              select: {
+                organization: {
+                  select: {
+                    createdAt: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (
+          userRolloutState &&
+          !userRolloutState.v4BetaEnabled &&
+          userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
+          isV4RolloutManaged({
+            userCreatedAt: userRolloutState.createdAt,
+            organizationCreatedAts:
+              userRolloutState.organizationMemberships.map(
+                (membership) => membership.organization.createdAt,
+              ),
+          })
+        ) {
+          await ctx.prisma.user.update({
+            where: { id: ctx.session.user.id },
+            data: { v4BetaEnabled: true },
+          });
+        }
+      }
 
       return {
         id: organization.id,

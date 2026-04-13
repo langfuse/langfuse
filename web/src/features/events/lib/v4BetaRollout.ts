@@ -1,14 +1,16 @@
-export const V4_JOINED_POST_CUTOFF_AT = new Date("2026-04-13T08:00:00.000Z");
+export const V4_DEFAULT_ENABLED_FROM_AT = new Date("2026-04-13T08:00:00.000Z");
 
-export function isV4JoinedPostCutoff({
-  organizationCreatedAts,
-  userCreatedAt,
-}: {
+type V4BetaRolloutContext = {
   organizationCreatedAts: Date[];
   userCreatedAt?: Date | null;
-}): boolean {
+};
+
+export function isV4RolloutManaged({
+  organizationCreatedAts,
+  userCreatedAt,
+}: V4BetaRolloutContext): boolean {
   if (organizationCreatedAts.length === 0) {
-    return userCreatedAt != null && userCreatedAt >= V4_JOINED_POST_CUTOFF_AT;
+    return userCreatedAt != null && userCreatedAt >= V4_DEFAULT_ENABLED_FROM_AT;
   }
 
   // Use the oldest org the user belongs to so existing users are not
@@ -18,27 +20,9 @@ export function isV4JoinedPostCutoff({
     organizationCreatedAts[0],
   );
 
-  return oldestOrganizationCreatedAt >= V4_JOINED_POST_CUTOFF_AT;
+  return oldestOrganizationCreatedAt >= V4_DEFAULT_ENABLED_FROM_AT;
 }
 
-export function resolveV4BetaRollout({
-  organizationCreatedAts,
-  userPreferenceEnabled,
-  userCreatedAt,
-}: {
-  organizationCreatedAts: Date[];
-  userPreferenceEnabled: boolean;
-  userCreatedAt?: Date | null;
-}) {
-  const v4JoinedPostCutoff = isV4JoinedPostCutoff({
-    organizationCreatedAts,
-    userCreatedAt,
-  });
-
-  return {
-    v4JoinedPostCutoff,
-    effectiveEnabled: userPreferenceEnabled || v4JoinedPostCutoff,
-    canPersistUserChoice: !v4JoinedPostCutoff,
-    canShowToggle: !v4JoinedPostCutoff,
-  };
+export function canToggleV4Beta(context: V4BetaRolloutContext): boolean {
+  return !isV4RolloutManaged(context);
 }

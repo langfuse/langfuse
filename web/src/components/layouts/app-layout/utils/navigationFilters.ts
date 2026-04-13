@@ -73,8 +73,8 @@ export const filters = {
    * - Experimental features enabled
    * - User is cloud admin
    * - User has specific feature flag
-   * - For v4Beta: show to all eligible users, but hide it for users who joined
-   *   post cutoff and therefore should not see the opt-out control
+   * - For v4Beta: show to eligible users who can still control the setting,
+   *   but hide it for rollout-managed users
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
@@ -92,10 +92,10 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const v4JoinedPostCutoff = ctx.session?.user?.v4JoinedPostCutoff === true;
+      const canToggleV4Beta = ctx.session?.user?.canToggleV4Beta !== false;
       const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
 
-      return !v4JoinedPostCutoff &&
+      return canToggleV4Beta &&
         (ctx.isLangfuseCloud ||
           ctx.enableExperimentalFeatures ||
           ctx.cloudAdmin ||

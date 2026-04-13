@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { resolveV4BetaRollout } from "@/src/features/events/lib/v4BetaRollout";
+import { canToggleV4Beta } from "@/src/features/events/lib/v4BetaRollout";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -67,45 +67,6 @@ async function checkUserCanBeDeleted(
   return {
     canDelete: organizationsWhereLastOwner.length === 0,
     blockingOrganizations: organizationsWhereLastOwner,
-  };
-}
-
-async function getUserV4BetaRolloutContext(
-  userId: string,
-  prisma:
-    | Omit<
-        PrismaClient,
-        | "$connect"
-        | "$disconnect"
-        | "$on"
-        | "$transaction"
-        | "$use"
-        | "$extends"
-      >
-    | Prisma.TransactionClient,
-) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      createdAt: true,
-      organizationMemberships: {
-        select: {
-          organization: {
-            select: {
-              createdAt: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return {
-    userCreatedAt: user?.createdAt ?? null,
-    organizationCreatedAts:
-      user?.organizationMemberships.map(
-        (membership) => membership.organization.createdAt,
-      ) ?? [],
   };
 }
 
@@ -169,25 +130,54 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      const { organizationCreatedAts, userCreatedAt } =
-        await getUserV4BetaRolloutContext(ctx.session.user.id, ctx.prisma);
-      const v4BetaRollout = resolveV4BetaRollout({
-        userPreferenceEnabled: input.enabled,
-        userCreatedAt,
-        organizationCreatedAts,
+      const userRolloutState = await ctx.prisma.user.findUnique({
+        where: { id: ctx.session.user.id },
+        select: {
+          createdAt: true,
+          v4BetaEnabled: true,
+          organizationMemberships: {
+            select: {
+              organization: {
+                select: {
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
       });
 
-      if (v4BetaRollout.canPersistUserChoice) {
-        await ctx.prisma.user.update({
-          where: { id: ctx.session.user.id },
-          data: { v4BetaEnabled: input.enabled },
+      if (!userRolloutState) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
         });
       }
 
+      const userCanToggleV4Beta = canToggleV4Beta({
+        userCreatedAt: userRolloutState.createdAt,
+        organizationCreatedAts: userRolloutState.organizationMemberships.map(
+          (membership) => membership.organization.createdAt,
+        ),
+      });
+
+      if (!userCanToggleV4Beta) {
+        return {
+          success: true,
+          v4BetaEnabled: userRolloutState.v4BetaEnabled,
+          canToggleV4Beta: false,
+        };
+      }
+
+      await ctx.prisma.user.update({
+        where: { id: ctx.session.user.id },
+        data: { v4BetaEnabled: input.enabled },
+      });
+
       return {
         success: true,
-        v4BetaEnabled: v4BetaRollout.effectiveEnabled,
-        v4JoinedPostCutoff: v4BetaRollout.v4JoinedPostCutoff,
+        v4BetaEnabled: input.enabled,
+        canToggleV4Beta: true,
       };
     }),
 });

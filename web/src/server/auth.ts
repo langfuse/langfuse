@@ -64,7 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { resolveV4BetaRollout } from "@/src/features/events/lib/v4BetaRollout";
+import { canToggleV4Beta } from "@/src/features/events/lib/v4BetaRollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -551,7 +551,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -726,17 +726,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
 
-          const v4BetaRollout =
-            dbUser !== null
-              ? resolveV4BetaRollout({
-                  userPreferenceEnabled: dbUser.v4BetaEnabled,
-                  userCreatedAt: dbUser.createdAt,
-                  organizationCreatedAts: dbUser.organizationMemberships.map(
-                    (orgMembership) => orgMembership.organization.createdAt,
-                  ),
-                })
-              : null;
-
           return {
             ...session,
             environment: {
@@ -758,9 +747,15 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: v4BetaRollout?.effectiveEnabled ?? false,
-                    v4JoinedPostCutoff:
-                      v4BetaRollout?.v4JoinedPostCutoff ?? false,
+                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    canToggleV4Beta: canToggleV4Beta({
+                      userCreatedAt: dbUser.createdAt,
+                      organizationCreatedAts:
+                        dbUser.organizationMemberships.map(
+                          (orgMembership) =>
+                            orgMembership.organization.createdAt,
+                        ),
+                    }),
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),

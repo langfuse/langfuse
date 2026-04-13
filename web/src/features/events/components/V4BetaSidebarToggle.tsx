@@ -18,7 +18,7 @@ const PREVIEW_FAST_DESCRIPTION_ID = "preview-fast-toggle-description";
 export function V4BetaSidebarToggle() {
   const {
     isBetaEnabled,
-    v4JoinedPostCutoff,
+    canToggleV4Beta,
     setBetaEnabled,
     enableWithIntro,
     showIntroDialog,
@@ -27,7 +27,7 @@ export function V4BetaSidebarToggle() {
   } = useV4Beta();
   const capture = usePostHogClientCapture();
 
-  if (v4JoinedPostCutoff) {
+  if (!canToggleV4Beta) {
     return null;
   }
 
