@@ -1,21 +1,31 @@
-import { ArrowRight, ExternalLink } from "lucide-react";
+import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import {
   type OnboardingUpperCanvasStage,
   SpielwieseOnboardingUpperCanvas,
 } from "./SpielwieseOnboardingUpperCanvas";
-import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
+import {
+  type EntryTextMotionDelay,
+  getOnboardingEntryTextMotionClassName,
+} from "../spielwieseOnboardingEntryMotion";
 import { onboardingDetailsPrimaryButtonClassName } from "../spielwieseOnboardingPersonalDetailsOptions";
 import type { RoleStepScene } from "./SpielwieseOnboardingQuestionPanel";
 
 const onboardingRoleLeadClassName =
   "text-[1.85rem]/[2.2rem] font-semibold tracking-[-0.04em] text-[rgb(36,37,41)] sm:text-[2.1rem]/[2.45rem]";
-const anthropicApiKeyHref = "https://console.anthropic.com/settings/keys";
+const onboardingRolePreviewCopyClassName =
+  "mx-auto grid w-full max-w-[44rem] gap-4 text-center";
+const onboardingRoleCopySwapClassName =
+  "animate-spielwiese-onboarding-copy-swap";
+const onboardingRoleContinueRowClassName =
+  "mx-auto flex w-full max-w-[23.25rem] justify-center";
+const onboardingEntryContinueButtonWidthClassName = "w-full max-w-[23.25rem]";
 
 function getRoleStepPreviewCopy(roleScene: RoleStepScene) {
   switch (roleScene) {
     case "api-key":
       return {
-        body: "Paste a Claude key to run this room with your own account.",
+        body: "Paste a Claude key in the model picker to keep moving.",
         title: "Add your Anthropic API key.",
       };
     case "model-selection":
@@ -49,15 +59,17 @@ function getRoleStepUpperCanvasStage(
 }
 
 function RoleStepContinueButton({
+  delay,
   disabled,
   onClick,
 }: {
+  delay: EntryTextMotionDelay;
   disabled: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`${onboardingDetailsPrimaryButtonClassName} ${getOnboardingEntryTextMotionClassName(true, 200)} inline-flex w-auto min-w-[6.75rem] items-center justify-center gap-1 px-3 disabled:pointer-events-none disabled:opacity-40`}
+      className={`${onboardingDetailsPrimaryButtonClassName} ${onboardingEntryContinueButtonWidthClassName} ${getOnboardingEntryTextMotionClassName(true, delay)} inline-flex items-center justify-center gap-1 px-3 disabled:pointer-events-none disabled:opacity-40`}
       disabled={disabled}
       onClick={onClick}
       type="button"
@@ -68,55 +80,13 @@ function RoleStepContinueButton({
   );
 }
 
-function AnthropicApiKeyPrompt({
-  apiKeyValue,
-  modelValue,
-  onApiKeyChange,
-}: {
-  apiKeyValue: string;
-  modelValue: string;
-  onApiKeyChange: (value: string) => void;
-}) {
+function RoleStepContinueSlot({ children }: { children: ReactNode }) {
   return (
     <div
-      className={`mx-auto flex w-full max-w-[43rem] flex-col gap-3 rounded-[18px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.82)] px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:flex-row sm:items-end sm:justify-between sm:gap-4 ${getOnboardingEntryTextMotionClassName(true, 120)}`}
-      data-testid="spielwiese-onboarding-api-key-callout"
+      className={`${onboardingRoleContinueRowClassName} min-h-9`}
+      data-testid="spielwiese-onboarding-role-continue-row"
     >
-      <div className="grid gap-1">
-        <p className="text-[0.82rem]/5 font-semibold tracking-[-0.01em] text-[rgb(36,37,41)]">
-          Connect {modelValue} with your Anthropic key.
-        </p>
-        <p className="text-[0.78rem]/5 font-medium tracking-[-0.01em] text-[rgb(94,96,100)]">
-          You can create one in the Anthropic console and paste it here.
-        </p>
-      </div>
-      <div className="grid min-w-0 gap-2 sm:min-w-[22rem]">
-        <div className="flex items-center justify-between gap-3">
-          <label
-            className="text-[0.72rem]/4 font-semibold tracking-[0.02em] text-[rgb(116,118,123)] uppercase"
-            htmlFor="spielwiese-onboarding-anthropic-api-key"
-          >
-            Anthropic API key
-          </label>
-          <a
-            className="inline-flex items-center gap-1 text-[0.76rem]/4 font-medium tracking-[-0.01em] text-[rgb(69,98,191)] transition-opacity duration-150 hover:opacity-72"
-            href={anthropicApiKeyHref}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <span>Open Anthropic</span>
-            <ExternalLink aria-hidden="true" className="size-3 shrink-0" />
-          </a>
-        </div>
-        <input
-          className="h-10 w-full rounded-[12px] border border-[rgba(17,24,39,0.08)] bg-white px-3 text-sm/5 font-medium tracking-[-0.01em] text-[rgb(36,37,41)] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] outline-none transition-[border-color,box-shadow] focus:border-[rgba(59,91,186,0.32)] focus:shadow-[0_0_0_3px_rgba(59,91,186,0.08)]"
-          id="spielwiese-onboarding-anthropic-api-key"
-          onChange={(event) => onApiKeyChange(event.target.value)}
-          placeholder="sk-ant-api03-..."
-          type="password"
-          value={apiKeyValue}
-        />
-      </div>
+      {children}
     </div>
   );
 }
@@ -148,11 +118,13 @@ export function RoleStepBridgeCopy({
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function RoleStepPreviewPanel({
   apiKeyValue,
   isContinueDisabled,
   modelValue,
   onApiKeyChange,
+  onApiKeyContinue,
   onModelChange,
   onSystemPromptChange,
   onContinue,
@@ -164,6 +136,7 @@ export function RoleStepPreviewPanel({
   isContinueDisabled: boolean;
   modelValue: string;
   onApiKeyChange: (value: string) => void;
+  onApiKeyContinue: () => void;
   onModelChange: (value: string) => void;
   onSystemPromptChange: (value: string) => void;
   onContinue: () => void;
@@ -172,8 +145,9 @@ export function RoleStepPreviewPanel({
   systemPromptValue: string;
 }) {
   const previewCopy = getRoleStepPreviewCopy(roleScene);
-  const showsContinueButton =
-    roleScene === "preview" || roleScene === "api-key";
+  const showsContinueButton = roleScene === "preview";
+  const stageStackClassName =
+    "mx-auto grid w-full max-w-[64rem] -translate-y-4 gap-6 md:gap-7";
 
   if (!previewCopy) {
     return null;
@@ -185,35 +159,47 @@ export function RoleStepPreviewPanel({
       data-testid="spielwiese-onboarding-question-panel"
     >
       <div className="flex flex-1 items-center justify-center">
-        <div className="grid w-full gap-8 md:gap-10">
-          <div className="mx-auto grid w-full max-w-[38rem] gap-4 pb-2 text-center">
+        <div className={stageStackClassName}>
+          <div
+            className={`${onboardingRolePreviewCopyClassName} ${onboardingRoleCopySwapClassName}`}
+            data-testid="spielwiese-onboarding-role-copy-block"
+            key={roleScene}
+          >
             <h1 className={onboardingRoleLeadClassName}>{previewCopy.title}</h1>
             <p className="text-sm/5 font-medium tracking-[-0.01em] text-[rgb(80,81,84)]">
               {previewCopy.body}
             </p>
           </div>
-          {roleScene === "api-key" ? (
-            <AnthropicApiKeyPrompt
+          <div
+            className="mx-auto w-full"
+            data-testid="spielwiese-onboarding-role-canvas-wrap"
+          >
+            <SpielwieseOnboardingUpperCanvas
               apiKeyValue={apiKeyValue}
               modelValue={modelValue}
               onApiKeyChange={onApiKeyChange}
+              onApiKeyContinue={onApiKeyContinue}
+              onModelChange={onModelChange}
+              onSystemPromptChange={onSystemPromptChange}
+              stage={getRoleStepUpperCanvasStage(roleScene)}
+              systemPromptValue={systemPromptValue}
             />
-          ) : null}
-          <SpielwieseOnboardingUpperCanvas
-            modelValue={modelValue}
-            onModelChange={onModelChange}
-            onSystemPromptChange={onSystemPromptChange}
-            stage={getRoleStepUpperCanvasStage(roleScene)}
-            systemPromptValue={systemPromptValue}
-          />
-          {showsContinueButton ? (
-            <div className="mx-auto flex w-full max-w-[68rem] justify-end">
+          </div>
+          <RoleStepContinueSlot>
+            {showsContinueButton ? (
               <RoleStepContinueButton
+                delay={200}
                 disabled={isContinueDisabled}
                 onClick={onContinue}
               />
-            </div>
-          ) : null}
+            ) : (
+              <div
+                aria-hidden="true"
+                className={`${onboardingEntryContinueButtonWidthClassName} h-9`}
+                data-testid="spielwiese-onboarding-role-continue-placeholder"
+              />
+            )}
+          </RoleStepContinueSlot>
         </div>
       </div>
     </div>

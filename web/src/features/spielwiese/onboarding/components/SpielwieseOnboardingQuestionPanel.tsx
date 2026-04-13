@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   RoleStepBridgeCopy,
   RoleStepPreviewPanel,
@@ -13,7 +14,7 @@ import {
 import { ONBOARDING_QUESTIONS } from "../spielwieseOnboardingFlow";
 
 const onboardingQuestionPanelClassName =
-  "animate-in fade-in-0 slide-in-from-bottom-2 duration-500 flex min-h-[30rem] flex-col border-0 bg-transparent px-6 py-10 shadow-none sm:px-10 sm:py-12";
+  "animate-in fade-in-0 slide-in-from-bottom-2 duration-500 flex w-full min-h-[30rem] flex-col border-0 bg-transparent px-6 pt-6 pb-0 shadow-none sm:px-10 sm:pt-8 sm:pb-0";
 const onboardingQuestionSupportingCopy =
   "Pick the closest answer. We can tune the room from there.";
 
@@ -174,6 +175,7 @@ type SpielwieseOnboardingQuestionPanelProps = {
   onBack: () => void;
   onContinue: () => void;
   onRoleApiKeyChange?: (value: string) => void;
+  onRoleApiKeyContinue?: () => void;
   onRoleBridgeAnimationEnd?: () => void;
   onRoleModelChange?: (value: string) => void;
   onRoleSystemPromptChange?: (value: string) => void;
@@ -230,6 +232,7 @@ function RoleStepGatePanel({
   );
 }
 
+// eslint-disable-next-line complexity, max-lines-per-function
 function RoleStepQuestionPanel({
   activeAnswer,
   activeQuestion,
@@ -237,6 +240,7 @@ function RoleStepQuestionPanel({
   onBack,
   onContinue,
   onRoleApiKeyChange,
+  onRoleApiKeyContinue,
   onRoleBridgeAnimationEnd,
   onRoleModelChange,
   onRoleSystemPromptChange,
@@ -264,9 +268,12 @@ function RoleStepQuestionPanel({
     return (
       <RoleStepPreviewPanel
         apiKeyValue={roleApiKeyValue}
-        isContinueDisabled={roleScene === "preview" && roleSystemPromptValue.trim().length === 0}
+        isContinueDisabled={
+          roleScene === "preview" && roleSystemPromptValue.trim().length === 0
+        }
         modelValue={roleModelValue}
         onApiKeyChange={onRoleApiKeyChange ?? (() => {})}
+        onApiKeyContinue={onRoleApiKeyContinue ?? onContinue}
         onModelChange={onRoleModelChange ?? (() => {})}
         onSystemPromptChange={onRoleSystemPromptChange ?? (() => {})}
         onContinue={onContinue}
@@ -289,12 +296,14 @@ function RoleStepQuestionPanel({
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseOnboardingQuestionPanel({
   activeAnswer,
   activeStepIndex,
   onBack,
   onContinue,
   onRoleApiKeyChange,
+  onRoleApiKeyContinue,
   onRoleBridgeAnimationEnd,
   onRoleModelChange,
   onRoleSystemPromptChange,
@@ -315,6 +324,7 @@ export function SpielwieseOnboardingQuestionPanel({
         onBack={onBack}
         onContinue={onContinue}
         onRoleApiKeyChange={onRoleApiKeyChange}
+        onRoleApiKeyContinue={onRoleApiKeyContinue}
         onRoleBridgeAnimationEnd={onRoleBridgeAnimationEnd}
         onRoleModelChange={onRoleModelChange}
         onRoleSystemPromptChange={onRoleSystemPromptChange}

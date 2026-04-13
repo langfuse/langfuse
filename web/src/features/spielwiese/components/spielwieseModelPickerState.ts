@@ -57,15 +57,20 @@ export function createProviderSelectHandler({
 }
 
 export function createModelSelectHandler({
+  closeOnSelect = true,
   onClose,
   onValueChange,
 }: {
+  closeOnSelect?: boolean;
   onClose: () => void;
   onValueChange: (value: string) => void;
 }) {
   return (modelLabel: string) => {
     onValueChange(modelLabel);
-    onClose();
+
+    if (closeOnSelect) {
+      onClose();
+    }
   };
 }
 

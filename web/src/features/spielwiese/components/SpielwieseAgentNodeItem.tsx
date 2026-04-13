@@ -1,4 +1,8 @@
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseDetachedUserDeckRegion } from "./SpielwieseDetachedUserDeckRegion";
 import { SpielwiesePrimaryAgentDeckRegion } from "./SpielwiesePrimaryAgentDeckRegion";
 import {
@@ -213,12 +217,18 @@ export function SpielwieseAgentNodeItem({
   onToggleCompact,
   onTogglePreviewFocus,
 }: SpielwieseAgentNodeItemProps) {
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const isOnboarding = isOnboardingChrome(chrome);
   const { modelSetting, toolOptions } = getAgentNodeDeckData(node);
   const nodeLayout = getAgentNodeLayout(node);
 
   return (
     <li
-      className="group/agent-node grid gap-1.5 last:pb-5"
+      className={
+        isOnboarding
+          ? "group/agent-node grid gap-1.5"
+          : "group/agent-node grid gap-1.5 last:pb-5"
+      }
       data-testid="spielwiese-agent-node"
     >
       <AgentNodeDecks

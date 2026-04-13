@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   getSpielwieseDashboardVm,
   getSpielwieseShellVm,
@@ -17,6 +17,7 @@ import {
 } from "../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
+import { consumeOnboardingDashboardHandoff } from "../onboarding/spielwieseOnboardingDashboardHandoff";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
 import { useSpielwieseShell } from "../shell/SpielwieseShellProvider";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
@@ -75,13 +76,68 @@ const spielwieseDashboardPageStyle = {
   }),
 };
 
+function getDashboardWithOnboardingHandoff({
+  pageId,
+  handoff,
+}: {
+  pageId: string;
+  handoff: ReturnType<typeof consumeOnboardingDashboardHandoff> | null;
+}) {
+  const dashboard = getSpielwieseDashboardVm(pageId);
+
+  if (!handoff || pageId !== "assistant") {
+    return dashboard;
+  }
+
+  const seedNode =
+    getSpielwieseDashboardVm("vision-agent").canvas.agentNodes[0];
+
+  if (!seedNode) {
+    return dashboard;
+  }
+
+  return {
+    ...dashboard,
+    canvas: {
+      ...dashboard.canvas,
+      agentNodes: [
+        {
+          ...seedNode,
+          settings: seedNode.settings.map((setting) =>
+            setting.id === "model"
+              ? { ...setting, value: handoff.modelValue }
+              : setting,
+          ),
+          promptSections: seedNode.promptSections.map((section) =>
+            section.id === "system"
+              ? {
+                  ...section,
+                  value: handoff.systemPromptValue,
+                }
+              : section,
+          ),
+        },
+      ],
+      stats: dashboard.canvas.stats.map((stat) =>
+        stat.id === "blocks" ? { ...stat, value: "01" } : stat,
+      ),
+    },
+  };
+}
+
 export default function SpielwieseDashboardPage() {
   const pageId = useSyncExternalStore(
     subscribeToHash,
     getPageIdFromHash,
     () => "assistant",
   );
-  const dashboard = getSpielwieseDashboardVm(pageId);
+  const [onboardingHandoff] = useState(() =>
+    typeof window === "undefined" ? null : consumeOnboardingDashboardHandoff(),
+  );
+  const dashboard = getDashboardWithOnboardingHandoff({
+    handoff: onboardingHandoff,
+    pageId,
+  });
   const shell = getSpielwieseShellVm(pageId);
   const variablesState = useSpielwieseVariablesPanelState(
     dashboard.variablesPanel.items,

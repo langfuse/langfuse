@@ -39,7 +39,7 @@ function EntryScene({
   step: EntryStep;
 }) {
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white">
+    <div className="min-h-screen-with-banner relative overflow-hidden bg-white">
       <div
         className={getOnboardingSceneLayerClassName(isTransitioningOut)}
         data-testid="spielwiese-onboarding-entry-layer"
@@ -89,7 +89,7 @@ export default function SpielwieseOnboardingPage({
 
   return (
     <div
-      className="bg-background isolate min-h-dvh [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
+      className="bg-background min-h-screen-with-banner isolate [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
     >
       {entryStep ? (

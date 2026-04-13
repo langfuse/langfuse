@@ -1,5 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "../components/spielwieseResizableTestMock";
+import {
+  resetOnboardingDashboardHandoffForTests,
+  setOnboardingDashboardHandoff,
+} from "../onboarding/spielwieseOnboardingDashboardHandoff";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
 const originalHash = window.location.hash;
@@ -8,6 +12,7 @@ const originalMatchMedia = window.matchMedia;
 afterEach(() => {
   window.location.hash = originalHash;
   window.matchMedia = originalMatchMedia;
+  resetOnboardingDashboardHandoffForTests();
 });
 
 function renderPage() {
@@ -22,6 +27,12 @@ function createDesktopMatchMedia() {
     onchange: null,
     removeEventListener: jest.fn(),
   }));
+}
+
+function getEmptyStateNewNodeTrigger() {
+  return within(
+    screen.getByTestId("spielwiese-agent-node-empty-state"),
+  ).getByTestId("spielwiese-agent-node-insert-trigger");
 }
 
 function expectDefaultCanvasLayerVars(root: HTMLElement) {
@@ -68,9 +79,7 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(
       screen.getByTestId("spielwiese-agent-node-insert-footer"),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Toggle new node tray" }),
-    ).toBeTruthy();
+    expect(getEmptyStateNewNodeTrigger()).toBeTruthy();
     expect(
       screen.queryAllByTestId("spielwiese-playground-flow-node"),
     ).toHaveLength(0);
@@ -81,6 +90,7 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(screen.getByTestId("spielwiese-shell")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-shell-header")).toBeTruthy();
     expect(root).toBeTruthy();
+    expect(getEmptyStateNewNodeTrigger()).toBeTruthy();
     expect(root?.className).toContain("h-screen-with-banner");
     expect(root?.className).toContain("overflow-hidden");
   });
@@ -101,9 +111,7 @@ describe("SpielwieseDashboardPage rendering", () => {
     window.matchMedia = createDesktopMatchMedia();
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Toggle new node tray" }),
-    );
+    fireEvent.click(getEmptyStateNewNodeTrigger());
     fireEvent.click(screen.getByRole("button", { name: "Agent" }));
 
     expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
@@ -112,13 +120,32 @@ describe("SpielwieseDashboardPage rendering", () => {
     ).toHaveLength(1);
   });
 
+  it("hydrates the assistant dashboard from onboarding handoff values", () => {
+    setOnboardingDashboardHandoff({
+      modelValue: "Claude Opus 4.6",
+      systemPromptValue: "Act as if you were a senior business strategist",
+    });
+
+    renderPage();
+
+    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "vision-agent Model" }).textContent,
+    ).toContain("Claude Opus 4.6");
+    expect(
+      (
+        screen.getByLabelText(
+          "vision-agent Instructions",
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe("Act as if you were a senior business strategist");
+  });
+
   it("keeps user-only steps blank in the playground but includes the agent tag in the header", () => {
     window.matchMedia = createDesktopMatchMedia();
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Toggle new node tray" }),
-    );
+    fireEvent.click(getEmptyStateNewNodeTrigger());
     fireEvent.click(screen.getByRole("button", { name: "User" }));
 
     const userInput = screen.getByLabelText("user-node User message");

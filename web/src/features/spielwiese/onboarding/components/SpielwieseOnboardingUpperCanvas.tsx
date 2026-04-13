@@ -9,6 +9,7 @@ import {
   spielwieseMessageSectionChipPaddingDefaults,
 } from "../../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseEditorCanvas } from "../../components/SpielwieseEditorCanvas";
+import { SpielwieseOnboardingModelPickerProvider } from "../../components/SpielwieseOnboardingModelPickerContext";
 import { SpielwieseVariableValuesProvider } from "../../components/useSpielwieseVariableValues";
 import type { SpielwieseDashboardVM } from "../../types/dashboard";
 import { getSpielwieseDashboardVm } from "../../adapters/dashboardVm";
@@ -84,8 +85,8 @@ function getOnboardingSystemPromptValue(
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
 ) {
   return (
-    nodes[0]?.promptSections.find((section) => section.id === "system")?.value ??
-    ""
+    nodes[0]?.promptSections.find((section) => section.id === "system")
+      ?.value ?? ""
   );
 }
 
@@ -109,14 +110,29 @@ function getOnboardingCanvasChrome(stage: OnboardingUpperCanvasStage) {
   }
 }
 
+function getOnboardingCanvasFrameClassName(stage: OnboardingUpperCanvasStage) {
+  switch (stage) {
+    case "api-key":
+    case "model-selection":
+    case "preview":
+      return "min-h-0 overflow-visible";
+  }
+}
+
 export function SpielwieseOnboardingUpperCanvas({
+  apiKeyValue = "",
   modelValue = defaultOnboardingModel,
+  onApiKeyChange,
+  onApiKeyContinue,
   onModelChange,
   onSystemPromptChange,
   stage = "preview",
   systemPromptValue,
 }: {
+  apiKeyValue?: string;
   modelValue?: string;
+  onApiKeyChange?: (value: string) => void;
+  onApiKeyContinue?: () => void;
   onModelChange?: (value: string) => void;
   onSystemPromptChange: (value: string) => void;
   stage?: OnboardingUpperCanvasStage;
@@ -133,20 +149,32 @@ export function SpielwieseOnboardingUpperCanvas({
       data-testid="spielwiese-onboarding-upper-canvas"
       style={onboardingUpperCanvasStyle}
     >
-      <SpielwieseVariableValuesProvider
-        items={onboardingPreviewDashboard.variablesPanel.items}
+      <SpielwieseOnboardingModelPickerProvider
+        value={{
+          apiKeyValue,
+          onApiKeyChange: onApiKeyChange ?? (() => {}),
+          onApiKeyContinue: onApiKeyContinue ?? (() => {}),
+          showAnthropicApiKeyPrompt: stage === "api-key",
+        }}
       >
-        <div className="h-[24rem] min-h-0 overflow-hidden md:h-[27rem]">
-          <SpielwieseEditorCanvas
-            canvas={onboardingPreviewDashboard.canvas}
-            chrome={getOnboardingCanvasChrome(stage)}
-            onNodesChange={(nodes) => {
-              onSystemPromptChange(getOnboardingSystemPromptValue(nodes));
-              onModelChange?.(getOnboardingModelValue(nodes));
-            }}
-          />
-        </div>
-      </SpielwieseVariableValuesProvider>
+        <SpielwieseVariableValuesProvider
+          items={onboardingPreviewDashboard.variablesPanel.items}
+        >
+          <div
+            className={getOnboardingCanvasFrameClassName(stage)}
+            data-testid="spielwiese-onboarding-upper-canvas-frame"
+          >
+            <SpielwieseEditorCanvas
+              canvas={onboardingPreviewDashboard.canvas}
+              chrome={getOnboardingCanvasChrome(stage)}
+              onNodesChange={(nodes) => {
+                onSystemPromptChange(getOnboardingSystemPromptValue(nodes));
+                onModelChange?.(getOnboardingModelValue(nodes));
+              }}
+            />
+          </div>
+        </SpielwieseVariableValuesProvider>
+      </SpielwieseOnboardingModelPickerProvider>
     </div>
   );
 }

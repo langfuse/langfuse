@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { AnimationEvent, Dispatch, SetStateAction } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
@@ -10,6 +11,7 @@ import {
   getOnboardingStepPath,
   ONBOARDING_QUESTIONS,
 } from "../spielwieseOnboardingFlow";
+import { setOnboardingDashboardHandoff } from "../spielwieseOnboardingDashboardHandoff";
 
 type SpielwieseOnboardingCanvasProps = {
   requestedStepId?: string;
@@ -22,9 +24,6 @@ type StepExitAction =
     }
   | {
       kind: "show-role-bridge";
-    }
-  | {
-      kind: "show-role-model-selection";
     };
 type OnboardingAnswers = typeof EMPTY_ONBOARDING_ANSWERS;
 
@@ -64,13 +63,11 @@ function createOnboardingContinueHandler({
   activeAnswer,
   activeStepIndex,
   isStepTransitioningOut,
-  isRolePromptReady,
   roleScene,
 }: {
   activeAnswer: string;
   activeStepIndex: number;
   isStepTransitioningOut: boolean;
-  isRolePromptReady: boolean;
   roleScene: RoleStepScene;
 }) {
   const nextPath = getNextOnboardingPath(activeStepIndex);
@@ -83,16 +80,6 @@ function createOnboardingContinueHandler({
     if (activeStepIndex === 0 && roleScene === "gate") {
       return {
         kind: "show-role-bridge" as const,
-      };
-    }
-
-    if (activeStepIndex === 0 && roleScene === "preview") {
-      if (!isRolePromptReady) {
-        return null;
-      }
-
-      return {
-        kind: "show-role-model-selection" as const,
       };
     }
 
@@ -160,12 +147,6 @@ function createStepLayerAnimationEndHandler({
       return;
     }
 
-    if (stepExitAction.kind === "show-role-model-selection") {
-      setStepExitAction(null);
-      setRoleScene("model-selection");
-      return;
-    }
-
     const nextPath = stepExitAction.path;
     void Promise.resolve(router.push(nextPath, undefined, { shallow: true }))
       .then(() => {
@@ -193,6 +174,7 @@ function createRoleBridgeAnimationEndHandler({
   };
 }
 
+// eslint-disable-next-line max-lines-per-function
 function createOnboardingSceneHandlers({
   activeAnswer,
   activeQuestionId,
@@ -238,16 +220,44 @@ function createOnboardingSceneHandlers({
       ),
       setStepExitAction,
     }),
-    handleContinue: createStepExitActionHandler({
-      getNextAction: createOnboardingContinueHandler({
-        activeAnswer,
-        activeStepIndex,
-        isStepTransitioningOut,
-        isRolePromptReady,
-        roleScene,
-      }),
-      setStepExitAction,
-    }),
+    handleContinue: () => {
+      if (
+        activeStepIndex === 0 &&
+        roleScene === "preview" &&
+        isRolePromptReady &&
+        !isStepTransitioningOut
+      ) {
+        setRoleScene("model-selection");
+        return;
+      }
+
+      if (
+        activeStepIndex === 0 &&
+        roleScene === "api-key" &&
+        roleApiKeyValue.trim().length > 0 &&
+        !isStepTransitioningOut
+      ) {
+        setOnboardingDashboardHandoff({
+          modelValue: roleModelValue,
+          systemPromptValue: roleSystemPromptValue,
+        });
+        setStepExitAction({
+          kind: "navigate",
+          path: getSpielwieseDashboardPath(),
+        });
+        return;
+      }
+
+      createStepExitActionHandler({
+        getNextAction: createOnboardingContinueHandler({
+          activeAnswer,
+          activeStepIndex,
+          isStepTransitioningOut,
+          roleScene,
+        }),
+        setStepExitAction,
+      })();
+    },
     handleRoleBridgeAnimationEnd: createRoleBridgeAnimationEndHandler({
       roleScene,
       setRoleScene,
@@ -313,6 +323,7 @@ function getOnboardingCanvasStepState({
   };
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseOnboardingCanvas({
   requestedStepId,
 }: SpielwieseOnboardingCanvasProps) {

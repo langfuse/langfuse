@@ -170,14 +170,19 @@ function updateReportedNodes(
   editableCanvas.updateNodes(updater, reportCanvasChange);
 }
 
-function updateReportedNode(
-  editableCanvas: ReturnType<typeof useEditableCanvas>,
-  nodeId: string,
+function updateReportedNode({
+  editableCanvas,
+  nodeId,
+  updater,
+  reportCanvasChange,
+}: {
+  editableCanvas: ReturnType<typeof useEditableCanvas>;
+  nodeId: string;
   updater: (
     node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
-  ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number],
-  reportCanvasChange: (nextCanvas: EditableCanvasState) => void,
-) {
+  ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number];
+  reportCanvasChange: (nextCanvas: EditableCanvasState) => void;
+}) {
   editableCanvas.updateNode(nodeId, updater, reportCanvasChange);
 }
 
@@ -410,27 +415,27 @@ function getCanvasValueHandlers(
     onAgentNodeArchive: (nodeId: string) =>
       editableCanvas.archiveNode(nodeId, reportCanvasChange),
     onSettingValueChange: (nodeId: string, settingId: string, value: string) =>
-      updateReportedNode(
+      updateReportedNode({
         editableCanvas,
         nodeId,
-        (node) => ({
+        reportCanvasChange,
+        updater: (node) => ({
           ...node,
           settings: node.settings.map((setting) =>
             setting.id === settingId ? { ...setting, value } : setting,
           ),
         }),
-        reportCanvasChange,
-      ),
+      }),
     onTitleChange: (nodeId: string, value: string) =>
-      updateReportedNode(
+      updateReportedNode({
         editableCanvas,
         nodeId,
-        (node) => ({
+        reportCanvasChange,
+        updater: (node) => ({
           ...node,
           title: value,
         }),
-        reportCanvasChange,
-      ),
+      }),
   };
 }
 

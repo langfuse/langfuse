@@ -258,7 +258,7 @@ function OnboardingDetailsFormPanel({
 
   return (
     <div
-      className={`flex min-h-[43.125rem] items-center bg-white px-6 py-10 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)] sm:px-10 lg:px-[5.375rem] lg:py-12 ${formPanelStateClassName}`}
+      className={`flex min-h-[37rem] items-center bg-white px-6 py-8 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)] sm:px-10 lg:px-12 lg:py-9 ${formPanelStateClassName}`}
       data-testid="spielwiese-personal-details-form-panel"
     >
       <div className="grid w-full place-items-center">
@@ -299,7 +299,7 @@ export function SpielwiesePersonalDetailsPanels({
   onContinue?: () => void;
 }) {
   return (
-    <div className="min-h-[43.125rem]">
+    <div className="min-h-[37rem]">
       <OnboardingDetailsFormPanel
         isActive={isActive}
         isTransitioning={isTransitioning}

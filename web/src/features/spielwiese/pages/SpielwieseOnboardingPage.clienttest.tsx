@@ -241,10 +241,10 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     expect(screen.getByTestId("spielwiese-onboarding-step-layer")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
-      screen.getByRole("button", {
+      screen.queryByRole("button", {
         name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
       }),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(
       screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
     ).toBeNull();
@@ -270,7 +270,7 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     ).toContain("bg-transparent");
     expect(
       screen.getByTestId("spielwiese-onboarding-surface-shell").className,
-    ).toContain("max-w-[36rem]");
+    ).toContain("max-w-[35rem]");
     expect(
       screen.getByTestId("spielwiese-onboarding-surface-shell").className,
     ).toContain("shadow-none");

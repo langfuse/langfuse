@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { cn } from "@/src/utils/tailwind";
 
@@ -8,6 +8,8 @@ type SpielwieseOnboardingSurfaceProps = {
   header: ReactNode;
   layout?: "single" | "split";
   pauseShaderMotion?: boolean;
+  sectionClassName?: string;
+  shellStyle?: CSSProperties;
   stageClassName?: string;
   shellClassName?: string;
   showBackdrop?: boolean;
@@ -24,19 +26,19 @@ const SpielwieseSignUpShader = dynamic(
 const isShaderRuntimeEnabled = process.env.NODE_ENV !== "test";
 
 const onboardingSurfaceSharedVarsClassName =
-  "[--sign-up-shell-max-width:70.625rem] [--sign-up-inner-radius:20px] [--sign-up-stage-padding:32px] [--sign-up-stage-outer-radius:calc(var(--sign-up-inner-radius)+var(--sign-up-stage-padding))] sm:[--sign-up-stage-padding:40px]";
+  "[--sign-up-shell-max-width:64rem] [--sign-up-inner-radius:20px] [--sign-up-stage-padding:24px] [--sign-up-stage-outer-radius:calc(var(--sign-up-inner-radius)+var(--sign-up-stage-padding))] sm:[--sign-up-stage-padding:32px]";
 const onboardingSurfaceStageClassName = cn(
-  "relative mx-auto w-full max-w-[72.625rem] rounded-[var(--sign-up-stage-outer-radius)] border border-[rgba(17,24,39,0.08)] bg-white/70 p-[var(--sign-up-stage-padding)] shadow-[0_24px_60px_-36px_rgba(17,24,39,0.18)]",
+  "relative mx-auto w-full max-w-[66rem] rounded-[var(--sign-up-stage-outer-radius)] border border-[rgba(17,24,39,0.08)] bg-white/70 p-[var(--sign-up-stage-padding)] shadow-[0_24px_60px_-36px_rgba(17,24,39,0.18)]",
   onboardingSurfaceSharedVarsClassName,
 );
 const onboardingSurfacePlainStageClassName = cn(
-  "mx-auto w-full max-w-[36rem]",
+  "mx-auto w-full max-w-[35rem]",
   onboardingSurfaceSharedVarsClassName,
 );
 const onboardingSurfaceShellClassName =
-  "relative z-10 mx-auto grid w-full max-w-[var(--sign-up-shell-max-width)] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgb(238,239,241)] bg-white lg:grid-cols-[1fr_1fr] xl:grid-cols-[564px_564px]";
+  "relative z-10 mx-auto grid w-full max-w-[var(--sign-up-shell-max-width)] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgb(238,239,241)] bg-white lg:grid-cols-[1fr_1fr] xl:grid-cols-[31rem_31rem]";
 const onboardingSurfaceSingleShellClassName =
-  "relative z-10 mx-auto w-full max-w-[36rem] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgba(17,24,39,0.08)] bg-white shadow-[0_24px_60px_-36px_rgba(17,24,39,0.14)]";
+  "relative z-10 mx-auto w-full max-w-[35rem] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgba(17,24,39,0.08)] bg-white shadow-[0_24px_60px_-36px_rgba(17,24,39,0.14)]";
 
 function SpielwieseOnboardingSurfaceBackdrop({
   pauseShaderMotion,
@@ -62,12 +64,40 @@ function SpielwieseOnboardingSurfaceBackdrop({
   );
 }
 
+function renderOnboardingSurfaceHeader(header: ReactNode) {
+  if (!header) {
+    return null;
+  }
+
+  return <header className="flex w-full justify-center">{header}</header>;
+}
+
+function getOnboardingSurfaceClassName({
+  hasFooter,
+  sectionClassName,
+}: {
+  hasFooter: boolean;
+  sectionClassName?: string;
+}) {
+  return cn(
+    "min-h-screen-with-banner relative flex flex-col items-center gap-4 px-4 pt-6 sm:px-6",
+    hasFooter ? "pb-4" : "pb-0",
+    sectionClassName,
+  );
+}
+
+function getOnboardingSurfaceFrameClassName(hasFooter: boolean) {
+  return cn("w-full", hasFooter ? "pt-3 pb-3 sm:pt-4 sm:pb-4" : "py-3 sm:py-4");
+}
+
 export default function SpielwieseOnboardingSurface({
   children,
   footer,
   header,
   layout = "split",
   pauseShaderMotion = false,
+  sectionClassName,
+  shellStyle,
   stageClassName,
   shellClassName,
   showBackdrop = true,
@@ -82,16 +112,20 @@ export default function SpielwieseOnboardingSurface({
     layout === "single"
       ? onboardingSurfaceSingleShellClassName
       : onboardingSurfaceShellClassName;
+  const hasFooter = Boolean(footer);
 
   return (
     <section
-      className="relative flex min-h-dvh flex-col items-center gap-6 px-4 pt-8 pb-6 sm:px-6"
+      className={getOnboardingSurfaceClassName({
+        hasFooter,
+        sectionClassName,
+      })}
       data-testid={testId}
     >
       {topOverlay}
-      <header className="flex w-full justify-center">{header}</header>
+      {renderOnboardingSurfaceHeader(header)}
       <div className="flex w-full flex-1 items-center justify-center">
-        <div className="w-full py-6 sm:py-8">
+        <div className={getOnboardingSurfaceFrameClassName(hasFooter)}>
           <div className={cn(surfaceStageClassName, stageClassName)}>
             {showBackdrop ? (
               <SpielwieseOnboardingSurfaceBackdrop
@@ -102,6 +136,7 @@ export default function SpielwieseOnboardingSurface({
             <div
               className={cn(surfaceShellClassName, shellClassName)}
               data-testid="spielwiese-onboarding-surface-shell"
+              style={shellStyle}
             >
               {children}
             </div>

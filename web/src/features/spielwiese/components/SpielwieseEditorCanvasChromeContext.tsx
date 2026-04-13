@@ -25,6 +25,10 @@ export function isOnboardingModelSelectionChrome(
   return chrome === "onboarding-model-selection";
 }
 
+export function isOnboardingApiKeyChrome(chrome: SpielwieseEditorCanvasChrome) {
+  return chrome === "onboarding-api-key";
+}
+
 export function SpielwieseEditorCanvasChromeProvider({
   children,
   chrome,

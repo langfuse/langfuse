@@ -152,7 +152,7 @@ function SignUpFormPanel({ isActive }: { isActive: boolean }) {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-[38rem] flex-col bg-white px-6 py-12 sm:px-10 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
+    <div className="flex min-h-[34rem] flex-col bg-white px-6 py-8 sm:px-10 lg:min-h-[37rem] lg:px-12 lg:py-9">
       <div className="flex flex-1 items-center justify-center">
         <div className="grid w-full max-w-[23.25rem] gap-7">
           <button
@@ -193,7 +193,7 @@ function SignUpFormPanel({ isActive }: { isActive: boolean }) {
 
 function SignUpWelcomePanel({ isActive }: { isActive: boolean }) {
   return (
-    <div className="flex min-h-[22rem] bg-white px-8 py-14 sm:px-12 sm:py-16 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
+    <div className="flex min-h-[20rem] bg-white px-8 py-10 sm:px-12 sm:py-12 lg:min-h-[37rem] lg:px-12 lg:py-9">
       <div className="flex items-center">
         <div className="grid max-w-[24.5rem] translate-y-[-5px] gap-4">
           <h1
@@ -264,12 +264,12 @@ export default function SpielwieseOnboardingEntryCard({
         </div>
       }
     >
-      <div className="relative min-h-[43.125rem] lg:col-span-2">
+      <div className="relative min-h-[37rem] lg:col-span-2">
         <div
           aria-hidden={isPersonalDetails}
           className={getEntryContentClassName(!isPersonalDetails)}
         >
-          <div className="grid min-h-[43.125rem] lg:grid-cols-[1fr_1fr] xl:grid-cols-[564px_564px]">
+          <div className="grid min-h-[37rem] lg:grid-cols-[1fr_1fr] xl:grid-cols-[31rem_31rem]">
             <SignUpFormPanel isActive={!isPersonalDetails} />
             <SignUpWelcomePanel isActive={!isPersonalDetails} />
           </div>

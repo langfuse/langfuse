@@ -1,13 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
+  isOnboardingApiKeyChrome,
+  isOnboardingChrome,
   isOnboardingModelSelectionChrome,
   useSpielwieseEditorCanvasChrome,
 } from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseAgentNodeTitleControlContent } from "./SpielwieseAgentNodeTitleControlContent";
 import type { SpielwieseModelPickerProps } from "./SpielwieseModelPicker";
+import { useSpielwieseOnboardingModelPicker } from "./SpielwieseOnboardingModelPickerContext";
+
+const onboardingCopyAnimationDurationMs = 820;
+const onboardingModalGapMs = 250;
+const onboardingTitleSurfaceTransitionDurationMs = 180;
+const onboardingModelPickerOpenDelayMs =
+  onboardingCopyAnimationDurationMs +
+  onboardingModalGapMs -
+  onboardingTitleSurfaceTransitionDurationMs;
+const onboardingApiKeyPaneDelayMs =
+  onboardingCopyAnimationDurationMs + onboardingModalGapMs;
 
 function resetModelPickerState({
   setHoveredModelLabel,
@@ -62,31 +75,122 @@ type SpielwieseAgentNodeTitleControlProps = {
   onTitleChange: (nodeId: string, value: string) => void;
 };
 
+function getOnboardingPickerChromeState({
+  chrome,
+  isModelPickerOpen,
+  providerId,
+}: {
+  chrome: ReturnType<typeof useSpielwieseEditorCanvasChrome>;
+  isModelPickerOpen: boolean;
+  providerId: string | null;
+}) {
+  const isOnboardingModelSelection = isOnboardingModelSelectionChrome(chrome);
+  const isOnboardingApiKey = isOnboardingApiKeyChrome(chrome);
+  const isOnboardingPickerStep =
+    isOnboardingModelSelection || isOnboardingApiKey;
+
+  return {
+    effectiveIsModelPickerOpen: isOnboardingChrome(chrome)
+      ? isOnboardingPickerStep && isModelPickerOpen
+      : isModelPickerOpen,
+    effectiveProviderId: isOnboardingPickerStep ? "anthropic" : providerId,
+    isOnboardingApiKey,
+    isOnboardingModelSelection,
+    isOnboardingPickerStep,
+  };
+}
+
+function getOnModelPickerOpenChange({
+  closePicker,
+  isOnboardingPickerStep,
+  setIsModelPickerOpen,
+}: {
+  closePicker: () => void;
+  isOnboardingPickerStep: boolean;
+  setIsModelPickerOpen: (open: boolean) => void;
+}) {
+  return (open: boolean) => {
+    if (!open && !isOnboardingPickerStep) {
+      closePicker();
+      return;
+    }
+
+    if (open) {
+      setIsModelPickerOpen(true);
+    }
+  };
+}
+
+function getOnboardingPickerAnimationProps({
+  isOnboardingApiKey,
+  isOnboardingModelSelection,
+}: {
+  isOnboardingApiKey: boolean;
+  isOnboardingModelSelection: boolean;
+}) {
+  const popoverAnimationDelayMs = isOnboardingApiKey
+    ? onboardingApiKeyPaneDelayMs
+    : undefined;
+
+  if (isOnboardingModelSelection) {
+    return {
+      apiKeyPaneAnimationDelayMs: undefined,
+      popoverAnimationDelayMs: onboardingModelPickerOpenDelayMs,
+    };
+  }
+
+  return {
+    apiKeyPaneAnimationDelayMs: isOnboardingApiKey
+      ? onboardingApiKeyPaneDelayMs
+      : undefined,
+    popoverAnimationDelayMs,
+  };
+}
+
 function getTitleControlPickerPanelProps({
+  anthropicApiKeyValue = "",
+  apiKeyPaneAnimationDelayMs,
+  closeOnSelect,
   currentModel,
   hoveredModelLabel,
   modelSetting,
   node,
+  onAnthropicApiKeyChange,
+  onAnthropicApiKeyContinue,
   onClose,
   onSettingValueChange,
   providerId,
+  popoverAnimationDelayMs,
   setHoveredModelLabel,
+  showAnthropicApiKeyPrompt = false,
   setProviderId,
 }: {
+  anthropicApiKeyValue?: string;
+  apiKeyPaneAnimationDelayMs?: number;
+  closeOnSelect?: boolean;
   currentModel: string;
   hoveredModelLabel: string | null;
   modelSetting: SpielwieseAgentNodeTitleControlProps["modelSetting"];
   node: SpielwieseAgentNodeVM;
+  onAnthropicApiKeyChange?: (value: string) => void;
+  onAnthropicApiKeyContinue?: () => void;
   onClose: () => void;
   onSettingValueChange: SpielwieseAgentNodeTitleControlProps["onSettingValueChange"];
+  popoverAnimationDelayMs?: number;
   providerId: string | null;
   setHoveredModelLabel: (value: string | null) => void;
+  showAnthropicApiKeyPrompt?: boolean;
   setProviderId: (value: string | null) => void;
 }): SpielwieseModelPickerProps {
   return {
+    anthropicApiKeyValue,
+    apiKeyPaneAnimationDelayMs,
+    closeOnSelect,
     currentModel,
     hoveredModelLabel,
     onClose,
+    onAnthropicApiKeyChange,
+    onAnthropicApiKeyContinue,
     onValueChange: (value) => {
       if (!modelSetting) {
         return;
@@ -94,10 +198,64 @@ function getTitleControlPickerPanelProps({
 
       onSettingValueChange(node.id, modelSetting.id, value);
     },
+    popoverAnimationDelayMs,
     providerId,
     setHoveredModelLabel,
     setProviderId,
+    showAnthropicApiKeyPrompt,
   };
+}
+
+function getPickerPanelPropsForTitleControl({
+  closePicker,
+  currentModel,
+  effectiveProviderId,
+  hoveredModelLabel,
+  isOnboardingApiKey,
+  isOnboardingModelSelection,
+  isOnboardingPickerStep,
+  modelSetting,
+  node,
+  onboardingModelPicker,
+  onSettingValueChange,
+  setHoveredModelLabel,
+  setProviderId,
+}: {
+  closePicker: () => void;
+  currentModel: string;
+  effectiveProviderId: string | null;
+  hoveredModelLabel: string | null;
+  isOnboardingApiKey: boolean;
+  isOnboardingModelSelection: boolean;
+  isOnboardingPickerStep: boolean;
+  modelSetting: SpielwieseAgentNodeTitleControlProps["modelSetting"];
+  node: SpielwieseAgentNodeVM;
+  onboardingModelPicker: ReturnType<typeof useSpielwieseOnboardingModelPicker>;
+  onSettingValueChange: SpielwieseAgentNodeTitleControlProps["onSettingValueChange"];
+  setHoveredModelLabel: (value: string | null) => void;
+  setProviderId: (value: string | null) => void;
+}) {
+  return getTitleControlPickerPanelProps({
+    anthropicApiKeyValue: onboardingModelPicker?.apiKeyValue ?? "",
+    ...getOnboardingPickerAnimationProps({
+      isOnboardingApiKey,
+      isOnboardingModelSelection,
+    }),
+    closeOnSelect: !isOnboardingPickerStep,
+    currentModel,
+    hoveredModelLabel,
+    modelSetting,
+    node,
+    onAnthropicApiKeyChange: onboardingModelPicker?.onApiKeyChange,
+    onAnthropicApiKeyContinue: onboardingModelPicker?.onApiKeyContinue,
+    onClose: closePicker,
+    onSettingValueChange,
+    providerId: effectiveProviderId,
+    setHoveredModelLabel,
+    setProviderId,
+    showAnthropicApiKeyPrompt:
+      onboardingModelPicker?.showAnthropicApiKeyPrompt ?? false,
+  });
 }
 
 export function SpielwieseAgentNodeTitleControl({
@@ -107,6 +265,7 @@ export function SpielwieseAgentNodeTitleControl({
   onTitleChange,
 }: SpielwieseAgentNodeTitleControlProps) {
   const chrome = useSpielwieseEditorCanvasChrome();
+  const onboardingModelPicker = useSpielwieseOnboardingModelPicker();
   const {
     closePicker,
     hoveredModelLabel,
@@ -117,43 +276,43 @@ export function SpielwieseAgentNodeTitleControl({
     setProviderId,
   } = useModelPickerControlState();
   const currentModel = modelSetting?.value ?? "GPT-4.1 mini";
-  const isOnboardingModelSelection =
-    isOnboardingModelSelectionChrome(chrome);
-
-  useEffect(() => {
-    if (!isOnboardingModelSelection) {
-      return;
-    }
-
-    setIsModelPickerOpen(true);
-    setProviderId("anthropic");
-  }, [isOnboardingModelSelection, setIsModelPickerOpen, setProviderId]);
-
+  const {
+    effectiveIsModelPickerOpen,
+    effectiveProviderId,
+    isOnboardingApiKey,
+    isOnboardingModelSelection,
+    isOnboardingPickerStep,
+  } = getOnboardingPickerChromeState({ chrome, isModelPickerOpen, providerId });
+  const onModelPickerOpenChange = getOnModelPickerOpenChange({
+    closePicker,
+    isOnboardingPickerStep,
+    setIsModelPickerOpen,
+  });
+  const pickerPanelProps = getPickerPanelPropsForTitleControl({
+    closePicker,
+    currentModel,
+    effectiveProviderId,
+    hoveredModelLabel,
+    isOnboardingApiKey,
+    isOnboardingModelSelection,
+    isOnboardingPickerStep,
+    modelSetting,
+    node,
+    onboardingModelPicker,
+    onSettingValueChange,
+    setHoveredModelLabel,
+    setProviderId,
+  });
   return (
     <SpielwieseAgentNodeTitleControlContent
       currentModel={currentModel}
-      isModelPickerOpen={isModelPickerOpen}
+      isOnboardingApiKey={isOnboardingApiKey}
+      isOnboardingModelSelection={isOnboardingModelSelection}
+      isModelPickerOpen={effectiveIsModelPickerOpen}
       node={node}
-      onModelPickerOpenChange={(open) => {
-        if (!open) {
-          closePicker();
-          return;
-        }
-
-        setIsModelPickerOpen(true);
-      }}
+      onModelPickerOpenChange={onModelPickerOpenChange}
       onTitleChange={onTitleChange}
-      pickerPanelProps={getTitleControlPickerPanelProps({
-        currentModel,
-        hoveredModelLabel,
-        modelSetting,
-        node,
-        onClose: closePicker,
-        onSettingValueChange,
-        providerId,
-        setHoveredModelLabel,
-        setProviderId,
-      })}
+      pickerPanelProps={pickerPanelProps}
     />
   );
 }

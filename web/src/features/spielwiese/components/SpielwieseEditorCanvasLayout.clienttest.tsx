@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
@@ -284,8 +285,12 @@ describe("SpielwieseEditorCanvas layout shell", () => {
       screen.queryByTestId("spielwiese-prompt-simulation-pane"),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Create tool" })).toBeNull();
-    expect(screen.queryByTestId("spielwiese-agent-node-header-actions")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-response-format-composer")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-agent-node-header-actions"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-response-format-composer"),
+    ).toBeNull();
     expect(screen.queryByLabelText("vision-agent title")).toBeNull();
     expect(
       screen.queryByTestId("spielwiese-agent-node-card-back-button"),

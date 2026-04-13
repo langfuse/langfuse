@@ -174,6 +174,37 @@ function IntroTextSection({
   );
 }
 
+function IntroRoadmapItems() {
+  return (
+    <div
+      className="col-span-full grid gap-0 pt-[0.735rem] pb-6"
+      data-testid="spielwiese-intro-roadmap-items"
+    >
+      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+        roadmap items:
+      </p>
+      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+        - improve onboarding experience
+      </p>
+      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+        - improve core screens, especially for new and non-technical users
+      </p>
+      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+        (
+        <a
+          className={introLinkClassName}
+          href="https://arc.net/l/quote/iwaglpky"
+          rel="noreferrer"
+          target="_blank"
+        >
+          https://arc.net/l/quote/iwaglpky
+        </a>
+        )
+      </p>
+    </div>
+  );
+}
+
 function IntroArticle() {
   return (
     <article className="grid gap-0" data-testid="spielwiese-intro-article">
@@ -187,34 +218,16 @@ function IntroArticle() {
           </time>
         </div>
         <p className="text-right text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
-          Link to PR
+          <a
+            className={introLinkClassName}
+            href="https://github.com/langfuse/langfuse/pull/13133"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Link to PR
+          </a>
         </p>
-        <div
-          className="col-span-full grid gap-0 pt-[0.735rem] pb-6"
-          data-testid="spielwiese-intro-roadmap-items"
-        >
-          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
-            roadmap items:
-          </p>
-          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
-            - improve onboarding experience
-          </p>
-          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
-            - improve core screens, especially for new and non-technical users
-          </p>
-          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
-            (
-            <a
-              className={introLinkClassName}
-              href="https://arc.net/l/quote/iwaglpky"
-              rel="noreferrer"
-              target="_blank"
-            >
-              https://arc.net/l/quote/iwaglpky
-            </a>
-            )
-          </p>
-        </div>
+        <IntroRoadmapItems />
       </header>
       <div className="grid gap-0">
         {spielwieseSetupMomentContent.sections.map((section) => (

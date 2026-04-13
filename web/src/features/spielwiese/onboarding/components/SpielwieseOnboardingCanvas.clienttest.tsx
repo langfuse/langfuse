@@ -1,6 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+/* eslint-disable max-lines */
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useRouter } from "next/router";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
+import {
+  consumeOnboardingDashboardHandoff,
+  resetOnboardingDashboardHandoffForTests,
+} from "../spielwieseOnboardingDashboardHandoff";
 
 jest.mock("next/router", () => ({
   useRouter: jest.fn(),
@@ -42,12 +47,15 @@ function expectSurfaceShellChrome(expectedShellWidthClassName: string) {
   const progressBar = screen.getByRole("progressbar");
 
   expect(surfaceShell.className).toContain(expectedShellWidthClassName);
+  expect(surfaceShell.className).toContain("flex");
+  expect(surfaceShell.className).toContain("items-center");
   expect(surfaceShell.className).toContain("bg-transparent");
   expect(surfaceShell.className).toContain("shadow-none");
   expect(surfaceShell.className).toContain("border-0");
   expect(questionPanel.className).not.toContain("bg-white");
   expect(questionPanel.className).toContain("bg-transparent");
   expect(questionPanel.className).toContain("shadow-none");
+  expect(questionPanel.className).toContain("w-full");
   expect(questionPanel.className).toContain("border-0");
   expect(questionPanel.className).toContain("animate-in");
   expect(progressBar.getAttribute("aria-valuenow")).not.toBe("12.5");
@@ -94,12 +102,13 @@ function expectNoLegacyQuestionnaireChrome() {
 function expectSharedChromeOutsideStepLayer() {
   const stepLayer = getStepLayer();
   const wordmarkButton = screen.getByRole("button", { name: "Langfuse" });
-  const imprintButton = screen.getByRole("button", {
-    name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
-  });
 
   expect(stepLayer.contains(wordmarkButton)).toBe(false);
-  expect(stepLayer.contains(imprintButton)).toBe(false);
+  expect(
+    screen.queryByRole("button", {
+      name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
+    }),
+  ).toBeNull();
 }
 
 function expectRoleGateState() {
@@ -108,7 +117,7 @@ function expectRoleGateState() {
   expect(
     screen.queryByTestId("spielwiese-onboarding-surface-backdrop"),
   ).toBeNull();
-  expectSurfaceShellChrome("max-w-[36rem]");
+  expectSurfaceShellChrome("max-w-[35rem]");
   expectQuestionOptionsLayout();
   expectSharedChromeOutsideStepLayer();
   expectNoLegacyQuestionnaireChrome();
@@ -135,15 +144,38 @@ function expectRoleBridgeCopyState() {
   expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
 }
 
+function expectRolePreviewCanvasCentering() {
+  const agentNodeStack = screen.getByTestId("spielwiese-agent-node-stack");
+  const roleCanvasWrap = screen.getByTestId(
+    "spielwiese-onboarding-role-canvas-wrap",
+  );
+  const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+  const upperCanvasFrame = screen.getByTestId(
+    "spielwiese-onboarding-upper-canvas-frame",
+  );
+
+  expect(roleCanvasWrap.className).toContain("mx-auto");
+  expect(roleCanvasWrap.className).toContain("w-full");
+  expect(upperCanvasFrame.className).not.toContain("h-[30rem]");
+  expect(upperCanvasFrame.className).not.toContain("md:h-[32rem]");
+  expect(agentNodeStack.className).not.toContain("min-h-full");
+  expect(visionNode.className).not.toContain("last:pb-5");
+}
+
 function revealRolePreview() {
   fireEvent.animationEnd(
     screen.getByTestId("spielwiese-onboarding-role-bridge-copy"),
   );
 
+  const roleCopyBlock = screen.getByTestId(
+    "spielwiese-onboarding-role-copy-block",
+  );
+
   expect(screen.getByTestId("spielwiese-onboarding-upper-canvas")).toBeTruthy();
   expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
-  expectSurfaceShellChrome("max-w-[70.625rem]");
+  expectSurfaceShellChrome("max-w-[64rem]");
   expectSharedChromeOutsideStepLayer();
+  expectRolePreviewCanvasCentering();
   expect(screen.queryByText("Do you know what to build?")).toBeNull();
   expect(screen.queryByRole("button", { name: "Yes" })).toBeNull();
   expect(screen.queryByRole("button", { name: "No" })).toBeNull();
@@ -155,15 +187,28 @@ function revealRolePreview() {
       'For example "Act as if you were a senior business strategist".',
     ),
   ).toBeTruthy();
+  expect(roleCopyBlock.className).toContain("max-w-[44rem]");
   expect(screen.getByLabelText("vision-agent Instructions")).toBeTruthy();
   expect(screen.getByRole("button", { name: /continue/i })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /continue/i }).className).toContain(
+    "max-w-[23.25rem]",
+  );
   expect(
     screen.getByRole("button", { name: "vision-agent Model" }).textContent,
   ).toContain("Claude Opus 4.6");
+  expect(
+    screen
+      .getByRole("button", { name: "vision-agent Model" })
+      .getAttribute("disabled"),
+  ).not.toBeNull();
   expect(screen.queryByLabelText("vision-agent title")).toBeNull();
   expect(screen.queryByRole("button", { name: "Create tool" })).toBeNull();
-  expect(screen.queryByTestId("spielwiese-agent-node-header-actions")).toBeNull();
-  expect(screen.queryByTestId("spielwiese-response-format-composer")).toBeNull();
+  expect(
+    screen.queryByTestId("spielwiese-agent-node-header-actions"),
+  ).toBeNull();
+  expect(
+    screen.queryByTestId("spielwiese-response-format-composer"),
+  ).toBeNull();
   expect(
     screen.queryByTestId("spielwiese-agent-node-card-back-button"),
   ).toBeNull();
@@ -175,19 +220,92 @@ function revealRolePreview() {
   ).not.toBeNull();
 }
 
-function expectIntentFallbackState() {
-  expectVisibleQuestion({
-    prompt: "Why are you opening this room?",
-  });
+function expectRoleModelSelectionState() {
+  const upperCanvasFrame = screen.getByTestId(
+    "spielwiese-onboarding-upper-canvas-frame",
+  );
+  const continueRow = screen.getByTestId(
+    "spielwiese-onboarding-role-continue-row",
+  );
+
   expect(
-    screen.getByTestId("spielwiese-onboarding-surface-shell").className,
-  ).toContain("max-w-[36rem]");
-  expect(screen.queryByTestId("spielwiese-onboarding-upper-canvas")).toBeNull();
-  expect(screen.queryByText("What describes you best?")).toBeNull();
+    screen.getByText("Choose the model you want to start with."),
+  ).toBeTruthy();
+  expect(
+    screen.getByText("We will stay in the Claude family for this demo."),
+  ).toBeTruthy();
+  expect(upperCanvasFrame.className).not.toContain("h-[30rem]");
+  expect(upperCanvasFrame.className).not.toContain("md:h-[32rem]");
+  expect(continueRow.className).toContain("max-w-[23.25rem]");
+  expect(continueRow.className).toContain("min-h-9");
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-continue-placeholder"),
+  ).toBeTruthy();
+  expect(
+    screen.queryByTestId("spielwiese-model-picker-api-key-pane"),
+  ).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Model picker" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
+}
+
+function expectRoleApiKeyState() {
+  const upperCanvasFrame = screen.getByTestId(
+    "spielwiese-onboarding-upper-canvas-frame",
+  );
+  const continueRow = screen.getByTestId(
+    "spielwiese-onboarding-role-continue-row",
+  );
+  const panel = screen.getByRole("dialog", { name: "Model picker" });
+
+  expect(screen.getByText("Add your Anthropic API key.")).toBeTruthy();
+  expect(upperCanvasFrame.className).not.toContain("h-[30rem]");
+  expect(upperCanvasFrame.className).not.toContain("md:h-[32rem]");
+  expect(continueRow.className).toContain("max-w-[23.25rem]");
+  expect(continueRow.className).not.toContain("-top-[100px]");
+  expect(
+    screen.queryByTestId("spielwiese-onboarding-api-key-inline-fields"),
+  ).toBeNull();
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-continue-placeholder"),
+  ).toBeTruthy();
+  expect(
+    within(panel).getByTestId("spielwiese-model-picker-api-key-pane"),
+  ).toBeTruthy();
+  expect(
+    within(panel).getByText(/Connect .* with your Anthropic key\./i).className,
+  ).toContain("text-[0.8125rem]/5");
+  expect(
+    within(panel).getByRole("link", { name: "Link" }).getAttribute("href"),
+  ).toBe("https://console.anthropic.com/settings/keys");
+  expect(
+    within(panel).getByTestId("spielwiese-model-picker-api-key-row").className,
+  ).toContain("grid");
+  expect(continueRow.className).toContain("justify-center");
+  expect(
+    within(panel).getByRole("button", { name: /continue/i }).className,
+  ).toContain("bg-[rgba(244,244,245,0.96)]");
+  expect(
+    within(panel)
+      .getByRole("button", { name: /continue/i })
+      .getAttribute("disabled"),
+  ).not.toBeNull();
+  expect(
+    within(panel)
+      .getByTestId("spielwiese-model-picker-api-key-pane")
+      .style.getPropertyValue("--spielwiese-picker-pane-delay"),
+  ).toBe("1070ms");
+  expect(panel.style.getPropertyValue("--spielwiese-picker-open-delay")).toBe(
+    "1070ms",
+  );
+  expect(
+    within(panel).getByLabelText("Anthropic API key").getAttribute("type"),
+  ).toBe("password");
+  expect(within(panel).getByRole("button", { name: /continue/i })).toBeTruthy();
 }
 
 beforeEach(() => {
   push.mockReset();
+  resetOnboardingDashboardHandoffForTests();
   mockedUseRouter.mockReturnValue({
     push,
   } as ReturnType<typeof useRouter>);
@@ -198,9 +316,10 @@ it("renders the first onboarding step as a gated role question before the previe
   expectRoleGateState();
 });
 
-it("reveals the role preview only after the bridge copy finishes and then resumes the routed flow", async () => {
-  const { rerender } = renderOnboardingCanvas("role");
-  let stepLayer = getStepLayer();
+// eslint-disable-next-line max-lines-per-function
+it("reveals the role preview, stages model selection, and then resumes the routed flow", async () => {
+  renderOnboardingCanvas("role");
+  const stepLayer = getStepLayer();
 
   fireEvent.click(screen.getByRole("button", { name: "Yes" }));
   fireEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -224,48 +343,42 @@ it("reveals the role preview only after the bridge copy finishes and then resume
     screen.getByRole("button", { name: /continue/i }).getAttribute("disabled"),
   ).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+  expectRoleModelSelectionState();
+  fireEvent.transitionEnd(screen.getByTestId("spielwiese-agent-title-control"));
+  expect(screen.getByRole("dialog", { name: "Model picker" })).toBeTruthy();
+  expect(
+    screen
+      .getByRole("dialog", { name: "Model picker" })
+      .style.getPropertyValue("--spielwiese-picker-open-delay"),
+  ).toBe("890ms");
+
+  fireEvent.click(screen.getByRole("button", { name: "Claude Opus 4.6" }));
+  expectRoleApiKeyState();
+  fireEvent.change(
+    within(screen.getByRole("dialog", { name: "Model picker" })).getByLabelText(
+      "Anthropic API key",
+    ),
+    {
+      target: {
+        value: "sk-ant-api03-demo",
+      },
+    },
+  );
+  fireEvent.click(
+    within(screen.getByRole("dialog", { name: "Model picker" })).getByRole(
+      "button",
+      { name: /continue/i },
+    ),
+  );
   expect(stepLayer.className).toContain(
     "animate-spielwiese-onboarding-scene-exit",
   );
   await completeSceneExit(stepLayer);
 
-  expect(push).toHaveBeenLastCalledWith(
-    "/dev/spielwiese/onboarding/intent",
-    undefined,
-    { shallow: true },
-  );
-
-  rerender(<SpielwieseOnboardingCanvas requestedStepId="intent" />);
-  stepLayer = getStepLayer();
-  expectIntentFallbackState();
-
-  fireEvent.click(screen.getByRole("button", { name: "Shape a workflow" }));
-  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-  expect(stepLayer.className).toContain(
-    "animate-spielwiese-onboarding-scene-exit",
-  );
-  await completeSceneExit(stepLayer);
-
-  expect(push).toHaveBeenLastCalledWith(
-    "/dev/spielwiese/onboarding/opening",
-    undefined,
-    { shallow: true },
-  );
-
-  rerender(<SpielwieseOnboardingCanvas requestedStepId="opening" />);
-  stepLayer = getStepLayer();
-  expectVisibleQuestion({
-    prompt: "What should feel strongest first?",
+  expect(consumeOnboardingDashboardHandoff()).toEqual({
+    modelValue: "Claude Opus 4.6",
+    systemPromptValue: "Act as if you were a senior business strategist",
   });
-  expect(screen.queryByText("Why are you opening this room?")).toBeNull();
-
-  fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-  fireEvent.click(screen.getByRole("button", { name: /open dashboard/i }));
-  expect(stepLayer.className).toContain(
-    "animate-spielwiese-onboarding-scene-exit",
-  );
-  await completeSceneExit(stepLayer);
-
   expect(push).toHaveBeenLastCalledWith(
     "/dev/spielwiese/dashboard",
     undefined,

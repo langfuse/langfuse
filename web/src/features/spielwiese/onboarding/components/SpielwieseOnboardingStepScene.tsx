@@ -1,8 +1,5 @@
-import type { AnimationEvent } from "react";
-import {
-  preventInertOnboardingClick,
-  SpielwieseOnboardingFooter,
-} from "./SpielwieseOnboardingFooter";
+import type { AnimationEvent, ReactNode } from "react";
+import { preventInertOnboardingClick } from "./SpielwieseOnboardingFooter";
 import {
   type RoleStepScene,
   SpielwieseOnboardingQuestionPanel,
@@ -12,11 +9,22 @@ import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
 
+const onboardingCanvasStepMinHeightRem = 40;
+const onboardingDefaultStepMinHeightRem = 34;
+const onboardingContentOffsetYPx = -32;
+
 function OnboardingStepProgressOverlay({ value }: { value: number }) {
   return (
-    <div className="absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)]">
-      <SpielwieseOnboardingProgress value={value} />
-    </div>
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)]">
+        <SpielwieseOnboardingProgress value={value} />
+      </div>
+      <div className="absolute inset-x-0 top-6 flex justify-center sm:top-7">
+        <SpielwieseOnboardingWordmarkButton
+          onClick={preventInertOnboardingClick}
+        />
+      </div>
+    </>
   );
 }
 
@@ -24,6 +32,112 @@ function getOnboardingStepLayerClassName(isTransitioningOut: boolean) {
   return isTransitioningOut
     ? "animate-spielwiese-onboarding-scene-exit w-full pointer-events-none"
     : "w-full translate-y-0 opacity-100";
+}
+
+function getOnboardingStepShellClassName(showsUpperCanvas: boolean) {
+  if (showsUpperCanvas) {
+    return "flex min-h-[40rem] items-center max-w-[64rem] border-0 bg-transparent shadow-none";
+  }
+
+  return "flex min-h-[34rem] items-center border-0 bg-transparent shadow-none";
+}
+
+function getOnboardingStepShellMinHeight(showsUpperCanvas: boolean) {
+  return `${showsUpperCanvas ? onboardingCanvasStepMinHeightRem : onboardingDefaultStepMinHeightRem}rem`;
+}
+
+function OnboardingStepQuestionLayer({
+  activeAnswer,
+  activeQuestionId,
+  activeStepIndex,
+  contentOffsetYPx,
+  handleBack,
+  handleContinue,
+  handleRoleApiKeyChange,
+  handleRoleBridgeAnimationEnd,
+  handleRoleModelChange,
+  handleRoleSystemPromptChange,
+  handleSelect,
+  roleApiKeyValue,
+  roleModelValue,
+  roleScene,
+  roleSystemPromptValue,
+}: {
+  activeAnswer: string;
+  activeQuestionId: string;
+  activeStepIndex: number;
+  contentOffsetYPx: number;
+  handleBack: () => void;
+  handleContinue: () => void;
+  handleRoleApiKeyChange: (value: string) => void;
+  handleRoleBridgeAnimationEnd: (
+    event: AnimationEvent<HTMLHeadingElement>,
+  ) => void;
+  handleRoleModelChange: (value: string) => void;
+  handleRoleSystemPromptChange: (value: string) => void;
+  handleSelect: (value: string) => void;
+  roleApiKeyValue: string;
+  roleModelValue: string;
+  roleScene: RoleStepScene;
+  roleSystemPromptValue: string;
+}) {
+  return (
+    <div
+      data-testid="spielwiese-onboarding-step-content"
+      style={{
+        transform: `translateY(${contentOffsetYPx}px)`,
+      }}
+    >
+      <SpielwieseOnboardingQuestionPanel
+        activeAnswer={activeAnswer}
+        activeStepIndex={activeStepIndex}
+        onBack={handleBack}
+        onContinue={handleContinue}
+        onRoleApiKeyChange={handleRoleApiKeyChange}
+        onRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+        onRoleModelChange={handleRoleModelChange}
+        onRoleSystemPromptChange={handleRoleSystemPromptChange}
+        onSelect={handleSelect}
+        roleApiKeyValue={roleApiKeyValue}
+        roleModelValue={roleModelValue}
+        roleSystemPromptValue={roleSystemPromptValue}
+        roleScene={activeQuestionId === "role" ? roleScene : "preview"}
+      />
+    </div>
+  );
+}
+
+function OnboardingStepSurfaceFrame({
+  activeQuestionId,
+  minHeight,
+  showsUpperCanvas,
+  children,
+}: {
+  activeQuestionId: string;
+  children: ReactNode;
+  minHeight: string;
+  showsUpperCanvas: boolean;
+}) {
+  return (
+    <SpielwieseOnboardingSurface
+      footer={null}
+      header={null}
+      layout="single"
+      sectionClassName="pt-0 sm:pt-0"
+      shellClassName={getOnboardingStepShellClassName(showsUpperCanvas)}
+      shellStyle={{ minHeight }}
+      stageClassName={showsUpperCanvas ? "max-w-[66rem]" : undefined}
+      showBackdrop={false}
+      testId="spielwiese-onboarding-step"
+      topOverlay={
+        <OnboardingStepProgressOverlay
+          value={getOnboardingProgressValue(activeQuestionId)}
+        />
+      }
+    >
+      {children}
+    </SpielwieseOnboardingSurface>
+  );
 }
 
 type SpielwieseOnboardingStepSceneProps = {
@@ -67,50 +181,37 @@ export function SpielwieseOnboardingStepScene({
   roleScene,
   showsUpperCanvas,
 }: SpielwieseOnboardingStepSceneProps) {
+  const minHeight = getOnboardingStepShellMinHeight(showsUpperCanvas);
+
   return (
-    <SpielwieseOnboardingSurface
-      footer={<SpielwieseOnboardingFooter />}
-      header={
-        <SpielwieseOnboardingWordmarkButton
-          onClick={preventInertOnboardingClick}
-        />
-      }
-      layout="single"
-      shellClassName={
-        showsUpperCanvas
-          ? "max-w-[70.625rem] border-0 bg-transparent shadow-none"
-          : "border-0 bg-transparent shadow-none"
-      }
-      stageClassName={showsUpperCanvas ? "max-w-[72.625rem]" : undefined}
-      showBackdrop={false}
-      testId="spielwiese-onboarding-step"
-      topOverlay={
-        <OnboardingStepProgressOverlay
-          value={getOnboardingProgressValue(activeQuestionId)}
-        />
-      }
+    <OnboardingStepSurfaceFrame
+      activeQuestionId={activeQuestionId}
+      minHeight={minHeight}
+      showsUpperCanvas={showsUpperCanvas}
     >
       <div
         className={getOnboardingStepLayerClassName(isStepTransitioningOut)}
         data-testid="spielwiese-onboarding-step-layer"
         onAnimationEnd={handleStepLayerAnimationEnd}
       >
-        <SpielwieseOnboardingQuestionPanel
+        <OnboardingStepQuestionLayer
           activeAnswer={activeAnswer}
+          activeQuestionId={activeQuestionId}
           activeStepIndex={activeStepIndex}
-          onBack={handleBack}
-          onContinue={handleContinue}
-          onRoleApiKeyChange={handleRoleApiKeyChange}
-          onRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
-          onRoleModelChange={handleRoleModelChange}
-          onRoleSystemPromptChange={handleRoleSystemPromptChange}
-          onSelect={handleSelect}
+          contentOffsetYPx={onboardingContentOffsetYPx}
+          handleBack={handleBack}
+          handleContinue={handleContinue}
+          handleRoleApiKeyChange={handleRoleApiKeyChange}
+          handleRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+          handleRoleModelChange={handleRoleModelChange}
+          handleRoleSystemPromptChange={handleRoleSystemPromptChange}
+          handleSelect={handleSelect}
           roleApiKeyValue={roleApiKeyValue}
           roleModelValue={roleModelValue}
+          roleScene={roleScene}
           roleSystemPromptValue={roleSystemPromptValue}
-          roleScene={activeQuestionId === "role" ? roleScene : "preview"}
         />
       </div>
-    </SpielwieseOnboardingSurface>
+    </OnboardingStepSurfaceFrame>
   );
 }

@@ -4,6 +4,10 @@ import {
   SpielwieseAgentNodePreviewSpotlight,
   useSpielwieseAgentNodeFocusMode,
 } from "./SpielwieseAgentNodeFocusMode";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseAgentNodeHandoffConnector } from "./SpielwieseAgentNodeHandoffConnector";
 import { SpielwieseFocusedAgentNodeModal } from "./SpielwieseFocusedAgentNodeModal";
 import { SpielwieseAgentNodeItem } from "./SpielwieseAgentNodeItem";
@@ -115,10 +119,15 @@ function SpielwieseAgentNodeList({
   onTitleChange,
   onToggleCompact,
 }: SpielwieseAgentNodeListProps) {
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const isOnboarding = isOnboardingChrome(chrome);
+
   return (
     <ol
       className={cn(
-        "relative isolate flex min-h-full flex-col gap-1.5 pt-4 pb-2 sm:pt-5",
+        isOnboarding
+          ? "relative isolate flex flex-col gap-1.5 pt-2 pb-0"
+          : "relative isolate flex min-h-full flex-col gap-1.5 pt-4 pb-2 sm:pt-5",
         listClassName,
       )}
       data-testid="spielwiese-agent-node-stack"
@@ -155,6 +164,8 @@ export function SpielwieseAgentNodeStack({
   onTitleChange,
 }: SpielwieseAgentNodeStackProps) {
   const focusMode = useSpielwieseAgentNodeFocusMode(nodes);
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const isOnboarding = isOnboardingChrome(chrome);
 
   return (
     <>
@@ -175,18 +186,20 @@ export function SpielwieseAgentNodeStack({
       <SpielwieseAgentNodePreviewSpotlight
         frame={focusMode.activePreviewSpotlightFrame}
       />
-      <SpielwieseFocusedAgentNodeModal
-        compactNodeIds={compactNodeIds}
-        focusMode={focusMode}
-        onAgentNodeArchive={onAgentNodeArchive}
-        onPromptSectionChange={onPromptSectionChange}
-        onPromptSectionDelete={onPromptSectionDelete}
-        onPromptSectionInsert={onPromptSectionInsert}
-        onPromptSectionMove={onPromptSectionMove}
-        onSettingValueChange={onSettingValueChange}
-        onToggleCompact={onToggleCompact}
-        onTitleChange={onTitleChange}
-      />
+      {!isOnboarding ? (
+        <SpielwieseFocusedAgentNodeModal
+          compactNodeIds={compactNodeIds}
+          focusMode={focusMode}
+          onAgentNodeArchive={onAgentNodeArchive}
+          onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
+          onPromptSectionMove={onPromptSectionMove}
+          onSettingValueChange={onSettingValueChange}
+          onToggleCompact={onToggleCompact}
+          onTitleChange={onTitleChange}
+        />
+      ) : null}
     </>
   );
 }

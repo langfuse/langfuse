@@ -12,6 +12,7 @@ export type EntryTextMotionDelay =
   | 300
   | 350
   | 700
+  | 1070
   | 1050
   | 1400
   | 1750
@@ -32,6 +33,7 @@ const entryTextMotionDelayClassNames: Record<EntryTextMotionDelay, string> = {
   300: "[transition-delay:300ms]",
   350: "[transition-delay:350ms]",
   700: "[transition-delay:700ms]",
+  1070: "[transition-delay:1070ms]",
   1050: "[transition-delay:1050ms]",
   1400: "[transition-delay:1400ms]",
   1750: "[transition-delay:1750ms]",

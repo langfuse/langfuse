@@ -13,7 +13,10 @@ it("renders the intro header and roadmap metadata", () => {
     }),
   ).toBeTruthy();
   expect(screen.getByText("by evren dombak")).toBeTruthy();
-  expect(screen.getByText("Link to PR")).toBeTruthy();
+  const prLink = screen.getByRole("link", { name: "Link to PR" });
+  expect(prLink.getAttribute("href")).toBe(
+    "https://github.com/langfuse/langfuse/pull/13133",
+  );
   expect(screen.getByText("roadmap items:")).toBeTruthy();
   expect(screen.getByText("- improve onboarding experience")).toBeTruthy();
   expect(

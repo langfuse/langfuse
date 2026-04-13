@@ -39,6 +39,7 @@ export function SpielwieseModelPickerProviderPane({
 }
 
 function SpielwieseModelPickerModelPane({
+  closeOnSelect,
   currentModel,
   onClose,
   onValueChange,
@@ -46,6 +47,7 @@ function SpielwieseModelPickerModelPane({
   setHoveredModelLabel,
   visibleModels,
 }: {
+  closeOnSelect?: boolean;
   currentModel: string;
   onClose: () => void;
   onValueChange: (value: string) => void;
@@ -60,6 +62,7 @@ function SpielwieseModelPickerModelPane({
         models={visibleModels}
         onHoverModel={setHoveredModelLabel}
         onSelectModel={createModelSelectHandler({
+          closeOnSelect,
           onClose,
           onValueChange,
         })}
@@ -102,6 +105,7 @@ function SpielwieseModelPickerSelectionFrame({
 }
 
 function SpielwieseModelPickerModelOnlySelectionPane({
+  closeOnSelect,
   currentModel,
   onClose,
   onValueChange,
@@ -109,6 +113,7 @@ function SpielwieseModelPickerModelOnlySelectionPane({
   setHoveredModelLabel,
   visibleModels,
 }: {
+  closeOnSelect?: boolean;
   currentModel: string;
   onClose: () => void;
   onValueChange: (value: string) => void;
@@ -122,6 +127,7 @@ function SpielwieseModelPickerModelOnlySelectionPane({
       setHoveredModelLabel={setHoveredModelLabel}
     >
       <SpielwieseModelPickerModelPane
+        closeOnSelect={closeOnSelect}
         currentModel={currentModel}
         onClose={onClose}
         onValueChange={onValueChange}
@@ -134,6 +140,7 @@ function SpielwieseModelPickerModelOnlySelectionPane({
 }
 
 function SpielwieseModelPickerBenchmarkSelectionPane({
+  closeOnSelect,
   currentModel,
   onClose,
   onValueChange,
@@ -142,6 +149,7 @@ function SpielwieseModelPickerBenchmarkSelectionPane({
   setHoveredModelLabel,
   visibleModels,
 }: {
+  closeOnSelect?: boolean;
   currentModel: string;
   onClose: () => void;
   onValueChange: (value: string) => void;
@@ -156,6 +164,7 @@ function SpielwieseModelPickerBenchmarkSelectionPane({
       setHoveredModelLabel={setHoveredModelLabel}
     >
       <SpielwieseModelPickerModelPane
+        closeOnSelect={closeOnSelect}
         currentModel={currentModel}
         onClose={onClose}
         onValueChange={onValueChange}
@@ -169,6 +178,7 @@ function SpielwieseModelPickerBenchmarkSelectionPane({
 }
 
 export function SpielwieseModelPickerSelectionPane({
+  closeOnSelect,
   currentModel,
   onClose,
   onValueChange,
@@ -177,6 +187,7 @@ export function SpielwieseModelPickerSelectionPane({
   setHoveredModelLabel,
   visibleModels,
 }: {
+  closeOnSelect?: boolean;
   currentModel: string;
   onClose: () => void;
   onValueChange: (value: string) => void;
@@ -192,6 +203,7 @@ export function SpielwieseModelPickerSelectionPane({
   if (!previewModel) {
     return (
       <SpielwieseModelPickerModelOnlySelectionPane
+        closeOnSelect={closeOnSelect}
         currentModel={currentModel}
         onClose={onClose}
         onValueChange={onValueChange}
@@ -204,6 +216,7 @@ export function SpielwieseModelPickerSelectionPane({
 
   return (
     <SpielwieseModelPickerBenchmarkSelectionPane
+      closeOnSelect={closeOnSelect}
       currentModel={currentModel}
       onClose={onClose}
       onValueChange={onValueChange}

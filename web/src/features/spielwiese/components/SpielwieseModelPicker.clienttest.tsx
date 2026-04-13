@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   fireEvent,
   render,
@@ -42,7 +43,6 @@ function renderModelPickerPanel({
 } = {}) {
   render(<ModelPickerHarness currentModel={currentModel} />);
 }
-
 function expectDefaultPickerChrome() {
   const panel = screen.getByRole("dialog", { name: "Model picker" });
   const grid = screen.getByTestId("spielwiese-model-picker-grid");
@@ -55,6 +55,20 @@ function expectDefaultPickerChrome() {
     "rounded-[var(--spielwiese-picker-outer-radius)]",
   );
   expect(panel.className).toContain("p-[var(--spielwiese-picker-padding)]");
+  expect(panel.className).toContain("will-change-[transform,opacity]");
+  expect(panel.className).toContain("ease-[cubic-bezier(0.32,0.72,0,1)]");
+  expect(panel.className).toContain("data-[open]:animate-in");
+  expect(panel.className).toContain("data-[closed]:animate-out");
+  expect(panel.className).toContain("data-[open]:duration-[650ms]");
+  expect(panel.className).toContain("data-[closed]:duration-[200ms]");
+  expect(panel.className).toContain("[--spielwiese-picker-open-delay:400ms]");
+  expect(panel.className).toContain(
+    "data-[open]:[animation-delay:var(--spielwiese-picker-open-delay)]",
+  );
+  expect(panel.className).toContain(
+    "data-[open]:[animation-fill-mode:backwards]",
+  );
+  expect(panel.className).toContain("data-[side=bottom]:slide-in-from-top-1");
   expect(panel.className).toContain("overflow-visible");
   expect(panel.className).not.toContain("overflow-hidden");
   expect(panel.className).not.toContain("overflow-auto");
@@ -206,6 +220,61 @@ describe("SpielwieseModelPickerPanel initial chrome", () => {
   });
 });
 
+describe("SpielwieseModelPickerPanel Anthropic key prompt", () => {
+  it("can swap the model grid for an Anthropic API key form", () => {
+    render(
+      <SpielwieseModelPickerPanel
+        anthropicApiKeyValue="sk-ant-api03-demo"
+        currentModel="Claude Haiku 4.5"
+        hoveredModelLabel={null}
+        onAnthropicApiKeyChange={() => {}}
+        onAnthropicApiKeyContinue={() => {}}
+        onClose={() => {}}
+        onValueChange={() => {}}
+        providerId="anthropic"
+        setHoveredModelLabel={() => {}}
+        setProviderId={() => {}}
+        showAnthropicApiKeyPrompt
+      />,
+    );
+
+    const panel = screen.getByRole("dialog", { name: "Model picker" });
+    const apiKeyPane = within(panel).getByTestId(
+      "spielwiese-model-picker-api-key-pane",
+    );
+
+    expect(apiKeyPane).toBeTruthy();
+    expect(apiKeyPane.className).toContain(
+      "[--spielwiese-picker-inner-radius:calc(var(--spielwiese-picker-outer-radius)-var(--spielwiese-picker-padding))]",
+    );
+    expect(apiKeyPane.className).toContain("animate-in");
+    expect(apiKeyPane.className).toContain(
+      "[--spielwiese-picker-pane-delay:0ms]",
+    );
+    expect(apiKeyPane.className).toContain(
+      "[animation-delay:var(--spielwiese-picker-pane-delay)]",
+    );
+    expect(apiKeyPane.className).toContain("[animation-fill-mode:backwards]");
+    expect(apiKeyPane.className).toContain("duration-[500ms]");
+    expect(apiKeyPane.className).toContain("slide-in-from-top-1");
+    expect(
+      within(panel).queryByTestId("spielwiese-model-picker-grid"),
+    ).toBeNull();
+    expect(within(panel).queryByText("Anthropic API key")).toBeNull();
+    expect(
+      within(panel).getByRole("link", { name: "Link" }).getAttribute("href"),
+    ).toBe("https://console.anthropic.com/settings/keys");
+    expect(within(panel).getByDisplayValue("sk-ant-api03-demo")).toBeTruthy();
+    expect(
+      within(panel).getByRole("button", { name: "Continue" }).className,
+    ).toContain("bg-[rgb(57,114,243)]");
+    expect(
+      within(panel)
+        .getByRole("button", { name: "Continue" })
+        .getAttribute("disabled"),
+    ).toBeNull();
+  });
+});
 describe("SpielwieseModelPickerPanel OpenAI benchmark preview", () => {
   it("reveals compact benchmark details without an older-model toggle", async () => {
     renderModelPickerPanel();

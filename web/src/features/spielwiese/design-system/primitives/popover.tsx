@@ -16,6 +16,7 @@ function PopoverContent({
     side: "shift",
   },
   collisionPadding = 16,
+  keepMounted = false,
   positionMethod = "fixed",
   side = "bottom",
   sideOffset = 8,
@@ -26,12 +27,13 @@ function PopoverContent({
     | "align"
     | "collisionAvoidance"
     | "collisionPadding"
+    | "keepMounted"
     | "positionMethod"
     | "side"
     | "sideOffset"
   >) {
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal keepMounted={keepMounted}>
       <PopoverPrimitive.Positioner
         align={align}
         className="z-[140] outline-none"

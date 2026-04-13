@@ -40,6 +40,6 @@ export const spielwieseSetupMomentContent = {
       title: "Colophon",
     },
   ],
-  videoNote: "Place a short video walkthrough here.",
+  videoNote: "not finished yet :D",
   footer: "Time for you to experience it",
 } as const;
