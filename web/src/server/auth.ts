@@ -750,11 +750,15 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     v4BetaEnabled: dbUser.v4BetaEnabled,
                     canToggleV4Beta: canToggleV4Beta({
                       userCreatedAt: dbUser.createdAt,
-                      organizationCreatedAts:
-                        dbUser.organizationMemberships.map(
-                          (orgMembership) =>
-                            orgMembership.organization.createdAt,
-                        ),
+                      organizations: dbUser.organizationMemberships.map(
+                        (orgMembership) => ({
+                          id: orgMembership.organization.id,
+                          createdAt: orgMembership.organization.createdAt,
+                        }),
+                      ),
+                      excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                        ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                        : [],
                     }),
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,

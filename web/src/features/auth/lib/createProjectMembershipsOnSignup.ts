@@ -167,6 +167,7 @@ export async function createProjectMembershipsOnSignup(
             select: {
               organization: {
                 select: {
+                  id: true,
                   createdAt: true,
                 },
               },
@@ -178,9 +179,15 @@ export async function createProjectMembershipsOnSignup(
       if (userRolloutState) {
         const isManagedByRollout = isV4RolloutManaged({
           userCreatedAt: userRolloutState.createdAt,
-          organizationCreatedAts: userRolloutState.organizationMemberships.map(
-            (membership) => membership.organization.createdAt,
+          organizations: userRolloutState.organizationMemberships.map(
+            (membership) => ({
+              id: membership.organization.id,
+              createdAt: membership.organization.createdAt,
+            }),
           ),
+          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+            : [],
         });
         const shouldInitializeForNewUser =
           options?.userWasJustCreated &&

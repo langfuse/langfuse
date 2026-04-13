@@ -8,6 +8,7 @@ import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4Beta } from "@/src/features/events/lib/v4BetaRollout";
+import { env } from "@/src/env.mjs";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -139,6 +140,7 @@ export const userAccountRouter = createTRPCRouter({
             select: {
               organization: {
                 select: {
+                  id: true,
                   createdAt: true,
                 },
               },
@@ -156,9 +158,15 @@ export const userAccountRouter = createTRPCRouter({
 
       const userCanToggleV4Beta = canToggleV4Beta({
         userCreatedAt: userRolloutState.createdAt,
-        organizationCreatedAts: userRolloutState.organizationMemberships.map(
-          (membership) => membership.organization.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
         ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
       });
 
       if (!userCanToggleV4Beta) {

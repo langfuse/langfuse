@@ -36,6 +36,9 @@ export const organizationsRouter = createTRPCRouter({
         await ctx.prisma.organizationMembership.count({
           where: {
             userId: ctx.session.user.id,
+            ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+              ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+              : {}),
           },
         });
 
@@ -70,6 +73,7 @@ export const organizationsRouter = createTRPCRouter({
               select: {
                 organization: {
                   select: {
+                    id: true,
                     createdAt: true,
                   },
                 },
@@ -84,10 +88,15 @@ export const organizationsRouter = createTRPCRouter({
           userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
           isV4RolloutManaged({
             userCreatedAt: userRolloutState.createdAt,
-            organizationCreatedAts:
-              userRolloutState.organizationMemberships.map(
-                (membership) => membership.organization.createdAt,
-              ),
+            organizations: userRolloutState.organizationMemberships.map(
+              (membership) => ({
+                id: membership.organization.id,
+                createdAt: membership.organization.createdAt,
+              }),
+            ),
+            excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+              ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+              : [],
           })
         ) {
           await ctx.prisma.user.update({
