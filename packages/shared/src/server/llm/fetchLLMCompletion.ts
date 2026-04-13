@@ -632,7 +632,11 @@ export async function fetchLLMCompletion(
     return completion;
   } catch (e) {
     const responseStatusCode =
-      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+      (e as any)?.response?.status ??
+      (e as any)?.status ??
+      // Bedrock errors have status code in $metadata.httpStatusCode
+      (e as any)?.$metadata?.httpStatusCode ??
+      500;
     const rawMessage = e instanceof Error ? e.message : String(e);
     const message = extractCleanErrorMessage(rawMessage);
 

@@ -212,10 +212,12 @@ describe("fetchLLMCompletion end of model lifetime", () => {
   });
 
   it("treats end-of-life model errors as non-retryable", async () => {
+    // Mirror real AWS SDK error shape: status code lives on $metadata.httpStatusCode
     const endOfLifeError = new Error(
       "This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
-    ) as Error & { status: number };
-    endOfLifeError.status = 404;
+    ) as Error & { $metadata: { httpStatusCode: number } };
+    endOfLifeError.name = "ResourceNotFoundException";
+    endOfLifeError.$metadata = { httpStatusCode: 404 };
     bedrockInvokeMock.mockRejectedValue(endOfLifeError);
 
     const completionPromise = fetchLLMCompletion({
