@@ -54,6 +54,20 @@ import { LLMCompletionError } from "./errors";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
+const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
+  "Request timed out",
+  "is not valid JSON",
+  "Unterminated string in JSON at position",
+  "TypeError",
+  "reached the end of its life",
+] as const;
+
+export function isNonRetryableLLMErrorMessage(message: string): boolean {
+  return NON_RETRYABLE_LLM_ERROR_PATTERNS.some((pattern) =>
+    message.includes(pattern),
+  );
+}
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
@@ -629,16 +643,7 @@ export async function fetchLLMCompletion(
     const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
-    const nonRetryablePatterns = [
-      "Request timed out",
-      "is not valid JSON",
-      "Unterminated string in JSON at position",
-      "TypeError",
-    ];
-
-    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
-      message.includes(pattern),
-    );
+    const hasNonRetryablePattern = isNonRetryableLLMErrorMessage(message);
 
     // Determine retryability:
     // - 429 (rate limit): retryable with custom delay
