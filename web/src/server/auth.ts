@@ -696,6 +696,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
@@ -729,6 +730,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             dbUser !== null
               ? resolveV4BetaRollout({
                   userPreferenceEnabled: dbUser.v4BetaEnabled,
+                  userCreatedAt: dbUser.createdAt,
                   organizationCreatedAts: dbUser.organizationMemberships.map(
                     (orgMembership) => orgMembership.organization.createdAt,
                   ),

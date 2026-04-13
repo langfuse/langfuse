@@ -30,7 +30,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 export const NewOrganizationForm = ({
   onSuccess,
 }: {
-  onSuccess: (orgId: string) => void;
+  onSuccess: (orgId: string) => void | Promise<void>;
 }) => {
   const { update: updateSession } = useSession();
 
@@ -78,8 +78,8 @@ export const NewOrganizationForm = ({
           }
         }
 
-        void updateSession();
-        onSuccess(org.id);
+        await updateSession();
+        await onSuccess(org.id);
         form.reset();
       })
       .catch((error) => {

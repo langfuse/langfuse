@@ -70,7 +70,7 @@ async function checkUserCanBeDeleted(
   };
 }
 
-async function getUserOrganizationCreatedAts(
+async function getUserV4BetaRolloutContext(
   userId: string,
   prisma:
     | Omit<
@@ -84,20 +84,29 @@ async function getUserOrganizationCreatedAts(
       >
     | Prisma.TransactionClient,
 ) {
-  const organizationMemberships = await prisma.organizationMembership.findMany({
-    where: { userId },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
     select: {
-      organization: {
+      createdAt: true,
+      organizationMemberships: {
         select: {
-          createdAt: true,
+          organization: {
+            select: {
+              createdAt: true,
+            },
+          },
         },
       },
     },
   });
 
-  return organizationMemberships.map(
-    (membership) => membership.organization.createdAt,
-  );
+  return {
+    userCreatedAt: user?.createdAt ?? null,
+    organizationCreatedAts:
+      user?.organizationMemberships.map(
+        (membership) => membership.organization.createdAt,
+      ) ?? [],
+  };
 }
 
 export const userAccountRouter = createTRPCRouter({
@@ -160,12 +169,11 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      const organizationCreatedAts = await getUserOrganizationCreatedAts(
-        ctx.session.user.id,
-        ctx.prisma,
-      );
+      const { organizationCreatedAts, userCreatedAt } =
+        await getUserV4BetaRolloutContext(ctx.session.user.id, ctx.prisma);
       const v4BetaRollout = resolveV4BetaRollout({
         userPreferenceEnabled: input.enabled,
+        userCreatedAt,
         organizationCreatedAts,
       });
 

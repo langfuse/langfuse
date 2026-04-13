@@ -1,10 +1,14 @@
 export const V4_JOINED_POST_CUTOFF_AT = new Date("2026-04-13T08:00:00.000Z");
 
-export function isV4JoinedPostCutoffForOrganizationCreatedAts(
-  organizationCreatedAts: Date[],
-): boolean {
+export function isV4JoinedPostCutoff({
+  organizationCreatedAts,
+  userCreatedAt,
+}: {
+  organizationCreatedAts: Date[];
+  userCreatedAt?: Date | null;
+}): boolean {
   if (organizationCreatedAts.length === 0) {
-    return false;
+    return userCreatedAt != null && userCreatedAt >= V4_JOINED_POST_CUTOFF_AT;
   }
 
   // Use the oldest org the user belongs to so existing users are not
@@ -20,13 +24,16 @@ export function isV4JoinedPostCutoffForOrganizationCreatedAts(
 export function resolveV4BetaRollout({
   organizationCreatedAts,
   userPreferenceEnabled,
+  userCreatedAt,
 }: {
   organizationCreatedAts: Date[];
   userPreferenceEnabled: boolean;
+  userCreatedAt?: Date | null;
 }) {
-  const v4JoinedPostCutoff = isV4JoinedPostCutoffForOrganizationCreatedAts(
+  const v4JoinedPostCutoff = isV4JoinedPostCutoff({
     organizationCreatedAts,
-  );
+    userCreatedAt,
+  });
 
   return {
     v4JoinedPostCutoff,
