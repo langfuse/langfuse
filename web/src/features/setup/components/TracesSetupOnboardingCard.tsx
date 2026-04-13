@@ -46,17 +46,17 @@ function CopyableSnippet({
           {value}
         </code>
         <Button
-          variant="ghost"
-          size="icon-sm"
+          variant="outline"
+          size="sm"
           className="shrink-0"
           onClick={() => void handleCopy()}
-          aria-label={copied ? "Copied to clipboard" : "Copy to clipboard"}
         >
           {copied ? (
             <Check className="h-4 w-4" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
+          {copied ? "Copied" : "Copy prompt"}
         </Button>
       </div>
     </div>
