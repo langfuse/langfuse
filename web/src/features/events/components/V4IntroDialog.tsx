@@ -9,12 +9,14 @@ import {
 export function V4IntroDialog({
   open,
   onConfirm,
+  onDismiss,
 }: {
   open: boolean;
   onConfirm: () => void;
+  onDismiss: () => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onConfirm()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onDismiss()}>
       <DialogContent
         className="[&>div:last-child]:hidden"
         aria-label="Welcome to a faster Langfuse"

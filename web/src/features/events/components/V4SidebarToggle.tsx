@@ -23,6 +23,7 @@ export function V4SidebarToggle() {
     enableWithIntro,
     showIntroDialog,
     confirmIntroDialog,
+    dismissIntroDialog,
     isLoading,
   } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -87,7 +88,11 @@ export function V4SidebarToggle() {
           </span>
         </div>
       </SidebarMenuButton>
-      <V4IntroDialog open={showIntroDialog} onConfirm={confirmIntroDialog} />
+      <V4IntroDialog
+        open={showIntroDialog}
+        onConfirm={confirmIntroDialog}
+        onDismiss={dismissIntroDialog}
+      />
     </>
   );
 }

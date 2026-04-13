@@ -38,6 +38,7 @@ export function V4PromoBanner() {
     enableWithIntro,
     showIntroDialog,
     confirmIntroDialog,
+    dismissIntroDialog,
     isLoading,
   } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -76,7 +77,11 @@ export function V4PromoBanner() {
 
   if (!isVisible) {
     return (
-      <V4IntroDialog open={showIntroDialog} onConfirm={confirmIntroDialog} />
+      <V4IntroDialog
+        open={showIntroDialog}
+        onConfirm={confirmIntroDialog}
+        onDismiss={dismissIntroDialog}
+      />
     );
   }
 
@@ -135,7 +140,11 @@ export function V4PromoBanner() {
           <X className="h-4 w-4 shrink-0" />
         </Button>
       </div>
-      <V4IntroDialog open={showIntroDialog} onConfirm={confirmIntroDialog} />
+      <V4IntroDialog
+        open={showIntroDialog}
+        onConfirm={confirmIntroDialog}
+        onDismiss={dismissIntroDialog}
+      />
     </div>
   );
 }
