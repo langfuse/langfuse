@@ -164,6 +164,7 @@ export const userAccountRouter = createTRPCRouter({
             createdAt: membership.organization.createdAt,
           }),
         ),
+        rolloutEnabled: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
         excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
           ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
           : [],

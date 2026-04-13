@@ -756,6 +756,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           createdAt: orgMembership.organization.createdAt,
                         }),
                       ),
+                      rolloutEnabled: Boolean(
+                        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                      ),
                       excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
                         ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
                         : [],

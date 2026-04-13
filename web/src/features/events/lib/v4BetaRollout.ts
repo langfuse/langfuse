@@ -9,13 +9,19 @@ type V4BetaRolloutContext = {
   organizations: RolloutOrganization[];
   userCreatedAt?: Date | null;
   excludedOrganizationIds?: string[];
+  rolloutEnabled?: boolean;
 };
 
 export function isV4RolloutManaged({
   organizations,
   userCreatedAt,
   excludedOrganizationIds = [],
+  rolloutEnabled = true,
 }: V4BetaRolloutContext): boolean {
+  if (!rolloutEnabled) {
+    return false;
+  }
+
   const excludedOrganizationIdSet = new Set(excludedOrganizationIds);
   const rolloutRelevantOrganizations = organizations.filter(
     (organization) => !excludedOrganizationIdSet.has(organization.id),
