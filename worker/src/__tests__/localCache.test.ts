@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { LocalCache, getJsonEntrySize } from "@langfuse/shared/src/server";
+import { LocalCache } from "@langfuse/shared/src/server";
 
 describe("LocalCache", () => {
   it("should expire entries after ttl", async () => {
-    const cache = new LocalCache<string, { value: string }>({
+    const cache = new LocalCache<{ value: string }>({
       namespace: "test",
       enabled: true,
       ttlMs: 50,
       max: 10,
-      maxSize: 1024,
-      sizeCalculation: (value, key) => getJsonEntrySize(key, value),
     });
 
     cache.set("entry", { value: "cached" });
@@ -21,13 +19,11 @@ describe("LocalCache", () => {
   });
 
   it("should deduplicate concurrent loads", async () => {
-    const cache = new LocalCache<string, { value: string }>({
+    const cache = new LocalCache<{ value: string }>({
       namespace: "test",
       enabled: true,
       ttlMs: 1000,
       max: 10,
-      maxSize: 1024,
-      sizeCalculation: (value, key) => getJsonEntrySize(key, value),
     });
 
     const loader = vi.fn(async () => {
@@ -48,15 +44,12 @@ describe("LocalCache", () => {
     expect(second.value).toEqual({ value: "loaded" });
   });
 
-  it("should ignore invalid size bounds and fall back to count-based eviction", () => {
+  it("should fall back to a minimal cache when runtime limits are invalid", () => {
     const createCache = () =>
-      new LocalCache<string, { value: string }>({
+      new LocalCache<{ value: string }>({
         namespace: "test",
         enabled: true,
-        ttlMs: 1000,
-        max: 10,
-        maxSize: Number.NaN,
-        sizeCalculation: (value, key) => getJsonEntrySize(key, value),
+        max: Number.NaN,
       });
 
     expect(createCache).not.toThrow();
@@ -69,10 +62,9 @@ describe("LocalCache", () => {
 
   it("should initialize disabled caches even when runtime limits are missing", () => {
     const createCache = () =>
-      new LocalCache<string, { value: string }>({
+      new LocalCache<{ value: string }>({
         namespace: "test",
         enabled: false,
-        sizeCalculation: (value, key) => getJsonEntrySize(key, value),
       });
 
     expect(createCache).not.toThrow();

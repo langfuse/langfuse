@@ -8,12 +8,7 @@ import {
   safeMultiDel,
   scanKeys,
 } from "../";
-import {
-  LocalCache,
-  getJsonEntrySize,
-  kilobytesToBytes,
-  megabytesToBytes,
-} from "../cache";
+import { LocalCache } from "../cache";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
@@ -32,16 +27,11 @@ export type ModelWithPrices = {
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
 // This L1 cache is intentionally TTL-only. Cross-container consistency continues
 // to come from Redis invalidation plus the short local TTL.
-const modelMatchLocalCache = new LocalCache<string, ModelWithPrices>({
+const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
   namespace: "model_match",
   enabled: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
   ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
   max: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
-  maxSize: megabytesToBytes(env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX_SIZE_MB),
-  maxEntrySize: kilobytesToBytes(
-    env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX_ENTRY_SIZE_KB,
-  ),
-  sizeCalculation: (value, key) => getJsonEntrySize(key, value),
 });
 
 export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {

@@ -73,14 +73,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20_000),
-  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX_SIZE_MB: z.coerce
-    .number()
-    .positive()
-    .default(64),
-  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX_ENTRY_SIZE_KB: z.coerce
-    .number()
-    .positive()
-    .default(32),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
   CLICKHOUSE_URL: z.string().url(),
