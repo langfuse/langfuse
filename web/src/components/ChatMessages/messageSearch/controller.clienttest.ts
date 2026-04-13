@@ -138,6 +138,7 @@ describe("message search controller", () => {
 
     expect(commitQuery(controller, " foo")).toEqual([
       expect.objectContaining({ from: 0, to: 4 }),
+      expect.objectContaining({ from: 4, to: 8 }),
     ]);
     expect(controller.getSnapshot().query).toBe(" foo");
 
@@ -146,7 +147,8 @@ describe("message search controller", () => {
 
     expect(controller.getSnapshot().query).toBe("foo ");
     expect(controller.getSnapshot().matches).toEqual([
-      expect.objectContaining({ from: 4, to: 8 }),
+      expect.objectContaining({ from: 1, to: 5 }),
+      expect.objectContaining({ from: 5, to: 9 }),
     ]);
   });
 });
