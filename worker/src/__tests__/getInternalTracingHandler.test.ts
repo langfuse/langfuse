@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   LangfuseInternalTraceEnvironment,
-  prepareTracedEventsForIngestion,
+  prepareInternalTraceEvents,
 } from "@langfuse/shared/src/server";
 
-describe("prepareTracedEventsForIngestion", () => {
+describe("prepareInternalTraceEvents", () => {
   it("sets the configured environment on every forwarded event", () => {
-    const preparedEvents = prepareTracedEventsForIngestion(
-      [
+    const preparedEvents = prepareInternalTraceEvents({
+      events: [
         {
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "trace-123",
             name: "internal-trace",
@@ -19,6 +20,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "span-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "blocked-span",
             traceId: "trace-123",
@@ -28,6 +30,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "span-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: "blocked-span",
             traceId: "trace-123",
@@ -35,6 +38,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "generation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "generation-123",
             traceId: "trace-123",
@@ -43,6 +47,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "generation-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: "generation-123",
             traceId: "trace-123",
@@ -54,6 +59,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "span-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "allowed-span",
             traceId: "trace-123",
@@ -63,16 +69,15 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "span-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: "allowed-span",
             traceId: "trace-123",
           },
         },
       ],
-      {
-        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-      },
-    );
+      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+    });
 
     expect(preparedEvents.map((event) => event.body.id)).not.toContain(
       "blocked-span",
@@ -88,10 +93,11 @@ describe("prepareTracedEventsForIngestion", () => {
   });
 
   it("adds prompt metadata only to generation-create events", () => {
-    const preparedEvents = prepareTracedEventsForIngestion(
-      [
+    const preparedEvents = prepareInternalTraceEvents({
+      events: [
         {
           type: "trace-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "trace-123",
             name: "internal-trace",
@@ -99,6 +105,7 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "generation-create",
+          timestamp: new Date().toISOString(),
           body: {
             id: "generation-123",
             traceId: "trace-123",
@@ -107,20 +114,19 @@ describe("prepareTracedEventsForIngestion", () => {
         },
         {
           type: "generation-update",
+          timestamp: new Date().toISOString(),
           body: {
             id: "generation-123",
             traceId: "trace-123",
           },
         },
       ],
-      {
-        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-        prompt: {
-          name: "internal-prompt",
-          version: 3,
-        },
+      environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+      prompt: {
+        name: "internal-prompt",
+        version: 3,
       },
-    );
+    });
 
     expect(preparedEvents).toEqual(
       expect.arrayContaining([

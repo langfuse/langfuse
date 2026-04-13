@@ -231,6 +231,7 @@ export async function getRelevantObservations(
       AND o.trace_id IN {traceIds: Array(String)}
       AND o.start_time >= {minTime: DateTime64(3)} - interval 4 hour
       AND o.start_time <= {maxTime: DateTime64(3)} + interval 7 day
+      AND coalesce(o.environment, '') != 'langfuse-prompt-experiment'
     ORDER BY o.event_ts DESC
     LIMIT 1 BY o.project_id, o.id
   `;
@@ -311,6 +312,7 @@ export async function getRelevantTraces(
       AND t.id IN {traceIds: Array(String)}
       AND t.timestamp >= {minTime: DateTime64(3)} - interval 4 hour
       AND t.timestamp <= {maxTime: DateTime64(3)} + interval 7 day
+      AND coalesce(t.environment, '') != 'langfuse-prompt-experiment'
     ORDER BY t.event_ts DESC
     LIMIT 1 BY t.project_id, t.id
   `;

@@ -5,6 +5,10 @@ import {
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
+import type {
+  InternalTraceEventInput,
+  InternalTraceExperimentContext,
+} from "./internalTraceEvents";
 
 // disable lint as this is exported and used in web/worker
 
@@ -533,16 +537,22 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
 }
 
+export type ProcessedTraceEvent = {
+  type: string;
+  timestamp: string;
+  body: Record<string, unknown>;
+};
+
 /**
- * Details of a generation extracted from traced events.
- * Used to pass generation information from internal tracing to callbacks.
+ * Configuration for direct writing of trace events to the events table.
+ * Used by internal tracing (prompt experiments, evaluations).
  */
-export type GenerationDetails = {
-  observationId: string;
-  name: string;
-  input: unknown;
-  output: unknown;
-  metadata: Record<string, unknown>;
+export type InternalEventsWriter = {
+  experimentContext?: InternalTraceExperimentContext;
+  write: (params: {
+    rootSpanId: string;
+    eventInputs: InternalTraceEventInput[];
+  }) => Promise<void>;
 };
 
 export type TraceSinkParams = {
@@ -561,8 +571,10 @@ export type TraceSinkParams = {
     version: number;
   };
   /**
-   * Optional callback invoked after the generation events have been processed.
-   * Called with merged generation details (from create + update events).
+   * When provided, traced events are written directly to the events table,
+   * bypassing the legacy traces/observations ingestion pipeline for the events write.
+   * Used for internal tracing (prompt experiments, LLM-as-a-judge evaluations). Traced
+   * events are still written to the legacy traces/observations tables.
    */
-  onGenerationComplete?: (details: GenerationDetails) => void;
+  eventsWriter?: InternalEventsWriter;
 };

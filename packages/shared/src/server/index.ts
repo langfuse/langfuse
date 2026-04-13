@@ -28,6 +28,7 @@ export * from "./llm/fetchLLMCompletion";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/internalTraceEvents";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
