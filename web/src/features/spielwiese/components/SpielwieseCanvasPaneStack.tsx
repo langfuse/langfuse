@@ -3,14 +3,11 @@ import { useState, type ReactNode, type RefObject } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   ResizableHandle,
-  ResizablePanel,
   ResizablePanelGroup,
   type ResizablePanelHandle,
 } from "../ui/resizable";
-import {
-  SpielwieseCanvasPane,
-  type SpielwieseCanvasPaneProps,
-} from "./SpielwieseCanvasPane";
+import { type SpielwieseCanvasPaneProps } from "./SpielwieseCanvasPane";
+import { SpielwieseCanvasPaneMainPanel } from "./SpielwieseCanvasPaneMainPanel";
 import { SpielwieseEvaluationPane } from "./SpielwieseEvaluationPane";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { useEvaluationPaneFit } from "./spielwieseCanvasPaneSizing";
@@ -155,45 +152,6 @@ function createPaneModeChangeHandler({
   };
 }
 
-function CanvasPaneMainPanel({
-  insertAnchorNodeId,
-  nodes,
-  onAgentNodeArchive,
-  onNodesReplace,
-  onAgentNodeInsert,
-  onCloseSidePanels,
-  onPromptSectionDelete,
-  onPromptSectionInsert,
-  onPromptSectionChange,
-  onPromptSectionMove,
-  onSettingValueChange,
-  onTitleChange,
-}: SpielwieseCanvasPaneProps) {
-  return (
-    <ResizablePanel
-      data-testid="spielwiese-canvas-main-panel"
-      defaultSize="68%"
-      minSize="20%"
-    >
-      <SpielwieseCanvasPane
-        className="h-full"
-        insertAnchorNodeId={insertAnchorNodeId}
-        nodes={nodes}
-        onAgentNodeArchive={onAgentNodeArchive}
-        onNodesReplace={onNodesReplace}
-        onAgentNodeInsert={onAgentNodeInsert}
-        onCloseSidePanels={onCloseSidePanels}
-        onPromptSectionDelete={onPromptSectionDelete}
-        onPromptSectionInsert={onPromptSectionInsert}
-        onPromptSectionChange={onPromptSectionChange}
-        onPromptSectionMove={onPromptSectionMove}
-        onSettingValueChange={onSettingValueChange}
-        onTitleChange={onTitleChange}
-      />
-    </ResizablePanel>
-  );
-}
-
 function CanvasPaneBottomPanel({
   bottomPaneMode,
   bottomPanelRef,
@@ -235,6 +193,7 @@ function CanvasPaneBottomPanel({
 
 // eslint-disable-next-line max-lines-per-function
 export function SpielwieseCanvasPaneStack({
+  chrome = "default",
   insertAnchorNodeId,
   nodes,
   onAgentNodeArchive,
@@ -262,12 +221,35 @@ export function SpielwieseCanvasPaneStack({
     />
   );
 
+  if (chrome === "onboarding-preview") {
+    return (
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <CanvasPaneMainPanel
+          chrome={chrome}
+          insertAnchorNodeId={insertAnchorNodeId}
+          nodes={nodes}
+          onAgentNodeArchive={onAgentNodeArchive}
+          onNodesReplace={onNodesReplace}
+          onAgentNodeInsert={onAgentNodeInsert}
+          onCloseSidePanels={onCloseSidePanels}
+          onPromptSectionChange={onPromptSectionChange}
+          onPromptSectionDelete={onPromptSectionDelete}
+          onPromptSectionInsert={onPromptSectionInsert}
+          onPromptSectionMove={onPromptSectionMove}
+          onSettingValueChange={onSettingValueChange}
+          onTitleChange={onTitleChange}
+        />
+      </div>
+    );
+  }
+
   return (
     <ResizablePanelGroup
       className="flex-1 overflow-hidden"
       orientation="vertical"
     >
       <CanvasPaneMainPanel
+        chrome={chrome}
         insertAnchorNodeId={insertAnchorNodeId}
         nodes={nodes}
         onAgentNodeArchive={onAgentNodeArchive}

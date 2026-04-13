@@ -1,56 +1,35 @@
 export const spielwieseSetupMomentContent = {
-  eyebrow: "Unsolicited concept for Langfuse",
-  title: "Designing the setup moment for people who are not technical yet.",
-  intro: [
-    "I wanted to respond to your push toward a better experience for less technical users by focusing on one moment: the setup moment.",
-    "The point is not to explain everything up front. The point is to help someone cross the threshold with enough confidence to reach their own aha moments afterwards.",
-  ],
-  thesis:
-    "This concept only designs the setup moment directly. Aha is treated as a cluster of validating moments that setup makes possible. Habit is intentionally out of scope.",
-  moments: [
+  title: "Langfuse redesign",
+  updatedAt: "Updated Apr 13, 2026",
+  sections: [
     {
-      id: "setup",
-      kicker: "Setup moment",
-      title: "Orientation before confidence.",
-      body: "The product should reduce fear, ask the right questions, and make the first structure feel authored with the user instead of dropped on top of them.",
-      emphasis: "primary" as const,
+      paragraphs: [
+        "This is my unsolicited redesign of Langfuse. I treated it as a product design exercise, not a visual refresh, and focused on how the product should feel when someone is trying to understand and shape an agent workflow for the first time.",
+      ],
+      title: "Overview",
     },
     {
-      id: "aha",
-      kicker: "Aha moments",
-      title: "A set of signals, not one miracle.",
-      body: "The user starts to notice that the system is shaping itself around their intent. That recognition can happen in multiple small waves.",
-      emphasis: "secondary" as const,
+      paragraphs: [
+        "The redesign starts earlier than the dashboard. I reframed the entry point, tightened the onboarding, and then rebuilt the working surface so prompts, tags, variables, and handoffs read as one coherent system instead of separate controls competing for attention.",
+        "A lot of the work is about lowering cognitive load without flattening the product. The structure stays powerful, but the product should explain itself through spacing, sequencing, and emphasis before it asks the user to understand internal concepts.",
+      ],
+      title: "Approach",
     },
     {
-      id: "habit",
-      kicker: "Habit moment",
-      title: "What comes after trust.",
-      body: "Habit depends on repetition and proof over time. I am not designing that layer here, only the bridge that could enable it.",
-      emphasis: "secondary" as const,
-    },
-  ],
-  artifactSlots: [
-    {
-      id: "drawing-01",
-      label: "Drawing slot 01",
-      note: "Drop in a sketch, note, or storyboard fragment.",
+      paragraphs: [
+        "The result is a guided prototype with three parts: an intro that frames the thinking, an onboarding flow that sets up intent, and a dashboard that shows how the redesigned system could feel in use.",
+        "This page is the framing layer. The next screens are the product layer.",
+      ],
+      title: "Outcome",
     },
     {
-      id: "drawing-02",
-      label: "Drawing slot 02",
-      note: "Use this for a system diagram or handwritten framing.",
-    },
-    {
-      id: "drawing-03",
-      label: "Drawing slot 03",
-      note: "Use this for a lo-fi flow or an annotated screen.",
+      paragraphs: [
+        "You can start directly with the onboarding flow or jump into the dashboard if you want to inspect the core canvas first.",
+      ],
+      title: "Routes",
     },
   ],
-  video: {
-    title: "Walkthrough video",
-    body: "A short recording should live here, where you explain the setup / aha / habit framing and then walk through the simulated product flow.",
-  },
-  closing:
-    "After this point the experience should stop teaching and start behaving like product.",
+  videoNote: "Place a short video walkthrough here.",
+  footer:
+    "If you want the intended reading order, start with onboarding and then continue into the dashboard.",
 } as const;

@@ -9,6 +9,15 @@ function renderCanvas() {
   );
 }
 
+function renderOnboardingPreviewCanvas() {
+  return render(
+    <SpielwieseEditorCanvas
+      canvas={spielwieseEditorCanvasTestCanvas}
+      chrome="onboarding-preview"
+    />,
+  );
+}
+
 function getLayoutShellElements() {
   const editorModeHeader = screen.getByTestId(
     "spielwiese-canvas-editor-mode-header",
@@ -259,6 +268,18 @@ describe("SpielwieseEditorCanvas layout shell", () => {
 
     expectLayoutShellChrome(layoutElements);
     expectLayoutAccessories(layoutElements);
+  });
+
+  it("can hide editor chrome for onboarding preview without changing the default canvas shell", () => {
+    renderOnboardingPreviewCanvas();
+
+    expect(screen.getByTestId("spielwiese-editor-canvas")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-canvas-editor-mode-header")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-agent-node-insert-footer")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-canvas-pane-resize-handle")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-canvas-bottom-panel")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-prompt-simulation-pane")).toBeNull();
   });
 });
 

@@ -8,6 +8,8 @@ type SpielwieseOnboardingSurfaceProps = {
   header: ReactNode;
   layout?: "single" | "split";
   pauseShaderMotion?: boolean;
+  stageClassName?: string;
+  shellClassName?: string;
   showBackdrop?: boolean;
   showShader?: boolean;
   testId: string;
@@ -66,6 +68,8 @@ export default function SpielwieseOnboardingSurface({
   header,
   layout = "split",
   pauseShaderMotion = false,
+  stageClassName,
+  shellClassName,
   showBackdrop = true,
   showShader = false,
   testId,
@@ -88,7 +92,7 @@ export default function SpielwieseOnboardingSurface({
       <header className="flex w-full justify-center">{header}</header>
       <div className="flex w-full flex-1 items-center justify-center">
         <div className="w-full py-6 sm:py-8">
-          <div className={surfaceStageClassName}>
+          <div className={cn(surfaceStageClassName, stageClassName)}>
             {showBackdrop ? (
               <SpielwieseOnboardingSurfaceBackdrop
                 pauseShaderMotion={pauseShaderMotion}
@@ -96,7 +100,7 @@ export default function SpielwieseOnboardingSurface({
               />
             ) : null}
             <div
-              className={surfaceShellClassName}
+              className={cn(surfaceShellClassName, shellClassName)}
               data-testid="spielwiese-onboarding-surface-shell"
             >
               {children}

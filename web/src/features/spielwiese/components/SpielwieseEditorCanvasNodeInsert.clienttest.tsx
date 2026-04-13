@@ -25,6 +25,26 @@ function getExternalInsertControls() {
   };
 }
 
+function getEmptyStateInsertControls() {
+  const emptyState = screen.getByTestId("spielwiese-agent-node-empty-state");
+
+  return {
+    emptyState,
+    externalRow: within(emptyState).getByTestId(
+      "spielwiese-agent-node-external-insert-row",
+    ),
+    textPicker: within(emptyState).getByTestId(
+      "spielwiese-agent-node-insert-picker",
+    ),
+    textShell: within(emptyState).getByTestId(
+      "spielwiese-agent-node-insert-shell",
+    ),
+    textTrigger: within(emptyState).getByTestId(
+      "spielwiese-agent-node-insert-trigger",
+    ),
+  };
+}
+
 function expectExternalInsertRowChrome({
   externalRow,
   insertFooter,
@@ -138,11 +158,19 @@ describe("SpielwieseEditorCanvas node insertion", () => {
     renderEmptyCanvas();
 
     expect(screen.queryAllByTestId("spielwiese-agent-node")).toHaveLength(0);
+    expect(screen.getByText("Get started building your agents")).toBeTruthy();
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(2);
 
-    const { insertFooter, textPicker, textTrigger } =
-      getExternalInsertControls();
+    const centeredControls = getEmptyStateInsertControls();
+    const { insertFooter } = getExternalInsertControls();
+    const { externalRow, textPicker, textShell, textTrigger } =
+      centeredControls;
 
     expect(insertFooter).toBeTruthy();
+    expect(externalRow.className).not.toContain("mt-[8px]");
+    expect(textShell.className).toContain("overflow-hidden");
     expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(textTrigger);
@@ -150,13 +178,21 @@ describe("SpielwieseEditorCanvas node insertion", () => {
     expect(textPicker.getAttribute("data-state")).toBe("open");
 
     fireEvent.click(
-      within(insertFooter).getByRole("button", { name: "Agent" }),
+      within(centeredControls.emptyState).getByRole("button", {
+        name: "Agent",
+      }),
     );
 
     const agentNodes = screen.getAllByTestId("spielwiese-agent-node");
     const insertedNode = agentNodes[0]!;
 
     expect(agentNodes).toHaveLength(1);
+    expect(
+      screen.queryByTestId("spielwiese-agent-node-empty-state"),
+    ).toBeNull();
+    expect(
+      screen.getAllByTestId("spielwiese-agent-node-external-insert-row"),
+    ).toHaveLength(1);
     expect(
       (
         within(insertedNode).getByLabelText(

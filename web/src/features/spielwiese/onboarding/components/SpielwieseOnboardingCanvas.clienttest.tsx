@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
-import { onboardingStepCopy } from "./spielwieseOnboardingStepCopy";
 
 jest.mock("next/router", () => ({
   useRouter: jest.fn(),
@@ -16,17 +15,59 @@ function renderOnboardingCanvas(requestedStepId?: string) {
   );
 }
 
-function expectVisibleQuestion({
-  progressStep,
-  prompt,
-}: {
-  progressStep: number;
-  prompt: string;
-}) {
-  expect(
-    screen.getByTestId("spielwiese-onboarding-step-label").textContent,
-  ).toBe(`Question ${progressStep} of 3`);
+function expectVisibleQuestion({ prompt }: { prompt: string }) {
   expect(screen.getByText(prompt)).toBeTruthy();
+}
+
+function expectFlatQuestionChrome() {
+  const surfaceShell = screen.getByTestId(
+    "spielwiese-onboarding-surface-shell",
+  );
+  const questionPanel = screen.getByTestId(
+    "spielwiese-onboarding-question-panel",
+  );
+  const optionsLayout = screen.getByTestId(
+    "spielwiese-onboarding-options-layout",
+  );
+  const progressBar = screen.getByRole("progressbar");
+
+  expect(surfaceShell.className).toContain("max-w-[70.625rem]");
+  expect(surfaceShell.className).toContain("bg-transparent");
+  expect(surfaceShell.className).toContain("shadow-none");
+  expect(surfaceShell.className).toContain("border-0");
+  expect(questionPanel.className).not.toContain("bg-white");
+  expect(questionPanel.className).toContain("bg-transparent");
+  expect(questionPanel.className).toContain("shadow-none");
+  expect(questionPanel.className).toContain("border-0");
+  expect(questionPanel.className).toContain("animate-in");
+  expect(optionsLayout.className).toContain("grid-cols-2");
+  expect(progressBar.getAttribute("aria-valuenow")).not.toBe("12.5");
+  expect(screen.queryByTestId("spielwiese-canvas-editor-mode-header")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-agent-node-insert-footer")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-canvas-bottom-panel")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-prompt-simulation-pane")).toBeNull();
+}
+
+function expectNoLegacyQuestionnaireChrome() {
+  expect(screen.queryByTestId("spielwiese-onboarding-greeting")).toBeNull();
+  expect(
+    screen.queryByTestId("spielwiese-onboarding-questionnaire"),
+  ).toBeNull();
+  expect(screen.queryByText("Direction")).toBeNull();
+  expect(
+    screen.queryByText(
+      "A better room starts by knowing how much direction to give you.",
+    ),
+  ).toBeNull();
+  expect(
+    screen.queryByText(
+      "If you already know what to build, the room can stay out of your way. If you do not, it should help shape the path before it asks for precision.",
+    ),
+  ).toBeNull();
+  expect(screen.queryByText("Current answer")).toBeNull();
+  expect(screen.queryByText("Why are you opening this room?")).toBeNull();
+  expect(screen.queryByText("What should feel strongest first?")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-onboarding-step-label")).toBeNull();
 }
 
 describe("SpielwieseOnboardingCanvas setup", () => {
@@ -44,34 +85,23 @@ describe("SpielwieseOnboardingCanvas setup", () => {
     expect(
       screen.queryByTestId("spielwiese-onboarding-surface-backdrop"),
     ).toBeNull();
-    expect(
-      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
-    ).toContain("max-w-[36rem]");
+    expectFlatQuestionChrome();
     expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
       screen.getByRole("button", {
         name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
       }),
     ).toBeTruthy();
-    expect(screen.queryByTestId("spielwiese-onboarding-greeting")).toBeNull();
+    expectNoLegacyQuestionnaireChrome();
     expect(
-      screen.queryByTestId("spielwiese-onboarding-questionnaire"),
-    ).toBeNull();
-    expect(
-      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
-    ).toBeNull();
+      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
     expectVisibleQuestion({
-      progressStep: 1,
       prompt: "Do you know what to build?",
     });
-    expect(screen.queryByText(onboardingStepCopy.role.eyebrow)).toBeNull();
-    expect(screen.queryByText(onboardingStepCopy.role.title)).toBeNull();
-    expect(screen.queryByText(onboardingStepCopy.role.body)).toBeNull();
-    expect(screen.queryByText("Current answer")).toBeNull();
     expect(screen.getByRole("button", { name: "Yes" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "No" })).toBeTruthy();
-    expect(screen.queryByText("Why are you opening this room?")).toBeNull();
-    expect(screen.queryByText("What should feel strongest first?")).toBeNull();
   });
 });
 
@@ -96,9 +126,14 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
 
     rerender(<SpielwieseOnboardingCanvas requestedStepId="intent" />);
     expectVisibleQuestion({
-      progressStep: 2,
       prompt: "Why are you opening this room?",
     });
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("max-w-[36rem]");
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
     expect(screen.queryByText("What describes you best?")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Shape a workflow" }));
@@ -111,7 +146,6 @@ describe("SpielwieseOnboardingCanvas sequence", () => {
 
     rerender(<SpielwieseOnboardingCanvas requestedStepId="opening" />);
     expectVisibleQuestion({
-      progressStep: 3,
       prompt: "What should feel strongest first?",
     });
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();

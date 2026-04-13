@@ -2,11 +2,15 @@ import type { FormEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { Upload } from "lucide-react";
-import { getOnboardingStepPath } from "./spielwieseOnboardingFlow";
+import {
+  getOnboardingProgressValue,
+  getOnboardingStepPath,
+  PERSONAL_DETAILS_STEP_ID,
+} from "../spielwieseOnboardingFlow";
 import {
   type EntryTextMotionDelay,
   getOnboardingEntryTextMotionClassName,
-} from "./spielwieseOnboardingEntryMotion";
+} from "../spielwieseOnboardingEntryMotion";
 import {
   onboardingDetailsFieldShellClassName,
   onboardingDetailsInputClassName,
@@ -18,7 +22,7 @@ import {
   onboardingDetailsSelectTriggerClassName,
   onboardingCanCodeOptions,
   onboardingPositionOptions,
-} from "./spielwieseOnboardingPersonalDetailsOptions";
+} from "../spielwieseOnboardingPersonalDetailsOptions";
 import {
   Select,
   SelectContent,
@@ -26,7 +30,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
+} from "../../ui/select";
+import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 
 function preventDummyClick(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
@@ -41,16 +46,9 @@ function createNavigationSubmitHandler(onSubmit: () => void) {
 
 export function SpielwiesePersonalDetailsProgress() {
   return (
-    <div
-      aria-label="13%"
-      aria-valuemax={100}
-      aria-valuemin={0}
-      aria-valuenow={12.5}
-      className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-[rgb(230,231,234)]"
-      role="progressbar"
-    >
-      <div className="h-full w-[12.5%] bg-[rgb(38,109,240)]" />
-    </div>
+    <SpielwieseOnboardingProgress
+      value={getOnboardingProgressValue(PERSONAL_DETAILS_STEP_ID)}
+    />
   );
 }
 

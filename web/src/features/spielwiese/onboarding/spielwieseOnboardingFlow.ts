@@ -31,7 +31,7 @@ export function getOnboardingStartPath() {
 }
 
 export function getOnboardingPersonalDetailsPath() {
-  return `${getOnboardingStartPath()}#${PERSONAL_DETAILS_STEP_ID}`;
+  return `${getOnboardingStartPath()}/${PERSONAL_DETAILS_STEP_ID}`;
 }
 
 export function getSpielwieseDashboardPath() {
@@ -64,6 +64,21 @@ export function getActiveOnboardingStepIndex(
 
 export function getOnboardingStepPath(stepId: OnboardingAnswerKey) {
   return `/dev/spielwiese/onboarding/${stepId}`;
+}
+
+export function getOnboardingProgressValue(
+  stepId: OnboardingAnswerKey | typeof PERSONAL_DETAILS_STEP_ID,
+) {
+  switch (stepId) {
+    case PERSONAL_DETAILS_STEP_ID:
+      return 12.5;
+    case "role":
+      return 37.5;
+    case "intent":
+      return 62.5;
+    case "opening":
+      return 87.5;
+  }
 }
 
 export function getOnboardingCompletionCount(answers: OnboardingAnswers) {

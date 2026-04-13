@@ -2,14 +2,18 @@ import type { SpielwieseDashboardVM } from "../types/dashboard";
 import { SpielwieseCanvasPaneStack } from "./SpielwieseCanvasPaneStack";
 import { useSpielwieseEditableCanvas } from "./useSpielwieseEditableCanvas";
 
+export type SpielwieseEditorCanvasChrome = "default" | "onboarding-preview";
+
 type SpielwieseEditorCanvasProps = {
   canvas: SpielwieseDashboardVM["canvas"];
+  chrome?: SpielwieseEditorCanvasChrome;
   onCloseSidePanels?: () => void;
   onDetectedVariablesChange?: (labels: string[]) => void;
 };
 
 export function SpielwieseEditorCanvas({
   canvas,
+  chrome = "default",
   onCloseSidePanels,
   onDetectedVariablesChange,
 }: SpielwieseEditorCanvasProps) {
@@ -24,6 +28,7 @@ export function SpielwieseEditorCanvas({
       data-testid="spielwiese-editor-canvas"
     >
       <SpielwieseCanvasPaneStack
+        chrome={chrome}
         insertAnchorNodeId={editableCanvas.insertAnchorNodeId}
         onNodesReplace={editableCanvas.onNodesReplace}
         onAgentNodeArchive={editableCanvas.onAgentNodeArchive}

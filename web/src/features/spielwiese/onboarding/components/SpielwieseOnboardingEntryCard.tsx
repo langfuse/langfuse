@@ -1,4 +1,5 @@
 import type { FormEvent, MouseEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { Mail } from "lucide-react";
 import {
@@ -14,8 +15,8 @@ import {
 import {
   getOnboardingPersonalDetailsPath,
   PERSONAL_DETAILS_STEP_ID,
-} from "./spielwieseOnboardingFlow";
-import { getOnboardingEntryTextMotionClassName } from "./spielwieseOnboardingEntryMotion";
+} from "../spielwieseOnboardingFlow";
+import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
 
 export type SpielwieseOnboardingEntryStep =
   | typeof PERSONAL_DETAILS_STEP_ID
@@ -29,6 +30,37 @@ const signUpButtonClassName =
   "inline-flex items-center justify-center text-sm/5 font-medium tracking-[-0.01em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(78,140,252)]";
 const signUpSecondaryButtonClassName = `${signUpButtonClassName} h-10 w-full gap-1.5 rounded-[10px] bg-white px-3 text-[rgb(36,37,41)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0),0_0_2px_0_rgba(28,40,64,0.18),0_1px_3px_0_rgba(24,41,75,0.04)] hover:bg-[rgb(248,249,250)] active:scale-[0.985]`;
 const signUpPrimaryButtonClassName = `${signUpButtonClassName} h-8 w-full rounded-[9px] bg-[rgb(38,109,240)] px-3 text-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(38,109,240,0.12),0_3px_6px_-2px_rgba(38,109,240,0.08)] hover:bg-[rgb(46,117,248)] active:scale-[0.985]`;
+
+const onboardingCustomerLogos = [
+  {
+    alt: "",
+    className: "size-4 object-contain",
+    height: 512,
+    src: "/spielwiese/signup-logos/brand-a.png",
+    width: 512,
+  },
+  {
+    alt: "Twilio",
+    className: "h-5 w-auto object-contain",
+    height: 385,
+    src: "/spielwiese/signup-logos/twilio.png",
+    width: 1280,
+  },
+  {
+    alt: "Canva",
+    className: "h-5 w-auto object-contain",
+    height: 482,
+    src: "/spielwiese/signup-logos/canva.png",
+    width: 1500,
+  },
+  {
+    alt: "Apple",
+    className: "h-5 w-auto object-contain",
+    height: 2359,
+    src: "/spielwiese/signup-logos/apple.png",
+    width: 1920,
+  },
+] as const;
 
 function createNavigationSubmitHandler(
   navigate: () => Promise<boolean> | void,
@@ -56,7 +88,7 @@ function SignUpField({ isActive }: { isActive: boolean }) {
         aria-label="email address"
         className={signUpInputClassName}
         name="email"
-        placeholder="Enter your work email address"
+        placeholder="walter.white@polloshermanos.com"
         type="email"
       />
     </div>
@@ -93,11 +125,34 @@ function GoogleMark() {
   );
 }
 
+function SignUpLogoStrip({ isActive }: { isActive: boolean }) {
+  return (
+    <div
+      aria-label="Customer logos"
+      className={`flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-2 ${getOnboardingEntryTextMotionClassName(isActive, "long")}`}
+      data-testid="spielwiese-onboarding-logo-strip"
+    >
+      {onboardingCustomerLogos.map((logo) => (
+        <div className="flex h-6 items-center justify-center" key={logo.alt}>
+          <Image
+            alt={logo.alt}
+            aria-hidden={logo.alt === "" ? "true" : undefined}
+            className={logo.className}
+            height={logo.height}
+            src={logo.src}
+            width={logo.width}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SignUpFormPanel({ isActive }: { isActive: boolean }) {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-[38rem] flex-col justify-between bg-white px-6 py-12 sm:px-10 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
+    <div className="flex min-h-[38rem] flex-col bg-white px-6 py-12 sm:px-10 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
       <div className="flex flex-1 items-center justify-center">
         <div className="grid w-full max-w-[23.25rem] gap-7">
           <button
@@ -113,7 +168,7 @@ function SignUpFormPanel({ isActive }: { isActive: boolean }) {
             role="none"
           />
           <form
-            className="grid gap-3"
+            className="grid gap-4"
             onSubmit={createNavigationSubmitHandler(() =>
               router.push(getOnboardingPersonalDetailsPath(), undefined, {
                 scroll: false,
@@ -128,16 +183,10 @@ function SignUpFormPanel({ isActive }: { isActive: boolean }) {
             >
               Continue
             </button>
+            <SignUpLogoStrip isActive={isActive} />
           </form>
         </div>
       </div>
-      <p
-        className={`w-full text-[0.625rem]/[0.875rem] font-medium tracking-[-0.01em] text-[rgba(0,0,0,0.55)] ${getOnboardingEntryTextMotionClassName(isActive, "long")}`}
-      >
-        By inserting your email you confirm that this is a speculative concept
-        for a portfolio walkthrough. Every action on this screen is
-        intentionally inert.
-      </p>
     </div>
   );
 }
@@ -146,7 +195,7 @@ function SignUpWelcomePanel({ isActive }: { isActive: boolean }) {
   return (
     <div className="flex min-h-[22rem] bg-white px-8 py-14 sm:px-12 sm:py-16 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]">
       <div className="flex items-center">
-        <div className="grid max-w-[24.5rem] translate-y-[4px] gap-4">
+        <div className="grid max-w-[24.5rem] translate-y-[-5px] gap-4">
           <h1
             className={`max-w-[16ch] text-[1.5rem]/7 font-semibold tracking-[-0.02em] text-balance text-[rgb(36,37,41)] ${getOnboardingEntryTextMotionClassName(isActive, "none")}`}
           >

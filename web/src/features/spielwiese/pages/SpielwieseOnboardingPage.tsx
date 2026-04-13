@@ -1,11 +1,12 @@
+import type { TransitionEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
-import SpielwieseOnboardingEntryCard from "../components/SpielwieseOnboardingEntryCard";
+import SpielwieseOnboardingEntryCard from "../onboarding/components/SpielwieseOnboardingEntryCard";
 import {
   getOnboardingStepPath,
   PERSONAL_DETAILS_STEP_ID,
-} from "../components/spielwieseOnboardingFlow";
-import { SpielwieseOnboardingCanvas } from "../components/SpielwieseOnboardingCanvas";
+} from "../onboarding/spielwieseOnboardingFlow";
+import { SpielwieseOnboardingCanvas } from "../onboarding/components/SpielwieseOnboardingCanvas";
 
 type SpielwieseOnboardingPageProps = {
   stepId?: string;
@@ -13,15 +14,9 @@ type SpielwieseOnboardingPageProps = {
 
 type EntryStep = "personal-details" | "sign-up";
 
-const personalDetailsExitDurationMs = 420;
-
-function getEntryStep(
-  asPath: string | undefined,
-  stepId: string | undefined,
-): EntryStep | null {
+function getEntryStep(stepId: string | undefined): EntryStep | null {
   if (!stepId) {
-    const hash = asPath?.split("#")[1];
-    return hash === PERSONAL_DETAILS_STEP_ID ? "personal-details" : "sign-up";
+    return "sign-up";
   }
 
   if (stepId === PERSONAL_DETAILS_STEP_ID) {
@@ -42,10 +37,12 @@ function getOnboardingEntryLayerClassName(isTransitioningOut: boolean) {
 
 function EntryScene({
   isTransitioningOut,
+  onEntryLayerTransitionEnd,
   onPersonalDetailsContinue,
   step,
 }: {
   isTransitioningOut: boolean;
+  onEntryLayerTransitionEnd: (event: TransitionEvent<HTMLDivElement>) => void;
   onPersonalDetailsContinue: () => void;
   step: EntryStep;
 }) {
@@ -54,6 +51,7 @@ function EntryScene({
       <div
         className={getOnboardingEntryLayerClassName(isTransitioningOut)}
         data-testid="spielwiese-onboarding-entry-layer"
+        onTransitionEnd={onEntryLayerTransitionEnd}
       >
         <SpielwieseOnboardingEntryCard
           isPersonalDetailsTransitioning={isTransitioningOut}
@@ -65,38 +63,37 @@ function EntryScene({
   );
 }
 
-function usePersonalDetailsTransition(
-  isTransitioningOut: boolean,
-  router: ReturnType<typeof useRouter>,
-  setIsTransitioningOut: (value: boolean) => void,
-) {
-  return () => {
-    if (isTransitioningOut) {
-      return;
-    }
-
-    setIsTransitioningOut(true);
-    window.setTimeout(() => {
-      void router.push(getOnboardingStepPath("role"), undefined, {
-        scroll: false,
-        shallow: true,
-      });
-      setIsTransitioningOut(false);
-    }, personalDetailsExitDurationMs);
-  };
-}
-
 export default function SpielwieseOnboardingPage({
   stepId,
 }: SpielwieseOnboardingPageProps) {
   const router = useRouter();
   const [isTransitioningOut, setIsTransitioningOut] = useState(false);
-  const entryStep = getEntryStep(router.asPath, stepId);
-  const startPersonalDetailsTransition = usePersonalDetailsTransition(
-    isTransitioningOut,
-    router,
-    setIsTransitioningOut,
-  );
+  const entryStep = getEntryStep(stepId);
+
+  const startPersonalDetailsTransition = () => {
+    if (isTransitioningOut) {
+      return;
+    }
+
+    setIsTransitioningOut(true);
+  };
+
+  const handleEntryLayerTransitionEnd = (
+    event: TransitionEvent<HTMLDivElement>,
+  ) => {
+    if (!isTransitioningOut || event.currentTarget !== event.target) {
+      return;
+    }
+
+    void Promise.resolve(
+      router.push(getOnboardingStepPath("role"), undefined, {
+        scroll: false,
+        shallow: true,
+      }),
+    ).catch(() => {
+      setIsTransitioningOut(false);
+    });
+  };
 
   return (
     <div
@@ -106,6 +103,7 @@ export default function SpielwieseOnboardingPage({
       {entryStep ? (
         <EntryScene
           isTransitioningOut={isTransitioningOut}
+          onEntryLayerTransitionEnd={handleEntryLayerTransitionEnd}
           onPersonalDetailsContinue={startPersonalDetailsTransition}
           step={entryStep}
         />

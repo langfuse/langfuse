@@ -38,9 +38,10 @@ export default function SpielwieseOnboardingWordmarkButton({
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-full ml-2 -translate-x-1 -translate-y-1/2 text-[0.75rem]/4 font-medium tracking-[-0.01em] whitespace-nowrap text-[rgba(0,0,0,0.42)] opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
+        className="pointer-events-none absolute top-1/2 left-full ml-2 -translate-y-1/2 text-[0.75rem]/4 font-medium tracking-[-0.01em] whitespace-nowrap text-[rgba(0,0,0,0.42)] opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
+        data-testid="spielwiese-onboarding-wordmark-caption"
       >
-        yes i designed this lol
+        for the fun of it
       </span>
     </button>
   );

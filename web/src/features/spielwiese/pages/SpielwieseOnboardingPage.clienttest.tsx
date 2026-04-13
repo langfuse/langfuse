@@ -1,10 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
 import {
   getOnboardingPersonalDetailsPath,
   getOnboardingStepPath,
   PERSONAL_DETAILS_STEP_ID,
-} from "../components/spielwieseOnboardingFlow";
+} from "../onboarding/spielwieseOnboardingFlow";
 import SpielwieseOnboardingPage from "./SpielwieseOnboardingPage";
 
 jest.mock("next/router", () => ({
@@ -20,12 +20,6 @@ function mockRouter() {
     asPath,
     push,
   } as ReturnType<typeof useRouter>);
-}
-
-function renderHashStep(stepHashPath: string) {
-  asPath = stepHashPath;
-  mockRouter();
-  return render(<SpielwieseOnboardingPage />);
 }
 
 function expectPersonalDetailsChrome(container: HTMLElement) {
@@ -68,11 +62,18 @@ afterEach(() => {
 });
 
 describe("SpielwieseOnboardingPage sign-up basics", () => {
+  it("uses a routed personal details path instead of a hash route", () => {
+    expect(getOnboardingPersonalDetailsPath()).toBe(
+      "/dev/spielwiese/onboarding/personal-details",
+    );
+  });
+
   it("renders the onboarding root as a sign-up screen", () => {
     const { container } = render(<SpielwieseOnboardingPage />);
     const welcomeHeading = screen.getByRole("heading", {
       name: "Welcome to Langfuse.",
     });
+    const logoStrip = screen.getByTestId("spielwiese-onboarding-logo-strip");
     const wordmarkImage = screen
       .getByRole("button", { name: "Langfuse" })
       .querySelector("img");
@@ -82,8 +83,22 @@ describe("SpielwieseOnboardingPage sign-up basics", () => {
       screen.getByRole("button", { name: "Sign in with Google" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(
+      screen.getByPlaceholderText("walter.white@polloshermanos.com"),
+    ).toBeTruthy();
+    expect(logoStrip.querySelectorAll("img")).toHaveLength(4);
+    expect(logoStrip.querySelector("img")?.getAttribute("src")).toContain(
+      "brand-a.png",
+    );
+    expect(screen.queryByRole("img", { name: "Samsara" })).toBeNull();
+    expect(screen.getByRole("img", { name: "Twilio" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Canva" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Apple" })).toBeTruthy();
+    expect(
+      screen.queryByText("By inserting your email you confirm that"),
+    ).toBeNull();
     expect(welcomeHeading.parentElement?.className).toContain(
-      "translate-y-[4px]",
+      "translate-y-[-5px]",
     );
     expect(wordmarkImage?.getAttribute("src")).toBe(
       "/spielwiese/lf-onboarding-wordmark.png",
@@ -116,13 +131,19 @@ describe("SpielwieseOnboardingPage sign-up basics", () => {
 
 describe("SpielwieseOnboardingPage personal details layout", () => {
   it("renders the personal details route without dashboard shell chrome", () => {
-    const { container } = renderHashStep(getOnboardingPersonalDetailsPath());
+    asPath = getOnboardingPersonalDetailsPath();
+    mockRouter();
+    const { container } = render(
+      <SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />,
+    );
 
     expectPersonalDetailsChrome(container);
   });
 
   it("renders the staged personal details form with dropdown fields", () => {
-    renderHashStep(getOnboardingPersonalDetailsPath());
+    asPath = getOnboardingPersonalDetailsPath();
+    mockRouter();
+    render(<SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />);
 
     expect(screen.queryByText("Temporary placeholder")).toBeNull();
     expect(screen.queryByText("First name")).toBeNull();
@@ -145,9 +166,8 @@ describe("SpielwieseOnboardingPage personal details layout", () => {
 });
 
 describe("SpielwieseOnboardingPage personal details transition", () => {
-  it("animates only the current personal details card out before advancing", () => {
-    jest.useFakeTimers();
-    renderHashStep(getOnboardingPersonalDetailsPath());
+  it("advances only after the personal details exit transition completes", () => {
+    render(<SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />);
 
     expect(screen.queryByTestId("spielwiese-onboarding-step")).toBeNull();
     expect(
@@ -165,9 +185,12 @@ describe("SpielwieseOnboardingPage personal details transition", () => {
     ).toContain("opacity-0");
     expect(screen.queryByTestId("spielwiese-onboarding-step")).toBeNull();
 
-    act(() => {
-      jest.advanceTimersByTime(420);
-    });
+    fireEvent.transitionEnd(
+      screen.getByTestId("spielwiese-onboarding-entry-layer"),
+      {
+        propertyName: "opacity",
+      },
+    );
 
     expect(push).toHaveBeenCalledWith(
       getOnboardingStepPath("role"),
@@ -188,16 +211,25 @@ describe("SpielwieseOnboardingPage personal details compatibility", () => {
 
   it("renders the updated footer copy and designer hover caption", () => {
     render(<SpielwieseOnboardingPage />);
+    const wordmarkCaption = screen.getByTestId(
+      "spielwiese-onboarding-wordmark-caption",
+    );
 
     expect(
       screen.getByRole("button", {
         name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
       }),
     ).toBeTruthy();
-    expect(screen.getByText("yes i designed this lol")).toBeTruthy();
+    expect(screen.getByText("for the fun of it")).toBeTruthy();
     expect(
       screen.getByTestId("spielwiese-onboarding-wordmark-hover-zone"),
     ).toBeTruthy();
+    expect(wordmarkCaption.className).toContain("transition-opacity");
+    expect(wordmarkCaption.className).toContain("group-hover:opacity-100");
+    expect(wordmarkCaption.className).not.toContain("-translate-x-1");
+    expect(wordmarkCaption.className).not.toContain(
+      "group-hover:translate-x-0",
+    );
   });
 });
 
@@ -213,8 +245,8 @@ describe("SpielwieseOnboardingPage routed steps", () => {
       }),
     ).toBeTruthy();
     expect(
-      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
-    ).toBeNull();
+      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeTruthy();
     expect(
       screen.queryByTestId("spielwiese-onboarding-questionnaire"),
     ).toBeNull();
@@ -224,14 +256,30 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
     expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
     expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("bg-transparent");
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("max-w-[70.625rem]");
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("shadow-none");
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("border-0");
     expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
   });
 
   it("keeps the first question active until earlier answers exist", () => {
     render(<SpielwieseOnboardingPage stepId="intent" />);
 
-    expect(screen.getByText("Question 1 of 3")).toBeTruthy();
+    expect(screen.queryByTestId("spielwiese-onboarding-step-label")).toBeNull();
     expect(screen.getByText("Do you know what to build?")).toBeTruthy();
+    expect(
+      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeTruthy();
+    expect(screen.getByRole("progressbar")).toBeTruthy();
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
   });
 });

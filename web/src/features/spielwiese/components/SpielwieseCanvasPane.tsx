@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
+import type { SpielwieseEditorCanvasChrome } from "./SpielwieseEditorCanvas";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import { SpielwieseCanvasPaneBuilder } from "./SpielwieseCanvasPaneBuilder";
 import { SpielwieseCanvasPaneHeader } from "./SpielwieseCanvasPaneHeader";
@@ -19,6 +20,7 @@ const spielwieseCanvasPaneShellClassName =
 const spielwieseCanvasPaneSurfaceClassName = "bg-background";
 
 export type SpielwieseCanvasPaneProps = {
+  chrome?: SpielwieseEditorCanvasChrome;
   className?: string;
   insertAnchorNodeId: string | null;
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"];
@@ -65,13 +67,10 @@ function commitCanvasJsonDraft({
   onNodesReplace: SpielwieseCanvasPaneProps["onNodesReplace"];
 }) {
   const parsedResult = parseEditableCanvasNodes(draft);
-
   if (!parsedResult.ok) {
     return parsedResult;
   }
-
   onNodesReplace(parsedResult.nodes);
-
   return {
     formattedDraft: formatEditableCanvasNodes(parsedResult.nodes),
     ok: true as const,
@@ -121,22 +120,18 @@ function useCanvasJsonEditorState({
       draft,
       onNodesReplace,
     });
-
     if (!commitResult.ok) {
       setDraftState((currentState) => ({
         ...currentState,
         error: commitResult.error,
       }));
-
       return false;
     }
-
     setDraftState((currentState) => ({
       ...currentState,
       draft: commitResult.formattedDraft,
       error: null,
     }));
-
     return true;
   };
 
@@ -156,12 +151,10 @@ function useCanvasJsonEditorState({
     onModeChange: (mode: CanvasEditorMode) => {
       if (mode === "builder" && draftState.mode === "json") {
         const didCommitDraft = tryCommitDraft(draftState.draft);
-
         if (!didCommitDraft) {
           return;
         }
       }
-
       setDraftState((currentState) => ({
         ...currentState,
         mode,
@@ -182,6 +175,7 @@ function getAllCompactNodeIds(
 // eslint-disable-next-line max-lines-per-function
 function CanvasPaneContent({
   canvasJsonEditorState,
+  chrome = "default",
   compactNodeIds,
   insertAnchorNodeId,
   nodes,
@@ -202,6 +196,7 @@ function CanvasPaneContent({
 }) {
   const areAllCardsCompact =
     nodes.length > 0 && nodes.every((node) => Boolean(compactNodeIds[node.id]));
+  const hidesCanvasChrome = chrome === "onboarding-preview";
 
   return (
     <div
@@ -218,18 +213,20 @@ function CanvasPaneContent({
         )}
         data-testid="spielwiese-editor-canvas-pane-surface"
       >
-        <SpielwieseCanvasPaneHeader
-          areAllCardsCompact={areAllCardsCompact}
-          jsonValue={canvasJsonEditorState.draft}
-          mode={canvasJsonEditorState.mode}
-          onCloseSidePanels={onCloseSidePanels}
-          onModeChange={canvasJsonEditorState.onModeChange}
-          onToggleAllCards={() =>
-            onToggleCompact(
-              areAllCardsCompact ? "__expand-all__" : "__collapse-all__",
-            )
-          }
-        />
+        {!hidesCanvasChrome ? (
+          <SpielwieseCanvasPaneHeader
+            areAllCardsCompact={areAllCardsCompact}
+            jsonValue={canvasJsonEditorState.draft}
+            mode={canvasJsonEditorState.mode}
+            onCloseSidePanels={onCloseSidePanels}
+            onModeChange={canvasJsonEditorState.onModeChange}
+            onToggleAllCards={() =>
+              onToggleCompact(
+                areAllCardsCompact ? "__expand-all__" : "__collapse-all__",
+              )
+            }
+          />
+        ) : null}
         {canvasJsonEditorState.mode === "json" ? (
           <CanvasJsonEditor
             error={canvasJsonEditorState.error}
@@ -249,6 +246,7 @@ function CanvasPaneContent({
             onPromptSectionChange={onPromptSectionChange}
             onPromptSectionMove={onPromptSectionMove}
             onSettingValueChange={onSettingValueChange}
+            showFooterInsert={!hidesCanvasChrome}
             onToggleCompact={onToggleCompact}
             onTitleChange={onTitleChange}
           />
@@ -260,6 +258,7 @@ function CanvasPaneContent({
 
 // eslint-disable-next-line max-lines-per-function
 export function SpielwieseCanvasPane({
+  chrome = "default",
   className,
   insertAnchorNodeId,
   nodes,
@@ -307,6 +306,7 @@ export function SpielwieseCanvasPane({
     >
       <CanvasPaneContent
         canvasJsonEditorState={canvasJsonEditorState}
+        chrome={chrome}
         compactNodeIds={compactNodeIds}
         insertAnchorNodeId={insertAnchorNodeId}
         nodes={nodes}
