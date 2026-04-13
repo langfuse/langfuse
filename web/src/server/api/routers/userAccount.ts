@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { resolveV4BetaMutationState } from "@/src/features/events/lib/v4BetaRollout";
+import { resolveV4BetaRollout } from "@/src/features/events/lib/v4BetaRollout";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -164,12 +164,12 @@ export const userAccountRouter = createTRPCRouter({
         ctx.session.user.id,
         ctx.prisma,
       );
-      const v4BetaState = resolveV4BetaMutationState({
-        requestedV4BetaEnabled: input.enabled,
+      const v4BetaRollout = resolveV4BetaRollout({
+        userPreferenceEnabled: input.enabled,
         organizationCreatedAts,
       });
 
-      if (v4BetaState.shouldPersistRequestedState) {
+      if (v4BetaRollout.canPersistUserChoice) {
         await ctx.prisma.user.update({
           where: { id: ctx.session.user.id },
           data: { v4BetaEnabled: input.enabled },
@@ -178,8 +178,8 @@ export const userAccountRouter = createTRPCRouter({
 
       return {
         success: true,
-        v4BetaEnabled: v4BetaState.isEnabled,
-        v4JoinedPostCutoff: v4BetaState.v4JoinedPostCutoff,
+        v4BetaEnabled: v4BetaRollout.effectiveEnabled,
+        v4JoinedPostCutoff: v4BetaRollout.v4JoinedPostCutoff,
       };
     }),
 });

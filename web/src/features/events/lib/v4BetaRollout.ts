@@ -1,6 +1,4 @@
-export const V4_JOINED_POST_CUTOFF_CUTOFF = new Date(
-  "2026-04-13T08:00:00.000Z",
-);
+export const V4_JOINED_POST_CUTOFF_AT = new Date("2026-04-13T08:00:00.000Z");
 
 export function isV4JoinedPostCutoffForOrganizationCreatedAts(
   organizationCreatedAts: Date[],
@@ -16,15 +14,15 @@ export function isV4JoinedPostCutoffForOrganizationCreatedAts(
     organizationCreatedAts[0],
   );
 
-  return oldestOrganizationCreatedAt >= V4_JOINED_POST_CUTOFF_CUTOFF;
+  return oldestOrganizationCreatedAt >= V4_JOINED_POST_CUTOFF_AT;
 }
 
-export function resolveV4BetaState({
+export function resolveV4BetaRollout({
   organizationCreatedAts,
-  storedV4BetaEnabled,
+  userPreferenceEnabled,
 }: {
   organizationCreatedAts: Date[];
-  storedV4BetaEnabled: boolean;
+  userPreferenceEnabled: boolean;
 }) {
   const v4JoinedPostCutoff = isV4JoinedPostCutoffForOrganizationCreatedAts(
     organizationCreatedAts,
@@ -32,26 +30,8 @@ export function resolveV4BetaState({
 
   return {
     v4JoinedPostCutoff,
-    isEnabled: storedV4BetaEnabled || v4JoinedPostCutoff,
-  };
-}
-
-export function resolveV4BetaMutationState({
-  organizationCreatedAts,
-  requestedV4BetaEnabled,
-}: {
-  organizationCreatedAts: Date[];
-  requestedV4BetaEnabled: boolean;
-}) {
-  const v4BetaState = resolveV4BetaState({
-    organizationCreatedAts,
-    storedV4BetaEnabled: requestedV4BetaEnabled,
-  });
-
-  return {
-    ...v4BetaState,
-    shouldPersistRequestedState: !(
-      v4BetaState.v4JoinedPostCutoff && requestedV4BetaEnabled === false
-    ),
+    effectiveEnabled: userPreferenceEnabled || v4JoinedPostCutoff,
+    canPersistUserChoice: !v4JoinedPostCutoff,
+    canShowToggle: !v4JoinedPostCutoff,
   };
 }
