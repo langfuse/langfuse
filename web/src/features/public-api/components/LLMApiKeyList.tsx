@@ -135,12 +135,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <UpdateLLMApiKeyDialog
-                        apiKey={{
-                          ...apiKey,
-                          secretKey: apiKey.displaySecretKey,
-                          extraHeaders: apiKey.extraHeaderKeys.join(","),
-                          config: apiKey.config ?? null,
-                        }}
+                        apiKey={apiKey}
                         projectId={props.projectId}
                         open={editingKeyId === apiKey.id}
                         onOpenChange={(open: boolean) => {

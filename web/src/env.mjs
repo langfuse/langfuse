@@ -106,7 +106,7 @@ export const env = createEnv({
     AUTH_GITHUB_CHECKS: zAuthChecks,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
-    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().url().optional(),
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
