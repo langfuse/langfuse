@@ -180,6 +180,7 @@ describe("fetchLLMCompletion end of model lifetime", () => {
   let originalCloudRegion: string | undefined;
   let encrypt: typeof import("../../../packages/shared/src/encryption").encrypt;
   let fetchLLMCompletion: typeof import("../../../packages/shared/src/server/llm/fetchLLMCompletion").fetchLLMCompletion;
+  let ResourceNotFoundException: any;
 
   beforeEach(async () => {
     invokeMock.mockReset();
@@ -201,6 +202,16 @@ describe("fetchLLMCompletion end of model lifetime", () => {
     ({ encrypt } = await import("../../../packages/shared/src/encryption"));
     ({ fetchLLMCompletion } =
       await import("../../../packages/shared/src/server/llm/fetchLLMCompletion"));
+
+    // Resolve the real AWS SDK exception via @langchain/aws's dependency tree.
+    const awsModulePath = require.resolve("@langchain/aws", {
+      paths: [require("path").resolve(__dirname, "../../../packages/shared")],
+    });
+    ({ ResourceNotFoundException } = await import(
+      require.resolve("@aws-sdk/client-bedrock-runtime", {
+        paths: [require("path").dirname(awsModulePath)],
+      })
+    ));
   });
 
   afterEach(() => {
@@ -212,12 +223,11 @@ describe("fetchLLMCompletion end of model lifetime", () => {
   });
 
   it("treats end-of-life model errors as non-retryable", async () => {
-    // Mirror real AWS SDK error shape: status code lives on $metadata.httpStatusCode
-    const endOfLifeError = new Error(
-      "This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
-    ) as Error & { $metadata: { httpStatusCode: number } };
-    endOfLifeError.name = "ResourceNotFoundException";
-    endOfLifeError.$metadata = { httpStatusCode: 404 };
+    const endOfLifeError = new ResourceNotFoundException({
+      message:
+        "This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+      $metadata: { httpStatusCode: 404 },
+    });
     bedrockInvokeMock.mockRejectedValue(endOfLifeError);
 
     const completionPromise = fetchLLMCompletion({
