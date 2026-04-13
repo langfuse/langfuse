@@ -47,4 +47,23 @@ describe("LocalCache", () => {
     expect(first.value).toEqual({ value: "loaded" });
     expect(second.value).toEqual({ value: "loaded" });
   });
+
+  it("should ignore invalid size bounds and fall back to count-based eviction", () => {
+    const createCache = () =>
+      new LocalCache<string, { value: string }>({
+        namespace: "test",
+        enabled: true,
+        ttlMs: 1000,
+        max: 10,
+        maxSize: Number.NaN,
+        sizeCalculation: (value, key) => getJsonEntrySize(key, value),
+      });
+
+    expect(createCache).not.toThrow();
+
+    const cache = createCache();
+    cache.set("entry", { value: "cached" });
+
+    expect(cache.get("entry")).toEqual({ value: "cached" });
+  });
 });

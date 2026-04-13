@@ -26,23 +26,45 @@ export class LocalCache<K extends {}, V extends {}> {
   >();
 
   constructor(private readonly config: LocalCacheConfig<K, V>) {
-    this.cache = new LRUCache<K, V>({
-      max: config.max,
-      maxSize: config.maxSize,
-      maxEntrySize: config.maxEntrySize,
-      ttl: config.ttlMs,
+    const max = normalizePositiveNumber(config.max);
+    const maxSize = normalizePositiveNumber(config.maxSize);
+    const maxEntrySize = normalizePositiveNumber(config.maxEntrySize);
+
+    const cacheOptions: LRUCache.Options<K, V, unknown> = {
+      ttl: normalizePositiveNumber(config.ttlMs) ?? 0,
       ttlAutopurge: false,
       allowStale: false,
       updateAgeOnGet: false,
       updateAgeOnHas: false,
-      sizeCalculation: config.sizeCalculation,
       dispose: (_value, _key, reason) => {
         if (reason === "evict") {
           this.record("evict");
           this.recordSizeMetrics();
         }
       },
-    });
+    };
+
+    if (max !== undefined) {
+      cacheOptions.max = max;
+    }
+
+    if (maxSize !== undefined) {
+      cacheOptions.maxSize = maxSize;
+    }
+
+    if (maxEntrySize !== undefined) {
+      cacheOptions.maxEntrySize = maxEntrySize;
+    }
+
+    if (maxSize !== undefined || maxEntrySize !== undefined) {
+      cacheOptions.sizeCalculation = config.sizeCalculation;
+    } else if (this.config.enabled) {
+      logger.warn(
+        `Local cache namespace ${this.config.namespace} is missing valid size bounds; falling back to count and TTL limits only.`,
+      );
+    }
+
+    this.cache = new LRUCache<K, V>(cacheOptions);
   }
 
   get(key: K): V | undefined {
@@ -146,3 +168,16 @@ export const kilobytesToBytes = (valueInKb: number): number => valueInKb * 1024;
 
 export const megabytesToBytes = (valueInMb: number): number =>
   valueInMb * 1024 * 1024;
+
+const normalizePositiveNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : undefined;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  return undefined;
+};
