@@ -30,6 +30,8 @@ MINIO_SHA256_ARM64="${MINIO_SHA256_ARM64:-5c83cd2cf151717ba0243f73e1c7802ff36e27
 MC_SHA256_AMD64="${MC_SHA256_AMD64:-01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891}"
 MC_SHA256_ARM64="${MC_SHA256_ARM64:-14c8c9616cfce4636add161304353244e8de383b2e2752c0e9dad01d4c27c12c}"
 MIGRATE_RELEASE_TAG="${MIGRATE_RELEASE_TAG:-v4.19.1}"
+MIGRATE_SHA256_AMD64="${MIGRATE_SHA256_AMD64:-2ac648fbd1b127b69ab5a7b33cf96212178f71e22379fc50573630c6f4c7ce18}"
+MIGRATE_SHA256_ARM64="${MIGRATE_SHA256_ARM64:-2fea2455c0f3f07cc3f4b98471c951ad1a716059574b20b6416bd1e9058751c5}"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -142,16 +144,26 @@ ensure_migrate_binary() {
   ensure_apt_package curl
 
   local migrate_arch
+  local migrate_sha256
   local tmp_dir
   migrate_arch="$(detect_migrate_arch)"
+  case "$migrate_arch" in
+    amd64)
+      migrate_sha256="$MIGRATE_SHA256_AMD64"
+      ;;
+    arm64)
+      migrate_sha256="$MIGRATE_SHA256_ARM64"
+      ;;
+  esac
   tmp_dir="$(mktemp -d)"
   trap 'rm -rf "$tmp_dir"' RETURN
 
-  curl -fsSL "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_RELEASE_TAG}/migrate.linux-${migrate_arch}.tar.gz" \
-    | tar -xz -C "$tmp_dir" migrate
+  download_and_verify_sha256 \
+    "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_RELEASE_TAG}/migrate.linux-${migrate_arch}.tar.gz" \
+    "$tmp_dir/migrate.tar.gz" \
+    "$migrate_sha256"
+  tar -xzf "$tmp_dir/migrate.tar.gz" -C "$tmp_dir" migrate
   install -m 0755 "$tmp_dir/migrate" /usr/local/bin/migrate
-
-  trap - RETURN
 }
 
 detect_minio_arch() {
