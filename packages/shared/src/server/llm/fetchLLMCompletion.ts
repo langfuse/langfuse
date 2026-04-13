@@ -54,6 +54,14 @@ import { LLMCompletionError } from "./errors";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
+const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
+  "Request timed out",
+  "is not valid JSON",
+  "Unterminated string in JSON at position",
+  "TypeError",
+  "reached the end of its life",
+] as const;
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
@@ -624,20 +632,17 @@ export async function fetchLLMCompletion(
     return completion;
   } catch (e) {
     const responseStatusCode =
-      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+      (e as any)?.response?.status ??
+      (e as any)?.status ??
+      // Bedrock errors have status code in $metadata.httpStatusCode
+      (e as any)?.$metadata?.httpStatusCode ??
+      500;
     const rawMessage = e instanceof Error ? e.message : String(e);
     const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
-    const nonRetryablePatterns = [
-      "Request timed out",
-      "is not valid JSON",
-      "Unterminated string in JSON at position",
-      "TypeError",
-    ];
-
-    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
-      message.includes(pattern),
+    const hasNonRetryablePattern = NON_RETRYABLE_LLM_ERROR_PATTERNS.some(
+      (pattern) => message.includes(pattern),
     );
 
     // Determine retryability:
