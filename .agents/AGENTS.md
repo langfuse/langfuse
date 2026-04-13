@@ -104,7 +104,6 @@ Minimum verification matrix:
 | Change scope | Minimum verification |
 | --- | --- |
 | `web/**` only | `pnpm --filter web run lint` + targeted web tests |
-| `web/src/features/spielwiese/**` or `web/src/pages/dev/spielwiese.tsx` | `pnpm --filter web run lint` + targeted spielwiese client tests + browser review when the change is user-visible |
 | `worker/**` only | `pnpm --filter worker run lint` + targeted worker tests |
 | `packages/shared/**` (non-schema) | `pnpm --filter @langfuse/shared run lint` + one targeted web check + one targeted worker check |
 | `packages/shared/prisma/**` or `packages/shared/clickhouse/**` | `pnpm --filter @langfuse/shared run lint` + `pnpm run db:generate` + targeted web/worker regressions |
@@ -115,10 +114,6 @@ Minimum verification matrix:
 
 - Keep changes scoped; avoid unrelated refactors.
 - Prefer package-local implementation details in package `AGENTS.md` files.
-- For any code-editing task, run the narrowest relevant lint command before the
-  final response. Do not skip lint unless the task is docs-only or lint is
-  blocked by missing dependencies or environment, and if it is blocked, say so
-  explicitly.
 - Do not hand-edit generated/build artifacts:
   - `generated/*`
   - `web/.next/*`
@@ -134,10 +129,6 @@ Minimum verification matrix:
   real browser with the Playwright MCP server before signoff. Use
   `skills/frontend-browser-review/SKILL.md` and `../web/AGENTS.md` for the
   browser-review loop.
-- `spielwiese` work in `web/src/features/spielwiese/**` and
-  `web/src/pages/dev/spielwiese.tsx` follows stricter web-local guardrails for
-  hooks, imports, and Tailwind usage. Read `../web/AGENTS.md` before
-  substantial edits in that area.
 - Never commit secrets or credentials. Keep `.env*.example` files in sync with
   required env vars.
 
