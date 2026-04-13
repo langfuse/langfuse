@@ -20,7 +20,7 @@ export function useV4Beta() {
   const mutation = api.userAccount.setV4BetaEnabled.useMutation();
 
   const isBetaEnabled = session?.user?.v4BetaEnabled ?? false;
-  const canToggleV4Beta = session?.user?.canToggleV4Beta ?? true;
+  const canToggleV4Beta = session?.user?.canToggleV4Beta === true;
   const isInitializing = sessionStatus === "loading";
   const [showIntroDialog, setShowIntroDialog] = useState(false);
   const [pendingOnSuccess, setPendingOnSuccess] =

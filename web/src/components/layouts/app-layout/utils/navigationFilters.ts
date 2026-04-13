@@ -92,7 +92,7 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const canToggleV4Beta = ctx.session?.user?.canToggleV4Beta !== false;
+      const canToggleV4Beta = ctx.session?.user?.canToggleV4Beta === true;
       const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
 
       return canToggleV4Beta &&

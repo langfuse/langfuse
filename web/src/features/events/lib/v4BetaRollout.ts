@@ -12,7 +12,7 @@ type V4BetaRolloutContext = {
   rolloutEnabled?: boolean;
 };
 
-export function isV4RolloutManaged({
+export function shouldAutoEnableV4({
   organizations,
   userCreatedAt,
   excludedOrganizationIds = [],
@@ -44,5 +44,5 @@ export function isV4RolloutManaged({
 }
 
 export function canToggleV4Beta(context: V4BetaRolloutContext): boolean {
-  return !isV4RolloutManaged(context);
+  return !shouldAutoEnableV4(context);
 }

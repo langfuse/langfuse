@@ -17,7 +17,7 @@ import { createBillingServiceFromContext } from "@/src/ee/features/billing/serve
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import {
   V4_DEFAULT_ENABLED_FROM_AT,
-  isV4RolloutManaged,
+  shouldAutoEnableV4,
 } from "@/src/features/events/lib/v4BetaRollout";
 
 import { env } from "@/src/env.mjs";
@@ -86,7 +86,7 @@ export const organizationsRouter = createTRPCRouter({
           userRolloutState &&
           !userRolloutState.v4BetaEnabled &&
           userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
-          isV4RolloutManaged({
+          shouldAutoEnableV4({
             userCreatedAt: userRolloutState.createdAt,
             organizations: userRolloutState.organizationMemberships.map(
               (membership) => ({

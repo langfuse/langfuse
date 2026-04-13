@@ -6,7 +6,7 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import {
   V4_DEFAULT_ENABLED_FROM_AT,
-  isV4RolloutManaged,
+  shouldAutoEnableV4,
 } from "@/src/features/events/lib/v4BetaRollout";
 
 export async function createProjectMembershipsOnSignup(
@@ -177,7 +177,7 @@ export async function createProjectMembershipsOnSignup(
       });
 
       if (userRolloutState) {
-        const isManagedByRollout = isV4RolloutManaged({
+        const shouldAutoEnableV4ForUser = shouldAutoEnableV4({
           userCreatedAt: userRolloutState.createdAt,
           organizations: userRolloutState.organizationMemberships.map(
             (membership) => ({
@@ -193,13 +193,13 @@ export async function createProjectMembershipsOnSignup(
         const shouldInitializeForNewUser =
           options?.userWasJustCreated &&
           !userRolloutState.v4BetaEnabled &&
-          isManagedByRollout;
+          shouldAutoEnableV4ForUser;
         const shouldInitializeForFirstOrganization =
           !options?.userWasJustCreated &&
           isNewUser &&
           !userRolloutState.v4BetaEnabled &&
           userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
-          isManagedByRollout;
+          shouldAutoEnableV4ForUser;
 
         if (
           shouldInitializeForNewUser ||
