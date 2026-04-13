@@ -103,12 +103,20 @@ function IntroSetupMomentImage() {
 function IntroVideoPlaceholder() {
   return (
     <div
-      className="grid min-h-[17rem] place-items-center border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.7)]"
+      className="overflow-hidden rounded-[1rem] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.7)]"
       data-testid="spielwiese-intro-video-shell"
     >
-      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
-        {spielwieseSetupMomentContent.videoNote}
-      </p>
+      <div className="relative w-full" style={{ paddingBottom: "62.9%" }}>
+        <iframe
+          allow="clipboard-write; encrypted-media; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full rounded-[1rem] border-0"
+          data-testid="spielwiese-intro-video-embed"
+          loading="lazy"
+          src="https://supercut.ai/embed/evren/oytU71kWAMHfHJtASg8NA2?embed=full"
+          title="Langfuse Redesign Concept"
+        />
+      </div>
     </div>
   );
 }

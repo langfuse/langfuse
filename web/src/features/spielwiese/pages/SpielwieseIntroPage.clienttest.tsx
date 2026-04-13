@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
 import SpielwieseIntroPage from "./SpielwieseIntroPage";
 
 const renderIntroPage = () => render(<SpielwieseIntroPage />);
@@ -58,7 +59,7 @@ it("renders the approach and outcome sections", () => {
   ).toBeTruthy();
   expect(
     screen.getByText(
-      "the state i identified: they've made a change to a prompt and they want to know if that change actually made things better. and this is why they signed up to langfuse.",
+      "the state i identified: they have an ai product with prompts already that they didn't instrument yet and want to do so now in order to improve them.",
     ),
   ).toBeTruthy();
   expect(
@@ -126,7 +127,7 @@ it("renders the colophon links and skills subsection", () => {
   ).toContain("gap-0");
 });
 
-it("renders the embedded image and video placeholders inside the article", () => {
+it("renders the embedded image and intro video inside the article", () => {
   renderIntroPage();
 
   expect(screen.getByTestId("spielwiese-intro-article")).toBeTruthy();
@@ -137,6 +138,10 @@ it("renders the embedded image and video placeholders inside the article", () =>
     screen.queryByText("[ image of setup, aha, habit moment ]"),
   ).toBeNull();
   expect(screen.getByTestId("spielwiese-intro-video-shell")).toBeTruthy();
+  expect(
+    screen.getByTestId("spielwiese-intro-video-embed").getAttribute("src"),
+  ).toBe("https://supercut.ai/embed/evren/oytU71kWAMHfHJtASg8NA2?embed=full");
+  expect(screen.queryByText(spielwieseSetupMomentContent.videoNote)).toBeNull();
 });
 
 it("renders the centered footer call to action", () => {
