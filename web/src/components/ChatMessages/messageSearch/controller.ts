@@ -67,6 +67,7 @@ export type MessageSearchController = {
   openSearch: () => void;
   closeSearch: () => void;
   setQueryInput: (value: string) => void;
+  blurQueryInput: () => void;
   nextMatch: () => void;
   previousMatch: () => void;
   setPageIds: (pageIds: string[]) => void;
@@ -485,6 +486,24 @@ export function createMessageSearchController(
           emit();
         }
       }, SEARCH_INPUT_DEBOUNCE_MS);
+    },
+
+    blurQueryInput() {
+      if (state.queryInput.trim() !== "") {
+        return;
+      }
+
+      clearPendingQueryTimeout();
+
+      const queryChanged = commitSearchQuery("");
+      const inputChanged = state.queryInput !== "";
+      if (inputChanged) {
+        state.queryInput = "";
+      }
+
+      if (queryChanged || inputChanged) {
+        emit();
+      }
     },
 
     nextMatch() {
