@@ -51,7 +51,7 @@ export function SpielwieseWorkspaceSwitcher({
   if (variant === "topbar") {
     return (
       <a
-        className="flex h-[calc(var(--spielwiese-header-height)-4px)] max-w-[12rem] min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 text-[#242529] transition-[background-color,color] hover:bg-black/[0.03]"
+        className="flex h-[calc(var(--spielwiese-header-height)-4px)] max-w-[12rem] min-w-0 items-center gap-2.5 rounded-[10px] pr-2.5 pl-[3px] text-[#242529]"
         href="#assistant"
       >
         {mark}

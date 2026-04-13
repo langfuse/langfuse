@@ -13,6 +13,7 @@ import { getMessageKind } from "./spielwieseMessageTone";
 
 type SpielwiesePrimaryAgentNodeCardProps = {
   cardTestId?: string;
+  className?: string;
   isCompact: boolean;
   isPreviewFocused: boolean;
   modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
@@ -207,6 +208,7 @@ function getAgentNodeCardDeckSharedProps({
 // eslint-disable-next-line max-lines-per-function
 export function SpielwiesePrimaryAgentNodeCard({
   cardTestId = "spielwiese-agent-node-card",
+  className,
   isCompact,
   isPreviewFocused,
   modelSetting,
@@ -249,7 +251,10 @@ export function SpielwiesePrimaryAgentNodeCard({
     onTogglePreviewFocus,
   };
   return (
-    <SpielwiesePromptDeckCardShell data-testid={cardTestId}>
+    <SpielwiesePromptDeckCardShell
+      className={className}
+      data-testid={cardTestId}
+    >
       <SpielwiesePromptDeckCardHeaderFrame
         data-testid="spielwiese-agent-node-header-frame"
         overlap={!isCompact}

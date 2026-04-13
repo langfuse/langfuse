@@ -28,6 +28,7 @@ function getLayoutShellElements() {
     editorNodeInsertFooter: screen.getByTestId(
       "spielwiese-agent-node-insert-footer",
     ),
+    nodeConnectors: screen.getAllByTestId("spielwiese-agent-node-connector"),
     editorNodeInsertRow,
     editorNodeStack: screen.getByTestId("spielwiese-agent-node-stack"),
     editorPane: screen.getByTestId("spielwiese-editor-canvas-pane"),
@@ -93,6 +94,7 @@ function expectLayoutAccessories({
   editorActions,
   editorModeHeader,
   editorModeToggle,
+  nodeConnectors,
   editorNodeInsertFooter,
   editorNodeInsertRow,
   editorNodeStack,
@@ -105,8 +107,8 @@ function expectLayoutAccessories({
   expect(editorModeHeader.className).toContain("py-2");
   expect(editorModeHeader.className).toContain("px-2");
   expect(editorModeHeader.className).toContain("justify-between");
-  expect(editorModeHeader.firstElementChild).toBe(editorActions);
-  expect(editorModeHeader.lastElementChild).toBe(editorModeToggle);
+  expect(editorModeHeader.firstElementChild).toBe(editorModeToggle);
+  expect(editorModeHeader.lastElementChild).toBe(editorActions);
   expect(editorModeHeader.className).toContain("border-b");
   expect(editorModeHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
   expect(editorModeHeader.className).toContain("backdrop-blur");
@@ -115,13 +117,14 @@ function expectLayoutAccessories({
   expect(editorNodeStack.className).not.toContain("overflow-y-auto");
   expect(editorNodeStack.className).toContain("pt-2");
   expect(editorNodeStack.className).toContain("pb-2");
+  expect(nodeConnectors).toHaveLength(2);
   expect(editorNodeInsertFooter.className).toContain("flex-none");
   expect(editorNodeInsertFooter.className).not.toContain("pb-2");
   expect(editorNodeInsertRow.className).not.toContain("pl-[18px]");
   expect(editorNodeInsertRow.className).not.toContain("ml-[8px]");
   expect(editorNodeInsertRow.className).not.toContain("ml-[18px]");
   expect(simulationPane.className).toContain("px-0");
-  expect(simulationPane.className).toContain("pt-1");
+  expect(simulationPane.className).toContain("pt-0.5");
   expect(simulationPane.className).toContain("pb-0");
   expect(simulationPane.className).not.toContain("px-2");
   expect(simulationPane.className).not.toContain("border-t-0");
@@ -212,9 +215,9 @@ function expectVisionNodeChrome({
     "border-[color:var(--spielwiese-agent-node-chrome-border)]",
   );
   expect(headerShell.className).toContain(
-    "bg-[var(--spielwiese-agent-node-header-surface)]",
+    "bg-[var(--spielwiese-agent-node-header-active-surface)]",
   );
-  expect(headerShell.className).toContain("backdrop-blur");
+  expect(headerShell.className).not.toContain("backdrop-blur");
   expect(headerShell.className).toContain("pb-[4px]");
   expect(headerShell.className).toContain("overflow-hidden");
   expect(headerShell.className).not.toContain("shadow-[");
@@ -224,10 +227,10 @@ function expectVisionNodeChrome({
   expect(headerRow.className).toContain("pb-[7px]");
   expect(headerRow.className).toContain("border-b");
   expect(headerRow.className).toContain(
-    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
+    "border-[color:var(--spielwiese-agent-node-header-divider)]",
   );
   expect(headerRow.className).toContain(
-    "bg-[var(--spielwiese-agent-node-header-surface)]",
+    "bg-[var(--spielwiese-agent-node-header-active-surface)]",
   );
 }
 

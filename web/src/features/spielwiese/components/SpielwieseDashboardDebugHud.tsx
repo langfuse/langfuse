@@ -1,22 +1,20 @@
-/* eslint-disable max-lines */
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
-  spielwieseAgentNodeColorHudSections,
   spielwieseAgentNodeColorPalette,
-  spielwieseAgentNodeChromeHudItems,
   spielwieseAgentNodeChromeSettings,
+  spielwieseMessageSectionChipPaddingDefaults,
   type SpielwieseAgentNodeChromeSettingsState,
   type SpielwieseAgentNodeColorState,
 } from "./spielwieseAgentNodeColorPalette";
-import {
-  spielwieseHeaderButtonBaseClassName,
-  spielwieseHeaderButtonSelectedClassName,
-  spielwieseHeaderButtonStaticClassName,
-} from "./spielwieseHeaderButtonStyles";
+import { spielwieseHeaderButtonBaseClassName } from "./spielwieseHeaderButtonStyles";
 
 export type SpielwieseDashboardDebugState = {
+  messageSectionChipPaddingBottom: number;
+  messageSectionChipPaddingLeft: number;
+  messageSectionChipPaddingRight: number;
+  messageSectionChipPaddingTop: number;
   nodeChrome: SpielwieseAgentNodeChromeSettingsState;
   nodeColors: SpielwieseAgentNodeColorState;
   playgroundHeaderPadX: number;
@@ -26,6 +24,14 @@ export type SpielwieseDashboardDebugState = {
 
 export const defaultSpielwieseDashboardDebugState: SpielwieseDashboardDebugState =
   {
+    messageSectionChipPaddingBottom:
+      spielwieseMessageSectionChipPaddingDefaults.bottom,
+    messageSectionChipPaddingLeft:
+      spielwieseMessageSectionChipPaddingDefaults.left,
+    messageSectionChipPaddingRight:
+      spielwieseMessageSectionChipPaddingDefaults.right,
+    messageSectionChipPaddingTop:
+      spielwieseMessageSectionChipPaddingDefaults.top,
     nodeChrome: { ...spielwieseAgentNodeChromeSettings },
     nodeColors: { ...spielwieseAgentNodeColorPalette },
     playgroundHeaderPadX: 8,
@@ -105,10 +111,10 @@ function DebugHudHeader({ onReset }: { onReset: () => void }) {
         </span>
         <div>
           <div className="text-[11px] font-semibold tracking-[0.12em] uppercase">
-            Debug HUD
+            Section Padding
           </div>
           <div className="text-foreground/58 text-[11px]">
-            Playground and agent node chrome
+            Shared padding for the icon and label strip
           </div>
         </div>
       </div>
@@ -125,183 +131,64 @@ function DebugHudHeader({ onReset }: { onReset: () => void }) {
   );
 }
 
-// eslint-disable-next-line complexity
-function DebugHudActionToggle({
-  activeAriaLabel,
-  label = "Flow Actions",
-  offLabel = "Hidden",
-  offSubcopy,
-  isVisible,
-  inactiveAriaLabel,
-  onLabel = "Visible",
-  onToggle,
-  subcopy = "Lower card header buttons",
-}: {
-  activeAriaLabel?: string;
-  isVisible: boolean;
-  inactiveAriaLabel?: string;
-  label?: string;
-  offLabel?: string;
-  offSubcopy?: string;
-  onToggle: () => void;
-  onLabel?: string;
-  subcopy?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div>
-        <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
-          {label}
-        </div>
-        <div className="text-foreground/58 text-[11px]">
-          {isVisible ? subcopy : offSubcopy ?? subcopy}
-        </div>
-      </div>
-      <Button
-        aria-label={
-          isVisible
-            ? activeAriaLabel ?? "Hide flow header actions"
-            : inactiveAriaLabel ?? "Show flow header actions"
-        }
-        aria-pressed={isVisible}
-        className={`inline-flex h-7 rounded-[10px] px-2.5 text-[11px] font-medium ${
-          isVisible
-            ? `${spielwieseHeaderButtonStaticClassName} ${spielwieseHeaderButtonSelectedClassName}`
-            : spielwieseHeaderButtonBaseClassName
-        }`}
-        size="sm"
-        variant="ghost"
-        onClick={onToggle}
-      >
-        {isVisible ? onLabel : offLabel}
-      </Button>
-    </div>
-  );
-}
-
-function DebugHudColorRow({
-  id,
-  label,
-  onChange,
-  value,
-}: {
+const sectionPaddingHudItems = [
+  {
+    id: "spielwiese-debug-message-section-chip-padding-top",
+    key: "messageSectionChipPaddingTop",
+    label: "Pad Top",
+  },
+  {
+    id: "spielwiese-debug-message-section-chip-padding-right",
+    key: "messageSectionChipPaddingRight",
+    label: "Pad Right",
+  },
+  {
+    id: "spielwiese-debug-message-section-chip-padding-bottom",
+    key: "messageSectionChipPaddingBottom",
+    label: "Pad Bottom",
+  },
+  {
+    id: "spielwiese-debug-message-section-chip-padding-left",
+    key: "messageSectionChipPaddingLeft",
+    label: "Pad Left",
+  },
+] as const satisfies ReadonlyArray<{
   id: string;
+  key:
+    | "messageSectionChipPaddingTop"
+    | "messageSectionChipPaddingRight"
+    | "messageSectionChipPaddingBottom"
+    | "messageSectionChipPaddingLeft";
   label: string;
-  onChange: (nextValue: string) => void;
-  value: string;
-}) {
-  return (
-    <div
-      className="grid grid-cols-[minmax(0,1fr)_8.25rem] items-center gap-2"
-      data-testid={`spielwiese-dashboard-debug-hud-color-row-${id}`}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="size-5 shrink-0 rounded-[7px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_0_rgba(255,255,255,0.42)]"
-          style={{ backgroundColor: value }}
-        />
-        <div className="min-w-0">
-          <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
-            {label}
-          </div>
-        </div>
-      </div>
-      <Input
-        aria-label={`${label} color`}
-        className="h-7 px-2 text-[11px] font-medium tabular-nums"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
-    </div>
-  );
-}
+}>;
 
-function DebugHudColorSection({
-  nodeColors,
-  onColorChange,
+function DebugHudPaddingSection({
+  onChange,
+  state,
 }: {
-  nodeColors: SpielwieseAgentNodeColorState;
-  onColorChange: (
-    key: keyof SpielwieseAgentNodeColorState,
-    value: string,
-  ) => void;
+  onChange: (nextState: SpielwieseDashboardDebugState) => void;
+  state: SpielwieseDashboardDebugState;
 }) {
   return (
-    <div
-      className="grid gap-3"
-      data-testid="spielwiese-dashboard-debug-hud-color-section"
-    >
-      <div>
-        <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
-          Agent Node Colors
-        </div>
-        <div className="text-foreground/58 text-[11px]">
-          Source-of-truth chrome palette for the primary node
-        </div>
-      </div>
-      {spielwieseAgentNodeColorHudSections.map((section) => (
-        <div
-          className="grid gap-2"
-          data-testid={`spielwiese-dashboard-debug-hud-color-group-${section.id}`}
-          key={section.id}
-        >
-          <div className="text-foreground/48 text-[10px] font-semibold tracking-[0.12em] uppercase">
-            {section.title}
-          </div>
-          {section.items.map((item) => (
-            <DebugHudColorRow
-              id={item.id}
-              key={item.id}
-              label={item.label}
-              onChange={(nextValue) => onColorChange(item.key, nextValue)}
-              value={nodeColors[item.key]}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DebugHudChromeSection({
-  nodeChrome,
-  onChromeToggle,
-}: {
-  nodeChrome: SpielwieseAgentNodeChromeSettingsState;
-  onChromeToggle: (key: keyof SpielwieseAgentNodeChromeSettingsState) => void;
-}) {
-  return (
-    <div
-      className="grid gap-3"
-      data-testid="spielwiese-dashboard-debug-hud-chrome-section"
-    >
-      <div>
-        <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
-          Agent Node Chrome
-        </div>
-        <div className="text-foreground/58 text-[11px]">
-          Structural toggles for the primary card only
-        </div>
-      </div>
-      {spielwieseAgentNodeChromeHudItems.map((item) => (
-        <DebugHudActionToggle
-          activeAriaLabel={`Disable ${item.label.toLowerCase()}`}
-          isVisible={nodeChrome[item.key]}
-          inactiveAriaLabel={`Enable ${item.label.toLowerCase()}`}
-          key={item.key}
+    <>
+      {sectionPaddingHudItems.map((item) => (
+        <DebugHudSliderRow
+          id={item.id}
+          key={item.id}
           label={item.label}
-          offLabel="Off"
-          onLabel="On"
-          onToggle={() => onChromeToggle(item.key)}
-          subcopy={item.description}
+          value={state[item.key]}
+          onChange={(nextValue) =>
+            onChange({
+              ...state,
+              [item.key]: nextValue,
+            })
+          }
         />
       ))}
-    </div>
+    </>
   );
 }
 
-// eslint-disable-next-line max-lines-per-function
 export function SpielwieseDashboardDebugHud({
   state,
   onChange,
@@ -318,66 +205,7 @@ export function SpielwieseDashboardDebugHud({
         <DebugHudHeader
           onReset={() => onChange(defaultSpielwieseDashboardDebugState)}
         />
-        <DebugHudSliderRow
-          id="spielwiese-debug-playground-surface-pad-x"
-          label="Canvas Body X"
-          value={state.playgroundSurfacePadX}
-          onChange={(nextValue) =>
-            onChange({
-              ...state,
-              playgroundSurfacePadX: nextValue,
-            })
-          }
-        />
-        <DebugHudSliderRow
-          id="spielwiese-debug-playground-header-pad-x"
-          label="Header X"
-          value={state.playgroundHeaderPadX}
-          onChange={(nextValue) =>
-            onChange({
-              ...state,
-              playgroundHeaderPadX: nextValue,
-            })
-          }
-        />
-        <DebugHudActionToggle
-          activeAriaLabel="Hide flow header actions"
-          isVisible={state.showPlaygroundFlowNodeActions}
-          inactiveAriaLabel="Show flow header actions"
-          onToggle={() =>
-            onChange({
-              ...state,
-              showPlaygroundFlowNodeActions:
-                !state.showPlaygroundFlowNodeActions,
-            })
-          }
-        />
-        <div className="h-px bg-[rgba(0,0,0,0.08)]" />
-        <DebugHudChromeSection
-          nodeChrome={state.nodeChrome}
-          onChromeToggle={(key) =>
-            onChange({
-              ...state,
-              nodeChrome: {
-                ...state.nodeChrome,
-                [key]: !state.nodeChrome[key],
-              },
-            })
-          }
-        />
-        <div className="h-px bg-[rgba(0,0,0,0.08)]" />
-        <DebugHudColorSection
-          nodeColors={state.nodeColors}
-          onColorChange={(key, value) =>
-            onChange({
-              ...state,
-              nodeColors: {
-                ...state.nodeColors,
-                [key]: value,
-              },
-            })
-          }
-        />
+        <DebugHudPaddingSection onChange={onChange} state={state} />
       </section>
     </div>
   );

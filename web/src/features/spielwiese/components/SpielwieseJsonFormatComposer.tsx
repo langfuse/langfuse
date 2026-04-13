@@ -185,6 +185,7 @@ function SpielwieseResponseFormatInsertRow({
       controlIdBase={`${nodeId}-response-format-message-insert`}
       nodeId={nodeId}
       onPromptSectionInsert={onPromptSectionInsert}
+      optionKinds={["system", "assistant", "tool"]}
       rowTestId="spielwiese-response-format-insert-row"
       styleVariant="response-format"
       testIdBase="spielwiese-response-format-insert"

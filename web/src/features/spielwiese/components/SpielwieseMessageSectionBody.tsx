@@ -14,12 +14,12 @@ import {
 export const spielwieseInlineTextareaClassName =
   "h-full rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0";
 export const spielwieseMessageFieldShellClassName =
-  "flex min-h-9 w-full min-w-0 items-center overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.05)] bg-white px-3 py-1 shadow-[0_0_0_3px_rgba(0,0,0,0.03)]";
+  "flex min-h-9 w-full min-w-0 items-center overflow-hidden rounded-[10px] border border-[color:var(--spielwiese-agent-node-chrome-border)] bg-[var(--spielwiese-agent-node-text-field-surface)] px-3 py-1 shadow-[0_0_0_3px_var(--spielwiese-agent-node-text-field-halo)]";
 export const spielwieseEmbeddedPromptBodyClassName = "pt-0 pb-px text-base";
 export const spielwieseEmbeddedPromptFieldShellClassName =
-  "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none";
+  "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden border border-[color:var(--spielwiese-agent-node-chrome-border)] bg-[var(--spielwiese-agent-node-prompt-frame-surface)] px-[2px] pt-0 pb-[2px] shadow-none";
 export const spielwieseEmbeddedPromptValueShellClassName =
-  "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]";
+  "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[var(--spielwiese-agent-node-prompt-value-surface)] shadow-[inset_0_0_0_1px_var(--spielwiese-agent-node-prompt-value-border)]";
 const spielwieseSingleLineTextareaBaseClassName = `${spielwieseInlineTextareaClassName} [field-sizing:content] min-h-6 w-full overflow-hidden bg-transparent text-base leading-7 sm:text-[0.9375rem]`;
 export const spielwieseSingleLineTextareaClassName = `${spielwieseSingleLineTextareaBaseClassName} rounded-[10px]`;
 const spielwieseEmbeddedPromptRadiusVariablesClassName =

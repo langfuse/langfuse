@@ -1,10 +1,14 @@
-import { Settings2, type LucideIcon, UserRound } from "lucide-react";
+import { Bot, type LucideIcon, UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
   SpielwieseEmbeddedPromptFrame,
   spielwieseMessageFieldShellClassName,
 } from "./SpielwieseMessageSectionBody";
+import {
+  spielwieseMessageSectionChipPaddingStyle,
+  spielwieseMessageSectionChipVariableStyle,
+} from "./spielwieseAgentNodeColorPalette";
 import { getPromptSectionDisplayLabel } from "./spielwiesePromptSectionLabels";
 import {
   getMessageKind,
@@ -13,7 +17,7 @@ import {
 
 function getPreviewPrefixIcon(messageKind: string): LucideIcon | null {
   if (messageKind === "system" || messageKind === "assistant") {
-    return Settings2;
+    return Bot;
   }
 
   if (messageKind === "user") {
@@ -69,17 +73,19 @@ export function getPlaygroundFlowPreview(
   };
 }
 
+type PlaygroundFlowPromptPreviewHeaderProps = {
+  PreviewIcon: LucideIcon | null;
+  isEmbedded?: boolean;
+  previewLabel: string;
+  toneClassNames: ReturnType<typeof getMessageToneClassNames>;
+};
+
 function PlaygroundFlowPromptPreviewHeader({
   PreviewIcon,
   isEmbedded = false,
   previewLabel,
   toneClassNames,
-}: {
-  PreviewIcon: LucideIcon | null;
-  isEmbedded?: boolean;
-  previewLabel: string;
-  toneClassNames: ReturnType<typeof getMessageToneClassNames>;
-}) {
+}: PlaygroundFlowPromptPreviewHeaderProps) {
   return (
     <div
       className={cn(
@@ -92,7 +98,14 @@ function PlaygroundFlowPromptPreviewHeader({
           : undefined
       }
     >
-      <div className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
+      <div
+        className="inline-flex min-w-0 shrink-0 items-center gap-1.5 pt-[var(--spielwiese-message-section-chip-padding-top)] pr-[var(--spielwiese-message-section-chip-padding-right)] pb-[var(--spielwiese-message-section-chip-padding-bottom)] pl-[var(--spielwiese-message-section-chip-padding-left)]"
+        data-testid="spielwiese-playground-flow-preview-label-group"
+        style={{
+          ...spielwieseMessageSectionChipVariableStyle,
+          ...spielwieseMessageSectionChipPaddingStyle,
+        }}
+      >
         {PreviewIcon ? (
           <span
             aria-hidden="true"

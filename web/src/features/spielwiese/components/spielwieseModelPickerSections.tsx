@@ -2,10 +2,7 @@
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
-import {
-  spielwieseHeaderButtonAccentClassName,
-  spielwieseHeaderButtonBaseClassName,
-} from "./spielwieseHeaderButtonStyles";
+import { spielwieseHeaderButtonBaseClassName } from "./spielwieseHeaderButtonStyles";
 import {
   getCanonicalModelLabel,
   spielwieseModelProviders,
@@ -13,6 +10,9 @@ import {
   type SpielwieseModelProvider,
 } from "./spielwieseModelCatalog";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
+
+const spielwieseModelRecommendButtonClassName =
+  "border-border/40 bg-background/88 text-foreground/76 hover:bg-background hover:text-foreground hover:border-border/60 h-8 w-full justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-[inset_0_1px_0_hsl(var(--background)/0.96),0_1px_2px_rgba(15,23,42,0.04)] transition-[background-color,border-color,color,box-shadow] outline-none focus-visible:ring-0 active:bg-background";
 
 function ProviderButton({
   isActive,
@@ -116,8 +116,7 @@ export function SpielwieseProviderColumn({
         <Button
           className={cn(
             spielwieseHeaderButtonBaseClassName,
-            spielwieseHeaderButtonAccentClassName,
-            "h-8 w-full justify-start rounded-[10px] px-2.5 text-[0.8125rem] shadow-none",
+            spielwieseModelRecommendButtonClassName,
           )}
           size="sm"
           type="button"

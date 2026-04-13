@@ -123,12 +123,10 @@ it("switches between builder mode and JSON mode and applies valid JSON edits bac
   expect(editorModeHeader.className).toContain("py-2");
   expect(editorModeHeader.className).toContain("px-2");
   expect(editorModeHeader.className).toContain("justify-between");
-  expect(editorModeHeader.className).not.toContain("-mx-2");
-  expect(editorModeHeader.className).not.toContain("border-b");
-  expect(editorModeHeader.className).not.toContain(
-    "bg-[rgba(251,251,251,0.82)]",
-  );
-  expect(editorModeHeader.className).not.toContain("backdrop-blur");
+  expect(editorModeHeader.className).toContain("-mx-2");
+  expect(editorModeHeader.className).toContain("border-b");
+  expect(editorModeHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
+  expect(editorModeHeader.className).toContain("backdrop-blur");
   expect(builderModeButton.getAttribute("aria-pressed")).toBe("true");
   expect(jsonModeButton.getAttribute("aria-pressed")).toBe("false");
   expectBuilderModeVisible();

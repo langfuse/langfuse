@@ -4,6 +4,7 @@ import {
   SpielwieseAgentNodePreviewSpotlight,
   useSpielwieseAgentNodeFocusMode,
 } from "./SpielwieseAgentNodeFocusMode";
+import { SpielwieseAgentNodeHandoffConnector } from "./SpielwieseAgentNodeHandoffConnector";
 import { SpielwieseFocusedAgentNodeModal } from "./SpielwieseFocusedAgentNodeModal";
 import { SpielwieseAgentNodeItem } from "./SpielwieseAgentNodeItem";
 
@@ -64,28 +65,39 @@ function renderAgentNodeItems({
   onTitleChange,
   onToggleCompact,
 }: Omit<SpielwieseAgentNodeListProps, "listClassName">) {
-  return nodes.map((node) => (
-    <SpielwieseAgentNodeItem
-      isCompact={Boolean(compactNodeIds[node.id])}
-      isPreviewFocused={focusMode.focusedNodeId === node.id}
-      isPreviewFocusHidden={focusMode.focusedNodeId === node.id}
-      isPreviewSpotlighted={focusMode.hoveredPreviewNodeId === node.id}
-      key={node.id}
-      node={node}
-      onAgentNodeArchive={onAgentNodeArchive}
-      onPreviewHoverEnd={() => focusMode.handlePreviewHoverEnd(node.id)}
-      onPreviewHoverStart={() => focusMode.handlePreviewHoverStart(node.id)}
-      onPromptSectionChange={onPromptSectionChange}
-      onPromptSectionDelete={onPromptSectionDelete}
-      onPromptSectionInsert={onPromptSectionInsert}
-      onPromptSectionMove={onPromptSectionMove}
-      onRegisterPreviewRegion={focusMode.getPreviewRegionRef(node.id)}
-      onSettingValueChange={onSettingValueChange}
-      onTitleChange={onTitleChange}
-      onToggleCompact={() => onToggleCompact(node.id)}
-      onTogglePreviewFocus={() => focusMode.togglePreviewFocus(node.id)}
-    />
-  ));
+  return nodes.flatMap((node, index) => {
+    const nextNode = nodes[index + 1];
+
+    return [
+      <SpielwieseAgentNodeItem
+        isCompact={Boolean(compactNodeIds[node.id])}
+        isPreviewFocused={focusMode.focusedNodeId === node.id}
+        isPreviewFocusHidden={focusMode.focusedNodeId === node.id}
+        isPreviewSpotlighted={focusMode.hoveredPreviewNodeId === node.id}
+        key={node.id}
+        node={node}
+        onAgentNodeArchive={onAgentNodeArchive}
+        onPreviewHoverEnd={() => focusMode.handlePreviewHoverEnd(node.id)}
+        onPreviewHoverStart={() => focusMode.handlePreviewHoverStart(node.id)}
+        onPromptSectionChange={onPromptSectionChange}
+        onPromptSectionDelete={onPromptSectionDelete}
+        onPromptSectionInsert={onPromptSectionInsert}
+        onPromptSectionMove={onPromptSectionMove}
+        onRegisterPreviewRegion={focusMode.getPreviewRegionRef(node.id)}
+        onSettingValueChange={onSettingValueChange}
+        onTitleChange={onTitleChange}
+        onToggleCompact={() => onToggleCompact(node.id)}
+        onTogglePreviewFocus={() => focusMode.togglePreviewFocus(node.id)}
+      />,
+      nextNode ? (
+        <SpielwieseAgentNodeHandoffConnector
+          key={`${node.id}-${nextNode.id}-connector`}
+          sourceNode={node}
+          targetNode={nextNode}
+        />
+      ) : null,
+    ];
+  });
 }
 
 function SpielwieseAgentNodeList({

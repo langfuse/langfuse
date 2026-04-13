@@ -33,10 +33,11 @@ function SpielwieseAgentTitleField({
         className={cn(
           spielwieseInlineInputClassName,
           spielwieseStripItemFieldClassName,
-          "text-foreground [field-sizing:content] w-auto max-w-[14rem] min-w-[1ch] px-0 text-[13px] font-semibold tracking-[-0.01em] max-sm:text-base/5 sm:max-w-[18rem]",
+          "text-foreground placeholder:text-foreground/40 [field-sizing:content] w-auto max-w-[14rem] min-w-[1ch] px-0 text-[13px] font-semibold tracking-[-0.01em] placeholder:font-normal max-sm:text-base/5 sm:max-w-[18rem]",
         )}
         name={`${node.id}-title`}
         onChange={(event) => onTitleChange(node.id, event.target.value)}
+        placeholder="Name your agent"
         size={Math.max(node.title.length, 1)}
         value={node.title}
       />

@@ -2,6 +2,10 @@ import { useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
+import {
+  SpielwieseMessageInsertOptions,
+  type SpielwieseMessageInsertKind,
+} from "./spielwieseMessageInsertOptions";
 
 type SpielwieseMessageInsertRowProps = {
   className?: string;
@@ -9,8 +13,9 @@ type SpielwieseMessageInsertRowProps = {
   nodeId: string;
   onPromptSectionInsert: (
     nodeId: string,
-    kind: "user" | "system" | "assistant" | "tool",
+    kind: SpielwieseMessageInsertKind,
   ) => void;
+  optionKinds?: SpielwieseMessageInsertKind[];
   rowTestId?: string;
   styleVariant?: "default" | "response-format";
   surface?: "bare" | "framed";
@@ -18,16 +23,6 @@ type SpielwieseMessageInsertRowProps = {
   triggerContent?: ReactNode;
   variant?: "compact" | "text";
 };
-
-const insertOptions: Array<{
-  kind: "user" | "system" | "assistant" | "tool";
-  label: string;
-}> = [
-  { kind: "user", label: "User" },
-  { kind: "system", label: "Instructions" },
-  { kind: "assistant", label: "Assistant" },
-  { kind: "tool", label: "Tool" },
-];
 
 const insertShellClassName =
   "[--message-insert-inner-radius:7px] [--message-insert-padding:2px] [--message-insert-outer-radius:calc(var(--message-insert-inner-radius)+var(--message-insert-padding))] bg-background inline-flex h-7 items-stretch overflow-hidden rounded-[var(--message-insert-outer-radius)] border border-[rgba(0,0,0,0.08)] p-[var(--message-insert-padding)] shadow-[0_1px_0_rgba(255,255,255,0.5)_inset]";
@@ -63,6 +58,7 @@ function getInsertPickerChrome(
 type SpielwieseMessageInsertPickerProps = {
   isOpen: boolean;
   nodeId: string;
+  optionKinds?: SpielwieseMessageInsertKind[];
   pickerId: string;
   pickerTestId: string;
   onClose: () => void;
@@ -73,6 +69,7 @@ type SpielwieseMessageInsertPickerProps = {
 function SpielwieseMessageInsertPicker({
   isOpen,
   nodeId,
+  optionKinds,
   pickerId,
   pickerTestId,
   onClose,
@@ -100,24 +97,16 @@ function SpielwieseMessageInsertPicker({
       data-testid={pickerTestId}
       id={pickerId}
     >
-      <div className={cn(optionsClassName, optionsStateClassName)}>
-        {insertOptions.map((option) => (
-          <Button
-            key={option.kind}
-            className={optionClassName}
-            disabled={!isOpen}
-            size="sm"
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              onPromptSectionInsert(nodeId, option.kind);
-              onClose();
-            }}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
+      <SpielwieseMessageInsertOptions
+        isOpen={isOpen}
+        nodeId={nodeId}
+        onClose={onClose}
+        onPromptSectionInsert={onPromptSectionInsert}
+        optionClassName={optionClassName}
+        optionKinds={optionKinds}
+        optionsClassName={cn(optionsClassName, optionsStateClassName)}
+        pickerTestId={pickerTestId}
+      />
     </div>
   );
 }
@@ -222,6 +211,7 @@ function SpielwieseMessageInsertTrigger({
   nodeId,
   onClose,
   onPromptSectionInsert,
+  optionKinds,
   surface,
   styleVariant,
   onToggle,
@@ -231,6 +221,7 @@ function SpielwieseMessageInsertTrigger({
   nodeId: string;
   onClose: () => void;
   onPromptSectionInsert: SpielwieseMessageInsertRowProps["onPromptSectionInsert"];
+  optionKinds?: SpielwieseMessageInsertKind[];
   surface: NonNullable<SpielwieseMessageInsertRowProps["surface"]>;
   styleVariant: NonNullable<SpielwieseMessageInsertRowProps["styleVariant"]>;
   onToggle: () => void;
@@ -259,6 +250,7 @@ function SpielwieseMessageInsertTrigger({
       <SpielwieseMessageInsertPicker
         isOpen={isOpen}
         nodeId={nodeId}
+        optionKinds={optionKinds}
         pickerId={config.pickerId}
         pickerTestId={config.pickerTestId}
         onClose={onClose}
@@ -274,6 +266,7 @@ export function SpielwieseMessageInsertRow({
   controlIdBase,
   nodeId,
   onPromptSectionInsert,
+  optionKinds,
   rowTestId = "spielwiese-message-insert-row",
   styleVariant = "default",
   surface = "framed",
@@ -303,6 +296,7 @@ export function SpielwieseMessageInsertRow({
         nodeId={nodeId}
         onClose={closePicker}
         onPromptSectionInsert={onPromptSectionInsert}
+        optionKinds={optionKinds}
         surface={surface}
         styleVariant={styleVariant}
         onToggle={() => setIsOpen((currentValue) => !currentValue)}

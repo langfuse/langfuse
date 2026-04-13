@@ -34,7 +34,7 @@ export function FooterTools({
     <div
       className={cn(
         "flex items-center gap-1.5 pt-3",
-        compact && "flex-col pt-0",
+        compact && "w-full flex-col items-start gap-0.5 px-2 pt-0",
       )}
     >
       {tools.map((tool) => {
@@ -43,7 +43,11 @@ export function FooterTools({
         return (
           <a
             key={tool.id}
-            className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-9 items-center justify-center rounded-xl transition-colors"
+            className={cn(
+              "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-9 items-center justify-center rounded-xl transition-colors",
+              compact &&
+                "size-7 justify-center rounded-[9px] px-0 text-[0.875rem] text-black/[0.55] hover:bg-black/[0.06] hover:text-[#242529]",
+            )}
             href={tool.href}
             title={tool.label}
           >

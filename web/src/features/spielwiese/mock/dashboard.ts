@@ -27,6 +27,7 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Classifier",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1 mini" },
+      { id: "output", label: "Output", value: "detected_foods, plating_notes" },
       { id: "temperature", label: "Temperature", value: "0.1" },
       { id: "top-p", label: "Top P", value: "1.0" },
       { id: "response-format", label: "Response format", value: "json" },
@@ -79,7 +80,9 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Calculator",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1" },
-      { id: "output", label: "Output", value: "macro_estimates" },
+      { id: "input", label: "Input", value: "detected_foods" },
+      // prettier-ignore
+      { id: "output", label: "Output", value: "macro_estimates, micronutrient_notes" },
       { id: "temperature", label: "Temperature", value: "0.2" },
       { id: "top-p", label: "Top P", value: "0.9" },
       { id: "response-format", label: "Response format", value: "json" },

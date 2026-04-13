@@ -1,6 +1,12 @@
 "use client";
 
-import { Archive, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
+import {
+  Archive,
+  Focus,
+  PanelTopClose,
+  PanelTopOpen,
+  Shrink,
+} from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
@@ -48,8 +54,8 @@ export function SpielwieseNodeActionButtons({
   onToggleCompact,
   previewButtonLabel = "Preview node",
 }: SpielwieseNodeActionButtonsProps) {
-  const HeaderToggleIcon = isCompact ? Maximize2 : Minimize2;
-  const PreviewToggleIcon = isPreviewFocused ? EyeOff : Eye;
+  const HeaderToggleIcon = isCompact ? PanelTopOpen : PanelTopClose;
+  const PreviewToggleIcon = isPreviewFocused ? Shrink : Focus;
 
   return (
     <div
@@ -65,7 +71,7 @@ export function SpielwieseNodeActionButtons({
         variant="ghost"
         onClick={onToggleCompact}
       >
-        <HeaderToggleIcon className="size-3.5" />
+        <HeaderToggleIcon className="size-4 stroke-[2.1px]" />
       </Button>
       <Button
         aria-label={previewButtonLabel}
@@ -79,7 +85,7 @@ export function SpielwieseNodeActionButtons({
         variant="ghost"
         onClick={onTogglePreviewFocus}
       >
-        <PreviewToggleIcon className="size-3.5" />
+        <PreviewToggleIcon className="size-4 stroke-[2.1px]" />
       </Button>
       <Button
         aria-label={archiveButtonLabel}

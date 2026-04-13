@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { render, screen, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
@@ -79,6 +80,15 @@ function createCanvasWithVisionModelValue(modelValue: string) {
   );
 }
 
+function createCanvasWithVisionTitle(title: string) {
+  return {
+    ...spielwieseEditorCanvasTestCanvas,
+    agentNodes: spielwieseEditorCanvasTestCanvas.agentNodes.map(
+      (node, index) => (index === 0 ? { ...node, title } : node),
+    ),
+  };
+}
+
 function expectHeaderParamValues({
   reasoningInput,
   responseFormatInput,
@@ -93,6 +103,14 @@ function expectHeaderParamValues({
   expect(responseFormatInput).toBeNull();
   expect((reasoningInput as HTMLInputElement).value).toBe("off / 0 tok");
   expect(temperatureInput.className).toContain("tabular-nums");
+  expect(temperatureInput.className).toContain("[field-sizing:content]");
+  expect(temperatureInput.className).toContain("w-auto");
+  expect(temperatureInput.className).toContain("min-w-[1ch]");
+  expect(temperatureInput.className).not.toContain("w-full");
+  expect(reasoningInput.className).toContain("[field-sizing:content]");
+  expect(reasoningInput.className).toContain("w-auto");
+  expect(reasoningInput.className).toContain("min-w-[1ch]");
+  expect(reasoningInput.className).not.toContain("w-full");
 }
 
 // eslint-disable-next-line complexity
@@ -184,6 +202,27 @@ function expectHeaderActionChrome({
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
 }
 
+function expectHeaderActionIcons({
+  previewButton,
+  toggleButton,
+}: Pick<
+  ReturnType<typeof renderVisionNodeHeader>,
+  "previewButton" | "toggleButton"
+>) {
+  expect(toggleButton.querySelector("svg")?.getAttribute("class")).toContain(
+    "lucide-panel-top-close",
+  );
+  expect(toggleButton.querySelector("svg")?.getAttribute("class")).toContain(
+    "size-4",
+  );
+  expect(previewButton.querySelector("svg")?.getAttribute("class")).toContain(
+    "lucide-focus",
+  );
+  expect(previewButton.querySelector("svg")?.getAttribute("class")).toContain(
+    "size-4",
+  );
+}
+
 function expectHeaderChrome({
   archiveButton,
   toggleButton,
@@ -206,6 +245,7 @@ function expectHeaderChrome({
   expect(headerRow?.lastElementChild).toBe(headerActions);
 
   expectHeaderActionChrome({ archiveButton, previewButton, toggleButton });
+  expectHeaderActionIcons({ previewButton, toggleButton });
   expectHeaderChromeTags({ responseFormatInput, temperatureInput, toolButton });
   expectHeaderChromeModelButton({ modelButton });
 }
@@ -225,6 +265,8 @@ function expectTitleControlLayout({
   expect(titleControl.className).toContain("inline-flex");
   expect(titleInput.className).toContain("w-auto");
   expect(titleInput.className).toContain("[field-sizing:content]");
+  expect(titleInput.className).toContain("placeholder:font-normal");
+  expect(titleInput.className).toContain("placeholder:text-foreground/40");
   expect(divider?.className).toContain("self-stretch");
   expect(divider?.className).not.toContain("h-[calc(100%-10px)]");
 }
@@ -293,6 +335,18 @@ describe("SpielwieseAgentNodeHeader strip items", () => {
     expect(screen.getByLabelText("vision-agent Stop sequence")).toBeTruthy();
     expect(screen.queryByLabelText("vision-agent Response format")).toBeNull();
     expect(screen.getByLabelText("vision-agent Reasoning")).toBeTruthy();
+  });
+});
+
+describe("SpielwieseAgentNodeHeader empty title state", () => {
+  it('shows "Name your agent" as the placeholder when the title is empty', () => {
+    render(<SpielwieseEditorCanvas canvas={createCanvasWithVisionTitle("")} />);
+
+    const titleInput = screen.getByLabelText("vision-agent title");
+
+    expect((titleInput as HTMLInputElement).value).toBe("");
+    expect(titleInput.getAttribute("placeholder")).toBe("Name your agent");
+    expect(titleInput.className).toContain("placeholder:font-normal");
   });
 });
 

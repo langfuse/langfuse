@@ -77,7 +77,12 @@ function expectDefaultPickerChrome() {
   expect(within(panel).queryByText("Providers")).toBeNull();
   expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
   expect(within(panel).queryByText(/Frontier general-purpose/i)).toBeNull();
-  expect(recommendButton.className).toContain("text-[#6F4124]");
+  expect(recommendButton.className).toContain("bg-background/88");
+  expect(recommendButton.className).toContain("text-foreground/76");
+  expect(recommendButton.className).toContain(
+    "shadow-[inset_0_1px_0_hsl(var(--background)/0.96),0_1px_2px_rgba(15,23,42,0.04)]",
+  );
+  expect(recommendButton.className).not.toContain("text-[#6F4124]");
 
   return { panel, grid };
 }

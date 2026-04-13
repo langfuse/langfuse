@@ -108,7 +108,7 @@ function expectPromptSimulationPaneChrome(
 
   expect(simulationPane.className).toContain("bg-[#F3F3F4]");
   expect(simulationPane.className).toContain("px-0");
-  expect(simulationPane.className).toContain("pt-1");
+  expect(simulationPane.className).toContain("pt-0.5");
   expect(simulationPane.className).toContain("pb-0");
   expect(simulationPane.className).not.toContain("pt-2");
   expect(simulationPane.className).not.toContain("px-2");
@@ -146,7 +146,7 @@ function expectPromptSimulationPaneChrome(
   expect(elements.header.className).toContain("w-[calc(100%+1.25rem)]");
   expect(elements.header.className).toContain("gap-2");
   expect(elements.header.className).toContain("pt-2");
-  expect(elements.header.className).toContain("pb-1");
+  expect(elements.header.className).toContain("pb-2");
   expect(elements.header.className).toContain("px-2");
   expect(elements.header.className).toContain(
     "rounded-t-[var(--canvas-pane-inner-radius)]",
@@ -226,6 +226,9 @@ function expectPromptSimulationNodeShells(
   const firstPreviewEmbeddedHeader = within(firstPreviewRow).getByTestId(
     "spielwiese-playground-flow-preview-embedded-header",
   );
+  const firstPreviewLabelGroup = within(firstPreviewEmbeddedHeader).getByTestId(
+    "spielwiese-playground-flow-preview-label-group",
+  );
   const firstPreviewFieldShell = within(firstPreviewRow).getByTestId(
     "spielwiese-playground-flow-preview-field-shell",
   );
@@ -300,7 +303,7 @@ function expectPromptSimulationNodeShells(
   );
   expect(firstPreviewFieldShell.className).toContain("flex-col");
   expect(firstPreviewFieldShell.className).toContain(
-    "border-[rgba(0,0,0,0.05)]",
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
   );
   expect(firstPreviewFieldShell.className).toContain("px-[2px]");
   expect(firstPreviewFieldShell.className).toContain("pb-[2px]");
@@ -308,11 +311,26 @@ function expectPromptSimulationNodeShells(
     "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
   );
   expect(firstPreviewValueShell?.className).toContain(
-    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+    "shadow-[inset_0_0_0_1px_var(--spielwiese-agent-node-prompt-value-border)]",
   );
   expect(firstPreviewValue.className).toContain("bg-transparent");
   expect(firstPreviewValue.className).toContain("font-mono");
   expect(firstPreviewValue.className).toContain("whitespace-pre-wrap");
+  expect(firstPreviewLabelGroup.className).toContain(
+    "pt-[var(--spielwiese-message-section-chip-padding-top)]",
+  );
+  expect(firstPreviewLabelGroup.className).toContain(
+    "pr-[var(--spielwiese-message-section-chip-padding-right)]",
+  );
+  expect(firstPreviewLabelGroup.className).toContain(
+    "pb-[var(--spielwiese-message-section-chip-padding-bottom)]",
+  );
+  expect(firstPreviewLabelGroup.className).toContain(
+    "pl-[var(--spielwiese-message-section-chip-padding-left)]",
+  );
+  expect(
+    firstPreviewLabelGroup.querySelector("svg")?.getAttribute("class"),
+  ).toContain("lucide-bot");
   expect(firstPreviewRow.textContent).toContain("Answer");
   expect(firstPreviewValue.textContent).toContain('"item": "grilled salmon"');
   expect(firstPreviewValue.textContent).toContain('"estimated_weight_g": 186');

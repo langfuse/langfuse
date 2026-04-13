@@ -1,4 +1,6 @@
+/* eslint-disable max-lines */
 import { useState, type ReactNode } from "react";
+import { UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { spielwieseDetachedUserShellSurfaceStyle } from "./spielwieseAgentNodeColorPalette";
@@ -105,7 +107,7 @@ function DetachedUserInputShell({
                 className={cn(
                   spielwieseEmbeddedSingleLineTextareaClassName,
                   toneClassNames.field,
-                  "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
+                  "placeholder:text-foreground/36 bg-transparent px-3 py-1 shadow-none",
                 )}
                 liveInline
                 name={`${nodeId}-${section.id}`}
@@ -150,6 +152,7 @@ function DetachedUserEmbeddedHeader({
           messageKind="user"
           nodeId={nodeId}
           onToggleCollapse={() => {}}
+          prefixIconTestId={`${nodeId}-user-message-chip-icon`}
           sectionId={section.id}
           toneClassNames={toneClassNames}
         />
@@ -184,6 +187,8 @@ function DetachedUserHeaderLeading({
         messageKind="user"
         nodeId={nodeId}
         onToggleCollapse={() => {}}
+        prefixIcon={UserRound}
+        prefixIconTestId={`${nodeId}-user-chip-icon`}
         sectionId={section.id}
         toneClassNames={toneClassNames}
       />

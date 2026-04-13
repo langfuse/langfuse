@@ -13,6 +13,7 @@ import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
 import {
   getSpielwieseAgentNodeChromeVariableStyle,
   getSpielwieseAgentNodeColorVariableStyle,
+  getSpielwieseMessageSectionChipVariableStyle,
 } from "../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
@@ -74,6 +75,12 @@ export default function SpielwieseDashboardPage() {
     defaultSpielwieseDashboardDebugState,
   );
   const debugColorStyle = {
+    ...getSpielwieseMessageSectionChipVariableStyle({
+      bottom: debugState.messageSectionChipPaddingBottom,
+      left: debugState.messageSectionChipPaddingLeft,
+      right: debugState.messageSectionChipPaddingRight,
+      top: debugState.messageSectionChipPaddingTop,
+    }),
     ...getSpielwieseAgentNodeColorVariableStyle(debugState.nodeColors),
     ...getSpielwieseAgentNodeChromeVariableStyle({
       colors: debugState.nodeColors,

@@ -9,6 +9,7 @@ function renderCanvas() {
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
   it("uses the same left inset pattern as the embedded agent instructions header", () => {
     renderCanvas();
@@ -30,6 +31,16 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
       "ml-[3px]",
     );
     expect(detachedUserEmbeddedHeader.textContent).toContain("User message");
+    expect(
+      within(visionNode)
+        .getByTestId("vision-agent-user-chip-icon")
+        .getAttribute("class"),
+    ).toContain("lucide-user-round");
+    expect(
+      within(detachedUserEmbeddedHeader)
+        .getByTestId("vision-agent-user-message-chip-icon")
+        .getAttribute("class"),
+    ).toContain("lucide-message-circle");
   });
 
   it("uses the same white shell fill as the standard agent prompt surface", () => {
@@ -56,5 +67,24 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
       "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
     );
     expect(detachedUserPromptShell.className).not.toContain("bg-white");
+  });
+
+  it("matches the embedded agent instructions textarea height chrome", () => {
+    renderCanvas();
+
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const instructionsInput = within(visionNode).getByLabelText(
+      "vision-agent Instructions",
+    );
+    const detachedUserInput = within(visionNode).getByLabelText(
+      "vision-agent User message",
+    );
+
+    expect(instructionsInput.className).toContain("px-3");
+    expect(instructionsInput.className).toContain("py-1");
+    expect(detachedUserInput.className).toContain("px-3");
+    expect(detachedUserInput.className).toContain("py-1");
+    expect(detachedUserInput.className).not.toContain("px-4");
+    expect(detachedUserInput.className).not.toContain("py-[0.4375rem]");
   });
 });

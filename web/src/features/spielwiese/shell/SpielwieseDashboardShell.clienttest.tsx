@@ -142,6 +142,10 @@ function expectWorkspaceSwitcherMovedToHeader() {
     "h-[calc(var(--spielwiese-header-height)-4px)]",
   );
   expect(workspaceSwitch?.className).toContain("max-w-[12rem]");
+  expect(workspaceSwitch?.className).toContain("pl-[3px]");
+  expect(workspaceSwitch?.className).toContain("pr-2.5");
+  expect(workspaceSwitch?.className).not.toContain("pl-1");
+  expect(workspaceSwitch?.className).not.toContain("hover:bg-black/[0.03]");
   expect(workspaceSwitch?.querySelector("svg")).toBeTruthy();
   expect(
     within(screen.getByTestId("spielwiese-shell-left")).queryByText("Rudel"),

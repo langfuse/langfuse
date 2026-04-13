@@ -174,7 +174,7 @@ export function SpielwieseEvaluationPane({
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-1 pb-0"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0.5 pb-0"
       data-testid="spielwiese-evaluation-pane"
     >
       <div

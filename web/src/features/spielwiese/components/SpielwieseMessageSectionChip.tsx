@@ -1,7 +1,12 @@
-import { Settings2, type LucideIcon, UserRound } from "lucide-react";
+import type { ReactNode } from "react";
+import { MessageCircle, Settings2, type LucideIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import type { getMessageToneClassNames } from "./spielwieseMessageTone";
+import {
+  spielwieseMessageSectionChipPaddingStyle,
+  spielwieseMessageSectionChipVariableStyle,
+} from "./spielwieseAgentNodeColorPalette";
 
 function getMessageSectionPrefixIcon(messageKind: string) {
   if (messageKind === "system" || messageKind === "assistant") {
@@ -9,7 +14,7 @@ function getMessageSectionPrefixIcon(messageKind: string) {
   }
 
   if (messageKind === "user") {
-    return UserRound;
+    return MessageCircle;
   }
 
   return null;
@@ -24,7 +29,7 @@ function getMessageSectionChipButtonClassName({
     return "bg-background hover:bg-background h-7 gap-0 overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] px-0 py-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4";
   }
 
-  return "h-auto gap-1.5 rounded-none border-0 bg-transparent px-0 py-0 shadow-none hover:bg-transparent";
+  return "h-auto gap-1.5 rounded-none border-0 bg-transparent pt-[var(--spielwiese-message-section-chip-padding-top)] pr-[var(--spielwiese-message-section-chip-padding-right)] pb-[var(--spielwiese-message-section-chip-padding-bottom)] pl-[var(--spielwiese-message-section-chip-padding-left)] shadow-none hover:bg-transparent";
 }
 
 function getMessageSectionChipLabelClassName({
@@ -48,6 +53,7 @@ function getMessageSectionChipLabelClassName({
 
 function MessageSectionChipPrefix({
   icon: Icon,
+  iconTestId,
   leadingSurface,
   messageKind,
   nodeId,
@@ -55,6 +61,7 @@ function MessageSectionChipPrefix({
   toneClassNames,
 }: {
   icon: LucideIcon;
+  iconTestId?: string;
   leadingSurface: "embedded" | "plain";
   messageKind: string;
   nodeId: string;
@@ -89,9 +96,10 @@ function MessageSectionChipPrefix({
           toneClassNames.label,
         )}
         data-testid={
-          messageKind === "user"
+          iconTestId ??
+          (messageKind === "user"
             ? `${nodeId}-user-tag-icon`
-            : `${nodeId}-${sectionId}-icon`
+            : `${nodeId}-${sectionId}-icon`)
         }
       />
     </span>
@@ -99,6 +107,7 @@ function MessageSectionChipPrefix({
 }
 
 function MessageSectionChipContent({
+  iconTestId,
   label,
   leadingSurface,
   messageKind,
@@ -107,6 +116,7 @@ function MessageSectionChipContent({
   sectionId,
   toneClassNames,
 }: {
+  iconTestId?: string;
   label: string;
   leadingSurface: "embedded" | "plain";
   messageKind: string;
@@ -122,6 +132,7 @@ function MessageSectionChipContent({
       {PrefixIcon ? (
         <MessageSectionChipPrefix
           icon={PrefixIcon}
+          iconTestId={iconTestId}
           leadingSurface={leadingSurface}
           messageKind={messageKind}
           nodeId={nodeId}
@@ -142,6 +153,71 @@ function MessageSectionChipContent({
   );
 }
 
+function StaticMessageSectionChip({
+  chipClassName,
+  chipContent,
+}: {
+  chipClassName: string;
+  chipContent: ReactNode;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={chipClassName}
+      style={{
+        ...spielwieseMessageSectionChipVariableStyle,
+        ...spielwieseMessageSectionChipPaddingStyle,
+      }}
+    >
+      {chipContent}
+    </div>
+  );
+}
+
+function InteractiveMessageSectionChip({
+  ariaLabel,
+  chipClassName,
+  chipContent,
+  isCollapsed,
+  onToggleCollapse,
+}: {
+  ariaLabel: string;
+  chipClassName: string;
+  chipContent: ReactNode;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+}) {
+  return (
+    <Button
+      aria-expanded={!isCollapsed}
+      aria-label={ariaLabel}
+      className={chipClassName}
+      style={{
+        ...spielwieseMessageSectionChipVariableStyle,
+        ...spielwieseMessageSectionChipPaddingStyle,
+      }}
+      variant="ghost"
+      onClick={onToggleCollapse}
+    >
+      {chipContent}
+    </Button>
+  );
+}
+
+type MessageSectionChipButtonProps = {
+  interactive?: boolean;
+  isCollapsed: boolean;
+  label: string;
+  leadingSurface: "embedded" | "plain";
+  messageKind: string;
+  nodeId: string;
+  onToggleCollapse: () => void;
+  prefixIcon?: LucideIcon | null;
+  prefixIconTestId?: string;
+  sectionId: string;
+  toneClassNames: ReturnType<typeof getMessageToneClassNames>;
+};
+
 export function MessageSectionChipButton({
   interactive = true,
   isCollapsed,
@@ -150,20 +226,15 @@ export function MessageSectionChipButton({
   messageKind,
   nodeId,
   onToggleCollapse,
+  prefixIcon,
+  prefixIconTestId,
   sectionId,
   toneClassNames,
-}: {
-  interactive?: boolean;
-  isCollapsed: boolean;
-  label: string;
-  leadingSurface: "embedded" | "plain";
-  messageKind: string;
-  nodeId: string;
-  onToggleCollapse: () => void;
-  sectionId: string;
-  toneClassNames: ReturnType<typeof getMessageToneClassNames>;
-}) {
-  const prefixIcon = getMessageSectionPrefixIcon(messageKind);
+}: MessageSectionChipButtonProps) {
+  const resolvedPrefixIcon =
+    prefixIcon === undefined
+      ? getMessageSectionPrefixIcon(messageKind)
+      : prefixIcon;
   const isFilledChip = messageKind === "user" && leadingSurface === "plain";
   const chipClassName = cn(
     "hover:text-foreground inline-flex shrink-0 items-center justify-start text-left focus-visible:ring-0 focus-visible:ring-offset-0",
@@ -171,11 +242,12 @@ export function MessageSectionChipButton({
   );
   const chipContent = (
     <MessageSectionChipContent
+      iconTestId={prefixIconTestId}
       label={label}
       leadingSurface={leadingSurface}
       messageKind={messageKind}
       nodeId={nodeId}
-      prefixIcon={prefixIcon}
+      prefixIcon={resolvedPrefixIcon}
       sectionId={sectionId}
       toneClassNames={toneClassNames}
     />
@@ -183,21 +255,20 @@ export function MessageSectionChipButton({
 
   if (!interactive) {
     return (
-      <div aria-hidden="true" className={chipClassName}>
-        {chipContent}
-      </div>
+      <StaticMessageSectionChip
+        chipClassName={chipClassName}
+        chipContent={chipContent}
+      />
     );
   }
 
   return (
-    <Button
-      aria-expanded={!isCollapsed}
-      aria-label={`Toggle ${nodeId} ${label} section`}
-      className={chipClassName}
-      variant="ghost"
-      onClick={onToggleCollapse}
-    >
-      {chipContent}
-    </Button>
+    <InteractiveMessageSectionChip
+      ariaLabel={`Toggle ${nodeId} ${label} section`}
+      chipClassName={chipClassName}
+      chipContent={chipContent}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={onToggleCollapse}
+    />
   );
 }

@@ -41,6 +41,35 @@ function renderVisionNode() {
   return screen.getAllByTestId("spielwiese-agent-node")[0];
 }
 
+async function expectAgentMessageTooltip({
+  label,
+  pseudoLinkLabel,
+  text,
+  tooltipTestId,
+  visionNode,
+}: {
+  label: "Assistant" | "Instructions" | "Tool";
+  pseudoLinkLabel?: string;
+  text: string;
+  tooltipTestId: string;
+  visionNode: HTMLElement;
+}) {
+  const trigger = within(visionNode).getByRole("button", { name: label });
+
+  fireEvent.mouseEnter(trigger);
+  fireEvent.focus(trigger);
+
+  expect((await screen.findByTestId(tooltipTestId)).textContent).toContain(
+    text,
+  );
+
+  if (pseudoLinkLabel) {
+    expect(screen.getByTestId(`${tooltipTestId}-pseudo-link`).textContent).toBe(
+      pseudoLinkLabel,
+    );
+  }
+}
+
 describe("SpielwieseEditorCanvas node insertion", () => {
   it("keeps prompt insertion scoped to the response format control", () => {
     const visionNode = renderVisionNode();
@@ -49,16 +78,52 @@ describe("SpielwieseEditorCanvas node insertion", () => {
     fireEvent.click(textTrigger);
 
     expect(
+      within(visionNode).queryByRole("button", { name: "User" }),
+    ).toBeNull();
+    expect(
+      within(visionNode).getByRole("button", { name: "Instructions" }),
+    ).toBeTruthy();
+    expect(
       within(visionNode).getByRole("button", { name: "Assistant" }),
     ).toBeTruthy();
     expect(
       within(visionNode).getByRole("button", { name: "Tool" }),
     ).toBeTruthy();
   });
+
+  it("shows minimal tooltips for the agent-only prompt types", async () => {
+    const visionNode = renderVisionNode();
+    const textTrigger = getResponseFormatInsertTrigger(visionNode);
+
+    fireEvent.click(textTrigger);
+
+    await expectAgentMessageTooltip({
+      label: "Instructions",
+      text: "What the agent should follow before replying.",
+      tooltipTestId:
+        "spielwiese-response-format-insert-picker-text-system-tooltip",
+      visionNode,
+    });
+    await expectAgentMessageTooltip({
+      label: "Assistant",
+      pseudoLinkLabel: "Docs",
+      text: "Multi-shot answer expectation for the reply.",
+      tooltipTestId:
+        "spielwiese-response-format-insert-picker-text-assistant-tooltip",
+      visionNode,
+    });
+    await expectAgentMessageTooltip({
+      label: "Tool",
+      text: "Expected tool call and returned result.",
+      tooltipTestId:
+        "spielwiese-response-format-insert-picker-text-tool-tooltip",
+      visionNode,
+    });
+  });
 });
 
 describe("SpielwieseEditorCanvas prompt insertion actions", () => {
-  it("lets a node append a new user, system, or assistant message from the response format control", () => {
+  it("lets a node append an assistant message from the response format control", () => {
     const visionNode = renderVisionNode();
     const textTrigger = getResponseFormatInsertTrigger(visionNode);
 

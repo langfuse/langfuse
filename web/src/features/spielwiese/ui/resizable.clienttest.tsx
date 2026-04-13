@@ -79,6 +79,9 @@ describe("spielwiese resizable primitives", () => {
     const handle = document.querySelector(
       '[data-slot="spielwiese-resizable-handle"]',
     ) as HTMLElement | null;
+    const hoverHandle = document.querySelector(
+      "[data-resizable-hover-handle]",
+    ) as HTMLElement | null;
 
     expect(panels).toHaveLength(2);
     expect((panels[0] as HTMLElement).className).toContain("h-full");
@@ -86,7 +89,14 @@ describe("spielwiese resizable primitives", () => {
     expect((panels[0] as HTMLElement).className).toContain("[&>*]:min-h-0");
     expect(handle).toBeTruthy();
     expect(handle?.className).toContain("bg-border/70");
+    expect(handle?.className).toContain("group/resize-handle");
+    expect(handle?.className).toContain("z-20");
     expect(handle?.className).toContain("h-px");
-    expect(handle?.className).not.toContain("hover:h-0.5");
+    expect(hoverHandle).toBeTruthy();
+    expect(hoverHandle?.className).toContain("rounded-full");
+    expect(hoverHandle?.className).toContain("z-30");
+    expect(hoverHandle?.className).toContain(
+      "group-hover/resize-handle:opacity-100",
+    );
   });
 });

@@ -16,6 +16,11 @@ type SpielwieseSidebarRightProps = {
   variablesState: SpielwieseVariablesPanelState;
 };
 
+const spielwieseRightSidebarHeaderClassName =
+  "gap-0 p-0 px-3 pt-2 pb-[11px] shadow-[rgb(238,239,241)_0px_1px_0px_0px]";
+const spielwieseRightSidebarContentClassName =
+  "gap-0 overflow-y-auto px-3 pt-0 pb-3";
+
 export function SpielwieseSidebarRight({
   dashboard,
   variablesState,
@@ -35,7 +40,7 @@ export function SpielwieseSidebarRight({
       modelRecommendationTarget ? (
         <>
           <SidebarHeader
-            className="px-4 py-3"
+            className={spielwieseRightSidebarHeaderClassName}
             data-testid="spielwiese-right-sidebar-header"
           >
             <SpielwieseModelRecommendationHeader
@@ -43,7 +48,7 @@ export function SpielwieseSidebarRight({
               target={modelRecommendationTarget}
             />
           </SidebarHeader>
-          <SidebarContent className="overflow-y-auto px-3 py-3">
+          <SidebarContent className={spielwieseRightSidebarContentClassName}>
             <SpielwieseModelRecommendationPanel
               target={modelRecommendationTarget}
             />
@@ -52,7 +57,7 @@ export function SpielwieseSidebarRight({
       ) : (
         <>
           <SidebarHeader
-            className="px-4 py-3"
+            className={spielwieseRightSidebarHeaderClassName}
             data-testid="spielwiese-right-sidebar-header"
           >
             <SpielwieseVariablesSummary
@@ -61,7 +66,7 @@ export function SpielwieseSidebarRight({
               onCreate={variablesState.onCreate}
             />
           </SidebarHeader>
-          <SidebarContent className="overflow-y-auto px-3 py-3">
+          <SidebarContent className={spielwieseRightSidebarContentClassName}>
             <SpielwieseVariablesPanel state={variablesState} />
           </SidebarContent>
         </>

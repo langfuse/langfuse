@@ -79,22 +79,35 @@ function expectPreviewHoverDoesNotOpenSpotlight(elements: {
 }
 
 function expectFocusDialogChrome(animateMock: jest.Mock) {
+  const focusRoot = screen.getByTestId(
+    "spielwiese-agent-node-focus-modal-root",
+  );
   const focusDialog = screen.getByRole("dialog", {
     name: "vision-agent focus mode",
   });
+  const focusCardLayout = screen.getByTestId(
+    "spielwiese-agent-node-focus-card-layout",
+  );
+  const focusCard = screen.getByTestId("spielwiese-agent-node-focus-card");
   const modalPreviewButton = within(focusDialog).getByRole("button", {
     name: "Close vision-agent focus mode",
   });
 
   expect(screen.getByTestId("spielwiese-agent-node-focus-modal")).toBeTruthy();
+  expect(focusRoot.className).toContain("items-start");
+  expect(focusRoot.className).toContain("overflow-y-auto");
   expect(
     within(focusDialog).getByLabelText("vision-agent Instructions"),
   ).toBeTruthy();
-  expect(modalPreviewButton.getAttribute("aria-pressed")).toBe("true");
-  expect(focusDialog.className).toContain("max-h-[calc(100dvh-1.5rem)]");
-  expect(focusDialog.className).toContain(
-    "w-[min(78.125rem,calc(100vw-1.5rem))]",
+  expect(focusCardLayout.className).toContain("h-full");
+  expect(focusCard.className).toContain("h-full");
+  expect(focusCard.className).toContain("w-full");
+  expect(focusCard.className).toContain(
+    "[&_[aria-label$='Instructions']]:min-h-[calc(1002px-15rem)]",
   );
+  expect(modalPreviewButton.getAttribute("aria-pressed")).toBe("true");
+  expect(focusDialog.className).toContain("h-[1002px]");
+  expect(focusDialog.className).toContain("w-[min(864px,calc(100vw-1.5rem))]");
   expect(focusDialog.className).toContain("origin-top-left");
   expect(animateMock).toHaveBeenCalled();
   expect(animateMock.mock.contexts).toContain(focusDialog);

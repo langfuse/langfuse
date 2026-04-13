@@ -214,11 +214,26 @@ describe("SpielwieseSidebarLeft compact", () => {
     expect(
       screen.getByTestId("spielwiese-left-sidebar-scroll-area"),
     ).toBeTruthy();
+    expect(screen.queryByLabelText("New document")).toBeNull();
     expect(screen.queryByText("New Document")).toBeNull();
     expect(screen.queryByText("Files")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-left-sidebar-compact-create-rail"),
+    ).toBeNull();
     expect(screen.getByTitle("Desktop app")).toBeTruthy();
+    expect(screen.getByTitle("Desktop app").className).toContain("size-7");
+    expect(screen.getByTitle("Desktop app").className).toContain(
+      "justify-center",
+    );
+    expect(screen.getByTitle("Desktop app").className).toContain(
+      "text-black/[0.55]",
+    );
     expect(screen.getByTitle("Files")).toBeTruthy();
-    expect(screen.getByTitle("Home").className).toContain("size-8");
+    expect(screen.getByTitle("Files").className).toContain("size-7");
+    expect(screen.getByTitle("Files").className).toContain("justify-center");
+    expect(screen.getByTitle("Home").className).toContain("size-7");
+    expect(screen.getByTitle("Home").className).toContain("justify-center");
+    expect(screen.getByTitle("Home").className).toContain("text-black/[0.55]");
     expect(screen.queryByTitle("Rudel")).toBeNull();
   });
 });

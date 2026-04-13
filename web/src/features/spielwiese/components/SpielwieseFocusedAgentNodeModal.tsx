@@ -62,6 +62,7 @@ function FocusedAgentNodeCard({
   return (
     <SpielwiesePrimaryAgentNodeCard
       cardTestId="spielwiese-agent-node-focus-card"
+      className="h-full w-full [&_[aria-label$='Instructions']]:h-full [&_[aria-label$='Instructions']]:min-h-[calc(1002px-15rem)] [&_[data-section-id='system']]:flex [&_[data-section-id='system']]:h-full [&_[data-section-id='system']]:flex-col [&_[data-testid='spielwiese-agent-node-header-frame']]:flex [&_[data-testid='spielwiese-agent-node-header-frame']]:h-full [&_[data-testid='spielwiese-agent-node-header-frame']]:flex-col [&_[data-testid='spielwiese-agent-node-header-shell']]:flex [&_[data-testid='spielwiese-agent-node-header-shell']]:h-full [&_[data-testid='spielwiese-agent-node-header-shell']]:flex-1 [&_[data-testid='spielwiese-agent-node-header-shell']]:flex-col [&_[data-testid='spielwiese-mustache-root']]:h-full [&_[data-testid='spielwiese-system-message-prompt-shell']]:flex [&_[data-testid='spielwiese-system-message-prompt-shell']]:min-h-[calc(1002px-15rem)] [&_[data-testid='spielwiese-system-message-prompt-shell']]:flex-1 [&_[data-testid='spielwiese-system-message-prompt-shell']]:flex-col"
       isCompact={Boolean(compactNodeIds[focusedNode.id])}
       isPreviewFocused
       modelSetting={focusedNode.settings.find(
@@ -104,19 +105,24 @@ export function SpielwieseFocusedAgentNodeModal({
       onClose={focusMode.closeFocusMode}
     >
       {focusMode.focusedNode ? (
-        <FocusedAgentNodeCard
-          compactNodeIds={compactNodeIds}
-          focusedNode={focusMode.focusedNode}
-          onAgentNodeArchive={onAgentNodeArchive}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onPromptSectionMove={onPromptSectionMove}
-          onSettingValueChange={onSettingValueChange}
-          onTitleChange={onTitleChange}
-          onToggleCompact={() => onToggleCompact(focusMode.focusedNode.id)}
-          onTogglePreviewFocus={focusMode.closeFocusMode}
-        />
+        <div
+          className="flex h-full w-full items-stretch justify-center"
+          data-testid="spielwiese-agent-node-focus-card-layout"
+        >
+          <FocusedAgentNodeCard
+            compactNodeIds={compactNodeIds}
+            focusedNode={focusMode.focusedNode}
+            onAgentNodeArchive={onAgentNodeArchive}
+            onPromptSectionChange={onPromptSectionChange}
+            onPromptSectionDelete={onPromptSectionDelete}
+            onPromptSectionInsert={onPromptSectionInsert}
+            onPromptSectionMove={onPromptSectionMove}
+            onSettingValueChange={onSettingValueChange}
+            onTitleChange={onTitleChange}
+            onToggleCompact={() => onToggleCompact(focusMode.focusedNode.id)}
+            onTogglePreviewFocus={focusMode.closeFocusMode}
+          />
+        </div>
       ) : null}
     </SpielwieseAgentNodeFocusModal>
   );

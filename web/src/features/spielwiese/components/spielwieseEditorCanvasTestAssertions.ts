@@ -211,15 +211,13 @@ function expectDetachedUserContentHeaderSpacing(
 function expectDetachedUserEmbeddedHeaderChrome({
   detachedUserEmbeddedHeader,
   detachedUserEmbeddedShell,
-  detachedUserSections,
 }: {
   detachedUserEmbeddedHeader: HTMLElement;
   detachedUserEmbeddedShell: HTMLElement;
-  detachedUserSections: HTMLElement;
 }) {
   expect(detachedUserEmbeddedShell.className).toContain("w-full");
   expect(detachedUserEmbeddedShell.className).toContain(
-    "border-[rgba(0,0,0,0.05)]",
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
   );
   expect(detachedUserEmbeddedShell.className).toContain(
     "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
@@ -238,12 +236,14 @@ function expectDetachedUserEmbeddedHeaderChrome({
   expect(detachedUserEmbeddedHeader.textContent).toContain("User message");
   expect(
     within(detachedUserEmbeddedHeader).getByTestId(
-      "vision-agent-user-tag-icon",
+      "vision-agent-user-message-chip-icon",
     ),
   ).toBeTruthy();
   expect(
-    within(detachedUserSections).getAllByTestId("vision-agent-user-tag-icon"),
-  ).toHaveLength(2);
+    within(detachedUserEmbeddedHeader)
+      .getByTestId("vision-agent-user-message-chip-icon")
+      .getAttribute("class"),
+  ).toContain("lucide-message-circle");
 }
 
 function expectDetachedUserFieldChrome({
@@ -252,7 +252,6 @@ function expectDetachedUserFieldChrome({
   detachedUserEmbeddedHeader,
   detachedUserEmbeddedShell,
   detachedUserPromptShell,
-  detachedUserSections,
   detachedUserTextarea,
 }: {
   detachedUserContentFrame: HTMLElement;
@@ -260,7 +259,6 @@ function expectDetachedUserFieldChrome({
   detachedUserEmbeddedHeader: HTMLElement;
   detachedUserEmbeddedShell: HTMLElement;
   detachedUserPromptShell: HTMLElement;
-  detachedUserSections: HTMLElement;
   detachedUserTextarea: HTMLElement;
 }) {
   expect(detachedUserContentFrame.className).toContain("pt-0");
@@ -276,7 +274,6 @@ function expectDetachedUserFieldChrome({
   expectDetachedUserEmbeddedHeaderChrome({
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
-    detachedUserSections,
   });
   expect(
     (detachedUserContentFrame.firstElementChild as HTMLElement | null)
@@ -298,13 +295,14 @@ function expectDetachedUserFieldChrome({
     "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
   );
   expect(detachedUserPromptShell.className).toContain(
-    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+    "shadow-[inset_0_0_0_1px_var(--spielwiese-agent-node-prompt-value-border)]",
   );
   expect(detachedUserTextarea.className).toContain("min-h-6");
   expect(detachedUserTextarea.className).toContain("px-4");
   expect(detachedUserTextarea.className).toContain("py-[0.4375rem]");
 }
 
+// eslint-disable-next-line max-lines-per-function
 function expectDetachedUserRowShell({
   detachedUserCompactButton,
   detachedUserContentFrame,
@@ -348,6 +346,16 @@ function expectDetachedUserRowShell({
     detachedUserHeaderLeading.querySelector("[data-prefix='true']")?.className,
   ).toContain("border-r");
   expect(detachedUserHeaderLeading.textContent).toContain("User");
+  expect(
+    within(detachedUserHeaderLeading).getByTestId(
+      "vision-agent-user-chip-icon",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(detachedUserHeaderLeading)
+      .getByTestId("vision-agent-user-chip-icon")
+      .getAttribute("class"),
+  ).toContain("lucide-user-round");
   expect(
     within(detachedUserHeaderLeading).queryByRole("button", {
       name: "Toggle vision-agent User section",

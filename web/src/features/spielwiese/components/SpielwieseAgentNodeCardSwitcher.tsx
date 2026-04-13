@@ -24,11 +24,17 @@ type SpielwieseAgentNodeCardSwitcherProps = {
 const spielwieseAgentNodeCardNavButtonClassName =
   "text-foreground/52 hover:text-foreground hover:bg-background/88 h-6 w-6 shrink-0 rounded-[8px] border border-transparent bg-transparent px-0 shadow-none transition-[background-color,border-color,box-shadow,color] hover:border-[rgba(0,0,0,0.08)] hover:shadow-[inset_0_1px_0_hsl(var(--background)/0.96)] disabled:opacity-38";
 const spielwieseAgentNodeCardNavTooltipClassName =
-  "text-foreground/72 pointer-events-none fixed z-[160] inline-flex -translate-x-1/2 -translate-y-full rounded-[11px] border border-black/8 bg-[rgba(255,255,255,0.98)] px-2.5 py-1.5 text-[0.6875rem] leading-[1.05rem] font-normal whitespace-nowrap shadow-[0_10px_22px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur-sm";
+  "text-foreground/66 pointer-events-none fixed z-[160] inline-flex max-w-[calc(100vw-1.25rem)] rounded-[8px] border border-black/6 bg-[rgba(251,251,249,0.96)] px-2 py-0.5 text-[0.625rem] leading-[0.95rem] font-medium whitespace-nowrap shadow-[0_4px_10px_rgba(15,23,42,0.05)] backdrop-blur-sm";
+
+const cardNavTooltipEdgeInset = 10;
+const cardNavTooltipEstimatedWidth = 88;
+const cardNavTooltipEdgeSnapThreshold =
+  cardNavTooltipEdgeInset + cardNavTooltipEstimatedWidth / 2;
 
 type CardNavTooltipPosition = {
   left: number;
   top: number;
+  transform: string;
 };
 
 function getCardNavTooltipPosition(
@@ -38,9 +44,26 @@ function getCardNavTooltipPosition(
   const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
   const triggerCenterX = triggerRect.left + triggerRect.width / 2;
 
+  if (triggerCenterX <= cardNavTooltipEdgeSnapThreshold) {
+    return {
+      left: cardNavTooltipEdgeInset,
+      top: triggerRect.top - 4,
+      transform: "translate(0, -100%)",
+    };
+  }
+
+  if (triggerCenterX >= viewportWidth - cardNavTooltipEdgeSnapThreshold) {
+    return {
+      left: viewportWidth - cardNavTooltipEdgeInset,
+      top: triggerRect.top - 4,
+      transform: "translate(-100%, -100%)",
+    };
+  }
+
   return {
-    left: Math.max(16, Math.min(viewportWidth - 16, triggerCenterX)),
+    left: triggerCenterX,
     top: triggerRect.top - 4,
+    transform: "translate(-50%, -100%)",
   };
 }
 
@@ -65,6 +88,7 @@ function CardNavTooltipPortal({
       style={{
         left: `${position.left}px`,
         top: `${position.top}px`,
+        transform: position.transform,
       }}
     >
       {label}

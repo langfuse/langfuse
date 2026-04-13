@@ -1,5 +1,4 @@
-import { Plus } from "lucide-react";
-import { Button } from "../ui/button";
+import { cn } from "@/src/utils/tailwind";
 import {
   SidebarContent,
   SidebarFooter,
@@ -28,31 +27,10 @@ type SpielwieseSidebarLeftProps = {
   shell: SpielwieseShellVM;
 };
 
-function CreateDocumentButton({ compact }: { compact: boolean }) {
-  if (compact) {
-    return (
-      <Button
-        aria-label="New document"
-        className="size-11 rounded-xl"
-        size="icon"
-        variant="secondary"
-      >
-        <Plus size={18} />
-      </Button>
-    );
-  }
-
-  return (
-    <Button
-      className="h-10 w-full justify-start rounded-xl px-3 text-sm font-medium shadow-none"
-      data-testid="spielwiese-left-new-document"
-      variant="secondary"
-    >
-      <Plus size={16} />
-      <span>New Document</span>
-    </Button>
-  );
-}
+const compactSidebarRowClassName =
+  "size-7 justify-center gap-0 rounded-[9px] px-0 text-[0.875rem] leading-5 font-medium tracking-[-0.14px] text-[#242529] hover:bg-black/[0.06] hover:text-[#242529] [&_[data-sidebar-action]]:hidden [&_[data-sidebar-badge]]:hidden [&_[data-sidebar-icon]]:text-black/[0.55] [&_[data-sidebar-label]]:hidden [&_[data-sidebar-meta]]:hidden";
+const compactSidebarRowActiveClassName =
+  "bg-[#EEEFF1] text-[#242529] shadow-none";
 
 function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   const ActionIcon = item.actionIcon;
@@ -112,17 +90,24 @@ function ExpandedUtilityNav({
 
 function CompactUtilityNav({ items }: { items: SpielwieseNavItem[] }) {
   return (
-    <nav aria-label="Primary workspace links" className="flex flex-col gap-1">
+    <nav
+      aria-label="Primary workspace links"
+      className="flex flex-col items-start gap-1"
+    >
       {items.map((item) => {
         const Icon = item.icon;
 
         return (
           <SidebarMenuButton
+            className={cn(
+              compactSidebarRowClassName,
+              item.isActive && compactSidebarRowActiveClassName,
+            )}
             key={item.id}
             href={item.href}
             active={item.isActive}
-            compact
             title={item.label}
+            tone="primary"
           >
             <Icon className="size-4" data-sidebar-icon />
           </SidebarMenuButton>
@@ -138,40 +123,31 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
   );
 
   return (
-    <>
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-        data-testid="spielwiese-left-sidebar-scroll-area"
-      >
-        <SidebarHeader className="items-center gap-2 p-2.5">
-          <CreateDocumentButton compact />
-        </SidebarHeader>
+    <div className="contents" data-testid="spielwiese-left-sidebar-scroll-area">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-2.5 py-2.5">
+        <CompactUtilityNav items={compactUtilityNav} />
+        <div className="flex flex-col items-start gap-1.5 px-2">
+          {shell.sidebarSections.map((section) => {
+            const Icon = section.icon;
 
-        <SidebarContent className="items-center gap-2 p-2.5 pt-0">
-          <CompactUtilityNav items={compactUtilityNav} />
-          <div className="flex flex-col gap-1.5">
-            {shell.sidebarSections.map((section) => {
-              const Icon = section.icon;
-
-              return (
-                <a
-                  key={section.id}
-                  className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground inline-flex size-10 items-center justify-center rounded-xl transition-colors"
-                  href={`#${section.id}`}
-                  title={section.label}
-                >
-                  <Icon className="size-4" />
-                </a>
-              );
-            })}
-          </div>
-        </SidebarContent>
-
-        <SidebarFooter className="mt-0 items-center gap-2 p-2.5 pt-0">
-          <FooterTools compact tools={shell.footerTools} />
-        </SidebarFooter>
+            return (
+              <a
+                key={section.id}
+                className={compactSidebarRowClassName}
+                href={`#${section.id}`}
+                title={section.label}
+              >
+                <Icon className="size-4" data-sidebar-icon />
+              </a>
+            );
+          })}
+        </div>
       </div>
-    </>
+
+      <SidebarFooter className="mt-0 items-stretch gap-2 p-2.5 pt-0">
+        <FooterTools compact tools={shell.footerTools} />
+      </SidebarFooter>
+    </div>
   );
 }
 

@@ -53,7 +53,7 @@ function expectEvaluationPaneShellChrome({
 >) {
   expect(evaluationPane).toBeTruthy();
   expect(evaluationPane.className).toContain("px-0");
-  expect(evaluationPane.className).toContain("pt-1");
+  expect(evaluationPane.className).toContain("pt-0.5");
   expect(evaluationPane.className).toContain("pb-0");
   expect(evaluationPane.className).not.toContain("pt-2");
   expect(evaluationPane.className).not.toContain("px-2");

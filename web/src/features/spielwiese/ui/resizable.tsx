@@ -52,13 +52,27 @@ function ResizableHandle({
   return (
     <ResizablePrimitive.Separator
       className={cn(
-        "bg-border/70 ring-offset-background focus-visible:ring-ring aria-[orientation=horizontal]:hover:bg-border relative flex w-px items-center justify-center transition-[background-color,box-shadow] duration-150 after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:cursor-row-resize aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-2 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>[data-resizable-handle-pill]]:rotate-90",
+        "group/resize-handle bg-border/70 relative z-20 flex w-px items-center justify-center transition-[background-color] duration-180 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2 hover:bg-[rgba(15,23,42,0.12)] focus-visible:bg-[rgba(15,23,42,0.12)] focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:cursor-row-resize aria-[orientation=horizontal]:after:top-1/2 aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-5 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>[data-resizable-handle-pill]]:rotate-90 [&[aria-orientation=horizontal]>[data-resizable-hover-handle]]:rotate-90",
         className,
       )}
       data-slot="spielwiese-resizable-handle"
       {...props}
     >
       {children}
+      {!withHandle ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-1/2 z-30 flex h-11 w-5 -translate-x-1/2 -translate-y-1/2 scale-95 items-center justify-center rounded-full border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(238,240,242,0.96)_48%,rgba(228,231,234,0.98))] opacity-0 shadow-[0_1px_0_rgba(255,255,255,0.96),0_10px_24px_rgba(15,23,42,0.18),0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(15,23,42,0.08)] transition-[opacity,transform,box-shadow] duration-180 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-hover/resize-handle:scale-100 group-hover/resize-handle:opacity-100 group-focus-visible/resize-handle:scale-100 group-focus-visible/resize-handle:opacity-100"
+          data-resizable-hover-handle
+        >
+          <div className="absolute inset-x-1.5 top-1.5 h-2 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0))]" />
+          <div className="flex flex-col gap-1">
+            <span className="h-px w-2 rounded-full bg-[rgba(15,23,42,0.18)] shadow-[0_1px_0_rgba(255,255,255,0.76)]" />
+            <span className="h-px w-2 rounded-full bg-[rgba(15,23,42,0.18)] shadow-[0_1px_0_rgba(255,255,255,0.76)]" />
+            <span className="h-px w-2 rounded-full bg-[rgba(15,23,42,0.18)] shadow-[0_1px_0_rgba(255,255,255,0.76)]" />
+          </div>
+        </div>
+      ) : null}
       {withHandle ? (
         <div
           className="bg-border z-10 flex h-8 w-1.5 shrink-0 rounded-full"

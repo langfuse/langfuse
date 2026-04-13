@@ -424,12 +424,9 @@ function expectResponseFormatInsertPickerOptionChrome(nodeCard: HTMLElement) {
   const responseFormatInsertPicker = within(nodeCard).getByTestId(
     "spielwiese-response-format-insert-picker-text",
   );
-  const responseFormatPickerButtons = [
-    "User",
-    "Instructions",
-    "Assistant",
-    "Tool",
-  ].map((label) => within(nodeCard).getByRole("button", { name: label }));
+  const responseFormatPickerButtons = ["Instructions", "Assistant", "Tool"].map(
+    (label) => within(nodeCard).getByRole("button", { name: label }),
+  );
   const pickerButtonRow = responseFormatPickerButtons[0]
     ?.parentElement as HTMLElement;
 
@@ -443,6 +440,7 @@ function expectResponseFormatInsertPickerOptionChrome(nodeCard: HTMLElement) {
   expect(responseFormatInsertPicker.className).not.toContain(
     "border-[rgba(0,0,0,0.05)]",
   );
+  expect(within(nodeCard).queryByRole("button", { name: "User" })).toBeNull();
   expect(pickerButtonRow.className).toContain("pl-1");
   expect(pickerButtonRow.className).toContain("pr-px");
   expect(pickerButtonRow.className).toContain("py-0.5");

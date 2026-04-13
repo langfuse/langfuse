@@ -16,6 +16,7 @@ import {
   spielwieseStripItemClassName,
   spielwieseStripItemFieldClassName,
 } from "./SpielwieseHeaderStrip";
+import { spielwieseAgentNodeHeaderSurfaceStyle } from "./spielwieseAgentNodeColorPalette";
 import { SpielwieseAgentNodeHeaderActions } from "./SpielwieseAgentNodeHeaderActions";
 import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
 import { SpielwieseAgentNodeTitleControl } from "./SpielwieseAgentNodeTitleControl";
@@ -39,29 +40,6 @@ type SpielwieseAgentNodeHeaderProps = {
   onToggleCompact: () => void;
   onTitleChange: (nodeId: string, value: string) => void;
 };
-
-function getSettingWidthClass(settingId: string) {
-  switch (settingId) {
-    case "model":
-      return "w-[6.75rem]";
-    case "input":
-      return "w-[7rem]";
-    case "output":
-      return "w-[7.75rem]";
-    case "temperature":
-      return "w-[2.75rem]";
-    case "top-p":
-      return "w-[3rem]";
-    case "stop-sequence":
-      return "w-[4.25rem]";
-    case "response-format":
-      return "w-[4rem]";
-    case "reasoning":
-      return "w-[7rem]";
-    default:
-      return "w-[6rem]";
-  }
-}
 
 function getSettingTagExpandedLabelWidthClass(settingId: string) {
   switch (settingId) {
@@ -141,7 +119,7 @@ function useInlineSettingTagState() {
 }
 
 const inlineSettingTagClassName =
-  "border-r border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)] text-foreground/58 flex h-full w-6 shrink-0 overflow-hidden whitespace-nowrap text-left transition-[width] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] outline-none focus-visible:ring-0";
+  "border-r border-[color:var(--spielwiese-agent-node-chrome-border)] bg-[rgba(0,0,0,0.02)] text-foreground/58 flex h-full w-6 shrink-0 overflow-hidden whitespace-nowrap text-left transition-[width] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] outline-none focus-visible:ring-0";
 const inlineSettingTagContentClassName =
   "flex h-full items-center gap-1 px-1.5";
 const inlineSettingTagLabelClassName =
@@ -220,13 +198,16 @@ function SpielwieseAgentNodeInlineSettings({
             </SpielwieseInlineSettingTag>
             <Input
               aria-label={`${nodeId} ${setting.label}`}
-              className={`${spielwieseInlineInputClassName} ${spielwieseStripItemFieldClassName} text-foreground/78 w-full min-w-0 text-[0.8125rem] font-medium tabular-nums max-sm:text-base/5 ${getSettingWidthClass(
-                setting.id,
-              )}`}
+              className={cn(
+                spielwieseInlineInputClassName,
+                spielwieseStripItemFieldClassName,
+                "text-foreground/78 [field-sizing:content] w-auto max-w-[10rem] min-w-[1ch] text-[0.8125rem] font-medium tabular-nums max-sm:text-base/5 sm:max-w-[12rem]",
+              )}
               name={`${nodeId}-${setting.id}`}
               onChange={(event) =>
                 onSettingValueChange(nodeId, setting.id, event.target.value)
               }
+              size={Math.max(setting.value.length, 1)}
               value={setting.value}
             />
           </dd>,
@@ -253,8 +234,9 @@ function SpielwieseAgentNodeHeaderRow({
 
   return (
     <div
-      className="flex w-full min-w-0 items-center justify-between gap-1.5 border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-[5px] pr-[6px] pb-[7px] pl-[6px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+      className="flex w-full min-w-0 items-center justify-between gap-1.5 border-b border-[color:var(--spielwiese-agent-node-header-divider)] bg-[var(--spielwiese-agent-node-header-active-surface)] pt-[5px] pr-[6px] pb-[7px] pl-[6px]"
       data-testid="spielwiese-agent-node-header-row"
+      style={spielwieseAgentNodeHeaderSurfaceStyle}
     >
       {/* Demo block: keep the header-control column visually quiet; only the trailing panel actions should advertise hover. */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -291,8 +273,9 @@ export function SpielwieseAgentNodeHeader({
 }: SpielwieseAgentNodeHeaderProps) {
   return (
     <div
-      className="border-border/40 flex w-full min-w-0 flex-col overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border bg-[rgba(251,251,251,0.82)] pb-[4px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+      className="flex w-full min-w-0 flex-col overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[color:var(--spielwiese-agent-node-chrome-border)] bg-[var(--spielwiese-agent-node-header-active-surface)] pb-[4px]"
       data-testid="spielwiese-agent-node-header-shell"
+      style={spielwieseAgentNodeHeaderSurfaceStyle}
     >
       <SpielwieseAgentNodeHeaderRow {...props} />
       {children}

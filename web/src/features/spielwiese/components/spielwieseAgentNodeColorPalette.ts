@@ -15,6 +15,13 @@ export const spielwieseAgentNodeColorPalette = {
   textFieldSurface: "#FFFFFF",
 } as const;
 
+export const spielwieseMessageSectionChipPaddingDefaults = {
+  bottom: 0,
+  left: 0,
+  right: 0,
+  top: 0,
+} as const;
+
 export type SpielwieseAgentNodeColorKey =
   keyof typeof spielwieseAgentNodeColorPalette;
 
@@ -35,116 +42,6 @@ export type SpielwieseAgentNodeChromeSettingsState = Record<
   SpielwieseAgentNodeChromeSettingKey,
   boolean
 >;
-
-type SpielwieseAgentNodeColorHudItem = {
-  id: string;
-  key: SpielwieseAgentNodeColorKey;
-  label: string;
-};
-
-type SpielwieseAgentNodeChromeHudItem = {
-  description: string;
-  key: SpielwieseAgentNodeChromeSettingKey;
-  label: string;
-};
-
-export const spielwieseAgentNodeColorHudSections = [
-  {
-    id: "shell",
-    items: [
-      {
-        id: "shell-surface",
-        key: "shellSurface",
-        label: "Shell Surface",
-      },
-      {
-        id: "shell-border",
-        key: "shellBorder",
-        label: "Shell Border",
-      },
-      {
-        id: "shell-shadow",
-        key: "shellShadow",
-        label: "Shell Shadow",
-      },
-    ],
-    title: "Shell",
-  },
-  {
-    id: "header",
-    items: [
-      {
-        id: "header-surface",
-        key: "headerSurface",
-        label: "Header Surface",
-      },
-      {
-        id: "header-surface-backdrop",
-        key: "headerSurfaceBackdrop",
-        label: "Header Blur Surface",
-      },
-      {
-        id: "chrome-border",
-        key: "chromeBorder",
-        label: "Chrome Border",
-      },
-    ],
-    title: "Header",
-  },
-  {
-    id: "prompt",
-    items: [
-      {
-        id: "prompt-frame-surface",
-        key: "promptFrameSurface",
-        label: "Prompt Frame",
-      },
-      {
-        id: "prompt-value-surface",
-        key: "promptValueSurface",
-        label: "Prompt Value",
-      },
-      {
-        id: "prompt-value-border",
-        key: "promptValueBorder",
-        label: "Prompt Inset Border",
-      },
-      {
-        id: "text-field-surface",
-        key: "textFieldSurface",
-        label: "Text Field",
-      },
-      {
-        id: "text-field-halo",
-        key: "textFieldHalo",
-        label: "Text Field Halo",
-      },
-      {
-        id: "detached-user-shell-surface",
-        key: "detachedUserShellSurface",
-        label: "Detached User Shell",
-      },
-    ],
-    title: "Prompt",
-  },
-] as const satisfies ReadonlyArray<{
-  id: string;
-  items: readonly SpielwieseAgentNodeColorHudItem[];
-  title: string;
-}>;
-
-export const spielwieseAgentNodeChromeHudItems = [
-  {
-    description: "Keep the agent header flat like the other nodes",
-    key: "useHeaderBlur",
-    label: "Header Blur",
-  },
-  {
-    description: "Show the internal divider through the agent header",
-    key: "showHeaderDivider",
-    label: "Header Divider",
-  },
-] as const satisfies readonly SpielwieseAgentNodeChromeHudItem[];
 
 function getDebugColorOverrideValue(
   cssVariable: `--${string}`,
@@ -197,7 +94,54 @@ export function getSpielwieseAgentNodeChromeVariableStyle({
   } as CSSProperties;
 }
 
+export function getSpielwieseMessageSectionChipVariableStyle({
+  bottom,
+  left,
+  right,
+  top,
+}: {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+}): CSSProperties {
+  return {
+    "--spielwiese-dashboard-message-section-chip-padding-bottom": `${bottom}px`,
+    "--spielwiese-dashboard-message-section-chip-padding-left": `${left}px`,
+    "--spielwiese-dashboard-message-section-chip-padding-right": `${right}px`,
+    "--spielwiese-dashboard-message-section-chip-padding-top": `${top}px`,
+  } as CSSProperties;
+}
+
+export const spielwieseMessageSectionChipVariableStyle = {
+  "--spielwiese-message-section-chip-padding-bottom":
+    getDebugColorOverrideValue(
+      "--spielwiese-dashboard-message-section-chip-padding-bottom",
+      `${spielwieseMessageSectionChipPaddingDefaults.bottom}px`,
+    ),
+  "--spielwiese-message-section-chip-padding-left": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-message-section-chip-padding-left",
+    `${spielwieseMessageSectionChipPaddingDefaults.left}px`,
+  ),
+  "--spielwiese-message-section-chip-padding-right": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-message-section-chip-padding-right",
+    `${spielwieseMessageSectionChipPaddingDefaults.right}px`,
+  ),
+  "--spielwiese-message-section-chip-padding-top": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-message-section-chip-padding-top",
+    `${spielwieseMessageSectionChipPaddingDefaults.top}px`,
+  ),
+} as CSSProperties;
+
+export const spielwieseMessageSectionChipPaddingStyle = {
+  paddingBottom: "var(--spielwiese-message-section-chip-padding-bottom)",
+  paddingLeft: "var(--spielwiese-message-section-chip-padding-left)",
+  paddingRight: "var(--spielwiese-message-section-chip-padding-right)",
+  paddingTop: "var(--spielwiese-message-section-chip-padding-top)",
+} as CSSProperties;
+
 export const spielwieseAgentNodeColorVariableStyle = {
+  ...spielwieseMessageSectionChipVariableStyle,
   "--spielwiese-agent-node-chrome-border": getDebugColorOverrideValue(
     "--spielwiese-dashboard-agent-node-chrome-border",
     spielwieseAgentNodeColorPalette.chromeBorder,
