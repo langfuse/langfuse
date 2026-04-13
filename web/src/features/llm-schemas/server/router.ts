@@ -13,22 +13,11 @@ import {
   DeleteLlmSchemaInput,
   UpdateLlmSchemaInput,
 } from "../validation";
-import {
-  createMockLlmSchema,
-  deleteMockLlmSchema,
-  getMockLlmSchemas,
-  shouldUseDesignModeMock,
-  updateMockLlmSchema,
-} from "@/src/features/design-mode/server/mockApi";
 
 export const llmSchemaRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmSchemaInput)
     .mutation(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return createMockLlmSchema(input);
-      }
-
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -90,10 +79,6 @@ export const llmSchemaRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockLlmSchemas(input.projectId);
-      }
-
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -126,18 +111,6 @@ export const llmSchemaRouter = createTRPCRouter({
   update: protectedProjectProcedure
     .input(UpdateLlmSchemaInput)
     .mutation(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        const updatedSchema = updateMockLlmSchema(input);
-        if (!updatedSchema) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "LLM Schema not found",
-          });
-        }
-
-        return updatedSchema;
-      }
-
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -214,18 +187,6 @@ export const llmSchemaRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(DeleteLlmSchemaInput)
     .mutation(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        const deletedSchema = deleteMockLlmSchema(input.projectId, input.id);
-        if (!deletedSchema) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "LLM Schema not found",
-          });
-        }
-
-        return deletedSchema;
-      }
-
       try {
         throwIfNoProjectAccess({
           session: ctx.session,

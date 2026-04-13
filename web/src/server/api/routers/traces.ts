@@ -63,14 +63,6 @@ import {
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import partition from "lodash/partition";
-import {
-  getMockTraceById,
-  getMockTraceFilterOptions,
-  getMockTraceHasConfigured,
-  getMockTraceMetrics,
-  getMockTraces,
-  shouldUseDesignModeMock,
-} from "@/src/features/design-mode/server/mockApi";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -106,10 +98,6 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockTraceHasConfigured(input.projectId);
-      }
-
       // Check if there are any traces in the database
       const hasTraces = await hasAnyTrace(input.projectId);
 
@@ -133,10 +121,6 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockTraces(input.projectId, input);
-      }
-
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -165,10 +149,6 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return { totalCount: getMockTraces(input.projectId, input).totalCount };
-      }
-
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -202,10 +182,6 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockTraceMetrics(input.projectId, input.traceIds);
-      }
-
       if (input.traceIds.length === 0) return [];
 
       const { filterState, hasNoMatches, matchingIds } =
@@ -287,10 +263,6 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockTraceFilterOptions(input.projectId);
-      }
-
       const { timestampFilter } = input;
 
       const [
@@ -356,25 +328,7 @@ export const traceRouter = createTRPCRouter({
         verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
-    .query(async ({ ctx, input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        const trace = getMockTraceById(input.projectId, input.traceId);
-
-        if (!trace) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found",
-          });
-        }
-
-        return {
-          ...trace,
-          input: trace.input,
-          output: trace.output,
-          metadata: trace.metadata,
-        };
-      }
-
+    .query(async ({ ctx }) => {
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,

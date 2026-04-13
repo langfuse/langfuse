@@ -15,30 +15,11 @@ import {
   EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
-import { designModeLlmApiKeys } from "@/src/features/design-mode/mockDb";
-import { shouldUseDesignModeMock } from "@/src/features/design-mode/server/mockApi";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        const apiKey = designModeLlmApiKeys.find(
-          (candidate) => candidate.projectId === input.projectId,
-        );
-
-        if (!apiKey) {
-          return null;
-        }
-
-        return {
-          provider: apiKey.provider,
-          adapter: apiKey.adapter,
-          model: apiKey.customModels[0] ?? null,
-          modelParams: { temperature: 0 },
-        };
-      }
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

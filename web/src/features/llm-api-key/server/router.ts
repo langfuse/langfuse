@@ -36,10 +36,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
-import {
-  getMockLlmApiKeys,
-  shouldUseDesignModeMock,
-} from "@/src/features/design-mode/server/mockApi";
 
 export function getDisplaySecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
@@ -353,10 +349,6 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockLlmApiKeys(input.projectId);
-      }
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

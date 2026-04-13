@@ -1,10 +1,6 @@
 import { getServerSession } from "next-auth";
 
 import { getAuthOptions } from "@/src/server/auth";
-import {
-  getDevBypassSession,
-  isDevAuthBypassEnabled,
-} from "@/src/server/devAuth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 
@@ -15,9 +11,8 @@ export type AuthorizeRequestResult = {
 export const authorizeRequestOrThrow = async (
   projectId: string,
 ): Promise<AuthorizeRequestResult> => {
-  const session = isDevAuthBypassEnabled
-    ? await getDevBypassSession()
-    : await getServerSession(await getAuthOptions());
+  const authOptions = await getAuthOptions();
+  const session = await getServerSession(authOptions);
   if (!session?.user) throw new UnauthorizedError("Unauthenticated");
 
   if (!isProjectMemberOrAdmin(session.user, projectId))

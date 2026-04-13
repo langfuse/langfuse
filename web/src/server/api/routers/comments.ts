@@ -21,10 +21,6 @@ import {
   extractUniqueMentionedUserIds,
   sanitizeMentions,
 } from "@/src/features/comments/lib/mentionParser";
-import {
-  getMockCommentCountsByObjectIds,
-  shouldUseDesignModeMock,
-} from "@/src/features/design-mode/server/mockApi";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -312,16 +308,6 @@ export const commentsRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        if (
-          shouldUseDesignModeMock(input.projectId) &&
-          input.objectType === "PROMPT"
-        ) {
-          return getMockCommentCountsByObjectIds(
-            input.projectId,
-            input.objectIds,
-          );
-        }
-
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,

@@ -18,10 +18,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
-import {
-  getMockEnvironmentFilterOptions,
-  shouldUseDesignModeMock,
-} from "@/src/features/design-mode/server/mockApi";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -299,11 +295,5 @@ export const projectsRouter = createTRPCRouter({
     .input(
       z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
     )
-    .query(async ({ input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockEnvironmentFilterOptions(input.projectId);
-      }
-
-      return getEnvironmentsForProject(input);
-    }),
+    .query(async ({ input }) => getEnvironmentsForProject(input)),
 });

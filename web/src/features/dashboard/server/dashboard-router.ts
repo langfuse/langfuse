@@ -39,14 +39,6 @@ import {
   executeQuery,
   validateQuery,
 } from "@/src/features/query/server/queryExecutor";
-import {
-  getMockDashboard,
-  getMockDashboardChart,
-  getMockDashboards,
-  getMockDashboardExecuteQuery,
-  getMockDashboardScoreHistogram,
-  shouldUseDesignModeMock,
-} from "@/src/features/design-mode/server/mockApi";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -340,14 +332,6 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockDashboardChart({
-          projectId: input.projectId,
-          queryName: input.queryName,
-          filter: input.filter ?? [],
-        });
-      }
-
       const [from, to] = extractFromAndToTimestampsFromFilter(input.filter);
 
       if (from.value && to.value && from.value > to.value) {
@@ -420,13 +404,6 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockDashboardScoreHistogram({
-          projectId: input.projectId,
-          filter: input.filter ?? [],
-        });
-      }
-
       if (input.version === "v2") {
         // v2: ClickHouse histogram() aggregates all matching rows server-side.
         // `input.limit` is ignored — no row-level cap is needed.
@@ -468,14 +445,6 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockDashboardExecuteQuery(
-          input.projectId,
-          input.query,
-          input.version,
-        );
-      }
-
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {
@@ -513,10 +482,6 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:read",
       });
 
-      if (shouldUseDesignModeMock(input.projectId)) {
-        return getMockDashboards(input.projectId, input);
-      }
-
       const result = await DashboardService.listDashboards({
         projectId: input.projectId,
         limit: input.limit,
@@ -535,19 +500,6 @@ export const dashboardRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "dashboards:read",
       });
-
-      if (shouldUseDesignModeMock(input.projectId)) {
-        const dashboard = getMockDashboard(input.projectId, input.dashboardId);
-
-        if (!dashboard) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Dashboard not found",
-          });
-        }
-
-        return dashboard;
-      }
 
       const dashboard = await DashboardService.getDashboard(
         input.dashboardId,
