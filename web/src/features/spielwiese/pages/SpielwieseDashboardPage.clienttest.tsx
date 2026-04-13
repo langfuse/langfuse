@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import "../components/spielwieseResizableTestMock";
 import {
   resetOnboardingDashboardHandoffForTests,
@@ -10,6 +10,7 @@ const originalHash = window.location.hash;
 const originalMatchMedia = window.matchMedia;
 
 afterEach(() => {
+  jest.useRealTimers();
   window.location.hash = originalHash;
   window.matchMedia = originalMatchMedia;
   resetOnboardingDashboardHandoffForTests();
@@ -139,6 +140,68 @@ describe("SpielwieseDashboardPage rendering", () => {
         ) as HTMLTextAreaElement
       ).value,
     ).toBe("Act as if you were a senior business strategist");
+  });
+
+  it("stages the role-flow handoff before settling into the seeded assistant and user nodes", () => {
+    jest.useFakeTimers();
+
+    setOnboardingDashboardHandoff({
+      modelValue: "Claude Opus 4.6",
+      systemPromptValue: "Act as if you were a senior business strategist",
+      transitionKind: "role-flow",
+    });
+
+    renderPage();
+
+    expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
+    const detachedUserDeck = screen.getByTestId(
+      "vision-agent-detached-user-sections",
+    ) as HTMLElement;
+    const userInput = screen.getByLabelText(
+      "vision-agent User message",
+    ) as HTMLTextAreaElement;
+    const playButton = screen.getByTestId(
+      "spielwiese-playground-play-button",
+    ) as HTMLButtonElement;
+    const internalArrow = screen.getByTestId(
+      "spielwiese-agent-node-internal-connector-arrow",
+    );
+
+    expect(internalArrow).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "vision-agent Model" }).textContent,
+    ).toContain("Claude Opus 4.6");
+    expect(
+      (
+        screen.getByLabelText(
+          "vision-agent Instructions",
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe("Act as if you were a senior business strategist");
+    expect(detachedUserDeck.style.opacity).toBe("0");
+    expect(userInput.value).toBe("");
+
+    act(() => {
+      jest.advanceTimersByTime(3400);
+    });
+
+    expect(detachedUserDeck.style.opacity).toBe("1");
+    expect(userInput.value).toBe(
+      "Here you can type in user messages... try it out (delete me and type write something)",
+    );
+
+    act(() => {
+      fireEvent.input(userInput, {
+        target: {
+          value: "Plan a vegetarian lunch with 30g protein",
+        },
+      });
+    });
+    act(() => {
+      jest.advanceTimersByTime(360);
+    });
+
+    expect(playButton.dataset.onboardingHighlight).toBe("true");
   });
 
   it("keeps user-only steps blank in the playground but includes the agent tag in the header", () => {

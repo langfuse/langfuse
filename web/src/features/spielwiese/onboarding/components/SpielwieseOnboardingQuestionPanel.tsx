@@ -172,6 +172,7 @@ function OnboardingQuestionActions({
 type SpielwieseOnboardingQuestionPanelProps = {
   activeAnswer: string;
   activeStepIndex: number;
+  isActive?: boolean;
   onBack: () => void;
   onContinue: () => void;
   onRoleApiKeyChange?: (value: string) => void;
@@ -237,6 +238,7 @@ function RoleStepQuestionPanel({
   activeAnswer,
   activeQuestion,
   activeStepIndex,
+  isActive = true,
   onBack,
   onContinue,
   onRoleApiKeyChange,
@@ -268,6 +270,7 @@ function RoleStepQuestionPanel({
     return (
       <RoleStepPreviewPanel
         apiKeyValue={roleApiKeyValue}
+        isActive={isActive}
         isContinueDisabled={
           roleScene === "preview" && roleSystemPromptValue.trim().length === 0
         }
@@ -300,6 +303,7 @@ function RoleStepQuestionPanel({
 export function SpielwieseOnboardingQuestionPanel({
   activeAnswer,
   activeStepIndex,
+  isActive = true,
   onBack,
   onContinue,
   onRoleApiKeyChange,
@@ -321,6 +325,7 @@ export function SpielwieseOnboardingQuestionPanel({
         activeAnswer={activeAnswer}
         activeQuestion={activeQuestion}
         activeStepIndex={activeStepIndex}
+        isActive={isActive}
         onBack={onBack}
         onContinue={onContinue}
         onRoleApiKeyChange={onRoleApiKeyChange}

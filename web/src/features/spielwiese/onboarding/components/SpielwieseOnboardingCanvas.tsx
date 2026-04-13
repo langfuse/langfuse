@@ -240,6 +240,7 @@ function createOnboardingSceneHandlers({
         setOnboardingDashboardHandoff({
           modelValue: roleModelValue,
           systemPromptValue: roleSystemPromptValue,
+          transitionKind: "role-flow",
         });
         setStepExitAction({
           kind: "navigate",

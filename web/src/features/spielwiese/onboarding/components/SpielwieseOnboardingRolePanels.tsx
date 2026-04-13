@@ -121,6 +121,7 @@ export function RoleStepBridgeCopy({
 // eslint-disable-next-line max-lines-per-function
 export function RoleStepPreviewPanel({
   apiKeyValue,
+  isActive = true,
   isContinueDisabled,
   modelValue,
   onApiKeyChange,
@@ -133,6 +134,7 @@ export function RoleStepPreviewPanel({
   systemPromptValue,
 }: {
   apiKeyValue: string;
+  isActive?: boolean;
   isContinueDisabled: boolean;
   modelValue: string;
   onApiKeyChange: (value: string) => void;
@@ -161,7 +163,7 @@ export function RoleStepPreviewPanel({
       <div className="flex flex-1 items-center justify-center">
         <div className={stageStackClassName}>
           <div
-            className={`${onboardingRolePreviewCopyClassName} ${onboardingRoleCopySwapClassName}`}
+            className={`${onboardingRolePreviewCopyClassName} ${onboardingRoleCopySwapClassName} ${getOnboardingEntryTextMotionClassName(isActive, 0)}`}
             data-testid="spielwiese-onboarding-role-copy-block"
             key={roleScene}
           >
@@ -171,11 +173,12 @@ export function RoleStepPreviewPanel({
             </p>
           </div>
           <div
-            className="mx-auto w-full"
+            className={`mx-auto w-full ${getOnboardingEntryTextMotionClassName(isActive, 150)}`}
             data-testid="spielwiese-onboarding-role-canvas-wrap"
           >
             <SpielwieseOnboardingUpperCanvas
               apiKeyValue={apiKeyValue}
+              isActive={isActive}
               modelValue={modelValue}
               onApiKeyChange={onApiKeyChange}
               onApiKeyContinue={onApiKeyContinue}
@@ -187,15 +190,19 @@ export function RoleStepPreviewPanel({
           </div>
           <RoleStepContinueSlot>
             {showsContinueButton ? (
-              <RoleStepContinueButton
-                delay={200}
-                disabled={isContinueDisabled}
-                onClick={onContinue}
-              />
+              <div
+                className={getOnboardingEntryTextMotionClassName(isActive, 250)}
+              >
+                <RoleStepContinueButton
+                  delay={200}
+                  disabled={isContinueDisabled}
+                  onClick={onContinue}
+                />
+              </div>
             ) : (
               <div
                 aria-hidden="true"
-                className={`${onboardingEntryContinueButtonWidthClassName} h-9`}
+                className={`${onboardingEntryContinueButtonWidthClassName} h-9 ${getOnboardingEntryTextMotionClassName(isActive, 250)}`}
                 data-testid="spielwiese-onboarding-role-continue-placeholder"
               />
             )}

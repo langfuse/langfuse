@@ -214,7 +214,7 @@
   }
 
   .animate-spielwiese-onboarding-scene-exit {
-    animation: spielwiese-onboarding-scene-exit 420ms
+    animation: spielwiese-onboarding-scene-exit 520ms
       cubic-bezier(0.23, 1, 0.32, 1) 1 both;
   }
 

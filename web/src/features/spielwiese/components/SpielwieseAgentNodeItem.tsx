@@ -1,3 +1,4 @@
+import { MoveDown } from "lucide-react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
   isOnboardingChrome,
@@ -18,6 +19,7 @@ export type SpielwieseAgentNodeItemProps = {
   isPreviewFocusHidden: boolean;
   isPreviewSpotlighted: boolean;
   node: SpielwieseAgentNodeVM;
+  testId?: string;
   onAgentNodeArchive: (nodeId: string) => void;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
@@ -106,6 +108,22 @@ function getAgentNodeLayout(node: SpielwieseAgentNodeVM) {
   return node.layout ?? "composite";
 }
 
+function AgentNodeInternalConnector() {
+  return (
+    <div
+      className="flex min-h-7 items-center justify-center"
+      data-testid="spielwiese-agent-node-internal-connector"
+    >
+      <div
+        className="text-foreground/42 inline-flex size-4 shrink-0 items-center justify-center rounded-[7px] border border-[color:var(--spielwiese-agent-node-chrome-border)] bg-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+        data-testid="spielwiese-agent-node-internal-connector-arrow"
+      >
+        <MoveDown className="size-2.25 stroke-[2.1px]" />
+      </div>
+    </div>
+  );
+}
+
 function AgentNodePrimaryDeck(
   props: SpielwieseAgentNodeItemProps & {
     modelSetting: SpielwieseAgentNodeVM["settings"][number] | undefined;
@@ -171,6 +189,7 @@ function AgentNodeDecks({
           toolOptions={toolOptions}
         />
       ) : null}
+      {nodeLayout === "composite" ? <AgentNodeInternalConnector /> : null}
       {nodeLayout !== "user-only" ? (
         <AgentNodePrimaryDeck
           isCompact={isCompact}
@@ -204,6 +223,7 @@ export function SpielwieseAgentNodeItem({
   isPreviewFocusHidden,
   isPreviewSpotlighted,
   node,
+  testId = "spielwiese-agent-node",
   onAgentNodeArchive,
   onPreviewHoverEnd,
   onPreviewHoverStart,
@@ -229,7 +249,8 @@ export function SpielwieseAgentNodeItem({
           ? "group/agent-node grid gap-1.5"
           : "group/agent-node grid gap-1.5 last:pb-5"
       }
-      data-testid="spielwiese-agent-node"
+      data-spielwiese-node-id={node.id}
+      data-testid={testId}
     >
       <AgentNodeDecks
         isCompact={isCompact}

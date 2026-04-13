@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   getSpielwieseDashboardVm,
   getSpielwieseShellVm,
@@ -17,6 +17,7 @@ import {
 } from "../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
+import { SpielwieseOnboardingDashboardTransition } from "../onboarding/components/SpielwieseOnboardingDashboardTransition";
 import { consumeOnboardingDashboardHandoff } from "../onboarding/spielwieseOnboardingDashboardHandoff";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
 import { useSpielwieseShell } from "../shell/SpielwieseShellProvider";
@@ -76,6 +77,32 @@ const spielwieseDashboardPageStyle = {
   }),
 };
 
+function getSeededPromptSections({
+  handoff,
+  promptSections,
+}: {
+  handoff: NonNullable<ReturnType<typeof consumeOnboardingDashboardHandoff>>;
+  promptSections: SpielwieseDashboardVM["canvas"]["agentNodes"][number]["promptSections"];
+}) {
+  return promptSections.map((section) => {
+    if (section.id === "system") {
+      return {
+        ...section,
+        value: handoff.systemPromptValue,
+      };
+    }
+
+    if (handoff.transitionKind === "role-flow" && section.id === "user") {
+      return {
+        ...section,
+        value: "",
+      };
+    }
+
+    return section;
+  });
+}
+
 function getDashboardWithOnboardingHandoff({
   pageId,
   handoff,
@@ -96,30 +123,33 @@ function getDashboardWithOnboardingHandoff({
     return dashboard;
   }
 
+  const seededNodes = [
+    {
+      ...seedNode,
+      settings: seedNode.settings.map((setting) =>
+        setting.id === "model"
+          ? { ...setting, value: handoff.modelValue }
+          : setting,
+      ),
+      promptSections: getSeededPromptSections({
+        handoff,
+        promptSections: seedNode.promptSections,
+      }),
+    },
+  ];
+
   return {
     ...dashboard,
     canvas: {
       ...dashboard.canvas,
-      agentNodes: [
-        {
-          ...seedNode,
-          settings: seedNode.settings.map((setting) =>
-            setting.id === "model"
-              ? { ...setting, value: handoff.modelValue }
-              : setting,
-          ),
-          promptSections: seedNode.promptSections.map((section) =>
-            section.id === "system"
-              ? {
-                  ...section,
-                  value: handoff.systemPromptValue,
-                }
-              : section,
-          ),
-        },
-      ],
+      agentNodes: seededNodes,
       stats: dashboard.canvas.stats.map((stat) =>
-        stat.id === "blocks" ? { ...stat, value: "01" } : stat,
+        stat.id === "blocks"
+          ? {
+              ...stat,
+              value: "01",
+            }
+          : stat,
       ),
     },
   };
@@ -142,11 +172,13 @@ export default function SpielwieseDashboardPage() {
   const variablesState = useSpielwieseVariablesPanelState(
     dashboard.variablesPanel.items,
   );
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <div
-      className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
+      className="h-screen-with-banner relative isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
+      ref={rootRef}
       style={spielwieseDashboardPageStyle}
     >
       <SpielwieseVariableValuesProvider items={variablesState.items}>
@@ -160,6 +192,13 @@ export default function SpielwieseDashboardPage() {
             onDetectedVariablesChange={variablesState.onEnsureDetectedVariables}
           />
         </SpielwieseDashboardShell>
+        {onboardingHandoff?.transitionKind === "role-flow" ? (
+          <SpielwieseOnboardingDashboardTransition
+            detachedUserDeckTestId="vision-agent-detached-user-sections"
+            rootRef={rootRef}
+            targetNodeId="vision-agent"
+          />
+        ) : null}
       </SpielwieseVariableValuesProvider>
     </div>
   );

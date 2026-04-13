@@ -121,6 +121,7 @@ function getOnboardingCanvasFrameClassName(stage: OnboardingUpperCanvasStage) {
 
 export function SpielwieseOnboardingUpperCanvas({
   apiKeyValue = "",
+  isActive = true,
   modelValue = defaultOnboardingModel,
   onApiKeyChange,
   onApiKeyContinue,
@@ -130,6 +131,7 @@ export function SpielwieseOnboardingUpperCanvas({
   systemPromptValue,
 }: {
   apiKeyValue?: string;
+  isActive?: boolean;
   modelValue?: string;
   onApiKeyChange?: (value: string) => void;
   onApiKeyContinue?: () => void;
@@ -145,7 +147,7 @@ export function SpielwieseOnboardingUpperCanvas({
 
   return (
     <div
-      className={getOnboardingEntryTextMotionClassName(true, 150)}
+      className={getOnboardingEntryTextMotionClassName(isActive, 150)}
       data-testid="spielwiese-onboarding-upper-canvas"
       style={onboardingUpperCanvasStyle}
     >

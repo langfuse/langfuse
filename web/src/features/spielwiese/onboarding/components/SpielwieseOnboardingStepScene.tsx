@@ -8,18 +8,29 @@ import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
+import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
 
 const onboardingCanvasStepMinHeightRem = 40;
 const onboardingDefaultStepMinHeightRem = 34;
 const onboardingContentOffsetYPx = -32;
 
-function OnboardingStepProgressOverlay({ value }: { value: number }) {
+function OnboardingStepProgressOverlay({
+  isTransitioningOut,
+  value,
+}: {
+  isTransitioningOut: boolean;
+  value: number;
+}) {
   return (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)]">
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${isTransitioningOut ? "opacity-0" : ""}`}
+      >
         <SpielwieseOnboardingProgress value={value} />
       </div>
-      <div className="absolute inset-x-0 top-6 flex justify-center sm:top-7">
+      <div
+        className={`absolute inset-x-0 top-6 flex justify-center sm:top-7 ${getOnboardingEntryTextMotionClassName(!isTransitioningOut, 0)}`}
+      >
         <SpielwieseOnboardingWordmarkButton
           onClick={preventInertOnboardingClick}
         />
@@ -46,6 +57,7 @@ function getOnboardingStepShellMinHeight(showsUpperCanvas: boolean) {
   return `${showsUpperCanvas ? onboardingCanvasStepMinHeightRem : onboardingDefaultStepMinHeightRem}rem`;
 }
 
+// eslint-disable-next-line max-lines-per-function
 function OnboardingStepQuestionLayer({
   activeAnswer,
   activeQuestionId,
@@ -58,6 +70,7 @@ function OnboardingStepQuestionLayer({
   handleRoleModelChange,
   handleRoleSystemPromptChange,
   handleSelect,
+  isQuestionActive,
   roleApiKeyValue,
   roleModelValue,
   roleScene,
@@ -76,6 +89,7 @@ function OnboardingStepQuestionLayer({
   handleRoleModelChange: (value: string) => void;
   handleRoleSystemPromptChange: (value: string) => void;
   handleSelect: (value: string) => void;
+  isQuestionActive: boolean;
   roleApiKeyValue: string;
   roleModelValue: string;
   roleScene: RoleStepScene;
@@ -91,6 +105,7 @@ function OnboardingStepQuestionLayer({
       <SpielwieseOnboardingQuestionPanel
         activeAnswer={activeAnswer}
         activeStepIndex={activeStepIndex}
+        isActive={isQuestionActive}
         onBack={handleBack}
         onContinue={handleContinue}
         onRoleApiKeyChange={handleRoleApiKeyChange}
@@ -109,12 +124,14 @@ function OnboardingStepQuestionLayer({
 
 function OnboardingStepSurfaceFrame({
   activeQuestionId,
+  isTransitioningOut,
   minHeight,
   showsUpperCanvas,
   children,
 }: {
   activeQuestionId: string;
   children: ReactNode;
+  isTransitioningOut: boolean;
   minHeight: string;
   showsUpperCanvas: boolean;
 }) {
@@ -131,6 +148,7 @@ function OnboardingStepSurfaceFrame({
       testId="spielwiese-onboarding-step"
       topOverlay={
         <OnboardingStepProgressOverlay
+          isTransitioningOut={isTransitioningOut}
           value={getOnboardingProgressValue(activeQuestionId)}
         />
       }
@@ -154,6 +172,7 @@ type SpielwieseOnboardingStepSceneProps = {
   handleRoleSystemPromptChange: (value: string) => void;
   handleSelect: (value: string) => void;
   handleStepLayerAnimationEnd: (event: AnimationEvent<HTMLDivElement>) => void;
+  isQuestionActive?: boolean;
   isStepTransitioningOut: boolean;
   roleApiKeyValue: string;
   roleModelValue: string;
@@ -174,6 +193,7 @@ export function SpielwieseOnboardingStepScene({
   handleRoleSystemPromptChange,
   handleSelect,
   handleStepLayerAnimationEnd,
+  isQuestionActive,
   isStepTransitioningOut,
   roleApiKeyValue,
   roleModelValue,
@@ -182,10 +202,12 @@ export function SpielwieseOnboardingStepScene({
   showsUpperCanvas,
 }: SpielwieseOnboardingStepSceneProps) {
   const minHeight = getOnboardingStepShellMinHeight(showsUpperCanvas);
+  const resolvedQuestionActive = isQuestionActive ?? !isStepTransitioningOut;
 
   return (
     <OnboardingStepSurfaceFrame
       activeQuestionId={activeQuestionId}
+      isTransitioningOut={isStepTransitioningOut}
       minHeight={minHeight}
       showsUpperCanvas={showsUpperCanvas}
     >
@@ -206,6 +228,7 @@ export function SpielwieseOnboardingStepScene({
           handleRoleModelChange={handleRoleModelChange}
           handleRoleSystemPromptChange={handleRoleSystemPromptChange}
           handleSelect={handleSelect}
+          isQuestionActive={resolvedQuestionActive}
           roleApiKeyValue={roleApiKeyValue}
           roleModelValue={roleModelValue}
           roleScene={roleScene}

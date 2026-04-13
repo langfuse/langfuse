@@ -378,6 +378,7 @@ it("reveals the role preview, stages model selection, and then resumes the route
   expect(consumeOnboardingDashboardHandoff()).toEqual({
     modelValue: "Claude Opus 4.6",
     systemPromptValue: "Act as if you were a senior business strategist",
+    transitionKind: "role-flow",
   });
   expect(push).toHaveBeenLastCalledWith(
     "/dev/spielwiese/dashboard",
