@@ -64,7 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { canToggleV4Beta } from "@/src/features/events/lib/v4BetaRollout";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -748,7 +748,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     image: dbUser.image,
                     admin: dbUser.admin,
                     v4BetaEnabled: dbUser.v4BetaEnabled,
-                    canToggleV4Beta: canToggleV4Beta({
+                    canToggleV4: canToggleV4({
                       userCreatedAt: dbUser.createdAt,
                       organizations: dbUser.organizationMemberships.map(
                         (orgMembership) => ({

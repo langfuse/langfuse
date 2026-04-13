@@ -5,7 +5,7 @@ type RolloutOrganization = {
   createdAt: Date;
 };
 
-type V4BetaRolloutContext = {
+type V4RolloutContext = {
   organizations: RolloutOrganization[];
   userCreatedAt?: Date | null;
   excludedOrganizationIds?: string[];
@@ -17,7 +17,7 @@ export function shouldAutoEnableV4({
   userCreatedAt,
   excludedOrganizationIds = [],
   rolloutEnabled = true,
-}: V4BetaRolloutContext): boolean {
+}: V4RolloutContext): boolean {
   if (!rolloutEnabled) {
     return false;
   }
@@ -43,6 +43,6 @@ export function shouldAutoEnableV4({
   return oldestOrganizationCreatedAt >= V4_DEFAULT_ENABLED_FROM_AT;
 }
 
-export function canToggleV4Beta(context: V4BetaRolloutContext): boolean {
+export function canToggleV4(context: V4RolloutContext): boolean {
   return !shouldAutoEnableV4(context);
 }

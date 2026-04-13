@@ -13,7 +13,7 @@ function getStorageKey(prefix: string, userId?: string) {
 export function useExperimentAccess() {
   const { data: session } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4Enabled } = useV4Beta();
 
   const userId = session?.user?.id;
   const isAdmin = session?.user?.admin ?? false;
@@ -23,7 +23,7 @@ export function useExperimentAccess() {
   const { hasRoleAccess, isEnabled: canAccessExperiments } =
     getExperimentsAccess({
       isLangfuseCloud,
-      isV4BetaEnabled,
+      isV4Enabled,
       isAdmin,
       isFeatureEnabledOnUser,
     });
@@ -39,12 +39,12 @@ export function useExperimentAccess() {
     canUseExperimentsBetaToggle: canAccessExperiments,
     canSeeExperimentsNav: canAccessExperiments,
     isExperimentsBetaActive:
-      canAccessExperiments && isExperimentsBetaEnabled && isV4BetaEnabled,
+      canAccessExperiments && isExperimentsBetaEnabled && isV4Enabled,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
     isAdmin,
     isFeatureEnabledOnUser,
     hasRoleAccess,
-    isV4BetaEnabled,
+    isV4Enabled,
   };
 }

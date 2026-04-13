@@ -18,7 +18,7 @@ import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBi
 import {
   V4_DEFAULT_ENABLED_FROM_AT,
   shouldAutoEnableV4,
-} from "@/src/features/events/lib/v4BetaRollout";
+} from "@/src/features/events/lib/v4Rollout";
 
 import { env } from "@/src/env.mjs";
 

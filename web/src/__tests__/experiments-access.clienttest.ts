@@ -4,14 +4,14 @@ describe("getExperimentsAccess", () => {
   it("returns enabled only when cloud, v4 beta, and admin/flag gate all pass", () => {
     const enabledViaAdmin = getExperimentsAccess({
       isLangfuseCloud: true,
-      isV4BetaEnabled: true,
+      isV4Enabled: true,
       isAdmin: true,
       isFeatureEnabledOnUser: false,
     });
 
     const enabledViaFlag = getExperimentsAccess({
       isLangfuseCloud: true,
-      isV4BetaEnabled: true,
+      isV4Enabled: true,
       isAdmin: false,
       isFeatureEnabledOnUser: true,
     });
@@ -23,7 +23,7 @@ describe("getExperimentsAccess", () => {
   it("returns disabled when v4 beta is off even for eligible users", () => {
     const access = getExperimentsAccess({
       isLangfuseCloud: true,
-      isV4BetaEnabled: false,
+      isV4Enabled: false,
       isAdmin: true,
       isFeatureEnabledOnUser: true,
     });
@@ -34,7 +34,7 @@ describe("getExperimentsAccess", () => {
   it("returns disabled when user is neither admin nor flagged", () => {
     const access = getExperimentsAccess({
       isLangfuseCloud: true,
-      isV4BetaEnabled: true,
+      isV4Enabled: true,
       isAdmin: false,
       isFeatureEnabledOnUser: false,
     });

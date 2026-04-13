@@ -82,7 +82,7 @@ export const filters = {
     if (route.featureFlag && adminOnlyFlags.includes(route.featureFlag)) {
       const access = getExperimentsAccess({
         isLangfuseCloud: ctx.isLangfuseCloud,
-        isV4BetaEnabled: ctx.session?.user?.v4BetaEnabled === true,
+        isV4Enabled: ctx.session?.user?.v4BetaEnabled === true,
         isAdmin: ctx.cloudAdmin,
         isFeatureEnabledOnUser:
           ctx.session?.user?.featureFlags?.[route.featureFlag] === true,
@@ -92,10 +92,10 @@ export const filters = {
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const canToggleV4Beta = ctx.session?.user?.canToggleV4Beta === true;
+      const canToggleV4 = ctx.session?.user?.canToggleV4 === true;
       const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
 
-      return canToggleV4Beta &&
+      return canToggleV4 &&
         (ctx.isLangfuseCloud ||
           ctx.enableExperimentalFeatures ||
           ctx.cloudAdmin ||

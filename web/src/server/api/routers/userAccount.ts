@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4Beta } from "@/src/features/events/lib/v4BetaRollout";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { env } from "@/src/env.mjs";
 
 const updateDisplayNameSchema = z.object({
@@ -156,7 +156,7 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4Beta = canToggleV4Beta({
+      const userCanToggleV4 = canToggleV4({
         userCreatedAt: userRolloutState.createdAt,
         organizations: userRolloutState.organizationMemberships.map(
           (membership) => ({
@@ -170,11 +170,11 @@ export const userAccountRouter = createTRPCRouter({
           : [],
       });
 
-      if (!userCanToggleV4Beta) {
+      if (!userCanToggleV4) {
         return {
           success: true,
           v4BetaEnabled: userRolloutState.v4BetaEnabled,
-          canToggleV4Beta: false,
+          canToggleV4: false,
         };
       }
 
@@ -186,7 +186,7 @@ export const userAccountRouter = createTRPCRouter({
       return {
         success: true,
         v4BetaEnabled: input.enabled,
-        canToggleV4Beta: true,
+        canToggleV4: true,
       };
     }),
 });

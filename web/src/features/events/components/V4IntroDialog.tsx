@@ -6,7 +6,7 @@ import {
   DialogFooter,
 } from "@/src/components/ui/dialog";
 
-export function V4BetaIntroDialog({
+export function V4IntroDialog({
   open,
   onConfirm,
 }: {

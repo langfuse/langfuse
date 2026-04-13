@@ -7,7 +7,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { V4BetaIntroDialog } from "@/src/features/events/components/V4BetaIntroDialog";
+import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ZapIcon } from "lucide-react";
 
@@ -15,10 +15,10 @@ const PREVIEW_FAST_DESCRIPTION =
   "Get a more performant Langfuse experience. Upgrade SDKs to the latest major for real-time data. This is a personal setting.";
 const PREVIEW_FAST_DESCRIPTION_ID = "preview-fast-toggle-description";
 
-export function V4BetaSidebarToggle() {
+export function V4SidebarToggle() {
   const {
     isBetaEnabled,
-    canToggleV4Beta,
+    canToggleV4,
     setBetaEnabled,
     enableWithIntro,
     showIntroDialog,
@@ -27,7 +27,7 @@ export function V4BetaSidebarToggle() {
   } = useV4Beta();
   const capture = usePostHogClientCapture();
 
-  if (!canToggleV4Beta) {
+  if (!canToggleV4) {
     return null;
   }
 
@@ -87,10 +87,7 @@ export function V4BetaSidebarToggle() {
           </span>
         </div>
       </SidebarMenuButton>
-      <V4BetaIntroDialog
-        open={showIntroDialog}
-        onConfirm={confirmIntroDialog}
-      />
+      <V4IntroDialog open={showIntroDialog} onConfirm={confirmIntroDialog} />
     </>
   );
 }

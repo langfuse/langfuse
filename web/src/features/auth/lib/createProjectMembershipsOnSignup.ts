@@ -7,7 +7,7 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import {
   V4_DEFAULT_ENABLED_FROM_AT,
   shouldAutoEnableV4,
-} from "@/src/features/events/lib/v4BetaRollout";
+} from "@/src/features/events/lib/v4Rollout";
 
 export async function createProjectMembershipsOnSignup(
   user: {
