@@ -12,6 +12,8 @@ import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
 import { MixpanelIntegrationQueue } from "./mixpanelIntegrationQueue";
 import { MixpanelIntegrationProcessingQueue } from "./mixpanelIntegrationProcessingQueue";
+import { KubitIntegrationQueue } from "./kubitIntegrationQueue";
+import { KubitIntegrationProcessingQueue } from "./kubitIntegrationProcessingQueue";
 import { BlobStorageIntegrationQueue } from "./blobStorageIntegrationQueue";
 import { BlobStorageIntegrationProcessingQueue } from "./blobStorageIntegrationProcessingQueue";
 import { CoreDataS3ExportQueue } from "./coreDataS3ExportQueue";
@@ -69,6 +71,10 @@ export function getQueue(
       return MixpanelIntegrationQueue.getInstance();
     case QueueName.MixpanelIntegrationProcessingQueue:
       return MixpanelIntegrationProcessingQueue.getInstance();
+    case QueueName.KubitIntegrationQueue:
+      return KubitIntegrationQueue.getInstance();
+    case QueueName.KubitIntegrationProcessingQueue:
+      return KubitIntegrationProcessingQueue.getInstance();
     case QueueName.BlobStorageIntegrationQueue:
       return BlobStorageIntegrationQueue.getInstance();
     case QueueName.BlobStorageIntegrationProcessingQueue:
