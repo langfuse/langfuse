@@ -17,6 +17,8 @@ export async function createProjectMembershipsOnSignup(
   options?: { userWasJustCreated?: boolean },
 ) {
   try {
+    const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
     // in no case do we want to send duplicate sign up events to posthog
     const isNewUser = !(await prisma.organizationMembership.findFirst({
       where: { userId: user.id },
@@ -157,7 +159,7 @@ export async function createProjectMembershipsOnSignup(
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
 
-    if (options?.userWasJustCreated || isNewUser) {
+    if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
       const userRolloutState = await prisma.user.findUnique({
         where: { id: user.id },
         select: {
@@ -185,7 +187,6 @@ export async function createProjectMembershipsOnSignup(
               createdAt: membership.organization.createdAt,
             }),
           ),
-          rolloutEnabled: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
           excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
             ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
             : [],

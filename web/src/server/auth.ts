@@ -725,6 +725,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          const isCloudDeployment = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
 
           return {
             ...session,
@@ -747,22 +750,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
-                    canToggleV4: canToggleV4({
-                      userCreatedAt: dbUser.createdAt,
-                      organizations: dbUser.organizationMemberships.map(
-                        (orgMembership) => ({
-                          id: orgMembership.organization.id,
-                          createdAt: orgMembership.organization.createdAt,
-                        }),
-                      ),
-                      rolloutEnabled: Boolean(
-                        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-                      ),
-                      excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-                        ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                        : [],
-                    }),
+                    v4BetaEnabled: isCloudDeployment
+                      ? dbUser.v4BetaEnabled
+                      : false,
+                    canToggleV4: isCloudDeployment
+                      ? canToggleV4({
+                          userCreatedAt: dbUser.createdAt,
+                          organizations: dbUser.organizationMemberships.map(
+                            (orgMembership) => ({
+                              id: orgMembership.organization.id,
+                              createdAt: orgMembership.organization.createdAt,
+                            }),
+                          ),
+                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                            : [],
+                        })
+                      : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),

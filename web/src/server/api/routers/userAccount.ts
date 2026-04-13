@@ -131,6 +131,16 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
+      const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+      if (!isCloudDeployment) {
+        return {
+          success: true,
+          v4BetaEnabled: false,
+          canToggleV4: false,
+        };
+      }
+
       const userRolloutState = await ctx.prisma.user.findUnique({
         where: { id: ctx.session.user.id },
         select: {
@@ -164,7 +174,6 @@ export const userAccountRouter = createTRPCRouter({
             createdAt: membership.organization.createdAt,
           }),
         ),
-        rolloutEnabled: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
         excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
           ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
           : [],
