@@ -76,6 +76,8 @@ interface DataTableProps<TData, TValue> {
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
+  topAlignCells?: boolean;
+  cellPadding?: "compact" | "comfortable";
 }
 
 export interface AsyncTableData<T> {
@@ -163,6 +165,8 @@ export function DataTable<TData extends object, TValue>({
   hidePagination = false,
   tableName,
   getRowClassName,
+  topAlignCells = false,
+  cellPadding = "compact",
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -413,6 +417,8 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                topAlignCells={topAlignCells}
+                cellPadding={cellPadding}
                 tableSnapshot={{
                   columnVisibility,
                   columnOrder,
@@ -430,6 +436,8 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                topAlignCells={topAlignCells}
+                cellPadding={cellPadding}
               />
             )}
           </Table>
@@ -475,6 +483,8 @@ interface TableBodyComponentProps<TData> {
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  topAlignCells?: boolean;
+  cellPadding?: "compact" | "comfortable";
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -527,6 +537,8 @@ function TableBodyComponent<TData>({
   noResultsMessage,
   onRowClick,
   getRowClassName,
+  topAlignCells = false,
+  cellPadding = "compact",
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -556,7 +568,8 @@ function TableBodyComponent<TData>({
                 <TableCell
                   key={cell.id}
                   className={cn(
-                    "overflow-hidden border-b px-1 text-xs first:pl-2",
+                    "overflow-hidden border-b text-xs first:pl-2",
+                    cellPadding === "comfortable" ? "p-1" : "px-1",
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
                   )}
@@ -568,7 +581,9 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      isSmallRowHeight ? "items-center" : "items-start",
+                      isSmallRowHeight && !topAlignCells
+                        ? "items-center"
+                        : "items-start",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
@@ -646,6 +661,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks
   if (

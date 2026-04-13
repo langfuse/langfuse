@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
@@ -9,6 +9,9 @@ import {
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getExperimentItemsBatchIO,
+  getExperimentItemsCountFromEvents,
+  getExperimentItemsFromEvents,
   getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
@@ -18,6 +21,10 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
+  getScoresForObservations,
+  getScoresForTraces,
+  traceException,
+  getExperimentNamesFromEvents,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -36,6 +43,8 @@ import {
   orderBy,
   paginationZod,
   timeFilter,
+  AGGREGATABLE_SCORE_TYPES,
+  filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -299,6 +308,42 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter: [
+          {
+            type: "string",
+            column: "id",
+            operator: "=",
+            value: input.experimentId,
+          },
+        ],
+        orderBy: undefined,
+        page: 0,
+        limit: 1,
+      });
+
+      if (experiments.length === 0) {
+        return null;
+      }
+
+      return experiments[0];
+    }),
+
   countAll: protectedProjectProcedure
     .input(
       z.object({
@@ -444,5 +489,236 @@ export const experimentsRouter = createTRPCRouter({
         trace_score_categories: categoricalScoreNames,
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
+    }),
+
+  items: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        baseExperimentId: z.string().nullish(),
+        compExperimentIds: z.array(z.string()),
+        filterByExperiment: z
+          .array(
+            z.object({
+              experimentId: z.string(),
+              filters: z.array(singleFilter),
+            }),
+          )
+          .nullish(),
+        orderBy: orderBy,
+        itemVisibility: z
+          .enum(["baseline-only", "all"])
+          .optional()
+          .default("baseline-only"),
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const items = await getExperimentItemsFromEvents({
+        projectId: input.projectId,
+        baseExperimentId: input.baseExperimentId ?? undefined,
+        compExperimentIds: input.compExperimentIds,
+        filterByExperiment: input.filterByExperiment ?? [],
+        offset: input.page * input.limit,
+        limit: input.limit,
+        config: {
+          requireBaselinePresence: input.itemVisibility === "baseline-only",
+        },
+      });
+
+      const observationIds = Array.from(
+        new Set(
+          items.flatMap((item) => item.experiments.map((i) => i.observationId)),
+        ),
+      );
+      const traceIds = Array.from(
+        new Set(
+          items.flatMap((item) => item.experiments.map((i) => i.traceId)),
+        ),
+      );
+
+      const [observationScores, traceScores] = await Promise.all([
+        getScoresForObservations({
+          projectId: input.projectId,
+          observationIds,
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+        getScoresForTraces({
+          projectId: input.projectId,
+          traceIds,
+          level: "trace",
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+      ]);
+
+      const validatedObservationScores = filterAndValidateDbScoreList({
+        scores: observationScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
+      const validatedTraceScores = filterAndValidateDbScoreList({
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        includeHasMetadata: true,
+        onParseError: traceException,
+      });
+
+      const scoresByObservationId = new Map<
+        string,
+        Array<(typeof validatedObservationScores)[number]>
+      >();
+      for (const score of validatedObservationScores) {
+        if (!score.observationId) continue;
+        const existingScores = scoresByObservationId.get(score.observationId);
+        if (existingScores) {
+          existingScores.push(score);
+        } else {
+          scoresByObservationId.set(score.observationId, [score]);
+        }
+      }
+
+      const scoresByTraceId = new Map<
+        string,
+        Array<(typeof validatedTraceScores)[number]>
+      >();
+      for (const score of validatedTraceScores) {
+        if (!score.traceId) continue;
+        const existingScores = scoresByTraceId.get(score.traceId);
+        if (existingScores) {
+          existingScores.push(score);
+        } else {
+          scoresByTraceId.set(score.traceId, [score]);
+        }
+      }
+
+      return {
+        data: items.map(({ itemId, experiments }) => ({
+          itemId,
+          experiments: experiments.map(
+            ({
+              observationId,
+              traceId,
+              experimentId,
+              level,
+              startTime,
+              totalCost,
+              latencyMs,
+            }) => ({
+              observationId,
+              traceId,
+              experimentId,
+              level,
+              startTime,
+              totalCost,
+              latencyMs,
+              observationScores: aggregateScores(
+                scoresByObservationId.get(observationId) ?? [],
+              ),
+              traceScores: aggregateScores(scoresByTraceId.get(traceId) ?? []),
+            }),
+          ),
+        })),
+      };
+    }),
+
+  itemsCount: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        baseExperimentId: z.string().nullish(),
+        compExperimentIds: z.array(z.string()),
+        filterByExperiment: z
+          .array(
+            z.object({
+              experimentId: z.string(),
+              filters: z.array(singleFilter),
+            }),
+          )
+          .nullish(),
+        itemVisibility: z
+          .enum(["baseline-only", "all"])
+          .optional()
+          .default("baseline-only"),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const count = await getExperimentItemsCountFromEvents({
+        projectId: input.projectId,
+        baseExperimentId: input.baseExperimentId ?? undefined,
+        compExperimentIds: input.compExperimentIds,
+        filterByExperiment: input.filterByExperiment ?? [],
+        config: {
+          requireBaselinePresence: input.itemVisibility === "baseline-only",
+        },
+      });
+
+      return {
+        count,
+      };
+    }),
+
+  batchIO: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        itemIds: z.array(z.string()),
+        baseExperimentId: z.string().nullish(),
+        compExperimentIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      if (input.itemIds.length === 0) {
+        return [];
+      }
+
+      const batchIO = await getExperimentItemsBatchIO({
+        projectId: input.projectId,
+        itemIds: input.itemIds,
+        baseExperimentId: input.baseExperimentId ?? undefined,
+        compExperimentIds: input.compExperimentIds,
+      });
+
+      return batchIO;
+    }),
+
+  byProjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentNamesFromEvents({
+        projectId: input.projectId,
+      });
+
+      return { experimentNames: experiments };
     }),
 });

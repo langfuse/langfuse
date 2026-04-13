@@ -35,7 +35,6 @@ import {
   createAttachmentUploadUrls,
   createThread as plainCreateSupportThread,
   createThreadEvent,
-  replyToThread,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -292,45 +291,9 @@ export const plainRouter = createTRPCRouter({
         // best-effort; errors are logged in helpers
       }
 
-      // (5) Write user email as part of first reply to trigger email
-      await replyToThread(plain, {
-        threadId,
-        userEmail: email,
-        originalMessage: [
-          "Hi there,",
-          "",
-          " thanks for reaching out! We've received your request and will follow up as soon as possible.",
-          "",
-          "To help us move faster, feel free to reply to this email with:",
-          "- any error messages or screenshots",
-          "- links to where you're seeing the issue (trace, page, dataset)",
-          "- steps to reproduce (if relevant)",
-          "",
-          "Thanks,",
-          "",
-          "Team Langfuse",
-          "",
-          "",
-          "=============================================================================================",
-          "",
-          "",
-          `${email} wrote:`,
-          "",
-          input.message,
-          "",
-          "=============================================================================================",
-          "",
-        ].join("\n"),
-        attachmentIds: input.attachmentIds ?? [],
-        impersonate: false,
-      });
-
-      // (6) Dual-write: create issue in Pylon (best-effort, blocking)
-      // TEMPORARY: only route clickhouse.com and langfuse.com to Pylon for testing
+      // (5) Create issue in Pylon (best-effort, blocking)
       let pylonIssueFailed = false;
-      const emailDomain = email.split("@")[1]?.toLowerCase();
-      const pylonTestDomains = ["clickhouse.com", "langfuse.com"];
-      if (env.PYLON_API_KEY && pylonTestDomains.includes(emailDomain ?? "")) {
+      if (env.PYLON_API_KEY) {
         try {
           const pylonTitle = `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`;
           const pylonBodyHtml = buildPylonIssueBodyHtml({
@@ -380,14 +343,6 @@ export const plainRouter = createTRPCRouter({
                   ]
                 : []),
               { slug: "langfuse_metadata", value: pylonMetadata },
-              ...(pylonCustomerTier
-                ? [
-                    {
-                      slug: "langfuse_customer_tier",
-                      value: pylonCustomerTier,
-                    },
-                  ]
-                : []),
               {
                 slug: "case_severity",
                 value: mapToPylonCaseSeverity({

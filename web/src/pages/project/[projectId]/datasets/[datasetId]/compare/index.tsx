@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { FlaskConical, List } from "lucide-react";
+import { FlaskConical, List, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 
@@ -81,6 +82,13 @@ function DatasetCompareInternal() {
     setIsAnnotationPanelOpen(!!activeCell);
   }, [activeCell]);
 
+  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
+  useEffect(() => {
+    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  }, [isExperimentsBetaActive, projectId, runIds, router]);
+
   // Clear active cell when panel manually closed
   const handlePanelOpenChange = (open: boolean) => {
     if (!open) {
@@ -90,13 +98,25 @@ function DatasetCompareInternal() {
   };
 
   if (!runsData.data || runs.length === 0) {
-    return <span>Loading...</span>;
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
   }
+
+  const handleBetaSwitchChange = (enabled: boolean) => {
+    setExperimentsBetaEnabled(enabled);
+
+    if (enabled && runIds && runIds.length > 0) {
+      void router.push(toExperimentsResultsUrl(projectId, runIds));
+    }
+  };
 
   const betaSwitch = canUseExperimentsBetaToggle ? (
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
-      onEnabledChange={setExperimentsBetaEnabled}
+      onEnabledChange={handleBetaSwitchChange}
     />
   ) : null;
 
@@ -119,11 +139,11 @@ function DatasetCompareInternal() {
             tabs: getDatasetRunCompareTabs(projectId, datasetId),
             activeTab: DATASET_RUN_COMPARE_TABS.COMPARE,
           },
-          actionButtonsRight: betaSwitch,
+          actionButtonsLeft: betaSwitch,
         }}
       >
-        <div className="p-4">
-          Dataset compare page (Experiments Beta placeholder)
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
       </Page>
     );
@@ -183,7 +203,7 @@ function DatasetCompareInternal() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"

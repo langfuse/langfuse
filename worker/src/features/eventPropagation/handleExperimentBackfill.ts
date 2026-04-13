@@ -3,13 +3,12 @@ import {
   queryClickhouse,
   redis,
   convertDateToClickhouseDateTime,
-  clickhouseClient,
   flattenJsonToPathArrays,
+  recordGauge,
+  type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import { IngestionService } from "../../services/IngestionService";
-import { prisma } from "@langfuse/shared/src/db";
+import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { chunk } from "lodash";
 
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
@@ -113,15 +112,12 @@ export async function getDatasetRunItemsSinceLastRun(
   upperBound: Date,
 ): Promise<DatasetRunItem[]> {
   const query = `
-    WITH prefiltered_events as (
-      select distinct project_id, trace_id
-      from events_core
-      where start_time > {lastRun: DateTime64(3)} - interval 1 day
-      and project_id in (
-        select distinct project_id
-        from dataset_run_items_rmt
-        where created_at > {lastRun: DateTime64(3)}
-      )
+    WITH candidate_dris AS (
+      SELECT project_id, trace_id
+      FROM dataset_run_items_rmt
+      WHERE created_at > {lastRun: DateTime64(3)}
+        AND created_at <= {upperBound: DateTime64(3)}
+      GROUP BY project_id, trace_id
     )
 
     SELECT
@@ -140,12 +136,13 @@ export async function getDatasetRunItemsSinceLastRun(
       dri.dataset_item_metadata,
       dri.created_at
     FROM dataset_run_items_rmt AS dri
-    LEFT ANTI JOIN prefiltered_events AS pe
-    ON dri.project_id = pe.project_id
-      AND dri.trace_id = pe.trace_id
+    LEFT ANTI JOIN events_core AS ec
+      ON dri.project_id = ec.project_id
+      AND dri.trace_id = ec.trace_id
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
-    ORDER BY dri.created_at DESC
+      AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
+    ORDER BY dri.created_at ASC
     LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
   `;
 
@@ -154,6 +151,9 @@ export async function getDatasetRunItemsSinceLastRun(
     params: {
       lastRun: convertDateToClickhouseDateTime(lastRun),
       upperBound: convertDateToClickhouseDateTime(upperBound),
+    },
+    clickhouseConfigs: {
+      request_timeout: 120000, // 2 minutes timeout
     },
     tags: {
       feature: "experiment-backfill",
@@ -175,6 +175,7 @@ export async function getRelevantObservations(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
+  maxTime: Date,
 ): Promise<SpanRecord[]> {
   if (projectIds.length === 0 || traceIds.length === 0) {
     return [];
@@ -229,6 +230,8 @@ export async function getRelevantObservations(
     WHERE o.project_id IN {projectIds: Array(String)}
       AND o.trace_id IN {traceIds: Array(String)}
       AND o.start_time >= {minTime: DateTime64(3)} - interval 4 hour
+      AND o.start_time <= {maxTime: DateTime64(3)} + interval 7 day
+      AND coalesce(o.environment, '') != 'langfuse-prompt-experiment'
     ORDER BY o.event_ts DESC
     LIMIT 1 BY o.project_id, o.id
   `;
@@ -239,6 +242,10 @@ export async function getRelevantObservations(
       projectIds,
       traceIds,
       minTime: convertDateToClickhouseDateTime(minTime),
+      maxTime: convertDateToClickhouseDateTime(maxTime),
+    },
+    clickhouseConfigs: {
+      request_timeout: 60_000,
     },
     tags: {
       feature: "experiment-backfill",
@@ -254,6 +261,7 @@ export async function getRelevantTraces(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
+  maxTime: Date,
 ): Promise<SpanRecord[]> {
   if (projectIds.length === 0 || traceIds.length === 0) {
     return [];
@@ -303,6 +311,8 @@ export async function getRelevantTraces(
     WHERE t.project_id IN {projectIds: Array(String)}
       AND t.id IN {traceIds: Array(String)}
       AND t.timestamp >= {minTime: DateTime64(3)} - interval 4 hour
+      AND t.timestamp <= {maxTime: DateTime64(3)} + interval 7 day
+      AND coalesce(t.environment, '') != 'langfuse-prompt-experiment'
     ORDER BY t.event_ts DESC
     LIMIT 1 BY t.project_id, t.id
   `;
@@ -313,6 +323,10 @@ export async function getRelevantTraces(
       projectIds,
       traceIds,
       minTime: convertDateToClickhouseDateTime(minTime),
+      maxTime: convertDateToClickhouseDateTime(maxTime),
+    },
+    clickhouseConfigs: {
+      request_timeout: 60_000,
     },
     tags: {
       feature: "experiment-backfill",
@@ -475,114 +489,120 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events_full table using IngestionService.writeEventRecord().
- * Converts EnrichedSpan to EventInput format.
+ * Write enriched spans directly to the events_full table.
+ * Spans already have model match, usage, and cost details from ClickHouse,
+ * so we skip IngestionService enrichment and write EventRecordInsertType directly.
  */
-export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
+export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
   if (spans.length === 0) {
     return;
   }
 
-  // Ensure required dependencies are available
-  if (!redis) throw new Error("Redis not available");
-  if (!prisma) throw new Error("Prisma not available");
-
-  const ingestionService = new IngestionService(
-    redis,
-    prisma,
-    ClickhouseWriter.getInstance(),
-    clickhouseClient(),
-  );
+  const clickhouseWriter = ClickhouseWriter.getInstance();
+  const now = Date.now() * 1000; // microseconds
 
   for (const span of spans) {
-    // Convert EnrichedSpan to EventInput format
-    const eventInput = {
-      // Required identifiers
-      projectId: span.project_id,
-      traceId: span.trace_id,
-      spanId: span.span_id,
-      startTimeISO: span.start_time,
-      endTimeISO: span.end_time || span.start_time, // Required field, use start_time as fallback
+    // Flatten metadata for ClickHouse Array(String) columns
+    const flattened = span.metadata
+      ? flattenJsonToPathArrays(span.metadata)
+      : { names: [], values: [] };
 
-      // Optional identifiers
-      parentSpanId: span.parent_span_id || undefined,
+    const promptVersion = span.prompt_version
+      ? parseInt(span.prompt_version, 10)
+      : undefined;
 
-      // Core properties
+    const eventRecord: EventRecordInsertType = {
+      id: span.span_id,
+      project_id: span.project_id,
+      trace_id: span.trace_id,
+      span_id: span.span_id,
+      parent_span_id: span.parent_span_id || undefined,
+
       name: span.name,
       type: span.type,
-      environment: span.environment || undefined,
+      environment: span.environment || "default",
       version: span.version || undefined,
       release: span.release || undefined,
+
       tags: span.tags || [],
       bookmarked: span.bookmarked || false,
       public: span.public || false,
-      completionStartTime: span.completion_start_time || undefined,
 
-      // User/session
-      traceName: span.trace_name || undefined,
-      userId: span.user_id || undefined,
-      sessionId: span.session_id || undefined,
-      level: span.level || undefined,
-      statusMessage: span.status_message || undefined,
+      trace_name: span.trace_name || undefined,
+      user_id: span.user_id || undefined,
+      session_id: span.session_id || undefined,
 
-      // Prompt
-      promptId: span.prompt_id || undefined,
-      promptName: span.prompt_name || undefined,
-      promptVersion: span.prompt_version || undefined,
+      level: span.level || "DEFAULT",
+      status_message: span.status_message || undefined,
 
-      // Model
-      modelName: span.provided_model_name || undefined,
-      modelParameters: span.model_parameters || undefined,
+      start_time: new Date(span.start_time).getTime() * 1000,
+      end_time: span.end_time ? new Date(span.end_time).getTime() * 1000 : null,
+      completion_start_time: span.completion_start_time
+        ? new Date(span.completion_start_time).getTime() * 1000
+        : null,
 
-      // Usage & Cost
-      providedUsageDetails: span.provided_usage_details || undefined,
-      usageDetails: span.usage_details || undefined,
-      providedCostDetails: span.provided_cost_details || undefined,
-      costDetails: span.cost_details || undefined,
-      totalCost: span.total_cost || undefined,
+      prompt_id: span.prompt_id || "",
+      prompt_name: span.prompt_name || undefined,
+      prompt_version:
+        promptVersion != null &&
+        Number.isInteger(promptVersion) &&
+        promptVersion >= 0 &&
+        promptVersion <= 65535
+          ? promptVersion
+          : undefined,
 
-      // Tool calls
-      toolDefinitions: span.tool_definitions || {},
-      toolCalls: span.tool_calls || [],
-      toolCallNames: span.tool_call_names || [],
+      model_id: span.model_id || "",
+      provided_model_name: span.provided_model_name || undefined,
+      model_parameters: span.model_parameters || undefined,
 
-      usagePricingTierId: span.usage_pricing_tier_id || undefined,
-      usagePricingTierName: span.usage_pricing_tier_name || undefined,
+      provided_usage_details: span.provided_usage_details ?? {},
+      usage_details: span.usage_details ?? {},
+      provided_cost_details: span.provided_cost_details ?? {},
+      cost_details: span.cost_details ?? {},
 
-      // I/O
+      usage_pricing_tier_id: span.usage_pricing_tier_id || undefined,
+      usage_pricing_tier_name: span.usage_pricing_tier_name || undefined,
+
+      tool_definitions: span.tool_definitions || {},
+      tool_calls: span.tool_calls || [],
+      tool_call_names: span.tool_call_names || [],
+
       input: span.input || undefined,
       output: span.output || undefined,
 
-      // Metadata
-      metadata: span.metadata,
+      metadata_names: flattened.names,
+      metadata_values: flattened.values.map((v) => v ?? ""),
 
-      // Source/instrumentation
       source: span.source,
 
-      // Experiment fields
-      experimentId: span.experiment_id,
-      experimentName: span.experiment_name,
-      experimentMetadataNames: span.experiment_metadata_names,
-      experimentMetadataValues: span.experiment_metadata_values,
-      experimentDescription: span.experiment_description,
-      experimentDatasetId: span.experiment_dataset_id,
-      experimentItemId: span.experiment_item_id,
-      experimentItemVersion: span.experiment_item_version || undefined,
-      experimentItemRootSpanId: span.experiment_item_root_span_id,
-      experimentItemExpectedOutput: span.experiment_item_expected_output,
-      experimentItemMetadataNames: span.experiment_item_metadata_names,
-      experimentItemMetadataValues: span.experiment_item_metadata_values,
+      blob_storage_file_path: "",
+      event_bytes: 0,
+      is_deleted: 0,
+
+      experiment_id: span.experiment_id,
+      experiment_name: span.experiment_name,
+      experiment_metadata_names: span.experiment_metadata_names || [],
+      experiment_metadata_values: span.experiment_metadata_values || [],
+      experiment_description: span.experiment_description,
+      experiment_dataset_id: span.experiment_dataset_id,
+      experiment_item_id: span.experiment_item_id,
+      experiment_item_version: span.experiment_item_version || undefined,
+      experiment_item_root_span_id: span.experiment_item_root_span_id,
+      experiment_item_expected_output: span.experiment_item_expected_output,
+      experiment_item_metadata_names: span.experiment_item_metadata_names || [],
+      experiment_item_metadata_values:
+        span.experiment_item_metadata_values || [],
+
+      created_at: now,
+      updated_at: now,
+      event_ts: now,
     };
 
-    const eventRecord = await ingestionService.createEventRecord(
-      eventInput,
-      "",
-    ); // Empty fileKey since we're not storing raw events
-    ingestionService.writeEventRecord(eventRecord);
+    clickhouseWriter.addToQueue(TableName.EventsFull, eventRecord);
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table via IngestionService`,
+    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table`,
   );
 }
 
@@ -738,6 +758,13 @@ export async function runExperimentBackfill(): Promise<void> {
     // Initialize cutoff timestamp (first-run protection)
     const lastRun = await initializeBackfillCutoff();
 
+    // Track how far behind the backfill cursor is, even if we skip due to throttle
+    const lastRunDelaySeconds = (Date.now() - lastRun.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.last_run_delay_seconds",
+      lastRunDelaySeconds,
+    );
+
     // Check 5-minute throttle
     if (!(await shouldRunBackfill(lastRun))) {
       logger.debug("[EXPERIMENT BACKFILL] Skipping due to throttle");
@@ -748,12 +775,25 @@ export async function runExperimentBackfill(): Promise<void> {
     // This ensures we don't process items that might still be receiving data
     const upperBound = new Date(Date.now() - 30 * 1000);
 
-    // Execute backfill
-    logger.info("[EXPERIMENT BACKFILL] Starting backfill process");
-    await processExperimentBackfill(lastRun, upperBound);
+    // Cap each execution to an 8-hour window. The scheduler runs frequently
+    // enough that consecutive jobs will catch up on any larger gap.
+    const maxChunkMs = 8 * 60 * 60 * 1000;
+    const chunkEnd = new Date(
+      Math.min(lastRun.getTime() + maxChunkMs, upperBound.getTime()),
+    );
 
-    // Update timestamp with the upper bound we processed up to
-    await updateBackfillTimestamp(upperBound);
+    logger.info(
+      `[EXPERIMENT BACKFILL] Processing chunk from ${lastRun.toISOString()} to ${chunkEnd.toISOString()}`,
+    );
+    await processExperimentBackfill(lastRun, chunkEnd);
+
+    // Track remaining delay after processing this chunk
+    const remainingDelaySeconds = (Date.now() - chunkEnd.getTime()) / 1000;
+    recordGauge(
+      "langfuse.experiment_backfill.remaining_delay_seconds",
+      remainingDelaySeconds,
+    );
+
     logger.info("[EXPERIMENT BACKFILL] Backfill completed successfully");
   } catch (error) {
     logger.error("[EXPERIMENT BACKFILL] Failed to run backfill", error);
@@ -778,19 +818,39 @@ async function processExperimentBackfill(
     upperBound,
   );
 
-  if (allDatasetRunItems.length === 0) {
+  // Filter out excluded project IDs
+  const excludeProjectIds =
+    env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS;
+  const datasetRunItems =
+    excludeProjectIds && excludeProjectIds.length > 0
+      ? allDatasetRunItems.filter(
+          (dri) => !excludeProjectIds.includes(dri.project_id),
+        )
+      : allDatasetRunItems;
+
+  if (excludeProjectIds && excludeProjectIds.length > 0) {
+    const excludedCount = allDatasetRunItems.length - datasetRunItems.length;
+    if (excludedCount > 0) {
+      logger.info(
+        `[EXPERIMENT BACKFILL] Excluded ${excludedCount} items from ${excludeProjectIds.length} excluded project(s)`,
+      );
+    }
+  }
+
+  if (datasetRunItems.length === 0) {
     logger.info(
-      "[EXPERIMENT BACKFILL] No dataset run items to process, skipping",
+      "[EXPERIMENT BACKFILL] No dataset run items to process, advancing cursor",
     );
+    await updateBackfillTimestamp(upperBound);
     return;
   }
 
   // Step 2: Process in chunks
   const chunkSize = env.LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE;
-  const chunks = chunk(allDatasetRunItems, chunkSize);
+  const chunks = chunk(datasetRunItems, chunkSize);
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Processing ${allDatasetRunItems.length} items in ${chunks.length} chunks of ${chunkSize}`,
+    `[EXPERIMENT BACKFILL] Processing ${datasetRunItems.length} items in ${chunks.length} chunks of ${chunkSize}`,
   );
 
   for (let i = 0; i < chunks.length; i++) {
@@ -805,8 +865,8 @@ async function processExperimentBackfill(
 
     // Fetch observations and traces
     const [observations, traces] = await Promise.all([
-      getRelevantObservations(projectIds, traceIds, lastRun),
-      getRelevantTraces(projectIds, traceIds, lastRun),
+      getRelevantObservations(projectIds, traceIds, lastRun, upperBound),
+      getRelevantTraces(projectIds, traceIds, lastRun, upperBound),
     ]);
 
     logger.info(
@@ -883,11 +943,19 @@ async function processExperimentBackfill(
 
     // Write enriched spans to events_full table
     if (allEnrichedSpans.length > 0) {
-      await writeEnrichedSpans(allEnrichedSpans);
+      writeEnrichedSpans(allEnrichedSpans);
     }
+
+    // Advance cursor after each successful chunk (items are ASC ordered by created_at)
+    const lastItemInChunk = driChunk[driChunk.length - 1];
+    const chunkCursor =
+      i === chunks.length - 1
+        ? upperBound // Final chunk: advance past the entire window
+        : new Date(lastItemInChunk.created_at);
+    await updateBackfillTimestamp(chunkCursor);
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Completed backfill process for ${allDatasetRunItems.length} items`,
+    `[EXPERIMENT BACKFILL] Completed backfill process for ${datasetRunItems.length} items`,
   );
 }

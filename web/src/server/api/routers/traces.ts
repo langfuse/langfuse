@@ -22,8 +22,9 @@ import {
   type Observation,
   TracingSearchType,
   type ScoreDomain,
-  AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
   ScoreDataTypeEnum,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -62,6 +63,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
 const TraceFilterOptions = z.object({
@@ -243,7 +245,7 @@ export const traceRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: LISTABLE_SCORE_TYPES,
         includeHasMetadata: true,
         onParseError: traceException,
       });
@@ -264,6 +266,13 @@ export const traceRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
+      // Trace table filters/columns operate on trace-scoped aggregates: any
+      // score row attached to the trace, whether it lives on the trace itself
+      // or on one of the trace's observations.
+      const traceScopedScoreFilters = [
+        ...(timestampFilter ?? []),
+        ...scoreFilters.forTraceScopedAggregates(),
+      ];
 
       const [
         numericScoreNames,
@@ -273,10 +282,10 @@ export const traceRouter = createTRPCRouter({
         userIds,
         sessionIds,
       ] = await Promise.all([
-        getNumericScoresGroupedByName(input.projectId, timestampFilter ?? []),
+        getNumericScoresGroupedByName(input.projectId, traceScopedScoreFilters),
         getCategoricalScoresGroupedByName(
           input.projectId,
-          timestampFilter ?? [],
+          traceScopedScoreFilters,
         ),
         getTracesGroupedByName(
           input.projectId,
@@ -371,7 +380,7 @@ export const traceRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
-        dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
+        dataTypes: [...ScoreDataTypeArray],
         onParseError: traceException,
       });
 

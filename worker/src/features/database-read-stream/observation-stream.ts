@@ -1,7 +1,6 @@
 import {
   BatchExportFileFormat,
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
@@ -10,18 +9,17 @@ import {
 import {
   getDistinctScoreNames,
   queryClickhouseStream,
-  logger,
   ObservationRecordReadType,
   StringFilter,
   FilterList,
   createFilterFromFilterState,
   observationsTableUiColumnDefinitions,
   enrichObservationWithModelData,
+  createModelCache,
   clickhouseSearchCondition,
   convertObservation,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -29,53 +27,9 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import type { Model, Price } from "@prisma/client";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
-
-type ModelWithPrice = Model & { Price: Price[] };
-
-/**
- * Creates a model cache that fetches models from the database on demand and stores them in memory.
- * Only queries the database if a model ID is not already in the cache.
- *
- * @param projectId - The project ID to filter models by
- * @returns Object with getModel function to retrieve models by ID
- */
-const createModelCache = (projectId: string) => {
-  const modelCache = new Map<string, ModelWithPrice | null>();
-
-  const getModel = async (
-    internalModelId: string | null | undefined,
-  ): Promise<ModelWithPrice | null> => {
-    if (!internalModelId) return null;
-
-    // Check if model is already in cache
-    if (modelCache.has(internalModelId)) {
-      return modelCache.get(internalModelId) ?? null;
-    }
-
-    // Fetch model from database
-    const model = await prisma.model.findFirst({
-      where: {
-        id: internalModelId,
-        OR: [{ projectId }, { projectId: null }],
-      },
-      include: {
-        Price: true,
-      },
-    });
-
-    // Store in cache (even if null to avoid repeated queries)
-    modelCache.set(internalModelId, model);
-
-    logger.debug(`Model ${internalModelId} fetched from database`);
-    return model;
-  };
-
-  return { getModel };
-};
 
 export const getObservationStream = async (props: {
   projectId: string;
@@ -187,12 +141,12 @@ export const getObservationStream = async (props: {
           -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories,
           -- tuple encoding for accurate output parsing (names may contain colons)
           groupArrayIf(
-            tuple(name, string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+            tuple(name, string_value, data_type),
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
           ) AS score_categories_tuples
         FROM (
           SELECT
@@ -280,7 +234,7 @@ export const getObservationStream = async (props: {
           }[]
         | undefined;
       score_categories: string[] | undefined;
-      score_categories_tuples: [string, string | null][] | undefined;
+      score_categories_tuples: [string, string | null, string][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -322,7 +276,7 @@ export const getObservationStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null][] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -351,7 +305,7 @@ export const getObservationStream = async (props: {
       (cat) => ({
         name: cat[0],
         value: null,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        dataType: cat[2],
         stringValue: cat[1],
       }),
     );

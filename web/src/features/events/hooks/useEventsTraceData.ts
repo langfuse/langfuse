@@ -6,7 +6,7 @@ import {
 } from "@/src/features/events/lib/eventsToTraceAdapter";
 import {
   filterAndValidateDbScoreList,
-  AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
   ScoreDataTypeEnum,
   type ScoreDomain,
 } from "@langfuse/shared";
@@ -123,7 +123,7 @@ export function useEventsTraceData(
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
       scores: scoresQuery.data ?? [],
-      dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
+      dataTypes: [...ScoreDataTypeArray],
       onParseError: (e) => {
         console.error("[useEventsTraceData] Score validation error:", e);
       },

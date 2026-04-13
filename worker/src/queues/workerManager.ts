@@ -72,7 +72,7 @@ export class WorkerManager {
                           | QueueName.OtelIngestionQueue
                         >,
                       );
-      // For sharded queues, only record the metrics 30% of the time
+      // Sample queue depth gauges for sharded queues to reduce metric volume.
       const isShardedQueue =
         queueName.startsWith(QueueName.IngestionQueue) ||
         queueName.startsWith(QueueName.IngestionSecondaryQueue) ||
