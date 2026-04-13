@@ -241,17 +241,23 @@ function expectPromptSimulationNodeShells(
   expect(firstFlowStep.className).toContain("min-w-full");
   expect(firstFlowStep.className).toContain("shrink-0");
   expect(firstFlowStep.className).toContain("rounded-(--node-shell-radius)");
-  expect(firstFlowStep.className).toContain("border-[rgba(15,23,42,0.08)]");
-  expect(firstFlowStep.className).toContain("bg-[#F1F2F2]");
+  expect(firstFlowStep.className).toContain(
+    "border-[color:var(--spielwiese-agent-node-shell-border)]",
+  );
+  expect(firstFlowStep.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(firstFlowStep.className).toContain("gap-0.5");
   expect(firstFlowStep.className).toContain(
-    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
   );
   expect(firstFlowStep.firstElementChild).toBe(firstCardFrame);
   expect(firstCardFrame.className).toContain(
     "rounded-[var(--node-shell-radius)]",
   );
-  expect(firstCardFrame.className).toContain("bg-[#F1F2F2]");
+  expect(firstCardFrame.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(firstCardFrame.className).toContain("p-0.5");
   expect(firstCardFrame.className).not.toContain("-mb-0.5");
   expect(firstThinkingCardShell.getAttribute("data-state")).toBe("closed");
@@ -289,14 +295,18 @@ function expectPromptSimulationNodeShells(
   expect(firstPreviewBody.className).toContain("pt-0");
   expect(firstPreviewBody.className).toContain("pb-px");
   expect(firstPreviewEmbeddedHeader.className).toContain("ml-[2px]");
-  expect(firstPreviewFieldShell.className).toContain("bg-[#F1F2F2]");
+  expect(firstPreviewFieldShell.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
+  );
   expect(firstPreviewFieldShell.className).toContain("flex-col");
   expect(firstPreviewFieldShell.className).toContain(
     "border-[rgba(0,0,0,0.05)]",
   );
   expect(firstPreviewFieldShell.className).toContain("px-[2px]");
   expect(firstPreviewFieldShell.className).toContain("pb-[2px]");
-  expect(firstPreviewValueShell?.className).toContain("bg-[#FBFBFB]");
+  expect(firstPreviewValueShell?.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
+  );
   expect(firstPreviewValueShell?.className).toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
   );

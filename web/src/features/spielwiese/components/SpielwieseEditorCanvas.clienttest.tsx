@@ -152,6 +152,7 @@ function expectNodeShellInsetInnerRadius(className: string) {
   expect(className).not.toContain("rounded-[8px]");
 }
 
+// eslint-disable-next-line max-lines-per-function
 function expectInstructionsPromptChrome({
   instructionsBodyElement,
   instructionsFieldShellElement,
@@ -174,7 +175,9 @@ function expectInstructionsPromptChrome({
   expect(fieldShellClassName).toContain("w-full");
   expectNodeShellInsetRadius(fieldShellClassName);
   expect(fieldShellClassName).toContain("border-[rgba(0,0,0,0.05)]");
-  expect(fieldShellClassName).toContain("bg-[#F1F2F2]");
+  expect(fieldShellClassName).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
+  );
   expect(fieldShellClassName).toContain("shadow-none");
   expect(instructionsFieldShellElement.className).not.toContain(
     "shadow-[0_0_0_3px_rgba(0,0,0,0.03)]",
@@ -192,7 +195,9 @@ function expectInstructionsPromptChrome({
   );
   expectEmbeddedInstructionsHeaderChrome(instructionsHeader);
   expect(instructionsBodyElement.className).toContain("pb-px");
-  expect(instructionsPromptShellElement.className).toContain("bg-[#FBFBFB]");
+  expect(instructionsPromptShellElement.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
+  );
   expectNodeShellInsetInnerRadius(instructionsPromptShellElement.className);
   expect(instructionsPromptShellElement.className).toContain(
     "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
@@ -479,7 +484,9 @@ function expectResponseFormatComposerChrome(
     "border-[rgba(0,0,0,0.05)]",
   );
   expect(responseFormatSurface.className).not.toContain("border");
-  expect(responseFormatSurface.className).toContain("bg-[#F1F2F2]");
+  expect(responseFormatSurface.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
+  );
   expect(responseFormatSurface.className).toContain("px-[2px]");
   expect(responseFormatSurface.className).toContain("pt-[2px]");
   expect(responseFormatSurface.className).toContain("pb-[2px]");
@@ -512,7 +519,9 @@ function expectResponseFormatSystemSectionChrome(
   );
   expect(responseFormatSectionRow.className).toContain("px-[5px]");
   expect(responseFormatSystemBody.className).toContain("pt-0");
-  expect(responseFormatSystemFieldShell.className).toContain("bg-[#F1F2F2]");
+  expect(responseFormatSystemFieldShell.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
+  );
 }
 
 function expectResponseFormatBaseChrome(

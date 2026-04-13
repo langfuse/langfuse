@@ -42,18 +42,22 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
   );
   expect(detachedUserSections.className).toContain("border");
   expect(detachedUserSections.className).toContain(
-    "border-[rgba(15,23,42,0.08)]",
+    "border-[color:var(--spielwiese-agent-node-shell-border)]",
   );
-  expect(detachedUserSections.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserSections.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(detachedUserSections.className).toContain("gap-0.5");
   expect(detachedUserSections.className).toContain(
-    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
   );
   expect(detachedUserSections.className).toContain("overflow-visible");
   expect(detachedUserCardFrame?.className).toContain(
     "rounded-[var(--node-shell-radius)]",
   );
-  expect(detachedUserCardFrame?.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserCardFrame?.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(detachedUserCardFrame?.className).toContain("p-0.5");
   expect(detachedUserCardFrame?.className).not.toContain("-mb-0.5");
   expect(detachedUserPromptSections?.className).toContain("pt-0");
@@ -217,7 +221,9 @@ function expectDetachedUserEmbeddedHeaderChrome({
   expect(detachedUserEmbeddedShell.className).toContain(
     "border-[rgba(0,0,0,0.05)]",
   );
-  expect(detachedUserEmbeddedShell.className).toContain("bg-[#F1F2F2]");
+  expect(detachedUserEmbeddedShell.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
+  );
   expect(detachedUserEmbeddedShell.className).toContain("gap-px");
   expect(detachedUserEmbeddedShell.className).toContain("px-[2px]");
   expect(detachedUserEmbeddedShell.className).toContain("pb-[2px]");
@@ -285,7 +291,9 @@ function expectDetachedUserFieldChrome({
       ?.className,
   ).toContain("pb-[4px]");
   expect(detachedUserPromptShell.className).toContain("w-full");
-  expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
+  expect(detachedUserPromptShell.className).toContain(
+    "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
+  );
   expect(detachedUserPromptShell.className).toContain(
     "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
   );

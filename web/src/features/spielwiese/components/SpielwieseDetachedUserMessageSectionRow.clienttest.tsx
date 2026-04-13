@@ -52,7 +52,9 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
     expect(detachedUserOuterShell?.className).toContain("pb-[4px]");
     expect(detachedUserOuterShell?.className).toContain("bg-background/96");
     expect(detachedUserOuterShell?.className).toContain("border-border/40");
-    expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
+    expect(detachedUserPromptShell.className).toContain(
+      "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
+    );
     expect(detachedUserPromptShell.className).not.toContain("bg-white");
   });
 });

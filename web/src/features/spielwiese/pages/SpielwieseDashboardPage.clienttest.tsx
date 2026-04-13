@@ -1,5 +1,7 @@
+/* eslint-disable max-lines */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import "../components/spielwieseResizableTestMock";
+import { spielwieseAgentNodeColorPalette } from "../components/spielwieseAgentNodeColorPalette";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
 const originalHash = window.location.hash;
@@ -47,6 +49,39 @@ function getDetachedUserSections() {
 
 function getCanvasHeader() {
   return screen.getByTestId("spielwiese-canvas-editor-mode-header");
+}
+
+function expectHudColorValue(
+  hud: HTMLElement,
+  label: string,
+  expectedValue: string,
+) {
+  const input = within(hud).getByLabelText(
+    `${label} color`,
+  ) as HTMLInputElement;
+
+  expect(input.value).toBe(expectedValue);
+}
+
+function getHudLayoutControls(hud: HTMLElement) {
+  return {
+    actionToggle: within(hud).getByRole("button", {
+      name: "Hide flow header actions",
+    }),
+    headerPadSlider: within(hud).getByLabelText("Header X"),
+    surfacePadSlider: within(hud).getByLabelText("Canvas Body X"),
+  };
+}
+
+function getHudChromeControls(hud: HTMLElement) {
+  return {
+    headerBlurToggle: within(hud).getByRole("button", {
+      name: "Enable header blur",
+    }),
+    headerDividerToggle: within(hud).getByRole("button", {
+      name: "Enable header divider",
+    }),
+  };
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -154,19 +189,33 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
   });
 
+  // eslint-disable-next-line max-lines-per-function
   it("renders a layout HUD that updates the lower playground chrome live", () => {
     renderPage();
 
     const hud = screen.getByTestId("spielwiese-dashboard-debug-hud");
+    const root = document.querySelector("[data-spielwiese]") as HTMLElement;
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const nodeCard = within(visionNode).getByTestId(
+      "spielwiese-agent-node-card",
+    );
+    const headerShell = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-shell",
+    );
+    const promptShell = within(visionNode).getByTestId(
+      "spielwiese-system-message-prompt-shell",
+    );
     const terminalSurface = screen.getByTestId(
       "spielwiese-playground-terminal-surface",
     );
     const playgroundHeader = screen.getByTestId("spielwiese-playground-header");
-    const surfacePadSlider = within(hud).getByLabelText("Canvas Body X");
-    const headerPadSlider = within(hud).getByLabelText("Header X");
-    const actionToggle = within(hud).getByRole("button", {
-      name: "Hide flow header actions",
-    });
+    const { actionToggle, headerPadSlider, surfacePadSlider } =
+      getHudLayoutControls(hud);
+    const shellSurfaceColor = within(hud).getByLabelText("Shell Surface color");
+    const headerSurfaceColor = within(hud).getByLabelText(
+      "Header Surface color",
+    );
+    const promptValueColor = within(hud).getByLabelText("Prompt Value color");
     const simulationPane = screen.getByTestId(
       "spielwiese-prompt-simulation-pane",
     );
@@ -176,6 +225,35 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(playgroundHeader.style.paddingLeft).toBe("8px");
     expect(playgroundHeader.style.paddingRight).toBe("8px");
     expect(playgroundHeader.style.marginLeft).toBe("-44px");
+    expectHudColorValue(
+      hud,
+      "Shell Surface",
+      spielwieseAgentNodeColorPalette.shellSurface,
+    );
+    expectHudColorValue(
+      hud,
+      "Header Surface",
+      spielwieseAgentNodeColorPalette.headerSurface,
+    );
+    expectHudColorValue(
+      hud,
+      "Prompt Value",
+      spielwieseAgentNodeColorPalette.promptValueSurface,
+    );
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-shell-surface",
+      ),
+    ).toBe(spielwieseAgentNodeColorPalette.shellSurface);
+    expect(nodeCard.getAttribute("style")).toContain(
+      "--spielwiese-agent-node-shell-surface",
+    );
+    expect(headerShell.className).toContain(
+      "bg-[var(--spielwiese-agent-node-header-surface)]",
+    );
+    expect(promptShell.className).toContain(
+      "bg-[var(--spielwiese-agent-node-prompt-value-surface)]",
+    );
     expect(
       within(simulationPane).queryAllByTestId(
         "spielwiese-playground-flow-node-actions",
@@ -195,6 +273,32 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(playgroundHeader.style.paddingRight).toBe("6px");
     expect(playgroundHeader.style.marginLeft).toBe("-14px");
 
+    fireEvent.change(shellSurfaceColor, {
+      target: { value: "#E7F1EB" },
+    });
+    fireEvent.change(headerSurfaceColor, {
+      target: { value: "rgba(255,240,235,0.88)" },
+    });
+    fireEvent.change(promptValueColor, {
+      target: { value: "#FFF7F2" },
+    });
+
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-shell-surface",
+      ),
+    ).toBe("#E7F1EB");
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-surface",
+      ),
+    ).toBe("rgba(255,240,235,0.88)");
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-prompt-value-surface",
+      ),
+    ).toBe("#FFF7F2");
+
     fireEvent.click(actionToggle);
 
     expect(
@@ -202,6 +306,68 @@ describe("SpielwieseDashboardPage rendering", () => {
         "spielwiese-playground-flow-node-actions",
       ),
     ).toHaveLength(0);
+  });
+
+  it("lets the HUD toggle the agent-only header chrome choices", () => {
+    renderPage();
+
+    const hud = screen.getByTestId("spielwiese-dashboard-debug-hud");
+    const root = document.querySelector("[data-spielwiese]") as HTMLElement;
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const headerRow = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-row",
+    );
+    const headerShell = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-shell",
+    );
+    const { headerBlurToggle, headerDividerToggle } = getHudChromeControls(hud);
+
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-active-surface",
+      ),
+    ).toBe(spielwieseAgentNodeColorPalette.headerSurface);
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-backdrop-filter",
+      ),
+    ).toBe("none");
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-divider",
+      ),
+    ).toBe("transparent");
+    expect(headerRow.className).toContain(
+      "border-[color:var(--spielwiese-agent-node-header-divider)]",
+    );
+    expect(headerShell.className).toContain(
+      "bg-[var(--spielwiese-agent-node-header-active-surface)]",
+    );
+
+    fireEvent.click(headerBlurToggle);
+    fireEvent.click(headerDividerToggle);
+
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-active-surface",
+      ),
+    ).toBe(spielwieseAgentNodeColorPalette.headerSurfaceBackdrop);
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-backdrop-filter",
+      ),
+    ).toBe("blur(12px)");
+    expect(
+      root.style.getPropertyValue(
+        "--spielwiese-dashboard-agent-node-header-divider",
+      ),
+    ).toBe(spielwieseAgentNodeColorPalette.chromeBorder);
+    expect(
+      within(hud).getByRole("button", { name: "Disable header blur" }),
+    ).toBeTruthy();
+    expect(
+      within(hud).getByRole("button", { name: "Disable header divider" }),
+    ).toBeTruthy();
   });
 });
 

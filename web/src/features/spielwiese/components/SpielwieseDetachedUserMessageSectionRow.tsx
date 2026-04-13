@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import { spielwieseDetachedUserShellSurfaceStyle } from "./spielwieseAgentNodeColorPalette";
 import { SpielwieseCollapsedPromptPreview } from "./SpielwieseCollapsedPromptPreview";
 import { SpielwieseNodeActionButtons } from "./SpielwieseAgentNodeHeaderActions";
 import { SpielwieseDetachedUserInlineAccessories } from "./SpielwieseDetachedUserInlineAccessories";
@@ -71,7 +72,10 @@ function DetachedUserInputShell({
       className={cn("pt-0 pb-px text-base", toneClassNames.body)}
       data-testid="spielwiese-detached-user-content-frame"
     >
-      <div className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]">
+      <div
+        className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]"
+        style={spielwieseDetachedUserShellSurfaceStyle}
+      >
         {header ? (
           <div
             className="pt-[6px] pr-[6px] pb-[6px] pl-[6px]"

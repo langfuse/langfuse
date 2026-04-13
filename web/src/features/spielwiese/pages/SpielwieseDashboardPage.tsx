@@ -10,6 +10,10 @@ import {
 } from "../components/SpielwieseDashboardDebugHud";
 import { SpielwieseEditorCanvas } from "../components/SpielwieseEditorCanvas";
 import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
+import {
+  getSpielwieseAgentNodeChromeVariableStyle,
+  getSpielwieseAgentNodeColorVariableStyle,
+} from "../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
@@ -69,11 +73,19 @@ export default function SpielwieseDashboardPage() {
   const [debugState, setDebugState] = useState(
     defaultSpielwieseDashboardDebugState,
   );
+  const debugColorStyle = {
+    ...getSpielwieseAgentNodeColorVariableStyle(debugState.nodeColors),
+    ...getSpielwieseAgentNodeChromeVariableStyle({
+      colors: debugState.nodeColors,
+      settings: debugState.nodeChrome,
+    }),
+  };
 
   return (
     <div
       className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
+      style={debugColorStyle}
     >
       <SpielwieseVariableValuesProvider items={variablesState.items}>
         <SpielwieseDashboardShell

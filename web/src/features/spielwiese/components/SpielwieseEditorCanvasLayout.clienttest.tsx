@@ -161,6 +161,7 @@ function expectVisibleAgentNodeLabels() {
   expect(screen.queryByText("01")).toBeNull();
 }
 
+// eslint-disable-next-line max-lines-per-function
 function expectVisionNodeChrome({
   headerFrame,
   headerRow,
@@ -185,15 +186,21 @@ function expectVisionNodeChrome({
   expect(nodeCard.className).toContain("[--node-shell-radius:18px]");
   expect(nodeCard.className).toContain("rounded-(--node-shell-radius)");
   expect(nodeCard.className).toContain("border");
-  expect(nodeCard.className).toContain("border-[rgba(15,23,42,0.08)]");
-  expect(nodeCard.className).toContain("bg-[#F1F2F2]");
+  expect(nodeCard.className).toContain(
+    "border-[color:var(--spielwiese-agent-node-shell-border)]",
+  );
+  expect(nodeCard.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(nodeCard.className).not.toMatch(/\bp-0\.5\b/);
   expect(nodeCard.className).toContain("gap-0.5");
   expect(nodeCard.className).toContain(
-    "shadow-[0_12px_30px_rgba(15,23,42,0.04),0_2px_6px_rgba(15,23,42,0.04)]",
+    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
   );
   expect(visionNode.className).toContain("last:pb-5");
-  expect(headerFrame.className).toContain("bg-[#F1F2F2]");
+  expect(headerFrame.className).toContain(
+    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+  );
   expect(headerFrame.className).toContain("p-0.5");
   expect(headerFrame.className).toContain("-mb-0.5");
   expect(headerFrame.className).toContain("rounded-[var(--node-shell-radius)]");
@@ -201,8 +208,12 @@ function expectVisionNodeChrome({
   expect(headerShell.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
-  expect(headerShell.className).toContain("border-border/40");
-  expect(headerShell.className).toContain("bg-[rgba(251,251,251,0.82)]");
+  expect(headerShell.className).toContain(
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
+  );
+  expect(headerShell.className).toContain(
+    "bg-[var(--spielwiese-agent-node-header-surface)]",
+  );
   expect(headerShell.className).toContain("backdrop-blur");
   expect(headerShell.className).toContain("pb-[4px]");
   expect(headerShell.className).toContain("overflow-hidden");
@@ -212,7 +223,12 @@ function expectVisionNodeChrome({
   expect(headerRow.className).toContain("pt-[5px]");
   expect(headerRow.className).toContain("pb-[7px]");
   expect(headerRow.className).toContain("border-b");
-  expect(headerRow.className).toContain("bg-[rgba(251,251,251,0.82)]");
+  expect(headerRow.className).toContain(
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
+  );
+  expect(headerRow.className).toContain(
+    "bg-[var(--spielwiese-agent-node-header-surface)]",
+  );
 }
 
 describe("SpielwieseEditorCanvas layout shell", () => {
