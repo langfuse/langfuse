@@ -15,10 +15,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
-import {
-  V4_DEFAULT_ENABLED_FROM_AT,
-  shouldAutoEnableV4,
-} from "@/src/features/events/lib/v4Rollout";
+import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 
 import { env } from "@/src/env.mjs";
 
@@ -32,26 +29,80 @@ export const organizationsRouter = createTRPCRouter({
           message: "You do not have permission to create organizations",
         });
 
-      const organizationCountBeforeCreate =
-        await ctx.prisma.organizationMembership.count({
-          where: {
-            userId: ctx.session.user.id,
-            ...(env.NEXT_PUBLIC_DEMO_ORG_ID
-              ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
-              : {}),
+      const organization = await ctx.prisma.$transaction(async (tx) => {
+        const organizationCountBeforeCreate =
+          await tx.organizationMembership.count({
+            where: {
+              userId: ctx.session.user.id,
+              ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+                ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+                : {}),
+            },
+          });
+
+        const organization = await tx.organization.create({
+          data: {
+            name: input.name,
+            organizationMemberships: {
+              create: {
+                userId: ctx.session.user.id,
+                role: "OWNER",
+              },
+            },
           },
         });
 
-      const organization = await ctx.prisma.organization.create({
-        data: {
-          name: input.name,
-          organizationMemberships: {
-            create: {
-              userId: ctx.session.user.id,
-              role: "OWNER",
-            },
-          },
-        },
+        if (organizationCountBeforeCreate === 0) {
+          const isCloudDeployment = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
+
+          if (isCloudDeployment) {
+            const userRolloutState = await tx.user.findUnique({
+              where: { id: ctx.session.user.id },
+              select: {
+                createdAt: true,
+                v4BetaEnabled: true,
+                organizationMemberships: {
+                  select: {
+                    organization: {
+                      select: {
+                        id: true,
+                        createdAt: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+
+            if (
+              userRolloutState &&
+              !userRolloutState.v4BetaEnabled &&
+              shouldAutoEnableV4({
+                userCreatedAt: userRolloutState.createdAt,
+                organizations: userRolloutState.organizationMemberships.map(
+                  (membership) => ({
+                    id: membership.organization.id,
+                    createdAt: membership.organization.createdAt,
+                  }),
+                ),
+                excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                  : [],
+              })
+            ) {
+              // This path is both the normal first-org initialization and a
+              // recovery path if signup-side initialization failed earlier.
+              await tx.user.update({
+                where: { id: ctx.session.user.id },
+                data: { v4BetaEnabled: true },
+              });
+            }
+          }
+        }
+
+        return organization;
       });
       await auditLog({
         resourceType: "organization",
@@ -62,55 +113,6 @@ export const organizationsRouter = createTRPCRouter({
         userId: ctx.session.user.id,
         after: organization,
       });
-
-      if (organizationCountBeforeCreate === 0) {
-        const isCloudDeployment = Boolean(
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        );
-
-        if (isCloudDeployment) {
-          const userRolloutState = await ctx.prisma.user.findUnique({
-            where: { id: ctx.session.user.id },
-            select: {
-              createdAt: true,
-              v4BetaEnabled: true,
-              organizationMemberships: {
-                select: {
-                  organization: {
-                    select: {
-                      id: true,
-                      createdAt: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-
-          if (
-            userRolloutState &&
-            !userRolloutState.v4BetaEnabled &&
-            userRolloutState.createdAt < V4_DEFAULT_ENABLED_FROM_AT &&
-            shouldAutoEnableV4({
-              userCreatedAt: userRolloutState.createdAt,
-              organizations: userRolloutState.organizationMemberships.map(
-                (membership) => ({
-                  id: membership.organization.id,
-                  createdAt: membership.organization.createdAt,
-                }),
-              ),
-              excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-                ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                : [],
-            })
-          ) {
-            await ctx.prisma.user.update({
-              where: { id: ctx.session.user.id },
-              data: { v4BetaEnabled: true },
-            });
-          }
-        }
-      }
 
       return {
         id: organization.id,

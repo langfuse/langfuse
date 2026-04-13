@@ -93,15 +93,8 @@ export const filters = {
 
     if (route.featureFlag === "v4BetaToggleVisible") {
       const canToggleV4 = ctx.session?.user?.canToggleV4 === true;
-      const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
 
-      return canToggleV4 &&
-        (ctx.isLangfuseCloud ||
-          ctx.enableExperimentalFeatures ||
-          ctx.cloudAdmin ||
-          hasOptedIn)
-        ? route
-        : null;
+      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
     }
 
     const hasFlag =
