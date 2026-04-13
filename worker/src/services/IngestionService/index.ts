@@ -42,6 +42,7 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  InternalTraceEventInput,
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
@@ -80,104 +81,7 @@ type InsertRecord =
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-
-/**
- * Flexible input type for writing events to the events table.
- * This is intentionally loose to allow for iteration as the events
- * table schema evolves. Only required fields are enforced.
- */
-export type EventInput = {
-  // Required identifiers
-  projectId: string;
-  traceId: string;
-  spanId: string;
-  startTimeISO: string;
-
-  // Optional identifiers
-  orgId?: string;
-  parentSpanId?: string;
-
-  // Core properties
-  name?: string;
-  type?: string;
-  environment?: string;
-  version?: string;
-  release?: string;
-  endTimeISO: string;
-  completionStartTime?: string;
-
-  traceName?: string;
-  tags?: string[];
-  bookmarked?: boolean;
-  public?: boolean;
-
-  // User/session
-  userId?: string;
-  sessionId?: string;
-  level?: string;
-  statusMessage?: string;
-
-  // Prompt
-  promptId?: string;
-  promptName?: string;
-  promptVersion?: string;
-
-  // Model
-  modelId?: string;
-  modelName?: string;
-  modelParameters?: string | Record<string, unknown>;
-
-  // Usage & Cost
-  providedUsageDetails?: Record<string, number>;
-  usageDetails?: Record<string, number>;
-  providedCostDetails?: Record<string, number>;
-  costDetails?: Record<string, number>;
-
-  // Tool Calls
-  toolDefinitions?: Record<string, string>;
-  toolCalls?: string[];
-  toolCallNames?: string[];
-
-  // I/O
-  input?: string;
-  output?: string;
-
-  // Metadata
-  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
-  metadata: Record<string, unknown>;
-
-  // Source/instrumentation metadata
-  source: string;
-  serviceName?: string;
-  serviceVersion?: string;
-  scopeName?: string;
-  scopeVersion?: string;
-  telemetrySdkLanguage?: string;
-  telemetrySdkName?: string;
-  telemetrySdkVersion?: string;
-
-  // Storage
-  blobStorageFilePath?: string;
-  eventRaw?: string;
-  eventBytes?: number;
-
-  // Experiment fields
-  experimentId?: string;
-  experimentName?: string;
-  experimentMetadataNames?: string[];
-  experimentMetadataValues?: Array<string | null | undefined>;
-  experimentDescription?: string;
-  experimentDatasetId?: string;
-  experimentItemId?: string;
-  experimentItemVersion?: string;
-  experimentItemRootSpanId?: string;
-  experimentItemExpectedOutput?: string;
-  experimentItemMetadataNames?: string[];
-  experimentItemMetadataValues?: Array<string | null | undefined>;
-
-  // Catch-all for future fields
-  [key: string]: any;
-};
+export type EventInput = InternalTraceEventInput;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
