@@ -189,14 +189,20 @@ function TracesTab({ userId, projectId }: TabProps) {
   const { isBetaEnabled } = useV4Beta();
 
   if (isBetaEnabled) {
-    return <ObservationsEventsTable projectId={projectId} userId={userId} />;
+    return (
+      <ObservationsEventsTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["userId"]}
+      />
+    );
   }
 
   return (
     <TracesTable
       projectId={projectId}
       userId={userId}
-      omittedFilter={["User ID"]}
+      omittedFilter={["userId"]}
     />
   );
 }
@@ -208,7 +214,7 @@ function SessionsTab({ userId, projectId }: TabProps) {
     <SessionsTable
       projectId={projectId}
       userId={userId}
-      omittedFilter={["User IDs"]}
+      omittedFilter={["userIds"]}
       isBetaEnabled={isBetaEnabled}
     />
   );

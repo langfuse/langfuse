@@ -1,5 +1,10 @@
 import { tracesTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
+
+export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
@@ -143,3 +148,9 @@ export const traceFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getTraceFilterConfig(
+  omittedFilter: TraceOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(traceFilterConfig, omittedFilter);
+}
