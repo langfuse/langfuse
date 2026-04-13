@@ -90,6 +90,7 @@ function getFinderTriggerClassName({
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 function FinderTriggerContent({
   iconRef,
   placeholderRef,
@@ -108,35 +109,48 @@ function FinderTriggerContent({
         variant === "sidebar" && "w-full",
       )}
     >
-      <span
-        className={cn(
-          "grid size-8 shrink-0 place-content-center",
-          variant === "sidebar" ? "pl-0.5" : "pl-0.5",
-        )}
-        data-search-icon="true"
-      >
-        <Search
-          className={cn(
-            "size-[0.9375rem]",
-            variant === "sidebar" ? "" : "text-foreground/62",
-          )}
-          data-sidebar-icon={variant === "sidebar" ? "true" : undefined}
-          ref={iconRef}
-        />
-      </span>
-      <span
-        className={cn(
-          "text-foreground/52 min-w-0 flex-1 truncate text-[13px]",
-          variant === "sidebar"
-            ? "flex pl-0.5 text-[0.875rem] leading-5"
-            : "hidden pl-0.5 md:flex",
-        )}
-        data-placeholder="true"
-        ref={placeholderRef}
-      >
-        {variant === "sidebar" ? "Search" : "Find…"}
-      </span>
-      <FinderTriggerShortcut shortcutRef={shortcutRef} variant={variant} />
+      {variant === "sidebar" ? (
+        <>
+          <span
+            className="grid size-8 shrink-0 place-content-center pl-0.5"
+            data-search-icon="true"
+          >
+            <Search
+              className="size-[0.9375rem]"
+              data-sidebar-icon="true"
+              ref={iconRef}
+            />
+          </span>
+          <span
+            className="min-w-0 flex-1 truncate pl-0.5 text-[0.875rem] leading-5"
+            data-placeholder="true"
+            data-sidebar-label
+            ref={placeholderRef}
+          >
+            Search
+          </span>
+        </>
+      ) : (
+        <>
+          <span
+            className="grid size-8 shrink-0 place-content-center pl-0.5"
+            data-search-icon="true"
+          >
+            <Search
+              className="text-foreground/62 size-[0.9375rem]"
+              ref={iconRef}
+            />
+          </span>
+          <span
+            className="text-foreground/52 hidden min-w-0 flex-1 truncate pl-0.5 text-[13px] md:flex"
+            data-placeholder="true"
+            ref={placeholderRef}
+          >
+            Find…
+          </span>
+          <FinderTriggerShortcut shortcutRef={shortcutRef} variant={variant} />
+        </>
+      )}
     </span>
   );
 }

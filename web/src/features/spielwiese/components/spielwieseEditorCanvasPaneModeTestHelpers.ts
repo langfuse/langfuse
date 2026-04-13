@@ -73,6 +73,7 @@ function expectEvaluationPaneShellChrome({
     "rounded-[var(--canvas-pane-inner-radius)]",
   );
   expect(evaluationPaneSurface.className).toContain("relative");
+  expect(evaluationPaneSurface.className).toContain("px-2");
   expect(evaluationPaneSurface.className).toContain("pb-[6px]");
   expect(evaluationPaneSurface.className).toContain("after:h-[6px]");
 }
@@ -84,11 +85,13 @@ function expectEvaluationPaneHeader({
     screen.getByTestId("spielwiese-evaluation-header-accessory"),
   );
   expect(evaluationHeaderBar.className).toContain("sticky");
+  expect(evaluationHeaderBar.className).toContain("-mx-2");
   expect(evaluationHeaderBar.className).toContain("backdrop-blur");
   expect(evaluationHeaderBar.className).toContain(
     "rounded-t-[var(--canvas-pane-inner-radius)]",
   );
-  expect(evaluationHeaderBar.className).toContain("pl-[13px]");
+  expect(evaluationHeaderBar.className).toContain("w-[calc(100%+1rem)]");
+  expect(evaluationHeaderBar.className).toContain("px-2");
 }
 
 function expectEvaluationPaneStrategyChrome({

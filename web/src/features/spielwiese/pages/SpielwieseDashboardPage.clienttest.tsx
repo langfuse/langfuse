@@ -3,13 +3,25 @@ import "../components/spielwieseResizableTestMock";
 import SpielwieseDashboardPage from "./SpielwieseDashboardPage";
 
 const originalHash = window.location.hash;
+const originalMatchMedia = window.matchMedia;
 
 afterEach(() => {
   window.location.hash = originalHash;
+  window.matchMedia = originalMatchMedia;
 });
 
 function renderPage() {
   return render(<SpielwieseDashboardPage />);
+}
+
+function createDesktopMatchMedia() {
+  return jest.fn().mockImplementation((query: string) => ({
+    addEventListener: jest.fn(),
+    matches: query === "(min-width: 768px)" || query === "(min-width: 1280px)",
+    media: query,
+    onchange: null,
+    removeEventListener: jest.fn(),
+  }));
 }
 
 function createDetachedUserVariable(value: string) {
@@ -37,6 +49,7 @@ function getCanvasHeader() {
   return screen.getByTestId("spielwiese-canvas-editor-mode-header");
 }
 
+// eslint-disable-next-line max-lines-per-function
 describe("SpielwieseDashboardPage rendering", () => {
   it("renders the route with a scoped spielwiese root", () => {
     const { container } = renderPage();
@@ -108,6 +121,7 @@ describe("SpielwieseDashboardPage rendering", () => {
   });
 
   it("renders canvas-level card controls that collapse nodes, close both side panels, and keep archive inert", () => {
+    window.matchMedia = createDesktopMatchMedia();
     renderPage();
 
     const shell = screen.getByTestId("spielwiese-shell");

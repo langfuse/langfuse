@@ -17,6 +17,8 @@ type SpielwieseAgentNodeCardSwitcherProps = {
   onShowSecondary: () => void;
   primaryCard: ReactNode;
   secondaryCard: ReactNode;
+  viewportClassName?: string;
+  viewportTransitionState?: string;
 };
 
 const spielwieseAgentNodeCardNavButtonClassName =
@@ -173,6 +175,8 @@ export function SpielwieseAgentNodeCardSwitcher({
   onShowSecondary,
   primaryCard,
   secondaryCard,
+  viewportClassName,
+  viewportTransitionState,
 }: SpielwieseAgentNodeCardSwitcherProps) {
   const isSecondaryCardActive = activeView === "secondary";
   const currentCard = isSecondaryCardActive ? secondaryCard : primaryCard;
@@ -190,7 +194,8 @@ export function SpielwieseAgentNodeCardSwitcher({
         <ArrowLeft className="size-3.5" />
       </SpielwieseAgentNodeCardNavButton>
       <div
-        className="min-w-0 flex-1 transition-transform duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]"
+        className={`min-w-0 flex-1 transition-transform duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${viewportClassName ?? ""}`}
+        data-collapse-transition={viewportTransitionState ?? "idle"}
         data-testid={`${testIdBase}-viewport`}
       >
         {currentCard}

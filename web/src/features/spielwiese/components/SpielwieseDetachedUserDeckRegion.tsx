@@ -7,6 +7,7 @@ import {
   SpielwiesePromptDeckCardHeaderFrame,
   SpielwiesePromptDeckCardShell,
 } from "./SpielwiesePromptDeckCardChrome";
+import { useSpielwieseCollapseMotion } from "./spielwieseCollapseMotion";
 
 type SpielwieseDetachedUserDeckRegionProps = {
   isCompact: boolean;
@@ -101,6 +102,39 @@ function useDetachedUserCardNavigationVisibilityState() {
   };
 }
 
+function getDetachedUserSharedCardProps({
+  isCompact,
+  isPreviewFocused,
+  node,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
+  onPromptSectionChange,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
+  onPromptSectionMove,
+  onToggleCompact,
+  onTogglePreviewFocus,
+  toolOptions,
+}: SpielwieseDetachedUserDeckRegionProps) {
+  return {
+    isCompact,
+    isPreviewFocused,
+    node,
+    onAgentNodeArchive,
+    onPreviewHoverEnd,
+    onPreviewHoverStart,
+    onPromptSectionChange,
+    onPromptSectionDelete,
+    onPromptSectionInsert,
+    onPromptSectionMove,
+    onToggleCompact,
+    onTogglePreviewFocus,
+    toolOptions,
+  };
+}
+
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseDetachedUserDeckRegion({
   isCompact,
   isPreviewFocused,
@@ -120,7 +154,11 @@ export function SpielwieseDetachedUserDeckRegion({
     "primary",
   );
   const interactionState = useDetachedUserCardNavigationVisibilityState();
-  const sharedCardProps = {
+  const collapseMotion = useSpielwieseCollapseMotion({
+    isCollapsed: isCompact,
+    onToggle: onToggleCompact,
+  });
+  const sharedCardProps = getDetachedUserSharedCardProps({
     isCompact,
     isPreviewFocused,
     node,
@@ -131,10 +169,10 @@ export function SpielwieseDetachedUserDeckRegion({
     onPromptSectionDelete,
     onPromptSectionInsert,
     onPromptSectionMove,
-    onToggleCompact,
+    onToggleCompact: collapseMotion.onToggleWithMotion,
     onTogglePreviewFocus,
     toolOptions,
-  };
+  });
 
   return (
     <div
@@ -153,6 +191,8 @@ export function SpielwieseDetachedUserDeckRegion({
           />
         }
         testIdBase="spielwiese-detached-user-card"
+        viewportClassName={collapseMotion.transitionClassName}
+        viewportTransitionState={collapseMotion.phase}
         onShowPrimary={() => setActiveView("primary")}
         onShowSecondary={() => setActiveView("secondary")}
       />

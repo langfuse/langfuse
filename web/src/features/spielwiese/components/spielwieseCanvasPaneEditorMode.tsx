@@ -11,7 +11,7 @@ const canvasEditorModeToggleButtonClassName =
 const canvasEditorModeToggleButtonActiveClassName =
   "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
 const canvasJsonSkillCommandActionClassName =
-  "text-foreground/68 hover:text-foreground inline-flex h-6 min-w-0 items-center gap-1 rounded-[8px] bg-transparent px-2 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0 active:bg-transparent";
+  "text-foreground/68 hover:text-foreground inline-flex h-6 min-w-0 items-center gap-0 rounded-[8px] bg-transparent px-2 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0 active:bg-transparent";
 const canvasJsonSkillCommandTooltipClassName =
   "text-foreground/72 pointer-events-none invisible absolute top-full right-0 z-20 mt-2 w-[17rem] translate-y-1 rounded-[12px] bg-[rgba(255,255,255,0.98)] px-3 py-2 text-left text-[0.6875rem] leading-[1.05rem] font-normal opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12),0_4px_14px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-tooltip:pointer-events-auto group-focus-within/json-skill-tooltip:visible group-focus-within/json-skill-tooltip:translate-y-0 group-focus-within/json-skill-tooltip:opacity-100 group-hover/json-skill-tooltip:pointer-events-auto group-hover/json-skill-tooltip:visible group-hover/json-skill-tooltip:translate-y-0 group-hover/json-skill-tooltip:opacity-100";
 const canvasJsonEditorClassName =
@@ -43,7 +43,7 @@ function CanvasJsonSkillCommand({ jsonValue }: { jsonValue: string }) {
   return (
     <div
       className={cn(
-        "ml-px inline-flex items-center overflow-hidden rounded-[8px] transition-[max-width,opacity] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        "group/json-skill-command ml-px inline-flex items-center overflow-hidden rounded-[8px] transition-[max-width,opacity] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] focus-within:duration-[560ms] hover:duration-[560ms]",
         "max-w-[2.75rem] opacity-100 focus-within:max-w-[20rem] hover:max-w-[20rem]",
       )}
       data-testid="spielwiese-canvas-json-skill-command"
@@ -57,9 +57,9 @@ function CanvasJsonSkillCommand({ jsonValue }: { jsonValue: string }) {
         }}
         type="button"
       >
-        <Copy className="size-3 shrink-0 transition-transform duration-150 active:scale-[0.86]" />
+        <Copy className="text-foreground/46 size-3.5 shrink-0 -translate-x-[3px] stroke-[2.2px] transition-[transform] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-command:translate-x-0 group-hover/json-skill-command:translate-x-0 active:scale-[0.86]" />
         <span
-          className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity,margin] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-command:ml-1 group-focus-within/json-skill-command:max-w-[14rem] group-focus-within/json-skill-command:opacity-100 group-hover/json-skill-command:ml-1 group-hover/json-skill-command:max-w-[14rem] group-hover/json-skill-command:opacity-100 hover:max-w-none"
+          className="max-w-0 shrink-0 overflow-hidden pl-px whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] group-focus-within/json-skill-command:max-w-[14rem] group-focus-within/json-skill-command:opacity-100 group-focus-within/json-skill-command:duration-[560ms] group-hover/json-skill-command:max-w-[14rem] group-hover/json-skill-command:opacity-100 group-hover/json-skill-command:duration-[560ms]"
           data-testid="spielwiese-canvas-json-skill-command-label"
         >
           Copy Skill install command
@@ -104,10 +104,7 @@ export function CanvasEditorModeToggle({
 }) {
   return (
     <div
-      className={cn(
-        canvasEditorModeToggleClassName,
-        "group/json-skill-command overflow-hidden",
-      )}
+      className={cn(canvasEditorModeToggleClassName, "overflow-hidden")}
       data-testid="spielwiese-canvas-editor-mode-toggle"
     >
       {[

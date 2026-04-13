@@ -142,7 +142,7 @@ export function SpielwieseAgentNodeFocusModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[130] flex items-center justify-center px-6 py-6"
+      className="fixed inset-0 z-[130] flex items-center justify-center px-3 py-3"
       data-testid="spielwiese-agent-node-focus-modal-root"
     >
       <button
@@ -154,7 +154,7 @@ export function SpielwieseAgentNodeFocusModal({
       <div
         aria-label={`${nodeId} focus mode`}
         aria-modal="true"
-        className="relative z-10 flex max-h-[calc(100dvh-3rem)] w-[min(54rem,calc(100vw-2.5rem))] items-start justify-center overflow-auto"
+        className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[min(92rem,calc(100vw-1.5rem))] items-start justify-center overflow-auto"
         data-testid="spielwiese-agent-node-focus-modal"
         role="dialog"
       >

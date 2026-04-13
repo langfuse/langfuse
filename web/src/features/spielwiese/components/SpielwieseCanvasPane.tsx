@@ -1,18 +1,15 @@
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { useOptionalSpielwieseShell } from "../shell/SpielwieseShellProvider";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
-import { SpielwieseAgentNodeExternalInsertRow } from "./SpielwieseAgentNodeExternalInsertRow";
-import { SpielwieseNodeActionButtons } from "./SpielwieseAgentNodeHeaderActions";
-import { SpielwieseAgentNodeStack } from "./SpielwieseAgentNodeStack";
+import { SpielwieseCanvasPaneBuilder } from "./SpielwieseCanvasPaneBuilder";
+import { SpielwieseCanvasPaneHeader } from "./SpielwieseCanvasPaneHeader";
 import {
   formatEditableCanvasNodes,
   parseEditableCanvasNodes,
 } from "./spielwieseEditableCanvasJson";
-import type { CanvasEditorMode } from "./spielwieseCanvasPaneEditorMode";
 import {
-  CanvasEditorModeToggle,
   CanvasJsonEditor,
+  type CanvasEditorMode,
 } from "./spielwieseCanvasPaneEditorMode";
 
 export type SpielwieseCanvasPaneProps = {
@@ -39,6 +36,7 @@ export type SpielwieseCanvasPaneProps = {
     sectionId: string,
     direction: "up" | "down",
   ) => void;
+  onCloseSidePanels?: () => void;
   onSettingValueChange: (
     nodeId: string,
     settingId: string,
@@ -175,55 +173,7 @@ function getAllCompactNodeIds(
   ) as Record<string, boolean>;
 }
 
-function CanvasPaneBuilder({
-  compactNodeIds,
-  insertAnchorNodeId,
-  nodes,
-  onAgentNodeArchive,
-  onAgentNodeInsert,
-  onPromptSectionDelete,
-  onPromptSectionInsert,
-  onPromptSectionChange,
-  onPromptSectionMove,
-  onSettingValueChange,
-  onToggleCompact,
-  onTitleChange,
-}: Omit<SpielwieseCanvasPaneProps, "className" | "onNodesReplace"> & {
-  compactNodeIds: Record<string, boolean>;
-  onToggleCompact: (nodeId: string) => void;
-}) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-        <SpielwieseAgentNodeStack
-          compactNodeIds={compactNodeIds}
-          listClassName="pt-2 pb-2 sm:pt-2"
-          nodes={nodes}
-          onAgentNodeArchive={onAgentNodeArchive}
-          onPromptSectionDelete={onPromptSectionDelete}
-          onPromptSectionInsert={onPromptSectionInsert}
-          onPromptSectionChange={onPromptSectionChange}
-          onPromptSectionMove={onPromptSectionMove}
-          onSettingValueChange={onSettingValueChange}
-          onToggleCompact={onToggleCompact}
-          onTitleChange={onTitleChange}
-        />
-      </div>
-      {insertAnchorNodeId ? (
-        <div
-          className="flex-none pb-2"
-          data-testid="spielwiese-agent-node-insert-footer"
-        >
-          <SpielwieseAgentNodeExternalInsertRow
-            nodeId={insertAnchorNodeId}
-            onAgentNodeInsert={onAgentNodeInsert}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
+// eslint-disable-next-line max-lines-per-function
 function CanvasPaneContent({
   canvasJsonEditorState,
   compactNodeIds,
@@ -235,6 +185,7 @@ function CanvasPaneContent({
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
+  onCloseSidePanels,
   onSettingValueChange,
   onTitleChange,
   onToggleCompact,
@@ -243,7 +194,6 @@ function CanvasPaneContent({
   compactNodeIds: Record<string, boolean>;
   onToggleCompact: (nodeId: string) => void;
 }) {
-  const shell = useOptionalSpielwieseShell();
   const areAllCardsCompact =
     nodes.length > 0 && nodes.every((node) => Boolean(compactNodeIds[node.id]));
 
@@ -256,33 +206,18 @@ function CanvasPaneContent({
         className="bg-background flex min-h-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-inner-radius)]"
         data-testid="spielwiese-editor-canvas-pane-surface"
       >
-        <div
-          className="flex items-center justify-end gap-2 px-2 pt-2 pb-1"
-          data-testid="spielwiese-canvas-editor-mode-header"
-        >
-          <SpielwieseNodeActionButtons
-            archiveButtonLabel="Archive canvas nodes"
-            compactButtonLabel={`${
-              areAllCardsCompact ? "Expand" : "Collapse"
-            } all canvas cards`}
-            containerTestId="spielwiese-canvas-pane-actions"
-            isCompact={areAllCardsCompact}
-            isPreviewFocused={false}
-            onArchiveNode={() => {}}
-            onToggleCompact={() =>
-              onToggleCompact(
-                areAllCardsCompact ? "__expand-all__" : "__collapse-all__",
-              )
-            }
-            onTogglePreviewFocus={() => shell?.closeSidePanels()}
-            previewButtonLabel="Close side panels"
-          />
-          <CanvasEditorModeToggle
-            activeMode={canvasJsonEditorState.mode}
-            jsonValue={canvasJsonEditorState.draft}
-            onModeChange={canvasJsonEditorState.onModeChange}
-          />
-        </div>
+        <SpielwieseCanvasPaneHeader
+          areAllCardsCompact={areAllCardsCompact}
+          jsonValue={canvasJsonEditorState.draft}
+          mode={canvasJsonEditorState.mode}
+          onCloseSidePanels={onCloseSidePanels}
+          onModeChange={canvasJsonEditorState.onModeChange}
+          onToggleAllCards={() =>
+            onToggleCompact(
+              areAllCardsCompact ? "__expand-all__" : "__collapse-all__",
+            )
+          }
+        />
         {canvasJsonEditorState.mode === "json" ? (
           <CanvasJsonEditor
             error={canvasJsonEditorState.error}
@@ -291,7 +226,7 @@ function CanvasPaneContent({
             onJsonChange={canvasJsonEditorState.onDraftChange}
           />
         ) : (
-          <CanvasPaneBuilder
+          <SpielwieseCanvasPaneBuilder
             compactNodeIds={compactNodeIds}
             insertAnchorNodeId={insertAnchorNodeId}
             nodes={nodes}
@@ -311,6 +246,7 @@ function CanvasPaneContent({
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseCanvasPane({
   className,
   insertAnchorNodeId,
@@ -322,6 +258,7 @@ export function SpielwieseCanvasPane({
   onPromptSectionInsert,
   onPromptSectionChange,
   onPromptSectionMove,
+  onCloseSidePanels,
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseCanvasPaneProps) {
@@ -366,6 +303,7 @@ export function SpielwieseCanvasPane({
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}
         onPromptSectionMove={onPromptSectionMove}
+        onCloseSidePanels={onCloseSidePanels}
         onSettingValueChange={onSettingValueChange}
         onToggleCompact={toggleCompact}
         onTitleChange={onTitleChange}

@@ -35,6 +35,25 @@ function openFinder() {
   return screen.getByTestId("spielwiese-header-finder-panel");
 }
 
+function expectFinderPanelChrome(panel: HTMLElement) {
+  const searchField = within(panel).getByTestId(
+    "spielwiese-header-finder-search-field",
+  );
+  const firstResult = within(panel).getAllByTestId(
+    "spielwiese-header-finder-result",
+  )[0];
+  const surface = panel.lastElementChild as HTMLElement | null;
+
+  expect(panel.className).toContain("max-w-none");
+  expect(surface?.className).toContain("rounded-[1.05rem]");
+  expect(surface?.className).toContain("bg-[rgba(251,251,251,0.96)]");
+  expect(searchField.className).toContain("border-b");
+  expect(searchField.className).toContain("px-2");
+  expect(searchField.className).toContain("py-2");
+  expect(firstResult?.className).toContain("h-[2.875rem]");
+  expect(firstResult?.className).toContain("rounded-[0.8rem]");
+}
+
 function expectShellChromeBackground() {
   expect(screen.getByTestId("spielwiese-shell").className).toContain(
     "bg-[#F3F3F4]",
@@ -318,7 +337,7 @@ describe("SpielwieseDashboardShell finder interactions", () => {
     expect(panelContainer.className).toContain("inset-x-0");
     expect(panelContainer.className).not.toContain("fixed");
     expect(panelContainer.className).not.toContain("mt-2");
-    expect(panel.className).toContain("max-w-none");
+    expectFinderPanelChrome(panel);
 
     fireEvent.change(searchInput, { target: { value: "micro" } });
 

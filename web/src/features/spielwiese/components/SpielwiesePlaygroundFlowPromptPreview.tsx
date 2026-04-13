@@ -29,6 +29,7 @@ export type PlaygroundFlowPreviewVM = {
   format: "json" | "text";
   label: string;
   sectionId: string;
+  state?: "streaming" | "settled";
   value: string;
 };
 
@@ -40,6 +41,7 @@ export function getPlaygroundFlowPreview(
       format: node.playgroundPreview.format,
       label: node.playgroundPreview.label,
       sectionId: node.playgroundPreview.toneSectionId ?? "system",
+      state: "settled",
       value: node.playgroundPreview.value,
     };
   }
@@ -64,6 +66,7 @@ export function getPlaygroundFlowPreview(
     format: "text",
     label: getPromptSectionDisplayLabel(section.id, section.label),
     sectionId: section.id,
+    state: "settled",
     value: section.value,
   };
 }
@@ -83,7 +86,7 @@ function PlaygroundFlowPromptPreviewHeader({
     <div
       className={cn(
         "flex min-w-0 flex-1 items-center gap-2 overflow-visible",
-        isEmbedded && "ml-[5px]",
+        isEmbedded && "ml-[2px]",
       )}
       data-testid={
         isEmbedded
@@ -127,12 +130,14 @@ function PlaygroundFlowPromptPreviewHeader({
 function PlaygroundFlowSystemPromptPreview({
   format,
   PreviewIcon,
+  previewValueClassName,
   previewLabel,
   toneClassNames,
   value,
 }: {
   format: "json" | "text";
   PreviewIcon: LucideIcon | null;
+  previewValueClassName: string;
   previewLabel: string;
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
   value: string;
@@ -165,7 +170,8 @@ function PlaygroundFlowSystemPromptPreview({
         >
           <div
             className={cn(
-              "text-foreground w-full min-w-0 bg-transparent px-3 py-1 text-base leading-7 break-words whitespace-pre-wrap sm:text-[0.9375rem]",
+              "text-foreground min-h-10 bg-transparent px-3 py-1 text-base leading-7 sm:text-[0.9375rem]",
+              previewValueClassName,
               format === "json" &&
                 "font-mono text-[13px] leading-5 sm:text-[13px]",
             )}
@@ -184,6 +190,7 @@ function PlaygroundFlowPromptPreviewBody({
   isSystemSection,
   PreviewIcon,
   previewLabel,
+  previewValueClassName,
   toneClassNames,
   value,
 }: {
@@ -191,6 +198,7 @@ function PlaygroundFlowPromptPreviewBody({
   isSystemSection: boolean;
   PreviewIcon: LucideIcon | null;
   previewLabel: string;
+  previewValueClassName: string;
   toneClassNames: ReturnType<typeof getMessageToneClassNames>;
   value: string;
 }) {
@@ -199,6 +207,7 @@ function PlaygroundFlowPromptPreviewBody({
       <PlaygroundFlowSystemPromptPreview
         PreviewIcon={PreviewIcon}
         format={format}
+        previewValueClassName={previewValueClassName}
         previewLabel={previewLabel}
         toneClassNames={toneClassNames}
         value={value}
@@ -217,7 +226,8 @@ function PlaygroundFlowPromptPreviewBody({
       >
         <div
           className={cn(
-            "text-foreground w-full min-w-0 text-base leading-7 break-words whitespace-pre-wrap sm:text-[0.9375rem]",
+            "text-foreground min-h-10 text-base leading-7 sm:text-[0.9375rem]",
+            previewValueClassName,
             format === "json" &&
               "font-mono text-[13px] leading-5 sm:text-[13px]",
           )}
@@ -244,6 +254,14 @@ export function SpielwiesePlaygroundFlowPromptPreview({
   const PreviewIcon = getPreviewPrefixIcon(messageKind);
   const previewLabel = preview.label;
   const isSystemSection = messageKind === "system";
+  const isPreviewEmpty =
+    preview.state === "streaming" && preview.value.length === 0;
+  const previewValueClassName = cn(
+    "w-full min-w-0 break-words whitespace-pre-wrap transition-[opacity,transform,filter] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+    isPreviewEmpty
+      ? "translate-y-0.5 opacity-0 blur-[2px]"
+      : "translate-y-0 opacity-100 blur-0",
+  );
 
   return (
     <div
@@ -251,7 +269,7 @@ export function SpielwiesePlaygroundFlowPromptPreview({
         "group flex w-full min-w-0 flex-col overflow-hidden",
         messageKind === "user"
           ? "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] px-2.5 pt-1 pb-2"
-          : "rounded-xl px-[5px] pt-0 pb-0",
+          : "rounded-xl pt-0 pb-0",
         toneClassNames.surface,
       )}
       data-section-id={preview.sectionId}
@@ -269,6 +287,7 @@ export function SpielwiesePlaygroundFlowPromptPreview({
         isSystemSection={isSystemSection}
         PreviewIcon={PreviewIcon}
         previewLabel={previewLabel}
+        previewValueClassName={previewValueClassName}
         toneClassNames={toneClassNames}
         value={preview.value}
       />

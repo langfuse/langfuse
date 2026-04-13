@@ -70,7 +70,7 @@ function renderAgentNodeItems({
       isPreviewFocused={focusMode.focusedNodeId === node.id}
       isPreviewFocusHidden={focusMode.focusedNodeId === node.id}
       isPreviewSpotlighted={focusMode.hoveredPreviewNodeId === node.id}
-      key={`${node.id}-${compactNodeIds[node.id] ? "compact" : "expanded"}`}
+      key={node.id}
       node={node}
       onAgentNodeArchive={onAgentNodeArchive}
       onPreviewHoverEnd={() => focusMode.handlePreviewHoverEnd(node.id)}

@@ -3,6 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardDeck } from "./SpielwieseAgentNodeStackSupport";
+import { useSpielwieseCollapseMotion } from "./spielwieseCollapseMotion";
 
 type SpielwiesePrimaryAgentDeckRegionProps = {
   ariaHidden?: boolean;
@@ -50,6 +51,8 @@ type SpielwiesePrimaryAgentDeckSwitcherProps = Omit<
   | "onRegisterPreviewRegion"
 > & {
   areNavButtonsVisible: boolean;
+  cardViewportClassName?: string;
+  cardViewportTransitionState?: string;
 };
 
 function useCardNavigationVisibilityState() {
@@ -122,6 +125,8 @@ function SpielwieseCardDeckRegion({
 
 function SpielwiesePrimaryAgentDeckSwitcher({
   areNavButtonsVisible,
+  cardViewportClassName,
+  cardViewportTransitionState,
   isCompact,
   isPreviewFocused,
   modelSetting,
@@ -148,6 +153,8 @@ function SpielwiesePrimaryAgentDeckSwitcher({
       activeView={activeCardView}
       areNavButtonsVisible={areNavButtonsVisible}
       cardTestId="spielwiese-agent-node-card"
+      cardViewportClassName={cardViewportClassName}
+      cardViewportTransitionState={cardViewportTransitionState}
       isCompact={isCompact}
       isPreviewFocused={isPreviewFocused}
       modelSetting={modelSetting}
@@ -178,6 +185,10 @@ export function SpielwiesePrimaryAgentDeckRegion({
   ...props
 }: SpielwiesePrimaryAgentDeckRegionProps) {
   const interactionState = useCardNavigationVisibilityState();
+  const collapseMotion = useSpielwieseCollapseMotion({
+    isCollapsed: props.isCompact,
+    onToggle: props.onToggleCompact,
+  });
   const cardDeckClassName = cn(
     "relative transform-gpu transition-[transform,opacity,filter] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
     getDeckRegionClassName({
@@ -195,7 +206,10 @@ export function SpielwiesePrimaryAgentDeckRegion({
     >
       <SpielwiesePrimaryAgentDeckSwitcher
         areNavButtonsVisible={interactionState.areCardNavButtonsVisible}
+        cardViewportClassName={collapseMotion.transitionClassName}
+        cardViewportTransitionState={collapseMotion.phase}
         {...props}
+        onToggleCompact={collapseMotion.onToggleWithMotion}
       />
     </SpielwieseCardDeckRegion>
   );

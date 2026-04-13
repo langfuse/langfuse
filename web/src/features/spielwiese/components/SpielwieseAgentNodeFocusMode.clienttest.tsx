@@ -10,10 +10,13 @@ function renderCanvas() {
 }
 
 describe("SpielwieseAgentNode focus mode", () => {
-  it("spotlights the node on preview hover and opens a centered modal editor on click", () => {
+  it("opens a large modal editor on click without triggering a hover spotlight", () => {
     renderCanvas();
     const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0]!;
-    const previewButton = within(visionNode).getByRole("button", {
+    const headerActions = within(visionNode).getByTestId(
+      "spielwiese-agent-node-header-actions",
+    );
+    const previewButton = within(headerActions).getByRole("button", {
       name: "Preview vision-agent node",
     });
     const cardDeck = within(visionNode).getByTestId(
@@ -28,13 +31,6 @@ describe("SpielwieseAgentNode focus mode", () => {
     fireEvent.mouseEnter(previewButton);
 
     expect(
-      screen.getByTestId("spielwiese-agent-node-preview-spotlight"),
-    ).toBeTruthy();
-    expect(cardDeck.className).toContain("scale-105");
-
-    fireEvent.mouseLeave(previewButton);
-
-    expect(
       screen.queryByTestId("spielwiese-agent-node-preview-spotlight"),
     ).toBeNull();
     expect(cardDeck.className).not.toContain("scale-105");
@@ -45,7 +41,7 @@ describe("SpielwieseAgentNode focus mode", () => {
       name: "vision-agent focus mode",
     });
     const modalPreviewButton = within(focusDialog).getByRole("button", {
-      name: "Preview vision-agent node",
+      name: "Close vision-agent focus mode",
     });
 
     expect(
@@ -54,8 +50,11 @@ describe("SpielwieseAgentNode focus mode", () => {
     expect(
       within(focusDialog).getByLabelText("vision-agent Instructions"),
     ).toBeTruthy();
-    expect(cardDeck.getAttribute("aria-hidden")).toBe("true");
     expect(modalPreviewButton.getAttribute("aria-pressed")).toBe("true");
+    expect(focusDialog.className).toContain("max-h-[calc(100dvh-1.5rem)]");
+    expect(focusDialog.className).toContain(
+      "w-[min(92rem,calc(100vw-1.5rem))]",
+    );
 
     fireEvent.click(modalPreviewButton);
 
@@ -64,6 +63,5 @@ describe("SpielwieseAgentNode focus mode", () => {
         name: "vision-agent focus mode",
       }),
     ).toBeNull();
-    expect(cardDeck.getAttribute("aria-hidden")).toBe("false");
   });
 });

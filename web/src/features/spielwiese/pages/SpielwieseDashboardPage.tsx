@@ -8,6 +8,7 @@ import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
 import { SpielwieseDashboardShell } from "../shell/SpielwieseDashboardShell";
+import { useSpielwieseShell } from "../shell/SpielwieseShellProvider";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 
 function subscribeToHash(onStoreChange: () => void) {
@@ -31,6 +32,8 @@ function SpielwieseDashboardCanvas({
   dashboard: SpielwieseDashboardVM;
   onDetectedVariablesChange: (labels: string[]) => void;
 }) {
+  const { closeSidePanels } = useSpielwieseShell();
+
   if (dashboard.promptCanvas) {
     return <SpielwiesePromptCanvas promptCanvas={dashboard.promptCanvas} />;
   }
@@ -38,6 +41,7 @@ function SpielwieseDashboardCanvas({
   return (
     <SpielwieseEditorCanvas
       canvas={dashboard.canvas}
+      onCloseSidePanels={closeSidePanels}
       onDetectedVariablesChange={onDetectedVariablesChange}
     />
   );

@@ -20,6 +20,28 @@ import {
   simulatedThinkingSummary,
 } from "./spielwiesePromptSimulationRun";
 
+function getPlaygroundFlowNodeState({
+  node,
+  runtimePreview,
+}: {
+  node: SpielwieseAgentNodeVM;
+  runtimePreview?: PlaygroundFlowPreviewVM;
+}) {
+  return {
+    activeTagId:
+      (node.layout ?? "composite") === "user-only"
+        ? `${node.id}-user`
+        : `${node.id}-agent`,
+    preview: runtimePreview ?? getPlaygroundFlowPreview(node),
+    thinkingMeta: node.playgroundThinking
+      ? getThinkingCardMeta(node)
+      : simulatedThinkingMeta,
+    thinkingSummary: node.playgroundThinking
+      ? getThinkingSummary(node)
+      : simulatedThinkingSummary,
+  };
+}
+
 function PlaygroundFlowCardShell({
   activeTagId,
   isThinkingDetailOpen,
@@ -80,17 +102,11 @@ export function PlaygroundFlowNode({
   onThinkingCardClick: () => void;
   runtimePreview?: PlaygroundFlowPreviewVM;
 }) {
-  const preview = runtimePreview ?? getPlaygroundFlowPreview(node);
-  const thinkingMeta = node.playgroundThinking
-    ? getThinkingCardMeta(node)
-    : simulatedThinkingMeta;
-  const thinkingSummary = node.playgroundThinking
-    ? getThinkingSummary(node)
-    : simulatedThinkingSummary;
-  const activeTagId =
-    (node.layout ?? "composite") === "user-only"
-      ? `${node.id}-user`
-      : `${node.id}-agent`;
+  const { activeTagId, preview, thinkingMeta, thinkingSummary } =
+    getPlaygroundFlowNodeState({
+      node,
+      runtimePreview,
+    });
 
   return (
     <>

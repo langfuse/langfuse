@@ -263,20 +263,27 @@ describe("SpielwieseEditorCanvas model picker", () => {
 describe("SpielwieseEditorCanvas node collapse sections", () => {
   it("lets each node minimize its prompt sections into single-row previews", () => {
     renderCanvas();
-    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
-    const instructionsRow = findPromptRowBySectionId(visionNode, "system");
     const toggleButton = screen.getByRole("button", {
       name: "Minimize vision-agent node sections",
     });
 
     fireEvent.click(toggleButton);
 
+    const collapsedVisionNode = screen.getAllByTestId(
+      "spielwiese-agent-node",
+    )[0];
+    const collapsedInstructionsRow = findPromptRowBySectionId(
+      collapsedVisionNode,
+      "system",
+    );
+    const collapsedToggleButton = screen.getByRole("button", {
+      name: "Maximize vision-agent node sections",
+    });
+
+    expect(screen.queryByLabelText("vision-agent User message")).toBeNull();
+    expect(collapsedInstructionsRow).toBeTruthy();
     expect(
-      within(visionNode).getByLabelText("vision-agent User message"),
-    ).toBeTruthy();
-    expect(instructionsRow).toBeTruthy();
-    expect(
-      within(instructionsRow ?? visionNode).getByLabelText(
+      within(collapsedInstructionsRow ?? collapsedVisionNode).getByLabelText(
         "Toggle vision-agent Instructions section",
       ),
     ).toBeTruthy();
@@ -285,12 +292,12 @@ describe("SpielwieseEditorCanvas node collapse sections", () => {
       screen.queryByLabelText("vision-agent How the assistant should reply"),
     ).toBeNull();
     expect(
-      within(visionNode).queryByTestId(
+      within(collapsedVisionNode).queryByTestId(
         "spielwiese-message-insert-compact-trigger",
       ),
     ).toBeNull();
-    expect(toggleButton.getAttribute("aria-pressed")).toBe("true");
-    expect(toggleButton.getAttribute("aria-label")).toBe(
+    expect(collapsedToggleButton.getAttribute("aria-pressed")).toBe("true");
+    expect(collapsedToggleButton.getAttribute("aria-label")).toBe(
       "Maximize vision-agent node sections",
     );
   });
@@ -328,21 +335,30 @@ describe("SpielwieseEditorCanvas node collapse detached user", () => {
 
     fireEvent.click(detachedUserToggle);
 
-    expect(
-      within(detachedUserSections).queryByLabelText(
-        "vision-agent User message",
-      ),
-    ).toBeNull();
-    expect(
-      within(detachedUserRow).getByLabelText(
-        "Toggle vision-agent User section",
-      ),
-    ).toBeTruthy();
-    const collapsedCompactButton = within(detachedUserRow).getByRole("button", {
-      name: "Maximize vision-agent User section",
-    });
+    const collapsedVisionNode = screen.getAllByTestId(
+      "spielwiese-agent-node",
+    )[0];
+    const collapsedDetachedUserSections = within(
+      collapsedVisionNode,
+    ).getByTestId("vision-agent-detached-user-sections");
+    const collapsedDetachedUserRow = within(
+      collapsedDetachedUserSections,
+    ).getByTestId("spielwiese-message-section-row");
 
-    expect(detachedUserRow.className).toContain("pb-[2px]");
+    expect(screen.queryByLabelText("vision-agent User message")).toBeNull();
+    expect(
+      within(collapsedDetachedUserRow).queryByRole("button", {
+        name: "Toggle vision-agent User section",
+      }),
+    ).toBeNull();
+    const collapsedCompactButton = within(collapsedDetachedUserRow).getByRole(
+      "button",
+      {
+        name: "Maximize vision-agent User section",
+      },
+    );
+
+    expect(collapsedDetachedUserRow.className).toContain("pb-[2px]");
     expect(collapsedCompactButton.getAttribute("aria-pressed")).toBe("true");
     expect(collapsedCompactButton.getAttribute("aria-label")).toBe(
       "Maximize vision-agent User section",

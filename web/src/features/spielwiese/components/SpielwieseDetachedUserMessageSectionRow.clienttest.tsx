@@ -31,4 +31,23 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
     );
     expect(detachedUserEmbeddedHeader.textContent).toContain("User message");
   });
+
+  it("uses the same white shell fill as the standard agent prompt surface", () => {
+    renderCanvas();
+
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const detachedUserFrame = within(visionNode).getByTestId(
+      "spielwiese-detached-user-content-frame",
+    );
+    const detachedUserPromptShell = within(visionNode).getByTestId(
+      "spielwiese-detached-user-prompt-shell",
+    );
+
+    expect(detachedUserFrame.className).toContain("pt-0");
+    expect(detachedUserFrame.className).toContain("pb-px");
+    expect(detachedUserFrame.className).not.toContain("bg-white");
+    expect(detachedUserFrame.className).not.toContain("pt-[6px]");
+    expect(detachedUserPromptShell.className).toContain("bg-white");
+    expect(detachedUserPromptShell.className).not.toContain("bg-[#FBFBFB]");
+  });
 });

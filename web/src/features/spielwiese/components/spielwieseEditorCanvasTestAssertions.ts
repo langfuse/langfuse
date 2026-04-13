@@ -71,20 +71,20 @@ export function expectDetachedUserRowChrome(
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
     detachedUserHeader,
+    detachedUserHeaderLeading,
     detachedUserPromptShell,
     detachedUserTextarea,
-    detachedUserToggle,
   } = getDetachedUserRowElements(detachedUserRow, detachedUserSections);
   const detachedUploadElements = getDetachedUserUploadElements(detachedUserRow);
   expectDetachedUserRowShell({
     detachedUserCompactButton,
     detachedUserContentFrame,
     detachedUserHeader,
+    detachedUserHeaderLeading,
     detachedUserPromptShell,
     detachedUserRow,
     detachedUserSections,
     detachedUserTextarea,
-    detachedUserToggle,
   });
   expectDetachedUploadTag(detachedUploadElements);
   expectDetachedDatasetTag(detachedUploadElements);
@@ -111,11 +111,11 @@ function getDetachedUserRowElements(
   const detachedUserTextarea = within(detachedUserSections).getByLabelText(
     "vision-agent User message",
   );
-  const detachedUserToggle = within(detachedUserRow).getByRole("button", {
-    name: "Toggle vision-agent User section",
-  });
   const detachedUserHeader = within(detachedUserRow).getByTestId(
     "spielwiese-detached-user-header-strip",
+  );
+  const detachedUserHeaderLeading = within(detachedUserRow).getByTestId(
+    "spielwiese-detached-user-header-leading",
   );
   const detachedUserContentFrame = within(detachedUserRow).getByTestId(
     "spielwiese-detached-user-content-frame",
@@ -139,9 +139,9 @@ function getDetachedUserRowElements(
     detachedUserEmbeddedHeader,
     detachedUserEmbeddedShell,
     detachedUserHeader,
+    detachedUserHeaderLeading,
     detachedUserPromptShell,
     detachedUserTextarea,
-    detachedUserToggle,
   };
 }
 function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
@@ -199,38 +199,18 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
 function expectDetachedUserContentHeaderSpacing(
   detachedUserContentHeader: HTMLElement,
 ) {
-  expect(detachedUserContentHeader.className).toContain("pt-[6px]");
-  expect(detachedUserContentHeader.className).toContain("pr-[6px]");
-  expect(detachedUserContentHeader.className).toContain("pb-[10px]");
-  expect(detachedUserContentHeader.className).toContain("pl-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pb-[4px]");
 }
 
-function expectDetachedUserFieldChrome({
-  detachedUserContentFrame,
-  detachedUserContentHeader,
+function expectDetachedUserEmbeddedHeaderChrome({
   detachedUserEmbeddedHeader,
   detachedUserEmbeddedShell,
-  detachedUserPromptShell,
   detachedUserSections,
-  detachedUserTextarea,
 }: {
-  detachedUserContentFrame: HTMLElement;
-  detachedUserContentHeader: HTMLElement;
   detachedUserEmbeddedHeader: HTMLElement;
   detachedUserEmbeddedShell: HTMLElement;
-  detachedUserPromptShell: HTMLElement;
   detachedUserSections: HTMLElement;
-  detachedUserTextarea: HTMLElement;
 }) {
-  expect(detachedUserContentFrame.className).toContain(
-    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
-  );
-  expect(detachedUserContentFrame.className).toContain(
-    "border-[rgba(0,0,0,0.04)]",
-  );
-  expect(detachedUserContentFrame.className).toContain("bg-[#FBFBFB]");
-  expect(detachedUserContentFrame.className).toContain("p-0");
-  expectDetachedUserContentHeaderSpacing(detachedUserContentHeader);
   expect(detachedUserEmbeddedShell.className).toContain("w-full");
   expect(detachedUserEmbeddedShell.className).toContain(
     "border-[rgba(0,0,0,0.05)]",
@@ -253,8 +233,45 @@ function expectDetachedUserFieldChrome({
       "vision-agent-user-tag-icon",
     ),
   ).toBeTruthy();
+  expect(
+    within(detachedUserSections).getAllByTestId("vision-agent-user-tag-icon"),
+  ).toHaveLength(2);
+}
+
+function expectDetachedUserFieldChrome({
+  detachedUserContentFrame,
+  detachedUserContentHeader,
+  detachedUserEmbeddedHeader,
+  detachedUserEmbeddedShell,
+  detachedUserPromptShell,
+  detachedUserSections,
+  detachedUserTextarea,
+}: {
+  detachedUserContentFrame: HTMLElement;
+  detachedUserContentHeader: HTMLElement;
+  detachedUserEmbeddedHeader: HTMLElement;
+  detachedUserEmbeddedShell: HTMLElement;
+  detachedUserPromptShell: HTMLElement;
+  detachedUserSections: HTMLElement;
+  detachedUserTextarea: HTMLElement;
+}) {
+  expect(detachedUserContentFrame.className).toContain("pt-0");
+  expect(detachedUserContentFrame.className).toContain("pb-px");
+  expect(detachedUserContentFrame.className).toContain("text-base");
+  expect(detachedUserContentFrame.className).not.toContain("border-[");
+  expect(detachedUserContentFrame.className).not.toContain("bg-white");
+  expect(detachedUserContentFrame.className).not.toContain("pt-[6px]");
+  expect(detachedUserContentFrame.className).not.toContain("pr-[6px]");
+  expect(detachedUserContentFrame.className).not.toContain("pb-[6px]");
+  expect(detachedUserContentFrame.className).not.toContain("pl-[6px]");
+  expectDetachedUserContentHeaderSpacing(detachedUserContentHeader);
+  expectDetachedUserEmbeddedHeaderChrome({
+    detachedUserEmbeddedHeader,
+    detachedUserEmbeddedShell,
+    detachedUserSections,
+  });
   expect(detachedUserPromptShell.className).toContain("w-full");
-  expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
+  expect(detachedUserPromptShell.className).toContain("bg-white");
   expect(detachedUserPromptShell.className).toContain(
     "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
   );
@@ -264,29 +281,26 @@ function expectDetachedUserFieldChrome({
   expect(detachedUserTextarea.className).toContain("min-h-6");
   expect(detachedUserTextarea.className).toContain("px-4");
   expect(detachedUserTextarea.className).toContain("py-[0.4375rem]");
-  expect(
-    within(detachedUserSections).getAllByTestId("vision-agent-user-tag-icon"),
-  ).toHaveLength(2);
 }
 
 function expectDetachedUserRowShell({
   detachedUserCompactButton,
   detachedUserContentFrame,
   detachedUserHeader,
+  detachedUserHeaderLeading,
   detachedUserPromptShell,
   detachedUserRow,
   detachedUserSections,
   detachedUserTextarea,
-  detachedUserToggle,
 }: {
   detachedUserCompactButton: HTMLElement;
   detachedUserContentFrame: HTMLElement;
   detachedUserHeader: HTMLElement | null;
+  detachedUserHeaderLeading: HTMLElement;
   detachedUserPromptShell: HTMLElement;
   detachedUserRow: HTMLElement;
   detachedUserSections: HTMLElement;
   detachedUserTextarea: HTMLElement;
-  detachedUserToggle: HTMLElement;
 }) {
   expect(detachedUserTextarea).toBeTruthy();
   expectDetachedUserShell(detachedUserSections);
@@ -294,37 +308,33 @@ function expectDetachedUserRowShell({
   expect(detachedUserRow.className).toContain(
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
-  expect(detachedUserRow.className).toContain("gap-1");
-  expect(detachedUserRow.className).toContain("px-[2px]");
-  expect(detachedUserRow.className).toContain("pt-[2px]");
-  expect(detachedUserRow.className).toContain("pb-[2px]");
+  expect(detachedUserRow.className).toContain("gap-0");
+  expect(detachedUserRow.className).toContain("px-[5px]");
+  expect(detachedUserRow.className).toContain("pt-0");
+  expect(detachedUserRow.className).toContain("pb-0");
   expect(detachedUserRow.className).not.toContain("shadow-[");
   expect(detachedUserRow.contains(detachedUserTextarea)).toBe(true);
   expect(detachedUserSections.contains(detachedUserTextarea)).toBe(true);
   expect(detachedUserContentFrame.contains(detachedUserHeader)).toBe(true);
   expect(detachedUserContentFrame.contains(detachedUserPromptShell)).toBe(true);
   expect(
-    detachedUserToggle.querySelector("[data-prefix='true']")?.className,
+    detachedUserHeaderLeading.querySelector("[data-prefix='true']")?.className,
   ).toContain("h-full");
   expect(
-    detachedUserToggle.querySelector("[data-prefix='true']")?.className,
+    detachedUserHeaderLeading.querySelector("[data-prefix='true']")?.className,
   ).toContain("w-6");
   expect(
-    detachedUserToggle.querySelector("[data-prefix='true']")?.className,
+    detachedUserHeaderLeading.querySelector("[data-prefix='true']")?.className,
   ).toContain("border-r");
-  expect(detachedUserToggle.className).toContain("rounded-[10px]");
-  expect(detachedUserToggle.className).toContain("border-[rgba(0,0,0,0.08)]");
-  expect(detachedUserToggle.className).toContain("bg-background");
-  expect(detachedUserToggle.className).toContain("ring-1");
-  expect(detachedUserToggle.className).not.toContain("bg-[linear-gradient");
-  expect(detachedUserCompactButton.className).toContain("h-7");
-  expect(detachedUserCompactButton.className).toContain("w-7");
-  expect(detachedUserCompactButton.getAttribute("aria-pressed")).toBe("false");
+  expect(detachedUserHeaderLeading.textContent).toContain("User");
   expect(
-    detachedUserHeader?.lastElementChild?.lastElementChild?.contains(
-      detachedUserCompactButton,
-    ),
-  ).toBe(true);
+    within(detachedUserHeaderLeading).queryByRole("button", {
+      name: "Toggle vision-agent User section",
+    }),
+  ).toBeNull();
+  expect(detachedUserCompactButton.className).toContain("size-7");
+  expect(detachedUserCompactButton.getAttribute("aria-pressed")).toBe("false");
+  expect(detachedUserHeader?.contains(detachedUserCompactButton)).toBe(true);
   expect(detachedUserHeader?.className).toContain("justify-between");
   expect(detachedUserHeader?.textContent).toContain("User");
 }

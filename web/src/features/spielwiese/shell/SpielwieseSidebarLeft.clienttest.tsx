@@ -50,17 +50,18 @@ function expectPrimarySidebarButtonChrome(label: string) {
   const className = control?.className ?? "";
 
   [
-    "h-8",
-    "rounded-[10px]",
-    "px-1.5",
+    "h-7",
+    "rounded-[9px]",
+    "pl-2",
+    "pr-1",
     "text-[0.875rem]",
     "text-[#242529]",
-    "bg-[rgba(255,255,255,0.38)]",
-    "border-[rgba(0,0,0,0.04)]",
-    "hover:bg-[rgba(255,255,255,0.62)]",
+    "hover:bg-black/[0.06]",
   ].forEach((token) => expect(className).toContain(token));
   expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
-  expect(control?.querySelector("[data-sidebar-icon-shell]")).toBeTruthy();
+  expect(control?.querySelector("[data-sidebar-icon-shell]")).toBeNull();
+  expect(className).not.toContain("border-[rgba(0,0,0,0.04)]");
+  expect(className).not.toContain("bg-[rgba(255,255,255,0.38)]");
 }
 
 function expectSidebarSectionHeaderActionChrome(label: string) {
@@ -146,6 +147,7 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectBorderlessSidebarChrome();
     expectSidebarHeaderChrome();
     expectPrimarySidebarButtonChrome("Home");
+    expectPrimarySidebarButtonChrome("Search");
     expectPrimarySidebarButtonChrome("Library");
     expectSidebarGroupRowChrome("Example Evaluators");
     expectSidebarSectionHeaderActionChrome("Files");

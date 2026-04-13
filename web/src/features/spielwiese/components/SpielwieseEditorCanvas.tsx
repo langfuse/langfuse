@@ -4,11 +4,13 @@ import { useSpielwieseEditableCanvas } from "./useSpielwieseEditableCanvas";
 
 type SpielwieseEditorCanvasProps = {
   canvas: SpielwieseDashboardVM["canvas"];
+  onCloseSidePanels?: () => void;
   onDetectedVariablesChange?: (labels: string[]) => void;
 };
 
 export function SpielwieseEditorCanvas({
   canvas,
+  onCloseSidePanels,
   onDetectedVariablesChange,
 }: SpielwieseEditorCanvasProps) {
   const editableCanvas = useSpielwieseEditableCanvas(
@@ -26,6 +28,7 @@ export function SpielwieseEditorCanvas({
         onNodesReplace={editableCanvas.onNodesReplace}
         onAgentNodeArchive={editableCanvas.onAgentNodeArchive}
         onAgentNodeInsert={editableCanvas.onAgentNodeInsert}
+        onCloseSidePanels={onCloseSidePanels}
         nodes={editableCanvas.nodes}
         onPromptSectionChange={editableCanvas.onPromptSectionChange}
         onPromptSectionDelete={editableCanvas.onPromptSectionDelete}

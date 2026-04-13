@@ -34,7 +34,7 @@ function FinderPanelBackground({
 }) {
   return (
     <div
-      className="border-border/70 bg-background absolute -inset-px origin-top-left rounded-[1.25rem] border shadow-[0_20px_48px_-24px_rgba(15,23,42,0.45)]"
+      className="absolute -inset-px origin-top-left rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-[#F1F2F2] shadow-[0_20px_48px_-24px_rgba(15,23,42,0.32),0_10px_18px_-10px_rgba(15,23,42,0.14)]"
       data-bg-layer="true"
       ref={backgroundRef}
     />
@@ -60,19 +60,20 @@ function HeaderFinderSearchField({
 }) {
   return (
     <label
-      className="border-border/70 relative flex items-center border-b"
+      className="relative flex items-center gap-2 border-b border-black/5 px-2 py-2"
+      data-testid="spielwiese-header-finder-search-field"
       ref={searchFieldRef}
     >
       <span
-        className="grid size-12 shrink-0 place-content-center"
+        className="flex size-7 shrink-0 items-center justify-center rounded-[9px] border border-black/5 bg-[#F3F3F4]"
         data-search-icon="true"
       >
-        <Search className="text-foreground size-4" />
+        <Search className="text-foreground/62 size-[0.9375rem]" />
       </span>
       <Input
         aria-label="Find in workspace"
         autoFocus
-        className="h-12 flex-1 border-0 bg-transparent px-0 py-4 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0"
+        className="placeholder:text-foreground/36 h-7 flex-1 border-0 bg-transparent px-0 py-0 text-[0.875rem] leading-5 shadow-none focus-visible:border-transparent focus-visible:ring-0"
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={onInputKeyDown}
         placeholder="Find…"
@@ -81,12 +82,16 @@ function HeaderFinderSearchField({
       />
       <button
         aria-label="Close finder"
-        className="grid size-12 shrink-0 place-content-center bg-transparent outline-none"
+        className="text-foreground/56 inline-flex h-7 shrink-0 items-center justify-center rounded-[9px] px-2 text-[0.75rem] transition-colors outline-none hover:bg-black/4 focus-visible:bg-black/4"
         onClick={onClose}
         type="button"
       >
         <span className="hidden sm:block">
-          <FinderShortcut label="Esc" shortcutRef={shortcutRef} />
+          <FinderShortcut
+            className="text-foreground/44 border-black/6 bg-[#F8F8F8] shadow-none"
+            label="Esc"
+            shortcutRef={shortcutRef}
+          />
         </span>
         <X className="text-foreground size-4 sm:hidden" />
       </button>
@@ -112,7 +117,7 @@ function FinderPanelFrame({
       className={
         variant === "sidebar"
           ? "relative z-10 flex w-full max-w-none flex-col"
-          : "relative z-10 flex w-full max-w-[24rem] flex-col self-start"
+          : "relative z-10 flex w-full max-w-[26rem] flex-col self-start"
       }
       data-testid="spielwiese-header-finder-panel"
       id="spielwiese-header-finder-panel"
@@ -131,7 +136,9 @@ function FinderPanelFrame({
       role="dialog"
     >
       <FinderPanelBackground backgroundRef={backgroundRef} />
-      {children}
+      <div className="relative overflow-hidden rounded-[1.05rem] border border-black/5 bg-[rgba(251,251,251,0.96)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+        {children}
+      </div>
     </div>
   );
 }

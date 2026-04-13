@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Eye, Maximize2, Minimize2 } from "lucide-react";
+import { Archive, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "../ui/button";
 import {
@@ -42,13 +42,14 @@ export function SpielwieseNodeActionButtons({
   isCompact,
   isPreviewFocused,
   onArchiveNode,
-  onPreviewHoverEnd = () => {},
-  onPreviewHoverStart = () => {},
+  onPreviewHoverEnd: _onPreviewHoverEnd = () => {},
+  onPreviewHoverStart: _onPreviewHoverStart = () => {},
   onTogglePreviewFocus = () => {},
   onToggleCompact,
   previewButtonLabel = "Preview node",
 }: SpielwieseNodeActionButtonsProps) {
   const HeaderToggleIcon = isCompact ? Maximize2 : Minimize2;
+  const PreviewToggleIcon = isPreviewFocused ? EyeOff : Eye;
 
   return (
     <div
@@ -76,15 +77,9 @@ export function SpielwieseNodeActionButtons({
         size="icon-sm"
         type="button"
         variant="ghost"
-        onBlur={onPreviewHoverEnd}
         onClick={onTogglePreviewFocus}
-        onFocus={onPreviewHoverStart}
-        onMouseEnter={onPreviewHoverStart}
-        onMouseLeave={onPreviewHoverEnd}
-        onPointerEnter={onPreviewHoverStart}
-        onPointerLeave={onPreviewHoverEnd}
       >
-        <Eye className="size-3.5" />
+        <PreviewToggleIcon className="size-3.5" />
       </Button>
       <Button
         aria-label={archiveButtonLabel}
@@ -100,7 +95,6 @@ export function SpielwieseNodeActionButtons({
   );
 }
 
-// eslint-disable-next-line max-lines-per-function
 export function SpielwieseAgentNodeHeaderActions({
   isCompact,
   isPreviewFocused,
@@ -114,6 +108,9 @@ export function SpielwieseAgentNodeHeaderActions({
   const headerToggleLabel = `${
     isCompact ? "Maximize" : "Minimize"
   } ${nodeId} node sections`;
+  const previewToggleLabel = isPreviewFocused
+    ? `Close ${nodeId} focus mode`
+    : `Preview ${nodeId} node`;
 
   return (
     <SpielwieseNodeActionButtons
@@ -127,7 +124,7 @@ export function SpielwieseAgentNodeHeaderActions({
       onPreviewHoverStart={onPreviewHoverStart}
       onToggleCompact={onToggleCompact}
       onTogglePreviewFocus={onTogglePreviewFocus}
-      previewButtonLabel={`Preview ${nodeId} node`}
+      previewButtonLabel={previewToggleLabel}
     />
   );
 }

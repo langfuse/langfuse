@@ -8,6 +8,9 @@ function renderVisionNodeHeader() {
   render(<SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />);
 
   const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+  const headerActions = within(visionNode).getByTestId(
+    "spielwiese-agent-node-header-actions",
+  );
   const titleInput = within(visionNode).getByLabelText("vision-agent title");
   const titleControl = within(visionNode).getByTestId(
     "spielwiese-agent-title-control",
@@ -28,13 +31,13 @@ function renderVisionNodeHeader() {
   const modelButton = within(visionNode).getByRole("button", {
     name: "vision-agent Model",
   });
-  const previewButton = within(visionNode).getByRole("button", {
+  const previewButton = within(headerActions).getByRole("button", {
     name: "Preview vision-agent node",
   });
-  const archiveButton = within(visionNode).getByRole("button", {
+  const archiveButton = within(headerActions).getByRole("button", {
     name: "Archive vision-agent node",
   });
-  const toggleButton = within(visionNode).getByRole("button", {
+  const toggleButton = within(headerActions).getByRole("button", {
     name: "Minimize vision-agent node sections",
   });
   const toolButton = within(visionNode).getByRole("button", {

@@ -8,15 +8,16 @@ import { SpielwieseDetachedUserInlineAccessories } from "./SpielwieseDetachedUse
 import { MessageSectionChipButton } from "./SpielwieseMessageSectionChip";
 import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
+  SpielwieseEmbeddedPromptFrame,
+  getMessageKind,
+  getMessageToneClassNames,
+  spielwieseEmbeddedPromptInnerRadiusClassName,
+  spielwieseEmbeddedSingleLineTextareaClassName,
+} from "./SpielwieseMessageSectionBody";
+import {
   getMessageKind,
   getMessageToneClassNames,
 } from "./spielwieseMessageTone";
-import {
-  spielwieseEmbeddedPromptInnerRadiusClassName,
-  spielwieseEmbeddedPromptRadiusClassName,
-  spielwieseEmbeddedPromptRadiusVariablesClassName,
-  spielwieseEmbeddedSingleLineTextareaClassName,
-} from "./SpielwieseMessageSectionBody";
 
 function getMessageSectionRowRadiusClassName(sectionId: string) {
   return getMessageKind(sectionId) === "user"
@@ -70,66 +71,52 @@ function DetachedUserInputShell({
 
   return (
     <div
-      className={cn(
-        toneClassNames.body,
-        "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border border-[rgba(0,0,0,0.04)] bg-[#FBFBFB] p-0",
-      )}
+      className={cn("pt-0 pb-px text-base", toneClassNames.body)}
       data-testid="spielwiese-detached-user-content-frame"
     >
       {header ? (
         <div
-          className="pt-[6px] pr-[6px] pb-[10px] pl-[6px]"
+          className="pb-[4px]"
           data-testid="spielwiese-detached-user-content-header"
         >
           {header}
         </div>
       ) : null}
-      <div
-        className={cn(
-          "flex min-h-0 w-full min-w-0 flex-col items-stretch gap-px overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
-          spielwieseEmbeddedPromptRadiusVariablesClassName,
-          spielwieseEmbeddedPromptRadiusClassName,
-        )}
-        data-testid="spielwiese-detached-user-embedded-shell"
-      >
-        <div className="pt-px pb-px">
+      <SpielwieseEmbeddedPromptFrame
+        bodyClassName="p-0"
+        header={
           <DetachedUserEmbeddedHeader
             nodeId={nodeId}
             section={section}
             sectionLabel={detachedUserPromptLabel}
           />
-        </div>
+        }
+        promptShellTestId="spielwiese-detached-user-prompt-shell"
+        shellTestId="spielwiese-detached-user-embedded-shell"
+      >
         <label
           className="block min-w-0"
           data-testid="spielwiese-detached-user-input-shell"
         >
-          <div
+          <SpielwieseMustacheTextarea
+            aria-label={`${nodeId} ${detachedUserPromptLabel}`}
             className={cn(
-              "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
-              spielwieseEmbeddedPromptInnerRadiusClassName,
+              spielwieseEmbeddedSingleLineTextareaClassName,
+              toneClassNames.field,
+              "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
             )}
-            data-testid="spielwiese-detached-user-prompt-shell"
-          >
-            <SpielwieseMustacheTextarea
-              aria-label={`${nodeId} ${detachedUserPromptLabel}`}
-              className={cn(
-                spielwieseEmbeddedSingleLineTextareaClassName,
-                toneClassNames.field,
-                "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
-              )}
-              liveInline
-              name={`${nodeId}-${section.id}`}
-              onChange={(event) =>
-                onPromptSectionChange(nodeId, section.id, event.target.value)
-              }
-              placeholder="Type the user's message"
-              rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
-              rows={1}
-              value={section.value}
-            />
-          </div>
+            liveInline
+            name={`${nodeId}-${section.id}`}
+            onChange={(event) =>
+              onPromptSectionChange(nodeId, section.id, event.target.value)
+            }
+            placeholder="Type the user's message"
+            rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
+            rows={1}
+            value={section.value}
+          />
         </label>
-      </div>
+      </SpielwieseEmbeddedPromptFrame>
     </div>
   );
 }
@@ -170,27 +157,29 @@ function DetachedUserEmbeddedHeader({
 function DetachedUserHeaderLeading({
   isCollapsed,
   nodeId,
-  onToggleCollapse,
   section,
   sectionLabel,
 }: {
   isCollapsed: boolean;
   nodeId: string;
-  onToggleCollapse: () => void;
   section: SpielwieseAgentNodeVM["promptSections"][number];
   sectionLabel: string;
 }) {
   const toneClassNames = getMessageToneClassNames(section.id);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-visible">
+    <div
+      className="flex min-w-0 flex-1 items-center gap-1 overflow-visible"
+      data-testid="spielwiese-detached-user-header-leading"
+    >
       <MessageSectionChipButton
+        interactive={false}
         isCollapsed={isCollapsed}
         label={sectionLabel}
         leadingSurface="plain"
         messageKind="user"
         nodeId={nodeId}
-        onToggleCollapse={onToggleCollapse}
+        onToggleCollapse={() => {}}
         sectionId={section.id}
         toneClassNames={toneClassNames}
       />
@@ -242,7 +231,6 @@ function DetachedUserHeaderStrip({
       <DetachedUserHeaderLeading
         isCollapsed={isCollapsed}
         nodeId={nodeId}
-        onToggleCollapse={onToggleCollapse}
         section={section}
         sectionLabel={sectionLabel}
       />
@@ -303,7 +291,7 @@ export function SpielwieseDetachedUserMessageSectionRow({
   return (
     <div
       className={cn(
-        "group flex w-full flex-col gap-1 overflow-visible px-[2px] pt-[2px] pb-[2px]",
+        "group flex w-full flex-col gap-0 overflow-visible px-[5px] pt-0 pb-0",
         getMessageSectionRowRadiusClassName(section.id),
       )}
       data-section-id={section.id}

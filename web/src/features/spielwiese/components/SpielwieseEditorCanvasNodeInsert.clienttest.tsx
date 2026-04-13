@@ -39,11 +39,12 @@ function expectExternalInsertRowChrome({
 
   expect(textPicker.getAttribute("data-state")).toBe("closed");
   expect(externalRow.className).toContain("w-fit");
-  expect(externalRow.className).toContain("pl-[18px]");
-  expect(externalRow.className).toContain("ml-[18px]");
+  expect(externalRow.className).toContain("ml-[8px]");
   expect(externalRow.className).toContain("mt-[8px]");
   expect(externalRow.className).toContain("opacity-100");
   expect(externalRow.className).toContain("pointer-events-auto");
+  expect(externalRow.className).not.toContain("pl-[18px]");
+  expect(externalRow.className).not.toContain("ml-[18px]");
   expect(externalRow.className).not.toContain("opacity-0");
   expect(externalRow.className).not.toContain("pointer-events-none");
   expect(externalRow.className).not.toContain("group-hover/agent-node");

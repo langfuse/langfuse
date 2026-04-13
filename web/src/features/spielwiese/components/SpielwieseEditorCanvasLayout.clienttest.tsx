@@ -13,8 +13,14 @@ function getLayoutShellElements() {
   const editorModeHeader = screen.getByTestId(
     "spielwiese-canvas-editor-mode-header",
   );
+  const editorNodeInsertRow = screen.getByTestId(
+    "spielwiese-agent-node-external-insert-row",
+  );
 
   return {
+    editorActions: within(editorModeHeader).getByTestId(
+      "spielwiese-canvas-pane-actions",
+    ),
     editorModeHeader,
     editorModeToggle: within(editorModeHeader).getByTestId(
       "spielwiese-canvas-editor-mode-toggle",
@@ -22,6 +28,7 @@ function getLayoutShellElements() {
     editorNodeInsertFooter: screen.getByTestId(
       "spielwiese-agent-node-insert-footer",
     ),
+    editorNodeInsertRow,
     editorNodeStack: screen.getByTestId("spielwiese-agent-node-stack"),
     editorPane: screen.getByTestId("spielwiese-editor-canvas-pane"),
     editorPaneShell: screen.getByTestId("spielwiese-editor-canvas-pane-shell"),
@@ -77,12 +84,17 @@ function expectLayoutShellChrome({
   );
   expect(editorPaneSurface.className).toContain("min-h-full");
   expect(editorPaneSurface.className).toContain("flex-1");
+  expect(editorPaneSurface.className).not.toContain("px-2");
+  expect(editorPaneSurface.className).not.toContain("pt-0");
+  expect(editorPaneSurface.className).not.toContain("pb-[6px]");
 }
 
 function expectLayoutAccessories({
+  editorActions,
   editorModeHeader,
   editorModeToggle,
   editorNodeInsertFooter,
+  editorNodeInsertRow,
   editorNodeStack,
   nodes,
   resizeHandle,
@@ -90,7 +102,14 @@ function expectLayoutAccessories({
 }: ReturnType<typeof getLayoutShellElements>) {
   expect(editorModeHeader.className).toContain("pt-2");
   expect(editorModeHeader.className).toContain("px-2");
-  expect(editorModeHeader.className).toContain("justify-end");
+  expect(editorModeHeader.className).toContain("pb-1");
+  expect(editorModeHeader.className).toContain("justify-between");
+  expect(editorModeHeader.className).not.toContain("-mx-2");
+  expect(editorModeHeader.className).not.toContain("w-[calc(100%+1rem)]");
+  expect(editorModeHeader.firstElementChild).toBe(editorActions);
+  expect(editorModeHeader.lastElementChild).toBe(editorModeToggle);
+  expect(editorModeHeader.className).not.toContain("border-b");
+  expect(editorModeHeader.className).not.toContain("backdrop-blur");
   expect(editorModeToggle.className).toContain("rounded-[9px]");
   expect(editorModeToggle.className).toContain("bg-[#F7F7F7]");
   expect(editorNodeStack.className).not.toContain("overflow-y-auto");
@@ -98,6 +117,9 @@ function expectLayoutAccessories({
   expect(editorNodeStack.className).toContain("pb-2");
   expect(editorNodeInsertFooter.className).toContain("flex-none");
   expect(editorNodeInsertFooter.className).toContain("pb-2");
+  expect(editorNodeInsertRow.className).toContain("ml-[8px]");
+  expect(editorNodeInsertRow.className).not.toContain("pl-[18px]");
+  expect(editorNodeInsertRow.className).not.toContain("ml-[18px]");
   expect(simulationPane.className).toContain("px-0");
   expect(simulationPane.className).toContain("pt-1");
   expect(simulationPane.className).toContain("pb-0");

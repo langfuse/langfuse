@@ -1,31 +1,17 @@
 /* eslint-disable max-lines-per-function */
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
-import { ChevronRight, History, Play } from "lucide-react";
+import { History, Play } from "lucide-react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Button } from "../ui/button";
-import {
-  SpielwiesePromptDeckCardHeaderFrame,
-  SpielwiesePromptDeckCardShell,
-} from "./SpielwiesePromptDeckCardChrome";
-import {
-  getThinkingCardMeta,
-  getThinkingSummary,
-  PlaygroundThinkingDetailCard,
-} from "./SpielwiesePlaygroundThinkingCard";
-import { PlaygroundFlowNodeHeader } from "./SpielwiesePlaygroundFlowNodeChrome";
-import {
-  getPlaygroundFlowPreview,
-  type PlaygroundFlowPreviewVM,
-  SpielwiesePlaygroundFlowPromptPreview,
-} from "./SpielwiesePlaygroundFlowPromptPreview";
+import type { PlaygroundFlowPreviewVM } from "./SpielwiesePlaygroundFlowPromptPreview";
 import {
   adanaKebabPreviewLines,
+  createPendingSimulationPreview,
   createSimulationPreview,
   getSimulationTargetNode,
-  simulatedThinkingMeta,
-  simulatedThinkingSummary,
 } from "./spielwiesePromptSimulationRun";
+import { PlaygroundFlowNode } from "./spielwiesePromptSimulationFlowNode";
 import {
   spielwieseHeaderButtonAccentClassName,
   spielwieseHeaderButtonBaseClassName,
@@ -33,114 +19,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 const playgroundActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex h-6 items-center gap-1.25 rounded-[10px] py-0 pr-2 pl-1.5 text-[11px] font-medium`;
-
-function PlaygroundFlowCardShell({
-  activeTagId,
-  isThinkingDetailOpen,
-  isThinking,
-  node,
-  onThinkingCardClick,
-  preview,
-  thinkingMeta,
-  thinkingSummary,
-}: {
-  activeTagId: string;
-  isThinkingDetailOpen: boolean;
-  isThinking: boolean;
-  node: SpielwieseAgentNodeVM;
-  onThinkingCardClick: () => void;
-  preview: ReturnType<typeof getPlaygroundFlowPreview>;
-  thinkingMeta: ReturnType<typeof getThinkingCardMeta>;
-  thinkingSummary: string;
-}) {
-  return (
-    <div
-      className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]"
-      data-testid="spielwiese-playground-flow-node"
-    >
-      <PlaygroundFlowNodeHeader
-        activeTagId={activeTagId}
-        isThinkingDetailOpen={isThinkingDetailOpen}
-        isThinking={isThinking}
-        node={node}
-        thinkingMeta={thinkingMeta}
-        onThinkingCardClick={onThinkingCardClick}
-        thinkingSummary={thinkingSummary}
-      />
-      {preview ? (
-        <div
-          className="w-full min-w-0 px-[5px]"
-          data-testid="spielwiese-playground-flow-preview-shell"
-        >
-          <SpielwiesePlaygroundFlowPromptPreview preview={preview} />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PlaygroundFlowNode({
-  isThinkingDetailOpen,
-  isLast,
-  isThinking,
-  node,
-  onThinkingCardClick,
-  runtimePreview,
-}: {
-  isThinkingDetailOpen: boolean;
-  isLast: boolean;
-  isThinking: boolean;
-  node: SpielwieseAgentNodeVM;
-  onThinkingCardClick: () => void;
-  runtimePreview?: PlaygroundFlowPreviewVM;
-}) {
-  const preview = runtimePreview ?? getPlaygroundFlowPreview(node);
-  const thinkingMeta = node.playgroundThinking
-    ? getThinkingCardMeta(node)
-    : simulatedThinkingMeta;
-  const thinkingSummary = node.playgroundThinking
-    ? getThinkingSummary(node)
-    : simulatedThinkingSummary;
-  const activeTagId =
-    (node.layout ?? "composite") === "user-only"
-      ? `${node.id}-user`
-      : `${node.id}-agent`;
-
-  return (
-    <>
-      <SpielwiesePromptDeckCardShell
-        className="min-w-full shrink-0 [--node-shell-radius:18px]"
-        data-testid="spielwiese-playground-flow-step"
-      >
-        <SpielwiesePromptDeckCardHeaderFrame
-          data-testid="spielwiese-playground-flow-card-frame"
-          overlap={false}
-        >
-          <PlaygroundFlowCardShell
-            activeTagId={activeTagId}
-            isThinkingDetailOpen={isThinkingDetailOpen}
-            isThinking={isThinking}
-            node={node}
-            onThinkingCardClick={onThinkingCardClick}
-            preview={preview}
-            thinkingMeta={thinkingMeta}
-            thinkingSummary={thinkingSummary}
-          />
-        </SpielwiesePromptDeckCardHeaderFrame>
-        {node.playgroundThinking && isThinkingDetailOpen ? (
-          <PlaygroundThinkingDetailCard thinking={node.playgroundThinking} />
-        ) : null}
-      </SpielwiesePromptDeckCardShell>
-      {isLast ? null : (
-        <ChevronRight
-          aria-hidden="true"
-          className="text-foreground/28 size-3 shrink-0 stroke-[2.2px]"
-          data-testid="spielwiese-playground-flow-chevron"
-        />
-      )}
-    </>
-  );
-}
 
 function PlaygroundSurface({
   headerAccessory,
@@ -195,7 +73,7 @@ function PlaygroundSurface({
       targetNode
         ? {
             ...currentValue,
-            [targetNode.id]: undefined,
+            [targetNode.id]: createPendingSimulationPreview(targetNode),
           }
         : currentValue,
     );
@@ -221,6 +99,9 @@ function PlaygroundSurface({
             [targetNode.id]: createSimulationPreview(
               targetNode,
               adanaKebabPreviewLines.slice(0, index + 1).join("\n"),
+              index === adanaKebabPreviewLines.length - 1
+                ? "settled"
+                : "streaming",
             ),
           }));
         },
@@ -247,11 +128,11 @@ function PlaygroundSurface({
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div
-          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-4 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
           data-testid="spielwiese-playground-terminal-surface"
         >
           <div
-            className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+            className="sticky top-0 z-10 -mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-2 pt-2 pb-1 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
             data-testid="spielwiese-playground-header"
           >
             {headerAccessory ? (

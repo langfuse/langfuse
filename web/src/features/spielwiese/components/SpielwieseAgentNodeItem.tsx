@@ -145,7 +145,9 @@ function AgentNodeDecks({
       {nodeLayout !== "agent-only" ? (
         <AgentNodeDetachedUserDeck
           isCompact={isCompact}
-          isPreviewFocused={nodeLayout === "user-only" ? false : isPreviewFocused}
+          isPreviewFocused={
+            nodeLayout === "user-only" ? false : isPreviewFocused
+          }
           node={node}
           onAgentNodeArchive={onAgentNodeArchive}
           onPreviewHoverEnd={

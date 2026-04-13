@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
@@ -156,6 +157,53 @@ function createAgentNodeCard(
   return <SpielwiesePrimaryAgentNodeCard {...sharedCardProps} cardTestId={cardTestId} />;
 }
 
+function getAgentNodeCardDeckSharedProps({
+  isCompact,
+  isPreviewFocused,
+  modelSetting,
+  node,
+  onAgentNodeArchive,
+  onPreviewHoverEnd,
+  onPreviewHoverStart,
+  onPromptSectionChange,
+  onPromptSectionDelete,
+  onPromptSectionInsert,
+  onPromptSectionMove,
+  onSettingValueChange,
+  onToggleCompact,
+  onTogglePreviewFocus,
+  onTitleChange,
+  toolOptions,
+}: Omit<
+  SpielwieseAgentNodeCardDeckProps,
+  | "activeView"
+  | "areNavButtonsVisible"
+  | "cardTestId"
+  | "cardViewportClassName"
+  | "cardViewportTransitionState"
+  | "onShowPrimary"
+  | "onShowSecondary"
+>) {
+  return {
+    isCompact,
+    isPreviewFocused,
+    modelSetting,
+    node,
+    onAgentNodeArchive,
+    onPreviewHoverEnd,
+    onPreviewHoverStart,
+    onPromptSectionChange,
+    onPromptSectionDelete,
+    onPromptSectionInsert,
+    onPromptSectionMove,
+    onSettingValueChange,
+    onTogglePreviewFocus,
+    onTitleChange,
+    onToggleCompact,
+    toolOptions,
+  };
+}
+
 // eslint-disable-next-line max-lines-per-function
 export function SpielwiesePrimaryAgentNodeCard({
   cardTestId = "spielwiese-agent-node-card",
@@ -202,7 +250,10 @@ export function SpielwiesePrimaryAgentNodeCard({
   };
   return (
     <SpielwiesePromptDeckCardShell data-testid={cardTestId}>
-      <SpielwiesePromptDeckCardHeaderFrame data-testid="spielwiese-agent-node-header-frame">
+      <SpielwiesePromptDeckCardHeaderFrame
+        data-testid="spielwiese-agent-node-header-frame"
+        overlap={!isCompact}
+      >
         <SpielwieseAgentNodeHeader {...headerProps}>
           {/* prettier-ignore */}
           <PrimaryAgentSystemPromptSections promptSectionProps={promptSectionProps} />
@@ -223,6 +274,8 @@ export function SpielwiesePrimaryAgentNodeCard({
 type SpielwieseAgentNodeCardDeckProps = SpielwiesePrimaryAgentNodeCardProps & {
   activeView: "primary" | "secondary";
   areNavButtonsVisible: boolean;
+  cardViewportClassName?: string;
+  cardViewportTransitionState?: string;
   isPreviewFocused: boolean;
   onPreviewHoverEnd: () => void;
   onPreviewHoverStart: () => void;
@@ -231,10 +284,13 @@ type SpielwieseAgentNodeCardDeckProps = SpielwiesePrimaryAgentNodeCardProps & {
   onTogglePreviewFocus: () => void;
 };
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseAgentNodeCardDeck({
   activeView,
   areNavButtonsVisible,
   cardTestId,
+  cardViewportClassName,
+  cardViewportTransitionState,
   isCompact,
   isPreviewFocused,
   modelSetting,
@@ -254,7 +310,7 @@ export function SpielwieseAgentNodeCardDeck({
   onToggleCompact,
   toolOptions,
 }: SpielwieseAgentNodeCardDeckProps) {
-  const sharedCardProps = {
+  const sharedCardProps = getAgentNodeCardDeckSharedProps({
     isCompact,
     isPreviewFocused,
     modelSetting,
@@ -271,7 +327,7 @@ export function SpielwieseAgentNodeCardDeck({
     onTitleChange,
     onToggleCompact,
     toolOptions,
-  };
+  });
   const primaryCard = createAgentNodeCard(cardTestId, sharedCardProps);
   const secondaryCard = createAgentNodeCard(
     "spielwiese-agent-node-secondary-card",
@@ -284,6 +340,8 @@ export function SpielwieseAgentNodeCardDeck({
       nodeId={node.id}
       primaryCard={primaryCard}
       secondaryCard={secondaryCard}
+      viewportClassName={cardViewportClassName}
+      viewportTransitionState={cardViewportTransitionState}
       onShowPrimary={onShowPrimary}
       onShowSecondary={onShowSecondary}
     />

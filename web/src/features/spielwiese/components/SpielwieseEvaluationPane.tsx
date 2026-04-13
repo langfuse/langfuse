@@ -91,7 +91,7 @@ function EvaluationPaneHeader({
 }) {
   return (
     <div
-      className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-3 pr-3 pb-3 pl-[13px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+      className="sticky top-0 z-10 -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-2 pt-3 pb-3 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
       data-testid="spielwiese-evaluation-header-bar"
     >
       {headerAccessory ? (
@@ -182,7 +182,7 @@ export function SpielwieseEvaluationPane({
         data-testid="spielwiese-evaluation-pane-shell"
       >
         <div
-          className="bg-background relative flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[var(--canvas-pane-inner-radius)] px-4 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+          className="bg-background relative flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
           data-testid="spielwiese-evaluation-pane-surface"
           ref={shellRef}
         >

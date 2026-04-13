@@ -161,6 +161,7 @@ function CanvasPaneMainPanel({
   onAgentNodeArchive,
   onNodesReplace,
   onAgentNodeInsert,
+  onCloseSidePanels,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
@@ -181,6 +182,7 @@ function CanvasPaneMainPanel({
         onAgentNodeArchive={onAgentNodeArchive}
         onNodesReplace={onNodesReplace}
         onAgentNodeInsert={onAgentNodeInsert}
+        onCloseSidePanels={onCloseSidePanels}
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}
         onPromptSectionChange={onPromptSectionChange}
@@ -231,12 +233,14 @@ function CanvasPaneBottomPanel({
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseCanvasPaneStack({
   insertAnchorNodeId,
   nodes,
   onAgentNodeArchive,
   onNodesReplace,
   onAgentNodeInsert,
+  onCloseSidePanels,
   onPromptSectionDelete,
   onPromptSectionInsert,
   onPromptSectionChange,
@@ -269,6 +273,7 @@ export function SpielwieseCanvasPaneStack({
         onAgentNodeArchive={onAgentNodeArchive}
         onNodesReplace={onNodesReplace}
         onAgentNodeInsert={onAgentNodeInsert}
+        onCloseSidePanels={onCloseSidePanels}
         onPromptSectionChange={onPromptSectionChange}
         onPromptSectionDelete={onPromptSectionDelete}
         onPromptSectionInsert={onPromptSectionInsert}

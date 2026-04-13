@@ -258,6 +258,7 @@ function renderPromptSectionRows({
   ));
 }
 
+// eslint-disable-next-line complexity
 export function SpielwieseAgentNodePromptSections({
   className,
   includeKinds,

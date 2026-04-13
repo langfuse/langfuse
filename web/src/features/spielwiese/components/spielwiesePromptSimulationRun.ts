@@ -47,11 +47,19 @@ export function getSimulationTargetNode(
 export function createSimulationPreview(
   node: SpielwieseAgentNodeVM,
   value: string,
+  state: PlaygroundFlowPreviewVM["state"] = "streaming",
 ): PlaygroundFlowPreviewVM {
   return {
     format: "json",
     label: "Answer",
     sectionId: (node.layout ?? "composite") === "user-only" ? "user" : "system",
+    state,
     value,
   };
+}
+
+export function createPendingSimulationPreview(
+  node: SpielwieseAgentNodeVM,
+): PlaygroundFlowPreviewVM {
+  return createSimulationPreview(node, "", "streaming");
 }
