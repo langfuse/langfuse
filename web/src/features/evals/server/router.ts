@@ -60,6 +60,14 @@ import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
+import {
+  getMockEvaluatorById,
+  getMockEvaluatorCosts,
+  getMockEvaluatorExecutionCounts,
+  getMockEvaluators,
+  getMockEvalCounts,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -246,6 +254,10 @@ export const evalRouter = createTRPCRouter({
   counts: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockEvalCounts(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -301,6 +313,10 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockEvaluators(input.projectId, input);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -409,6 +425,10 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockEvaluatorById(input.projectId, input.id);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -448,6 +468,13 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockEvaluatorExecutionCounts(
+          input.projectId,
+          input.evaluatorIds,
+        );
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -479,6 +506,10 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockEvaluatorCosts(input.projectId, input.evaluatorIds);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,

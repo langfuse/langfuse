@@ -73,6 +73,13 @@ import {
 } from "@/src/features/datasets/server/actions/createDataset";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { v4 } from "uuid";
+import {
+  getMockDatasetMeta,
+  getMockDatasetMetrics,
+  getMockDatasets,
+  getMockDatasetsHasAny,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -278,6 +285,10 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockDatasetsHasAny(input.projectId);
+      }
+
       const dataset = await ctx.prisma.dataset.findFirst({
         where: {
           projectId: input.projectId,
@@ -291,6 +302,10 @@ export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockDatasetMeta(input.projectId);
+      }
+
       return ctx.prisma.dataset.findMany({
         where: {
           projectId: input.projectId,
@@ -313,6 +328,10 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockDatasets(input.projectId, input);
+      }
+
       // pathFilter: SQL WHERE clause to filter datasets by folder (e.g., "AND d.name LIKE 'folder/%'")
       const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
@@ -370,6 +389,10 @@ export const datasetRouter = createTRPCRouter({
   allDatasetsMetrics: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetIds: z.array(z.string()) }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockDatasetMetrics(input.projectId, input.datasetIds);
+      }
+
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics

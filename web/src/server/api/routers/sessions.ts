@@ -53,6 +53,13 @@ import {
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  getMockSessionFilterOptions,
+  getMockSessionHasAny,
+  getMockSessionMetrics,
+  getMockSessions,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -156,6 +163,10 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionHasAny(input.projectId);
+      }
+
       return await hasAnySession(input.projectId);
     }),
   hasAnyFromEvents: protectedProjectProcedure
@@ -165,11 +176,19 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionHasAny(input.projectId);
+      }
+
       return await hasAnySessionFromEventsTable(input.projectId);
     }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { sessions: getMockSessions(input.projectId, input).sessions };
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -233,6 +252,10 @@ export const sessionRouter = createTRPCRouter({
   allFromEvents: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { sessions: getMockSessions(input.projectId, input).sessions };
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -295,6 +318,12 @@ export const sessionRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return {
+          totalCount: getMockSessions(input.projectId, input).totalCount,
+        };
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -329,6 +358,12 @@ export const sessionRouter = createTRPCRouter({
   countAllFromEvents: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return {
+          totalCount: getMockSessions(input.projectId, input).totalCount,
+        };
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -368,6 +403,10 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionMetrics(input.projectId, input.sessionIds);
+      }
+
       if (input.sessionIds.length === 0) return [];
       const finalFilter = await getPublicSessionsFilter(input.projectId, [
         {
@@ -444,6 +483,10 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionMetrics(input.projectId, input.sessionIds);
+      }
+
       if (input.sessionIds.length === 0) return [];
       const sessions = await getSessionMetricsFromEvents({
         projectId: input.projectId,
@@ -512,6 +555,10 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }): Promise<SessionOptions> => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionFilterOptions(input.projectId);
+      }
+
       const { timestampFilter } = input;
       const columns = [
         ...tracesTableUiColumnDefinitions,
@@ -583,6 +630,10 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }): Promise<SessionOptions> => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockSessionFilterOptions(input.projectId);
+      }
+
       const { timestampFilter } = input;
 
       const eventsFilter: FilterState = [

@@ -40,6 +40,28 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import {
+  addMockProtectedLabel,
+  createMockPrompt,
+  getMockAllPromptLabels,
+  getMockAllPromptMeta,
+  getMockPromptById,
+  getMockPromptCount,
+  getMockPromptFilterOptions,
+  getMockPromptLinkOptions,
+  getMockPromptMetrics,
+  getMockPromptNames,
+  getMockPrompts,
+  getMockPromptsHasAny,
+  getMockPromptVersions,
+  getMockPromptVersionMetrics,
+  getMockProtectedLabels,
+  getMockResolvedPromptGraph,
+  removeMockProtectedLabel,
+  shouldUseDesignModeMock,
+  updateMockPromptLabels,
+  updateMockPromptTags,
+} from "@/src/features/design-mode/server/mockApi";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -67,6 +89,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptsHasAny(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -86,6 +112,10 @@ export const promptRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPrompts(input.projectId, input);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -182,6 +212,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptCount(input.projectId, input.searchQuery);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -242,6 +276,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptMetrics(input.projectId, input.promptNames);
+      }
+
       if (input.promptNames.length === 0) return [];
       const res = await getObservationsWithPromptName(
         input.projectId,
@@ -260,6 +298,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptById(input.projectId, input.id);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -275,6 +317,22 @@ export const promptRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return createMockPrompt({
+          projectId: input.projectId,
+          name: input.name,
+          type: input.type as "text" | "chat",
+          prompt: input.prompt,
+          config:
+            input.config && typeof input.config === "object"
+              ? (input.config as Record<string, unknown>)
+              : {},
+          labels: input.labels,
+          createdBy: ctx.session.user.id,
+          commitMessage: input.commitMessage ?? undefined,
+        });
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -425,6 +483,10 @@ export const promptRouter = createTRPCRouter({
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptFilterOptions(input.projectId);
+      }
+
       const [names, tags, labels] = await Promise.all([
         ctx.prisma.prompt.groupBy({
           where: {
@@ -785,6 +847,14 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return updateMockPromptLabels(
+          input.projectId,
+          input.promptId,
+          input.labels,
+        );
+      }
+
       try {
         const { projectId } = input;
 
@@ -974,6 +1044,10 @@ export const promptRouter = createTRPCRouter({
   allLabels: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockAllPromptLabels(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -997,6 +1071,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptNames(input.projectId, input.type);
+      }
+
       const { session } = ctx;
       const { projectId, type } = input;
 
@@ -1022,6 +1100,10 @@ export const promptRouter = createTRPCRouter({
   getPromptLinkOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptLinkOptions(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1064,6 +1146,10 @@ export const promptRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { projectId, name: promptName } = input;
+
+      if (shouldUseDesignModeMock(projectId)) {
+        return updateMockPromptTags(projectId, promptName, input.tags);
+      }
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -1124,6 +1210,10 @@ export const promptRouter = createTRPCRouter({
   allPromptMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockAllPromptMeta(input.projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1154,6 +1244,13 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptVersions(input.projectId, input.name, {
+          page: input.page,
+          limit: input.limit,
+        });
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1219,6 +1316,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockPromptVersionMetrics(input.projectId, input.promptIds);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1263,6 +1364,10 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockResolvedPromptGraph(input.projectId, input.promptId);
+      }
+
       try {
         const { promptId, projectId } = input;
 
@@ -1303,6 +1408,10 @@ export const promptRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { projectId } = input;
 
+      if (shouldUseDesignModeMock(projectId)) {
+        return getMockProtectedLabels(projectId);
+      }
+
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
@@ -1328,6 +1437,10 @@ export const promptRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string(), label: PromptLabelSchema }))
     .mutation(async ({ input, ctx }) => {
       const { projectId, label } = input;
+
+      if (shouldUseDesignModeMock(projectId)) {
+        return addMockProtectedLabel(projectId, label);
+      }
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -1382,6 +1495,10 @@ export const promptRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string(), label: PromptLabelSchema }))
     .mutation(async ({ input, ctx }) => {
       const { projectId, label } = input;
+
+      if (shouldUseDesignModeMock(projectId)) {
+        return removeMockProtectedLabel(projectId, label);
+      }
 
       throwIfNoProjectAccess({
         session: ctx.session,

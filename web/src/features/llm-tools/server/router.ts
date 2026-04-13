@@ -13,11 +13,22 @@ import {
   DeleteLlmToolInput,
   UpdateLlmToolInput,
 } from "../validation";
+import {
+  createMockLlmTool,
+  deleteMockLlmTool,
+  getMockLlmTools,
+  shouldUseDesignModeMock,
+  updateMockLlmTool,
+} from "@/src/features/design-mode/server/mockApi";
 
 export const llmToolRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmToolInput)
     .mutation(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return createMockLlmTool(input);
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -79,6 +90,10 @@ export const llmToolRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockLlmTools(input.projectId);
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -111,6 +126,18 @@ export const llmToolRouter = createTRPCRouter({
   update: protectedProjectProcedure
     .input(UpdateLlmToolInput)
     .mutation(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        const updatedTool = updateMockLlmTool(input);
+        if (!updatedTool) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "LLM Tool not found",
+          });
+        }
+
+        return updatedTool;
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -187,6 +214,18 @@ export const llmToolRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(DeleteLlmToolInput)
     .mutation(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        const deletedTool = deleteMockLlmTool(input.projectId, input.id);
+        if (!deletedTool) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "LLM Tool not found",
+          });
+        }
+
+        return deletedTool;
+      }
+
       try {
         throwIfNoProjectAccess({
           session: ctx.session,

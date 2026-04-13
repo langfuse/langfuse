@@ -73,6 +73,14 @@ import {
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  getMockScoreColumns,
+  getMockScoreFilterOptions,
+  getMockScoreMetadata,
+  getMockScoreMetricsFromEvents,
+  getMockScores,
+  shouldUseDesignModeMock,
+} from "@/src/features/design-mode/server/mockApi";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -107,6 +115,10 @@ export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { scores: getMockScores(input.projectId, input).scores };
+      }
+
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -174,6 +186,20 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        const score = getMockScoreMetadata(input.projectId, input.scoreId);
+        if (!score) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `No score with id ${input.scoreId} in project ${input.projectId}`,
+          });
+        }
+        return {
+          ...score,
+          metadata: score.metadata,
+        };
+      }
+
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
@@ -189,6 +215,10 @@ export const scoresRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { totalCount: getMockScores(input.projectId, input).totalCount };
+      }
+
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -211,6 +241,10 @@ export const scoresRouter = createTRPCRouter({
   allFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { scores: getMockScores(input.projectId, input).scores };
+      }
+
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -276,6 +310,10 @@ export const scoresRouter = createTRPCRouter({
   countAllFromEvents: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return { totalCount: getMockScores(input.projectId, input).totalCount };
+      }
+
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -304,6 +342,10 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockScoreMetricsFromEvents(input.projectId, input.traceIds);
+      }
+
       if (input.traceIds.length === 0) return [];
       const rows = await getTraceMetadataByIdsFromEvents({
         projectId: input.projectId,
@@ -327,6 +369,10 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockScoreFilterOptions(input.projectId);
+      }
+
       const { timestampFilter } = input;
 
       const eventsFilter: FilterState = [];
@@ -379,6 +425,10 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      if (shouldUseDesignModeMock(input.projectId)) {
+        return getMockScoreFilterOptions(input.projectId);
+      }
+
       const { timestampFilter } = input;
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
@@ -1064,6 +1114,10 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { projectId, filter, fromTimestamp, toTimestamp } = input;
+
+      if (shouldUseDesignModeMock(projectId)) {
+        return getMockScoreColumns(projectId);
+      }
 
       const groupedScores = await getScoresGroupedByNameSourceType({
         projectId,
