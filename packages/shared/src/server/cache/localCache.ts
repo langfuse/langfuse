@@ -18,10 +18,6 @@ export type LocalCacheConfig = {
 export class LocalCache<V extends {}> {
   private readonly config: LocalCacheConfig;
   private readonly cache: LRUCache<string, V>;
-  private readonly inflightLoads = new Map<
-    string,
-    Promise<LocalCacheLoadResult<V>>
-  >();
 
   constructor(config: LocalCacheConfig) {
     this.config = config;
@@ -49,6 +45,12 @@ export class LocalCache<V extends {}> {
         ...(max !== undefined ? { max } : {}),
         ttl: ttlMs,
       });
+      this.debug("Initialized local cache", {
+        enabled: config.enabled,
+        ttlMs,
+        max,
+        fallback: false,
+      });
       return;
     }
 
@@ -56,6 +58,12 @@ export class LocalCache<V extends {}> {
       this.cache = new LRUCache<string, V>({
         ...baseOptions,
         max,
+      });
+      this.debug("Initialized local cache", {
+        enabled: config.enabled,
+        ttlMs: null,
+        max,
+        fallback: false,
       });
       return;
     }
@@ -70,6 +78,12 @@ export class LocalCache<V extends {}> {
       ...baseOptions,
       max: 1,
     });
+    this.debug("Initialized local cache", {
+      enabled: config.enabled,
+      ttlMs: null,
+      max: 1,
+      fallback: true,
+    });
   }
 
   get(key: string): V | undefined {
@@ -79,6 +93,10 @@ export class LocalCache<V extends {}> {
 
     const value = this.cache.get(key);
     this.record(value === undefined ? "miss" : "hit");
+    this.debug(value === undefined ? "Local cache miss" : "Local cache hit", {
+      size: this.cache.size,
+      keyLength: key.length,
+    });
 
     return value;
   }
@@ -97,6 +115,11 @@ export class LocalCache<V extends {}> {
       );
       this.record("set");
       this.recordSizeMetrics();
+      this.debug("Stored local cache entry", {
+        ttlMs: normalizedTtlMs ?? null,
+        size: this.cache.size,
+        keyLength: key.length,
+      });
     } catch (error) {
       logger.error(
         `Failed to set local cache entry for namespace ${this.config.namespace}`,
@@ -107,9 +130,9 @@ export class LocalCache<V extends {}> {
 
   clear(): void {
     this.cache.clear();
-    this.inflightLoads.clear();
     this.record("clear");
     this.recordSizeMetrics();
+    this.debug("Cleared local cache");
   }
 
   async getOrLoad(
@@ -122,32 +145,25 @@ export class LocalCache<V extends {}> {
     }
 
     if (!this.config.enabled) {
+      this.debug("Bypassing disabled local cache", {
+        keyLength: key.length,
+      });
       return loader();
     }
 
-    const inflight = this.inflightLoads.get(key);
-    if (inflight) {
-      this.record("inflight_join");
-      return inflight;
+    const result = await loader();
+    this.debug("Completed local cache load", {
+      source: result.source ?? "unknown",
+      cacheable: result.value !== undefined,
+      ttlMs: result.ttlMs ?? null,
+      keyLength: key.length,
+    });
+
+    if (result.value !== undefined) {
+      this.set(key, result.value, result.ttlMs);
     }
 
-    const loadPromise = (async () => {
-      const result = await loader();
-
-      if (result.value !== undefined) {
-        this.set(key, result.value, result.ttlMs);
-      }
-
-      return result;
-    })();
-
-    this.inflightLoads.set(key, loadPromise);
-
-    try {
-      return await loadPromise;
-    } finally {
-      this.inflightLoads.delete(key);
-    }
+    return result;
   }
 
   private record(metric: string): void {
@@ -161,7 +177,28 @@ export class LocalCache<V extends {}> {
       namespace: this.config.namespace,
     });
   }
+
+  private debug(message: string, metadata?: Record<string, unknown>): void {
+    if (!logger.isLevelEnabled("debug")) {
+      return;
+    }
+
+    const formattedMetadata =
+      metadata === undefined ? "" : ` ${safeSerialize(metadata)}`;
+
+    logger.debug(
+      `[LocalCache:${this.config.namespace}] ${message}${formattedMetadata}`,
+    );
+  }
 }
+
+const safeSerialize = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[unserializable]";
+  }
+};
 
 const normalizePositiveNumber = (value: unknown): number | undefined => {
   if (typeof value === "number") {

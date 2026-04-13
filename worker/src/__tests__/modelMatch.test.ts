@@ -1,16 +1,58 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import {
-  clearModelMatchLocalCache,
-  findModel,
-  findModelInPostgres,
-  getRedisModelKey,
-  clearModelCacheForProject,
-} from "@langfuse/shared/src/server";
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { prisma } from "../../../packages/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 
+type SharedServerModule = typeof import("../../../packages/shared/src/server");
+
+let createOrgProjectAndApiKey: SharedServerModule["createOrgProjectAndApiKey"];
+let redis: SharedServerModule["redis"];
+let clearModelMatchLocalCache: SharedServerModule["clearModelMatchLocalCache"];
+let findModel: SharedServerModule["findModel"];
+let findModelInPostgres: SharedServerModule["findModelInPostgres"];
+let getRedisModelKey: SharedServerModule["getRedisModelKey"];
+let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
+
+const originalLocalCacheSetting =
+  process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
+
 describe("modelMatch", () => {
+  beforeAll(async () => {
+    process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED = "true";
+    vi.resetModules();
+
+    const sharedServer: SharedServerModule =
+      await import("../../../packages/shared/src/server");
+
+    ({
+      createOrgProjectAndApiKey,
+      redis,
+      clearModelMatchLocalCache,
+      findModel,
+      findModelInPostgres,
+      getRedisModelKey,
+      clearModelCacheForProject,
+    } = sharedServer);
+  });
+
+  afterAll(() => {
+    if (originalLocalCacheSetting === undefined) {
+      delete process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
+    } else {
+      process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED =
+        originalLocalCacheSetting;
+    }
+
+    vi.resetModules();
+  });
+
   beforeEach(() => {
     clearModelMatchLocalCache();
   });

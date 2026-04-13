@@ -42,7 +42,16 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
     },
     async (span) => {
       if (logger.isLevelEnabled("debug")) {
-        logger.debug(`Finding model for ${JSON.stringify(p)}`);
+        logger.debug(
+          formatModelMatchDebugMessage("Resolving model match", {
+            projectId: p.projectId,
+            model: p.model,
+            localCacheEnabled:
+              env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
+            redisCacheEnabled:
+              env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true",
+          }),
+        );
       }
       const localCacheKey = getRedisModelKey(p);
       const { source, value } = await modelMatchLocalCache.getOrLoad(
@@ -97,6 +106,21 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         ) {
           span.setAttribute("model_cache_set", "true");
         }
+
+        if (logger.isLevelEnabled("debug")) {
+          logger.debug(
+            formatModelMatchDebugMessage(
+              "Model match resolved without a model",
+              {
+                projectId: p.projectId,
+                model: p.model,
+                source: source ?? "none",
+                pricingTierCount: 0,
+              },
+            ),
+          );
+        }
+
         return { model: null, pricingTiers: [] };
       }
 
@@ -109,13 +133,33 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         );
       }
 
-      logger.debug(
-        `Found model name ${value.model.modelName} (id: ${value.model.id}) for project ${p.projectId} and model ${p.model}`,
-      );
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug(
+          formatModelMatchDebugMessage("Model match resolved", {
+            projectId: p.projectId,
+            model: p.model,
+            source: source ?? "unknown",
+            matchedModelId: value.model.id,
+            matchedModelName: value.model.modelName,
+            pricingTierCount: value.pricingTiers.length,
+          }),
+        );
+      }
       return value;
     },
   );
 }
+
+const formatModelMatchDebugMessage = (
+  message: string,
+  metadata: Record<string, unknown>,
+): string => {
+  try {
+    return `${message} ${JSON.stringify(metadata)}`;
+  } catch {
+    return `${message} [unserializable]`;
+  }
+};
 
 export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
