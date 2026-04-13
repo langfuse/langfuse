@@ -62,12 +62,6 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "reached the end of its life",
 ] as const;
 
-export function isNonRetryableLLMErrorMessage(message: string): boolean {
-  return NON_RETRYABLE_LLM_ERROR_PATTERNS.some((pattern) =>
-    message.includes(pattern),
-  );
-}
-
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
@@ -643,7 +637,9 @@ export async function fetchLLMCompletion(
     const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
-    const hasNonRetryablePattern = isNonRetryableLLMErrorMessage(message);
+    const hasNonRetryablePattern = NON_RETRYABLE_LLM_ERROR_PATTERNS.some(
+      (pattern) => message.includes(pattern),
+    );
 
     // Determine retryability:
     // - 429 (rate limit): retryable with custom delay
