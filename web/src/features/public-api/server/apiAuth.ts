@@ -25,10 +25,6 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
-import {
-  getApiKeyFromLocalCache,
-  setApiKeyInLocalCache,
-} from "./apiKeyLocalCache";
 
 export class ApiAuthService {
   prisma: PrismaClient;
@@ -292,11 +288,6 @@ export class ApiAuthService {
   }
 
   private async fetchApiKeyAndAddToRedis(hash: string) {
-    const localApiKey = getApiKeyFromLocalCache(hash);
-    if (localApiKey) {
-      return localApiKey;
-    }
-
     // first get the API key from redis, this does not throw
     const redisApiKey = await this.fetchApiKeyFromRedis(hash);
 
@@ -308,7 +299,6 @@ export class ApiAuthService {
     // if we found something, return the object.
     if (redisApiKey) {
       recordIncrement("langfuse.api_key.cache_hit", 1);
-      setApiKeyInLocalCache(hash, redisApiKey);
       return redisApiKey;
     }
 
@@ -330,7 +320,6 @@ export class ApiAuthService {
         apiKeyAndOrganisation,
       );
       await this.addApiKeyToRedis(hash, cachedApiKey);
-      setApiKeyInLocalCache(hash, cachedApiKey);
     }
     return apiKeyAndOrganisation
       ? this.convertToRedisRepresentation(apiKeyAndOrganisation)

@@ -7,7 +7,6 @@ import {
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { clearApiKeyLocalCache } from "@/src/features/public-api/server/apiKeyLocalCache";
 import { v4 } from "uuid";
 import {
   clearRedisKeysByPatternSafely,
@@ -62,7 +61,6 @@ describe("Authenticate API calls", () => {
   };
 
   beforeEach(async () => {
-    clearApiKeyLocalCache();
     const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
     const note = "seeded key";
     const createdApiKey = await prisma.apiKey.findUniqueOrThrow({
@@ -551,8 +549,6 @@ describe("Authenticate API calls", () => {
         redis,
       ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
 
-      clearApiKeyLocalCache();
-
       // third will read from redis only
       await new ApiAuthService(
         mockPrisma as unknown as PrismaClient,
@@ -614,8 +610,6 @@ describe("Authenticate API calls", () => {
         getValidAuthHeader(),
       );
 
-      clearApiKeyLocalCache();
-
       // third will read from redis only
       await new ApiAuthService(
         mockPrisma as unknown as PrismaClient,
@@ -638,8 +632,6 @@ describe("Authenticate API calls", () => {
       // wait for 5 seconds
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      clearApiKeyLocalCache();
-
       await new ApiAuthService(
         mockPrisma as unknown as PrismaClient,
         redis,
@@ -652,42 +644,6 @@ describe("Authenticate API calls", () => {
 
       expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS - 2);
     }, 10000);
-
-    it("should serve api keys from the local cache after the Redis entry is deleted", async () => {
-      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-        getValidAuthHeader(),
-      );
-      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-        getValidAuthHeader(),
-      );
-
-      const apiKey = await prisma.apiKey.findUniqueOrThrow({
-        where: { publicKey: testApiKey.publicKey },
-      });
-
-      await clearRedisKeysByPatternSafely(
-        redis,
-        `api-key:${apiKey.fastHashedSecretKey}`,
-      );
-
-      const mockPrisma = {
-        apiKey: {
-          findUnique: jest.fn(),
-        },
-      };
-      const mockRedis = {
-        getex: jest.fn(),
-      };
-
-      const auth = await new ApiAuthService(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as any,
-      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
-
-      expect(auth.validKey).toBe(true);
-      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
-      expect(mockRedis.getex).not.toHaveBeenCalled();
-    });
 
     it("should delete API keys from cache and db", async () => {
       // first auth will generate the fast hashed api key

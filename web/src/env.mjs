@@ -293,23 +293,6 @@ export const env = createEnv({
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
-    LANGFUSE_LOCAL_CACHE_API_KEY_ENABLED: z
-      .enum(["true", "false"])
-      .default("true"),
-    LANGFUSE_LOCAL_CACHE_API_KEY_TTL_MS: z.coerce.number().default(1000),
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(10000),
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX_SIZE_MB: z.coerce
-      .number()
-      .positive()
-      .default(16),
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX_ENTRY_SIZE_KB: z.coerce
-      .number()
-      .positive()
-      .default(8),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -743,16 +726,6 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    LANGFUSE_LOCAL_CACHE_API_KEY_ENABLED:
-      process.env.LANGFUSE_LOCAL_CACHE_API_KEY_ENABLED,
-    LANGFUSE_LOCAL_CACHE_API_KEY_TTL_MS:
-      process.env.LANGFUSE_LOCAL_CACHE_API_KEY_TTL_MS,
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX:
-      process.env.LANGFUSE_LOCAL_CACHE_API_KEY_MAX,
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX_SIZE_MB:
-      process.env.LANGFUSE_LOCAL_CACHE_API_KEY_MAX_SIZE_MB,
-    LANGFUSE_LOCAL_CACHE_API_KEY_MAX_ENTRY_SIZE_KB:
-      process.env.LANGFUSE_LOCAL_CACHE_API_KEY_MAX_ENTRY_SIZE_KB,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
