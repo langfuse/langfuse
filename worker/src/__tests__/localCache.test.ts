@@ -66,4 +66,18 @@ describe("LocalCache", () => {
 
     expect(cache.get("entry")).toEqual({ value: "cached" });
   });
+
+  it("should initialize disabled caches even when runtime limits are missing", () => {
+    const createCache = () =>
+      new LocalCache<string, { value: string }>({
+        namespace: "test",
+        enabled: false,
+        ttlMs: undefined as unknown as number,
+        max: undefined as unknown as number,
+        maxSize: undefined as unknown as number,
+        sizeCalculation: (value, key) => getJsonEntrySize(key, value),
+      });
+
+    expect(createCache).not.toThrow();
+  });
 });

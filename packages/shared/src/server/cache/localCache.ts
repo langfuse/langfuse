@@ -29,9 +29,9 @@ export class LocalCache<K extends {}, V extends {}> {
     const max = normalizePositiveNumber(config.max);
     const maxSize = normalizePositiveNumber(config.maxSize);
     const maxEntrySize = normalizePositiveNumber(config.maxEntrySize);
+    const ttl = normalizePositiveNumber(config.ttlMs);
 
     const cacheOptions: LRUCache.Options<K, V, unknown> = {
-      ttl: normalizePositiveNumber(config.ttlMs) ?? 0,
       ttlAutopurge: false,
       allowStale: false,
       updateAgeOnGet: false,
@@ -48,6 +48,10 @@ export class LocalCache<K extends {}, V extends {}> {
       cacheOptions.max = max;
     }
 
+    if (ttl !== undefined) {
+      cacheOptions.ttl = ttl;
+    }
+
     if (maxSize !== undefined) {
       cacheOptions.maxSize = maxSize;
     }
@@ -62,6 +66,20 @@ export class LocalCache<K extends {}, V extends {}> {
       logger.warn(
         `Local cache namespace ${this.config.namespace} is missing valid size bounds; falling back to count and TTL limits only.`,
       );
+    }
+
+    if (
+      cacheOptions.max === undefined &&
+      cacheOptions.maxSize === undefined &&
+      cacheOptions.ttl === undefined
+    ) {
+      cacheOptions.max = 1;
+
+      if (this.config.enabled) {
+        logger.warn(
+          `Local cache namespace ${this.config.namespace} is missing valid runtime limits; using a minimal fallback cache during initialization.`,
+        );
+      }
     }
 
     this.cache = new LRUCache<K, V>(cacheOptions);
