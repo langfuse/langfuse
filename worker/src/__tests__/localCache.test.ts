@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LocalCache } from "../../../packages/shared/src/server";
 
 describe("LocalCache", () => {
@@ -18,29 +18,36 @@ describe("LocalCache", () => {
     expect(cache.get("entry")).toBeUndefined();
   });
 
-  it("should fall back to a minimal cache when runtime limits are invalid", () => {
-    const createCache = () =>
-      new LocalCache<{ value: string }>({
-        namespace: "test",
-        enabled: true,
-        max: Number.NaN,
-      });
+  it("should load and cache uncached values", async () => {
+    const cache = new LocalCache<{ value: string }>({
+      namespace: "test",
+      enabled: true,
+      ttlMs: 1000,
+      max: 10,
+    });
 
-    expect(createCache).not.toThrow();
+    const loader = vi.fn(async () => ({
+      value: { value: "loaded" },
+      source: "loader",
+    }));
 
-    const cache = createCache();
-    cache.set("entry", { value: "cached" });
+    const result = await cache.getOrLoad("entry", loader);
 
-    expect(cache.get("entry")).toEqual({ value: "cached" });
+    expect(result.value).toEqual({ value: "loaded" });
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(cache.get("entry")).toEqual({ value: "loaded" });
   });
 
-  it("should initialize disabled caches even when runtime limits are missing", () => {
-    const createCache = () =>
-      new LocalCache<{ value: string }>({
-        namespace: "test",
-        enabled: false,
-      });
+  it("should bypass reads and writes when disabled", () => {
+    const cache = new LocalCache<{ value: string }>({
+      namespace: "test",
+      enabled: false,
+      ttlMs: 1000,
+      max: 10,
+    });
 
-    expect(createCache).not.toThrow();
+    cache.set("entry", { value: "cached" });
+
+    expect(cache.get("entry")).toBeUndefined();
   });
 });

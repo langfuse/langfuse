@@ -11,8 +11,8 @@ export type LocalCacheLoadResult<V> = {
 export type LocalCacheConfig = {
   namespace: string;
   enabled: boolean;
-  ttlMs?: number;
-  max?: number;
+  ttlMs: number;
+  max: number;
 };
 
 export class LocalCache<V extends {}> {
@@ -21,9 +21,6 @@ export class LocalCache<V extends {}> {
 
   constructor(config: LocalCacheConfig) {
     this.config = config;
-    const ttlMs = normalizePositiveNumber(config.ttlMs);
-    const max = normalizePositiveNumber(config.max);
-
     const dispose: LRUCache.Disposer<string, V> = (_value, _key, reason) => {
       if (reason === "evict") {
         this.record("evict");
@@ -39,50 +36,15 @@ export class LocalCache<V extends {}> {
       dispose,
     };
 
-    if (ttlMs !== undefined) {
-      this.cache = new LRUCache<string, V>({
-        ...baseOptions,
-        ...(max !== undefined ? { max } : {}),
-        ttl: ttlMs,
-      });
-      this.debug("Initialized local cache", {
-        enabled: config.enabled,
-        ttlMs,
-        max,
-        fallback: false,
-      });
-      return;
-    }
-
-    if (max !== undefined) {
-      this.cache = new LRUCache<string, V>({
-        ...baseOptions,
-        max,
-      });
-      this.debug("Initialized local cache", {
-        enabled: config.enabled,
-        ttlMs: null,
-        max,
-        fallback: false,
-      });
-      return;
-    }
-
-    if (config.enabled) {
-      logger.warn(
-        `Local cache namespace ${config.namespace} is missing valid runtime limits; using a minimal fallback cache during initialization.`,
-      );
-    }
-
     this.cache = new LRUCache<string, V>({
       ...baseOptions,
-      max: 1,
+      ttl: config.ttlMs,
+      max: config.max,
     });
     this.debug("Initialized local cache", {
       enabled: config.enabled,
-      ttlMs: null,
-      max: 1,
-      fallback: true,
+      ttlMs: config.ttlMs,
+      max: config.max,
     });
   }
 
@@ -107,16 +69,11 @@ export class LocalCache<V extends {}> {
     }
 
     try {
-      const normalizedTtlMs = normalizePositiveNumber(ttlMs);
-      this.cache.set(
-        key,
-        value,
-        normalizedTtlMs === undefined ? undefined : { ttl: normalizedTtlMs },
-      );
+      this.cache.set(key, value, { ttl: ttlMs });
       this.record("set");
       this.recordSizeMetrics();
       this.debug("Stored local cache entry", {
-        ttlMs: normalizedTtlMs ?? null,
+        ttlMs,
         size: this.cache.size,
         keyLength: key.length,
       });
@@ -198,17 +155,4 @@ const safeSerialize = (value: unknown): string => {
   } catch {
     return "[unserializable]";
   }
-};
-
-const normalizePositiveNumber = (value: unknown): number | undefined => {
-  if (typeof value === "number") {
-    return Number.isFinite(value) && value > 0 ? value : undefined;
-  }
-
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-  }
-
-  return undefined;
 };

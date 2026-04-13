@@ -25,13 +25,21 @@ export type ModelWithPrices = {
 };
 
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
+const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
+const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
 // This L1 cache is intentionally TTL-only. Cross-container consistency continues
 // to come from Redis invalidation plus the short local TTL.
 const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
   namespace: "model_match",
   enabled: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
-  ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
-  max: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
+  ttlMs: getPositiveNumberOrDefault(
+    env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
+    DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
+  ),
+  max: getPositiveNumberOrDefault(
+    env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
+    DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
+  ),
 });
 
 export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
@@ -160,6 +168,11 @@ const formatModelMatchDebugMessage = (
     return `${message} [unserializable]`;
   }
 };
+
+function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
