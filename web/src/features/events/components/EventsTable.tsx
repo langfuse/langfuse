@@ -166,6 +166,7 @@ export type EventsTableProps = {
   projectId: string;
   userId?: string;
   hideControls?: boolean;
+  viewPersistenceKey?: string;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -177,6 +178,7 @@ export default function ObservationsEventsTable({
   projectId,
   userId,
   hideControls = false,
+  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -1146,6 +1148,7 @@ export default function ObservationsEventsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
+    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,

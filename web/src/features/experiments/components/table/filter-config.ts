@@ -67,7 +67,7 @@ export const experimentsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Average Latency (s)",
+    name: "Latency (s)",
     id: "latencyAvg",
     type: "number",
     internal: "latency_avg",

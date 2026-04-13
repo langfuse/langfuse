@@ -19,6 +19,7 @@ import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
+  BedrockAccessKeysSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
   VertexAIConfigSchema,
@@ -52,6 +53,14 @@ import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
+
+const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
+  "Request timed out",
+  "is not valid JSON",
+  "Unterminated string in JSON at position",
+  "TypeError",
+  "reached the end of its life",
+] as const;
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -89,6 +98,52 @@ const googleProviderOptionsSchema = z
     thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
   })
   .optional();
+
+// For using Bedrock API key in Bearer token format
+const createBedrockBearerAuth = (token: string) => ({
+  clientOptions: {
+    token: { token },
+    authSchemePreference: ["httpBearerAuth"],
+  },
+});
+
+export function resolveBedrockAuth(params: {
+  secretKey: string;
+  allowDefaultCredentials: boolean;
+}): {
+  credentials?: z.infer<typeof BedrockAccessKeysSchema>;
+  clientOptions?: {
+    token: { token: string };
+    authSchemePreference: string[];
+  };
+} {
+  const { secretKey, allowDefaultCredentials } = params;
+
+  if (
+    secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+    allowDefaultCredentials
+  ) {
+    return {};
+  }
+
+  try {
+    const parsedCredential = BedrockCredentialSchema.parse(
+      JSON.parse(secretKey),
+    );
+
+    if ("apiKey" in parsedCredential) {
+      return createBedrockBearerAuth(parsedCredential.apiKey);
+    }
+
+    return {
+      credentials: parsedCredential,
+    };
+  } catch {
+    throw new Error(
+      "Invalid Bedrock credentials. Expected AWS access key JSON or a Bedrock API key.",
+    );
+  }
+}
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -363,16 +418,16 @@ export async function fetchLLMCompletion(
     // Handle both explicit credentials and default provider chain
     // Only allow default provider chain in self-hosted or internal AI features
     const isSelfHosted = !isLangfuseCloud;
-    const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
-      (isSelfHosted || shouldUseLangfuseAPIKey)
-        ? undefined // undefined = use AWS SDK default credential provider chain
-        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const { credentials, clientOptions } = resolveBedrockAuth({
+      secretKey: apiKey,
+      allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    });
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
       region,
       credentials,
+      clientOptions,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -577,20 +632,17 @@ export async function fetchLLMCompletion(
     return completion;
   } catch (e) {
     const responseStatusCode =
-      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+      (e as any)?.response?.status ??
+      (e as any)?.status ??
+      // Bedrock errors have status code in $metadata.httpStatusCode
+      (e as any)?.$metadata?.httpStatusCode ??
+      500;
     const rawMessage = e instanceof Error ? e.message : String(e);
     const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
-    const nonRetryablePatterns = [
-      "Request timed out",
-      "is not valid JSON",
-      "Unterminated string in JSON at position",
-      "TypeError",
-    ];
-
-    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
-      message.includes(pattern),
+    const hasNonRetryablePattern = NON_RETRYABLE_LLM_ERROR_PATTERNS.some(
+      (pattern) => message.includes(pattern),
     );
 
     // Determine retryability:
