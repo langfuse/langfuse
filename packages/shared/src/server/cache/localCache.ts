@@ -41,7 +41,7 @@ export class LocalCache<V extends {}> {
       ttl: config.ttlMs,
       max: config.max,
     });
-    this.debug("Initialized local cache", {
+    this.logInfo("Initialized local cache", {
       enabled: config.enabled,
       ttlMs: config.ttlMs,
       max: config.max,
@@ -55,24 +55,29 @@ export class LocalCache<V extends {}> {
 
     const value = this.cache.get(key);
     this.record(value === undefined ? "miss" : "hit");
-    this.debug(value === undefined ? "Local cache miss" : "Local cache hit", {
-      size: this.cache.size,
-      keyLength: key.length,
-    });
+    this.logDebug(
+      value === undefined ? "Local cache miss" : "Local cache hit",
+      {
+        size: this.cache.size,
+        keyLength: key.length,
+      },
+    );
 
     return value;
   }
 
-  set(key: string, value: V, ttlMs = this.config.ttlMs): void {
+  set(key: string, value: V): void {
     if (!this.config.enabled) {
       return;
     }
+
+    const ttlMs = this.config.ttlMs;
 
     try {
       this.cache.set(key, value, { ttl: ttlMs });
       this.record("set");
       this.recordSizeMetrics();
-      this.debug("Stored local cache entry", {
+      this.logDebug("Stored local cache entry", {
         ttlMs,
         size: this.cache.size,
         keyLength: key.length,
@@ -89,7 +94,7 @@ export class LocalCache<V extends {}> {
     this.cache.clear();
     this.record("clear");
     this.recordSizeMetrics();
-    this.debug("Cleared local cache");
+    this.logDebug("Cleared local cache");
   }
 
   async getOrLoad(
@@ -102,14 +107,14 @@ export class LocalCache<V extends {}> {
     }
 
     if (!this.config.enabled) {
-      this.debug("Bypassing disabled local cache", {
+      this.logDebug("Bypassing disabled local cache", {
         keyLength: key.length,
       });
       return loader();
     }
 
     const result = await loader();
-    this.debug("Completed local cache load", {
+    this.logDebug("Completed local cache load", {
       source: result.source ?? "unknown",
       cacheable: result.value !== undefined,
       ttlMs: result.ttlMs ?? null,
@@ -117,7 +122,7 @@ export class LocalCache<V extends {}> {
     });
 
     if (result.value !== undefined) {
-      this.set(key, result.value, result.ttlMs);
+      this.set(key, result.value);
     }
 
     return result;
@@ -135,7 +140,7 @@ export class LocalCache<V extends {}> {
     });
   }
 
-  private debug(message: string, metadata?: Record<string, unknown>): void {
+  private logDebug(message: string, metadata?: Record<string, unknown>): void {
     if (!logger.isLevelEnabled("debug")) {
       return;
     }
@@ -144,6 +149,15 @@ export class LocalCache<V extends {}> {
       metadata === undefined ? "" : ` ${safeSerialize(metadata)}`;
 
     logger.debug(
+      `[LocalCache:${this.config.namespace}] ${message}${formattedMetadata}`,
+    );
+  }
+
+  private logInfo(message: string, metadata?: Record<string, unknown>): void {
+    const formattedMetadata =
+      metadata === undefined ? "" : ` ${safeSerialize(metadata)}`;
+
+    logger.info(
       `[LocalCache:${this.config.namespace}] ${message}${formattedMetadata}`,
     );
   }

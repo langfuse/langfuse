@@ -70,7 +70,6 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
             return {
               value: cachedResult,
               source: "redis",
-              ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
             };
           }
 
