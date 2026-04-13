@@ -32,13 +32,17 @@ type SpielwieseOnboardingStepSceneProps = {
   activeStepIndex: number;
   handleBack: () => void;
   handleContinue: () => void;
+  handleRoleApiKeyChange: (value: string) => void;
   handleRoleBridgeAnimationEnd: (
     event: AnimationEvent<HTMLHeadingElement>,
   ) => void;
+  handleRoleModelChange: (value: string) => void;
   handleRoleSystemPromptChange: (value: string) => void;
   handleSelect: (value: string) => void;
   handleStepLayerAnimationEnd: (event: AnimationEvent<HTMLDivElement>) => void;
   isStepTransitioningOut: boolean;
+  roleApiKeyValue: string;
+  roleModelValue: string;
   roleSystemPromptValue: string;
   roleScene: RoleStepScene;
   showsUpperCanvas: boolean;
@@ -50,11 +54,15 @@ export function SpielwieseOnboardingStepScene({
   activeStepIndex,
   handleBack,
   handleContinue,
+  handleRoleApiKeyChange,
   handleRoleBridgeAnimationEnd,
+  handleRoleModelChange,
   handleRoleSystemPromptChange,
   handleSelect,
   handleStepLayerAnimationEnd,
   isStepTransitioningOut,
+  roleApiKeyValue,
+  roleModelValue,
   roleSystemPromptValue,
   roleScene,
   showsUpperCanvas,
@@ -92,9 +100,13 @@ export function SpielwieseOnboardingStepScene({
           activeStepIndex={activeStepIndex}
           onBack={handleBack}
           onContinue={handleContinue}
+          onRoleApiKeyChange={handleRoleApiKeyChange}
           onRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+          onRoleModelChange={handleRoleModelChange}
           onRoleSystemPromptChange={handleRoleSystemPromptChange}
           onSelect={handleSelect}
+          roleApiKeyValue={roleApiKeyValue}
+          roleModelValue={roleModelValue}
           roleSystemPromptValue={roleSystemPromptValue}
           roleScene={activeQuestionId === "role" ? roleScene : "preview"}
         />
