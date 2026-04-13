@@ -7,14 +7,22 @@ import type {
 } from "../types/shell";
 import { SpielwieseSidebarShortcut } from "./SpielwieseSidebarShortcut";
 
-function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
+function SidebarFileLeafContent({
+  item,
+  showShortcut,
+}: {
+  item: SpielwieseSidebarTreeItem;
+  showShortcut: boolean;
+}) {
   const Icon = item.icon ?? FileText;
 
   return (
     <>
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
-      <span data-sidebar-label>{item.label}</span>
-      {item.shortcut ? (
+      <span className="text-left" data-sidebar-label>
+        {item.label}
+      </span>
+      {showShortcut && item.shortcut ? (
         <SpielwieseSidebarShortcut label={item.shortcut} />
       ) : null}
       {item.isActive ? (
@@ -26,7 +34,13 @@ function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
   );
 }
 
-function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
+function SidebarFileLeaf({
+  item,
+  showShortcut,
+}: {
+  item: SpielwieseSidebarTreeItem;
+  showShortcut: boolean;
+}) {
   const className = cn(
     sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
     "group/sidebar-item",
@@ -41,7 +55,7 @@ function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
         data-sidebar-dummy
         type="button"
       >
-        <SidebarFileLeafContent item={item} />
+        <SidebarFileLeafContent item={item} showShortcut={showShortcut} />
       </button>
     );
   }
@@ -52,12 +66,18 @@ function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
       className={className}
       href={item.href}
     >
-      <SidebarFileLeafContent item={item} />
+      <SidebarFileLeafContent item={item} showShortcut={showShortcut} />
     </a>
   );
 }
 
-function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
+function SidebarFileBranch({
+  item,
+  showShortcut,
+}: {
+  item: SpielwieseSidebarTreeItem;
+  showShortcut: boolean;
+}) {
   const isOpen = item.defaultOpen;
 
   return (
@@ -76,7 +96,7 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
           data-sidebar-icon
         />
         <span data-sidebar-label>{item.label}</span>
-        {item.shortcut ? (
+        {showShortcut && item.shortcut ? (
           <SpielwieseSidebarShortcut label={item.shortcut} />
         ) : null}
       </summary>
@@ -84,10 +104,22 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
       <div className="ml-4 flex flex-col gap-0.5 border-l border-black/[0.05] pl-2">
         {item.children?.map((child) => {
           if (child.children?.length) {
-            return <SidebarFileBranch item={child} key={child.id} />;
+            return (
+              <SidebarFileBranch
+                item={child}
+                key={child.id}
+                showShortcut={showShortcut}
+              />
+            );
           }
 
-          return <SidebarFileLeaf item={child} key={child.id} />;
+          return (
+            <SidebarFileLeaf
+              item={child}
+              key={child.id}
+              showShortcut={showShortcut}
+            />
+          );
         })}
       </div>
     </details>
@@ -99,6 +131,8 @@ function SidebarSectionBlock({
 }: {
   section: SpielwieseSidebarSection;
 }) {
+  const showShortcut = section.id !== "files";
+
   return (
     <section className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-2 px-2">
@@ -116,9 +150,17 @@ function SidebarSectionBlock({
       <div className="flex flex-col gap-1.5">
         {section.items.map((item) =>
           item.children?.length ? (
-            <SidebarFileBranch item={item} key={item.id} />
+            <SidebarFileBranch
+              item={item}
+              key={item.id}
+              showShortcut={showShortcut}
+            />
           ) : (
-            <SidebarFileLeaf item={item} key={item.id} />
+            <SidebarFileLeaf
+              item={item}
+              key={item.id}
+              showShortcut={showShortcut}
+            />
           ),
         )}
       </div>

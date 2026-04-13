@@ -1,19 +1,19 @@
-import { useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import {
   getSpielwieseDashboardVm,
   getSpielwieseShellVm,
 } from "../adapters/dashboardVm";
-import {
-  defaultSpielwieseDashboardDebugState,
-  SpielwieseDashboardDebugHud,
-  type SpielwieseDashboardDebugState,
-} from "../components/SpielwieseDashboardDebugHud";
 import { SpielwieseEditorCanvas } from "../components/SpielwieseEditorCanvas";
 import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
 import {
   getSpielwieseAgentNodeChromeVariableStyle,
   getSpielwieseAgentNodeColorVariableStyle,
+  getSpielwieseCanvasLayerVariableStyle,
   getSpielwieseMessageSectionChipVariableStyle,
+  spielwieseAgentNodeChromeSettings,
+  spielwieseAgentNodeColorPalette,
+  spielwieseCanvasLayerPalette,
+  spielwieseMessageSectionChipPaddingDefaults,
 } from "../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
 import { useSpielwieseVariablesPanelState } from "../components/useSpielwieseVariablesPanelState";
@@ -37,11 +37,9 @@ function getPageIdFromHash() {
 
 function SpielwieseDashboardCanvas({
   dashboard,
-  debugState,
   onDetectedVariablesChange,
 }: {
   dashboard: SpielwieseDashboardVM;
-  debugState: SpielwieseDashboardDebugState;
   onDetectedVariablesChange: (labels: string[]) => void;
 }) {
   const { closeSidePanels } = useSpielwieseShell();
@@ -53,12 +51,29 @@ function SpielwieseDashboardCanvas({
   return (
     <SpielwieseEditorCanvas
       canvas={dashboard.canvas}
-      debugState={debugState}
       onCloseSidePanels={closeSidePanels}
       onDetectedVariablesChange={onDetectedVariablesChange}
     />
   );
 }
+
+const spielwieseDashboardPageStyle = {
+  ...getSpielwieseCanvasLayerVariableStyle({
+    colors: spielwieseCanvasLayerPalette,
+    highlightedLayer: null,
+  }),
+  ...getSpielwieseMessageSectionChipVariableStyle({
+    bottom: spielwieseMessageSectionChipPaddingDefaults.bottom,
+    left: spielwieseMessageSectionChipPaddingDefaults.left,
+    right: spielwieseMessageSectionChipPaddingDefaults.right,
+    top: spielwieseMessageSectionChipPaddingDefaults.top,
+  }),
+  ...getSpielwieseAgentNodeColorVariableStyle(spielwieseAgentNodeColorPalette),
+  ...getSpielwieseAgentNodeChromeVariableStyle({
+    colors: spielwieseAgentNodeColorPalette,
+    settings: spielwieseAgentNodeChromeSettings,
+  }),
+};
 
 export default function SpielwieseDashboardPage() {
   const pageId = useSyncExternalStore(
@@ -71,28 +86,12 @@ export default function SpielwieseDashboardPage() {
   const variablesState = useSpielwieseVariablesPanelState(
     dashboard.variablesPanel.items,
   );
-  const [debugState, setDebugState] = useState(
-    defaultSpielwieseDashboardDebugState,
-  );
-  const debugColorStyle = {
-    ...getSpielwieseMessageSectionChipVariableStyle({
-      bottom: debugState.messageSectionChipPaddingBottom,
-      left: debugState.messageSectionChipPaddingLeft,
-      right: debugState.messageSectionChipPaddingRight,
-      top: debugState.messageSectionChipPaddingTop,
-    }),
-    ...getSpielwieseAgentNodeColorVariableStyle(debugState.nodeColors),
-    ...getSpielwieseAgentNodeChromeVariableStyle({
-      colors: debugState.nodeColors,
-      settings: debugState.nodeChrome,
-    }),
-  };
 
   return (
     <div
       className="h-screen-with-banner isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
-      style={debugColorStyle}
+      style={spielwieseDashboardPageStyle}
     >
       <SpielwieseVariableValuesProvider items={variablesState.items}>
         <SpielwieseDashboardShell
@@ -100,19 +99,10 @@ export default function SpielwieseDashboardPage() {
           shell={shell}
           variablesState={variablesState}
         >
-          <>
-            <SpielwieseDashboardCanvas
-              dashboard={dashboard}
-              debugState={debugState}
-              onDetectedVariablesChange={
-                variablesState.onEnsureDetectedVariables
-              }
-            />
-            <SpielwieseDashboardDebugHud
-              onChange={setDebugState}
-              state={debugState}
-            />
-          </>
+          <SpielwieseDashboardCanvas
+            dashboard={dashboard}
+            onDetectedVariablesChange={variablesState.onEnsureDetectedVariables}
+          />
         </SpielwieseDashboardShell>
       </SpielwieseVariableValuesProvider>
     </div>

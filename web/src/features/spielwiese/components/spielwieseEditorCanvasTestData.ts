@@ -23,11 +23,6 @@ export const spielwieseEditorCanvasTestCanvas = {
       kind: "Classifier",
       settings: [
         { id: "model", label: "Model", value: "GPT-4.1 mini" },
-        {
-          id: "output",
-          label: "Output",
-          value: "detected_foods, plating_notes",
-        },
         { id: "temperature", label: "Temperature", value: "0.1" },
         { id: "top-p", label: "Top P", value: "1.0" },
         { id: "response-format", label: "Response format", value: "json" },
@@ -40,7 +35,7 @@ export const spielwieseEditorCanvasTestCanvas = {
           id: "system",
           label: "Instructions",
           value:
-            'You are a food identification expert. Identify every food item in the image.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
+            'You are a food identification expert. Identify every food item in the image.\nWrite the structured result to {{detected_foods}} and any plating notes to {{plating_notes}}.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
         },
       ],
       notes: [
@@ -76,12 +71,6 @@ export const spielwieseEditorCanvasTestCanvas = {
       kind: "Calculator",
       settings: [
         { id: "model", label: "Model", value: "GPT-4.1" },
-        { id: "input", label: "Input", value: "detected_foods" },
-        {
-          id: "output",
-          label: "Output",
-          value: "macro_estimates, micronutrient_notes",
-        },
         { id: "temperature", label: "Temperature", value: "0.2" },
         { id: "top-p", label: "Top P", value: "0.9" },
         { id: "response-format", label: "Response format", value: "json" },
@@ -89,12 +78,12 @@ export const spielwieseEditorCanvasTestCanvas = {
         { id: "reasoning", label: "Reasoning", value: "on / 512 tok" },
       ],
       promptSections: [
-        { id: "user", label: "User", value: "[JSON from Step 1]" },
+        { id: "user", label: "User", value: "[JSON from {{detected_foods}}]" },
         {
           id: "system",
           label: "Instructions",
           value:
-            'You are a clinical nutritionist.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[...],"totals":{...}}',
+            'You are a clinical nutritionist.\nUse USDA FoodData Central values.\nWrite totals to {{macro_estimates}} and micronutrient notes to {{micronutrient_notes}}.\nReturn ONLY JSON:\n{"items":[...],"totals":{...}}',
         },
       ],
       notes: [{ id: "source", value: "USDA FoodData Central" }],
@@ -142,8 +131,6 @@ export const spielwieseEditorCanvasTestCanvas = {
       kind: "Responder",
       settings: [
         { id: "model", label: "Model", value: "GPT-4o mini" },
-        { id: "input", label: "Input", value: "macro_estimates" },
-        { id: "output", label: "Output", value: "coach_summary" },
         { id: "temperature", label: "Temperature", value: "0.4" },
         { id: "top-p", label: "Top P", value: "0.85" },
         { id: "response-format", label: "Response format", value: "text" },
@@ -151,7 +138,7 @@ export const spielwieseEditorCanvasTestCanvas = {
         { id: "reasoning", label: "Reasoning", value: "off / 0 tok" },
       ],
       promptSections: [
-        { id: "user", label: "User", value: "[JSON from Step 2]" },
+        { id: "user", label: "User", value: "[JSON from {{macro_estimates}}]" },
         {
           id: "system",
           label: "Instructions",

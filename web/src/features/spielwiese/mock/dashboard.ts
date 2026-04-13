@@ -27,7 +27,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Classifier",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1 mini" },
-      { id: "output", label: "Output", value: "detected_foods, plating_notes" },
       { id: "temperature", label: "Temperature", value: "0.1" },
       { id: "top-p", label: "Top P", value: "1.0" },
       { id: "response-format", label: "Response format", value: "json" },
@@ -40,7 +39,7 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
         id: "system",
         label: "Instructions",
         value:
-          'You are a food identification expert. Identify every food item in the image.\nFor each item, estimate the weight in grams based on visual cues like plate size, hand, utensils, and known object references.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
+          'You are a food identification expert. Identify every food item in the image.\nFor each item, estimate the weight in grams based on visual cues like plate size, hand, utensils, and known object references.\nWrite the structured result to {{detected_foods}} and any plating notes to {{plating_notes}}.\nReturn ONLY JSON:\n[{"item":"grilled salmon","estimated_weight_g":180}, ...]',
       },
     ],
     notes: [
@@ -80,9 +79,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Calculator",
     settings: [
       { id: "model", label: "Model", value: "GPT-4.1" },
-      { id: "input", label: "Input", value: "detected_foods" },
-      // prettier-ignore
-      { id: "output", label: "Output", value: "macro_estimates, micronutrient_notes" },
       { id: "temperature", label: "Temperature", value: "0.2" },
       { id: "top-p", label: "Top P", value: "0.9" },
       { id: "response-format", label: "Response format", value: "json" },
@@ -90,12 +86,12 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
       { id: "reasoning", label: "Reasoning", value: "on / 512 tok" },
     ],
     promptSections: [
-      { id: "user", label: "User", value: "[JSON from Step 1]" },
+      { id: "user", label: "User", value: "[JSON from {{detected_foods}}]" },
       {
         id: "system",
         label: "Instructions",
         value:
-          'You are a clinical nutritionist. Given food items and weights, return precise nutritional data per item and totals.\nUse USDA FoodData Central values.\nReturn ONLY JSON:\n{"items":[{"item":"grilled salmon","weight_g":180,"kcal":354,"protein_g":39.2,"carbs_g":0,"fat_g":21.6,"fiber_g":0,"vitamins":{"A_mcg":12,"D_mcg":11,"B12_mcg":5.2},"minerals":{"iron_mg":0.5,"zinc_mg":0.7},"polyphenols_mg":0}],"totals":{...}}',
+          'You are a clinical nutritionist. Given food items and weights, return precise nutritional data per item and totals.\nUse USDA FoodData Central values.\nWrite totals to {{macro_estimates}} and micronutrient notes to {{micronutrient_notes}}.\nReturn ONLY JSON:\n{"items":[{"item":"grilled salmon","weight_g":180,"kcal":354,"protein_g":39.2,"carbs_g":0,"fat_g":21.6,"fiber_g":0,"vitamins":{"A_mcg":12,"D_mcg":11,"B12_mcg":5.2},"minerals":{"iron_mg":0.5,"zinc_mg":0.7},"polyphenols_mg":0}],"totals":{...}}',
       },
     ],
     notes: [
@@ -146,8 +142,6 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
     kind: "Responder",
     settings: [
       { id: "model", label: "Model", value: "GPT-4o mini" },
-      { id: "input", label: "Input", value: "macro_estimates" },
-      { id: "output", label: "Output", value: "coach_summary" },
       { id: "temperature", label: "Temperature", value: "0.4" },
       { id: "top-p", label: "Top P", value: "0.85" },
       { id: "response-format", label: "Response format", value: "text" },
@@ -155,7 +149,7 @@ const defaultAgentNodes: SpielwieseDashboardVM["canvas"]["agentNodes"] = [
       { id: "reasoning", label: "Reasoning", value: "off / 0 tok" },
     ],
     promptSections: [
-      { id: "user", label: "User", value: "[JSON from Step 2]" },
+      { id: "user", label: "User", value: "[JSON from {{macro_estimates}}]" },
       {
         id: "system",
         label: "Instructions",
@@ -220,6 +214,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
     pageId: "assistant",
     header: {
       breadcrumb: "Macroextractor / Micronutrient tracker",
+      filePath: "/macroextractor/micronutrient-tracker",
       title: "Micronutrient tracker",
       updatedAt: "02m",
     },
@@ -231,11 +226,11 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
       helper:
         "Start from a blank page, then drop in structure block by block as the layout sharpens.",
       stats: [
-        { id: "blocks", label: "Blocks", value: "01" },
+        { id: "blocks", label: "Blocks", value: "00" },
         { id: "links", label: "Linked pages", value: "00" },
         { id: "comments", label: "Comments", value: "03" },
       ],
-      agentNodes: defaultAgentNodes.slice(0, 1),
+      agentNodes: [],
     },
     variablesPanel: defaultVariablesPanel,
     insertPanel: defaultInsertPanel,
@@ -244,6 +239,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
     pageId: "vision-agent",
     header: {
       breadcrumb: "Macroextractor / Vision Agent",
+      filePath: "/macroextractor/vision-agent",
       title: "Vision Agent",
       updatedAt: "05m",
     },
@@ -280,6 +276,7 @@ export const spielwieseDashboardMocks: Record<string, SpielwieseDashboardVM> = {
     pageId: "nutrition-agent",
     header: {
       breadcrumb: "Macroextractor / Nutrition Agent",
+      filePath: "/macroextractor/nutrition-agent",
       title: "Nutrition Agent",
       updatedAt: "07m",
     },

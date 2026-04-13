@@ -100,6 +100,7 @@ export type SpielwieseDashboardVM = {
   pageId: string;
   header: {
     breadcrumb: string;
+    filePath: string;
     title: string;
     updatedAt: string;
   };

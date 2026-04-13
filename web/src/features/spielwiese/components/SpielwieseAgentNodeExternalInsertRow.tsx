@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 type SpielwieseAgentNodeExternalInsertRowProps = {
   nodeId: string;
   onAgentNodeInsert: (nodeId: string, kind: "user" | "agent") => void;
+  variant?: "default" | "pane-footer";
 };
 
 const agentNodeInsertOptions: Array<{
@@ -17,6 +18,8 @@ const agentNodeInsertOptions: Array<{
 
 const agentNodeInsertRowClassName =
   "pointer-events-auto relative mt-[8px] inline-flex w-fit opacity-100";
+const agentNodeInsertRowPaneFooterClassName =
+  "pointer-events-auto relative inline-flex w-fit opacity-100";
 const agentNodeInsertShellClassName =
   "[--message-insert-inner-radius:7px] [--message-insert-padding:2px] [--message-insert-outer-radius:calc(var(--message-insert-inner-radius)+var(--message-insert-padding))] [--agent-node-insert-inner-radius:7px] [--agent-node-insert-padding:2px] [--agent-node-insert-outer-radius:calc(var(--agent-node-insert-inner-radius)+var(--agent-node-insert-padding))] bg-background inline-flex h-7 items-stretch overflow-hidden rounded-[var(--message-insert-outer-radius)] border border-[rgba(0,0,0,0.08)] p-[var(--message-insert-padding)] shadow-[0_1px_0_rgba(255,255,255,0.5)_inset]";
 const agentNodeInsertTriggerClassName =
@@ -84,12 +87,17 @@ function AgentNodeInsertPicker({
 export function SpielwieseAgentNodeExternalInsertRow({
   nodeId,
   onAgentNodeInsert,
+  variant = "default",
 }: SpielwieseAgentNodeExternalInsertRowProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div
-      className={agentNodeInsertRowClassName}
+      className={cn(
+        variant === "pane-footer"
+          ? agentNodeInsertRowPaneFooterClassName
+          : agentNodeInsertRowClassName,
+      )}
       data-testid="spielwiese-agent-node-external-insert-row"
       onBlurCapture={(event) => {
         const nextFocusedElement = event.relatedTarget;

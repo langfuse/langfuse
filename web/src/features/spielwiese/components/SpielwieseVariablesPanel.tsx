@@ -16,17 +16,26 @@ export function SpielwieseVariablesSummary({
   onCreate,
 }: SpielwieseVariablesSummaryProps) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <Variable className="text-muted-foreground size-4 shrink-0" />
-        <div className="truncate text-sm font-semibold">
+    <div
+      className="flex items-center justify-between gap-3"
+      data-testid="spielwiese-variables-summary"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <div
+          className="text-foreground/52 inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] border border-[rgba(15,23,42,0.06)] bg-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.68)]"
+          data-testid="spielwiese-variables-summary-icon-shell"
+        >
+          <Variable className="size-3.5 shrink-0" />
+        </div>
+        <div className="text-foreground/84 min-w-0 truncate text-[0.8125rem] font-medium tracking-[-0.01em]">
           {getVariableCountLabel(count)}
         </div>
       </div>
 
       <button
         aria-label={actionLabel}
-        className="text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] border border-[rgba(15,23,42,0.08)] bg-white/72 shadow-[0_0_0_1px_rgba(255,255,255,0.48)_inset] transition-[background-color,color,box-shadow] outline-none hover:bg-white/92 focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.08)] focus-visible:ring-offset-0"
+        className="text-foreground/68 hover:text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] border-0 bg-transparent shadow-none transition-[background-color,color] outline-none hover:bg-black/[0.06] focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.08)] focus-visible:ring-offset-0"
+        data-testid="spielwiese-variables-summary-action"
         onClick={onCreate}
         type="button"
       >

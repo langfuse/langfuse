@@ -39,9 +39,9 @@ function expectExternalInsertRowChrome({
 
   expect(textPicker.getAttribute("data-state")).toBe("closed");
   expect(externalRow.className).toContain("w-fit");
-  expect(externalRow.className).toContain("mt-[8px]");
   expect(externalRow.className).toContain("opacity-100");
   expect(externalRow.className).toContain("pointer-events-auto");
+  expect(externalRow.className).not.toContain("mt-[8px]");
   expect(externalRow.className).not.toContain("pl-[18px]");
   expect(externalRow.className).not.toContain("ml-[8px]");
   expect(externalRow.className).not.toContain("ml-[18px]");
@@ -50,7 +50,19 @@ function expectExternalInsertRowChrome({
   expect(externalRow.className).not.toContain("group-hover/agent-node");
   expect(externalRow.className).not.toContain("group-focus-within/agent-node");
   expect(insertFooter.className).toContain("flex-none");
+  expect(insertFooter.className).toContain("-mx-2");
+  expect(insertFooter.className).toContain("w-[calc(100%+1rem)]");
+  expect(insertFooter.className).toContain("justify-start");
+  expect(insertFooter.className).toContain(
+    "rounded-b-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(insertFooter.className).toContain(
+    "-mb-[calc(var(--canvas-pane-shell-gap)+6px)]",
+  );
+  expect(insertFooter.className).toContain("px-2");
+  expect(insertFooter.className).toContain("py-2");
   expect(insertFooter.className).not.toContain("pb-2");
+  expect(insertFooter.className).not.toContain("border-t");
   expect(insertFooter.contains(externalRow)).toBe(true);
   expect(paneSurface.contains(insertFooter)).toBe(true);
   expect(
@@ -108,8 +120,59 @@ function renderVisionNode() {
   return screen.getAllByTestId("spielwiese-agent-node")[0];
 }
 
+function renderEmptyCanvas() {
+  return render(
+    <SpielwieseEditorCanvas
+      canvas={{
+        ...spielwieseEditorCanvasTestCanvas,
+        agentNodes: [],
+        stats: [{ id: "blocks", label: "Blocks", value: "00" }],
+      }}
+    />,
+  );
+}
+
 // eslint-disable-next-line max-lines-per-function
 describe("SpielwieseEditorCanvas node insertion", () => {
+  it("keeps the external new node tray available when the canvas starts empty and lets the first node be inserted", () => {
+    renderEmptyCanvas();
+
+    expect(screen.queryAllByTestId("spielwiese-agent-node")).toHaveLength(0);
+
+    const { insertFooter, textPicker, textTrigger } =
+      getExternalInsertControls();
+
+    expect(insertFooter).toBeTruthy();
+    expect(textTrigger.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(textTrigger);
+
+    expect(textPicker.getAttribute("data-state")).toBe("open");
+
+    fireEvent.click(
+      within(insertFooter).getByRole("button", { name: "Agent" }),
+    );
+
+    const agentNodes = screen.getAllByTestId("spielwiese-agent-node");
+    const insertedNode = agentNodes[0]!;
+
+    expect(agentNodes).toHaveLength(1);
+    expect(
+      (
+        within(insertedNode).getByLabelText(
+          "agent-node title",
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("");
+    expect(
+      (
+        within(insertedNode).getByLabelText(
+          "agent-node Instructions",
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe("");
+  });
+
   it("keeps a single trailing external node insert tray with only user and agent choices", () => {
     const visionNode = renderVisionNode();
     const controls = getExternalInsertControls();

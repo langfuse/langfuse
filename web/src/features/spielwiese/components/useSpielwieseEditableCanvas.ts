@@ -2,10 +2,10 @@
 "use client";
 
 import { useState } from "react";
-import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import {
   cloneAgentNode,
+  emptyCanvasInsertAnchorNodeId,
   insertAgentNodeAfter,
 } from "./spielwieseEditableCanvasNodeInsert";
 import {
@@ -13,6 +13,7 @@ import {
   movePromptSection,
   sortPromptSections,
 } from "./spielwieseEditableCanvasPromptSections";
+import { getSpielwieseDetectedVariableLabels } from "./spielwieseMustacheVariables";
 import { getPromptSectionLabel } from "./spielwiesePromptSectionLabels";
 
 type EditableCanvasState = {
@@ -99,22 +100,17 @@ function getVisibleNodes(state: EditableCanvasState) {
 function getInsertAnchorNodeId(state: EditableCanvasState) {
   const visibleNodes = getVisibleNodes(state);
 
-  return visibleNodes.at(-1)?.id ?? state.nodes.at(-1)?.id ?? null;
+  return (
+    visibleNodes.at(-1)?.id ??
+    state.nodes.at(-1)?.id ??
+    emptyCanvasInsertAnchorNodeId
+  );
 }
 
 function getDetectedMustacheVariables(
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
 ) {
-  const mustacheRegex = new RegExp(MUSTACHE_REGEX.source, "g");
-  const variableNames = nodes.flatMap((node) =>
-    node.promptSections.flatMap((section) =>
-      [...section.value.matchAll(mustacheRegex)]
-        .map((match) => match[1] ?? "")
-        .filter((variableName) => isValidVariableName(variableName)),
-    ),
-  );
-
-  return [...new Set(variableNames)];
+  return getSpielwieseDetectedVariableLabels(nodes);
 }
 
 function reportDetectedVariables({

@@ -18,16 +18,13 @@ import {
   getOnboardingStepPath,
   ONBOARDING_QUESTIONS,
 } from "./spielwieseOnboardingFlow";
-import { onboardingStepCopy } from "./spielwieseOnboardingStepCopy";
 
 type SpielwieseOnboardingCanvasProps = {
   requestedStepId?: string;
 };
 
 const onboardingQuestionPanelClassName =
-  "flex min-h-[22rem] flex-col bg-white px-6 py-12 sm:px-10 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]";
-const onboardingSupportPanelClassName =
-  "flex min-h-[22rem] bg-white px-8 py-14 sm:px-12 sm:py-16 lg:min-h-[43.125rem] lg:px-[5.375rem] lg:py-[11.125rem]";
+  "flex min-h-[30rem] flex-col bg-white px-6 py-10 sm:px-10 sm:py-12";
 
 function ChoiceButton({
   isSelected,
@@ -179,7 +176,7 @@ function OnboardingQuestionPanel({
   return (
     <div className={onboardingQuestionPanelClassName}>
       <div className="flex flex-1 items-center justify-center">
-        <div className="grid w-full max-w-[23.25rem] gap-7">
+        <div className="grid w-full max-w-[25rem] gap-6">
           <OnboardingQuestionIntro
             activeStepIndex={activeStepIndex}
             prompt={activeQuestion.prompt}
@@ -195,49 +192,6 @@ function OnboardingQuestionPanel({
             onBack={onBack}
             onContinue={onContinue}
           />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OnboardingSupportPanel({
-  activeAnswer,
-  activeStepIndex,
-}: {
-  activeAnswer: string;
-  activeStepIndex: number;
-}) {
-  const activeQuestion = ONBOARDING_QUESTIONS[activeStepIndex];
-  const copy = onboardingStepCopy[activeQuestion.id];
-
-  return (
-    <div className={onboardingSupportPanelClassName}>
-      <div className="flex items-center">
-        <div className="grid max-w-[24.5rem] translate-y-[4px] gap-4">
-          <p
-            className={`text-[0.75rem]/4 font-medium tracking-[0.2em] text-[rgba(0,0,0,0.45)] uppercase ${getOnboardingEntryTextMotionClassName(true, 50)}`}
-          >
-            {copy.eyebrow}
-          </p>
-          <h2
-            className={`max-w-[17ch] text-[1.5rem]/7 font-semibold tracking-[-0.02em] text-balance text-[rgb(36,37,41)] ${getOnboardingEntryTextMotionClassName(true, 100)}`}
-          >
-            {copy.title}
-          </h2>
-          <p
-            className={`text-sm/5 font-medium tracking-[-0.01em] text-pretty text-[rgb(80,81,84)] ${getOnboardingEntryTextMotionClassName(true, 150)}`}
-          >
-            {copy.body}
-          </p>
-          <div className={getOnboardingEntryTextMotionClassName(true, 200)}>
-            <div className="inline-flex items-center gap-2 rounded-full bg-[rgb(248,249,250)] px-3 py-1.5 text-[0.75rem]/4 font-medium tracking-[-0.01em] text-[rgb(80,81,84)] shadow-[inset_0_0_0_1px_rgb(238,239,241)]">
-              <span>Current answer</span>
-              <span className="text-[rgb(36,37,41)]">
-                {activeAnswer || "Not chosen yet"}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -293,7 +247,8 @@ export function SpielwieseOnboardingCanvas({
           onClick={preventInertOnboardingClick}
         />
       }
-      showShader
+      layout="single"
+      showBackdrop={false}
       testId="spielwiese-onboarding-step"
     >
       <OnboardingQuestionPanel
@@ -302,10 +257,6 @@ export function SpielwieseOnboardingCanvas({
         onBack={handleBack}
         onContinue={handleContinue}
         onSelect={handleSelect}
-      />
-      <OnboardingSupportPanel
-        activeAnswer={activeAnswer}
-        activeStepIndex={activeStepIndex}
       />
     </SpielwieseOnboardingSurface>
   );

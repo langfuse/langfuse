@@ -12,6 +12,12 @@ import {
   type CanvasEditorMode,
 } from "./spielwieseCanvasPaneEditorMode";
 
+const spielwieseCanvasPaneClassName =
+  "bg-[var(--spielwiese-canvas-pane-background)]";
+const spielwieseCanvasPaneShellClassName =
+  "bg-[var(--spielwiese-canvas-pane-shell-background)]";
+const spielwieseCanvasPaneSurfaceClassName = "bg-background";
+
 export type SpielwieseCanvasPaneProps = {
   className?: string;
   insertAnchorNodeId: string | null;
@@ -199,11 +205,17 @@ function CanvasPaneContent({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--canvas-pane-outer-radius)] bg-[#F3F3F4] p-[var(--canvas-pane-shell-gap)] shadow-xs [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--canvas-pane-outer-radius)] p-[var(--canvas-pane-shell-gap)] shadow-xs [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]",
+        spielwieseCanvasPaneShellClassName,
+      )}
       data-testid="spielwiese-editor-canvas-pane-shell"
     >
       <div
-        className="bg-background flex min-h-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px]"
+        className={cn(
+          "flex min-h-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px]",
+          spielwieseCanvasPaneSurfaceClassName,
+        )}
         data-testid="spielwiese-editor-canvas-pane-surface"
       >
         <SpielwieseCanvasPaneHeader
@@ -287,7 +299,8 @@ export function SpielwieseCanvasPane({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F3F3F4] px-0 pt-0 pb-1",
+        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--canvas-pane-outer-radius)] px-0 pt-0 pb-0 [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]",
+        spielwieseCanvasPaneClassName,
         className,
       )}
       data-testid="spielwiese-editor-canvas-pane"

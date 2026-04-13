@@ -3,6 +3,31 @@ import type {
   SpielwieseDashboardVM,
 } from "../types/dashboard";
 
+const emptyCanvasInsertAnchorNodeId = "__canvas-root__";
+
+function createEmptyCanvasInsertedNode(
+  kind: "user" | "agent",
+): SpielwieseDashboardVM["canvas"]["agentNodes"][number] {
+  const layout = kind === "user" ? "user-only" : "agent-only";
+
+  return {
+    description: "",
+    id: kind === "user" ? "user-node" : "agent-node",
+    kind: kind === "user" ? "Input" : "Agent",
+    layout,
+    notes: [],
+    playgroundPreview: undefined,
+    playgroundThinking: undefined,
+    promptSections:
+      layout === "user-only"
+        ? [{ id: "user", label: "User", value: "" }]
+        : [{ id: "system", label: "Instructions", value: "" }],
+    settings: [],
+    stepLabel: "Step 1",
+    title: kind === "user" ? "User input" : "",
+  };
+}
+
 export function cloneAgentNode(
   node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
 ) {
@@ -101,6 +126,13 @@ export function insertAgentNodeAfter(
   nodeId: string,
   kind: "user" | "agent",
 ) {
+  if (
+    nodes.length === 0 &&
+    (nodeId === emptyCanvasInsertAnchorNodeId || nodeId.length === 0)
+  ) {
+    return [createEmptyCanvasInsertedNode(kind)];
+  }
+
   const sourceNodeIndex = nodes.findIndex((node) => node.id === nodeId);
 
   if (sourceNodeIndex === -1) {
@@ -125,3 +157,5 @@ export function insertAgentNodeAfter(
     ...nodes.slice(sourceNodeIndex + 1),
   ]);
 }
+
+export { emptyCanvasInsertAnchorNodeId };

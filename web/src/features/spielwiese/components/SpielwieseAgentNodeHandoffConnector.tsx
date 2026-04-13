@@ -1,17 +1,23 @@
 import { Check, MoveDown, type LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
-import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { getSpielwieseToneStyles } from "./spielwieseToneStyles";
+import {
+  getSpielwieseDetectedVariableLabels,
+  getSpielwieseNodeVariableLabels,
+} from "./spielwieseMustacheVariables";
+import { useSpielwieseVariableValues } from "./useSpielwieseVariableValues";
 
 type SpielwieseAgentNodeHandoffConnectorProps = {
+  priorNodes?: SpielwieseAgentNodeVM[];
   sourceNode: SpielwieseAgentNodeVM;
   targetNode: SpielwieseAgentNodeVM;
 };
 
 type HandoffTagState = {
   id: string;
+  isEmpty: boolean;
   isPassed: boolean;
   label: string;
 };
@@ -21,47 +27,23 @@ type HandoffTagToneStyle = {
   chip: CSSProperties;
 };
 
-function getSettingValue(node: SpielwieseAgentNodeVM, settingId: string) {
-  return node.settings.find((setting) => setting.id === settingId)?.value ?? "";
-}
-
-function parseSettingTags(value: string) {
-  return [
-    ...new Set(
-      value
-        .split(/[\n,]/)
-        .map((part) => part.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-function getPromptVariableTags(node: SpielwieseAgentNodeVM) {
-  const mustacheRegex = new RegExp(MUSTACHE_REGEX.source, "g");
-
-  return [
-    ...new Set(
-      node.promptSections.flatMap((section) =>
-        [...section.value.matchAll(mustacheRegex)]
-          .map((match) => match[1] ?? "")
-          .filter((variableName) => isValidVariableName(variableName)),
-      ),
-    ),
-  ];
-}
-
 function getHandoffTags({
+  priorNodes = [],
   sourceNode,
   targetNode,
-}: SpielwieseAgentNodeHandoffConnectorProps): HandoffTagState[] {
-  const sourceTags = parseSettingTags(getSettingValue(sourceNode, "output"));
-  const targetTags = new Set([
-    ...parseSettingTags(getSettingValue(targetNode, "input")),
-    ...getPromptVariableTags(targetNode),
-  ]);
+  variableValues,
+}: SpielwieseAgentNodeHandoffConnectorProps & {
+  variableValues: Record<string, string>;
+}): HandoffTagState[] {
+  const priorTags = new Set(getSpielwieseDetectedVariableLabels(priorNodes));
+  const sourceTags = getSpielwieseNodeVariableLabels(sourceNode).filter(
+    (label) => !priorTags.has(label),
+  );
+  const targetTags = new Set(getSpielwieseNodeVariableLabels(targetNode));
 
   return sourceTags.map((label) => ({
     id: `${sourceNode.id}-${targetNode.id}-${label}`,
+    isEmpty: !(variableValues[label] ?? "").trim(),
     isPassed: targetTags.has(label),
     label,
   }));
@@ -81,47 +63,67 @@ function getHandoffTagToneStyle(tagIndex: number): HandoffTagToneStyle {
 }
 
 function HandoffTag({
+  isEmpty,
   isPassed,
   label,
   tagIndex,
 }: {
+  isEmpty: boolean;
   isPassed: boolean;
   label: string;
   tagIndex: number;
 }) {
   const toneStyle = getHandoffTagToneStyle(tagIndex);
+  const showsCheck = isPassed && !isEmpty;
+  const showsEmpty = isEmpty;
 
   return (
     <div
       className={cn(
-        "inline-flex h-7 max-w-full min-w-0 shrink-0 items-center gap-1.5 rounded-[10px] border px-1.5 pr-2 text-[12px] leading-4.5 font-medium tracking-[-0.01em] shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]",
+        "inline-flex h-6 max-w-full min-w-0 shrink-0 items-center gap-1 rounded-[9px] border px-2 text-[0.6875rem] leading-3.5 font-medium tracking-[-0.01em] shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]",
         isPassed
           ? "border-transparent"
-          : "text-foreground/34 border-[rgba(0,0,0,0.05)] bg-[rgba(247,247,247,0.92)] shadow-none",
+          : "text-foreground/38 border-[rgba(15,23,42,0.06)] bg-[rgba(250,250,249,0.94)] shadow-none",
       )}
+      data-empty={isEmpty ? "true" : "false"}
       data-state={isPassed ? "passed" : "pending"}
       data-testid="spielwiese-agent-node-connector-tag"
       style={isPassed ? toneStyle.chip : undefined}
     >
-      {isPassed ? (
-        <span
-          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-[rgba(0,0,0,0.05)] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+      <span className="min-w-0 truncate">{label}</span>
+      {showsEmpty ? (
+        <div
+          className="text-foreground/48 inline-flex h-3.5 shrink-0 items-center rounded-[6px] border border-[rgba(15,23,42,0.06)] bg-white/84 px-1.5 text-[0.5625rem] leading-none font-semibold tracking-[0.02em] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+          data-testid="spielwiese-agent-node-connector-tag-empty"
+        >
+          empty
+        </div>
+      ) : null}
+      {showsCheck ? (
+        <div
+          className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-[6px] border border-[rgba(0,0,0,0.05)] bg-white/92 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
           data-testid="spielwiese-agent-node-connector-tag-check"
           style={{ color: toneStyle.checkColor }}
         >
-          <Check className="size-2.5 stroke-[2.3px]" />
-        </span>
+          <Check className="size-2.25 stroke-[2.3px]" />
+        </div>
       ) : null}
-      <span className="min-w-0 truncate">{label}</span>
     </div>
   );
 }
 
 export function SpielwieseAgentNodeHandoffConnector({
+  priorNodes,
   sourceNode,
   targetNode,
 }: SpielwieseAgentNodeHandoffConnectorProps) {
-  const handoffTags = getHandoffTags({ sourceNode, targetNode });
+  const variableValues = useSpielwieseVariableValues();
+  const handoffTags = getHandoffTags({
+    priorNodes,
+    sourceNode,
+    targetNode,
+    variableValues,
+  });
   const ArrowIcon: LucideIcon = MoveDown;
 
   return (
@@ -131,10 +133,10 @@ export function SpielwieseAgentNodeHandoffConnector({
     >
       <div aria-hidden="true" />
       <div
-        className="bg-background text-foreground/46 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--spielwiese-agent-node-chrome-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_1px_2px_rgba(15,23,42,0.06)]"
+        className="text-foreground/42 inline-flex size-4 shrink-0 items-center justify-center rounded-[7px] border border-[color:var(--spielwiese-agent-node-chrome-border)] bg-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
         data-testid="spielwiese-agent-node-connector-arrow"
       >
-        <ArrowIcon className="size-3.5 stroke-[2.15px]" />
+        <ArrowIcon className="size-2.25 stroke-[2.1px]" />
       </div>
       {handoffTags.length > 0 ? (
         <div
@@ -143,6 +145,7 @@ export function SpielwieseAgentNodeHandoffConnector({
         >
           {handoffTags.map((tag, index) => (
             <HandoffTag
+              isEmpty={tag.isEmpty}
               isPassed={tag.isPassed}
               key={tag.id}
               label={tag.label}

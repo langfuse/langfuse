@@ -82,11 +82,29 @@ function expectSidebarShortcutChrome(
   expect(control).toBeTruthy();
   expect(badge).toBeTruthy();
   expect(badge?.textContent).toBe(shortcut);
-  expect(badge?.className).toContain("opacity-0");
+  expectSidebarShortcutTransitionChrome(badge);
   expect(badge?.className).toContain("group-hover/sidebar-item:opacity-100");
   if (classToken) {
     expect(badge?.className).toContain(classToken);
   }
+}
+
+function expectSidebarShortcutTransitionChrome(
+  badge: Element | null | undefined,
+) {
+  expect(badge?.className).toContain("opacity-0");
+  expect(badge?.className).toContain("transition-opacity");
+  expect(badge?.className).not.toContain("translate-x");
+}
+
+function expectNoSidebarShortcut(
+  label: string,
+  selector = "a, button, summary",
+) {
+  const control = screen.getByText(label).closest(selector);
+
+  expect(control).toBeTruthy();
+  expect(control?.querySelector("kbd")).toBeNull();
 }
 
 function expectSidebarSectionHeaderActionChrome(label: string) {
@@ -112,8 +130,10 @@ function expectNestedTreeChrome(label: string) {
 
 function expectDummyNestedTreeChrome(label: string) {
   const control = screen.getByText(label).closest("button");
+  const labelElement = screen.getByText(label);
 
   expect(control).toBeTruthy();
+  expect(labelElement.className).toContain("text-left");
   expect(control?.className).toContain("rounded-[9px]");
   expect(control?.className).toContain("text-[0.875rem]");
   expect(control?.getAttribute("aria-disabled")).toBe("true");
@@ -185,12 +205,12 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectSidebarShortcutChrome("Organization settings", "O");
     expectSidebarShortcutChrome("Documentation", "D");
     expectSidebarGroupRowChrome("Example Evaluators");
-    expectSidebarShortcutChrome("Example Evaluators", "E");
+    expectNoSidebarShortcut("Example Evaluators");
     expectSidebarSectionHeaderActionChrome("Files");
     expectNestedTreeChrome("Micronutrient tracker");
-    expectSidebarShortcutChrome("Micronutrient tracker", "M");
+    expectNoSidebarShortcut("Micronutrient tracker");
     expectDummyNestedTreeChrome("Vision Agent");
-    expectSidebarShortcutChrome("Vision Agent", "V");
+    expectNoSidebarShortcut("Vision Agent");
     expect(
       screen
         .getByText("Micronutrient tracker")
@@ -220,17 +240,9 @@ describe("SpielwieseSidebarLeft compact", () => {
     expect(
       screen.queryByTestId("spielwiese-left-sidebar-compact-create-rail"),
     ).toBeNull();
-    expect(screen.getByTitle("Desktop app")).toBeTruthy();
-    expect(screen.getByTitle("Desktop app").className).toContain("size-7");
-    expect(screen.getByTitle("Desktop app").className).toContain(
-      "justify-center",
-    );
-    expect(screen.getByTitle("Desktop app").className).toContain(
-      "text-black/[0.55]",
-    );
-    expect(screen.getByTitle("Files")).toBeTruthy();
-    expect(screen.getByTitle("Files").className).toContain("size-7");
-    expect(screen.getByTitle("Files").className).toContain("justify-center");
+    expect(screen.queryByTitle("Desktop app")).toBeNull();
+    expect(screen.queryByTitle("View updates")).toBeNull();
+    expect(screen.queryByTitle("Files")).toBeNull();
     expect(screen.getByTitle("Home").className).toContain("size-7");
     expect(screen.getByTitle("Home").className).toContain("justify-center");
     expect(screen.getByTitle("Home").className).toContain("text-black/[0.55]");

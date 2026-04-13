@@ -92,6 +92,7 @@ function renderAgentNodeItems({
       nextNode ? (
         <SpielwieseAgentNodeHandoffConnector
           key={`${node.id}-${nextNode.id}-connector`}
+          priorNodes={nodes.slice(0, index)}
           sourceNode={node}
           targetNode={nextNode}
         />

@@ -1,6 +1,7 @@
 /* eslint-disable max-lines */
 import { screen, within } from "@testing-library/react";
-const assistantReplyCardShadowClassName = "shadow-[0_0_0_3px_rgba(0,0,0,0.03)]";
+const assistantReplyCardShadowClassName =
+  "shadow-[0_0_0_3px_var(--spielwiese-agent-node-text-field-halo)]";
 export function expectInlineEditingShell({
   modelInput,
   systemInput,
@@ -48,9 +49,7 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
     "bg-[var(--spielwiese-agent-node-shell-surface)]",
   );
   expect(detachedUserSections.className).toContain("gap-0.5");
-  expect(detachedUserSections.className).toContain(
-    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
-  );
+  expect(detachedUserSections.className).toContain("shadow-none");
   expect(detachedUserSections.className).toContain("overflow-visible");
   expect(detachedUserCardFrame?.className).toContain(
     "rounded-[var(--node-shell-radius)]",
@@ -298,8 +297,8 @@ function expectDetachedUserFieldChrome({
     "shadow-[inset_0_0_0_1px_var(--spielwiese-agent-node-prompt-value-border)]",
   );
   expect(detachedUserTextarea.className).toContain("min-h-6");
-  expect(detachedUserTextarea.className).toContain("px-4");
-  expect(detachedUserTextarea.className).toContain("py-[0.4375rem]");
+  expect(detachedUserTextarea.className).toContain("px-3");
+  expect(detachedUserTextarea.className).toContain("py-1");
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -542,8 +541,8 @@ export function expectAttioSectionChip(
 ) {
   expect(instructionsToggle.className).toContain("bg-transparent");
   expect(instructionsToggle.className).toContain("border-0");
-  expect(instructionsToggle.className).toContain("px-0");
-  expect(instructionsToggle.className).toContain("py-0");
+  expect(instructionsToggle.className).toContain("px-3");
+  expect(instructionsToggle.className).toContain("py-1");
   expect(
     instructionsToggle.querySelector("[data-prefix='true']")?.className,
   ).toContain("size-4");
@@ -560,7 +559,9 @@ export function expectShadowedMessageFieldShell(
   expect(fieldShell).toBeTruthy();
   expect(fieldShell?.className).toContain("w-full");
   expect(fieldShell?.className).toContain("rounded-[10px]");
-  expect(fieldShell?.className).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(fieldShell?.className).toContain(
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
+  );
   expect(fieldShell?.className).toContain(expectedBackgroundClassName);
   expect(fieldShell?.className).toContain(assistantReplyCardShadowClassName);
 }

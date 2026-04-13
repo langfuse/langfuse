@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Bell, PanelLeft, PanelRight } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
@@ -16,7 +18,24 @@ const topBarPageNavToggleButtonClassName =
   "text-[#242529] size-8 justify-center rounded-[0.6rem] border-0 bg-transparent p-0 shadow-none transition-colors duration-75 hover:bg-black/[0.06] hover:text-[#242529] active:bg-black/[0.08]";
 const topBarProfileButtonClassName =
   "group inline-flex size-10 items-center justify-center rounded-lg transition-[background-color,transform] duration-150 hover:bg-black/[0.05] active:scale-[0.985]";
+const topBarCanvasRailClassName =
+  "flex min-w-0 w-full items-center gap-3 pl-[5.125rem] pr-2";
+const topBarFilePathShellClassName =
+  "flex min-w-0 items-center gap-1 py-1 pl-2.5 pr-1";
+const topBarModeToggleClassName =
+  "pointer-events-auto inline-flex items-center gap-px rounded-[8px] bg-[#F7F7F7] p-0 ring-1 ring-black/5";
+const topBarModeToggleButtonClassName =
+  "text-foreground/62 hover:text-foreground inline-flex h-6 min-w-24 items-center justify-center gap-1.25 rounded-[8px] px-2 py-0 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
+const topBarModeToggleButtonActiveClassName =
+  "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
 const headerDocsHref = "https://langfuse.com/docs";
+const topBarViews = [
+  "Agent Composition",
+  "Observability",
+  "Deployment",
+] as const;
+
+type SpielwieseTopBarView = (typeof topBarViews)[number];
 
 type SpielwieseTopBarProps = {
   header: SpielwieseDashboardVM["header"];
@@ -43,6 +62,89 @@ function HeaderPrimaryActions({
       >
         <PanelLeft size={15} />
       </Button>
+    </div>
+  );
+}
+
+function getFilePathSegments(filePath: string) {
+  const segments = filePath
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length === 0) {
+    return {
+      leaf: filePath,
+      root: null,
+    };
+  }
+
+  const [firstSegment, ...rest] = segments;
+  const leaf = rest.join("/") || firstSegment;
+
+  return {
+    leaf,
+    root: rest.length > 0 ? "Files" : null,
+  };
+}
+
+function HeaderCanvasRail({ filePath }: { filePath: string }) {
+  const [activeView, setActiveView] =
+    useState<SpielwieseTopBarView>("Agent Composition");
+  const pathSegments = getFilePathSegments(filePath);
+
+  return (
+    <div
+      className={topBarCanvasRailClassName}
+      data-testid="spielwiese-top-bar-canvas-rail"
+    >
+      <div
+        className={topBarFilePathShellClassName}
+        data-testid="spielwiese-top-bar-file-path"
+      >
+        {pathSegments.root ? (
+          <>
+            <span className="min-w-0 truncate text-[0.75rem] font-medium tracking-[-0.01em] text-[#52545A]">
+              {pathSegments.root}
+            </span>
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-[0.78rem] leading-none text-[#9A9CA2]"
+            >
+              ›
+            </span>
+          </>
+        ) : null}
+        <span className="min-w-0 truncate text-[0.75rem] font-medium tracking-[-0.01em] text-[#242529]">
+          {pathSegments.leaf}
+        </span>
+      </div>
+      <div className="ml-auto shrink-0">
+        <div
+          className={topBarModeToggleClassName}
+          data-testid="spielwiese-top-bar-mode-toggle"
+        >
+          {topBarViews.map((view) => {
+            const isActive = view === activeView;
+
+            return (
+              <button
+                aria-label={view}
+                aria-pressed={isActive}
+                className={cn(
+                  topBarModeToggleButtonClassName,
+                  isActive && topBarModeToggleButtonActiveClassName,
+                )}
+                key={view}
+                onClick={() => setActiveView(view)}
+                type="button"
+              >
+                {view}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -129,10 +231,7 @@ function HeaderProfileButton({
   );
 }
 
-export function SpielwieseTopBar({
-  header: _header,
-  shell,
-}: SpielwieseTopBarProps) {
+export function SpielwieseTopBar({ header, shell }: SpielwieseTopBarProps) {
   const { togglePrimarySidebar, toggleSecondarySidebar } = useSpielwieseShell();
 
   return (
@@ -145,7 +244,9 @@ export function SpielwieseTopBar({
           teamName={shell.team.name}
           togglePrimarySidebar={togglePrimarySidebar}
         />
-        <div className="min-w-0" />
+        <div className="flex min-w-0 flex-1 items-center">
+          <HeaderCanvasRail filePath={header.filePath} />
+        </div>
         <HeaderSecondaryActions
           toggleSecondarySidebar={toggleSecondarySidebar}
           userName={shell.user.name}

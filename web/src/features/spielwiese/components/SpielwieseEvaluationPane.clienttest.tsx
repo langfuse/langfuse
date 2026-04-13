@@ -10,6 +10,24 @@ function renderEvaluationPane() {
   );
 }
 
+function expectStrategyFieldLabels({
+  label,
+  strategyId,
+  selectLabels,
+}: {
+  label: string;
+  selectLabels: string[];
+  strategyId: string;
+}) {
+  fireEvent.click(
+    screen.getByTestId(`spielwiese-evaluation-strategy-${strategyId}`),
+  );
+  expect(screen.getByLabelText(label)).toBeTruthy();
+  selectLabels.forEach((selectLabel) => {
+    expect(screen.getByRole("combobox", { name: selectLabel })).toBeTruthy();
+  });
+}
+
 describe("SpielwieseEvaluationPane", () => {
   it("asks for the right inputs for each evaluation strategy", () => {
     renderEvaluationPane();
@@ -21,49 +39,48 @@ describe("SpielwieseEvaluationPane", () => {
     expect(
       screen.getByTestId("spielwiese-evaluation-variable-chip-output"),
     ).toBeTruthy();
+    expectStrategyFieldLabels({
+      label: "JavaScript evaluator code",
+      selectLabels: [],
+      strategyId: "javascript",
+    });
+    expectStrategyFieldLabels({
+      label: "Cost threshold",
+      selectLabels: ["Cost comparator", "Cost threshold unit"],
+      strategyId: "cost",
+    });
+    expectStrategyFieldLabels({
+      label: "Latency threshold",
+      selectLabels: ["Latency comparator", "Latency threshold unit"],
+      strategyId: "latency",
+    });
+    expectStrategyFieldLabels({
+      label: "Response length threshold",
+      selectLabels: ["Response length comparator", "Response length unit"],
+      strategyId: "response-length",
+    });
+    expectStrategyFieldLabels({
+      label: "Text matcher value",
+      selectLabels: ["Text matcher operator"],
+      strategyId: "text-matcher",
+    });
+  });
 
-    fireEvent.click(
-      screen.getByTestId("spielwiese-evaluation-strategy-javascript"),
+  it("keeps the bottom inset outside the scrolling surface", () => {
+    renderEvaluationPane();
+
+    const frame = screen.getByTestId("spielwiese-evaluation-pane-frame");
+    const surface = screen.getByTestId("spielwiese-evaluation-pane-surface");
+    const bottomInset = screen.getByTestId(
+      "spielwiese-evaluation-pane-bottom-inset",
     );
-    expect(screen.getByLabelText("JavaScript evaluator code")).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId("spielwiese-evaluation-strategy-cost"));
-    expect(screen.getByLabelText("Cost threshold")).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Cost comparator" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Cost threshold unit" }),
-    ).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByTestId("spielwiese-evaluation-strategy-latency"),
-    );
-    expect(screen.getByLabelText("Latency threshold")).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Latency comparator" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Latency threshold unit" }),
-    ).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByTestId("spielwiese-evaluation-strategy-response-length"),
-    );
-    expect(screen.getByLabelText("Response length threshold")).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Response length comparator" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Response length unit" }),
-    ).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByTestId("spielwiese-evaluation-strategy-text-matcher"),
-    );
-    expect(screen.getByLabelText("Text matcher value")).toBeTruthy();
-    expect(
-      screen.getByRole("combobox", { name: "Text matcher operator" }),
-    ).toBeTruthy();
+    expect(frame.className).toContain("relative");
+    expect(frame.className).toContain("overflow-hidden");
+    expect(surface.className).toContain("overflow-y-auto");
+    expect(surface.className).not.toContain("after:h-[6px]");
+    expect(frame.contains(surface)).toBe(true);
+    expect(frame.contains(bottomInset)).toBe(true);
+    expect(surface.contains(bottomInset)).toBe(false);
   });
 });

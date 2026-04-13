@@ -81,15 +81,32 @@ function expectEditorTone(editorIndex: number, toneIndex: number) {
   expect(helperField.className).toContain("shadow-none");
 }
 
+function expectVariablesSummaryChrome() {
+  const summary = screen.getByTestId("spielwiese-variables-summary");
+  const iconShell = screen.getByTestId(
+    "spielwiese-variables-summary-icon-shell",
+  );
+  const action = screen.getByTestId("spielwiese-variables-summary-action");
+
+  expect(summary.className).toContain("items-center");
+  expect(summary.className).toContain("justify-between");
+  expect(iconShell.className).toContain("size-7");
+  expect(iconShell.className).toContain("rounded-[10px]");
+  expect(iconShell.className).toContain("bg-white/72");
+  expect(iconShell.className).toContain("text-foreground/52");
+  expect(action.className).toContain("size-7");
+  expect(action.className).toContain("rounded-[10px]");
+  expect(action.className).toContain("border-0");
+  expect(action.className).toContain("bg-transparent");
+  expect(action.className).toContain("hover:bg-black/[0.06]");
+}
+
 describe("SpielwieseVariablesPanel", () => {
   it("renders the variable count header and action button", () => {
     renderVariablesPanel();
 
     expect(screen.getByText(variablesPanel.countLabel)).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: variablesPanel.actionLabel })
-        .className,
-    ).toContain("rounded-[10px]");
+    expectVariablesSummaryChrome();
   });
 
   it("renders editable fields for existing variables", () => {

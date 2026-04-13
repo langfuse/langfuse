@@ -3,7 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import { spielwieseAgentNodeColorVariableStyle } from "./spielwieseAgentNodeColorPalette";
 
 export const spielwiesePromptDeckCardShellClassName =
-  "group flex w-full flex-col gap-0.5 overflow-visible rounded-(--node-shell-radius) border border-[color:var(--spielwiese-agent-node-shell-border)] bg-[var(--spielwiese-agent-node-shell-surface)] shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)] transition-[box-shadow,border-color,background-color,transform] duration-180 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] [--node-shell-gap:2px] [--node-shell-radius:18px]";
+  "group flex w-full flex-col gap-0.5 overflow-visible rounded-(--node-shell-radius) border border-[color:var(--spielwiese-agent-node-shell-border)] bg-[var(--spielwiese-agent-node-shell-surface)] shadow-none transition-[box-shadow,border-color,background-color,transform] duration-180 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] [--node-shell-gap:2px] [--node-shell-radius:18px]";
 
 type SpielwiesePromptDeckCardShellProps = HTMLAttributes<HTMLDivElement>;
 

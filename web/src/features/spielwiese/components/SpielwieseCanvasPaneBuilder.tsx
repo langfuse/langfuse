@@ -1,6 +1,7 @@
 import type { SpielwieseDashboardVM } from "../types/dashboard";
 import { SpielwieseAgentNodeExternalInsertRow } from "./SpielwieseAgentNodeExternalInsertRow";
 import { SpielwieseAgentNodeStack } from "./SpielwieseAgentNodeStack";
+import { spielwieseCanvasPaneFooterClassName } from "./spielwieseCanvasPaneChrome";
 
 type SpielwieseCanvasPaneBuilderProps = {
   compactNodeIds: Record<string, boolean>;
@@ -65,12 +66,13 @@ export function SpielwieseCanvasPaneBuilder({
       </div>
       {insertAnchorNodeId ? (
         <div
-          className="flex-none"
+          className={spielwieseCanvasPaneFooterClassName}
           data-testid="spielwiese-agent-node-insert-footer"
         >
           <SpielwieseAgentNodeExternalInsertRow
             nodeId={insertAnchorNodeId}
             onAgentNodeInsert={onAgentNodeInsert}
+            variant="pane-footer"
           />
         </div>
       ) : null}

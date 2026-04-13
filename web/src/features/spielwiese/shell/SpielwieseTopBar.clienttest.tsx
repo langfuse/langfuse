@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   getSpielwieseDashboardVm,
   getSpielwieseShellVm,
@@ -17,7 +17,7 @@ function renderTopBar() {
   );
 }
 
-describe("SpielwieseTopBar", () => {
+describe("SpielwieseTopBar secondary actions", () => {
   it("uses the page-nav secondary action chrome", () => {
     renderTopBar();
 
@@ -74,5 +74,65 @@ describe("SpielwieseTopBar", () => {
     expect(rightToggle.textContent).toBe("");
     expect(profileButton.className).toContain("size-10");
     expect(profileButton.className).toContain("rounded-lg");
+  });
+});
+
+describe("SpielwieseTopBar canvas rail", () => {
+  it("renders a left-aligned file path and a three-option canvas navigation toggle", () => {
+    renderTopBar();
+
+    const canvasRail = screen.getByTestId("spielwiese-top-bar-canvas-rail");
+    const filePath = within(canvasRail).getByTestId(
+      "spielwiese-top-bar-file-path",
+    );
+    const pathRoot = within(filePath).getByText("Files");
+    const pathLeaf = within(filePath).getByText("micronutrient-tracker");
+    const pathChevron = within(filePath).getByText("›");
+    const toggle = within(canvasRail).getByTestId(
+      "spielwiese-top-bar-mode-toggle",
+    );
+    const agentCompositionButton = within(toggle).getByRole("button", {
+      name: "Agent Composition",
+    });
+    const observabilityButton = within(toggle).getByRole("button", {
+      name: "Observability",
+    });
+    const deploymentButton = within(toggle).getByRole("button", {
+      name: "Deployment",
+    });
+
+    expect(canvasRail.className).toContain("w-full");
+    expect(canvasRail.className).toContain("pl-[5.125rem]");
+    expect(canvasRail.className).toContain("pr-2");
+    expect(filePath.className).toContain("pl-2.5");
+    expect(filePath.className).toContain("pr-1");
+    expect(filePath.className).not.toContain("bg-white/68");
+    expect(pathRoot.className).toContain("truncate");
+    expect(pathLeaf.className).toContain("truncate");
+    expect(pathLeaf.className).toContain("font-medium");
+    expect(pathChevron.className).toContain("text-[#9A9CA2]");
+    expect(toggle.className).toContain("gap-px");
+    expect(toggle.className).toContain("rounded-[8px]");
+    expect(toggle.className).toContain("bg-[#F7F7F7]");
+    expect(toggle.className).toContain("ring-1");
+    expect(toggle.className).toContain("ring-black/5");
+    expect(agentCompositionButton.getAttribute("aria-pressed")).toBe("true");
+    expect(observabilityButton.getAttribute("aria-pressed")).toBe("false");
+    expect(deploymentButton.getAttribute("aria-pressed")).toBe("false");
+    expect(agentCompositionButton.className).toContain("h-6");
+    expect(agentCompositionButton.className).toContain("min-w-24");
+    expect(agentCompositionButton.className).toContain("rounded-[8px]");
+    expect(agentCompositionButton.className).toContain("px-2");
+    expect(agentCompositionButton.className).toContain("text-[11px]");
+    expect(agentCompositionButton.className).toContain("bg-white");
+    expect(agentCompositionButton.className).toContain("text-[#202427]");
+    expect(deploymentButton.className).toContain("text-foreground/62");
+    expect(deploymentButton.className).toContain("hover:text-foreground");
+
+    fireEvent.click(deploymentButton);
+
+    expect(agentCompositionButton.getAttribute("aria-pressed")).toBe("false");
+    expect(observabilityButton.getAttribute("aria-pressed")).toBe("false");
+    expect(deploymentButton.getAttribute("aria-pressed")).toBe("true");
   });
 });

@@ -182,19 +182,29 @@ export function SpielwieseEvaluationPane({
         data-testid="spielwiese-evaluation-pane-shell"
       >
         <div
-          className="bg-background relative flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
-          data-testid="spielwiese-evaluation-pane-surface"
-          ref={shellRef}
+          className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--canvas-pane-inner-radius)]"
+          data-testid="spielwiese-evaluation-pane-frame"
         >
-          <EvaluationPaneHeader headerAccessory={headerAccessory} />
-          <EvaluationPaneContent
-            activeStrategy={activeStrategy}
-            activeStrategyId={activeStrategyId}
-            nodes={nodes}
-            onRequestFit={onRequestFit}
-            setActiveStrategyId={setActiveStrategyId}
-            setStrategyConfigs={setStrategyConfigs}
-            strategyConfigs={strategyConfigs}
+          <div
+            className="bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto rounded-[inherit] px-2 pt-0 pb-[6px]"
+            data-testid="spielwiese-evaluation-pane-surface"
+            ref={shellRef}
+          >
+            <EvaluationPaneHeader headerAccessory={headerAccessory} />
+            <EvaluationPaneContent
+              activeStrategy={activeStrategy}
+              activeStrategyId={activeStrategyId}
+              nodes={nodes}
+              onRequestFit={onRequestFit}
+              setActiveStrategyId={setActiveStrategyId}
+              setStrategyConfigs={setStrategyConfigs}
+              strategyConfigs={strategyConfigs}
+            />
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[6px] bg-[#F3F3F4]"
+            data-testid="spielwiese-evaluation-pane-bottom-inset"
           />
         </div>
       </div>

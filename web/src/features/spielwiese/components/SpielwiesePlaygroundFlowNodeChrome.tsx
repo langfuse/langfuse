@@ -17,7 +17,7 @@ const noop = () => {};
 function getPlaygroundFlowHeaderTagEntries(
   node: Pick<
     SpielwieseAgentNodeVM,
-    "id" | "layout" | "promptSections" | "settings" | "title"
+    "id" | "kind" | "layout" | "promptSections" | "settings" | "title"
   >,
 ): PlaygroundFlowHeaderTagEntry[] {
   const entries: PlaygroundFlowHeaderTagEntry[] = [];
@@ -27,6 +27,10 @@ function getPlaygroundFlowHeaderTagEntries(
   );
   const currentModel =
     node.settings.find((setting) => setting.id === "model")?.value ?? undefined;
+  const agentTitle =
+    nodeLayout === "user-only" && node.kind === "Input"
+      ? "Agent"
+      : node.title.trim() || "Agent";
 
   if (nodeLayout !== "agent-only") {
     entries.push({
@@ -36,14 +40,12 @@ function getPlaygroundFlowHeaderTagEntries(
     });
   }
 
-  if (nodeLayout !== "user-only") {
-    entries.push({
-      currentModel,
-      id: `${node.id}-agent`,
-      kind: "agent",
-      title: node.title,
-    });
-  }
+  entries.push({
+    currentModel,
+    id: `${node.id}-agent`,
+    kind: "agent",
+    title: agentTitle,
+  });
 
   return entries;
 }
@@ -145,7 +147,7 @@ export function PlaygroundFlowNodeHeader({
   isThinking: boolean;
   node: Pick<
     SpielwieseAgentNodeVM,
-    "id" | "layout" | "promptSections" | "settings" | "title"
+    "id" | "kind" | "layout" | "promptSections" | "settings" | "title"
   >;
   showActionButtons?: boolean;
   thinkingMeta: Parameters<typeof PlaygroundThinkingCard>[0]["meta"];

@@ -24,8 +24,14 @@ function getEvaluationPaneElements() {
   const evaluationPaneShell = screen.getByTestId(
     "spielwiese-evaluation-pane-shell",
   );
+  const evaluationPaneFrame = screen.getByTestId(
+    "spielwiese-evaluation-pane-frame",
+  );
   const evaluationPaneSurface = screen.getByTestId(
     "spielwiese-evaluation-pane-surface",
+  );
+  const evaluationPaneBottomInset = screen.getByTestId(
+    "spielwiese-evaluation-pane-bottom-inset",
   );
   const evaluationHeaderBar = screen.getByTestId(
     "spielwiese-evaluation-header-bar",
@@ -36,6 +42,8 @@ function getEvaluationPaneElements() {
 
   return {
     evaluationHeaderBar,
+    evaluationPaneBottomInset,
+    evaluationPaneFrame,
     evaluationPane,
     evaluationPaneShell,
     evaluationPaneSurface,
@@ -45,11 +53,17 @@ function getEvaluationPaneElements() {
 
 function expectEvaluationPaneShellChrome({
   evaluationPane,
+  evaluationPaneBottomInset,
+  evaluationPaneFrame,
   evaluationPaneShell,
   evaluationPaneSurface,
 }: Pick<
   ReturnType<typeof getEvaluationPaneElements>,
-  "evaluationPane" | "evaluationPaneShell" | "evaluationPaneSurface"
+  | "evaluationPane"
+  | "evaluationPaneBottomInset"
+  | "evaluationPaneFrame"
+  | "evaluationPaneShell"
+  | "evaluationPaneSurface"
 >) {
   expect(evaluationPane).toBeTruthy();
   expect(evaluationPane.className).toContain("px-0");
@@ -69,13 +83,19 @@ function expectEvaluationPaneShellChrome({
   expect(evaluationPaneShell.className).toContain(
     "p-[var(--canvas-pane-shell-gap)]",
   );
-  expect(evaluationPaneSurface.className).toContain(
+  expect(evaluationPaneFrame.className).toContain("relative");
+  expect(evaluationPaneFrame.className).toContain("overflow-hidden");
+  expect(evaluationPaneFrame.className).toContain(
     "rounded-[var(--canvas-pane-inner-radius)]",
   );
-  expect(evaluationPaneSurface.className).toContain("relative");
+  expect(evaluationPaneSurface.className).toContain("rounded-[inherit]");
   expect(evaluationPaneSurface.className).toContain("px-2");
   expect(evaluationPaneSurface.className).toContain("pb-[6px]");
-  expect(evaluationPaneSurface.className).toContain("after:h-[6px]");
+  expect(evaluationPaneSurface.className).not.toContain("after:h-[6px]");
+  expect(evaluationPaneBottomInset.className).toContain("absolute");
+  expect(evaluationPaneBottomInset.className).toContain("inset-x-0");
+  expect(evaluationPaneBottomInset.className).toContain("bottom-0");
+  expect(evaluationPaneBottomInset.className).toContain("h-[6px]");
 }
 
 function expectEvaluationPaneHeader({

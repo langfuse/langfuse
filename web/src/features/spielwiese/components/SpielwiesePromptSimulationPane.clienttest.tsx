@@ -251,9 +251,7 @@ function expectPromptSimulationNodeShells(
     "bg-[var(--spielwiese-agent-node-shell-surface)]",
   );
   expect(firstFlowStep.className).toContain("gap-0.5");
-  expect(firstFlowStep.className).toContain(
-    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
-  );
+  expect(firstFlowStep.className).toContain("shadow-none");
   expect(firstFlowStep.firstElementChild).toBe(firstCardFrame);
   expect(firstCardFrame.className).toContain(
     "rounded-[var(--node-shell-radius)]",
@@ -514,7 +512,7 @@ describe("SpielwiesePromptSimulationPane", () => {
     expectPlaygroundThinkingState(elements);
   });
 
-  it("keeps user-only nodes blank until play and then streams an adana kebab nutrient JSON answer", () => {
+  it("keeps user-only nodes blank until play while still showing the agent tag in the header", () => {
     jest.useFakeTimers();
 
     try {
@@ -531,6 +529,9 @@ describe("SpielwiesePromptSimulationPane", () => {
         "spielwiese-playground-flow-node",
       );
       const userOnlyNode = flowNodes[1]!;
+      const userOnlyTagStrip = within(userOnlyNode).getByTestId(
+        "spielwiese-playground-flow-node-tag-strip",
+      );
       const playButton = within(simulationPane).getByTestId(
         "spielwiese-playground-play-button",
       );
@@ -540,11 +541,13 @@ describe("SpielwiesePromptSimulationPane", () => {
           "spielwiese-playground-flow-preview-row",
         ),
       ).toBeNull();
+      expect(userOnlyTagStrip.textContent).toContain("User");
+      expect(userOnlyTagStrip.textContent).toContain("Vision Agent");
       expect(
-        screen.queryByText(
-          "I had adana kebab with lavash and grilled peppers.",
+        within(userOnlyTagStrip).getAllByTestId(
+          "spielwiese-playground-flow-node-tag",
         ),
-      ).toBeNull();
+      ).toHaveLength(2);
 
       fireEvent.click(playButton);
 

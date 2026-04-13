@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
+import { onboardingStepCopy } from "./spielwieseOnboardingStepCopy";
 
 jest.mock("next/router", () => ({
   useRouter: jest.fn(),
@@ -40,6 +41,12 @@ describe("SpielwieseOnboardingCanvas setup", () => {
     renderOnboardingCanvas("role");
 
     expect(screen.getByTestId("spielwiese-onboarding-step")).toBeTruthy();
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-surface-backdrop"),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("spielwiese-onboarding-surface-shell").className,
+    ).toContain("max-w-[36rem]");
     expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
       screen.getByRole("button", {
@@ -57,6 +64,10 @@ describe("SpielwieseOnboardingCanvas setup", () => {
       progressStep: 1,
       prompt: "Do you know what to build?",
     });
+    expect(screen.queryByText(onboardingStepCopy.role.eyebrow)).toBeNull();
+    expect(screen.queryByText(onboardingStepCopy.role.title)).toBeNull();
+    expect(screen.queryByText(onboardingStepCopy.role.body)).toBeNull();
+    expect(screen.queryByText("Current answer")).toBeNull();
     expect(screen.getByRole("button", { name: "Yes" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "No" })).toBeTruthy();
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();

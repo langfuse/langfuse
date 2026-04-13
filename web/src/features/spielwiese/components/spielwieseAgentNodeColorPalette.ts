@@ -15,11 +15,17 @@ export const spielwieseAgentNodeColorPalette = {
   textFieldSurface: "#FFFFFF",
 } as const;
 
+export const spielwieseCanvasLayerPalette = {
+  pane: "#FCFCFD",
+  paneShell: "#FCFCFD",
+  paneSurface: "#FFFFFF",
+} as const;
+
 export const spielwieseMessageSectionChipPaddingDefaults = {
   bottom: 0,
   left: 0,
   right: 0,
-  top: 0,
+  top: 2,
 } as const;
 
 export type SpielwieseAgentNodeColorKey =
@@ -27,6 +33,14 @@ export type SpielwieseAgentNodeColorKey =
 
 export type SpielwieseAgentNodeColorState = Record<
   SpielwieseAgentNodeColorKey,
+  string
+>;
+
+export type SpielwieseCanvasLayerKey =
+  keyof typeof spielwieseCanvasLayerPalette;
+
+export type SpielwieseCanvasLayerState = Record<
+  SpielwieseCanvasLayerKey,
   string
 >;
 
@@ -72,6 +86,30 @@ export function getSpielwieseAgentNodeColorVariableStyle(
     "--spielwiese-dashboard-agent-node-text-field-halo": colors.textFieldHalo,
     "--spielwiese-dashboard-agent-node-text-field-surface":
       colors.textFieldSurface,
+  } as CSSProperties;
+}
+
+export function getSpielwieseCanvasLayerVariableStyle({
+  colors,
+  highlightedLayer,
+}: {
+  colors: SpielwieseCanvasLayerState;
+  highlightedLayer: SpielwieseCanvasLayerKey | null;
+}): CSSProperties {
+  return {
+    "--spielwiese-dashboard-canvas-pane-background": colors.pane,
+    "--spielwiese-dashboard-canvas-pane-shell-background": colors.paneShell,
+    "--spielwiese-dashboard-canvas-pane-surface-background": colors.paneSurface,
+    "--spielwiese-dashboard-canvas-pane-outline":
+      highlightedLayer === "pane" ? "rgba(236, 101, 58, 0.9)" : "transparent",
+    "--spielwiese-dashboard-canvas-pane-shell-outline":
+      highlightedLayer === "paneShell"
+        ? "rgba(65, 105, 225, 0.9)"
+        : "transparent",
+    "--spielwiese-dashboard-canvas-pane-surface-outline":
+      highlightedLayer === "paneSurface"
+        ? "rgba(16, 163, 127, 0.92)"
+        : "transparent",
   } as CSSProperties;
 }
 
@@ -142,6 +180,30 @@ export const spielwieseMessageSectionChipPaddingStyle = {
 
 export const spielwieseAgentNodeColorVariableStyle = {
   ...spielwieseMessageSectionChipVariableStyle,
+  "--spielwiese-canvas-pane-background": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-background",
+    spielwieseCanvasLayerPalette.pane,
+  ),
+  "--spielwiese-canvas-pane-shell-background": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-shell-background",
+    spielwieseCanvasLayerPalette.paneShell,
+  ),
+  "--spielwiese-canvas-pane-surface-background": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-surface-background",
+    spielwieseCanvasLayerPalette.paneSurface,
+  ),
+  "--spielwiese-canvas-pane-outline": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-outline",
+    "transparent",
+  ),
+  "--spielwiese-canvas-pane-shell-outline": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-shell-outline",
+    "transparent",
+  ),
+  "--spielwiese-canvas-pane-surface-outline": getDebugColorOverrideValue(
+    "--spielwiese-dashboard-canvas-pane-surface-outline",
+    "transparent",
+  ),
   "--spielwiese-agent-node-chrome-border": getDebugColorOverrideValue(
     "--spielwiese-dashboard-agent-node-chrome-border",
     spielwieseAgentNodeColorPalette.chromeBorder,

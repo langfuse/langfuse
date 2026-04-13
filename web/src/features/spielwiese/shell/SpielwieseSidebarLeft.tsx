@@ -1,7 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 import {
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -13,7 +12,6 @@ import type {
   SpielwieseNavItem,
   SpielwieseShellVM,
 } from "../types/shell";
-import { FooterTools } from "./SpielwieseSidebarLeftExtras";
 import {
   SpielwieseHeaderFinder,
   type SpielwieseHeaderFinderProps,
@@ -126,27 +124,7 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
     <div className="contents" data-testid="spielwiese-left-sidebar-scroll-area">
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-2.5 py-2.5">
         <CompactUtilityNav items={compactUtilityNav} />
-        <div className="flex flex-col items-start gap-1.5 px-2">
-          {shell.sidebarSections.map((section) => {
-            const Icon = section.icon;
-
-            return (
-              <a
-                key={section.id}
-                className={compactSidebarRowClassName}
-                href={`#${section.id}`}
-                title={section.label}
-              >
-                <Icon className="size-4" data-sidebar-icon />
-              </a>
-            );
-          })}
-        </div>
       </div>
-
-      <SidebarFooter className="mt-0 items-stretch gap-2 p-2.5 pt-0">
-        <FooterTools compact tools={shell.footerTools} />
-      </SidebarFooter>
     </div>
   );
 }

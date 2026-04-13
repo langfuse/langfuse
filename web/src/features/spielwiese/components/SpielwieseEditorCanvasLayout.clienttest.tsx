@@ -54,31 +54,39 @@ function expectLayoutShellChrome({
   expect(widget.className).toContain("h-full");
   expect(widget.className).toContain("overflow-hidden");
   expect(widget.className).toContain("flex-1");
-  expect(editorPane.className).toContain("bg-[#F3F3F4]");
+  expect(editorPane.className).toContain(
+    "bg-[var(--spielwiese-canvas-pane-background)]",
+  );
+  expect(editorPane.className).toContain("[--canvas-pane-inner-radius:18px]");
+  expect(editorPane.className).toContain("[--canvas-pane-shell-gap:2px]");
+  expect(editorPane.className).toContain(
+    "[--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))]",
+  );
+  expect(editorPane.className).toContain(
+    "rounded-[var(--canvas-pane-outer-radius)]",
+  );
   expect(editorPane.className).toContain("px-0");
-  expect(editorPane.className).toContain("pb-1");
+  expect(editorPane.className).toContain("pb-0");
+  expect(editorPane.className).not.toContain("rounded-none");
+  expect(editorPane.className).not.toContain("ring-1");
   expect(editorPane.className).not.toContain("pt-2");
   expect(editorPane.className).not.toContain("px-2");
   expect(editorPane.className).not.toContain("border-x");
   expect(editorPane.className).not.toContain("border-t");
   expect(editorPane.className).not.toContain("border-b-0");
   expect(editorPaneShell.className).toContain(
-    "[--canvas-pane-inner-radius:18px]",
-  );
-  expect(editorPaneShell.className).toContain("[--canvas-pane-shell-gap:2px]");
-  expect(editorPaneShell.className).toContain(
-    "[--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))]",
-  );
-  expect(editorPaneShell.className).toContain(
     "rounded-[var(--canvas-pane-outer-radius)]",
   );
-  expect(editorPaneShell.className).toContain("bg-[#F3F3F4]");
+  expect(editorPaneShell.className).toContain(
+    "bg-[var(--spielwiese-canvas-pane-shell-background)]",
+  );
   expect(editorPaneShell.className).toContain("overflow-hidden");
   expect(editorPaneShell.className).toContain(
     "p-[var(--canvas-pane-shell-gap)]",
   );
   expect(editorPaneShell.className).not.toContain("px-4");
   expect(editorPaneShell.className).not.toContain("sm:px-5");
+  expect(editorPaneShell.className).not.toContain("ring-1");
   expect(editorPaneSurface.className).toContain("bg-background");
   expect(editorPaneSurface.className).toContain(
     "rounded-[var(--canvas-pane-inner-radius)]",
@@ -88,6 +96,7 @@ function expectLayoutShellChrome({
   expect(editorPaneSurface.className).toContain("px-2");
   expect(editorPaneSurface.className).toContain("pt-0");
   expect(editorPaneSurface.className).toContain("pb-[6px]");
+  expect(editorPaneSurface.className).not.toContain("ring-1");
 }
 
 function expectLayoutAccessories({
@@ -109,9 +118,9 @@ function expectLayoutAccessories({
   expect(editorModeHeader.className).toContain("justify-between");
   expect(editorModeHeader.firstElementChild).toBe(editorModeToggle);
   expect(editorModeHeader.lastElementChild).toBe(editorActions);
-  expect(editorModeHeader.className).toContain("border-b");
   expect(editorModeHeader.className).toContain("bg-[rgba(251,251,251,0.82)]");
   expect(editorModeHeader.className).toContain("backdrop-blur");
+  expect(editorModeHeader.className).not.toContain("border-b");
   expect(editorModeToggle.className).toContain("rounded-[9px]");
   expect(editorModeToggle.className).toContain("bg-[#F7F7F7]");
   expect(editorNodeStack.className).not.toContain("overflow-y-auto");
@@ -119,7 +128,18 @@ function expectLayoutAccessories({
   expect(editorNodeStack.className).toContain("pb-2");
   expect(nodeConnectors).toHaveLength(2);
   expect(editorNodeInsertFooter.className).toContain("flex-none");
+  expect(editorNodeInsertFooter.className).toContain("-mx-2");
+  expect(editorNodeInsertFooter.className).toContain("w-[calc(100%+1rem)]");
+  expect(editorNodeInsertFooter.className).toContain("justify-start");
+  expect(editorNodeInsertFooter.className).toContain(
+    "rounded-b-[var(--canvas-pane-inner-radius)]",
+  );
+  expect(editorNodeInsertFooter.className).toContain(
+    "-mb-[calc(var(--canvas-pane-shell-gap)+6px)]",
+  );
+  expect(editorNodeInsertRow.className).not.toContain("mt-[8px]");
   expect(editorNodeInsertFooter.className).not.toContain("pb-2");
+  expect(editorNodeInsertFooter.className).not.toContain("border-t");
   expect(editorNodeInsertRow.className).not.toContain("pl-[18px]");
   expect(editorNodeInsertRow.className).not.toContain("ml-[8px]");
   expect(editorNodeInsertRow.className).not.toContain("ml-[18px]");
@@ -157,7 +177,7 @@ function expectVisibleAgentNodeLabels() {
   expect(screen.getByDisplayValue("Vision Agent")).toBeTruthy();
   expect(screen.getByDisplayValue("Nutrition Agent")).toBeTruthy();
   expect(screen.getByDisplayValue("Coach Agent")).toBeTruthy();
-  expect(screen.getByDisplayValue("coach_summary")).toBeTruthy();
+  expect(screen.queryByDisplayValue("coach_summary")).toBeNull();
   expect(
     screen.queryByText(spielwieseEditorCanvasTestCanvas.helper),
   ).toBeNull();
@@ -197,9 +217,7 @@ function expectVisionNodeChrome({
   );
   expect(nodeCard.className).not.toMatch(/\bp-0\.5\b/);
   expect(nodeCard.className).toContain("gap-0.5");
-  expect(nodeCard.className).toContain(
-    "shadow-[0_12px_30px_var(--spielwiese-agent-node-shell-shadow),0_2px_6px_var(--spielwiese-agent-node-shell-shadow)]",
-  );
+  expect(nodeCard.className).toContain("shadow-none");
   expect(visionNode.className).toContain("last:pb-5");
   expect(headerFrame.className).toContain(
     "bg-[var(--spielwiese-agent-node-shell-surface)]",
@@ -256,20 +274,20 @@ describe("SpielwieseEditorCanvas inline setting tags", () => {
   it("reveals inline setting tags on click and collapses them on blur", () => {
     renderCanvas();
     const coachNode = screen.getAllByTestId("spielwiese-agent-node")[2];
-    const inputSettingTag = within(coachNode).getByTestId(
-      "spielwiese-inline-setting-tag-input",
+    const temperatureSettingTag = within(coachNode).getByTestId(
+      "spielwiese-inline-setting-tag-temperature",
     );
 
-    expect(inputSettingTag.tagName).toBe("BUTTON");
-    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
+    expect(temperatureSettingTag.tagName).toBe("BUTTON");
+    expect(temperatureSettingTag.getAttribute("data-state")).toBe("closed");
 
-    fireEvent.mouseEnter(inputSettingTag);
-    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
+    fireEvent.mouseEnter(temperatureSettingTag);
+    expect(temperatureSettingTag.getAttribute("data-state")).toBe("closed");
 
-    fireEvent.click(inputSettingTag);
-    expect(inputSettingTag.getAttribute("data-state")).toBe("open");
+    fireEvent.click(temperatureSettingTag);
+    expect(temperatureSettingTag.getAttribute("data-state")).toBe("open");
 
-    fireEvent.blur(inputSettingTag);
-    expect(inputSettingTag.getAttribute("data-state")).toBe("closed");
+    fireEvent.blur(temperatureSettingTag);
+    expect(temperatureSettingTag.getAttribute("data-state")).toBe("closed");
   });
 });

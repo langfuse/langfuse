@@ -25,13 +25,13 @@ function expectAssistantReplyRowShell(assistantRow: HTMLElement | undefined) {
   expect(assistantRow?.className).not.toContain("border-border/40");
 }
 
-function insertAssistantSection(nodeElement: HTMLElement) {
+function insertAssistantSection(nodeCard: HTMLElement) {
   fireEvent.click(
-    within(nodeElement).getByTestId("spielwiese-message-insert-text-trigger"),
+    within(nodeCard).getByTestId(
+      "spielwiese-response-format-insert-text-trigger",
+    ),
   );
-  fireEvent.click(
-    within(nodeElement).getByRole("button", { name: "Assistant" }),
-  );
+  fireEvent.click(within(nodeCard).getByRole("button", { name: "Assistant" }));
 }
 
 function getInstructionsSectionElements(nodeCard: HTMLElement) {
@@ -174,7 +174,9 @@ function expectInstructionsPromptChrome({
 
   expect(fieldShellClassName).toContain("w-full");
   expectNodeShellInsetRadius(fieldShellClassName);
-  expect(fieldShellClassName).toContain("border-[rgba(0,0,0,0.05)]");
+  expect(fieldShellClassName).toContain(
+    "border-[color:var(--spielwiese-agent-node-chrome-border)]",
+  );
   expect(fieldShellClassName).toContain(
     "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
   );
@@ -200,7 +202,7 @@ function expectInstructionsPromptChrome({
   );
   expectNodeShellInsetInnerRadius(instructionsPromptShellElement.className);
   expect(instructionsPromptShellElement.className).toContain(
-    "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+    "shadow-[inset_0_0_0_1px_var(--spielwiese-agent-node-prompt-value-border)]",
   );
   expect(fieldShellClassName).toContain("flex-col");
   expect(fieldShellClassName).toContain("items-stretch");
@@ -482,9 +484,7 @@ function expectResponseFormatComposerChrome(
     "border-[rgba(0,0,0,0.05)]",
   );
   expect(responseFormatSurface.className).not.toContain("border");
-  expect(responseFormatSurface.className).toContain(
-    "bg-[var(--spielwiese-agent-node-prompt-frame-surface)]",
-  );
+  expect(responseFormatSurface.className).toContain("bg-[#F1F2F2]");
   expect(responseFormatSurface.className).toContain("px-[2px]");
   expect(responseFormatSurface.className).toContain("pt-[2px]");
   expect(responseFormatSurface.className).toContain("pb-[2px]");
@@ -887,7 +887,7 @@ describe("SpielwieseEditorCanvas assistant prompt layout", () => {
       "spielwiese-agent-node-card",
     );
 
-    insertAssistantSection(visionNode);
+    insertAssistantSection(nodeCard);
 
     const sectionRows = within(nodeCard).getAllByTestId(
       "spielwiese-message-section-row",

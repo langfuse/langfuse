@@ -2,7 +2,10 @@ import { within } from "@testing-library/react";
 import { expectShadowedMessageFieldShell } from "./spielwieseEditorCanvasTestAssertions";
 
 function expectAssistantReplyFieldShell(fieldShell: HTMLElement | null) {
-  expectShadowedMessageFieldShell(fieldShell);
+  expectShadowedMessageFieldShell(
+    fieldShell,
+    "bg-[var(--spielwiese-agent-node-text-field-surface)]",
+  );
 }
 
 export function expectAssistantReplyCard(behaviorCard: HTMLElement) {
