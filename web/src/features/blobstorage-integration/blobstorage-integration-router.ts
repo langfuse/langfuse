@@ -6,7 +6,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
+import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
+import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { TRPCError } from "@trpc/server";
 import {
@@ -56,7 +57,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     }),
 
   update: protectedProjectProcedure
-    .input(blobStorageIntegrationFormSchema.extend({ projectId: z.string() }))
+    .input(
+      blobStorageIntegrationFormSchemaBase
+        .extend({ projectId: z.string() })
+        .superRefine(validateAzureContainerName),
+    )
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -269,6 +274,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           forcePathStyle: forcePathStyle || false,
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
           useGoogleCloudStorage: false, // Not supported in blob storage integration
+          useOCIObjectStorage: false, // Not supported in blob storage integration
           googleCloudCredentials: undefined,
           awsSse: undefined,
           awsSseKmsKeyId: undefined,

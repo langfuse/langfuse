@@ -175,9 +175,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     prompt_id,
     prompt_name,
     prompt_version,
-    tool_definitions,
-    tool_calls,
-    tool_call_names,
+    ${includeIO === true ? "tool_definitions, tool_calls, tool_call_names," : ""}
     created_at,
     updated_at,
     event_ts
@@ -915,6 +913,7 @@ export const getObservationsGroupedByModel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res.map((r) => ({ model: r.name }));
 };
@@ -966,6 +965,7 @@ export const getObservationsGroupedByModelId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res.map((r) => ({ modelId: r.modelId }));
 };
@@ -1019,6 +1019,7 @@ export const getObservationsGroupedByName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1068,6 +1069,7 @@ export const getObservationsGroupedByToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1117,6 +1119,7 @@ export const getObservationsGroupedByCalledToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   return res;
 };
@@ -1169,6 +1172,7 @@ export const getObservationsGroupedByPromptName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
 
   const prompts = res.map((r) => r.id).filter((r): r is string => Boolean(r));

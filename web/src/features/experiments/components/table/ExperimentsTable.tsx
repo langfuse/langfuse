@@ -301,11 +301,29 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("experimentDatasetId"),
       size: 150,
       cell: ({ row }) => {
-        const key: string | undefined = row.getValue("datasetId");
-        const value = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === key,
+        const datasetId: string | undefined = row.getValue("datasetId");
+        const datasetName = filterOptions.experimentDatasetId?.find(
+          (d) => d.value === datasetId,
         )?.displayValue;
-        return value ? <TableIdOrName value={value} /> : undefined;
+
+        if (!datasetId || !datasetName) {
+          return undefined;
+        }
+
+        return (
+          <Link
+            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge
+              variant="secondary"
+              className="hover:bg-secondary/80 max-w-full cursor-pointer"
+            >
+              {datasetName}
+            </Badge>
+          </Link>
+        );
       },
     },
     {
@@ -343,9 +361,12 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
+      headerTooltip: {
+        description: "Average duration of the root span per experiment item.",
+      },
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === null) return undefined;
         return <span>{numberFormatter(value / 1000, 4)}s</span>;
       },
     },
@@ -357,7 +378,7 @@ export default function ExperimentsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === null) return undefined;
         return <span>${numberFormatter(value, 6)}</span>;
       },
     },

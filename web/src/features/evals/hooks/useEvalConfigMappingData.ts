@@ -18,16 +18,24 @@ export function useEvalConfigMappingData(
   projectId: string,
   form: UseFormReturn<EvalFormType>,
   disabled = false,
+  selectedPreviewIds?: {
+    traceId?: string;
+    observationId?: string;
+  },
 ): EvalConfigMappingData {
   const router = useRouter();
 
-  // Get traceId and observationId from URL query parameters
+  // In full-page mode, keep using URL params. In peek mode, callers can manage preview ids locally.
   const traceId =
-    typeof router.query.traceId === "string" ? router.query.traceId : undefined;
+    selectedPreviewIds?.traceId ??
+    (typeof router.query.traceId === "string"
+      ? router.query.traceId
+      : undefined);
   const observationId =
-    typeof router.query.observationId === "string"
+    selectedPreviewIds?.observationId ??
+    (typeof router.query.observationId === "string"
       ? router.query.observationId
-      : undefined;
+      : undefined);
 
   const { previewData, isLoading } = usePreviewData(
     projectId,
@@ -39,9 +47,15 @@ export function useEvalConfigMappingData(
 
   const targetValue = form.watch("target");
   const prevTargetRef = useRef(targetValue);
+  const isLocallyManagedPreview = Boolean(selectedPreviewIds);
 
   // drop the traceId and observation-related params from the URL query parameters when target changes
   useEffect(() => {
+    if (isLocallyManagedPreview) {
+      prevTargetRef.current = targetValue;
+      return;
+    }
+
     if (
       prevTargetRef.current !== targetValue &&
       prevTargetRef.current !== undefined
@@ -60,7 +74,7 @@ export function useEvalConfigMappingData(
       );
     }
     prevTargetRef.current = targetValue;
-  }, [targetValue, router]);
+  }, [targetValue, router, isLocallyManagedPreview]);
 
   const observationTypeToNames = new Map<ObservationType, Set<string>>([
     ["SPAN", new Set()],

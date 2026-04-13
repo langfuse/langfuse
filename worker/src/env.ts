@@ -121,6 +121,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -261,11 +265,17 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
-    .default(200),
+    .default(100),
   LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
     .number()
     .positive()
     .default(5 * 60 * 1000), // 5 minutes
+
+  // Comma-separated list of project IDs to exclude from experiment backfill processing
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z

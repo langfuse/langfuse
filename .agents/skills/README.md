@@ -81,6 +81,17 @@ Use for:
 
 Open: [changelog-writing/SKILL.md](changelog-writing/SKILL.md)
 
+### pnpm-upgrade-package
+
+Use for:
+- pnpm dependency bumps that need a specific target version
+- interactive upgrades where the package name or version may be missing
+- checking whether `pnpm-workspace.yaml` `minimumReleaseAgeExclude` must change
+- comparing registry latest with the latest version installable under the
+  current release-age gate
+
+Open: [pnpm-upgrade-package/SKILL.md](pnpm-upgrade-package/SKILL.md)
+
 ## Adding a New Shared Skill
 
 1. Codex may create or refine shared skills under `.agents/skills/` when a

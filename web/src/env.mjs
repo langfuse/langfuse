@@ -106,7 +106,7 @@ export const env = createEnv({
     AUTH_GITHUB_CHECKS: zAuthChecks,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
-    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().url().optional(),
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
@@ -399,6 +399,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
+    LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
 
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
@@ -781,6 +782,8 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE,
     LANGFUSE_API_TRACES_DEFAULT_FIELDS:
       process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
+    LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
+      process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
