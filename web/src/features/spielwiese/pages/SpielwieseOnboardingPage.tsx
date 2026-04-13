@@ -7,6 +7,7 @@ import {
   PERSONAL_DETAILS_STEP_ID,
 } from "../onboarding/spielwieseOnboardingFlow";
 import { SpielwieseOnboardingCanvas } from "../onboarding/components/SpielwieseOnboardingCanvas";
+import { getOnboardingSceneLayerClassName } from "../onboarding/spielwieseOnboardingEntryMotion";
 
 type SpielwieseOnboardingPageProps = {
   stepId?: string;
@@ -26,15 +27,6 @@ function getEntryStep(stepId: string | undefined): EntryStep | null {
   return null;
 }
 
-function getOnboardingEntryLayerClassName(isTransitioningOut: boolean) {
-  return [
-    "transition-[opacity,transform] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
-    isTransitioningOut
-      ? "pointer-events-none -translate-y-8 opacity-0"
-      : "translate-y-0 opacity-100",
-  ].join(" ");
-}
-
 function EntryScene({
   isTransitioningOut,
   onEntryLayerTransitionEnd,
@@ -49,7 +41,7 @@ function EntryScene({
   return (
     <div className="relative min-h-dvh overflow-hidden bg-white">
       <div
-        className={getOnboardingEntryLayerClassName(isTransitioningOut)}
+        className={getOnboardingSceneLayerClassName(isTransitioningOut)}
         data-testid="spielwiese-onboarding-entry-layer"
         onTransitionEnd={onEntryLayerTransitionEnd}
       >

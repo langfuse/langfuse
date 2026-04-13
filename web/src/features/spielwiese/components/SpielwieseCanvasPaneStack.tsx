@@ -3,11 +3,13 @@ import { useState, type ReactNode, type RefObject } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   ResizableHandle,
+  ResizablePanel,
   ResizablePanelGroup,
   type ResizablePanelHandle,
 } from "../ui/resizable";
 import { type SpielwieseCanvasPaneProps } from "./SpielwieseCanvasPane";
 import { SpielwieseCanvasPaneMainPanel } from "./SpielwieseCanvasPaneMainPanel";
+import { isOnboardingChrome } from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseEvaluationPane } from "./SpielwieseEvaluationPane";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { useEvaluationPaneFit } from "./spielwieseCanvasPaneSizing";
@@ -221,10 +223,10 @@ export function SpielwieseCanvasPaneStack({
     />
   );
 
-  if (chrome === "onboarding-preview") {
+  if (isOnboardingChrome(chrome)) {
     return (
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <CanvasPaneMainPanel
+        <SpielwieseCanvasPaneMainPanel
           chrome={chrome}
           insertAnchorNodeId={insertAnchorNodeId}
           nodes={nodes}
@@ -248,7 +250,7 @@ export function SpielwieseCanvasPaneStack({
       className="flex-1 overflow-hidden"
       orientation="vertical"
     >
-      <CanvasPaneMainPanel
+      <SpielwieseCanvasPaneMainPanel
         chrome={chrome}
         insertAnchorNodeId={insertAnchorNodeId}
         nodes={nodes}

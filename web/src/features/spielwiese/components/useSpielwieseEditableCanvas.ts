@@ -125,6 +125,62 @@ function reportDetectedVariables({
   );
 }
 
+function reportEditableCanvasChange({
+  nextCanvas,
+  onDetectedVariablesChange,
+  onNodesChange,
+}: {
+  nextCanvas: EditableCanvasState;
+  onDetectedVariablesChange?: (labels: string[]) => void;
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void;
+}) {
+  reportDetectedVariables({
+    nextCanvas,
+    onDetectedVariablesChange,
+  });
+  onNodesChange?.(getVisibleNodes(nextCanvas));
+}
+
+function createEditableCanvasReporter({
+  onDetectedVariablesChange,
+  onNodesChange,
+}: {
+  onDetectedVariablesChange?: (labels: string[]) => void;
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void;
+}) {
+  return (nextCanvas: EditableCanvasState) =>
+    reportEditableCanvasChange({
+      nextCanvas,
+      onDetectedVariablesChange,
+      onNodesChange,
+    });
+}
+
+function updateReportedNodes(
+  editableCanvas: ReturnType<typeof useEditableCanvas>,
+  updater: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => SpielwieseDashboardVM["canvas"]["agentNodes"],
+  reportCanvasChange: (nextCanvas: EditableCanvasState) => void,
+) {
+  editableCanvas.updateNodes(updater, reportCanvasChange);
+}
+
+function updateReportedNode(
+  editableCanvas: ReturnType<typeof useEditableCanvas>,
+  nodeId: string,
+  updater: (
+    node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
+  ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number],
+  reportCanvasChange: (nextCanvas: EditableCanvasState) => void,
+) {
+  editableCanvas.updateNode(nodeId, updater, reportCanvasChange);
+}
+
 // eslint-disable-next-line max-lines-per-function
 function useEditableCanvas(
   canvas: SpielwieseDashboardVM["canvas"],
@@ -198,19 +254,24 @@ function updatePromptSectionNode({
   editableCanvas,
   nodeId,
   onDetectedVariablesChange,
+  onNodesChange,
   updater,
 }: {
   editableCanvas: ReturnType<typeof useEditableCanvas>;
   nodeId: string;
   onDetectedVariablesChange?: (labels: string[]) => void;
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void;
   updater: (
     node: SpielwieseDashboardVM["canvas"]["agentNodes"][number],
   ) => SpielwieseDashboardVM["canvas"]["agentNodes"][number];
 }) {
   editableCanvas.updateNode(nodeId, updater, (nextCanvas) =>
-    reportDetectedVariables({
+    reportEditableCanvasChange({
       nextCanvas,
       onDetectedVariablesChange,
+      onNodesChange,
     }),
   );
 }
@@ -218,17 +279,22 @@ function updatePromptSectionNode({
 type PromptSectionHandlerConfig = {
   editableCanvas: ReturnType<typeof useEditableCanvas>;
   onDetectedVariablesChange?: (labels: string[]) => void;
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void;
 };
 
 function createPromptSectionChangeHandler({
   editableCanvas,
   onDetectedVariablesChange,
+  onNodesChange,
 }: PromptSectionHandlerConfig) {
   return (nodeId: string, sectionId: string, value: string) =>
     updatePromptSectionNode({
       editableCanvas,
       nodeId,
       onDetectedVariablesChange,
+      onNodesChange,
       updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
@@ -243,12 +309,14 @@ function createPromptSectionChangeHandler({
 function createPromptSectionDeleteHandler({
   editableCanvas,
   onDetectedVariablesChange,
+  onNodesChange,
 }: PromptSectionHandlerConfig) {
   return (nodeId: string, sectionId: string) =>
     updatePromptSectionNode({
       editableCanvas,
       nodeId,
       onDetectedVariablesChange,
+      onNodesChange,
       updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
@@ -261,12 +329,14 @@ function createPromptSectionDeleteHandler({
 function createPromptSectionInsertHandler({
   editableCanvas,
   onDetectedVariablesChange,
+  onNodesChange,
 }: PromptSectionHandlerConfig) {
   return (nodeId: string, kind: "user" | "system" | "assistant" | "tool") =>
     updatePromptSectionNode({
       editableCanvas,
       nodeId,
       onDetectedVariablesChange,
+      onNodesChange,
       updater: (node) => ({
         ...node,
         promptSections: sortPromptSections([
@@ -284,12 +354,14 @@ function createPromptSectionInsertHandler({
 function createPromptSectionMoveHandler({
   editableCanvas,
   onDetectedVariablesChange,
+  onNodesChange,
 }: PromptSectionHandlerConfig) {
   return (nodeId: string, sectionId: string, direction: "up" | "down") =>
     updatePromptSectionNode({
       editableCanvas,
       nodeId,
       onDetectedVariablesChange,
+      onNodesChange,
       updater: (node) => ({
         ...node,
         promptSections: sortPromptSections(
@@ -311,62 +383,77 @@ function getPromptSectionHandlers(config: PromptSectionHandlerConfig) {
 function getCanvasValueHandlers(
   editableCanvas: ReturnType<typeof useEditableCanvas>,
   onDetectedVariablesChange?: (labels: string[]) => void,
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void,
 ) {
+  const reportCanvasChange = createEditableCanvasReporter({
+    onDetectedVariablesChange,
+    onNodesChange,
+  });
+
   return {
     onNodesReplace: (
       nextNodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
     ) =>
-      editableCanvas.updateNodes(
+      updateReportedNodes(
+        editableCanvas,
         () => cloneAgentNodes(nextNodes),
-        (nextCanvas) =>
-          reportDetectedVariables({
-            nextCanvas,
-            onDetectedVariablesChange,
-          }),
+        reportCanvasChange,
       ),
     onAgentNodeInsert: (nodeId: string, kind: "user" | "agent") =>
-      editableCanvas.updateNodes(
+      updateReportedNodes(
+        editableCanvas,
         (nodes) => insertAgentNodeAfter(nodes, nodeId, kind),
-        (nextCanvas) =>
-          reportDetectedVariables({
-            nextCanvas,
-            onDetectedVariablesChange,
-          }),
+        reportCanvasChange,
       ),
     onAgentNodeArchive: (nodeId: string) =>
-      editableCanvas.archiveNode(nodeId, (nextCanvas) =>
-        reportDetectedVariables({
-          nextCanvas,
-          onDetectedVariablesChange,
-        }),
-      ),
+      editableCanvas.archiveNode(nodeId, reportCanvasChange),
     onSettingValueChange: (nodeId: string, settingId: string, value: string) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
-        ...node,
-        settings: node.settings.map((setting) =>
-          setting.id === settingId ? { ...setting, value } : setting,
-        ),
-      })),
+      updateReportedNode(
+        editableCanvas,
+        nodeId,
+        (node) => ({
+          ...node,
+          settings: node.settings.map((setting) =>
+            setting.id === settingId ? { ...setting, value } : setting,
+          ),
+        }),
+        reportCanvasChange,
+      ),
     onTitleChange: (nodeId: string, value: string) =>
-      editableCanvas.updateNode(nodeId, (node) => ({
-        ...node,
-        title: value,
-      })),
+      updateReportedNode(
+        editableCanvas,
+        nodeId,
+        (node) => ({
+          ...node,
+          title: value,
+        }),
+        reportCanvasChange,
+      ),
   };
 }
 
 export function useSpielwieseEditableCanvas(
   canvas: SpielwieseDashboardVM["canvas"],
   onDetectedVariablesChange?: (labels: string[]) => void,
+  onNodesChange?: (
+    nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+  ) => void,
 ) {
   const editableCanvas = useEditableCanvas(canvas);
   const promptSectionHandlers = getPromptSectionHandlers({
     editableCanvas,
     onDetectedVariablesChange,
+    onNodesChange,
   });
 
   return {
-    ...getCanvasValueHandlers(editableCanvas, onDetectedVariablesChange),
+    ...getCanvasValueHandlers(
+      editableCanvas,
+      onDetectedVariablesChange,
+      onNodesChange,
+    ),
     ...promptSectionHandlers,
     insertAnchorNodeId: getInsertAnchorNodeId(editableCanvas),
     nodes: getVisibleNodes(editableCanvas),

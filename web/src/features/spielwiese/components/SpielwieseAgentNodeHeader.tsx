@@ -18,6 +18,10 @@ import {
 } from "./SpielwieseHeaderStrip";
 import { spielwieseAgentNodeHeaderSurfaceStyle } from "./spielwieseAgentNodeColorPalette";
 import { SpielwieseAgentNodeHeaderActions } from "./SpielwieseAgentNodeHeaderActions";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { getNodeToolOptions } from "./SpielwieseAgentNodeToolsField";
 import { SpielwieseAgentNodeTitleControl } from "./SpielwieseAgentNodeTitleControl";
 import { SpielwieseToolCreatorPopup } from "./SpielwieseToolCreatorPopup";
@@ -230,6 +234,8 @@ function SpielwieseAgentNodeHeaderRow({
   onToggleCompact,
   onTitleChange,
 }: SpielwieseAgentNodeHeaderProps) {
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const isOnboardingPreview = isOnboardingChrome(chrome);
   const inlineSettings = getInlineSettings(node.settings);
 
   return (
@@ -246,23 +252,29 @@ function SpielwieseAgentNodeHeaderRow({
           onSettingValueChange={onSettingValueChange}
           onTitleChange={onTitleChange}
         />
-        <SpielwieseAgentNodeInlineSettings
-          nodeId={node.id}
-          onSettingValueChange={onSettingValueChange}
-          settings={inlineSettings}
-        />
-        <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
+        {isOnboardingPreview ? null : (
+          <SpielwieseAgentNodeInlineSettings
+            nodeId={node.id}
+            onSettingValueChange={onSettingValueChange}
+            settings={inlineSettings}
+          />
+        )}
+        {isOnboardingPreview ? null : (
+          <SpielwieseToolCreatorPopup summaryLabel={getToolStripLabel(node)} />
+        )}
       </div>
-      <SpielwieseAgentNodeHeaderActions
-        isCompact={isCompact}
-        isPreviewFocused={isPreviewFocused}
-        nodeId={node.id}
-        onArchiveNode={onArchiveNode}
-        onPreviewHoverEnd={onPreviewHoverEnd}
-        onPreviewHoverStart={onPreviewHoverStart}
-        onTogglePreviewFocus={onTogglePreviewFocus}
-        onToggleCompact={onToggleCompact}
-      />
+      {isOnboardingPreview ? null : (
+        <SpielwieseAgentNodeHeaderActions
+          isCompact={isCompact}
+          isPreviewFocused={isPreviewFocused}
+          nodeId={node.id}
+          onArchiveNode={onArchiveNode}
+          onPreviewHoverEnd={onPreviewHoverEnd}
+          onPreviewHoverStart={onPreviewHoverStart}
+          onTogglePreviewFocus={onTogglePreviewFocus}
+          onToggleCompact={onToggleCompact}
+        />
+      )}
     </div>
   );
 }

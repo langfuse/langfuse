@@ -10,6 +10,10 @@ import {
   SpielwieseToolMessageSection,
   type SpielwieseToolOption,
 } from "./SpielwieseToolMessageSection";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 
 export const spielwieseInlineTextareaClassName =
   "h-full rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0";
@@ -100,10 +104,15 @@ type SpielwieseMessageSectionBodyProps = {
 
 function getPromptSectionPlaceholder(
   section: SpielwieseAgentNodeVM["promptSections"][number],
+  isOnboardingPreview: boolean,
 ) {
   const messageKind = getMessageKind(section.id);
 
   if (messageKind === "system") {
+    if (isOnboardingPreview) {
+      return "Act as if you were a senior business strategist";
+    }
+
     return "Add instructions for this step";
   }
 
@@ -134,6 +143,8 @@ function StandardPromptTextarea({
   textareaClassName?: string;
 }) {
   const toneClassNames = getMessageToneClassNames(section.id);
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const isOnboardingPreview = isOnboardingChrome(chrome);
 
   return (
     <SpielwieseMustacheTextarea
@@ -143,7 +154,7 @@ function StandardPromptTextarea({
       onChange={(event) =>
         onPromptSectionChange(nodeId, section.id, event.target.value)
       }
-      placeholder={getPromptSectionPlaceholder(section)}
+      placeholder={getPromptSectionPlaceholder(section, isOnboardingPreview)}
       rootClassName={rootClassName}
       rows={1}
       value={section.value}

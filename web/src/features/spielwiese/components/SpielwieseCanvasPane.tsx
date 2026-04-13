@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import type { SpielwieseEditorCanvasChrome } from "./SpielwieseEditorCanvas";
 import type { SpielwieseDashboardVM } from "../types/dashboard";
+import {
+  isOnboardingChrome,
+  type SpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseCanvasPaneBuilder } from "./SpielwieseCanvasPaneBuilder";
 import { SpielwieseCanvasPaneHeader } from "./SpielwieseCanvasPaneHeader";
-import {
-  formatEditableCanvasNodes,
-  parseEditableCanvasNodes,
-} from "./spielwieseEditableCanvasJson";
-import {
-  CanvasJsonEditor,
-  type CanvasEditorMode,
-} from "./spielwieseCanvasPaneEditorMode";
+import { CanvasJsonEditor } from "./spielwieseCanvasPaneEditorMode";
+import { useCanvasJsonEditorState } from "./spielwieseCanvasPaneJsonEditorState";
 
 const spielwieseCanvasPaneClassName =
   "bg-[var(--spielwiese-canvas-pane-background)]";
@@ -53,116 +50,6 @@ export type SpielwieseCanvasPaneProps = {
   onTitleChange: (nodeId: string, value: string) => void;
 };
 
-function getCanvasNodesSignature(
-  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
-) {
-  return JSON.stringify(nodes);
-}
-
-function commitCanvasJsonDraft({
-  draft,
-  onNodesReplace,
-}: {
-  draft: string;
-  onNodesReplace: SpielwieseCanvasPaneProps["onNodesReplace"];
-}) {
-  const parsedResult = parseEditableCanvasNodes(draft);
-  if (!parsedResult.ok) {
-    return parsedResult;
-  }
-  onNodesReplace(parsedResult.nodes);
-  return {
-    formattedDraft: formatEditableCanvasNodes(parsedResult.nodes),
-    ok: true as const,
-  };
-}
-
-function useCanvasJsonDraftState(
-  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
-) {
-  const sourceSignature = getCanvasNodesSignature(nodes);
-  const [draftState, setDraftState] = useState(() => ({
-    draft: formatEditableCanvasNodes(nodes),
-    error: null as string | null,
-    mode: "builder" as CanvasEditorMode,
-    sourceSignature,
-  }));
-
-  if (draftState.sourceSignature !== sourceSignature) {
-    setDraftState((currentState) => ({
-      ...currentState,
-      draft: formatEditableCanvasNodes(nodes),
-      error: null,
-      sourceSignature,
-    }));
-  }
-
-  return {
-    draftState,
-    setDraftState,
-  };
-}
-
-function getCanvasJsonDraftError(value: string) {
-  return parseEditableCanvasNodes(value).ok
-    ? null
-    : "Invalid JSON. Fix the structure before switching back.";
-}
-
-function useCanvasJsonEditorState({
-  nodes,
-  onNodesReplace,
-}: Pick<SpielwieseCanvasPaneProps, "nodes" | "onNodesReplace">) {
-  const { draftState, setDraftState } = useCanvasJsonDraftState(nodes);
-
-  const tryCommitDraft = (draft: string) => {
-    const commitResult = commitCanvasJsonDraft({
-      draft,
-      onNodesReplace,
-    });
-    if (!commitResult.ok) {
-      setDraftState((currentState) => ({
-        ...currentState,
-        error: commitResult.error,
-      }));
-      return false;
-    }
-    setDraftState((currentState) => ({
-      ...currentState,
-      draft: commitResult.formattedDraft,
-      error: null,
-    }));
-    return true;
-  };
-
-  return {
-    draft: draftState.draft,
-    error: draftState.error,
-    mode: draftState.mode,
-    onDraftBlur: () => {
-      void tryCommitDraft(draftState.draft);
-    },
-    onDraftChange: (value: string) =>
-      setDraftState((currentState) => ({
-        ...currentState,
-        draft: value,
-        error: getCanvasJsonDraftError(value),
-      })),
-    onModeChange: (mode: CanvasEditorMode) => {
-      if (mode === "builder" && draftState.mode === "json") {
-        const didCommitDraft = tryCommitDraft(draftState.draft);
-        if (!didCommitDraft) {
-          return;
-        }
-      }
-      setDraftState((currentState) => ({
-        ...currentState,
-        mode,
-      }));
-    },
-  };
-}
-
 function getAllCompactNodeIds(
   nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
   isCompact: boolean,
@@ -196,7 +83,7 @@ function CanvasPaneContent({
 }) {
   const areAllCardsCompact =
     nodes.length > 0 && nodes.every((node) => Boolean(compactNodeIds[node.id]));
-  const hidesCanvasChrome = chrome === "onboarding-preview";
+  const hidesCanvasChrome = isOnboardingChrome(chrome);
 
   return (
     <div

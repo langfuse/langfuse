@@ -2,6 +2,10 @@
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import type { SpielwieseToolOption } from "./SpielwieseToolMessageSection";
 import { SpielwieseAgentNodeCardSwitcher } from "./SpielwieseAgentNodeCardSwitcher";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseAgentNodeHeader } from "./SpielwieseAgentNodeHeader";
 import { SpielwieseAgentNodePromptSections } from "./SpielwieseAgentNodePromptSections";
 import { SpielwieseJsonFormatComposer } from "./SpielwieseJsonFormatComposer";
@@ -137,7 +141,9 @@ function PrimaryAgentJsonFormatComposer({
   ) => void;
   systemSection: SpielwieseAgentNodeVM["promptSections"][number] | undefined;
 }) {
-  if (isCompact || !systemSection) {
+  const chrome = useSpielwieseEditorCanvasChrome();
+
+  if (isCompact || !systemSection || isOnboardingChrome(chrome)) {
     return null;
   }
   return (

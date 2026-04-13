@@ -1,68 +1,275 @@
+import type { AnimationEvent, Dispatch, SetStateAction } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
-import {
-  preventInertOnboardingClick,
-  SpielwieseOnboardingFooter,
-} from "./SpielwieseOnboardingFooter";
-import { SpielwieseOnboardingQuestionPanel } from "./SpielwieseOnboardingQuestionPanel";
-import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
-import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
-import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
+import { type RoleStepScene } from "./SpielwieseOnboardingQuestionPanel";
+import { SpielwieseOnboardingStepScene } from "./SpielwieseOnboardingStepScene";
 import {
   EMPTY_ONBOARDING_ANSWERS,
   getActiveOnboardingStepIndex,
-  getOnboardingProgressValue,
   getSpielwieseDashboardPath,
   getOnboardingStepPath,
   ONBOARDING_QUESTIONS,
 } from "../spielwieseOnboardingFlow";
-import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 
 type SpielwieseOnboardingCanvasProps = {
   requestedStepId?: string;
 };
 
-type OnboardingRouter = Pick<ReturnType<typeof useRouter>, "push">;
+type StepExitAction =
+  | {
+      kind: "navigate";
+      path: string;
+    }
+  | {
+      kind: "show-role-bridge";
+    };
+type OnboardingAnswers = typeof EMPTY_ONBOARDING_ANSWERS;
 
-function OnboardingStepProgressOverlay({ value }: { value: number }) {
-  return (
-    <div className="absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)]">
-      <SpielwieseOnboardingProgress value={value} />
-    </div>
-  );
+function getPreviousOnboardingPath(activeStepIndex: number) {
+  const previousQuestion = ONBOARDING_QUESTIONS[activeStepIndex - 1];
+
+  return previousQuestion ? getOnboardingStepPath(previousQuestion.id) : null;
+}
+
+function getNextOnboardingPath(activeStepIndex: number) {
+  const nextQuestion = ONBOARDING_QUESTIONS[activeStepIndex + 1];
+
+  return nextQuestion
+    ? getOnboardingStepPath(nextQuestion.id)
+    : getSpielwieseDashboardPath();
 }
 
 function createOnboardingBackHandler(
-  router: OnboardingRouter,
   activeStepIndex: number,
+  isStepTransitioningOut: boolean,
 ) {
-  return () => {
-    const previousQuestion = ONBOARDING_QUESTIONS[activeStepIndex - 1];
+  const previousPath = getPreviousOnboardingPath(activeStepIndex);
 
-    if (previousQuestion) {
-      void router.push(getOnboardingStepPath(previousQuestion.id), undefined, {
-        shallow: true,
-      });
+  return () => {
+    if (isStepTransitioningOut || !previousPath) {
+      return;
+    }
+
+    return {
+      kind: "navigate" as const,
+      path: previousPath,
+    };
+  };
+}
+
+function createOnboardingContinueHandler({
+  activeAnswer,
+  activeStepIndex,
+  isStepTransitioningOut,
+  isRolePromptReady,
+  roleScene,
+}: {
+  activeAnswer: string;
+  activeStepIndex: number;
+  isStepTransitioningOut: boolean;
+  isRolePromptReady: boolean;
+  roleScene: RoleStepScene;
+}) {
+  const nextPath = getNextOnboardingPath(activeStepIndex);
+
+  return () => {
+    if (!activeAnswer || isStepTransitioningOut) {
+      return null;
+    }
+
+    if (activeStepIndex === 0 && roleScene === "gate") {
+      return {
+        kind: "show-role-bridge" as const,
+      };
+    }
+
+    if (activeStepIndex === 0 && roleScene === "preview" && !isRolePromptReady) {
+      return null;
+    }
+
+    return {
+      kind: "navigate" as const,
+      path: nextPath,
+    };
+  };
+}
+
+function createOnboardingSelectHandler({
+  activeQuestionId,
+  setAnswers,
+}: {
+  activeQuestionId: keyof OnboardingAnswers;
+  setAnswers: Dispatch<SetStateAction<OnboardingAnswers>>;
+}) {
+  return (value: string) =>
+    setAnswers((current) => ({
+      ...current,
+      [activeQuestionId]: value,
+    }));
+}
+
+function createStepExitActionHandler({
+  getNextAction,
+  setStepExitAction,
+}: {
+  getNextAction: () => StepExitAction | null | void;
+  setStepExitAction: Dispatch<SetStateAction<StepExitAction | null>>;
+}) {
+  return () => {
+    const nextAction = getNextAction();
+
+    if (nextAction) {
+      setStepExitAction(nextAction);
     }
   };
 }
 
-function createOnboardingContinueHandler(
-  router: OnboardingRouter,
-  activeAnswer: string,
-  activeStepIndex: number,
-) {
-  return () => {
-    if (!activeAnswer) {
+function createStepLayerAnimationEndHandler({
+  router,
+  setRoleScene,
+  stepExitAction,
+  setStepExitAction,
+}: {
+  router: ReturnType<typeof useRouter>;
+  setRoleScene: Dispatch<SetStateAction<RoleStepScene>>;
+  stepExitAction: StepExitAction | null;
+  setStepExitAction: Dispatch<SetStateAction<StepExitAction | null>>;
+}) {
+  return (event: AnimationEvent<HTMLDivElement>) => {
+    const animationTarget = event.target as HTMLElement | null;
+
+    if (
+      !stepExitAction ||
+      animationTarget?.dataset.testid !== "spielwiese-onboarding-step-layer"
+    ) {
       return;
     }
 
-    const nextQuestion = ONBOARDING_QUESTIONS[activeStepIndex + 1];
-    const nextPath = nextQuestion
-      ? getOnboardingStepPath(nextQuestion.id)
-      : getSpielwieseDashboardPath();
+    if (stepExitAction.kind === "show-role-bridge") {
+      setStepExitAction(null);
+      setRoleScene("bridge");
+      return;
+    }
 
-    void router.push(nextPath, undefined, { shallow: true });
+    const nextPath = stepExitAction.path;
+    void Promise.resolve(router.push(nextPath, undefined, { shallow: true }))
+      .then(() => {
+        setStepExitAction(null);
+      })
+      .catch(() => {
+        setStepExitAction(null);
+      });
+  };
+}
+
+function createRoleBridgeAnimationEndHandler({
+  roleScene,
+  setRoleScene,
+}: {
+  roleScene: RoleStepScene;
+  setRoleScene: Dispatch<SetStateAction<RoleStepScene>>;
+}) {
+  return (_event: AnimationEvent<HTMLHeadingElement>) => {
+    if (roleScene !== "bridge") {
+      return;
+    }
+
+    setRoleScene("preview");
+  };
+}
+
+function createOnboardingSceneHandlers({
+  activeAnswer,
+  activeQuestionId,
+  activeStepIndex,
+  isStepTransitioningOut,
+  isRolePromptReady,
+  roleScene,
+  router,
+  roleSystemPromptValue,
+  setAnswers,
+  setRoleScene,
+  setRoleSystemPromptValue,
+  stepExitAction,
+  setStepExitAction,
+}: {
+  activeAnswer: string;
+  activeQuestionId: keyof OnboardingAnswers;
+  activeStepIndex: number;
+  isStepTransitioningOut: boolean;
+  isRolePromptReady: boolean;
+  roleScene: RoleStepScene;
+  router: ReturnType<typeof useRouter>;
+  roleSystemPromptValue: string;
+  setAnswers: Dispatch<SetStateAction<OnboardingAnswers>>;
+  setRoleScene: Dispatch<SetStateAction<RoleStepScene>>;
+  setRoleSystemPromptValue: Dispatch<SetStateAction<string>>;
+  stepExitAction: StepExitAction | null;
+  setStepExitAction: Dispatch<SetStateAction<StepExitAction | null>>;
+}) {
+  return {
+    handleBack: createStepExitActionHandler({
+      getNextAction: createOnboardingBackHandler(
+        activeStepIndex,
+        isStepTransitioningOut,
+      ),
+      setStepExitAction,
+    }),
+    handleContinue: createStepExitActionHandler({
+      getNextAction: createOnboardingContinueHandler({
+        activeAnswer,
+        activeStepIndex,
+        isStepTransitioningOut,
+        isRolePromptReady,
+        roleScene,
+      }),
+      setStepExitAction,
+    }),
+    handleRoleBridgeAnimationEnd: createRoleBridgeAnimationEndHandler({
+      roleScene,
+      setRoleScene,
+    }),
+    handleSelect: createOnboardingSelectHandler({
+      activeQuestionId,
+      setAnswers,
+    }),
+    handleRoleSystemPromptChange: (value: string) => {
+      if (value !== roleSystemPromptValue) {
+        setRoleSystemPromptValue(value);
+      }
+    },
+    handleStepLayerAnimationEnd: createStepLayerAnimationEndHandler({
+      router,
+      setRoleScene,
+      stepExitAction,
+      setStepExitAction,
+    }),
+  };
+}
+
+function getOnboardingCanvasStepState({
+  answers,
+  requestedStepId,
+  roleScene,
+  stepExitAction,
+}: {
+  answers: OnboardingAnswers;
+  requestedStepId?: string;
+  roleScene: RoleStepScene;
+  stepExitAction: StepExitAction | null;
+}) {
+  const activeStepIndex = getActiveOnboardingStepIndex(
+    answers,
+    requestedStepId,
+  );
+  const activeQuestion = ONBOARDING_QUESTIONS[activeStepIndex];
+
+  return {
+    activeAnswer: answers[activeQuestion.id],
+    activeQuestion,
+    activeStepIndex,
+    isStepTransitioningOut: stepExitAction !== null,
+    showsUpperCanvas: activeQuestion.id === "role" && roleScene === "preview",
   };
 }
 
@@ -71,55 +278,62 @@ export function SpielwieseOnboardingCanvas({
 }: SpielwieseOnboardingCanvasProps) {
   const router = useRouter();
   const [answers, setAnswers] = useState(EMPTY_ONBOARDING_ANSWERS);
-  const activeStepIndex = getActiveOnboardingStepIndex(
+  const [roleScene, setRoleScene] = useState<RoleStepScene>("gate");
+  const [roleSystemPromptValue, setRoleSystemPromptValue] = useState("");
+  const [stepExitAction, setStepExitAction] = useState<StepExitAction | null>(
+    null,
+  );
+  const {
+    activeAnswer,
+    activeQuestion,
+    activeStepIndex,
+    isStepTransitioningOut,
+    showsUpperCanvas,
+  } = getOnboardingCanvasStepState({
     answers,
     requestedStepId,
-  );
-  const activeQuestion = ONBOARDING_QUESTIONS[activeStepIndex];
-  const activeAnswer = answers[activeQuestion.id];
-  const handleSelect = (value: string) =>
-    setAnswers((current) => ({
-      ...current,
-      [activeQuestion.id]: value,
-    }));
-  const handleBack = createOnboardingBackHandler(router, activeStepIndex);
-  const handleContinue = createOnboardingContinueHandler(
-    router,
+    roleScene,
+    stepExitAction,
+  });
+  const isRolePromptReady = roleSystemPromptValue.trim().length > 0;
+  const {
+    handleBack,
+    handleContinue,
+    handleRoleBridgeAnimationEnd,
+    handleRoleSystemPromptChange,
+    handleSelect,
+    handleStepLayerAnimationEnd,
+  } = createOnboardingSceneHandlers({
     activeAnswer,
+    activeQuestionId: activeQuestion.id,
     activeStepIndex,
-  );
-  const showsUpperCanvas = activeQuestion.id === "role";
+    isStepTransitioningOut,
+    isRolePromptReady,
+    roleScene,
+    router,
+    roleSystemPromptValue,
+    setAnswers,
+    setRoleScene,
+    setRoleSystemPromptValue,
+    stepExitAction,
+    setStepExitAction,
+  });
 
   return (
-    <SpielwieseOnboardingSurface
-      footer={<SpielwieseOnboardingFooter />}
-      header={
-        <SpielwieseOnboardingWordmarkButton
-          onClick={preventInertOnboardingClick}
-        />
-      }
-      layout="single"
-      shellClassName={
-        showsUpperCanvas
-          ? "max-w-[70.625rem] border-0 bg-transparent shadow-none"
-          : "border-0 bg-transparent shadow-none"
-      }
-      stageClassName={showsUpperCanvas ? "max-w-[72.625rem]" : undefined}
-      showBackdrop={false}
-      testId="spielwiese-onboarding-step"
-      topOverlay={
-        <OnboardingStepProgressOverlay
-          value={getOnboardingProgressValue(activeQuestion.id)}
-        />
-      }
-    >
-      <OnboardingQuestionPanel
-        activeAnswer={activeAnswer}
-        activeStepIndex={activeStepIndex}
-        onBack={handleBack}
-        onContinue={handleContinue}
-        onSelect={handleSelect}
-      />
-    </SpielwieseOnboardingSurface>
+    <SpielwieseOnboardingStepScene
+      activeAnswer={activeAnswer}
+      activeQuestionId={activeQuestion.id}
+      activeStepIndex={activeStepIndex}
+      handleBack={handleBack}
+      handleContinue={handleContinue}
+      handleRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+      handleRoleSystemPromptChange={handleRoleSystemPromptChange}
+      handleSelect={handleSelect}
+      handleStepLayerAnimationEnd={handleStepLayerAnimationEnd}
+      isStepTransitioningOut={isStepTransitioningOut}
+      roleSystemPromptValue={roleSystemPromptValue}
+      roleScene={roleScene}
+      showsUpperCanvas={showsUpperCanvas}
+    />
   );
 }

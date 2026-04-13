@@ -1,27 +1,141 @@
+import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
 
 const introLinkClassName =
   "text-[rgba(17,17,17,1)] transition-opacity duration-150 hover:opacity-70";
+const colophonLinkClassName =
+  "border-b border-[rgba(0,0,0,0.18)] pb-[0.05rem] text-[rgba(0,0,0,0.46)] transition-[color,border-color] duration-150 hover:border-[rgba(0,0,0,0.32)] hover:text-[rgba(0,0,0,0.68)]";
 const introSectionTitleClassName =
   "text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]";
+const setupMomentImageMarker = "[ image of setup, aha, habit moment ]";
+const videoPlaceholderMarker = "[ video placeholder ]";
+const colophonUrlPattern = /\[([^\]]+)\]/g;
 
-function IntroRoutesParagraph() {
-  return (
-    <>
-      You can start directly with the{" "}
-      <Link className={introLinkClassName} href="/dev/spielwiese/onboarding">
-        onboarding flow
-      </Link>{" "}
-      or jump into the{" "}
-      <Link
-        className={introLinkClassName}
-        href="/dev/spielwiese/dashboard#home"
+function splitColophonLabel(segment: string): {
+  prefix: string;
+  label: string;
+} {
+  const separators = [" with ", "- "];
+
+  let splitIndex = -1;
+  let splitLength = 0;
+
+  for (const separator of separators) {
+    const index = segment.lastIndexOf(separator);
+
+    if (index > splitIndex) {
+      splitIndex = index;
+      splitLength = separator.length;
+    }
+  }
+
+  if (splitIndex === -1) {
+    return {
+      label: segment.trimEnd(),
+      prefix: "",
+    };
+  }
+
+  return {
+    label: segment.slice(splitIndex + splitLength).trimEnd(),
+    prefix: segment.slice(0, splitIndex + splitLength),
+  };
+}
+
+function renderColophonParagraph(paragraph: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of paragraph.matchAll(colophonUrlPattern)) {
+    const matchIndex = match.index ?? 0;
+    const segment = paragraph.slice(lastIndex, matchIndex);
+    const { label, prefix } = splitColophonLabel(segment);
+
+    if (prefix) {
+      nodes.push(prefix);
+    }
+
+    nodes.push(
+      <a
+        className={colophonLinkClassName}
+        href={match[1]}
+        key={`${match[1]}-${matchIndex}`}
+        rel="noreferrer"
+        target="_blank"
       >
-        dashboard
-      </Link>{" "}
-      if you want to inspect the core canvas first.
-    </>
+        {label}
+      </a>,
+    );
+
+    lastIndex = matchIndex + match[0].length;
+  }
+
+  const trailingText = paragraph.slice(lastIndex);
+
+  if (trailingText) {
+    nodes.push(trailingText);
+  }
+
+  return nodes;
+}
+
+function IntroSetupMomentImage() {
+  return (
+    <div
+      className="overflow-hidden rounded-[1rem] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.72)]"
+      data-testid="spielwiese-intro-setup-moment-image"
+    >
+      <Image
+        alt="Setup, aha, and habit moment sketch"
+        className="block h-auto w-full"
+        height={594}
+        priority
+        sizes="(max-width: 640px) calc(100vw - 2.5rem), 550px"
+        src="/spielwiese/setup-aha-habit-moment.png"
+        width={1698}
+      />
+    </div>
+  );
+}
+
+function IntroVideoPlaceholder() {
+  return (
+    <div
+      className="grid min-h-[17rem] place-items-center border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.7)]"
+      data-testid="spielwiese-intro-video-shell"
+    >
+      <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
+        {spielwieseSetupMomentContent.videoNote}
+      </p>
+    </div>
+  );
+}
+
+function IntroTextItem({
+  isColophon,
+  paragraph,
+}: {
+  isColophon: boolean;
+  paragraph: string;
+}) {
+  if (paragraph === setupMomentImageMarker) {
+    return <IntroSetupMomentImage />;
+  }
+
+  if (paragraph === videoPlaceholderMarker) {
+    return <IntroVideoPlaceholder />;
+  }
+
+  const introTextItemClassName = `max-w-[66ch] text-sm/5 font-[460] tracking-[-0.0056rem] text-pretty text-[rgba(17,17,17,1)] ${
+    isColophon && paragraph === "Skills:" ? "pt-3" : ""
+  }`;
+
+  return (
+    <p className={introTextItemClassName}>
+      {isColophon ? renderColophonParagraph(paragraph) : paragraph}
+    </p>
   );
 }
 
@@ -43,17 +157,16 @@ function IntroTextSection({
         data-testid={`spielwiese-intro-section-divider-${title.toLowerCase()}`}
       />
       <div
-        className="pt-[0.735rem] sm:pl-[6.75rem]"
+        className="pt-[0.735rem]"
         data-testid={`spielwiese-intro-section-body-${title.toLowerCase()}`}
       >
-        <div className="grid gap-0">
+        <div className={`grid ${title === "Colophon" ? "gap-0" : "gap-5"}`}>
           {paragraphs.map((paragraph) => (
-            <p
-              className="max-w-[66ch] text-sm/5 font-[460] tracking-[-0.0056rem] text-pretty text-[rgba(17,17,17,1)]"
+            <IntroTextItem
+              isColophon={title === "Colophon"}
               key={paragraph}
-            >
-              {title === "Routes" ? <IntroRoutesParagraph /> : paragraph}
-            </p>
+              paragraph={paragraph}
+            />
           ))}
         </div>
       </div>
@@ -64,13 +177,44 @@ function IntroTextSection({
 function IntroArticle() {
   return (
     <article className="grid gap-0" data-testid="spielwiese-intro-article">
-      <header className="flex flex-wrap items-baseline gap-1 pb-2">
-        <h1 className="balance text-sm/5 font-medium tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
-          {spielwieseSetupMomentContent.title}
-        </h1>
-        <time className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
-          {spielwieseSetupMomentContent.updatedAt}
-        </time>
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 pb-2">
+        <div className="flex flex-wrap items-baseline gap-1">
+          <h1 className="balance text-sm/5 font-medium tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+            {spielwieseSetupMomentContent.title}
+          </h1>
+          <time className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
+            by evren dombak
+          </time>
+        </div>
+        <p className="text-right text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
+          Link to PR
+        </p>
+        <div
+          className="col-span-full grid gap-0 pt-[0.735rem] pb-6"
+          data-testid="spielwiese-intro-roadmap-items"
+        >
+          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+            roadmap items:
+          </p>
+          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+            - improve onboarding experience
+          </p>
+          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+            - improve core screens, especially for new and non-technical users
+          </p>
+          <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(17,17,17,1)]">
+            (
+            <a
+              className={introLinkClassName}
+              href="https://arc.net/l/quote/iwaglpky"
+              rel="noreferrer"
+              target="_blank"
+            >
+              https://arc.net/l/quote/iwaglpky
+            </a>
+            )
+          </p>
+        </div>
       </header>
       <div className="grid gap-0">
         {spielwieseSetupMomentContent.sections.map((section) => (
@@ -85,30 +229,11 @@ function IntroArticle() {
   );
 }
 
-function IntroVideoSection() {
-  return (
-    <section className="pt-12" data-testid="spielwiese-intro-video-section">
-      <section
-        className="grid gap-0"
-        data-testid="spielwiese-intro-video-shell"
-      >
-        <div className="pt-[0.735rem] sm:pl-[6.75rem]">
-          <div className="grid min-h-[17rem] place-items-center border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.7)]">
-            <p className="text-sm/5 font-[460] tracking-[-0.0056rem] text-[rgba(0,0,0,0.4)]">
-              {spielwieseSetupMomentContent.videoNote}
-            </p>
-          </div>
-        </div>
-      </section>
-    </section>
-  );
-}
-
 function IntroFooter() {
   return (
     <footer className="pt-10 pb-20" data-testid="spielwiese-intro-footer">
-      <div className="grid justify-items-start gap-3">
-        <p className="max-w-[48ch] text-[0.8125rem] font-[460] tracking-[-0.0025rem] text-pretty text-[rgba(0,0,0,0.4)]">
+      <div className="grid justify-items-center gap-3 text-center">
+        <p className="max-w-[48ch] text-[0.8125rem] font-[460] tracking-[-0.0025rem] text-pretty text-[rgba(17,17,17,1)]">
           {spielwieseSetupMomentContent.footer}
         </p>
         <Link
@@ -133,7 +258,6 @@ export default function SpielwieseIntroPage() {
       <div className="min-h-dvh bg-white">
         <main className="mx-auto w-full max-w-[34.375rem] px-5 pt-20 sm:px-0">
           <IntroArticle />
-          <IntroVideoSection />
           <IntroFooter />
         </main>
       </div>

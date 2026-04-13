@@ -7,6 +7,10 @@ import {
 import { ArrowLeft, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button } from "../ui/button";
+import {
+  isOnboardingChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 
 type SpielwieseAgentNodeCardSwitcherProps = {
   activeView: "primary" | "secondary";
@@ -202,21 +206,25 @@ export function SpielwieseAgentNodeCardSwitcher({
   viewportClassName,
   viewportTransitionState,
 }: SpielwieseAgentNodeCardSwitcherProps) {
+  const chrome = useSpielwieseEditorCanvasChrome();
+  const showsCardNavButtons = !isOnboardingChrome(chrome);
   const isSecondaryCardActive = activeView === "secondary";
   const currentCard = isSecondaryCardActive ? secondaryCard : primaryCard;
 
   return (
     <div className="flex min-w-0 items-center gap-0">
-      <SpielwieseAgentNodeCardNavButton
-        ariaLabel={`Show previous card for ${nodeId}`}
-        areNavButtonsVisible={areNavButtonsVisible}
-        disabled={!isSecondaryCardActive}
-        testId={`${testIdBase}-back-button`}
-        tooltipLabel="Prev version"
-        onClick={onShowPrimary}
-      >
-        <ArrowLeft className="size-3.5" />
-      </SpielwieseAgentNodeCardNavButton>
+      {showsCardNavButtons ? (
+        <SpielwieseAgentNodeCardNavButton
+          ariaLabel={`Show previous card for ${nodeId}`}
+          areNavButtonsVisible={areNavButtonsVisible}
+          disabled={!isSecondaryCardActive}
+          testId={`${testIdBase}-back-button`}
+          tooltipLabel="Prev version"
+          onClick={onShowPrimary}
+        >
+          <ArrowLeft className="size-3.5" />
+        </SpielwieseAgentNodeCardNavButton>
+      ) : null}
       <div
         className={`min-w-0 flex-1 transition-transform duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${viewportClassName ?? ""}`}
         data-collapse-transition={viewportTransitionState ?? "idle"}
@@ -224,16 +232,18 @@ export function SpielwieseAgentNodeCardSwitcher({
       >
         {currentCard}
       </div>
-      <SpielwieseAgentNodeCardNavButton
-        ariaLabel={`Add a new card after ${nodeId}`}
-        areNavButtonsVisible={areNavButtonsVisible}
-        disabled={isSecondaryCardActive}
-        testId={`${testIdBase}-add-button`}
-        tooltipLabel="New version"
-        onClick={onShowSecondary}
-      >
-        <Plus className="size-3.5" />
-      </SpielwieseAgentNodeCardNavButton>
+      {showsCardNavButtons ? (
+        <SpielwieseAgentNodeCardNavButton
+          ariaLabel={`Add a new card after ${nodeId}`}
+          areNavButtonsVisible={areNavButtonsVisible}
+          disabled={isSecondaryCardActive}
+          testId={`${testIdBase}-add-button`}
+          tooltipLabel="New version"
+          onClick={onShowSecondary}
+        >
+          <Plus className="size-3.5" />
+        </SpielwieseAgentNodeCardNavButton>
+      ) : null}
     </div>
   );
 }

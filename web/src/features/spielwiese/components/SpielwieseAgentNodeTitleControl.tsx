@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import {
+  isOnboardingModelSelectionChrome,
+  useSpielwieseEditorCanvasChrome,
+} from "./SpielwieseEditorCanvasChromeContext";
 import { SpielwieseAgentNodeTitleControlContent } from "./SpielwieseAgentNodeTitleControlContent";
 import type { SpielwieseModelPickerProps } from "./SpielwieseModelPicker";
 
@@ -102,6 +106,7 @@ export function SpielwieseAgentNodeTitleControl({
   onSettingValueChange,
   onTitleChange,
 }: SpielwieseAgentNodeTitleControlProps) {
+  const chrome = useSpielwieseEditorCanvasChrome();
   const {
     closePicker,
     hoveredModelLabel,
@@ -112,6 +117,17 @@ export function SpielwieseAgentNodeTitleControl({
     setProviderId,
   } = useModelPickerControlState();
   const currentModel = modelSetting?.value ?? "GPT-4.1 mini";
+  const isOnboardingModelSelection =
+    isOnboardingModelSelectionChrome(chrome);
+
+  useEffect(() => {
+    if (!isOnboardingModelSelection) {
+      return;
+    }
+
+    setIsModelPickerOpen(true);
+    setProviderId("anthropic");
+  }, [isOnboardingModelSelection, setIsModelPickerOpen, setProviderId]);
 
   return (
     <SpielwieseAgentNodeTitleControlContent

@@ -10,10 +10,58 @@ import {
 } from "../../components/spielwieseAgentNodeColorPalette";
 import { SpielwieseEditorCanvas } from "../../components/SpielwieseEditorCanvas";
 import { SpielwieseVariableValuesProvider } from "../../components/useSpielwieseVariableValues";
+import type { SpielwieseDashboardVM } from "../../types/dashboard";
 import { getSpielwieseDashboardVm } from "../../adapters/dashboardVm";
 import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
 
-const onboardingPreviewDashboard = getSpielwieseDashboardVm("assistant");
+export type OnboardingUpperCanvasStage =
+  | "api-key"
+  | "model-selection"
+  | "preview";
+
+const defaultOnboardingModel = "Claude Opus 4.6";
+
+function getOnboardingPreviewDashboard({
+  modelValue,
+  systemPromptValue,
+}: {
+  modelValue: string;
+  systemPromptValue: string;
+}) {
+  const previewDashboard = getSpielwieseDashboardVm("vision-agent");
+  const previewNode = previewDashboard.canvas.agentNodes[0];
+
+  return {
+    ...previewDashboard,
+    canvas: {
+      ...previewDashboard.canvas,
+      agentNodes: previewNode
+        ? [
+            {
+              ...previewNode,
+              layout: "agent-only" as const,
+              settings: previewNode.settings.map((setting) =>
+                setting.id === "model"
+                  ? { ...setting, value: modelValue }
+                  : setting,
+              ),
+              promptSections: previewNode.promptSections
+                .filter((section) => section.id === "system")
+                .map((section) =>
+                  section.id === "system"
+                    ? {
+                        ...section,
+                        value: systemPromptValue,
+                      }
+                    : section,
+                ),
+            },
+          ]
+        : [],
+    },
+  };
+}
+
 const onboardingUpperCanvasStyle = {
   ...getSpielwieseCanvasLayerVariableStyle({
     colors: spielwieseCanvasLayerPalette,
@@ -32,7 +80,53 @@ const onboardingUpperCanvasStyle = {
   }),
 };
 
-export function SpielwieseOnboardingUpperCanvas() {
+function getOnboardingSystemPromptValue(
+  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+) {
+  return (
+    nodes[0]?.promptSections.find((section) => section.id === "system")?.value ??
+    ""
+  );
+}
+
+function getOnboardingModelValue(
+  nodes: SpielwieseDashboardVM["canvas"]["agentNodes"],
+) {
+  return (
+    nodes[0]?.settings.find((setting) => setting.id === "model")?.value ??
+    defaultOnboardingModel
+  );
+}
+
+function getOnboardingCanvasChrome(stage: OnboardingUpperCanvasStage) {
+  switch (stage) {
+    case "api-key":
+      return "onboarding-api-key" as const;
+    case "model-selection":
+      return "onboarding-model-selection" as const;
+    case "preview":
+      return "onboarding-preview" as const;
+  }
+}
+
+export function SpielwieseOnboardingUpperCanvas({
+  modelValue = defaultOnboardingModel,
+  onModelChange,
+  onSystemPromptChange,
+  stage = "preview",
+  systemPromptValue,
+}: {
+  modelValue?: string;
+  onModelChange?: (value: string) => void;
+  onSystemPromptChange: (value: string) => void;
+  stage?: OnboardingUpperCanvasStage;
+  systemPromptValue: string;
+}) {
+  const onboardingPreviewDashboard = getOnboardingPreviewDashboard({
+    modelValue,
+    systemPromptValue,
+  });
+
   return (
     <div
       className={getOnboardingEntryTextMotionClassName(true, 150)}
@@ -42,10 +136,14 @@ export function SpielwieseOnboardingUpperCanvas() {
       <SpielwieseVariableValuesProvider
         items={onboardingPreviewDashboard.variablesPanel.items}
       >
-        <div className="h-[21rem] min-h-0 overflow-hidden md:h-[24rem]">
+        <div className="h-[24rem] min-h-0 overflow-hidden md:h-[27rem]">
           <SpielwieseEditorCanvas
             canvas={onboardingPreviewDashboard.canvas}
-            chrome="onboarding-preview"
+            chrome={getOnboardingCanvasChrome(stage)}
+            onNodesChange={(nodes) => {
+              onSystemPromptChange(getOnboardingSystemPromptValue(nodes));
+              onModelChange?.(getOnboardingModelValue(nodes));
+            }}
           />
         </div>
       </SpielwieseVariableValuesProvider>

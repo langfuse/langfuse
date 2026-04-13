@@ -238,6 +238,7 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     const { container } = render(<SpielwieseOnboardingPage stepId="role" />);
 
     expect(screen.getByTestId("spielwiese-onboarding-step")).toBeTruthy();
+    expect(screen.getByTestId("spielwiese-onboarding-step-layer")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Langfuse" })).toBeTruthy();
     expect(
       screen.getByRole("button", {
@@ -245,14 +246,22 @@ describe("SpielwieseOnboardingPage routed steps", () => {
       }),
     ).toBeTruthy();
     expect(
-      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
-    ).toBeTruthy();
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
     expect(
       screen.queryByTestId("spielwiese-onboarding-questionnaire"),
     ).toBeNull();
     expect(screen.getByText("Do you know what to build?")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Yes" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "No" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "No" }).getAttribute("disabled"),
+    ).not.toBeNull();
+    expect(
+      screen.queryByText(
+        "Pick the closest answer. We can tune the room from there.",
+      ),
+    ).toBeNull();
     expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
     expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
     expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
@@ -261,7 +270,7 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     ).toContain("bg-transparent");
     expect(
       screen.getByTestId("spielwiese-onboarding-surface-shell").className,
-    ).toContain("max-w-[70.625rem]");
+    ).toContain("max-w-[36rem]");
     expect(
       screen.getByTestId("spielwiese-onboarding-surface-shell").className,
     ).toContain("shadow-none");
@@ -277,8 +286,8 @@ describe("SpielwieseOnboardingPage routed steps", () => {
     expect(screen.queryByTestId("spielwiese-onboarding-step-label")).toBeNull();
     expect(screen.getByText("Do you know what to build?")).toBeTruthy();
     expect(
-      screen.getByTestId("spielwiese-onboarding-upper-canvas"),
-    ).toBeTruthy();
+      screen.queryByTestId("spielwiese-onboarding-upper-canvas"),
+    ).toBeNull();
     expect(screen.getByRole("progressbar")).toBeTruthy();
     expect(screen.queryByText("Why are you opening this room?")).toBeNull();
   });

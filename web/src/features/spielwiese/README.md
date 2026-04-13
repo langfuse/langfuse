@@ -2,6 +2,48 @@
 
 `spielwiese` is the dev-only redesign track for the future Langfuse shell.
 
+## Evren Case Study
+
+This track currently contains a case-study-style redesign of the Langfuse first
+run experience, centered on the idea that users do not think in product
+features first. They arrive with a prompt they want to improve.
+
+Start at `/dev/spielwiese` for the introduction. From there, everything flows.
+
+The current published narrative focuses on:
+
+- `Approach`: reframing the product around the setup moment instead of exposing
+  monitoring too early.
+- `Outcome`: a short embedded video placeholder inside the intro page.
+- `Colophon`: the tools and skills used to produce the work.
+
+Core routes:
+
+- Start here: `/dev/spielwiese`
+- Onboarding flow: `/dev/spielwiese/onboarding`
+- Dashboard prototype: `/dev/spielwiese/dashboard#home`
+
+Where to find the changes:
+
+- Intro page composition:
+  `src/features/spielwiese/pages/SpielwieseIntroPage.tsx`
+- Intro page content and colophon entries:
+  `src/features/spielwiese/components/spielwieseSetupMomentContent.ts`
+- Onboarding shell:
+  `src/features/spielwiese/pages/SpielwieseOnboardingPage.tsx`
+- Onboarding canvas:
+  `src/features/spielwiese/onboarding/components/SpielwieseOnboardingCanvas.tsx`
+- Step scene wrapper:
+  `src/features/spielwiese/onboarding/components/SpielwieseOnboardingStepScene.tsx`
+- Question panel:
+  `src/features/spielwiese/onboarding/components/SpielwieseOnboardingQuestionPanel.tsx`
+
+Current status:
+
+- Intro page and publication framing are in place.
+- Onboarding is still actively being polished.
+- This branch is suitable for a draft PR, not a final review.
+
 The tracked design-system source of truth lives under
 `src/features/spielwiese/design-system/*`. Runtime primitives live under
 `src/features/spielwiese/ui/*`, and all Spielwiese shells/pages/components

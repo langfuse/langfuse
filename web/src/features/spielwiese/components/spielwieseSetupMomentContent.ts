@@ -4,32 +4,42 @@ export const spielwieseSetupMomentContent = {
   sections: [
     {
       paragraphs: [
-        "This is my unsolicited redesign of Langfuse. I treated it as a product design exercise, not a visual refresh, and focused on how the product should feel when someone is trying to understand and shape an agent workflow for the first time.",
-      ],
-      title: "Overview",
-    },
-    {
-      paragraphs: [
-        "The redesign starts earlier than the dashboard. I reframed the entry point, tightened the onboarding, and then rebuilt the working surface so prompts, tags, variables, and handoffs read as one coherent system instead of separate controls competing for attention.",
-        "A lot of the work is about lowering cognitive load without flattening the product. The structure stays powerful, but the product should explain itself through spacing, sequencing, and emphasis before it asks the user to understand internal concepts.",
+        "today's langfuse is built around features: traces, evaluations, monitoring. yet, the users don't think in features but in the problem they're trying to solve.",
+        "when a user enters the langfuse dashboard, the first thing they see is an empty data dashboard.",
+        "i questioned that. why do users sign up for langfuse in the first place? what is their mental state?",
+        "the state i identified: they have a prompt they want to improve.",
+        "and this is why they signed up to langfuse.",
+        "now, the ultimate goal for langfuse is to get users who retain and engage with the platform longer term, and this is achieved with the habit moment. (the moment where the user built an habit around the app)",
+        "[ image of setup, aha, habit moment ]",
+        "in order to achieve that habit moment, they need to experience the aha moment (the moment where they see the first value of the product) and the setup moment (the moment that enables them to see the value in the first place).",
+        "i focused on the setup moment. and in my eyes the setup moment is when a user has created his first prompt, ran an evaluation and deployed it.",
+        "the aha moment is the moment langfuse tries to bring the users at the very first touchpoint: the monitoring. but they haven't been setup for that yet.",
+        "so i focused on onboarding and the prompt creation and evaluation screens. (strictly speaking, the setup moment should also include deployment, but that was cut for time.)",
       ],
       title: "Approach",
     },
     {
-      paragraphs: [
-        "The result is a guided prototype with three parts: an intro that frames the thinking, an onboarding flow that sets up intent, and a dashboard that shows how the redesigned system could feel in use.",
-        "This page is the framing layer. The next screens are the product layer.",
-      ],
+      paragraphs: ["[ video placeholder ]"],
       title: "Outcome",
     },
     {
       paragraphs: [
-        "You can start directly with the onboarding flow or jump into the dashboard if you want to inspect the core canvas first.",
+        "- Conductor [https://www.conductor.build/] with Codex [https://chatgpt.com/codex/]",
+        "- WisprFlow [https://wisprflow.ai/]",
+        "- Agentation [https://www.agentation.com/]",
+        "- Mesurer [https://mesurer.ibelick.com/]",
+        "- Shaders [https://shaders.com/]",
+        "- ReMarkable [https://remarkable.com/]",
+        "- Paper design [https://paper.design/]",
+        "Skills:",
+        "- ui.sh [https://ui.sh/]",
+        "- Vercel React Best Practices [https://vercel.com/blog/introducing-react-best-practices]",
+        "- emil.md [https://animations.dev/learn/emil-skill]",
+        "- shadcn/ui [https://ui.shadcn.com/docs/skills]",
       ],
-      title: "Routes",
+      title: "Colophon",
     },
   ],
   videoNote: "Place a short video walkthrough here.",
-  footer:
-    "If you want the intended reading order, start with onboarding and then continue into the dashboard.",
+  footer: "Time for you to experience it",
 } as const;

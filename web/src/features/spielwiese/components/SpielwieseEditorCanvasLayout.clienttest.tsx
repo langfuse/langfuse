@@ -3,18 +3,14 @@ import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
 
-function renderCanvas() {
-  return render(
-    <SpielwieseEditorCanvas canvas={spielwieseEditorCanvasTestCanvas} />,
-  );
-}
+const testCanvas = spielwieseEditorCanvasTestCanvas;
+
+const renderCanvas = () =>
+  render(<SpielwieseEditorCanvas canvas={testCanvas} />);
 
 function renderOnboardingPreviewCanvas() {
   return render(
-    <SpielwieseEditorCanvas
-      canvas={spielwieseEditorCanvasTestCanvas}
-      chrome="onboarding-preview"
-    />,
+    <SpielwieseEditorCanvas canvas={testCanvas} chrome="onboarding-preview" />,
   );
 }
 
@@ -265,7 +261,6 @@ describe("SpielwieseEditorCanvas layout shell", () => {
   it("renders with a local container-query root", () => {
     renderCanvas();
     const layoutElements = getLayoutShellElements();
-
     expectLayoutShellChrome(layoutElements);
     expectLayoutAccessories(layoutElements);
   });
@@ -275,11 +270,29 @@ describe("SpielwieseEditorCanvas layout shell", () => {
 
     expect(screen.getByTestId("spielwiese-editor-canvas")).toBeTruthy();
     expect(screen.getByTestId("spielwiese-editor-canvas-pane")).toBeTruthy();
-    expect(screen.queryByTestId("spielwiese-canvas-editor-mode-header")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-agent-node-insert-footer")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-canvas-pane-resize-handle")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-canvas-editor-mode-header"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-agent-node-insert-footer"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-canvas-pane-resize-handle"),
+    ).toBeNull();
     expect(screen.queryByTestId("spielwiese-canvas-bottom-panel")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-prompt-simulation-pane")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-prompt-simulation-pane"),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create tool" })).toBeNull();
+    expect(screen.queryByTestId("spielwiese-agent-node-header-actions")).toBeNull();
+    expect(screen.queryByTestId("spielwiese-response-format-composer")).toBeNull();
+    expect(screen.queryByLabelText("vision-agent title")).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-agent-node-card-back-button"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("spielwiese-agent-node-card-add-button"),
+    ).toBeNull();
   });
 });
 
@@ -290,7 +303,6 @@ describe("SpielwieseEditorCanvas node chrome", () => {
     expectVisionNodeChrome(getVisionNodeChromeElements());
   });
 });
-
 describe("SpielwieseEditorCanvas inline setting tags", () => {
   it("reveals inline setting tags on click and collapses them on blur", () => {
     renderCanvas();

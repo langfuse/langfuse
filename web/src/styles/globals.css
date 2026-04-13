@@ -138,6 +138,38 @@
       transform: translateY(-4px);
     }
   }
+
+  @keyframes spielwiese-onboarding-bridge-hold {
+    0% {
+      opacity: 0;
+      filter: blur(8px);
+      transform: translateY(12px);
+    }
+
+    16% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(0);
+    }
+
+    100% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes spielwiese-onboarding-scene-exit {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    to {
+      opacity: 0;
+      transform: translateY(-32px);
+    }
+  }
 }
 
 /*
@@ -165,6 +197,11 @@
 
   .animate-collapsible-up {
     animation: var(--animate-collapsible-up);
+  }
+
+  .animate-spielwiese-onboarding-scene-exit {
+    animation: spielwiese-onboarding-scene-exit 420ms
+      cubic-bezier(0.23, 1, 0.32, 1) 1 both;
   }
 }
 

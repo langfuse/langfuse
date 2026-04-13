@@ -3,6 +3,7 @@ import {
   SpielwieseCanvasPane,
   type SpielwieseCanvasPaneProps,
 } from "./SpielwieseCanvasPane";
+import { isOnboardingChrome } from "./SpielwieseEditorCanvasChromeContext";
 
 export function SpielwieseCanvasPaneMainPanel({
   chrome = "default",
@@ -38,7 +39,7 @@ export function SpielwieseCanvasPaneMainPanel({
     />
   );
 
-  if (chrome === "onboarding-preview") {
+  if (isOnboardingChrome(chrome)) {
     return (
       <div
         className="flex min-h-0 flex-1 flex-col overflow-hidden"

@@ -51,3 +51,12 @@ export function getOnboardingEntryTextMotionClassName(
       : "translate-y-2.5 opacity-0 blur-[10px]",
   ].join(" ");
 }
+
+export function getOnboardingSceneLayerClassName(isTransitioningOut: boolean) {
+  return [
+    "w-full transition-[opacity,transform] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
+    isTransitioningOut
+      ? "pointer-events-none -translate-y-8 opacity-0"
+      : "translate-y-0 opacity-100",
+  ].join(" ");
+}
