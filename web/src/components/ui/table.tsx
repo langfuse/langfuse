@@ -1,6 +1,9 @@
 import * as React from "react";
 
+import { Button } from "@/src/components/ui/button";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
+import { Check, Copy } from "lucide-react";
 
 type TableDensity = "compact" | "comfortable";
 
@@ -101,6 +104,59 @@ const TableCell = React.forwardRef<
 ));
 TableCell.displayName = "TableCell";
 
+type TableCellWithCopyButtonProps =
+  React.TdHTMLAttributes<HTMLTableCellElement> & {
+    text: string;
+    density?: TableDensity;
+    copyButtonLabel?: string;
+  };
+
+const TableCellWithCopyButton = React.forwardRef<
+  HTMLTableCellElement,
+  TableCellWithCopyButtonProps
+>(({ text, copyButtonLabel, className, ...props }, ref) => {
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <TableCell
+      ref={ref}
+      className={cn("relative min-w-0 pr-10", className)}
+      title={text}
+      {...props}
+    >
+      {text}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="absolute top-1/2 right-2 -translate-y-1/2"
+        title={copyButtonLabel ?? "Copy to clipboard"}
+        aria-label={copyButtonLabel ?? "Copy to clipboard"}
+        onClick={async (event) => {
+          event.preventDefault();
+          const button = event.currentTarget;
+          try {
+            await copy(text);
+          } catch {
+            // Clipboard writes can be rejected when the browser denies permission.
+          }
+
+          if (button) {
+            // The original button might no longer be in the DOM if React re-rendered the component after the state update.
+            button.focus();
+          }
+        }}
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </TableCell>
+  );
+});
+TableCellWithCopyButton.displayName = "TableCellWithCopyButton";
+
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
@@ -121,5 +177,6 @@ export {
   TableHead,
   TableRow,
   TableCell,
+  TableCellWithCopyButton,
   TableCaption,
 };
