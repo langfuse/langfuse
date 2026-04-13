@@ -19,6 +19,7 @@ import {
   redisQueueRetryOptions,
   traceException,
 } from "@langfuse/shared/src/server";
+import { env } from "../env";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -71,39 +72,55 @@ export class WorkerManager {
                           | QueueName.OtelIngestionQueue
                         >,
                       );
-      Promise.allSettled([
-        // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
-        // or "prioritized" or "waiting-children") that count provides
-        queue?.getWaitingCount().then((count) => {
-          recordGauge(
-            convertQueueNameToMetricName(queueName) + ".length",
-            count,
-            {
-              unit: "records",
-            },
-          );
-        }),
-        queue?.getFailedCount().then((count) => {
-          recordGauge(
-            convertQueueNameToMetricName(queueName) + ".dlq_length",
-            count,
-            {
-              unit: "records",
-            },
-          );
-        }),
-        queue?.getActiveCount().then((count) => {
-          recordGauge(
-            convertQueueNameToMetricName(queueName) + ".active",
-            count,
-            {
-              unit: "records",
-            },
-          );
-        }),
-      ]).catch((err) => {
-        logger.error("Failed to record queue length", err);
-      });
+      // Sample queue depth gauges for sharded queues to reduce metric volume.
+      const isShardedQueue =
+        queueName.startsWith(QueueName.IngestionQueue) ||
+        queueName.startsWith(QueueName.IngestionSecondaryQueue) ||
+        queueName.startsWith(QueueName.TraceUpsert) ||
+        queueName.startsWith(QueueName.OtelIngestionQueue) ||
+        queueName.startsWith(QueueName.EvaluationExecution) ||
+        queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue) ||
+        queueName.startsWith(QueueName.LLMAsJudgeExecution);
+
+      const shouldSample =
+        !isShardedQueue ||
+        Math.random() < env.LANGFUSE_QUEUE_METRICS_SAMPLE_RATE;
+
+      if (shouldSample) {
+        Promise.allSettled([
+          // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
+          // or "prioritized" or "waiting-children") that count provides
+          queue?.getWaitingCount().then((count) => {
+            recordGauge(
+              convertQueueNameToMetricName(queueName) + ".length",
+              count,
+              {
+                unit: "records",
+              },
+            );
+          }),
+          queue?.getFailedCount().then((count) => {
+            recordGauge(
+              convertQueueNameToMetricName(queueName) + ".dlq_length",
+              count,
+              {
+                unit: "records",
+              },
+            );
+          }),
+          queue?.getActiveCount().then((count) => {
+            recordGauge(
+              convertQueueNameToMetricName(queueName) + ".active",
+              count,
+              {
+                unit: "records",
+              },
+            );
+          }),
+        ]).catch((err) => {
+          logger.error("Failed to record queue length", err);
+        });
+      }
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
