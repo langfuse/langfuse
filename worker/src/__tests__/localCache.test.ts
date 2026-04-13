@@ -72,9 +72,6 @@ describe("LocalCache", () => {
       new LocalCache<string, { value: string }>({
         namespace: "test",
         enabled: false,
-        ttlMs: undefined as unknown as number,
-        max: undefined as unknown as number,
-        maxSize: undefined as unknown as number,
         sizeCalculation: (value, key) => getJsonEntrySize(key, value),
       });
 
