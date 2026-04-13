@@ -29,10 +29,14 @@ function CopyableSnippet({
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await copyTextToClipboard(value);
-    onCopy?.();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1000);
+    try {
+      await copyTextToClipboard(value);
+      onCopy?.();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
   };
 
   return (
