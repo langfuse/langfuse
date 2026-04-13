@@ -40,3 +40,10 @@ pnpm --filter=shared run db:generate
 
 # Prisma client generation is needed for typecheck/build tasks in Codex.
 pnpm run db:generate
+
+# Initialize local databases so worker/web tests can run immediately after
+# bootstrap without "table does not exist" failures.
+pnpm --filter=shared run db:reset:test
+pnpm --filter=shared run db:reset -f
+SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset
+pnpm --filter=shared run db:seed:examples
