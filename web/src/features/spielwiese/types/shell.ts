@@ -5,6 +5,7 @@ export type SpielwieseNavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  shortcut?: string;
   isActive?: boolean;
   badge?: string;
   count?: string;
@@ -20,6 +21,7 @@ export type SpielwieseSidebarTreeItem = {
   id: string;
   label: string;
   href: string;
+  shortcut?: string;
   count?: string;
   defaultOpen?: boolean;
   emoji?: string;

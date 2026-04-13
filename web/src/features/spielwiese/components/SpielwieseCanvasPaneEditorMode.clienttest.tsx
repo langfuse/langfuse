@@ -120,8 +120,7 @@ it("switches between builder mode and JSON mode and applies valid JSON edits bac
   const { builderModeButton, editorModeHeader, jsonModeButton } =
     getEditorModeButtons();
 
-  expect(editorModeHeader.className).toContain("pt-2");
-  expect(editorModeHeader.className).toContain("pb-1");
+  expect(editorModeHeader.className).toContain("py-2");
   expect(editorModeHeader.className).toContain("px-2");
   expect(editorModeHeader.className).toContain("justify-between");
   expect(editorModeHeader.className).not.toContain("-mx-2");

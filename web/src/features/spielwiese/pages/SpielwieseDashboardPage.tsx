@@ -1,8 +1,13 @@
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   getSpielwieseDashboardVm,
   getSpielwieseShellVm,
 } from "../adapters/dashboardVm";
+import {
+  defaultSpielwieseDashboardDebugState,
+  SpielwieseDashboardDebugHud,
+  type SpielwieseDashboardDebugState,
+} from "../components/SpielwieseDashboardDebugHud";
 import { SpielwieseEditorCanvas } from "../components/SpielwieseEditorCanvas";
 import { SpielwiesePromptCanvas } from "../components/SpielwiesePromptCanvas";
 import { SpielwieseVariableValuesProvider } from "../components/useSpielwieseVariableValues";
@@ -27,9 +32,11 @@ function getPageIdFromHash() {
 
 function SpielwieseDashboardCanvas({
   dashboard,
+  debugState,
   onDetectedVariablesChange,
 }: {
   dashboard: SpielwieseDashboardVM;
+  debugState: SpielwieseDashboardDebugState;
   onDetectedVariablesChange: (labels: string[]) => void;
 }) {
   const { closeSidePanels } = useSpielwieseShell();
@@ -41,6 +48,7 @@ function SpielwieseDashboardCanvas({
   return (
     <SpielwieseEditorCanvas
       canvas={dashboard.canvas}
+      debugState={debugState}
       onCloseSidePanels={closeSidePanels}
       onDetectedVariablesChange={onDetectedVariablesChange}
     />
@@ -58,6 +66,9 @@ export default function SpielwieseDashboardPage() {
   const variablesState = useSpielwieseVariablesPanelState(
     dashboard.variablesPanel.items,
   );
+  const [debugState, setDebugState] = useState(
+    defaultSpielwieseDashboardDebugState,
+  );
 
   return (
     <div
@@ -70,10 +81,19 @@ export default function SpielwieseDashboardPage() {
           shell={shell}
           variablesState={variablesState}
         >
-          <SpielwieseDashboardCanvas
-            dashboard={dashboard}
-            onDetectedVariablesChange={variablesState.onEnsureDetectedVariables}
-          />
+          <>
+            <SpielwieseDashboardCanvas
+              dashboard={dashboard}
+              debugState={debugState}
+              onDetectedVariablesChange={
+                variablesState.onEnsureDetectedVariables
+              }
+            />
+            <SpielwieseDashboardDebugHud
+              onChange={setDebugState}
+              state={debugState}
+            />
+          </>
         </SpielwieseDashboardShell>
       </SpielwieseVariableValuesProvider>
     </div>

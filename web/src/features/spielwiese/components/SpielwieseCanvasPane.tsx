@@ -203,7 +203,7 @@ function CanvasPaneContent({
       data-testid="spielwiese-editor-canvas-pane-shell"
     >
       <div
-        className="bg-background flex min-h-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-inner-radius)]"
+        className="bg-background flex min-h-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px]"
         data-testid="spielwiese-editor-canvas-pane-surface"
       >
         <SpielwieseCanvasPaneHeader

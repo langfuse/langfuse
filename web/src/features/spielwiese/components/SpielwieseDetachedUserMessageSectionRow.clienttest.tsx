@@ -42,12 +42,17 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
     const detachedUserPromptShell = within(visionNode).getByTestId(
       "spielwiese-detached-user-prompt-shell",
     );
+    const detachedUserOuterShell =
+      detachedUserFrame.firstElementChild as HTMLElement | null;
 
     expect(detachedUserFrame.className).toContain("pt-0");
     expect(detachedUserFrame.className).toContain("pb-px");
     expect(detachedUserFrame.className).not.toContain("bg-white");
     expect(detachedUserFrame.className).not.toContain("pt-[6px]");
-    expect(detachedUserPromptShell.className).toContain("bg-white");
-    expect(detachedUserPromptShell.className).not.toContain("bg-[#FBFBFB]");
+    expect(detachedUserOuterShell?.className).toContain("pb-[4px]");
+    expect(detachedUserOuterShell?.className).toContain("bg-background/96");
+    expect(detachedUserOuterShell?.className).toContain("border-border/40");
+    expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
+    expect(detachedUserPromptShell.className).not.toContain("bg-white");
   });
 });

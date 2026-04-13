@@ -8,6 +8,7 @@ import type { SpielwieseShellVM } from "../types/shell";
 import { sidebarMenuButtonVariants } from "../ui/sidebar";
 import { SpielwieseHeaderFinderPanel } from "./SpielwieseHeaderFinderPanel";
 import { FinderShortcut } from "./spielwieseHeaderFinderPrimitives";
+import { SpielwieseSidebarShortcut } from "./SpielwieseSidebarShortcut";
 import { useSpielwieseHeaderFinderMotion } from "./useSpielwieseHeaderFinderMotion";
 import { useSpielwieseHeaderFinderState } from "./useSpielwieseHeaderFinderState";
 
@@ -20,6 +21,7 @@ export type SpielwieseHeaderFinderProps = {
   onOpen: () => void;
   pageId: SpielwieseDashboardVM["pageId"];
   shell: SpielwieseShellVM;
+  shortcutLabel?: string;
   variant?: FinderTriggerVariant;
 };
 
@@ -46,25 +48,26 @@ function FinderTriggerBackground({
 
 function FinderTriggerShortcut({
   shortcutRef,
+  shortcutLabel,
   variant,
 }: {
   shortcutRef: RefObject<HTMLElement | null>;
+  shortcutLabel?: string;
   variant: FinderTriggerVariant;
 }) {
+  const label = shortcutLabel ?? "F";
+
+  if (variant === "sidebar") {
+    return (
+      <SpielwieseSidebarShortcut label={label} shortcutRef={shortcutRef} />
+    );
+  }
+
   return (
-    <span
-      className={cn(
-        variant === "sidebar"
-          ? "hidden"
-          : "hidden size-8 place-content-center pr-0.5 md:grid",
-      )}
-    >
+    <span className="hidden size-8 place-content-center pr-0.5 md:grid">
       <FinderShortcut
-        className={cn(
-          "text-foreground/48 border-black/8 bg-white/76 shadow-none",
-          variant === "sidebar" && "h-5 rounded-[0.45rem] bg-white/84",
-        )}
-        label="F"
+        className="text-foreground/48 border-black/8 bg-white/76 shadow-none"
+        label={label}
         shortcutRef={shortcutRef}
       />
     </span>
@@ -82,7 +85,7 @@ function getFinderTriggerClassName({
     "relative z-[calc(var(--header-zindex)_+_1)] h-8 w-full cursor-pointer overflow-visible border-0 bg-transparent p-0 text-left [webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-[3px]",
     variant === "sidebar"
       ? cn(
-          "max-w-none rounded-[10px] focus-visible:outline-0",
+          "group/sidebar-item max-w-none rounded-[10px] focus-visible:outline-0",
           sidebarMenuButtonVariants({ tone: "primary" }),
         )
       : "max-w-[21rem] rounded-full md:cursor-text md:rounded",
@@ -95,11 +98,13 @@ function FinderTriggerContent({
   iconRef,
   placeholderRef,
   shortcutRef,
+  shortcutLabel,
   variant,
 }: {
   iconRef: RefObject<SVGSVGElement | null>;
   placeholderRef: RefObject<HTMLSpanElement | null>;
   shortcutRef: RefObject<HTMLElement | null>;
+  shortcutLabel?: string;
   variant: FinderTriggerVariant;
 }) {
   return (
@@ -129,6 +134,11 @@ function FinderTriggerContent({
           >
             Search
           </span>
+          <FinderTriggerShortcut
+            shortcutLabel={shortcutLabel}
+            shortcutRef={shortcutRef}
+            variant={variant}
+          />
         </>
       ) : (
         <>
@@ -148,7 +158,11 @@ function FinderTriggerContent({
           >
             Find…
           </span>
-          <FinderTriggerShortcut shortcutRef={shortcutRef} variant={variant} />
+          <FinderTriggerShortcut
+            shortcutLabel={shortcutLabel}
+            shortcutRef={shortcutRef}
+            variant={variant}
+          />
         </>
       )}
     </span>
@@ -162,6 +176,7 @@ function FinderTrigger({
   onOpen,
   placeholderRef,
   shortcutRef,
+  shortcutLabel,
   triggerRef,
   variant,
 }: {
@@ -171,6 +186,7 @@ function FinderTrigger({
   onOpen: () => void;
   placeholderRef: RefObject<HTMLSpanElement | null>;
   shortcutRef: RefObject<HTMLElement | null>;
+  shortcutLabel?: string;
   triggerRef: RefObject<HTMLButtonElement | null>;
   variant: FinderTriggerVariant;
 }) {
@@ -193,6 +209,7 @@ function FinderTrigger({
       <FinderTriggerContent
         iconRef={iconRef}
         placeholderRef={placeholderRef}
+        shortcutLabel={shortcutLabel}
         shortcutRef={shortcutRef}
         variant={variant}
       />
@@ -207,6 +224,7 @@ export function SpielwieseHeaderFinder({
   onOpen,
   pageId,
   shell,
+  shortcutLabel,
   variant = "header",
 }: SpielwieseHeaderFinderProps) {
   const motion = useSpielwieseHeaderFinderMotion({ onClose });
@@ -232,6 +250,7 @@ export function SpielwieseHeaderFinder({
         isOpen={isOpen}
         onOpen={onOpen}
         placeholderRef={motion.triggerPlaceholderRef}
+        shortcutLabel={shortcutLabel}
         shortcutRef={motion.triggerShortcutRef}
         triggerRef={motion.triggerRef}
         variant={variant}

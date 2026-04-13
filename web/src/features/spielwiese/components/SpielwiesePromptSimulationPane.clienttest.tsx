@@ -64,6 +64,9 @@ function getPromptSimulationElements() {
     ),
     actions,
     cardFrames,
+    flowActionGroups: within(flowStrip).getAllByTestId(
+      "spielwiese-playground-flow-node-actions",
+    ),
     flowHeaderRows,
     flowNodes,
     flowScroller,
@@ -133,14 +136,14 @@ function expectPromptSimulationPaneChrome(
     "rounded-[var(--canvas-pane-inner-radius)]",
   );
   expect(terminalSurface.className).toContain("relative");
-  expect(terminalSurface.className).toContain("px-2");
+  expect(terminalSurface.className).toContain("px-2.5");
   expect(terminalSurface.className).toContain("pt-0");
   expect(terminalSurface.className).toContain("pb-[6px]");
   expect(terminalSurface.className).toContain("after:h-[6px]");
   expect(terminalSurface.className).toContain("after:bg-[#F3F3F4]");
   expect(elements.header.className).toContain("sticky");
-  expect(elements.header.className).toContain("-mx-2");
-  expect(elements.header.className).toContain("w-[calc(100%+1rem)]");
+  expect(elements.header.className).toContain("-mx-2.5");
+  expect(elements.header.className).toContain("w-[calc(100%+1.25rem)]");
   expect(elements.header.className).toContain("gap-2");
   expect(elements.header.className).toContain("pt-2");
   expect(elements.header.className).toContain("pb-1");
@@ -189,6 +192,7 @@ function expectPromptSimulationPaneChrome(
   expect(previewRows).toHaveLength(3);
   expect(elements.previewShells).toHaveLength(3);
   expect(elements.chevrons).toHaveLength(2);
+  expect(elements.flowActionGroups).toHaveLength(3);
   expect(elements.nodeTags).toHaveLength(6);
   expect(elements.tagStrips).toHaveLength(3);
   expect(elements.userIcons).toHaveLength(3);
@@ -196,8 +200,8 @@ function expectPromptSimulationPaneChrome(
     flowStrip.querySelectorAll('[data-testid^="spielwiese-provider-mark-"]'),
   ).toHaveLength(3);
   expect(
-    within(flowStrip).queryByRole("button", { name: /Preview .* node/i }),
-  ).toBeNull();
+    within(flowStrip).getAllByRole("button", { name: /Preview .* node/i }),
+  ).toHaveLength(3);
 }
 
 function expectPromptSimulationNodeShells(
@@ -273,8 +277,11 @@ function expectPromptSimulationNodeShells(
   expect(firstPreviewShell.className).toContain("px-[5px]");
   expect(firstPreviewShell.className).toContain("w-full");
   expect(firstPreviewShell.className).toContain("min-w-0");
-  expect(firstPreviewRow.className).toContain("rounded-xl");
-  expect(firstPreviewRow.className).toContain("bg-muted/24");
+  expect(firstPreviewRow.className).toContain(
+    "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
+  );
+  expect(firstPreviewRow.className).toContain("bg-background/96");
+  expect(firstPreviewRow.className).toContain("border-border/40");
   expect(firstPreviewRow.className).not.toContain("px-[5px]");
   expect(firstPreviewRow.className).toContain("pt-0");
   expect(firstPreviewRow.className).toContain("pb-0");
@@ -323,9 +330,26 @@ function expectPromptSimulationHeaderTags({
   expect(firstFlowHeaderRow.className).toContain("pr-[6px]");
   expect(firstFlowHeaderRow.className).toContain("pl-[6px]");
   expectPromptSimulationHeaderTagStrip(firstTagStrip);
+  const actionButtons = within(firstFlowHeaderRow).getByTestId(
+    "spielwiese-playground-flow-node-actions",
+  );
+  expect(actionButtons.className).toContain("flex");
+  expect(actionButtons.className).toContain("gap-1");
   expect(
-    firstFlowHeaderRow.querySelector("[aria-label*='Minimize']"),
-  ).toBeNull();
+    within(actionButtons).getByRole("button", {
+      name: "Minimize vision-agent node sections",
+    }),
+  ).toBeTruthy();
+  expect(
+    within(actionButtons).getByRole("button", {
+      name: "Preview vision-agent node",
+    }),
+  ).toBeTruthy();
+  expect(
+    within(actionButtons).getByRole("button", {
+      name: "Archive vision-agent node",
+    }),
+  ).toBeTruthy();
   expect(firstUserTag.className).toContain("h-7");
   expect(firstUserTag.className).toContain("rounded-[10px]");
   expect(firstUserTag.className).toContain("border-[rgba(0,0,0,0.05)]");

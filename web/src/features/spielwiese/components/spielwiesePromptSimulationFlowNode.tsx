@@ -49,6 +49,7 @@ function PlaygroundFlowCardShell({
   node,
   onThinkingCardClick,
   preview,
+  showActionButtons,
   thinkingMeta,
   thinkingSummary,
 }: {
@@ -58,6 +59,7 @@ function PlaygroundFlowCardShell({
   node: SpielwieseAgentNodeVM;
   onThinkingCardClick: () => void;
   preview: ReturnType<typeof getPlaygroundFlowPreview>;
+  showActionButtons: boolean;
   thinkingMeta: ReturnType<typeof getThinkingCardMeta>;
   thinkingSummary: string;
 }) {
@@ -71,6 +73,7 @@ function PlaygroundFlowCardShell({
         isThinkingDetailOpen={isThinkingDetailOpen}
         isThinking={isThinking}
         node={node}
+        showActionButtons={showActionButtons}
         thinkingMeta={thinkingMeta}
         onThinkingCardClick={onThinkingCardClick}
         thinkingSummary={thinkingSummary}
@@ -94,6 +97,7 @@ export function PlaygroundFlowNode({
   node,
   onThinkingCardClick,
   runtimePreview,
+  showActionButtons,
 }: {
   isThinkingDetailOpen: boolean;
   isLast: boolean;
@@ -101,6 +105,7 @@ export function PlaygroundFlowNode({
   node: SpielwieseAgentNodeVM;
   onThinkingCardClick: () => void;
   runtimePreview?: PlaygroundFlowPreviewVM;
+  showActionButtons: boolean;
 }) {
   const { activeTagId, preview, thinkingMeta, thinkingSummary } =
     getPlaygroundFlowNodeState({
@@ -125,6 +130,7 @@ export function PlaygroundFlowNode({
             node={node}
             onThinkingCardClick={onThinkingCardClick}
             preview={preview}
+            showActionButtons={showActionButtons}
             thinkingMeta={thinkingMeta}
             thinkingSummary={thinkingSummary}
           />

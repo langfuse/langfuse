@@ -153,6 +153,54 @@ describe("SpielwieseDashboardPage rendering", () => {
 
     expect(screen.getAllByTestId("spielwiese-agent-node")).toHaveLength(1);
   });
+
+  it("renders a layout HUD that updates the lower playground chrome live", () => {
+    renderPage();
+
+    const hud = screen.getByTestId("spielwiese-dashboard-debug-hud");
+    const terminalSurface = screen.getByTestId(
+      "spielwiese-playground-terminal-surface",
+    );
+    const playgroundHeader = screen.getByTestId("spielwiese-playground-header");
+    const surfacePadSlider = within(hud).getByLabelText("Canvas Body X");
+    const headerPadSlider = within(hud).getByLabelText("Header X");
+    const actionToggle = within(hud).getByRole("button", {
+      name: "Hide flow header actions",
+    });
+    const simulationPane = screen.getByTestId("spielwiese-prompt-simulation-pane");
+
+    expect(terminalSurface.style.paddingLeft).toBe("10px");
+    expect(terminalSurface.style.paddingRight).toBe("10px");
+    expect(playgroundHeader.style.paddingLeft).toBe("8px");
+    expect(playgroundHeader.style.paddingRight).toBe("8px");
+    expect(playgroundHeader.style.marginLeft).toBe("-10px");
+    expect(
+      within(simulationPane).queryAllByTestId(
+        "spielwiese-playground-flow-node-actions",
+      ),
+    ).toHaveLength(1);
+
+    fireEvent.change(surfacePadSlider, {
+      target: { value: "14" },
+    });
+    fireEvent.change(headerPadSlider, {
+      target: { value: "6" },
+    });
+
+    expect(terminalSurface.style.paddingLeft).toBe("14px");
+    expect(terminalSurface.style.paddingRight).toBe("14px");
+    expect(playgroundHeader.style.paddingLeft).toBe("6px");
+    expect(playgroundHeader.style.paddingRight).toBe("6px");
+    expect(playgroundHeader.style.marginLeft).toBe("-14px");
+
+    fireEvent.click(actionToggle);
+
+    expect(
+      within(simulationPane).queryAllByTestId(
+        "spielwiese-playground-flow-node-actions",
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 describe("SpielwieseDashboardPage variables", () => {

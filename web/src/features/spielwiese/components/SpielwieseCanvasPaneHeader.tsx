@@ -23,7 +23,7 @@ export function SpielwieseCanvasPaneHeader({
 }: SpielwieseCanvasPaneHeaderProps) {
   return (
     <div
-      className="flex shrink-0 items-center justify-between gap-2 px-2 pt-2 pb-1"
+      className="-mx-2 flex w-[calc(100%+1rem)] shrink-0 items-center justify-between gap-2 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-2 py-2 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
       data-testid="spielwiese-canvas-editor-mode-header"
     >
       <SpielwieseNodeActionButtons

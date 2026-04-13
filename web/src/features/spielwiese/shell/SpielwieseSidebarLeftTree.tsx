@@ -5,6 +5,7 @@ import type {
   SpielwieseSidebarSection,
   SpielwieseSidebarTreeItem,
 } from "../types/shell";
+import { SpielwieseSidebarShortcut } from "./SpielwieseSidebarShortcut";
 
 function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
   const Icon = item.icon ?? FileText;
@@ -13,6 +14,9 @@ function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
     <>
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
       <span data-sidebar-label>{item.label}</span>
+      {item.shortcut ? (
+        <SpielwieseSidebarShortcut label={item.shortcut} />
+      ) : null}
       {item.isActive ? (
         <span data-sidebar-action>
           <MoreHorizontal className="size-3.5" />
@@ -25,6 +29,7 @@ function SidebarFileLeafContent({ item }: { item: SpielwieseSidebarTreeItem }) {
 function SidebarFileLeaf({ item }: { item: SpielwieseSidebarTreeItem }) {
   const className = cn(
     sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
+    "group/sidebar-item",
     item.isDummy ? "cursor-default" : undefined,
   );
 
@@ -63,7 +68,7 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
       <summary
         className={cn(
           sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
-          "list-none text-black/[0.55] hover:text-black/[0.55]",
+          "group/sidebar-item list-none text-black/[0.55] hover:text-black/[0.55]",
         )}
       >
         <ChevronRight
@@ -71,6 +76,9 @@ function SidebarFileBranch({ item }: { item: SpielwieseSidebarTreeItem }) {
           data-sidebar-icon
         />
         <span data-sidebar-label>{item.label}</span>
+        {item.shortcut ? (
+          <SpielwieseSidebarShortcut label={item.shortcut} />
+        ) : null}
       </summary>
 
       <div className="ml-4 flex flex-col gap-0.5 border-l border-black/[0.05] pl-2">

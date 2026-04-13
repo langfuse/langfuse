@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import { useState, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
@@ -9,8 +8,6 @@ import { MessageSectionChipButton } from "./SpielwieseMessageSectionChip";
 import { SpielwieseMustacheTextarea } from "./SpielwieseMustacheTextarea";
 import {
   SpielwieseEmbeddedPromptFrame,
-  getMessageKind,
-  getMessageToneClassNames,
   spielwieseEmbeddedPromptInnerRadiusClassName,
   spielwieseEmbeddedSingleLineTextareaClassName,
 } from "./SpielwieseMessageSectionBody";
@@ -74,49 +71,52 @@ function DetachedUserInputShell({
       className={cn("pt-0 pb-px text-base", toneClassNames.body)}
       data-testid="spielwiese-detached-user-content-frame"
     >
-      {header ? (
-        <div
-          className="pb-[4px]"
-          data-testid="spielwiese-detached-user-content-header"
-        >
-          {header}
-        </div>
-      ) : null}
-      <SpielwieseEmbeddedPromptFrame
-        bodyClassName="p-0"
-        header={
-          <DetachedUserEmbeddedHeader
-            nodeId={nodeId}
-            section={section}
-            sectionLabel={detachedUserPromptLabel}
-          />
-        }
-        promptShellTestId="spielwiese-detached-user-prompt-shell"
-        shellTestId="spielwiese-detached-user-embedded-shell"
-      >
-        <label
-          className="block min-w-0"
-          data-testid="spielwiese-detached-user-input-shell"
-        >
-          <SpielwieseMustacheTextarea
-            aria-label={`${nodeId} ${detachedUserPromptLabel}`}
-            className={cn(
-              spielwieseEmbeddedSingleLineTextareaClassName,
-              toneClassNames.field,
-              "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
-            )}
-            liveInline
-            name={`${nodeId}-${section.id}`}
-            onChange={(event) =>
-              onPromptSectionChange(nodeId, section.id, event.target.value)
+      <div className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]">
+        {header ? (
+          <div
+            className="pt-[6px] pr-[6px] pb-[6px] pl-[6px]"
+            data-testid="spielwiese-detached-user-content-header"
+          >
+            {header}
+          </div>
+        ) : null}
+        <div className="px-[5px]">
+          <SpielwieseEmbeddedPromptFrame
+            header={
+              <DetachedUserEmbeddedHeader
+                nodeId={nodeId}
+                section={section}
+                sectionLabel={detachedUserPromptLabel}
+              />
             }
-            placeholder="Type the user's message"
-            rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
-            rows={1}
-            value={section.value}
-          />
-        </label>
-      </SpielwieseEmbeddedPromptFrame>
+            promptShellTestId="spielwiese-detached-user-prompt-shell"
+            shellTestId="spielwiese-detached-user-embedded-shell"
+          >
+            <label
+              className="block min-w-0"
+              data-testid="spielwiese-detached-user-input-shell"
+            >
+              <SpielwieseMustacheTextarea
+                aria-label={`${nodeId} ${detachedUserPromptLabel}`}
+                className={cn(
+                  spielwieseEmbeddedSingleLineTextareaClassName,
+                  toneClassNames.field,
+                  "placeholder:text-foreground/36 bg-transparent px-4 py-[0.4375rem] shadow-none",
+                )}
+                liveInline
+                name={`${nodeId}-${section.id}`}
+                onChange={(event) =>
+                  onPromptSectionChange(nodeId, section.id, event.target.value)
+                }
+                placeholder="Type the user's message"
+                rootClassName={spielwieseEmbeddedPromptInnerRadiusClassName}
+                rows={1}
+                value={section.value}
+              />
+            </label>
+          </SpielwieseEmbeddedPromptFrame>
+        </div>
+      </div>
     </div>
   );
 }
@@ -291,7 +291,7 @@ export function SpielwieseDetachedUserMessageSectionRow({
   return (
     <div
       className={cn(
-        "group flex w-full flex-col gap-0 overflow-visible px-[5px] pt-0 pb-0",
+        "group flex w-full flex-col gap-0 overflow-visible pt-0 pb-0",
         getMessageSectionRowRadiusClassName(section.id),
       )}
       data-section-id={section.id}

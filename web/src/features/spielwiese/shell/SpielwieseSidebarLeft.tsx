@@ -19,8 +19,8 @@ import {
   SpielwieseHeaderFinder,
   type SpielwieseHeaderFinderProps,
 } from "./SpielwieseHeaderFinder";
+import { SpielwieseSidebarShortcut } from "./SpielwieseSidebarShortcut";
 import { SidebarSectionList } from "./SpielwieseSidebarLeftTree";
-import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 
 type SpielwieseSidebarLeftProps = {
   compact?: boolean;
@@ -59,9 +59,17 @@ function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
   const Icon = item.icon;
 
   return (
-    <SidebarMenuButton active={item.isActive} href={item.href} tone="primary">
+    <SidebarMenuButton
+      active={item.isActive}
+      className="group/sidebar-item"
+      href={item.href}
+      tone="primary"
+    >
       <Icon className="size-3.5 shrink-0" data-sidebar-icon />
       <span data-sidebar-label>{item.label}</span>
+      {item.shortcut ? (
+        <SpielwieseSidebarShortcut label={item.shortcut} />
+      ) : null}
       {item.count ? <span data-sidebar-meta>{item.count}</span> : null}
       {ActionIcon ? (
         <span data-sidebar-action>
@@ -86,7 +94,11 @@ function ExpandedUtilityNav({
           {group.items.map((item) => (
             <SidebarMenuItem key={item.id}>
               {finderProps && item.id === "search" ? (
-                <SpielwieseHeaderFinder {...finderProps} variant="sidebar" />
+                <SpielwieseHeaderFinder
+                  {...finderProps}
+                  shortcutLabel={item.shortcut}
+                  variant="sidebar"
+                />
               ) : (
                 <UtilityNavRow item={item} />
               )}
@@ -132,10 +144,6 @@ function CompactSidebar({ shell }: { shell: SpielwieseShellVM }) {
         data-testid="spielwiese-left-sidebar-scroll-area"
       >
         <SidebarHeader className="items-center gap-2 p-2.5">
-          <SpielwieseWorkspaceSwitcher
-            name={shell.team.name}
-            variant="compact"
-          />
           <CreateDocumentButton compact />
         </SidebarHeader>
 

@@ -253,7 +253,7 @@ function SpielwieseAgentNodeHeaderRow({
 
   return (
     <div
-      className="flex w-full min-w-0 items-center justify-between gap-1.5 pt-[6px] pr-[6px] pb-[6px] pl-[6px]"
+      className="flex w-full min-w-0 items-center justify-between gap-1.5 border-b border-black/5 bg-[rgba(251,251,251,0.82)] pt-[5px] pr-[6px] pb-[7px] pl-[6px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
       data-testid="spielwiese-agent-node-header-row"
     >
       {/* Demo block: keep the header-control column visually quiet; only the trailing panel actions should advertise hover. */}
@@ -291,7 +291,7 @@ export function SpielwieseAgentNodeHeader({
 }: SpielwieseAgentNodeHeaderProps) {
   return (
     <div
-      className="border-border/40 bg-background/96 flex w-full min-w-0 flex-col rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border pb-[4px]"
+      className="border-border/40 flex w-full min-w-0 flex-col overflow-hidden rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border bg-[rgba(251,251,251,0.82)] pb-[4px] supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
       data-testid="spielwiese-agent-node-header-shell"
     >
       <SpielwieseAgentNodeHeaderRow {...props} />

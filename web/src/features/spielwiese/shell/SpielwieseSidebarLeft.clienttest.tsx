@@ -60,8 +60,33 @@ function expectPrimarySidebarButtonChrome(label: string) {
   ].forEach((token) => expect(className).toContain(token));
   expect(control?.querySelector("[data-sidebar-icon]")).toBeTruthy();
   expect(control?.querySelector("[data-sidebar-icon-shell]")).toBeNull();
+  expect(className).toContain("group/sidebar-item");
   expect(className).not.toContain("border-[rgba(0,0,0,0.04)]");
   expect(className).not.toContain("bg-[rgba(255,255,255,0.38)]");
+}
+
+function expectSidebarShortcutChrome(
+  label: string,
+  shortcut: string,
+  {
+    classToken,
+    selector = "a, button, summary",
+  }: {
+    classToken?: string;
+    selector?: string;
+  } = {},
+) {
+  const control = screen.getByText(label).closest(selector);
+  const badge = control?.querySelector("kbd");
+
+  expect(control).toBeTruthy();
+  expect(badge).toBeTruthy();
+  expect(badge?.textContent).toBe(shortcut);
+  expect(badge?.className).toContain("opacity-0");
+  expect(badge?.className).toContain("group-hover/sidebar-item:opacity-100");
+  if (classToken) {
+    expect(badge?.className).toContain(classToken);
+  }
 }
 
 function expectSidebarSectionHeaderActionChrome(label: string) {
@@ -149,10 +174,23 @@ describe("SpielwieseSidebarLeft expanded", () => {
     expectPrimarySidebarButtonChrome("Home");
     expectPrimarySidebarButtonChrome("Search");
     expectPrimarySidebarButtonChrome("Library");
+    expectSidebarShortcutChrome("Home", "H", {
+      classToken: "bg-black/[0.04]",
+    });
+    expectSidebarShortcutChrome("Search", "F", {
+      classToken: "bg-black/[0.04]",
+      selector: "button",
+    });
+    expectSidebarShortcutChrome("Library", "L");
+    expectSidebarShortcutChrome("Organization settings", "O");
+    expectSidebarShortcutChrome("Documentation", "D");
     expectSidebarGroupRowChrome("Example Evaluators");
+    expectSidebarShortcutChrome("Example Evaluators", "E");
     expectSidebarSectionHeaderActionChrome("Files");
     expectNestedTreeChrome("Micronutrient tracker");
+    expectSidebarShortcutChrome("Micronutrient tracker", "M");
     expectDummyNestedTreeChrome("Vision Agent");
+    expectSidebarShortcutChrome("Vision Agent", "V");
     expect(
       screen
         .getByText("Micronutrient tracker")
@@ -181,5 +219,6 @@ describe("SpielwieseSidebarLeft compact", () => {
     expect(screen.getByTitle("Desktop app")).toBeTruthy();
     expect(screen.getByTitle("Files")).toBeTruthy();
     expect(screen.getByTitle("Home").className).toContain("size-8");
+    expect(screen.queryByTitle("Rudel")).toBeNull();
   });
 });

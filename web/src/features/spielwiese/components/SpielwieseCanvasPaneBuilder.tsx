@@ -65,7 +65,7 @@ export function SpielwieseCanvasPaneBuilder({
       </div>
       {insertAnchorNodeId ? (
         <div
-          className="flex-none pb-2"
+          className="flex-none"
           data-testid="spielwiese-agent-node-insert-footer"
         >
           <SpielwieseAgentNodeExternalInsertRow

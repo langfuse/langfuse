@@ -1,10 +1,14 @@
 /* eslint-disable max-lines-per-function */
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useRef, useState } from "react";
 import { History, Play } from "lucide-react";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import { Button } from "../ui/button";
 import type { PlaygroundFlowPreviewVM } from "./SpielwiesePlaygroundFlowPromptPreview";
+import {
+  defaultSpielwieseDashboardDebugState,
+  type SpielwieseDashboardDebugState,
+} from "./SpielwieseDashboardDebugHud";
 import {
   adanaKebabPreviewLines,
   createPendingSimulationPreview,
@@ -21,9 +25,11 @@ import { cn } from "@/src/utils/tailwind";
 const playgroundActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex h-6 items-center gap-1.25 rounded-[10px] py-0 pr-2 pl-1.5 text-[11px] font-medium`;
 
 function PlaygroundSurface({
+  debugState,
   headerAccessory,
   nodes,
 }: {
+  debugState?: SpielwieseDashboardDebugState;
   headerAccessory?: ReactNode;
   nodes: SpielwieseAgentNodeVM[];
 }) {
@@ -42,6 +48,24 @@ function PlaygroundSurface({
     Record<string, PlaygroundFlowPreviewVM | undefined>
   >({});
   const [isPlaying, setIsPlaying] = useState(false);
+  const showPlaygroundFlowNodeActions =
+    debugState?.showPlaygroundFlowNodeActions ??
+    defaultSpielwieseDashboardDebugState.showPlaygroundFlowNodeActions;
+  const terminalSurfaceStyle: CSSProperties | undefined = debugState
+    ? {
+        paddingLeft: `${debugState.playgroundSurfacePadX}px`,
+        paddingRight: `${debugState.playgroundSurfacePadX}px`,
+      }
+    : undefined;
+  const headerStyle: CSSProperties | undefined = debugState
+    ? {
+        marginLeft: `${-debugState.playgroundSurfacePadX}px`,
+        marginRight: `${-debugState.playgroundSurfacePadX}px`,
+        paddingLeft: `${debugState.playgroundHeaderPadX}px`,
+        paddingRight: `${debugState.playgroundHeaderPadX}px`,
+        width: `calc(100% + ${debugState.playgroundSurfacePadX * 2}px)`,
+      }
+    : undefined;
 
   const clearPendingTimeouts = () => {
     pendingTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
@@ -128,12 +152,14 @@ function PlaygroundSurface({
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div
-          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-2 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
+          className="bg-background relative flex min-h-full w-full min-w-0 flex-1 flex-col overflow-visible rounded-[var(--canvas-pane-inner-radius)] px-2.5 pt-0 pb-[6px] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[6px] after:bg-[#F3F3F4] after:content-['']"
           data-testid="spielwiese-playground-terminal-surface"
+          style={terminalSurfaceStyle}
         >
           <div
-            className="sticky top-0 z-10 -mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-2 pt-2 pb-1 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
+            className="sticky top-0 z-10 -mx-2.5 flex w-[calc(100%+1.25rem)] items-center gap-2 rounded-t-[var(--canvas-pane-inner-radius)] border-b border-black/5 bg-[rgba(251,251,251,0.82)] px-2 pt-2 pb-1 supports-[backdrop-filter]:bg-[rgba(251,251,251,0.72)] supports-[backdrop-filter]:backdrop-blur-md"
             data-testid="spielwiese-playground-header"
+            style={headerStyle}
           >
             {headerAccessory ? (
               <div data-testid="spielwiese-playground-header-accessory">
@@ -185,6 +211,7 @@ function PlaygroundSurface({
                   key={node.id}
                   node={node}
                   runtimePreview={runtimePreviewByNodeId[node.id]}
+                  showActionButtons={showPlaygroundFlowNodeActions}
                   onThinkingCardClick={() =>
                     setExpandedThinkingNodeId((currentExpandedNodeId) =>
                       currentExpandedNodeId === node.id ? null : node.id,
@@ -201,11 +228,19 @@ function PlaygroundSurface({
 }
 
 export function SpielwiesePromptSimulationPane({
+  debugState,
   headerAccessory,
   nodes,
 }: {
+  debugState?: SpielwieseDashboardDebugState;
   headerAccessory?: ReactNode;
   nodes: SpielwieseAgentNodeVM[];
 }) {
-  return <PlaygroundSurface headerAccessory={headerAccessory} nodes={nodes} />;
+  return (
+    <PlaygroundSurface
+      debugState={debugState}
+      headerAccessory={headerAccessory}
+      nodes={nodes}
+    />
+  );
 }

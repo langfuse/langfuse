@@ -54,8 +54,7 @@ function expectDetachedUserShell(detachedUserSections: HTMLElement) {
     "rounded-[var(--node-shell-radius)]",
   );
   expect(detachedUserCardFrame?.className).toContain("bg-[#F1F2F2]");
-  expect(detachedUserCardFrame?.className).toContain("p-0");
-  expect(detachedUserCardFrame?.className).not.toContain("p-0.5");
+  expect(detachedUserCardFrame?.className).toContain("p-0.5");
   expect(detachedUserCardFrame?.className).not.toContain("-mb-0.5");
   expect(detachedUserPromptSections?.className).toContain("pt-0");
   expect(detachedUserPromptSections?.className).toContain("pb-0");
@@ -199,7 +198,10 @@ function getDetachedUserUploadElements(detachedUserRow: HTMLElement) {
 function expectDetachedUserContentHeaderSpacing(
   detachedUserContentHeader: HTMLElement,
 ) {
-  expect(detachedUserContentHeader.className).toContain("pb-[4px]");
+  expect(detachedUserContentHeader.className).toContain("pt-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pr-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pb-[6px]");
+  expect(detachedUserContentHeader.className).toContain("pl-[6px]");
 }
 
 function expectDetachedUserEmbeddedHeaderChrome({
@@ -270,8 +272,20 @@ function expectDetachedUserFieldChrome({
     detachedUserEmbeddedShell,
     detachedUserSections,
   });
+  expect(
+    (detachedUserContentFrame.firstElementChild as HTMLElement | null)
+      ?.className,
+  ).toContain("bg-background/96");
+  expect(
+    (detachedUserContentFrame.firstElementChild as HTMLElement | null)
+      ?.className,
+  ).toContain("border-border/40");
+  expect(
+    (detachedUserContentFrame.firstElementChild as HTMLElement | null)
+      ?.className,
+  ).toContain("pb-[4px]");
   expect(detachedUserPromptShell.className).toContain("w-full");
-  expect(detachedUserPromptShell.className).toContain("bg-white");
+  expect(detachedUserPromptShell.className).toContain("bg-[#FBFBFB]");
   expect(detachedUserPromptShell.className).toContain(
     "rounded-[calc(var(--embedded-prompt-radius)-var(--embedded-prompt-padding))]",
   );
@@ -309,7 +323,6 @@ function expectDetachedUserRowShell({
     "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))]",
   );
   expect(detachedUserRow.className).toContain("gap-0");
-  expect(detachedUserRow.className).toContain("px-[5px]");
   expect(detachedUserRow.className).toContain("pt-0");
   expect(detachedUserRow.className).toContain("pb-0");
   expect(detachedUserRow.className).not.toContain("shadow-[");

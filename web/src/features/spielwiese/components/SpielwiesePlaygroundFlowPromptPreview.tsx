@@ -2,9 +2,7 @@ import { Settings2, type LucideIcon, UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
 import {
-  spielwieseEmbeddedPromptInnerRadiusClassName,
-  spielwieseEmbeddedPromptRadiusClassName,
-  spielwieseEmbeddedPromptRadiusVariablesClassName,
+  SpielwieseEmbeddedPromptFrame,
   spielwieseMessageFieldShellClassName,
 } from "./SpielwieseMessageSectionBody";
 import { getPromptSectionDisplayLabel } from "./spielwiesePromptSectionLabels";
@@ -143,45 +141,31 @@ function PlaygroundFlowSystemPromptPreview({
   value: string;
 }) {
   return (
-    <div
-      className={cn("pt-0 pb-px text-base", toneClassNames.body)}
-      data-testid="spielwiese-playground-flow-preview-body"
-    >
-      <div
-        className={cn(
-          "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden border border-[rgba(0,0,0,0.05)] bg-[#F1F2F2] px-[2px] pt-0 pb-[2px] shadow-none",
-          spielwieseEmbeddedPromptRadiusVariablesClassName,
-          spielwieseEmbeddedPromptRadiusClassName,
-          "gap-px",
-        )}
-        data-testid="spielwiese-playground-flow-preview-field-shell"
-      >
+    <SpielwieseEmbeddedPromptFrame
+      bodyClassName={toneClassNames.body}
+      bodyTestId="spielwiese-playground-flow-preview-body"
+      header={
         <PlaygroundFlowPromptPreviewHeader
           PreviewIcon={PreviewIcon}
           isEmbedded
           previewLabel={previewLabel}
           toneClassNames={toneClassNames}
         />
-        <div
-          className={cn(
-            "flex min-h-0 w-full min-w-0 flex-col items-stretch overflow-hidden bg-[#FBFBFB] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
-            spielwieseEmbeddedPromptInnerRadiusClassName,
-          )}
-        >
-          <div
-            className={cn(
-              "text-foreground min-h-10 bg-transparent px-3 py-1 text-base leading-7 sm:text-[0.9375rem]",
-              previewValueClassName,
-              format === "json" &&
-                "font-mono text-[13px] leading-5 sm:text-[13px]",
-            )}
-            data-testid="spielwiese-playground-flow-preview-value"
-          >
-            {value}
-          </div>
-        </div>
+      }
+      promptShellClassName="min-h-0"
+      shellTestId="spielwiese-playground-flow-preview-field-shell"
+    >
+      <div
+        className={cn(
+          "text-foreground min-h-10 bg-transparent px-3 py-1 text-base leading-7 sm:text-[0.9375rem]",
+          previewValueClassName,
+          format === "json" && "font-mono text-[13px] leading-5 sm:text-[13px]",
+        )}
+        data-testid="spielwiese-playground-flow-preview-value"
+      >
+        {value}
       </div>
-    </div>
+    </SpielwieseEmbeddedPromptFrame>
   );
 }
 
@@ -269,8 +253,8 @@ export function SpielwiesePlaygroundFlowPromptPreview({
         "group flex w-full min-w-0 flex-col overflow-hidden",
         messageKind === "user"
           ? "rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] px-2.5 pt-1 pb-2"
-          : "rounded-xl pt-0 pb-0",
-        toneClassNames.surface,
+          : "border-border/40 bg-background/96 rounded-[calc(var(--node-shell-radius)-var(--node-shell-gap))] border px-0 pt-0 pb-0",
+        messageKind === "user" && toneClassNames.surface,
       )}
       data-section-id={preview.sectionId}
       data-testid="spielwiese-playground-flow-preview-row"

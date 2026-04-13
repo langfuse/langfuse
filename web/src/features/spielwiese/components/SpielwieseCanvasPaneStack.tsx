@@ -11,6 +11,7 @@ import {
   SpielwieseCanvasPane,
   type SpielwieseCanvasPaneProps,
 } from "./SpielwieseCanvasPane";
+import type { SpielwieseDashboardDebugState } from "./SpielwieseDashboardDebugHud";
 import { SpielwieseEvaluationPane } from "./SpielwieseEvaluationPane";
 import { SpielwiesePromptSimulationPane } from "./SpielwiesePromptSimulationPane";
 import { useEvaluationPaneFit } from "./spielwieseCanvasPaneSizing";
@@ -197,6 +198,7 @@ function CanvasPaneMainPanel({
 function CanvasPaneBottomPanel({
   bottomPaneMode,
   bottomPanelRef,
+  debugState,
   evaluationShellRef,
   nodes,
   paneModeToggle,
@@ -204,6 +206,7 @@ function CanvasPaneBottomPanel({
 }: {
   bottomPaneMode: CanvasBottomPaneMode;
   bottomPanelRef: RefObject<ResizablePanelHandle | null>;
+  debugState?: SpielwieseDashboardDebugState;
   evaluationShellRef: RefObject<HTMLDivElement | null>;
   nodes: SpielwieseCanvasPaneProps["nodes"];
   paneModeToggle: ReactNode;
@@ -218,6 +221,7 @@ function CanvasPaneBottomPanel({
     >
       {bottomPaneMode === "playground" ? (
         <SpielwiesePromptSimulationPane
+          debugState={debugState}
           headerAccessory={paneModeToggle}
           nodes={nodes}
         />
@@ -235,6 +239,7 @@ function CanvasPaneBottomPanel({
 
 // eslint-disable-next-line max-lines-per-function
 export function SpielwieseCanvasPaneStack({
+  debugState,
   insertAnchorNodeId,
   nodes,
   onAgentNodeArchive,
@@ -247,7 +252,9 @@ export function SpielwieseCanvasPaneStack({
   onPromptSectionMove,
   onSettingValueChange,
   onTitleChange,
-}: SpielwieseCanvasPaneProps) {
+}: SpielwieseCanvasPaneProps & {
+  debugState?: SpielwieseDashboardDebugState;
+}) {
   const [bottomPaneMode, setBottomPaneMode] =
     useState<CanvasBottomPaneMode>("playground");
   const { bottomPanelRef, evaluationShellRef, requestBottomPaneFit } =
@@ -288,6 +295,7 @@ export function SpielwieseCanvasPaneStack({
       <CanvasPaneBottomPanel
         bottomPaneMode={bottomPaneMode}
         bottomPanelRef={bottomPanelRef}
+        debugState={debugState}
         evaluationShellRef={evaluationShellRef}
         nodes={nodes}
         paneModeToggle={paneModeToggle}

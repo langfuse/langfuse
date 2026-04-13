@@ -61,7 +61,6 @@ function SpielwieseDetachedUserCard({
       data-testid={cardTestId ?? `${node.id}-detached-user-sections`}
     >
       <SpielwiesePromptDeckCardHeaderFrame
-        className="p-0"
         data-testid="spielwiese-detached-user-card-frame"
         overlap={false}
       >

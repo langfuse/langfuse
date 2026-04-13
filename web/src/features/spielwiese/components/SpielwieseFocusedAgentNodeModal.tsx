@@ -100,7 +100,8 @@ export function SpielwieseFocusedAgentNodeModal({
     <SpielwieseAgentNodeFocusModal
       isOpen={Boolean(focusMode.focusedNode)}
       nodeId={focusMode.focusedNode?.id ?? "node"}
-      onClose={() => focusMode.setFocusedNodeId(null)}
+      sourceFrame={focusMode.focusedPreviewFrame}
+      onClose={focusMode.closeFocusMode}
     >
       {focusMode.focusedNode ? (
         <FocusedAgentNodeCard
@@ -114,7 +115,7 @@ export function SpielwieseFocusedAgentNodeModal({
           onSettingValueChange={onSettingValueChange}
           onTitleChange={onTitleChange}
           onToggleCompact={() => onToggleCompact(focusMode.focusedNode.id)}
-          onTogglePreviewFocus={() => focusMode.setFocusedNodeId(null)}
+          onTogglePreviewFocus={focusMode.closeFocusMode}
         />
       ) : null}
     </SpielwieseAgentNodeFocusModal>

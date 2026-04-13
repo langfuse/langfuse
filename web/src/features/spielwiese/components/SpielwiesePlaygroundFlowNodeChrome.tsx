@@ -1,6 +1,7 @@
 import { UserRound } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { SpielwieseAgentNodeVM } from "../types/dashboard";
+import { SpielwieseNodeActionButtons } from "./SpielwieseAgentNodeHeaderActions";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
 import { PlaygroundThinkingCard } from "./SpielwiesePlaygroundThinkingCard";
 
@@ -10,6 +11,8 @@ type PlaygroundFlowHeaderTagEntry = {
   kind: "agent" | "user";
   title: string;
 };
+
+const noop = () => {};
 
 function getPlaygroundFlowHeaderTagEntries(
   node: Pick<
@@ -132,6 +135,7 @@ export function PlaygroundFlowNodeHeader({
   isThinkingDetailOpen,
   isThinking,
   node,
+  showActionButtons = true,
   thinkingMeta,
   onThinkingCardClick,
   thinkingSummary,
@@ -143,6 +147,7 @@ export function PlaygroundFlowNodeHeader({
     SpielwieseAgentNodeVM,
     "id" | "layout" | "promptSections" | "settings" | "title"
   >;
+  showActionButtons?: boolean;
   thinkingMeta: Parameters<typeof PlaygroundThinkingCard>[0]["meta"];
   onThinkingCardClick: () => void;
   thinkingSummary: string;
@@ -155,13 +160,28 @@ export function PlaygroundFlowNodeHeader({
       data-testid="spielwiese-playground-flow-header-row"
     >
       <PlaygroundFlowNodeTagStrip activeTagId={activeTagId} entries={entries} />
-      <PlaygroundThinkingCard
-        isDetailOpen={isThinkingDetailOpen}
-        isVisible={isThinking}
-        meta={thinkingMeta}
-        onClick={onThinkingCardClick}
-        summary={thinkingSummary}
-      />
+      <div className="flex shrink-0 items-center gap-1">
+        <PlaygroundThinkingCard
+          isDetailOpen={isThinkingDetailOpen}
+          isVisible={isThinking}
+          meta={thinkingMeta}
+          onClick={onThinkingCardClick}
+          summary={thinkingSummary}
+        />
+        {showActionButtons ? (
+          <SpielwieseNodeActionButtons
+            archiveButtonLabel={`Archive ${node.id} node`}
+            compactButtonLabel={`Minimize ${node.id} node sections`}
+            containerTestId="spielwiese-playground-flow-node-actions"
+            isCompact={false}
+            isPreviewFocused={false}
+            onArchiveNode={noop}
+            onToggleCompact={noop}
+            onTogglePreviewFocus={noop}
+            previewButtonLabel={`Preview ${node.id} node`}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

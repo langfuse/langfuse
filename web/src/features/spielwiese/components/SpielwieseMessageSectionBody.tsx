@@ -38,6 +38,7 @@ export {
 
 export function SpielwieseEmbeddedPromptFrame({
   bodyClassName,
+  bodyTestId,
   children,
   fieldShellClassName,
   header,
@@ -46,6 +47,7 @@ export function SpielwieseEmbeddedPromptFrame({
   shellTestId,
 }: {
   bodyClassName?: string;
+  bodyTestId?: string;
   children: ReactNode;
   fieldShellClassName?: string;
   header?: ReactNode;
@@ -54,7 +56,10 @@ export function SpielwieseEmbeddedPromptFrame({
   shellTestId?: string;
 }) {
   return (
-    <div className={cn(spielwieseEmbeddedPromptBodyClassName, bodyClassName)}>
+    <div
+      className={cn(spielwieseEmbeddedPromptBodyClassName, bodyClassName)}
+      data-testid={bodyTestId}
+    >
       <div
         className={cn(
           spielwieseEmbeddedPromptFieldShellClassName,
