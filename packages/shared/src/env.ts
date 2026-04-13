@@ -64,10 +64,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(10_000),
-  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_NEGATIVE_TTL_MS: z.coerce
-    .number()
-    .positive()
-    .default(5_000),
   LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX: z.coerce
     .number()
     .int()

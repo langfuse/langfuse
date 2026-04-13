@@ -53,10 +53,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
             return {
               value: cachedResult,
               source: "redis",
-              ttlMs:
-                cachedResult.model === null
-                  ? env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_NEGATIVE_TTL_MS
-                  : env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
+              ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
             };
           }
 
@@ -87,7 +84,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
           return {
             value: { model: null, pricingTiers: [] },
             source: "none",
-            ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_NEGATIVE_TTL_MS,
+            ttlMs: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
           };
         },
       );
