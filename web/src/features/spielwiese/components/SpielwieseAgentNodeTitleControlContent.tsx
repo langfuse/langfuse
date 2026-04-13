@@ -19,7 +19,6 @@ import {
 } from "./SpielwieseHeaderStrip";
 import {
   isOnboardingChrome,
-  isOnboardingModelSelectionChrome,
   isOnboardingPreviewChrome,
   useSpielwieseEditorCanvasChrome,
 } from "./SpielwieseEditorCanvasChromeContext";
@@ -168,8 +167,6 @@ export function SpielwieseAgentNodeTitleControlContent({
 }) {
   const chrome = useSpielwieseEditorCanvasChrome();
   const isOnboarding = isOnboardingChrome(chrome);
-  const isOnboardingModelSelection =
-    isOnboardingModelSelectionChrome(chrome);
   const isOnboardingPreview = isOnboardingPreviewChrome(chrome);
 
   return (
