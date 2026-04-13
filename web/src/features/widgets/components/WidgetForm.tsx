@@ -155,6 +155,11 @@ const chartTypes: ChartType[] = [
  * Pure function that resolves the correct aggregation and chart type given the
  * current selections and valid aggregation list. Returns null when no change is
  * needed.
+ *
+ * All constraints are resolved in a single pass so the output is a fixed point
+ * (running the function again on its own output always returns null). This
+ * prevents infinite React state-update loops when constraints conflict — e.g.
+ * HISTOGRAM requires "histogram" aggregation but "count" measure forces "count".
  */
 export function resolveAggregationAndChartType(params: {
   chartType: string;
@@ -168,34 +173,50 @@ export function resolveAggregationAndChartType(params: {
   const { chartType, measure, currentAgg, validAggs } = params;
   const supportsHistogram = validAggs.includes("histogram");
 
-  // HISTOGRAM chart with a measure that doesn't support it — bail out of both
-  if (chartType === "HISTOGRAM" && !supportsHistogram) {
-    return { chartType: "NUMBER", aggregation: validAggs[0] ?? "count" };
+  let targetChart = chartType;
+  let targetAgg = currentAgg as z.infer<typeof metricAggregations>;
+
+  // HISTOGRAM chart needs a histogram-compatible measure
+  if (targetChart === "HISTOGRAM") {
+    if (!supportsHistogram) {
+      targetChart = "NUMBER";
+    } else {
+      targetAgg = "histogram";
+    }
   }
 
-  // HISTOGRAM chart forces histogram aggregation
-  if (chartType === "HISTOGRAM" && currentAgg !== "histogram") {
-    return { aggregation: "histogram" };
+  // Non-HISTOGRAM chart can't keep histogram aggregation
+  if (targetChart !== "HISTOGRAM" && targetAgg === "histogram") {
+    targetAgg =
+      measure === "count"
+        ? "count"
+        : ((validAggs[0] ?? "sum") as z.infer<typeof metricAggregations>);
   }
 
-  // Switched away from HISTOGRAM chart but aggregation still histogram
-  if (chartType !== "HISTOGRAM" && currentAgg === "histogram") {
-    return {
-      aggregation: measure === "count" ? "count" : (validAggs[0] ?? "sum"),
-    };
+  // "count" measure only supports "count" aggregation. If this conflicts with
+  // the chart type (e.g. HISTOGRAM requires "histogram"), bail the chart type
+  // rather than creating an unresolvable conflict.
+  if (measure === "count" && targetAgg !== "count") {
+    if (targetChart === "HISTOGRAM") {
+      targetChart = "NUMBER";
+    }
+    targetAgg = "count";
   }
 
-  // "count" measure always uses "count" aggregation (outside HISTOGRAM charts)
-  if (measure === "count" && currentAgg !== "count") {
-    return { aggregation: "count" };
+  // Current aggregation not valid for the measure type
+  if (!validAggs.includes(targetAgg)) {
+    targetAgg = (validAggs[0] ?? "count") as z.infer<typeof metricAggregations>;
   }
 
-  // Current aggregation is not valid for the measure type
-  if (!validAggs.includes(currentAgg as z.infer<typeof metricAggregations>)) {
-    return { aggregation: validAggs[0] ?? "count" };
-  }
+  // Only return if something changed
+  const result: {
+    aggregation?: z.infer<typeof metricAggregations>;
+    chartType?: string;
+  } = {};
+  if (targetChart !== chartType) result.chartType = targetChart;
+  if (targetAgg !== currentAgg) result.aggregation = targetAgg;
 
-  return null;
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /**
@@ -718,7 +739,8 @@ export function WidgetForm({
   }, [viewVersion, selectedView, selectedMeasure]);
 
   const measureSupportsHistogram =
-    validAggregationsForMeasure.includes("histogram");
+    validAggregationsForMeasure.includes("histogram") &&
+    selectedMeasure !== "count";
 
   // Sync aggregation and chart type when selections change
   useEffect(() => {
