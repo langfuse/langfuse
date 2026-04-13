@@ -343,14 +343,6 @@ export const plainRouter = createTRPCRouter({
                   ]
                 : []),
               { slug: "langfuse_metadata", value: pylonMetadata },
-              ...(pylonCustomerTier
-                ? [
-                    {
-                      slug: "langfuse_customer_tier",
-                      value: pylonCustomerTier,
-                    },
-                  ]
-                : []),
               {
                 slug: "case_severity",
                 value: mapToPylonCaseSeverity({
