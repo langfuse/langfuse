@@ -120,10 +120,6 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
   );
 }
 
-export const clearModelMatchLocalCache = (): void => {
-  modelMatchLocalCache.clear();
-};
-
 const getModelWithPricesFromRedis = async (
   p: ModelMatchProps,
 ): Promise<ModelWithPrices | null> => {
