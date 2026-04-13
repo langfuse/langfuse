@@ -16,11 +16,11 @@ export type SpielwieseDashboardDebugState = {
 export const defaultSpielwieseDashboardDebugState: SpielwieseDashboardDebugState =
   {
     playgroundHeaderPadX: 8,
-    playgroundSurfacePadX: 10,
+    playgroundSurfacePadX: 44,
     showPlaygroundFlowNodeActions: true,
   };
 
-const debugHudRangeMax = 24;
+const debugHudRangeMax = 64;
 const debugHudRangeMin = 0;
 
 function clampDebugPxValue(value: number) {
@@ -61,7 +61,9 @@ function DebugHudSliderRow({
           id={id}
           max={debugHudRangeMax}
           min={debugHudRangeMin}
-          onChange={(event) => onChange(getDebugPxValue(event.target.value, value))}
+          onChange={(event) =>
+            onChange(getDebugPxValue(event.target.value, value))
+          }
           type="range"
           value={value}
         />
@@ -71,10 +73,78 @@ function DebugHudSliderRow({
         className="h-7 px-2 text-center text-xs font-medium tabular-nums"
         max={debugHudRangeMax}
         min={debugHudRangeMin}
-        onChange={(event) => onChange(getDebugPxValue(event.target.value, value))}
+        onChange={(event) =>
+          onChange(getDebugPxValue(event.target.value, value))
+        }
         type="number"
         value={value}
       />
+    </div>
+  );
+}
+
+function DebugHudHeader({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5">
+        <span className="flex size-7 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.92)] text-[#202427]">
+          <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+        </span>
+        <div>
+          <div className="text-[11px] font-semibold tracking-[0.12em] uppercase">
+            Layout HUD
+          </div>
+          <div className="text-foreground/58 text-[11px]">
+            Lower playground only
+          </div>
+        </div>
+      </div>
+      <Button
+        aria-label="Reset layout HUD"
+        className={`${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`}
+        size="icon-sm"
+        variant="ghost"
+        onClick={onReset}
+      >
+        <RotateCcw aria-hidden="true" className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function DebugHudActionToggle({
+  isVisible,
+  onToggle,
+}: {
+  isVisible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div>
+        <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
+          Flow Actions
+        </div>
+        <div className="text-foreground/58 text-[11px]">
+          Lower card header buttons
+        </div>
+      </div>
+      <Button
+        aria-label={
+          isVisible ? "Hide flow header actions" : "Show flow header actions"
+        }
+        aria-pressed={isVisible}
+        className={`inline-flex h-7 rounded-[10px] px-2.5 text-[11px] font-medium ${
+          isVisible
+            ? `${spielwieseHeaderButtonStaticClassName} ${spielwieseHeaderButtonSelectedClassName}`
+            : spielwieseHeaderButtonBaseClassName
+        }`}
+        size="sm"
+        variant="ghost"
+        onClick={onToggle}
+      >
+        {isVisible ? "Visible" : "Hidden"}
+      </Button>
     </div>
   );
 }
@@ -92,31 +162,9 @@ export function SpielwieseDashboardDebugHud({
         className="pointer-events-auto flex w-[18rem] flex-col gap-3 rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-[rgba(255,255,255,0.94)] p-3 shadow-[0_18px_45px_rgba(15,23,42,0.14),0_4px_14px_rgba(15,23,42,0.08)] backdrop-blur-md"
         data-testid="spielwiese-dashboard-debug-hud"
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="flex size-7 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-[rgba(247,247,247,0.92)] text-[#202427]">
-              <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-            </span>
-            <div>
-              <div className="text-[11px] font-semibold tracking-[0.12em] uppercase">
-                Layout HUD
-              </div>
-              <div className="text-foreground/58 text-[11px]">
-                Lower playground only
-              </div>
-            </div>
-          </div>
-          <Button
-            aria-label="Reset layout HUD"
-            className={`${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`}
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => onChange(defaultSpielwieseDashboardDebugState)}
-          >
-            <RotateCcw aria-hidden="true" className="size-3.5" />
-          </Button>
-        </div>
-
+        <DebugHudHeader
+          onReset={() => onChange(defaultSpielwieseDashboardDebugState)}
+        />
         <DebugHudSliderRow
           id="spielwiese-debug-playground-surface-pad-x"
           label="Canvas Body X"
@@ -139,41 +187,16 @@ export function SpielwieseDashboardDebugHud({
             })
           }
         />
-
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-foreground/54 text-[10px] font-semibold tracking-[0.14em] uppercase">
-              Flow Actions
-            </div>
-            <div className="text-foreground/58 text-[11px]">
-              Lower card header buttons
-            </div>
-          </div>
-          <Button
-            aria-label={
-              state.showPlaygroundFlowNodeActions
-                ? "Hide flow header actions"
-                : "Show flow header actions"
-            }
-            aria-pressed={state.showPlaygroundFlowNodeActions}
-            className={`inline-flex h-7 rounded-[10px] px-2.5 text-[11px] font-medium ${
-              state.showPlaygroundFlowNodeActions
-                ? `${spielwieseHeaderButtonStaticClassName} ${spielwieseHeaderButtonSelectedClassName}`
-                : spielwieseHeaderButtonBaseClassName
-            }`}
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              onChange({
-                ...state,
-                showPlaygroundFlowNodeActions:
-                  !state.showPlaygroundFlowNodeActions,
-              })
-            }
-          >
-            {state.showPlaygroundFlowNodeActions ? "Visible" : "Hidden"}
-          </Button>
-        </div>
+        <DebugHudActionToggle
+          isVisible={state.showPlaygroundFlowNodeActions}
+          onToggle={() =>
+            onChange({
+              ...state,
+              showPlaygroundFlowNodeActions:
+                !state.showPlaygroundFlowNodeActions,
+            })
+          }
+        />
       </section>
     </div>
   );

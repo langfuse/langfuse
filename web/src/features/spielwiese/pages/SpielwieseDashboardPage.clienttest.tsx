@@ -167,13 +167,15 @@ describe("SpielwieseDashboardPage rendering", () => {
     const actionToggle = within(hud).getByRole("button", {
       name: "Hide flow header actions",
     });
-    const simulationPane = screen.getByTestId("spielwiese-prompt-simulation-pane");
+    const simulationPane = screen.getByTestId(
+      "spielwiese-prompt-simulation-pane",
+    );
 
-    expect(terminalSurface.style.paddingLeft).toBe("10px");
-    expect(terminalSurface.style.paddingRight).toBe("10px");
+    expect(terminalSurface.style.paddingLeft).toBe("44px");
+    expect(terminalSurface.style.paddingRight).toBe("44px");
     expect(playgroundHeader.style.paddingLeft).toBe("8px");
     expect(playgroundHeader.style.paddingRight).toBe("8px");
-    expect(playgroundHeader.style.marginLeft).toBe("-10px");
+    expect(playgroundHeader.style.marginLeft).toBe("-44px");
     expect(
       within(simulationPane).queryAllByTestId(
         "spielwiese-playground-flow-node-actions",
