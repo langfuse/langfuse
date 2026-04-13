@@ -366,7 +366,7 @@ export default function ExperimentsTable({
       },
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === null) return undefined;
         return <span>{numberFormatter(value / 1000, 4)}s</span>;
       },
     },
@@ -378,7 +378,7 @@ export default function ExperimentsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === undefined) return undefined;
         return <span>${numberFormatter(value, 6)}</span>;
       },
     },
