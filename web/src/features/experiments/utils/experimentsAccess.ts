@@ -1,20 +1,13 @@
 export type ExperimentsAccessInput = {
   isLangfuseCloud: boolean;
-  isV4Enabled: boolean;
-  isAdmin: boolean;
-  isFeatureEnabledOnUser: boolean;
+  isV4BetaEnabled: boolean;
 };
 
 export function getExperimentsAccess({
   isLangfuseCloud,
-  isV4Enabled,
-  isAdmin,
-  isFeatureEnabledOnUser,
+  isV4BetaEnabled,
 }: ExperimentsAccessInput) {
-  const hasRoleAccess = isAdmin || isFeatureEnabledOnUser;
-
   return {
-    hasRoleAccess,
-    isEnabled: isLangfuseCloud && isV4Enabled && hasRoleAccess,
+    isEnabled: isLangfuseCloud && isV4BetaEnabled,
   };
 }

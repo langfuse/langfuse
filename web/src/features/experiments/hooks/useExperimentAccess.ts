@@ -13,20 +13,14 @@ function getStorageKey(prefix: string, userId?: string) {
 export function useExperimentAccess() {
   const { data: session } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled: isV4Enabled } = useV4Beta();
+  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
 
   const userId = session?.user?.id;
-  const isAdmin = session?.user?.admin ?? false;
-  const isFeatureEnabledOnUser =
-    session?.user?.featureFlags["experimentsV4Enabled"] ?? false;
 
-  const { hasRoleAccess, isEnabled: canAccessExperiments } =
-    getExperimentsAccess({
-      isLangfuseCloud,
-      isV4Enabled,
-      isAdmin,
-      isFeatureEnabledOnUser,
-    });
+  const { isEnabled: canAccessExperiments } = getExperimentsAccess({
+    isLangfuseCloud,
+    isV4BetaEnabled,
+  });
 
   const [isExperimentsBetaEnabled, setExperimentsBetaEnabled] =
     useLocalStorage<boolean>(
@@ -39,12 +33,9 @@ export function useExperimentAccess() {
     canUseExperimentsBetaToggle: canAccessExperiments,
     canSeeExperimentsNav: canAccessExperiments,
     isExperimentsBetaActive:
-      canAccessExperiments && isExperimentsBetaEnabled && isV4Enabled,
+      canAccessExperiments && isExperimentsBetaEnabled && isV4BetaEnabled,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    isAdmin,
-    isFeatureEnabledOnUser,
-    hasRoleAccess,
-    isV4Enabled,
+    isV4BetaEnabled,
   };
 }

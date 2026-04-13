@@ -53,7 +53,6 @@ export default function ExperimentResults() {
   }, [setLastResultsUrl]);
 
   const {
-    hasRoleAccess,
     canUseExperimentsBetaToggle,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
@@ -77,14 +76,6 @@ export default function ExperimentResults() {
       void router.push(`/project/${projectId}/datasets`);
     }
   }, [isExperimentsBetaActive, projectId, router]);
-
-  if (!hasRoleAccess) {
-    return (
-      <Page headerProps={{ title: "Experiments" }}>
-        <div className="p-4">Experiments Pages coming soon.</div>
-      </Page>
-    );
-  }
 
   // Show spinner while redirecting when beta is off
   if (!isExperimentsBetaActive) {
