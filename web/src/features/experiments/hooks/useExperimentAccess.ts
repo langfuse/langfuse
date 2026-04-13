@@ -16,17 +16,11 @@ export function useExperimentAccess() {
   const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
 
   const userId = session?.user?.id;
-  const isAdmin = session?.user?.admin ?? false;
-  const isFeatureEnabledOnUser =
-    session?.user?.featureFlags["experimentsV4Enabled"] ?? false;
 
-  const { hasRoleAccess, isEnabled: canAccessExperiments } =
-    getExperimentsAccess({
-      isLangfuseCloud,
-      isV4BetaEnabled,
-      isAdmin,
-      isFeatureEnabledOnUser,
-    });
+  const { isEnabled: canAccessExperiments } = getExperimentsAccess({
+    isLangfuseCloud,
+    isV4BetaEnabled,
+  });
 
   const [isExperimentsBetaEnabled, setExperimentsBetaEnabled] =
     useLocalStorage<boolean>(
@@ -42,9 +36,6 @@ export function useExperimentAccess() {
       canAccessExperiments && isExperimentsBetaEnabled && isV4BetaEnabled,
     isExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
-    isAdmin,
-    isFeatureEnabledOnUser,
-    hasRoleAccess,
     isV4BetaEnabled,
   };
 }
