@@ -1305,6 +1305,16 @@ export function WidgetForm({
         Object.values(varMaps).flatMap((m) => Object.keys(m)),
       );
 
+      // Mirror the single/multi-series logic used for regular queries:
+      // single visible series → bare dimValue, multiple → "SeriesName: dimValue".
+      const visibleQueryCount =
+        (queryAHidden ? 0 : 1) +
+        additionalQueries.filter((q) => !q.hidden).length;
+      const activeExpressionCount = expressions.filter((e) =>
+        e.expression.trim(),
+      ).length;
+      const isMultiSeries = visibleQueryCount + activeExpressionCount > 1;
+
       expressions.forEach((exprConfig) => {
         if (!exprConfig.expression.trim()) return;
         const validation = validateExpression(
@@ -1331,9 +1341,14 @@ export function WidgetForm({
             const metric = Number.isNaN(result) ? 0 : result;
             if (Number.isFinite(metric)) {
               combined.push({
+                // Use "SeriesName: dimValue" only when there are multiple
+                // visible series (matching how regular queries behave), or
+                // for time-series charts where dimension identifies the series.
                 dimension:
                   dimValue !== undefined
-                    ? `${baseName}: ${dimValue}`
+                    ? td !== "_total" || isMultiSeries
+                      ? `${baseName}: ${dimValue}`
+                      : dimValue
                     : baseName,
                 metric,
                 time_dimension: td === "_total" ? undefined : td,
@@ -1355,11 +1370,56 @@ export function WidgetForm({
     selectedAggregation,
     selectedMeasure,
     selectedDimension,
+    queryAHidden,
     additionalResult0.data,
     additionalResult1.data,
     additionalResult2.data,
     additionalResult3.data,
     additionalResult4.data,
+  ]);
+
+  // For total-value bar charts: axis title and tooltip metric label
+  const chartCategoryAxisLabel = useMemo(() => {
+    if (
+      selectedChartType !== "HORIZONTAL_BAR" &&
+      selectedChartType !== "VERTICAL_BAR"
+    )
+      return undefined;
+    if (selectedDimension === "none") return undefined;
+    return startCase(selectedDimension);
+  }, [selectedChartType, selectedDimension]);
+
+  const chartMetricLabel = useMemo(() => {
+    if (
+      selectedChartType !== "HORIZONTAL_BAR" &&
+      selectedChartType !== "VERTICAL_BAR"
+    )
+      return undefined;
+    const visibleQueryCount =
+      (queryAHidden ? 0 : 1) +
+      additionalQueries.filter((q) => !q.hidden).length;
+    const activeExpressions = expressions.filter((e) => e.expression.trim());
+    const isMultiSeries = visibleQueryCount + activeExpressions.length > 1;
+    // In multi-series mode the series name is already in the dimension label,
+    // so "metric" is fine for the tooltip key.
+    if (isMultiSeries) return undefined;
+    // Single expression
+    if (activeExpressions.length === 1) {
+      return activeExpressions[0].name.trim() || "Expression";
+    }
+    // Single query A
+    return (
+      queryAName ||
+      formatMetricName(`${selectedAggregation}_${selectedMeasure}`)
+    );
+  }, [
+    selectedChartType,
+    expressions,
+    additionalQueries,
+    queryAHidden,
+    queryAName,
+    selectedAggregation,
+    selectedMeasure,
   ]);
 
   const handleSaveWidget = () => {
@@ -2524,6 +2584,8 @@ export function WidgetForm({
                         : {
                             type: selectedChartType as DashboardWidgetChartType,
                             row_limit: rowLimit,
+                            metricLabel: chartMetricLabel,
+                            categoryAxisLabel: chartCategoryAxisLabel,
                           }
                   }
                   sortState={

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -27,13 +27,29 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   valueFormatter = compactNumberFormatter,
   subtleFill = false,
+  metricLabel,
+  categoryAxisLabel,
 }) => {
+  const effectiveConfig = useMemo(
+    () =>
+      metricLabel
+        ? { ...config, metric: { ...config.metric, label: metricLabel } }
+        : config,
+    [config, metricLabel],
+  );
+
   return (
     <ChartContainer
-      config={config}
+      config={effectiveConfig}
       className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
     >
-      <BarChart accessibilityLayer={accessibilityLayer} data={data}>
+      <BarChart
+        accessibilityLayer={accessibilityLayer}
+        data={data}
+        margin={{
+          bottom: categoryAxisLabel ? 20 : 0,
+        }}
+      >
         <XAxis
           type="category"
           dataKey="dimension"
@@ -42,6 +58,20 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
           niceTicks="auto"
+          label={
+            categoryAxisLabel
+              ? {
+                  value: categoryAxisLabel,
+                  position: "insideBottom",
+                  offset: -12,
+                  style: {
+                    textAnchor: "middle",
+                    fontSize: 11,
+                    fill: "hsl(var(--muted-foreground))",
+                  },
+                }
+              : undefined
+          }
         />
         <YAxis
           type="number"

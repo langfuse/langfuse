@@ -17,4 +17,8 @@ export interface ChartProps {
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
   subtleFill?: boolean;
+  /** Replaces "metric" in bar-chart tooltips with a meaningful series name. */
+  metricLabel?: string;
+  /** Adds an axis title to the category (dimension) axis on bar charts. */
+  categoryAxisLabel?: string;
 }

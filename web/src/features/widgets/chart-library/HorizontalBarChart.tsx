@@ -39,7 +39,34 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   showValueLabels = false,
   valueFormatter = compactNumberFormatter,
   subtleFill = false,
+  metricLabel,
+  categoryAxisLabel,
 }) => {
+  const effectiveConfig = useMemo(
+    () =>
+      metricLabel
+        ? { ...config, metric: { ...config.metric, label: metricLabel } }
+        : config,
+    [config, metricLabel],
+  );
+  // Match the width of the Y-axis to the actual rendered tick text so the
+  // rotated axis title sits close to the labels rather than far to the left.
+  // formatAxisLabel truncates at 13 chars, so that's the max we need to fit.
+  const yAxisWidth = useMemo(() => {
+    const AXIS_TITLE_PX = categoryAxisLabel ? 20 : 0;
+    if (!data?.length) return 80 + AXIS_TITLE_PX;
+    const maxRenderedChars = Math.max(
+      ...data.map((d) => Math.min((d.dimension ?? "").length, 13)),
+    );
+    return Math.min(
+      150,
+      Math.max(
+        30 + AXIS_TITLE_PX,
+        maxRenderedChars * CHAR_WIDTH_PX + LABEL_PADDING_PX + AXIS_TITLE_PX,
+      ),
+    );
+  }, [data, categoryAxisLabel]);
+
   const rightMargin = useMemo(() => {
     if (!showValueLabels || !data?.length) return 8;
     const maxLabelLength = Math.max(
@@ -57,7 +84,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
 
   return (
     <ChartContainer
-      config={config}
+      config={effectiveConfig}
       className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
     >
       <BarChart
@@ -68,7 +95,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           top: 4,
           right: rightMargin,
           bottom: 4,
-          left: 0,
+          left: categoryAxisLabel ? 12 : 0,
         }}
         barCategoryGap="12%"
         barGap={4}
@@ -89,7 +116,21 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          width={120}
+          width={yAxisWidth}
+          label={
+            categoryAxisLabel
+              ? {
+                  value: categoryAxisLabel,
+                  angle: -90,
+                  position: "insideLeft",
+                  style: {
+                    textAnchor: "middle",
+                    fontSize: 11,
+                    fill: "hsl(var(--muted-foreground))",
+                  },
+                }
+              : undefined
+          }
           tick={({ x, y, payload }) => {
             const fullLabel =
               typeof payload === "string"

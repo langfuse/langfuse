@@ -40,6 +40,8 @@ export const Chart = ({
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
     subtle_fill?: boolean;
+    metricLabel?: string;
+    categoryAxisLabel?: string;
   };
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
@@ -119,6 +121,8 @@ export const Chart = ({
             showValueLabels={chartConfig?.show_value_labels}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            metricLabel={chartConfig?.metricLabel}
+            categoryAxisLabel={chartConfig?.categoryAxisLabel}
           />
         );
       case "VERTICAL_BAR":
@@ -127,6 +131,8 @@ export const Chart = ({
             data={renderedData.slice(0, rowLimit)}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            metricLabel={chartConfig?.metricLabel}
+            categoryAxisLabel={chartConfig?.categoryAxisLabel}
           />
         );
       case "PIE":
