@@ -183,7 +183,7 @@ export function SpielwieseAgentNodeTitleControlContent({
         {isOnboarding ? (
           <SpielwieseAgentModelOnlySurface
             currentModel={currentModel}
-            isMuted={!isOnboardingModelSelection}
+            isMuted={isOnboardingPreview}
             node={node}
           />
         ) : (
