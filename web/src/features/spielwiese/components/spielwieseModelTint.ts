@@ -13,3 +13,17 @@ export function getModelTintClassName(currentModel?: string) {
       return "bg-[linear-gradient(135deg,rgba(16,163,127,0.18)_0%,rgba(16,163,127,0.08)_32%,rgba(255,255,255,0.96)_78%)]";
   }
 }
+
+export function getModelShellTintClassName(currentModel?: string) {
+  switch (getModelProvider(currentModel ?? "")?.id) {
+    case "anthropic":
+      return "bg-[rgba(239,213,186,0.42)]";
+    case "google":
+      return "bg-[rgba(230,239,255,0.72)]";
+    case "xai":
+      return "bg-[rgba(226,232,240,0.62)]";
+    case "openai":
+    default:
+      return "bg-[rgba(214,242,234,0.72)]";
+  }
+}

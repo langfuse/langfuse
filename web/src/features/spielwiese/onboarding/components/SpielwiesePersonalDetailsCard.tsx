@@ -1,8 +1,10 @@
+/* eslint-disable max-lines */
 import type { FormEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { Upload } from "lucide-react";
 import {
+  appendCurrentSearchParams,
   getOnboardingProgressValue,
   getOnboardingStepPath,
   PERSONAL_DETAILS_STEP_ID,
@@ -251,7 +253,11 @@ function OnboardingDetailsFormPanel({
   const [positionValue, setPositionValue] = useState<string | null>(null);
   const [canCodeValue, setCanCodeValue] = useState<string | null>(null);
   const handleContinue =
-    onContinue ?? (() => void router.push(getOnboardingStepPath("role")));
+    onContinue ??
+    (() =>
+      void router.push(
+        appendCurrentSearchParams(getOnboardingStepPath("role")),
+      ));
   const formPanelStateClassName = isTransitioning
     ? "pointer-events-none -translate-y-6 opacity-0 blur-[8px]"
     : "blur-0 translate-y-0 opacity-100";

@@ -176,6 +176,7 @@ export function PlaygroundFlowNodeHeader({
             compactButtonLabel={`Minimize ${node.id} node sections`}
             containerTestId="spielwiese-playground-flow-node-actions"
             isCompact={false}
+            isPreviewButtonDisabled
             isPreviewFocused={false}
             onArchiveNode={noop}
             onToggleCompact={noop}

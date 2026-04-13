@@ -78,61 +78,8 @@ function expectPreviewHoverDoesNotOpenSpotlight(elements: {
   expect(elements.cardDeck.className).not.toContain("scale-105");
 }
 
-function expectFocusDialogChrome(animateMock: jest.Mock) {
-  const focusRoot = screen.getByTestId(
-    "spielwiese-agent-node-focus-modal-root",
-  );
-  const focusDialog = screen.getByRole("dialog", {
-    name: "vision-agent focus mode",
-  });
-  const focusCardLayout = screen.getByTestId(
-    "spielwiese-agent-node-focus-card-layout",
-  );
-  const focusCard = screen.getByTestId("spielwiese-agent-node-focus-card");
-  const modalPreviewButton = within(focusDialog).getByRole("button", {
-    name: "Close vision-agent focus mode",
-  });
-
-  expect(screen.getByTestId("spielwiese-agent-node-focus-modal")).toBeTruthy();
-  expect(focusRoot.className).toContain("items-start");
-  expect(focusRoot.className).toContain("overflow-y-auto");
-  expect(
-    within(focusDialog).getByLabelText("vision-agent Instructions"),
-  ).toBeTruthy();
-  expect(focusCardLayout.className).toContain("h-full");
-  expect(focusCard.className).toContain("h-full");
-  expect(focusCard.className).toContain("w-full");
-  expect(focusCard.className).toContain(
-    "[&_[aria-label$='Instructions']]:min-h-[calc(1002px-15rem)]",
-  );
-  expect(modalPreviewButton.getAttribute("aria-pressed")).toBe("true");
-  expect(focusDialog.className).toContain("h-[1002px]");
-  expect(focusDialog.className).toContain("w-[min(864px,calc(100vw-1.5rem))]");
-  expect(focusDialog.className).toContain("origin-top-left");
-  expect(animateMock).toHaveBeenCalled();
-  expect(animateMock.mock.contexts).toContain(focusDialog);
-  expect(
-    animateMock.mock.calls.some(
-      ([keyframes]) =>
-        Array.isArray(keyframes) &&
-        keyframes.some(
-          (keyframe) =>
-            typeof keyframe === "object" &&
-            keyframe !== null &&
-            "transformOrigin" in keyframe &&
-            keyframe.transformOrigin === "top left",
-        ),
-    ),
-  ).toBe(true);
-
-  return {
-    focusDialog,
-    modalPreviewButton,
-  };
-}
-
 describe("SpielwieseAgentNode focus mode", () => {
-  it("opens a large modal editor on click without triggering a hover spotlight", () => {
+  it("keeps the node preview button disabled and does not open focus mode", () => {
     const { animateMock, restore } = installFocusModeAnimationMocks();
 
     try {
@@ -140,18 +87,15 @@ describe("SpielwieseAgentNode focus mode", () => {
       const elements = getFocusModeElements();
 
       expectPreviewHoverDoesNotOpenSpotlight(elements);
+      expect(elements.previewButton.getAttribute("disabled")).toBe("");
 
       fireEvent.click(elements.previewButton);
-
-      const { modalPreviewButton } = expectFocusDialogChrome(animateMock);
-
-      fireEvent.click(modalPreviewButton);
-
       expect(
         screen.queryByRole("dialog", {
           name: "vision-agent focus mode",
         }),
       ).toBeNull();
+      expect(animateMock).not.toHaveBeenCalled();
     } finally {
       restore();
     }

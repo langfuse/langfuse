@@ -249,6 +249,7 @@ function DetachedUserHeaderStrip({
           isCollapsed ? "Maximize" : "Minimize"
         } ${nodeId} ${sectionLabel} section`}
         isCompact={isCollapsed}
+        isPreviewButtonDisabled
         isPreviewFocused={isPreviewFocused}
         onArchiveNode={() => onAgentNodeArchive?.(nodeId)}
         onPreviewHoverEnd={onPreviewHoverEnd}

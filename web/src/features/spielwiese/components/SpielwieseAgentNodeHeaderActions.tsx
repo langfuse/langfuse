@@ -27,11 +27,34 @@ type SpielwieseAgentNodeHeaderActionsProps = {
 
 export const spielwieseHeaderActionButtonClassName = `${spielwieseHeaderButtonBaseClassName} inline-flex size-7 shrink-0 items-center justify-center rounded-[10px] p-0`;
 
+function getHeaderToggleIcon(isCompact: boolean) {
+  return isCompact ? PanelTopOpen : PanelTopClose;
+}
+
+function getPreviewToggleIcon(isPreviewFocused: boolean) {
+  return isPreviewFocused ? Shrink : Focus;
+}
+
+function getPreviewButtonClassName({
+  isPreviewButtonDisabled,
+  isPreviewFocused,
+}: {
+  isPreviewButtonDisabled: boolean;
+  isPreviewFocused: boolean;
+}) {
+  return cn(
+    spielwieseHeaderActionButtonClassName,
+    isPreviewButtonDisabled && "disabled:opacity-100",
+    isPreviewFocused && spielwieseHeaderButtonAccentClassName,
+  );
+}
+
 type SpielwieseNodeActionButtonsProps = {
   archiveButtonLabel?: string;
   compactButtonLabel?: string;
   containerTestId?: string;
   isCompact: boolean;
+  isPreviewButtonDisabled?: boolean;
   isPreviewFocused: boolean;
   onArchiveNode: () => void;
   onPreviewHoverEnd?: () => void;
@@ -46,6 +69,7 @@ export function SpielwieseNodeActionButtons({
   compactButtonLabel = "Toggle compact state",
   containerTestId,
   isCompact,
+  isPreviewButtonDisabled = false,
   isPreviewFocused,
   onArchiveNode,
   onPreviewHoverEnd: _onPreviewHoverEnd = () => {},
@@ -54,8 +78,8 @@ export function SpielwieseNodeActionButtons({
   onToggleCompact,
   previewButtonLabel = "Preview node",
 }: SpielwieseNodeActionButtonsProps) {
-  const HeaderToggleIcon = isCompact ? PanelTopOpen : PanelTopClose;
-  const PreviewToggleIcon = isPreviewFocused ? Shrink : Focus;
+  const HeaderToggleIcon = getHeaderToggleIcon(isCompact);
+  const PreviewToggleIcon = getPreviewToggleIcon(isPreviewFocused);
 
   return (
     <div
@@ -76,10 +100,11 @@ export function SpielwieseNodeActionButtons({
       <Button
         aria-label={previewButtonLabel}
         aria-pressed={isPreviewFocused}
-        className={cn(
-          spielwieseHeaderActionButtonClassName,
-          isPreviewFocused && spielwieseHeaderButtonAccentClassName,
-        )}
+        className={getPreviewButtonClassName({
+          isPreviewButtonDisabled,
+          isPreviewFocused,
+        })}
+        disabled={isPreviewButtonDisabled}
         size="icon-sm"
         type="button"
         variant="ghost"
@@ -124,6 +149,7 @@ export function SpielwieseAgentNodeHeaderActions({
       compactButtonLabel={headerToggleLabel}
       containerTestId="spielwiese-agent-node-header-actions"
       isCompact={isCompact}
+      isPreviewButtonDisabled
       isPreviewFocused={isPreviewFocused}
       onArchiveNode={onArchiveNode}
       onPreviewHoverEnd={onPreviewHoverEnd}

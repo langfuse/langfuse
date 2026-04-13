@@ -14,6 +14,7 @@ import {
   SpielwiesePromptDeckCardShell,
 } from "./SpielwiesePromptDeckCardChrome";
 import { getMessageKind } from "./spielwieseMessageTone";
+import { getModelShellTintClassName } from "./spielwieseModelTint";
 
 type SpielwiesePrimaryAgentNodeCardProps = {
   cardTestId?: string;
@@ -258,10 +259,11 @@ export function SpielwiesePrimaryAgentNodeCard({
   };
   return (
     <SpielwiesePromptDeckCardShell
-      className={className}
+      className={`${getModelShellTintClassName(modelSetting?.value)} ${className ?? ""}`}
       data-testid={cardTestId}
     >
       <SpielwiesePromptDeckCardHeaderFrame
+        className={getModelShellTintClassName(modelSetting?.value)}
         data-testid="spielwiese-agent-node-header-frame"
         overlap={!isCompact}
       >

@@ -4,10 +4,12 @@ import {
   type OnboardingUpperCanvasStage,
   SpielwieseOnboardingUpperCanvas,
 } from "./SpielwieseOnboardingUpperCanvas";
+import { SpielwieseOnboardingRoleDashboardHandoff } from "./SpielwieseOnboardingRoleDashboardHandoff";
 import {
   type EntryTextMotionDelay,
   getOnboardingEntryTextMotionClassName,
 } from "../spielwieseOnboardingEntryMotion";
+import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 import { onboardingDetailsPrimaryButtonClassName } from "../spielwieseOnboardingPersonalDetailsOptions";
 import type { RoleStepScene } from "./SpielwieseOnboardingQuestionPanel";
 
@@ -124,6 +126,7 @@ export function RoleStepPreviewPanel({
   isActive = true,
   isContinueDisabled,
   modelValue,
+  onDashboardHandoffComplete,
   onApiKeyChange,
   onApiKeyContinue,
   onModelChange,
@@ -131,6 +134,7 @@ export function RoleStepPreviewPanel({
   onContinue,
   panelClassName,
   roleScene,
+  roleHandoffTransition,
   systemPromptValue,
 }: {
   apiKeyValue: string;
@@ -144,12 +148,34 @@ export function RoleStepPreviewPanel({
   onContinue: () => void;
   panelClassName: string;
   roleScene: RoleStepScene;
+  roleHandoffTransition?: RoleHandoffTransition | null;
   systemPromptValue: string;
+  onDashboardHandoffComplete?: () => void;
 }) {
   const previewCopy = getRoleStepPreviewCopy(roleScene);
   const showsContinueButton = roleScene === "preview";
   const stageStackClassName =
     "mx-auto grid w-full max-w-[64rem] -translate-y-4 gap-6 md:gap-7";
+
+  if (
+    roleScene === "handoff" &&
+    roleHandoffTransition &&
+    onDashboardHandoffComplete
+  ) {
+    return (
+      <div
+        className={panelClassName}
+        data-testid="spielwiese-onboarding-question-panel"
+      >
+        <SpielwieseOnboardingRoleDashboardHandoff
+          modelValue={modelValue}
+          onComplete={onDashboardHandoffComplete}
+          systemPromptValue={systemPromptValue}
+          transition={roleHandoffTransition}
+        />
+      </div>
+    );
+  }
 
   if (!previewCopy) {
     return null;

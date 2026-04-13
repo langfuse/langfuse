@@ -38,6 +38,14 @@ export function getSpielwieseDashboardPath() {
   return "/dev/spielwiese/dashboard";
 }
 
+export function appendCurrentSearchParams(path: string) {
+  if (typeof window === "undefined" || !window.location.search) {
+    return path;
+  }
+
+  return `${path}${window.location.search}`;
+}
+
 export function getOnboardingStepIndex(stepId?: string) {
   const stepIndex = ONBOARDING_QUESTIONS.findIndex(
     (question) => question.id === stepId,

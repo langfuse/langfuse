@@ -41,10 +41,26 @@ const entryTextMotionDelayClassNames: Record<EntryTextMotionDelay, string> = {
   2450: "[transition-delay:2450ms]",
 };
 
+export function isOnboardingMotionFrozen() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    new URLSearchParams(window.location.search).get("debugFreezeMotion") === "1"
+  );
+}
+
 export function getOnboardingEntryTextMotionClassName(
   isActive: boolean,
   delay: EntryTextMotionDelay = "none",
 ) {
+  if (isOnboardingMotionFrozen()) {
+    return isActive
+      ? "translate-y-0 opacity-100 blur-0"
+      : "translate-y-2.5 opacity-0 blur-[10px]";
+  }
+
   return [
     "transition-[opacity,transform,filter] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)] will-change-auto",
     entryTextMotionDelayClassNames[delay],
@@ -55,6 +71,10 @@ export function getOnboardingEntryTextMotionClassName(
 }
 
 export function getOnboardingSceneLayerClassName(isTransitioningOut: boolean) {
+  if (isOnboardingMotionFrozen() && !isTransitioningOut) {
+    return "w-full translate-y-0 opacity-100";
+  }
+
   return [
     "w-full transition-[opacity,transform] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
     isTransitioningOut

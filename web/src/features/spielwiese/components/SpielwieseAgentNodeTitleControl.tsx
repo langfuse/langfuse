@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 "use client";
 
 import { useState } from "react";
@@ -15,6 +16,8 @@ import { useSpielwieseOnboardingModelPicker } from "./SpielwieseOnboardingModelP
 const onboardingCopyAnimationDurationMs = 820;
 const onboardingModalGapMs = 250;
 const onboardingTitleSurfaceTransitionDurationMs = 180;
+const onboardingModelPickerOpenDurationMs = 650;
+const onboardingApiKeyPaneDurationMs = 500;
 const onboardingModelPickerOpenDelayMs =
   onboardingCopyAnimationDurationMs +
   onboardingModalGapMs -
@@ -135,7 +138,9 @@ function getOnboardingPickerAnimationProps({
   if (isOnboardingModelSelection) {
     return {
       apiKeyPaneAnimationDelayMs: undefined,
+      apiKeyPaneAnimationDurationMs: undefined,
       popoverAnimationDelayMs: onboardingModelPickerOpenDelayMs,
+      popoverAnimationDurationMs: onboardingModelPickerOpenDurationMs,
     };
   }
 
@@ -143,13 +148,21 @@ function getOnboardingPickerAnimationProps({
     apiKeyPaneAnimationDelayMs: isOnboardingApiKey
       ? onboardingApiKeyPaneDelayMs
       : undefined,
+    apiKeyPaneAnimationDurationMs: isOnboardingApiKey
+      ? onboardingApiKeyPaneDurationMs
+      : undefined,
     popoverAnimationDelayMs,
+    popoverAnimationDurationMs: isOnboardingApiKey
+      ? onboardingModelPickerOpenDurationMs
+      : undefined,
   };
 }
 
+// eslint-disable-next-line max-lines-per-function
 function getTitleControlPickerPanelProps({
   anthropicApiKeyValue = "",
   apiKeyPaneAnimationDelayMs,
+  apiKeyPaneAnimationDurationMs,
   closeOnSelect,
   currentModel,
   hoveredModelLabel,
@@ -161,12 +174,14 @@ function getTitleControlPickerPanelProps({
   onSettingValueChange,
   providerId,
   popoverAnimationDelayMs,
+  popoverAnimationDurationMs,
   setHoveredModelLabel,
   showAnthropicApiKeyPrompt = false,
   setProviderId,
 }: {
   anthropicApiKeyValue?: string;
   apiKeyPaneAnimationDelayMs?: number;
+  apiKeyPaneAnimationDurationMs?: number;
   closeOnSelect?: boolean;
   currentModel: string;
   hoveredModelLabel: string | null;
@@ -177,6 +192,7 @@ function getTitleControlPickerPanelProps({
   onClose: () => void;
   onSettingValueChange: SpielwieseAgentNodeTitleControlProps["onSettingValueChange"];
   popoverAnimationDelayMs?: number;
+  popoverAnimationDurationMs?: number;
   providerId: string | null;
   setHoveredModelLabel: (value: string | null) => void;
   showAnthropicApiKeyPrompt?: boolean;
@@ -185,20 +201,19 @@ function getTitleControlPickerPanelProps({
   return {
     anthropicApiKeyValue,
     apiKeyPaneAnimationDelayMs,
+    apiKeyPaneAnimationDurationMs,
     closeOnSelect,
     currentModel,
     hoveredModelLabel,
     onClose,
     onAnthropicApiKeyChange,
     onAnthropicApiKeyContinue,
-    onValueChange: (value) => {
-      if (!modelSetting) {
-        return;
-      }
-
-      onSettingValueChange(node.id, modelSetting.id, value);
-    },
+    onValueChange: (value) =>
+      modelSetting
+        ? onSettingValueChange(node.id, modelSetting.id, value)
+        : undefined,
     popoverAnimationDelayMs,
+    popoverAnimationDurationMs,
     providerId,
     setHoveredModelLabel,
     setProviderId,

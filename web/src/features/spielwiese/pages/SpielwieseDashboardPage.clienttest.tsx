@@ -142,11 +142,23 @@ describe("SpielwieseDashboardPage rendering", () => {
     ).toBe("Act as if you were a senior business strategist");
   });
 
+  // eslint-disable-next-line max-lines-per-function
   it("stages the role-flow handoff before settling into the seeded assistant and user nodes", () => {
     jest.useFakeTimers();
 
     setOnboardingDashboardHandoff({
       modelValue: "Claude Opus 4.6",
+      roleNodeHandoff: {
+        markupHtml:
+          '<div data-testid="spielwiese-role-node-clone">Seeded role node</div>',
+        sourceNodeRect: {
+          height: 452,
+          left: 244,
+          top: 168,
+          width: 716,
+        },
+        targetNodeId: "vision-agent",
+      },
       systemPromptValue: "Act as if you were a senior business strategist",
       transitionKind: "role-flow",
     });
@@ -157,6 +169,9 @@ describe("SpielwieseDashboardPage rendering", () => {
     const detachedUserDeck = screen.getByTestId(
       "vision-agent-detached-user-sections",
     ) as HTMLElement;
+    const nodeHandoff = screen.getByTestId(
+      "spielwiese-onboarding-dashboard-node-handoff",
+    ) as HTMLElement;
     const userInput = screen.getByLabelText(
       "vision-agent User message",
     ) as HTMLTextAreaElement;
@@ -166,8 +181,12 @@ describe("SpielwieseDashboardPage rendering", () => {
     const internalArrow = screen.getByTestId(
       "spielwiese-agent-node-internal-connector-arrow",
     );
+    const targetNodeDeck = screen.getAllByTestId(
+      "spielwiese-agent-node-card-deck",
+    )[0] as HTMLElement;
 
     expect(internalArrow).toBeTruthy();
+    expect(nodeHandoff.style.opacity).toBe("1");
     expect(
       screen.getByRole("button", { name: "vision-agent Model" }).textContent,
     ).toContain("Claude Opus 4.6");
@@ -179,12 +198,22 @@ describe("SpielwieseDashboardPage rendering", () => {
       ).value,
     ).toBe("Act as if you were a senior business strategist");
     expect(detachedUserDeck.style.opacity).toBe("0");
+    expect(targetNodeDeck.style.opacity).toBe("0");
     expect(userInput.value).toBe("");
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    expect(targetNodeDeck.style.opacity).toBe("1");
 
     act(() => {
       jest.advanceTimersByTime(3400);
     });
 
+    expect(
+      screen.queryByTestId("spielwiese-onboarding-dashboard-node-handoff"),
+    ).toBeNull();
     expect(detachedUserDeck.style.opacity).toBe("1");
     expect(userInput.value).toBe(
       "Here you can type in user messages... try it out (delete me and type write something)",

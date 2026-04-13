@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useRouter } from "next/router";
 import {
@@ -16,6 +17,7 @@ const push = jest.fn();
 let asPath = "/dev/spielwiese/onboarding";
 
 function mockRouter() {
+  window.history.replaceState({}, "", asPath);
   mockedUseRouter.mockReturnValue({
     asPath,
     push,
@@ -51,6 +53,47 @@ function expectCanCodeOptions() {
   ).toBeTruthy();
 }
 
+function expectSignUpRootChrome(container: HTMLElement) {
+  const welcomeHeading = screen.getByRole("heading", {
+    name: "Welcome to Langfuse.",
+  });
+  const logoStrip = screen.getByTestId("spielwiese-onboarding-logo-strip");
+  const wordmarkImage = screen
+    .getByRole("button", { name: "Langfuse" })
+    .querySelector("img");
+
+  expect(screen.getByTestId("spielwiese-onboarding-sign-up")).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Sign in with Google" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+  expect(
+    screen.getByPlaceholderText("walter.white@polloshermanos.com"),
+  ).toBeTruthy();
+  expect(logoStrip.querySelectorAll("img")).toHaveLength(4);
+  expect(logoStrip.querySelector("img")?.getAttribute("src")).toContain(
+    "brand-a.png",
+  );
+  expect(screen.queryByRole("img", { name: "Samsara" })).toBeNull();
+  expect(screen.getByRole("img", { name: "Twilio" })).toBeTruthy();
+  expect(screen.getByRole("img", { name: "Canva" })).toBeTruthy();
+  expect(screen.getByRole("img", { name: "Apple" })).toBeTruthy();
+  expect(
+    screen.queryByText("By inserting your email you confirm that"),
+  ).toBeNull();
+  expect(welcomeHeading.parentElement?.className).toContain(
+    "translate-y-[-5px]",
+  );
+  expect(wordmarkImage?.getAttribute("src")).toBe(
+    "/spielwiese/lf-onboarding-wordmark.png",
+  );
+  expect(screen.queryByTestId("spielwiese-onboarding-canvas")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
+  expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
+  expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
+}
+
 beforeEach(() => {
   push.mockReset();
   asPath = "/dev/spielwiese/onboarding";
@@ -70,44 +113,28 @@ describe("SpielwieseOnboardingPage sign-up basics", () => {
 
   it("renders the onboarding root as a sign-up screen", () => {
     const { container } = render(<SpielwieseOnboardingPage />);
-    const welcomeHeading = screen.getByRole("heading", {
-      name: "Welcome to Langfuse.",
-    });
-    const logoStrip = screen.getByTestId("spielwiese-onboarding-logo-strip");
-    const wordmarkImage = screen
-      .getByRole("button", { name: "Langfuse" })
-      .querySelector("img");
+    expectSignUpRootChrome(container);
+  });
 
-    expect(screen.getByTestId("spielwiese-onboarding-sign-up")).toBeTruthy();
+  it("accepts debug params for card offset and white-stage removal", () => {
+    asPath =
+      "/dev/spielwiese/onboarding?debugCardY=-24&debugNoWhite=1&debugFreezeMotion=1";
+    mockRouter();
+    const { container } = render(<SpielwieseOnboardingPage />);
+
+    const stage = screen.getByTestId("spielwiese-onboarding-surface-stage");
+    const logoStrip = screen.getByTestId("spielwiese-onboarding-logo-strip");
+
+    expectSignUpRootChrome(container);
+    expect(stage.className).toContain("bg-transparent");
+    expect(stage.className).toContain("shadow-none");
+    expect(stage.style.transform).toBe("translateY(-24px)");
     expect(
-      screen.getByRole("button", { name: "Sign in with Google" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
-    expect(
-      screen.getByPlaceholderText("walter.white@polloshermanos.com"),
-    ).toBeTruthy();
-    expect(logoStrip.querySelectorAll("img")).toHaveLength(4);
-    expect(logoStrip.querySelector("img")?.getAttribute("src")).toContain(
-      "brand-a.png",
-    );
-    expect(screen.queryByRole("img", { name: "Samsara" })).toBeNull();
-    expect(screen.getByRole("img", { name: "Twilio" })).toBeTruthy();
-    expect(screen.getByRole("img", { name: "Canva" })).toBeTruthy();
-    expect(screen.getByRole("img", { name: "Apple" })).toBeTruthy();
-    expect(
-      screen.queryByText("By inserting your email you confirm that"),
+      screen.queryByTestId("spielwiese-onboarding-surface-backdrop"),
     ).toBeNull();
-    expect(welcomeHeading.parentElement?.className).toContain(
-      "translate-y-[-5px]",
+    expect(logoStrip.className).not.toContain(
+      "transition-[opacity,transform,filter]",
     );
-    expect(wordmarkImage?.getAttribute("src")).toBe(
-      "/spielwiese/lf-onboarding-wordmark.png",
-    );
-    expect(screen.queryByTestId("spielwiese-onboarding-canvas")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
-    expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
-    expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
   });
 
   it("keeps the sign-in button inert but advances on continue", () => {
@@ -123,6 +150,20 @@ describe("SpielwieseOnboardingPage sign-up basics", () => {
 
     expect(push).toHaveBeenCalledWith(
       getOnboardingPersonalDetailsPath(),
+      undefined,
+      { scroll: false, shallow: true },
+    );
+  });
+
+  it("preserves debug params when advancing to personal details", () => {
+    asPath = "/dev/spielwiese/onboarding?debugFreezeMotion=1&debugRoleLiftY=88";
+    mockRouter();
+    render(<SpielwieseOnboardingPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(push).toHaveBeenCalledWith(
+      "/dev/spielwiese/onboarding/personal-details?debugFreezeMotion=1&debugRoleLiftY=88",
       undefined,
       { scroll: false, shallow: true },
     );
@@ -194,6 +235,27 @@ describe("SpielwieseOnboardingPage personal details transition", () => {
 
     expect(push).toHaveBeenCalledWith(
       getOnboardingStepPath("role"),
+      undefined,
+      { scroll: false, shallow: true },
+    );
+  });
+
+  it("preserves debug params when entering the role step", () => {
+    asPath =
+      "/dev/spielwiese/onboarding/personal-details?debugFreezeMotion=1&debugRoleLiftY=88";
+    mockRouter();
+    render(<SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.transitionEnd(
+      screen.getByTestId("spielwiese-onboarding-entry-layer"),
+      {
+        propertyName: "opacity",
+      },
+    );
+
+    expect(push).toHaveBeenCalledWith(
+      "/dev/spielwiese/onboarding/role?debugFreezeMotion=1&debugRoleLiftY=88",
       undefined,
       { scroll: false, shallow: true },
     );

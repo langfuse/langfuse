@@ -192,6 +192,7 @@ function expectHeaderActionChrome({
   expect(previewButton.className).toContain(
     "hover:bg-[rgba(255,255,255,0.88)]",
   );
+  expect(previewButton.className).toContain("disabled:opacity-100");
   expect(archiveButton.className).toContain("size-7");
   expect(archiveButton.className).toContain("rounded-[10px]");
   expect(archiveButton.className).toContain("border-[rgba(0,0,0,0.08)]");
@@ -200,6 +201,7 @@ function expectHeaderActionChrome({
   );
   expect(toggleButton.getAttribute("aria-pressed")).toBe("false");
   expect(previewButton.getAttribute("aria-pressed")).toBe("false");
+  expect(previewButton.getAttribute("disabled")).toBe("");
 }
 
 function expectHeaderActionIcons({

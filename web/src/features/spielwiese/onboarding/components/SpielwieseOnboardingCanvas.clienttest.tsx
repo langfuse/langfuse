@@ -1,6 +1,7 @@
 /* eslint-disable max-lines */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useRouter } from "next/router";
+import "../../components/spielwieseResizableTestMock";
 import { SpielwieseOnboardingCanvas } from "./SpielwieseOnboardingCanvas";
 import {
   consumeOnboardingDashboardHandoff,
@@ -306,9 +307,14 @@ function expectRoleApiKeyState() {
 beforeEach(() => {
   push.mockReset();
   resetOnboardingDashboardHandoffForTests();
+  window.history.replaceState({}, "", "/dev/spielwiese/onboarding/role");
   mockedUseRouter.mockReturnValue({
     push,
   } as ReturnType<typeof useRouter>);
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 it("renders the first onboarding step as a gated role question before the preview reveal", () => {
@@ -318,6 +324,7 @@ it("renders the first onboarding step as a gated role question before the previe
 
 // eslint-disable-next-line max-lines-per-function
 it("reveals the role preview, stages model selection, and then resumes the routed flow", async () => {
+  jest.useFakeTimers();
   renderOnboardingCanvas("role");
   const stepLayer = getStepLayer();
 
@@ -370,16 +377,38 @@ it("reveals the role preview, stages model selection, and then resumes the route
       { name: /continue/i },
     ),
   );
-  expect(stepLayer.className).toContain(
+  expect(stepLayer.className).not.toContain(
     "animate-spielwiese-onboarding-scene-exit",
   );
-  await completeSceneExit(stepLayer);
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff"),
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-node"),
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-modal"),
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-veil"),
+  ).toBeTruthy();
+  expect(push).not.toHaveBeenCalled();
 
-  expect(consumeOnboardingDashboardHandoff()).toEqual({
-    modelValue: "Claude Opus 4.6",
-    systemPromptValue: "Act as if you were a senior business strategist",
-    transitionKind: "role-flow",
+  await act(async () => {
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
   });
+
+  expect(consumeOnboardingDashboardHandoff()).toEqual(
+    expect.objectContaining({
+      modelValue: "Claude Opus 4.6",
+      roleNodeHandoff: expect.objectContaining({
+        targetNodeId: "vision-agent",
+      }),
+      systemPromptValue: "Act as if you were a senior business strategist",
+      transitionKind: "role-flow",
+    }),
+  );
   expect(push).toHaveBeenLastCalledWith(
     "/dev/spielwiese/dashboard",
     undefined,
@@ -387,4 +416,55 @@ it("reveals the role preview, stages model selection, and then resumes the route
       shallow: true,
     },
   );
+});
+
+it("lets the role handoff freeze at a custom lift offset for tuning", async () => {
+  jest.useFakeTimers();
+  window.history.replaceState(
+    {},
+    "",
+    "/dev/spielwiese/onboarding/role?debugRoleLiftY=88&debugFreezeRoleHandoff=1",
+  );
+  renderOnboardingCanvas("role");
+
+  fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+  await completeSceneExit(getStepLayer());
+  revealRolePreview();
+
+  fireEvent.change(screen.getByLabelText("vision-agent Instructions"), {
+    target: {
+      value: "Act as if you were a senior business strategist",
+    },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+  fireEvent.transitionEnd(screen.getByTestId("spielwiese-agent-title-control"));
+  fireEvent.click(screen.getByRole("button", { name: "Claude Opus 4.6" }));
+  fireEvent.change(
+    within(screen.getByRole("dialog", { name: "Model picker" })).getByLabelText(
+      "Anthropic API key",
+    ),
+    {
+      target: {
+        value: "sk-ant-api03-demo",
+      },
+    },
+  );
+  fireEvent.click(
+    within(screen.getByRole("dialog", { name: "Model picker" })).getByRole(
+      "button",
+      { name: /continue/i },
+    ),
+  );
+
+  await act(async () => {
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+  });
+
+  expect(push).not.toHaveBeenCalled();
+  expect(
+    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-node")
+      .style.transform,
+  ).toContain("-88px");
 });

@@ -26,7 +26,7 @@ function getMessageSectionChipButtonClassName({
   isFilledChip: boolean;
 }) {
   if (isFilledChip) {
-    return "bg-background hover:bg-background h-7 gap-0 overflow-hidden rounded-[10px] border border-[rgba(0,0,0,0.08)] px-0 py-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-black/4";
+    return "h-7 gap-0 overflow-hidden rounded-[10px] border border-[rgba(57,114,243,0.18)] bg-[rgba(57,114,243,0.12)] px-0 py-0 shadow-[inset_0_1px_0_rgba(57,114,243,0.18)] ring-1 ring-[rgba(57,114,243,0.08)] hover:bg-[rgba(57,114,243,0.14)]";
   }
 
   return "h-auto gap-1.5 rounded-none border-0 bg-transparent pt-[var(--spielwiese-message-section-chip-padding-top)] pr-[var(--spielwiese-message-section-chip-padding-right)] pb-[var(--spielwiese-message-section-chip-padding-bottom)] pl-[var(--spielwiese-message-section-chip-padding-left)] shadow-none hover:bg-transparent";
@@ -76,7 +76,7 @@ function MessageSectionChipPrefix({
       className={cn(
         "inline-flex shrink-0 items-center justify-center shadow-none",
         isFilledChip
-          ? "h-full w-6 border-r border-[rgba(0,0,0,0.05)] bg-[rgba(0,0,0,0.02)]"
+          ? "h-full w-6 border-r border-[rgba(57,114,243,0.18)] bg-[rgba(57,114,243,0.16)]"
           : cn(
               "border",
               leadingSurface === "embedded"

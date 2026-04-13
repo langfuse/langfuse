@@ -13,10 +13,14 @@ import {
   SpielwiesePersonalDetailsProgress,
 } from "./SpielwiesePersonalDetailsCard";
 import {
+  appendCurrentSearchParams,
   getOnboardingPersonalDetailsPath,
   PERSONAL_DETAILS_STEP_ID,
 } from "../spielwieseOnboardingFlow";
-import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
+import {
+  getOnboardingEntryTextMotionClassName,
+  isOnboardingMotionFrozen,
+} from "../spielwieseOnboardingEntryMotion";
 
 export type SpielwieseOnboardingEntryStep =
   | typeof PERSONAL_DETAILS_STEP_ID
@@ -170,10 +174,14 @@ function SignUpFormPanel({ isActive }: { isActive: boolean }) {
           <form
             className="grid gap-4"
             onSubmit={createNavigationSubmitHandler(() =>
-              router.push(getOnboardingPersonalDetailsPath(), undefined, {
-                scroll: false,
-                shallow: true,
-              }),
+              router.push(
+                appendCurrentSearchParams(getOnboardingPersonalDetailsPath()),
+                undefined,
+                {
+                  scroll: false,
+                  shallow: true,
+                },
+              ),
             )}
           >
             <SignUpField isActive={isActive} />
@@ -222,6 +230,15 @@ function SignUpWelcomePanel({ isActive }: { isActive: boolean }) {
 }
 
 function getEntryContentClassName(isActive: boolean) {
+  if (isOnboardingMotionFrozen()) {
+    return [
+      "absolute inset-0",
+      isActive
+        ? "pointer-events-auto translate-y-0 scale-100 opacity-100 blur-0"
+        : "pointer-events-none translate-y-4 scale-[0.99] opacity-0 blur-[1px]",
+    ].join(" ");
+  }
+
   return [
     "absolute inset-0 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
     isActive

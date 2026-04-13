@@ -125,6 +125,8 @@ function expectPromptSimulationPaneChrome(
   expect(terminalShell.className).toContain(
     "rounded-[var(--canvas-pane-outer-radius)]",
   );
+  expect(terminalShell.className).toContain("border");
+  expect(terminalShell.className).toContain("border-black/10");
   expect(terminalShell.className).toContain("bg-[#F3F3F4]");
   expect(terminalShell.className).toContain("w-full");
   expect(terminalShell.className).toContain("min-w-0");

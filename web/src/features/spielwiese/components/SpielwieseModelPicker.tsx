@@ -20,37 +20,44 @@ import {
 export { SpielwieseModelPickerTrigger } from "./SpielwieseModelPickerTrigger";
 
 const spielwieseModelPickerPanelClassName =
-  "w-fit max-w-[calc(100vw-1rem)] overflow-visible rounded-[var(--spielwiese-picker-outer-radius)] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] p-[var(--spielwiese-picker-padding)] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)] [--spielwiese-picker-outer-radius:18px] [--spielwiese-picker-padding:6px] [--spielwiese-picker-open-delay:400ms] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] data-[open]:animate-in data-[closed]:animate-out data-[open]:duration-[650ms] data-[closed]:duration-[200ms] data-[open]:[animation-delay:var(--spielwiese-picker-open-delay)] data-[open]:[animation-fill-mode:backwards] data-[open]:fade-in-0 data-[open]:zoom-in-95 data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1";
+  "w-fit max-w-[calc(100vw-1rem)] overflow-visible rounded-[var(--spielwiese-picker-outer-radius)] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] p-[var(--spielwiese-picker-padding)] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)] [--spielwiese-picker-outer-radius:18px] [--spielwiese-picker-padding:6px] [--spielwiese-picker-open-delay:0ms] [--spielwiese-picker-open-duration:220ms] [--spielwiese-picker-close-duration:160ms] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] data-[open]:animate-in data-[closed]:animate-out data-[open]:[animation-duration:var(--spielwiese-picker-open-duration)] data-[closed]:[animation-duration:var(--spielwiese-picker-close-duration)] data-[open]:[animation-delay:var(--spielwiese-picker-open-delay)] data-[open]:[animation-fill-mode:backwards] data-[open]:fade-in-0 data-[open]:zoom-in-95 data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1";
 const anthropicApiKeyHref = "https://console.anthropic.com/settings/keys";
 const spielwieseModelPickerAnthropicApiKeyPaneClassName =
-  "grid min-w-[23rem] gap-3 rounded-[var(--spielwiese-picker-inner-radius)] border border-[rgba(0,0,0,0.05)] bg-white/72 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] [--spielwiese-picker-inner-radius:calc(var(--spielwiese-picker-outer-radius)-var(--spielwiese-picker-padding))] [--spielwiese-picker-pane-delay:0ms] animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-[500ms] [animation-delay:var(--spielwiese-picker-pane-delay)] [animation-fill-mode:backwards] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] sm:min-w-[28rem]";
+  "grid min-w-[23rem] gap-3 rounded-[var(--spielwiese-picker-inner-radius)] border border-[rgba(0,0,0,0.05)] bg-white/72 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] [--spielwiese-picker-inner-radius:calc(var(--spielwiese-picker-outer-radius)-var(--spielwiese-picker-padding))] [--spielwiese-picker-pane-delay:0ms] [--spielwiese-picker-pane-duration:220ms] animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 [animation-duration:var(--spielwiese-picker-pane-duration)] [animation-delay:var(--spielwiese-picker-pane-delay)] [animation-fill-mode:backwards] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] sm:min-w-[28rem]";
 
 type SpielwieseModelPickerStyle = CSSProperties & {
+  "--spielwiese-picker-close-duration"?: string;
+  "--spielwiese-picker-open-duration"?: string;
   "--spielwiese-picker-open-delay"?: string;
+  "--spielwiese-picker-pane-duration"?: string;
   "--spielwiese-picker-pane-delay"?: string;
 };
 
 export function getModelPickerAnimationStyle({
-  delayMs,
+  valueMs,
   variableName,
 }: {
-  delayMs?: number;
+  valueMs?: number;
   variableName:
+    | "--spielwiese-picker-close-duration"
+    | "--spielwiese-picker-open-duration"
     | "--spielwiese-picker-open-delay"
+    | "--spielwiese-picker-pane-duration"
     | "--spielwiese-picker-pane-delay";
 }): SpielwieseModelPickerStyle | undefined {
-  if (delayMs === undefined) {
+  if (valueMs === undefined) {
     return undefined;
   }
 
   return {
-    [variableName]: `${delayMs}ms`,
+    [variableName]: `${valueMs}ms`,
   };
 }
 
 export type SpielwieseModelPickerProps = {
   anthropicApiKeyValue?: string;
   apiKeyPaneAnimationDelayMs?: number;
+  apiKeyPaneAnimationDurationMs?: number;
   closeOnSelect?: boolean;
   currentModel: string;
   hoveredModelLabel: string | null;
@@ -59,6 +66,7 @@ export type SpielwieseModelPickerProps = {
   onAnthropicApiKeyContinue?: () => void;
   onValueChange: (value: string) => void;
   popoverAnimationDelayMs?: number;
+  popoverAnimationDurationMs?: number;
   providerId: string | null;
   setHoveredModelLabel: (modelLabel: string | null) => void;
   setProviderId: (providerId: string | null) => void;
@@ -152,12 +160,14 @@ function AnthropicApiKeyContinueButton({
 
 function SpielwieseAnthropicApiKeyPane({
   apiKeyPaneAnimationDelayMs,
+  apiKeyPaneAnimationDurationMs,
   anthropicApiKeyValue,
   currentModel,
   onAnthropicApiKeyChange,
   onAnthropicApiKeyContinue,
 }: {
   apiKeyPaneAnimationDelayMs?: number;
+  apiKeyPaneAnimationDurationMs?: number;
   anthropicApiKeyValue: string;
   currentModel: string;
   onAnthropicApiKeyChange: (value: string) => void;
@@ -170,10 +180,16 @@ function SpielwieseAnthropicApiKeyPane({
     <div
       className={spielwieseModelPickerAnthropicApiKeyPaneClassName}
       data-testid="spielwiese-model-picker-api-key-pane"
-      style={getModelPickerAnimationStyle({
-        delayMs: apiKeyPaneAnimationDelayMs,
-        variableName: "--spielwiese-picker-pane-delay",
-      })}
+      style={{
+        ...getModelPickerAnimationStyle({
+          valueMs: apiKeyPaneAnimationDelayMs,
+          variableName: "--spielwiese-picker-pane-delay",
+        }),
+        ...getModelPickerAnimationStyle({
+          valueMs: apiKeyPaneAnimationDurationMs,
+          variableName: "--spielwiese-picker-pane-duration",
+        }),
+      }}
     >
       <div className="grid gap-1">
         <p className="text-[0.8125rem]/5 font-medium tracking-[-0.01em] text-[rgb(36,37,41)]">
@@ -205,6 +221,7 @@ function SpielwieseAnthropicApiKeyPane({
 export function SpielwieseModelPickerContents({
   anthropicApiKeyValue = "",
   apiKeyPaneAnimationDelayMs,
+  apiKeyPaneAnimationDurationMs,
   closeOnSelect,
   currentModel,
   hoveredModelLabel,
@@ -221,6 +238,7 @@ export function SpielwieseModelPickerContents({
     return (
       <SpielwieseAnthropicApiKeyPane
         apiKeyPaneAnimationDelayMs={apiKeyPaneAnimationDelayMs}
+        apiKeyPaneAnimationDurationMs={apiKeyPaneAnimationDurationMs}
         anthropicApiKeyValue={anthropicApiKeyValue}
         currentModel={currentModel}
         onAnthropicApiKeyChange={onAnthropicApiKeyChange}
@@ -255,10 +273,16 @@ export function SpielwieseModelPickerPanel(props: SpielwieseModelPickerProps) {
       className={cn(spielwieseModelPickerPanelClassName)}
       data-testid="spielwiese-model-picker-panel"
       role="dialog"
-      style={getModelPickerAnimationStyle({
-        delayMs: props.popoverAnimationDelayMs,
-        variableName: "--spielwiese-picker-open-delay",
-      })}
+      style={{
+        ...getModelPickerAnimationStyle({
+          valueMs: props.popoverAnimationDelayMs,
+          variableName: "--spielwiese-picker-open-delay",
+        }),
+        ...getModelPickerAnimationStyle({
+          valueMs: props.popoverAnimationDurationMs,
+          variableName: "--spielwiese-picker-open-duration",
+        }),
+      }}
     >
       <SpielwieseModelPickerContents {...props} />
     </div>

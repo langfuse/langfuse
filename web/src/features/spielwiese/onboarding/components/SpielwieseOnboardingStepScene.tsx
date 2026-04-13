@@ -9,6 +9,7 @@ import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
 import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
+import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 
 const onboardingCanvasStepMinHeightRem = 40;
 const onboardingDefaultStepMinHeightRem = 34;
@@ -67,11 +68,13 @@ function OnboardingStepQuestionLayer({
   handleContinue,
   handleRoleApiKeyChange,
   handleRoleBridgeAnimationEnd,
+  handleRoleDashboardHandoffComplete,
   handleRoleModelChange,
   handleRoleSystemPromptChange,
   handleSelect,
   isQuestionActive,
   roleApiKeyValue,
+  roleHandoffTransition,
   roleModelValue,
   roleScene,
   roleSystemPromptValue,
@@ -86,11 +89,13 @@ function OnboardingStepQuestionLayer({
   handleRoleBridgeAnimationEnd: (
     event: AnimationEvent<HTMLHeadingElement>,
   ) => void;
+  handleRoleDashboardHandoffComplete: () => void;
   handleRoleModelChange: (value: string) => void;
   handleRoleSystemPromptChange: (value: string) => void;
   handleSelect: (value: string) => void;
   isQuestionActive: boolean;
   roleApiKeyValue: string;
+  roleHandoffTransition: RoleHandoffTransition | null;
   roleModelValue: string;
   roleScene: RoleStepScene;
   roleSystemPromptValue: string;
@@ -110,10 +115,12 @@ function OnboardingStepQuestionLayer({
         onContinue={handleContinue}
         onRoleApiKeyChange={handleRoleApiKeyChange}
         onRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+        onRoleDashboardHandoffComplete={handleRoleDashboardHandoffComplete}
         onRoleModelChange={handleRoleModelChange}
         onRoleSystemPromptChange={handleRoleSystemPromptChange}
         onSelect={handleSelect}
         roleApiKeyValue={roleApiKeyValue}
+        roleHandoffTransition={roleHandoffTransition}
         roleModelValue={roleModelValue}
         roleSystemPromptValue={roleSystemPromptValue}
         roleScene={activeQuestionId === "role" ? roleScene : "preview"}
@@ -168,6 +175,7 @@ type SpielwieseOnboardingStepSceneProps = {
   handleRoleBridgeAnimationEnd: (
     event: AnimationEvent<HTMLHeadingElement>,
   ) => void;
+  handleRoleDashboardHandoffComplete: () => void;
   handleRoleModelChange: (value: string) => void;
   handleRoleSystemPromptChange: (value: string) => void;
   handleSelect: (value: string) => void;
@@ -175,12 +183,14 @@ type SpielwieseOnboardingStepSceneProps = {
   isQuestionActive?: boolean;
   isStepTransitioningOut: boolean;
   roleApiKeyValue: string;
+  roleHandoffTransition: RoleHandoffTransition | null;
   roleModelValue: string;
   roleSystemPromptValue: string;
   roleScene: RoleStepScene;
   showsUpperCanvas: boolean;
 };
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseOnboardingStepScene({
   activeAnswer,
   activeQuestionId,
@@ -189,6 +199,7 @@ export function SpielwieseOnboardingStepScene({
   handleContinue,
   handleRoleApiKeyChange,
   handleRoleBridgeAnimationEnd,
+  handleRoleDashboardHandoffComplete,
   handleRoleModelChange,
   handleRoleSystemPromptChange,
   handleSelect,
@@ -196,6 +207,7 @@ export function SpielwieseOnboardingStepScene({
   isQuestionActive,
   isStepTransitioningOut,
   roleApiKeyValue,
+  roleHandoffTransition,
   roleModelValue,
   roleSystemPromptValue,
   roleScene,
@@ -225,11 +237,15 @@ export function SpielwieseOnboardingStepScene({
           handleContinue={handleContinue}
           handleRoleApiKeyChange={handleRoleApiKeyChange}
           handleRoleBridgeAnimationEnd={handleRoleBridgeAnimationEnd}
+          handleRoleDashboardHandoffComplete={
+            handleRoleDashboardHandoffComplete
+          }
           handleRoleModelChange={handleRoleModelChange}
           handleRoleSystemPromptChange={handleRoleSystemPromptChange}
           handleSelect={handleSelect}
           isQuestionActive={resolvedQuestionActive}
           roleApiKeyValue={roleApiKeyValue}
+          roleHandoffTransition={roleHandoffTransition}
           roleModelValue={roleModelValue}
           roleScene={roleScene}
           roleSystemPromptValue={roleSystemPromptValue}

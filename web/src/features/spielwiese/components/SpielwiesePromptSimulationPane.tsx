@@ -124,7 +124,7 @@ function PlaygroundSurface({
       ref={surfaceRef}
     >
       <div
-        className="flex min-h-0 w-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-outer-radius)] bg-[#F3F3F4] p-[var(--canvas-pane-shell-gap)] shadow-xs [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]"
+        className="flex min-h-0 w-full min-w-0 flex-1 flex-col rounded-[var(--canvas-pane-outer-radius)] border border-black/10 bg-[#F3F3F4] p-[var(--canvas-pane-shell-gap)] shadow-xs [--canvas-pane-inner-radius:18px] [--canvas-pane-outer-radius:calc(var(--canvas-pane-inner-radius)+var(--canvas-pane-shell-gap))] [--canvas-pane-shell-gap:2px]"
         data-testid="spielwiese-playground-terminal-shell"
       >
         <div

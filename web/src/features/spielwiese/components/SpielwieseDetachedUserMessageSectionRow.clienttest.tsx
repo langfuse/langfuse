@@ -41,6 +41,28 @@ describe("SpielwieseDetachedUserMessageSectionRow embedded header", () => {
         .getByTestId("vision-agent-user-message-chip-icon")
         .getAttribute("class"),
     ).toContain("lucide-message-circle");
+    const userChipPrefixClassName = within(visionNode).getByTestId(
+      "vision-agent-user-chip-icon",
+    ).parentElement?.className;
+
+    expect(userChipPrefixClassName).toContain("bg-[rgba(57,114,243,0.16)]");
+  });
+
+  it("keeps the detached user chip fill blue all the way to the top edge", () => {
+    renderCanvas();
+
+    const visionNode = screen.getAllByTestId("spielwiese-agent-node")[0];
+    const userChipRoot = within(visionNode).getByTestId(
+      "vision-agent-user-chip-icon",
+    ).parentElement?.parentElement;
+
+    expect(userChipRoot?.className).toContain("bg-[rgba(57,114,243,0.12)]");
+    expect(userChipRoot?.className).toContain(
+      "shadow-[inset_0_1px_0_rgba(57,114,243,0.18)]",
+    );
+    expect(userChipRoot?.className).not.toContain(
+      "shadow-[inset_0_1px_0_rgba(255,255,255,0.68)]",
+    );
   });
 
   it("uses the same white shell fill as the standard agent prompt surface", () => {

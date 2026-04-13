@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import "./spielwieseResizableTestMock";
 import { SpielwieseEditorCanvas } from "./SpielwieseEditorCanvas";
 import { spielwieseEditorCanvasTestCanvas } from "./spielwieseEditorCanvasTestData";
+import { getModelShellTintClassName } from "./spielwieseModelTint";
 
 const testCanvas = spielwieseEditorCanvasTestCanvas;
 
@@ -219,14 +220,14 @@ function expectVisionNodeChrome({
     "border-[color:var(--spielwiese-agent-node-shell-border)]",
   );
   expect(nodeCard.className).toContain(
-    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+    getModelShellTintClassName("openai/gpt-5-mini"),
   );
   expect(nodeCard.className).not.toMatch(/\bp-0\.5\b/);
   expect(nodeCard.className).toContain("gap-0.5");
   expect(nodeCard.className).toContain("shadow-none");
   expect(visionNode.className).toContain("last:pb-5");
   expect(headerFrame.className).toContain(
-    "bg-[var(--spielwiese-agent-node-shell-surface)]",
+    getModelShellTintClassName("openai/gpt-5-mini"),
   );
   expect(headerFrame.className).toContain("p-0.5");
   expect(headerFrame.className).toContain("-mb-0.5");

@@ -1,5 +1,14 @@
+import type { RoleHandoffTransition } from "./spielwieseRoleHandoff";
+
+type SpielwieseOnboardingRoleNodeHandoff = {
+  markupHtml: RoleHandoffTransition["markup"]["nodeHtml"];
+  sourceNodeRect: RoleHandoffTransition["snapshot"]["sourceNodeRect"];
+  targetNodeId: RoleHandoffTransition["snapshot"]["targetNodeId"];
+};
+
 export type SpielwieseOnboardingDashboardHandoff = {
   modelValue: string;
+  roleNodeHandoff?: SpielwieseOnboardingRoleNodeHandoff;
   systemPromptValue: string;
   transitionKind?: "role-flow";
 };

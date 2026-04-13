@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import SpielwieseOnboardingEntryCard from "../onboarding/components/SpielwieseOnboardingEntryCard";
 import {
+  appendCurrentSearchParams,
   getOnboardingStepPath,
   PERSONAL_DETAILS_STEP_ID,
 } from "../onboarding/spielwieseOnboardingFlow";
@@ -78,10 +79,14 @@ export default function SpielwieseOnboardingPage({
     }
 
     void Promise.resolve(
-      router.push(getOnboardingStepPath("role"), undefined, {
-        scroll: false,
-        shallow: true,
-      }),
+      router.push(
+        appendCurrentSearchParams(getOnboardingStepPath("role")),
+        undefined,
+        {
+          scroll: false,
+          shallow: true,
+        },
+      ),
     ).catch(() => {
       setIsTransitioningOut(false);
     });

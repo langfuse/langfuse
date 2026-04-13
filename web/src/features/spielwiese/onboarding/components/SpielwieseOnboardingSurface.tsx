@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
 
 type SpielwieseOnboardingSurfaceProps = {
@@ -39,6 +40,17 @@ const onboardingSurfaceShellClassName =
   "relative z-10 mx-auto grid w-full max-w-[var(--sign-up-shell-max-width)] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgb(238,239,241)] bg-white lg:grid-cols-[1fr_1fr] xl:grid-cols-[31rem_31rem]";
 const onboardingSurfaceSingleShellClassName =
   "relative z-10 mx-auto w-full max-w-[35rem] overflow-hidden rounded-[var(--sign-up-inner-radius)] border border-[rgba(17,24,39,0.08)] bg-white shadow-[0_24px_60px_-36px_rgba(17,24,39,0.14)]";
+
+function getOnboardingSurfaceDebugConfig(asPath: string | undefined) {
+  const search = asPath?.split("?")[1]?.split("#")[0] ?? "";
+  const searchParams = new URLSearchParams(search);
+  const parsedCardOffsetY = Number(searchParams.get("debugCardY") ?? "0");
+
+  return {
+    cardOffsetY: Number.isFinite(parsedCardOffsetY) ? parsedCardOffsetY : 0,
+    hidesWhiteStage: searchParams.get("debugNoWhite") === "1",
+  };
+}
 
 function SpielwieseOnboardingSurfaceBackdrop({
   pauseShaderMotion,
@@ -90,6 +102,54 @@ function getOnboardingSurfaceFrameClassName(hasFooter: boolean) {
   return cn("w-full", hasFooter ? "pt-3 pb-3 sm:pt-4 sm:pb-4" : "py-3 sm:py-4");
 }
 
+function getOnboardingSurfaceRenderState({
+  debugConfig,
+  footer,
+  layout,
+  sectionClassName,
+  shellClassName,
+  showBackdrop,
+  stageClassName,
+}: {
+  debugConfig: ReturnType<typeof getOnboardingSurfaceDebugConfig>;
+  footer: ReactNode;
+  layout: "single" | "split";
+  sectionClassName?: string;
+  shellClassName?: string;
+  showBackdrop: boolean;
+  stageClassName?: string;
+}) {
+  const hasFooter = Boolean(footer);
+  const surfaceStageClassName = showBackdrop
+    ? onboardingSurfaceStageClassName
+    : onboardingSurfacePlainStageClassName;
+  const surfaceShellClassName =
+    layout === "single"
+      ? onboardingSurfaceSingleShellClassName
+      : onboardingSurfaceShellClassName;
+
+  return {
+    hasFooter,
+    sectionClassName: getOnboardingSurfaceClassName({
+      hasFooter,
+      sectionClassName,
+    }),
+    shellClassName: cn(surfaceShellClassName, shellClassName),
+    showsBackdrop: showBackdrop && !debugConfig.hidesWhiteStage,
+    stageClassName: cn(
+      surfaceStageClassName,
+      debugConfig.hidesWhiteStage && "border-0 bg-transparent shadow-none",
+      stageClassName,
+    ),
+    stageStyle:
+      debugConfig.cardOffsetY === 0
+        ? undefined
+        : {
+            transform: `translateY(${debugConfig.cardOffsetY}px)`,
+          },
+  };
+}
+
 export default function SpielwieseOnboardingSurface({
   children,
   footer,
@@ -105,36 +165,39 @@ export default function SpielwieseOnboardingSurface({
   testId,
   topOverlay,
 }: SpielwieseOnboardingSurfaceProps) {
-  const surfaceStageClassName = showBackdrop
-    ? onboardingSurfaceStageClassName
-    : onboardingSurfacePlainStageClassName;
-  const surfaceShellClassName =
-    layout === "single"
-      ? onboardingSurfaceSingleShellClassName
-      : onboardingSurfaceShellClassName;
-  const hasFooter = Boolean(footer);
+  const router = useRouter();
+  const debugConfig = getOnboardingSurfaceDebugConfig(router.asPath);
+  const renderState = getOnboardingSurfaceRenderState({
+    debugConfig,
+    footer,
+    layout,
+    sectionClassName,
+    shellClassName,
+    showBackdrop,
+    stageClassName,
+  });
 
   return (
-    <section
-      className={getOnboardingSurfaceClassName({
-        hasFooter,
-        sectionClassName,
-      })}
-      data-testid={testId}
-    >
+    <section className={renderState.sectionClassName} data-testid={testId}>
       {topOverlay}
       {renderOnboardingSurfaceHeader(header)}
       <div className="flex w-full flex-1 items-center justify-center">
-        <div className={getOnboardingSurfaceFrameClassName(hasFooter)}>
-          <div className={cn(surfaceStageClassName, stageClassName)}>
-            {showBackdrop ? (
+        <div
+          className={getOnboardingSurfaceFrameClassName(renderState.hasFooter)}
+        >
+          <div
+            className={renderState.stageClassName}
+            data-testid="spielwiese-onboarding-surface-stage"
+            style={renderState.stageStyle}
+          >
+            {renderState.showsBackdrop ? (
               <SpielwieseOnboardingSurfaceBackdrop
                 pauseShaderMotion={pauseShaderMotion}
                 showShader={showShader}
               />
             ) : null}
             <div
-              className={cn(surfaceShellClassName, shellClassName)}
+              className={renderState.shellClassName}
               data-testid="spielwiese-onboarding-surface-shell"
               style={shellStyle}
             >

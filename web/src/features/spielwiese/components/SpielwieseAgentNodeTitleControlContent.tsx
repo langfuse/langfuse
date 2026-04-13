@@ -316,10 +316,16 @@ export function SpielwieseAgentNodeTitleControlContent({
           }
           keepMounted={isOnboardingPickerStep}
           role="dialog"
-          style={getModelPickerAnimationStyle({
-            delayMs: pickerPanelProps.popoverAnimationDelayMs,
-            variableName: "--spielwiese-picker-open-delay",
-          })}
+          style={{
+            ...getModelPickerAnimationStyle({
+              valueMs: pickerPanelProps.popoverAnimationDelayMs,
+              variableName: "--spielwiese-picker-open-delay",
+            }),
+            ...getModelPickerAnimationStyle({
+              valueMs: pickerPanelProps.popoverAnimationDurationMs,
+              variableName: "--spielwiese-picker-open-duration",
+            }),
+          }}
         >
           <SpielwieseModelPickerContents {...pickerPanelProps} />
         </PopoverContent>

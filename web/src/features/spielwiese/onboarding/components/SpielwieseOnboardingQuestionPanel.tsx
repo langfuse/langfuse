@@ -11,6 +11,7 @@ import {
   onboardingDetailsPrimaryButtonClassName,
   onboardingDetailsSecondaryButtonClassName,
 } from "../spielwieseOnboardingPersonalDetailsOptions";
+import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 import { ONBOARDING_QUESTIONS } from "../spielwieseOnboardingFlow";
 
 const onboardingQuestionPanelClassName =
@@ -22,6 +23,7 @@ export type RoleStepScene =
   | "api-key"
   | "bridge"
   | "gate"
+  | "handoff"
   | "model-selection"
   | "preview";
 
@@ -178,10 +180,12 @@ type SpielwieseOnboardingQuestionPanelProps = {
   onRoleApiKeyChange?: (value: string) => void;
   onRoleApiKeyContinue?: () => void;
   onRoleBridgeAnimationEnd?: () => void;
+  onRoleDashboardHandoffComplete?: () => void;
   onRoleModelChange?: (value: string) => void;
   onRoleSystemPromptChange?: (value: string) => void;
   onSelect: (value: string) => void;
   roleApiKeyValue?: string;
+  roleHandoffTransition?: RoleHandoffTransition | null;
   roleModelValue?: string;
   roleSystemPromptValue?: string;
   roleScene?: RoleStepScene;
@@ -244,10 +248,12 @@ function RoleStepQuestionPanel({
   onRoleApiKeyChange,
   onRoleApiKeyContinue,
   onRoleBridgeAnimationEnd,
+  onRoleDashboardHandoffComplete,
   onRoleModelChange,
   onRoleSystemPromptChange,
   onSelect,
   roleApiKeyValue = "",
+  roleHandoffTransition,
   roleModelValue = "Claude Opus 4.6",
   roleSystemPromptValue = "",
   roleScene = "preview",
@@ -265,7 +271,8 @@ function RoleStepQuestionPanel({
   if (
     roleScene === "preview" ||
     roleScene === "model-selection" ||
-    roleScene === "api-key"
+    roleScene === "api-key" ||
+    roleScene === "handoff"
   ) {
     return (
       <RoleStepPreviewPanel
@@ -275,6 +282,7 @@ function RoleStepQuestionPanel({
           roleScene === "preview" && roleSystemPromptValue.trim().length === 0
         }
         modelValue={roleModelValue}
+        onDashboardHandoffComplete={onRoleDashboardHandoffComplete}
         onApiKeyChange={onRoleApiKeyChange ?? (() => {})}
         onApiKeyContinue={onRoleApiKeyContinue ?? onContinue}
         onModelChange={onRoleModelChange ?? (() => {})}
@@ -282,6 +290,7 @@ function RoleStepQuestionPanel({
         onContinue={onContinue}
         panelClassName={onboardingQuestionPanelClassName}
         roleScene={roleScene}
+        roleHandoffTransition={roleHandoffTransition}
         systemPromptValue={roleSystemPromptValue}
       />
     );
@@ -309,10 +318,12 @@ export function SpielwieseOnboardingQuestionPanel({
   onRoleApiKeyChange,
   onRoleApiKeyContinue,
   onRoleBridgeAnimationEnd,
+  onRoleDashboardHandoffComplete,
   onRoleModelChange,
   onRoleSystemPromptChange,
   onSelect,
   roleApiKeyValue,
+  roleHandoffTransition,
   roleModelValue,
   roleSystemPromptValue,
   roleScene = "preview",
@@ -331,10 +342,12 @@ export function SpielwieseOnboardingQuestionPanel({
         onRoleApiKeyChange={onRoleApiKeyChange}
         onRoleApiKeyContinue={onRoleApiKeyContinue}
         onRoleBridgeAnimationEnd={onRoleBridgeAnimationEnd}
+        onRoleDashboardHandoffComplete={onRoleDashboardHandoffComplete}
         onRoleModelChange={onRoleModelChange}
         onRoleSystemPromptChange={onRoleSystemPromptChange}
         onSelect={onSelect}
         roleApiKeyValue={roleApiKeyValue}
+        roleHandoffTransition={roleHandoffTransition}
         roleModelValue={roleModelValue}
         roleSystemPromptValue={roleSystemPromptValue}
         roleScene={roleScene}

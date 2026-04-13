@@ -57,6 +57,16 @@ it("renders the approach and outcome sections", () => {
     ),
   ).toBeTruthy();
   expect(
+    screen.getByText(
+      "the state i identified: they've made a change to a prompt and they want to know if that change actually made things better. and this is why they signed up to langfuse.",
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      "the aha moment is the moment a user sees what is wrong with their prompt and what to change. langfuse currently tries to bring users there through monitoring as a first touchpoint. but monitoring alone, before any evaluation has run, doesn't get them there.",
+    ),
+  ).toBeTruthy();
+  expect(
     screen.getByTestId("spielwiese-intro-section-divider-approach"),
   ).toBeTruthy();
   expect(
