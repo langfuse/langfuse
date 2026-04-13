@@ -19,7 +19,7 @@ import {
   redisQueueRetryOptions,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "process";
+import { env } from "../env";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
