@@ -6,15 +6,19 @@ const getServerOrigin = () => {
   return origin && !/^https?:\/\//.test(origin) ? `https://${origin}` : origin;
 };
 
+export function useLangfuseBaseUrl(): string {
+  const uiCustomization = useUiCustomization();
+  return `${
+    uiCustomization?.hostname ??
+    (typeof window !== "undefined" ? window.origin : getServerOrigin())
+  }${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+}
+
 export function useLangfuseEnvCode(keys?: {
   secretKey: string;
   publicKey: string;
 }): string {
-  const uiCustomization = useUiCustomization();
-  const baseUrl = `${
-    uiCustomization?.hostname ??
-    (typeof window !== "undefined" ? window.origin : getServerOrigin())
-  }${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+  const baseUrl = useLangfuseBaseUrl();
 
   if (keys) {
     return `LANGFUSE_SECRET_KEY="${keys.secretKey}"
