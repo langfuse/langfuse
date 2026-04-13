@@ -21,11 +21,9 @@ const MANUAL_TRACING_DOCS_URL =
 
 function CopyableSnippet({
   value,
-  prefix,
   onCopy,
 }: {
   value: string;
-  prefix?: string;
   onCopy?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -34,18 +32,13 @@ function CopyableSnippet({
     await copyTextToClipboard(value);
     onCopy?.();
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1000);
+    setTimeout(() => setCopied(false), 1000);
   };
 
   return (
     <div className="space-y-2">
       <div className="bg-muted/50 mx-auto flex items-start justify-between gap-3 rounded-2xl border px-5 py-4 shadow-xs">
         <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
-          {prefix ? (
-            <span className="text-muted-foreground mr-2 select-none">
-              {prefix}
-            </span>
-          ) : null}
           {value}
         </code>
         <Button
@@ -66,7 +59,7 @@ function CopyableSnippet({
   );
 }
 
-export function SkillsOnboardingCard({
+export function TracesSetupOnboardingCard({
   className,
   projectId,
 }: {

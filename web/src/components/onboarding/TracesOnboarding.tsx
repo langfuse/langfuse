@@ -1,5 +1,5 @@
 import React from "react";
-import { SkillsOnboardingCard } from "@/src/features/setup/components/SkillsOnboardingCard";
+import { TracesSetupOnboardingCard } from "@/src/features/setup/components/TracesSetupOnboardingCard";
 
 interface TracesOnboardingProps {
   projectId: string;
@@ -8,7 +8,7 @@ interface TracesOnboardingProps {
 export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
   return (
     <div className="space-y-10">
-      <SkillsOnboardingCard projectId={projectId} />
+      <TracesSetupOnboardingCard projectId={projectId} />
     </div>
   );
 }
