@@ -27,6 +27,8 @@ on:
           - prod-jp
         required: true
 
+permissions: {}
+
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
   group: deploy-${{ github.event_name }}-${{ github.ref }}
@@ -99,7 +101,8 @@ jobs:
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-services, affected-environments]
-    secrets: inherit
+    permissions:
+      contents: read
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}

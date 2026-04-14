@@ -12,6 +12,9 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -24,6 +27,7 @@ jobs:
       llm_connections_changed: ${{ steps.filter.outputs.llm_connections }}
     timeout-minutes: 15
     permissions:
+      contents: read
       pull-requests: read
     steps:
       - id: skip_check
@@ -36,6 +40,7 @@ jobs:
           # may save additional git fetch roundtrip if
           # merge-base is found within latest N commits
           fetch-depth: 20
+          persist-credentials: false
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
@@ -51,16 +56,18 @@ jobs:
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
@@ -85,10 +92,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: 24
           cache: "pnpm"
@@ -130,6 +138,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -198,6 +208,8 @@ jobs:
         shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
@@ -213,7 +225,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -232,14 +244,14 @@ jobs:
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
         with:
           path: |
             ~/.npm
@@ -311,6 +323,8 @@ jobs:
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
@@ -321,7 +335,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -382,6 +396,8 @@ jobs:
     name: test-worker-llm-connections (node24, pg15)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
@@ -392,7 +408,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js 24
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] llm-connection test dependency cache only; privileged secrets are used here, but this cache is not consumed by artifact publishing
         with:
           node-version: 24
           cache: "pnpm"
@@ -453,10 +469,12 @@ jobs:
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
         with:
           node-version: 24
           cache: "pnpm"
@@ -468,7 +486,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
@@ -476,7 +494,7 @@ jobs:
             ${{ runner.os }}-turbo-e2e-
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
         with:
           path: |
             ~/.npm
@@ -530,6 +548,8 @@ jobs:
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -539,7 +559,7 @@ jobs:
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
         with:
           node-version: 24
           cache: "pnpm"
@@ -631,7 +651,9 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       - name: Output job results
         run: |
-          echo "Job results: ${{ steps.set-success-output.outputs.success }}"
+          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
+        env:
+          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
 
   build-docker-image-release:
     needs: all-ci-passed
@@ -674,6 +696,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Log in to the GitHub Container registry
@@ -729,15 +753,19 @@ jobs:
           provenance: false
           sbom: false
       - name: Record pushed digests
+        env:
+          DIGEST_GHCR: ${{ steps.build-ghcr.outputs.digest }}
+          DIGEST_DOCKERHUB: ${{ steps.build-dockerhub.outputs.digest }}
+          PLATFORM_TAG: ${{ matrix.platform_tag }}
         run: |
-          if [ -z '${{ steps.build-ghcr.outputs.digest }}' ] || [ -z '${{ steps.build-dockerhub.outputs.digest }}' ]; then
+          if [ -z "$DIGEST_GHCR" ] || [ -z "$DIGEST_DOCKERHUB" ]; then
             echo "Missing registry digest output"
             exit 1
           fi
 
           mkdir -p "$RUNNER_TEMP/digests/ghcr" "$RUNNER_TEMP/digests/dockerhub"
-          printf '%s\n' '${{ steps.build-ghcr.outputs.digest }}' > "$RUNNER_TEMP/digests/ghcr/${{ matrix.platform_tag }}.txt"
-          printf '%s\n' '${{ steps.build-dockerhub.outputs.digest }}' > "$RUNNER_TEMP/digests/dockerhub/${{ matrix.platform_tag }}.txt"
+          printf '%s\n' "$DIGEST_GHCR" > "$RUNNER_TEMP/digests/ghcr/${PLATFORM_TAG}.txt"
+          printf '%s\n' "$DIGEST_DOCKERHUB" > "$RUNNER_TEMP/digests/dockerhub/${PLATFORM_TAG}.txt"
       - name: Upload release digests
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -816,6 +844,10 @@ jobs:
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Publish multi-platform manifest to GitHub Container Registry
+        env:
+          STEPS_META_GHCR_OUTPUTS_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
+          IMAGE_NAME: ${{ matrix.image_name }}
+          COMPONENT: ${{ matrix.component }}
         run: |
           ghcr_tags=()
           ghcr_sources=()
@@ -823,23 +855,27 @@ jobs:
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             ghcr_tags+=("-t" "$tag")
-          done <<'EOF'
-          ${{ steps.meta-ghcr.outputs.tags }}
+          done <<EOF
+          ${STEPS_META_GHCR_OUTPUTS_TAGS}
           EOF
 
           shopt -s nullglob
           for digest_file in "$RUNNER_TEMP"/digests/ghcr/*.txt; do
             digest="$(cat "$digest_file")"
-            ghcr_sources+=("ghcr.io/langfuse/${{ matrix.image_name }}@$digest")
+            ghcr_sources+=("ghcr.io/langfuse/${IMAGE_NAME}@$digest")
           done
 
           if [ "${#ghcr_sources[@]}" -lt 2 ]; then
-            echo "Expected amd64 and arm64 GHCR digests for ${{ matrix.component }}"
+            echo "Expected amd64 and arm64 GHCR digests for $COMPONENT"
             exit 1
           fi
 
           docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
       - name: Publish multi-platform manifest to Docker Hub
+        env:
+          STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
+          IMAGE_NAME: ${{ matrix.image_name }}
+          COMPONENT: ${{ matrix.component }}
         run: |
           dockerhub_tags=()
           dockerhub_sources=()
@@ -847,29 +883,32 @@ jobs:
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             dockerhub_tags+=("-t" "$tag")
-          done <<'EOF'
-          ${{ steps.meta-dockerhub.outputs.tags }}
+          done <<EOF
+          ${STEPS_META_DOCKERHUB_OUTPUTS_TAGS}
           EOF
 
           shopt -s nullglob
           for digest_file in "$RUNNER_TEMP"/digests/dockerhub/*.txt; do
             digest="$(cat "$digest_file")"
-            dockerhub_sources+=("langfuse/${{ matrix.image_name }}@$digest")
+            dockerhub_sources+=("langfuse/${IMAGE_NAME}@$digest")
           done
 
           if [ "${#dockerhub_sources[@]}" -lt 2 ]; then
-            echo "Expected amd64 and arm64 Docker Hub digests for ${{ matrix.component }}"
+            echo "Expected amd64 and arm64 Docker Hub digests for $COMPONENT"
             exit 1
           fi
 
           docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
       - name: Inspect published manifests
         run: |
-          ghcr_first_tag="$(printf '%s\n' "${{ steps.meta-ghcr.outputs.tags }}" | sed -n '1p')"
-          dockerhub_first_tag="$(printf '%s\n' "${{ steps.meta-dockerhub.outputs.tags }}" | sed -n '1p')"
+          ghcr_first_tag="$(printf '%s\n' "${STEPS_META_GHCR_OUTPUTS_TAGS}" | sed -n '1p')"
+          dockerhub_first_tag="$(printf '%s\n' "${STEPS_META_DOCKERHUB_OUTPUTS_TAGS}" | sed -n '1p')"
 
           docker buildx imagetools inspect "$ghcr_first_tag"
           docker buildx imagetools inspect "$dockerhub_first_tag"
+        env:
+          STEPS_META_GHCR_OUTPUTS_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
+          STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
 
   notify-docker-image-release:
     needs:

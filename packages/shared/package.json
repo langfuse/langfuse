@@ -112,6 +112,7 @@
     "langfuse-langchain": "3.38.20",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
+    "lru-cache": "^11.2.7",
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.11",
     "oci-objectstorage": "^2.125.0",
