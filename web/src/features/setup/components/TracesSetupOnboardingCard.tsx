@@ -177,7 +177,7 @@ export function TracesSetupOnboardingCard({
         {
           title: "Run your app — traces will appear here",
           description:
-            "Once your app makes an LLM call, traces show up within seconds. Here's what to expect:",
+            "Once your app makes an LLM call, traces show up within seconds.",
         },
       ]}
     />
