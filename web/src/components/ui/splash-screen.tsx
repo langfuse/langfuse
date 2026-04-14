@@ -222,9 +222,7 @@ export function SplashScreen({
         )}
 
         {/* Children */}
-        {children && (
-          <div className="mt-4 w-full max-w-3xl">{children}</div>
-        )}
+        {children && <div className="mt-4 w-full max-w-3xl">{children}</div>}
 
         {videoPosition === "bottom" && mediaBlock}
       </div>
