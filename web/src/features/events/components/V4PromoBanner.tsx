@@ -51,12 +51,9 @@ export function V4PromoBanner() {
   const bannerRef = useRef<HTMLDivElement>(null);
 
   const isAuthenticated = session.status === "authenticated";
-  const enableExperimentalFeatures =
-    session.data?.environment?.enableExperimentalFeatures ?? false;
 
   // Match the v4BetaToggleVisible logic from navigationFilters.ts.
-  const isToggleVisible =
-    canToggleV4 && (isLangfuseCloud || enableExperimentalFeatures);
+  const isToggleVisible = canToggleV4 && isLangfuseCloud;
   const pageMessage = PAGE_MESSAGES[router.pathname];
 
   const isVisible =

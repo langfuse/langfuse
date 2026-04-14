@@ -1,4 +1,4 @@
-export const V4_DEFAULT_ENABLED_FROM_AT = new Date("2026-04-13T08:00:00.000Z");
+export const V4_DEFAULT_ENABLED_FROM_AT = new Date("2026-04-14T13:00:00.000Z");
 
 type RolloutOrganization = {
   id: string;
