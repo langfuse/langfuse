@@ -19,7 +19,6 @@ import {
   eventsExperimentsAggregation,
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
-  eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
@@ -174,27 +173,17 @@ export const getExperimentMetricsFromEvents = async (props: {
     return [];
   }
 
-  const tracesBuilder = eventsTracesAggregation({
+  // Use eventsExperimentsAggregation with "metrics" field set for simplified aggregation
+  const queryBuilder = eventsExperimentsAggregation({
     projectId: props.projectId,
-  }).whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+    fieldSet: "metrics",
     experimentIds: props.experimentIds,
   });
-
-  // Build the final query
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("traces_agg", tracesBuilder)
-    .from("traces_agg", "ta")
-    .select(
-      "ta.experiment_id AS experiment_id",
-      "SUM(ta.total_cost) AS total_cost",
-      "AVG(ta.latency_milliseconds) AS latency_avg",
-    )
-    .groupBy("ta.project_id", "ta.experiment_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 
   const res = await measureAndReturn({
-    operationName: "getExperimentsFromEventsGeneric",
+    operationName: "getExperimentMetricsFromEvents",
     projectId: props.projectId,
     input: {
       params,
@@ -202,7 +191,7 @@ export const getExperimentMetricsFromEvents = async (props: {
         feature: "experiments",
         type: "experiments-table",
         projectId: props.projectId,
-        operation_name: `getExperimentMetricsFromEvents`,
+        operation_name: "getExperimentMetricsFromEvents",
       },
     },
     fn: async (input) => {

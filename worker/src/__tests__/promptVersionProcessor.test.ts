@@ -157,6 +157,11 @@ describe("promptVersionChangeWorker", () => {
           updatedAt: new Date(),
           commitMessage: null,
         },
+        user: {
+          id: "test-user",
+          name: "Test User",
+          email: "test@example.com",
+        },
       };
 
       await promptVersionProcessor(event);

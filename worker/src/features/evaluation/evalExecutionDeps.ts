@@ -12,6 +12,7 @@ import {
 import { env } from "../../env";
 import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
+import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
 type StructuredOutputSchema = NonNullable<
   Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
@@ -207,6 +208,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           traceName: params.traceSinkParams.traceName,
           environment: params.traceSinkParams.environment,
           metadata: params.traceSinkParams.metadata,
+          eventsWriter: createInternalEventsWriter(),
         },
       });
     },
