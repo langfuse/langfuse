@@ -9,12 +9,18 @@ on:
     branches:
       - "main"
 
+permissions:
+  contents: read
+  checks: write # Needed to create a check run for the license compliance check results
+
 jobs:
   license_check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -44,6 +50,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Echo error
         if: failure()
-        run: echo "::error::${{ steps.license_check_report.outputs.report }}"
+        run: echo "::error::${STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT}"
+        env:
+          STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT: ${{ steps.license_check_report.outputs.report }}
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv

@@ -1,14 +1,15 @@
 name: Claude Review on Maintainer PRs
 
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - ready_for_review
 
 jobs:
   comment:
-    if: github.event.pull_request.draft == false
+    # Only run on PRs that are not drafts and are from the same repository (i.e., not from forks)
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       issues: write

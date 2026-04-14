@@ -5,6 +5,8 @@ on:
     tags:
       - "v3.[0-9]+.[0-9]+" # Semantic version tags
 
+permissions: {}
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -15,5 +17,8 @@ jobs:
           ref: main # Always checkout main even for tagged releases
           fetch-depth: 0
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          persist-credentials: false
       - name: Push to production
-        run: git push origin +main:production
+        run: git push "https://x-access-token:${GH_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" +main:production
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
