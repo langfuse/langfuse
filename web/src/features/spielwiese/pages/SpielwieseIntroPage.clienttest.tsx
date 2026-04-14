@@ -1,8 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
 import SpielwieseIntroPage from "./SpielwieseIntroPage";
 
 const renderIntroPage = () => render(<SpielwieseIntroPage />);
+
+function expectTimelineLocLink({ date, href }: { date: string; href: string }) {
+  const timelineLink = screen.getByRole("link", {
+    name: `loc for ${date}`,
+  });
+
+  expect(timelineLink).toBeTruthy();
+  expect(timelineLink.getAttribute("href")).toBe(href);
+
+  return timelineLink;
+}
 
 it("renders the intro header and roadmap metadata", () => {
   renderIntroPage();
@@ -53,6 +64,12 @@ it("renders the approach and outcome sections", () => {
   expect(
     screen.getByRole("heading", {
       level: 3,
+      name: "Timeline",
+    }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("heading", {
+      level: 3,
       name: "Colophon",
     }),
   ).toBeTruthy();
@@ -84,6 +101,121 @@ it("renders the approach and outcome sections", () => {
       "This page is the framing layer. The next screens are the product layer.",
     ),
   ).toBeNull();
+});
+
+it("renders the timeline tldr and collapsed details trigger", () => {
+  renderIntroPage();
+  const timelineBody = screen.getByTestId(
+    "spielwiese-intro-section-body-timeline",
+  );
+  const timelineDetails = screen.getByTestId(
+    "spielwiese-intro-timeline-details",
+  );
+
+  expect(
+    screen.getByRole("heading", {
+      level: 3,
+      name: "Timeline",
+    }),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      "tldr: intensest work stretch was sat apr 11 to mon apr 13, with 61k loc. that's where the prompt engineering flow, case-study onboarding, and onboarding all came together.",
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText("details")).toBeTruthy();
+  expect(
+    screen.getByTestId("spielwiese-intro-timeline-details-chevron"),
+  ).toBeTruthy();
+  expect(
+    screen
+      .getByTestId("spielwiese-intro-timeline-details-chevron")
+      .getAttribute("class"),
+  ).toContain("transition-[color,transform]");
+  expect(
+    screen
+      .getByTestId("spielwiese-intro-timeline-details-chevron")
+      .getAttribute("class"),
+  ).toContain("-rotate-90");
+  expect(
+    screen
+      .getByTestId("spielwiese-intro-timeline-details-chevron")
+      .getAttribute("class"),
+  ).toContain("group-open/timeline:rotate-0");
+  expect(
+    screen
+      .getByTestId("spielwiese-intro-timeline-details-chevron")
+      .getAttribute("class"),
+  ).toContain("group-hover/timeline-trigger:text-[rgba(0,0,0,0.68)]");
+  expect(
+    screen.getByTestId("spielwiese-intro-timeline-details-trigger").className,
+  ).toContain("group/timeline-trigger");
+  expect(timelineDetails.hasAttribute("open")).toBe(false);
+  expect((timelineBody.firstChild as HTMLElement).className).toContain("gap-0");
+});
+
+it("renders the expanded daily timeline entries", () => {
+  renderIntroPage();
+  const timelineBody = screen.getByTestId(
+    "spielwiese-intro-section-body-timeline",
+  );
+  const timelineDetails = screen.getByTestId(
+    "spielwiese-intro-timeline-details",
+  );
+
+  fireEvent.click(
+    screen.getByTestId("spielwiese-intro-timeline-details-trigger"),
+  );
+
+  expect(timelineDetails.hasAttribute("open")).toBe(true);
+
+  const timelineItems = timelineBody.querySelectorAll(
+    "[data-testid^='spielwiese-intro-timeline-item-']",
+  );
+
+  expect(screen.getByText("tue apr 7")).toBeTruthy();
+  expect(
+    screen.getByText(
+      "built product shell with mock auth & mock apis and routed preview for setting up the workspace workflow based and not feature based.",
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText("16k loc")).toBeTruthy();
+  expect(screen.getByText("tue apr 14")).toBeTruthy();
+  expect(screen.getByText("1k loc")).toBeTruthy();
+  expect(timelineItems[0]?.textContent).toContain("tue apr 7");
+  expect(timelineItems[0]?.textContent).toContain(
+    "built product shell with mock auth & mock apis",
+  );
+  expect(screen.getByText("16k loc").className).toContain(
+    "text-[rgba(0,0,0,0.46)]",
+  );
+  expect(
+    expectTimelineLocLink({
+      date: "tue apr 7",
+      href: "https://github.com/langfuse/langfuse/compare/main...03bac0d44c3a24e3ffc5fe0433b73c732e5bfc29",
+    }).className,
+  ).toContain("border-b");
+  expect(
+    expectTimelineLocLink({
+      date: "tue apr 14",
+      href: "https://github.com/langfuse/langfuse/compare/900ac296111f718b51e6d5bb28e9a2dd35caa125...1067e2def3a67f415eadbbd1546d8d5ab5daab4c",
+    }).className,
+  ).toContain("text-[rgba(0,0,0,0.46)]");
+  expect(
+    expectTimelineLocLink({
+      date: "tue apr 7",
+      href: "https://github.com/langfuse/langfuse/compare/main...03bac0d44c3a24e3ffc5fe0433b73c732e5bfc29",
+    }).className,
+  ).toContain("text-sm/5");
+  expect(
+    expectTimelineLocLink({
+      date: "tue apr 7",
+      href: "https://github.com/langfuse/langfuse/compare/main...03bac0d44c3a24e3ffc5fe0433b73c732e5bfc29",
+    }).parentElement?.className,
+  ).toContain("justify-between");
+  expect(screen.getByText("16k loc").parentElement?.className).toContain(
+    "items-baseline",
+  );
 });
 
 it("renders the colophon links and skills subsection", () => {

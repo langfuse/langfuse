@@ -1,7 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
+import { SpielwieseIntroTimelineEntries } from "../components/SpielwieseIntroTimelineEntries";
+import {
+  type SpielwieseIntroTimelineEntry,
+  spielwieseSetupMomentContent,
+} from "../components/spielwieseSetupMomentContent";
 import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
 
 const introLinkClassName =
@@ -13,6 +17,19 @@ const introSectionTitleClassName =
 const setupMomentImageMarker = "[ image of setup, aha, habit moment ]";
 const videoPlaceholderMarker = "[ video placeholder ]";
 const colophonUrlPattern = /\[([^\]]+)\]/g;
+
+function isCompactIntroSection(title: string) {
+  return title === "Colophon" || title === "Timeline";
+}
+
+function isTimelineSection(
+  section: (typeof spielwieseSetupMomentContent.sections)[number],
+): section is Extract<
+  (typeof spielwieseSetupMomentContent.sections)[number],
+  { timelineEntries: readonly SpielwieseIntroTimelineEntry[] }
+> {
+  return "timelineEntries" in section;
+}
 
 function splitColophonLabel(segment: string): {
   prefix: string;
@@ -149,12 +166,12 @@ function IntroTextItem({
 }
 
 function IntroTextSection({
-  paragraphs,
-  title,
+  section,
 }: {
-  paragraphs: readonly string[];
-  title: string;
+  section: (typeof spielwieseSetupMomentContent.sections)[number];
 }) {
+  const title = section.title;
+
   return (
     <section
       className="grid gap-0 pt-6 first:pt-0"
@@ -169,15 +186,25 @@ function IntroTextSection({
         className="pt-[0.735rem]"
         data-testid={`spielwiese-intro-section-body-${title.toLowerCase()}`}
       >
-        <div className={`grid ${title === "Colophon" ? "gap-0" : "gap-5"}`}>
-          {paragraphs.map((paragraph) => (
-            <IntroTextItem
-              isColophon={title === "Colophon"}
-              key={paragraph}
-              paragraph={paragraph}
-            />
-          ))}
-        </div>
+        {isTimelineSection(section) ? (
+          <SpielwieseIntroTimelineEntries
+            detailsLabel={section.detailsLabel}
+            entries={section.timelineEntries}
+            tldr={section.tldr}
+          />
+        ) : (
+          <div
+            className={`grid ${isCompactIntroSection(title) ? "gap-0" : "gap-5"}`}
+          >
+            {section.paragraphs.map((paragraph) => (
+              <IntroTextItem
+                isColophon={title === "Colophon"}
+                key={paragraph}
+                paragraph={paragraph}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -240,11 +267,7 @@ function IntroArticle() {
       </header>
       <div className="grid gap-0">
         {spielwieseSetupMomentContent.sections.map((section) => (
-          <IntroTextSection
-            key={section.title}
-            paragraphs={section.paragraphs}
-            title={section.title}
-          />
+          <IntroTextSection key={section.title} section={section} />
         ))}
       </div>
     </article>
