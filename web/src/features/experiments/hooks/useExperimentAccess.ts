@@ -11,16 +11,14 @@ function getStorageKey(prefix: string, userId?: string) {
 }
 
 export function useExperimentAccess() {
-  const { data: session, status: sessionStatus } = useSession();
-  const isSessionLoading = sessionStatus === "loading";
+  const { data: session } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4BetaEnabled, canToggleV4 } = useV4Beta();
 
   const userId = session?.user?.id;
 
   // New users (canToggleV4 = false) get experiments beta auto-enabled
-  // Use === true to default to false while session is loading
-  const canToggleV4 = session?.user?.canToggleV4 === true;
+  // Only compute isNewCloudUser after session loads to avoid treating all users as "new" during loading
   const isNewCloudUser = isLangfuseCloud && !canToggleV4;
 
   const { isEnabled: canAccessExperiments } = getExperimentsAccess({
@@ -50,6 +48,5 @@ export function useExperimentAccess() {
     isExperimentsBetaEnabled: effectiveExperimentsBetaEnabled,
     setExperimentsBetaEnabled,
     isV4BetaEnabled,
-    isLoading: isSessionLoading,
   };
 }
