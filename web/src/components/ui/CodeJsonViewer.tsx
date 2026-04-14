@@ -340,10 +340,13 @@ export const JsonSkeleton = ({
   borderless?: boolean;
   className?: string;
 }) => {
+  const isSingleLine = numRows === 1;
+
   return (
     <div
       className={cn(
-        "w-[400px] rounded-md",
+        isSingleLine ? "w-full" : "w-[400px]",
+        "rounded-md",
         borderless ? "" : "border",
         className,
       )}
@@ -353,7 +356,7 @@ export const JsonSkeleton = ({
           <Skeleton
             className={cn(
               "h-4 w-full",
-              i === numRows - 1 ? "w-3/4" : undefined,
+              !isSingleLine && i === numRows - 1 ? "w-3/4" : undefined,
             )}
             key={i}
           />
