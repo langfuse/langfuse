@@ -29,7 +29,6 @@ export interface Step {
 export interface SplashScreenProps {
   title: string;
   description: string;
-  /** Shows a "waiting" status badge above the title */
   waitingFor?: string;
   image?: {
     src: string;
@@ -38,7 +37,6 @@ export interface SplashScreenProps {
     height: number;
   };
   videoSrc?: string;
-  /** Numbered step layout, rendered below the header */
   steps?: Step[];
   valuePropositions?: ValueProposition[];
   primaryAction?: ActionConfig;
