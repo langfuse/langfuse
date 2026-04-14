@@ -51,16 +51,16 @@ import {
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
-import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
+import {
+  EventsObservationRecordReadType,
+  TraceRecordReadType,
+} from "./definitions";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
-import {
-  convertEventsObservation,
-  convertObservation,
-} from "./observations_converters";
+import { convertEventsObservation } from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
@@ -79,7 +79,14 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
->;
+> & {
+  tags?: string[];
+};
+
+type EventsObservationWithPriceAndRawTags = EventsObservation &
+  ObservationPriceFields & {
+    tags?: string[];
+  };
 
 /**
  * Internal helper: enrich observations with model pricing data
@@ -102,14 +109,14 @@ async function enrichObservationsWithModelData(
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: null,
-): Promise<Array<EventsObservation & ObservationPriceFields>>;
+): Promise<Array<EventsObservationWithPriceAndRawTags>>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroup[] | null,
 ): Promise<
-  Array<(EventsObservation & ObservationPriceFields) | EventsObservationPublic>
+  Array<EventsObservationWithPriceAndRawTags | EventsObservationPublic>
 > {
   // Determine if this is V1 (complete) or V2 (partial) API
   const isV2 = Array.isArray(requestedFields);
@@ -163,6 +170,7 @@ async function enrichObservationsWithModelData(
 
     const enriched = {
       ...converted,
+      ...(!isV2 ? { tags: o.tags ?? [] } : {}),
       // Use ClickHouse-calculated latency/timeToFirstToken if available, otherwise use what converter calculated
       latency:
         o.latency !== undefined
@@ -191,20 +199,24 @@ async function enrichObservationsWithModelData(
 }
 
 async function enrichObservationsWithTraceFields(
-  observationRecords: Array<EventsObservation & ObservationPriceFields>,
+  observationRecords: Array<EventsObservationWithPriceAndRawTags>,
 ): Promise<FullEventsObservations> {
-  return observationRecords.map((o) => {
+  return observationRecords.map((observation) => {
+    // Remove raw tags field as this is re-mapped to traceTags
+    const { tags: _tags, ...observationWithoutRawTags } = observation;
     return {
-      ...o,
-      traceTags: [], // TODO pull from PG
+      ...observationWithoutRawTags,
+      traceTags: observation.tags ?? [],
       traceTimestamp: null,
-      toolDefinitions: o.toolDefinitions ?? null,
-      toolCalls: o.toolCalls ?? null,
+      toolDefinitions: observation.toolDefinitions ?? null,
+      toolCalls: observation.toolCalls ?? null,
       // Compute counts from actual data for events table
-      toolDefinitionsCount: o.toolDefinitions
-        ? Object.keys(o.toolDefinitions).length
+      toolDefinitionsCount: observation.toolDefinitions
+        ? Object.keys(observation.toolDefinitions).length
         : null,
-      toolCallsCount: o.toolCalls ? o.toolCalls.length : null,
+      toolCallsCount: observation.toolCalls
+        ? observation.toolCalls.length
+        : null,
     };
   });
 }
@@ -589,6 +601,7 @@ export const getObservationByIdFromEventsTable = async ({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
+  includeTraceTags = true,
 }: {
   id: string;
   projectId: string;
@@ -598,6 +611,7 @@ export const getObservationByIdFromEventsTable = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
+  includeTraceTags?: boolean;
 }) => {
   const records = await getObservationByIdFromEventsTableInternal({
     id,
@@ -609,9 +623,15 @@ export const getObservationByIdFromEventsTable = async ({
     renderingProps,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
-  const mapped = records.map((record) =>
-    convertObservation(record, renderingProps),
-  );
+  const mapped = records.map((record) => {
+    const converted = convertEventsObservation(record, renderingProps, true);
+    return includeTraceTags
+      ? {
+          ...converted,
+          traceTags: record.tags ?? [],
+        }
+      : converted;
+  });
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -682,7 +702,7 @@ async function getObservationByIdFromEventsTableInternal({
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return await queryClickhouse<ObservationRecordReadType>({
+  return await queryClickhouse<EventsObservationRecordReadType>({
     query,
     params,
     tags: {
@@ -1090,12 +1110,19 @@ export const getObservationsFromEventsTableForPublicApi = async (
       projectId,
       queryBuilder,
     );
-  return await enrichObservationsWithModelData(
+
+  const observations = await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
     opts.parseIoAsJson ?? true, // V1 API: default to parsing JSON (backwards compatibility)
     null, // V1 API: no field groups, return complete observations
   );
+
+  return observations.map((observation) => {
+    // Tags should not be returned in the Public API
+    const { tags: _tags, ...observationWithoutRawTags } = observation;
+    return observationWithoutRawTags;
+  });
 };
 
 /**
