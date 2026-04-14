@@ -95,7 +95,7 @@ export function TracesSetupOnboardingCard({
       videoPosition="bottom"
       steps={[
         {
-          title: "Get API keys",
+          title: "Create API keys",
           description:
             "You need API keys before your application can send traces to Langfuse.",
           content: apiKeys ? (
