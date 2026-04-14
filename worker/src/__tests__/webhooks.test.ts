@@ -213,6 +213,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -349,6 +354,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -416,6 +426,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -489,6 +504,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -563,6 +583,11 @@ describe("Webhook Integration Tests", () => {
             prompt: PromptDomainSchema.parse(fullPrompt),
             action: "created",
             type: "prompt-version",
+            user: {
+              id: "user-123",
+              name: "Test User",
+              email: "test@example.com",
+            },
           },
         };
 
@@ -643,6 +668,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -734,6 +764,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -813,6 +848,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -897,6 +937,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -980,6 +1025,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 
@@ -1034,6 +1084,11 @@ describe("Webhook Integration Tests", () => {
           prompt: PromptDomainSchema.parse(fullPrompt),
           action: "created",
           type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
         },
       };
 

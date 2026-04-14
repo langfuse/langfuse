@@ -40,6 +40,10 @@ export class SlackMessageBuilder {
         fields: [
           {
             type: "mrkdwn",
+            text: `*Change author:*\n${payload.user?.name ?? payload.user?.email ?? "API User"}`,
+          },
+          {
+            type: "mrkdwn",
             text: `*Type:*\n${prompt.type}`,
           },
           {
