@@ -34,7 +34,7 @@ describe("SlackMessageBuilder", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
 
-      expect(blocks).toHaveLength(6); // header, main, details, commit, actions, footer
+      expect(blocks).toHaveLength(5); // header, main, details, commit, actions
 
       // Check header block
       expect(blocks[0]).toMatchObject({
@@ -109,17 +109,6 @@ describe("SlackMessageBuilder", () => {
           },
         ],
       });
-
-      // Check footer
-      expect(blocks[5]).toMatchObject({
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: expect.stringMatching(/🕒 .+ \| Langfuse/),
-          },
-        ],
-      });
     });
 
     it("should handle missing optional fields gracefully", () => {
@@ -152,7 +141,7 @@ describe("SlackMessageBuilder", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(minimalPayload);
 
-      expect(blocks).toHaveLength(5); // No commit message section
+      expect(blocks).toHaveLength(4); // No commit message section
 
       // Check "Change author" falls back to email when name is null
       const detailsSection = blocks[2];
@@ -263,7 +252,7 @@ describe("SlackMessageBuilder", () => {
         unknownPayload as any,
       );
 
-      expect(blocks).toHaveLength(2);
+      expect(blocks).toHaveLength(1);
 
       expect(blocks[0]).toMatchObject({
         type: "section",
@@ -272,16 +261,6 @@ describe("SlackMessageBuilder", () => {
           text: "*Langfuse Notification*\nunknown-event event: *triggered*",
         },
       });
-
-      expect(blocks[1]).toMatchObject({
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: expect.stringMatching(/🕒 .+ \| Langfuse/),
-          },
-        ],
-      });
     });
   });
 
@@ -289,8 +268,8 @@ describe("SlackMessageBuilder", () => {
     it("should route prompt-version events to prompt message builder", () => {
       const blocks = SlackMessageBuilder.buildMessage(mockPromptPayload);
 
-      // Should be a full prompt message (6 blocks with commit message)
-      expect(blocks).toHaveLength(6);
+      // Should be a full prompt message (5 blocks with commit message)
+      expect(blocks).toHaveLength(5);
       expect(blocks[0].text.text).toContain("Prompt created");
     });
 
@@ -302,8 +281,8 @@ describe("SlackMessageBuilder", () => {
 
       const blocks = SlackMessageBuilder.buildMessage(unknownPayload as any);
 
-      // Should be a fallback message (2 blocks)
-      expect(blocks).toHaveLength(2);
+      // Should be a fallback message (1 block)
+      expect(blocks).toHaveLength(1);
       expect(blocks[0].text.text).toContain("Langfuse Notification");
     });
 
@@ -318,7 +297,7 @@ describe("SlackMessageBuilder", () => {
       const blocks = SlackMessageBuilder.buildMessage(malformedPayload);
 
       // Should fallback to simple message
-      expect(blocks).toHaveLength(2);
+      expect(blocks).toHaveLength(1);
       expect(blocks[0].text.text).toContain("Langfuse Notification");
     });
   });
