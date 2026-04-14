@@ -185,6 +185,48 @@ describe("SlackMessageBuilder", () => {
       expect(detailsSection.fields[0].text).toBe("*Change author:*\nAPI User");
     });
 
+    it("should escape Slack mrkdwn special characters in user name", () => {
+      const injectionPayload: WebhookInput["payload"] = {
+        action: "created",
+        type: "prompt-version",
+        prompt: { ...mockPromptPayload.prompt },
+        user: {
+          id: "user-123",
+          name: "<!channel>",
+          email: "attacker@example.com",
+        },
+      };
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(injectionPayload);
+
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe(
+        "*Change author:*\n&lt;!channel&gt;",
+      );
+    });
+
+    it("should fall back to email when name is empty string", () => {
+      const emptyNamePayload: WebhookInput["payload"] = {
+        action: "created",
+        type: "prompt-version",
+        prompt: { ...mockPromptPayload.prompt },
+        user: {
+          id: "user-123",
+          name: "",
+          email: "alice@example.com",
+        },
+      };
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(emptyNamePayload);
+
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe(
+        "*Change author:*\nalice@example.com",
+      );
+    });
+
     it("should generate correct action emojis for different actions", () => {
       const testCases = [
         { action: "created", expectedEmoji: "✨" },
