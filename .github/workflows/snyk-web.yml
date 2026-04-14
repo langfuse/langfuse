@@ -53,5 +53,5 @@ jobs:
           sarif_file: snyk.sarif
           category: snyk-container-web
       - name: Echo SARIF file for debugging
-        if: failure()
+        if: failure() && hashFiles('snyk.sarif') != ''
         run: cat snyk.sarif
