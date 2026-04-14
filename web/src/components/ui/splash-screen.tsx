@@ -45,7 +45,6 @@ export interface SplashScreenProps {
   secondaryAction?: ActionConfig;
   gettingStarted?: string | React.ReactNode;
   children?: React.ReactNode;
-  className?: string;
   /** Where to render the video. Defaults to "top" (after header, before content) */
   videoPosition?: "top" | "bottom";
 }
