@@ -146,8 +146,6 @@ const getMinTimestampForExport = async (
  */
 const getFrequencyIntervalMs = (frequency: string): number => {
   switch (frequency) {
-    case "every_5_minutes":
-      return 5 * 60 * 1000; // 5 minutes
     case "every_20_minutes":
       return 20 * 60 * 1000; // 20 minutes
     case "hourly":
@@ -370,7 +368,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   );
 
   const now = new Date();
-  const uncappedMaxTimestamp = new Date(now.getTime() - 30 * 60 * 1000); // 30-minute lag buffer
+  const uncappedMaxTimestamp = new Date(now.getTime() - 20 * 60 * 1000); // 20-minute lag buffer
   const frequencyIntervalMs = getFrequencyIntervalMs(
     blobStorageIntegration.exportFrequency,
   );

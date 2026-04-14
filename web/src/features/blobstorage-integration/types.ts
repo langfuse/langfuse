@@ -22,7 +22,6 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .optional()
     .or(z.literal("")),
   exportFrequency: z.enum([
-    "every_5_minutes",
     "every_20_minutes",
     "hourly",
     "daily",
