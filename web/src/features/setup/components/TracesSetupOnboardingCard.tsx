@@ -97,7 +97,7 @@ export function TracesSetupOnboardingCard({
         {
           title: "Create API keys",
           description:
-            "You need API keys before your application can send traces to Langfuse.",
+            "Your application needs API keys to send traces to Langfuse.",
           content: apiKeys ? (
             <ApiKeyRender
               generatedKeys={apiKeys}
