@@ -1,12 +1,10 @@
 import type { AnimationEvent, ReactNode } from "react";
-import { preventInertOnboardingClick } from "./SpielwieseOnboardingFooter";
 import {
   type RoleStepScene,
   SpielwieseOnboardingQuestionPanel,
 } from "./SpielwieseOnboardingQuestionPanel";
 import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
-import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
 import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 
@@ -27,14 +25,6 @@ function OnboardingStepProgressOverlay({
         className={`pointer-events-none absolute inset-x-0 top-0 opacity-100 transition-opacity duration-[320ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${isTransitioningOut ? "opacity-0" : ""}`}
       >
         <SpielwieseOnboardingProgress value={value} />
-      </div>
-      <div
-        className="absolute inset-x-0 top-6 flex justify-center sm:top-7"
-        data-testid="spielwiese-onboarding-step-wordmark-shell"
-      >
-        <SpielwieseOnboardingWordmarkButton
-          onClick={preventInertOnboardingClick}
-        />
       </div>
     </>
   );
@@ -190,7 +180,6 @@ type SpielwieseOnboardingStepSceneProps = {
   showsUpperCanvas: boolean;
 };
 
-// eslint-disable-next-line max-lines-per-function
 export function SpielwieseOnboardingStepScene({
   activeAnswer,
   activeQuestionId,
@@ -213,14 +202,11 @@ export function SpielwieseOnboardingStepScene({
   roleScene,
   showsUpperCanvas,
 }: SpielwieseOnboardingStepSceneProps) {
-  const minHeight = getOnboardingStepShellMinHeight(showsUpperCanvas);
-  const resolvedQuestionActive = isQuestionActive ?? !isStepTransitioningOut;
-
   return (
     <OnboardingStepSurfaceFrame
       activeQuestionId={activeQuestionId}
       isTransitioningOut={isStepTransitioningOut}
-      minHeight={minHeight}
+      minHeight={getOnboardingStepShellMinHeight(showsUpperCanvas)}
       showsUpperCanvas={showsUpperCanvas}
     >
       <div
@@ -243,7 +229,7 @@ export function SpielwieseOnboardingStepScene({
           handleRoleModelChange={handleRoleModelChange}
           handleRoleSystemPromptChange={handleRoleSystemPromptChange}
           handleSelect={handleSelect}
-          isQuestionActive={resolvedQuestionActive}
+          isQuestionActive={isQuestionActive ?? !isStepTransitioningOut}
           roleApiKeyValue={roleApiKeyValue}
           roleHandoffTransition={roleHandoffTransition}
           roleModelValue={roleModelValue}

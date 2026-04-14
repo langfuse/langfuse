@@ -2,6 +2,8 @@ import type { TransitionEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/router";
 import SpielwieseOnboardingEntryCard from "../onboarding/components/SpielwieseOnboardingEntryCard";
+import { preventInertOnboardingClick } from "../onboarding/components/SpielwieseOnboardingFooter";
+import SpielwieseOnboardingWordmarkButton from "../onboarding/components/SpielwieseOnboardingWordmark";
 import {
   appendCurrentSearchParams,
   getOnboardingStepPath,
@@ -16,6 +18,21 @@ type SpielwieseOnboardingPageProps = {
 };
 
 type EntryStep = "personal-details" | "sign-up";
+
+function OnboardingWordmarkOverlay() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-6 z-20 flex justify-center sm:top-7"
+      data-testid="spielwiese-onboarding-wordmark-shell"
+    >
+      <div className="pointer-events-auto">
+        <SpielwieseOnboardingWordmarkButton
+          onClick={preventInertOnboardingClick}
+        />
+      </div>
+    </div>
+  );
+}
 
 function getEntryStep(stepId: string | undefined): EntryStep | null {
   if (!stepId) {
@@ -95,10 +112,11 @@ export default function SpielwieseOnboardingPage({
 
   return (
     <div
-      className="bg-background min-h-screen-with-banner isolate [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
+      className="bg-background min-h-screen-with-banner relative isolate [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
       style={spielwieseLightThemeStyle}
     >
+      <OnboardingWordmarkOverlay />
       {entryStep ? (
         <EntryScene
           isTransitioningOut={isTransitioningOut}

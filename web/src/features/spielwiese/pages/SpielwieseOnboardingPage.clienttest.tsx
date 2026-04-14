@@ -269,6 +269,47 @@ describe("SpielwieseOnboardingPage personal details transition", () => {
   });
 });
 
+describe("SpielwieseOnboardingPage wordmark continuity", () => {
+  it("keeps the same wordmark mounted across the personal details to role handoff", () => {
+    const { rerender } = render(
+      <SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />,
+    );
+
+    const wordmarkShellBefore = screen.getByTestId(
+      "spielwiese-onboarding-wordmark-shell",
+    );
+    const wordmarkButtonBefore = screen.getByRole("button", {
+      name: "Langfuse",
+    });
+
+    expect(
+      screen
+        .getByTestId("spielwiese-onboarding-entry-layer")
+        .contains(wordmarkShellBefore),
+    ).toBe(false);
+
+    asPath = getOnboardingStepPath("role");
+    mockRouter();
+    rerender(<SpielwieseOnboardingPage stepId="role" />);
+
+    const wordmarkShellAfter = screen.getByTestId(
+      "spielwiese-onboarding-wordmark-shell",
+    );
+    const wordmarkButtonAfter = screen.getByRole("button", {
+      name: "Langfuse",
+    });
+
+    expect(screen.getByTestId("spielwiese-onboarding-step")).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("spielwiese-onboarding-step")
+        .contains(wordmarkShellAfter),
+    ).toBe(false);
+    expect(wordmarkShellAfter).toBe(wordmarkShellBefore);
+    expect(wordmarkButtonAfter).toBe(wordmarkButtonBefore);
+  });
+});
+
 describe("SpielwieseOnboardingPage personal details compatibility", () => {
   it("still supports the legacy personal details step slug", () => {
     render(<SpielwieseOnboardingPage stepId={PERSONAL_DETAILS_STEP_ID} />);

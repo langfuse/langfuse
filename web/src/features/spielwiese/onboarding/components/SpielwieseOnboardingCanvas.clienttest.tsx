@@ -101,18 +101,6 @@ function expectNoLegacyQuestionnaireChrome() {
 }
 
 function expectSharedChromeOutsideStepLayer() {
-  const stepLayer = getStepLayer();
-  const wordmarkButton = screen.getByRole("button", { name: "Langfuse" });
-  const wordmarkShell = screen.getByTestId(
-    "spielwiese-onboarding-step-wordmark-shell",
-  );
-
-  expect(stepLayer.contains(wordmarkButton)).toBe(false);
-  expect(wordmarkShell.className).not.toContain(
-    "transition-[opacity,transform,filter]",
-  );
-  expect(wordmarkShell.className).not.toContain("will-change-auto");
-  expect(wordmarkShell.className).not.toContain("[transition-delay:0ms]");
   expect(
     screen.queryByRole("button", {
       name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",

@@ -2,11 +2,7 @@ import type { FormEvent, MouseEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { Mail } from "lucide-react";
-import {
-  preventInertOnboardingClick,
-  SpielwieseOnboardingFooter,
-} from "./SpielwieseOnboardingFooter";
-import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
+import { SpielwieseOnboardingFooter } from "./SpielwieseOnboardingFooter";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import {
   SpielwiesePersonalDetailsPanels,
@@ -261,11 +257,7 @@ export default function SpielwieseOnboardingEntryCard({
   return (
     <SpielwieseOnboardingSurface
       footer={<SpielwieseOnboardingFooter />}
-      header={
-        <SpielwieseOnboardingWordmarkButton
-          onClick={preventInertOnboardingClick}
-        />
-      }
+      header={<div aria-hidden="true" className="h-8" />}
       pauseShaderMotion={isPersonalDetails}
       showShader
       testId={
