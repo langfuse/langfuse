@@ -437,6 +437,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.3), // Probability for recording sharded queue depth metrics
 });
 
 export const env: z.infer<typeof EnvSchema> =
