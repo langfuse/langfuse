@@ -6,8 +6,6 @@ on:
       - main
   workflow_dispatch:
 
-permissions: {}
-
 jobs:
   rebase-dependabot:
     runs-on: ubuntu-latest
