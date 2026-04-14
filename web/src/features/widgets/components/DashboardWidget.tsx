@@ -195,7 +195,7 @@ export function DashboardWidget({
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4BetaEnabled: isBetaEnabled,
+        isV4Enabled: isBetaEnabled,
         version: metricsVersion,
       }),
       enabled:
@@ -209,7 +209,7 @@ export function DashboardWidget({
     errorMessage: queryResult.error,
   });
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4BetaEnabled: isBetaEnabled,
+    isV4Enabled: isBetaEnabled,
     version: metricsVersion,
   });
   const loadingStateLayout =

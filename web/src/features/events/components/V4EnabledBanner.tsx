@@ -16,7 +16,7 @@ const DISMISSED_STORAGE_KEY = "v4-beta-enabled-banner:v1:dismissed";
 const V4_BETA_BANNER_ID = "v4-beta-enabled-banner";
 const V4_BETA_BANNER_ORDER = 20;
 
-export function V4BetaEnabledBanner() {
+export function V4EnabledBanner() {
   const session = useSession();
   const { isBetaEnabled } = useV4Beta();
   const { getTopBannerOffset } = useTopBanner();

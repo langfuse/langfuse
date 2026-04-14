@@ -64,6 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -550,7 +551,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -695,6 +696,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
@@ -723,6 +725,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          const isCloudDeployment = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
 
           return {
             ...session,
@@ -745,7 +750,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    v4BetaEnabled: isCloudDeployment
+                      ? dbUser.v4BetaEnabled
+                      : false,
+                    canToggleV4: isCloudDeployment
+                      ? canToggleV4({
+                          userCreatedAt: dbUser.createdAt,
+                          organizations: dbUser.organizationMemberships.map(
+                            (orgMembership) => ({
+                              id: orgMembership.organization.id,
+                              createdAt: orgMembership.organization.createdAt,
+                            }),
+                          ),
+                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                            : [],
+                        })
+                      : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
