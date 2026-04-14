@@ -111,7 +111,10 @@ export function SplashScreen({
 
   return (
     <div
-      className={cn("mx-auto flex max-w-4xl flex-col items-center p-8", className)}
+      className={cn(
+        "mx-auto flex max-w-4xl flex-col items-center p-8",
+        className,
+      )}
     >
       <div className="mb-6 text-center">
         {waitingFor && (
