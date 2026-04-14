@@ -1,5 +1,6 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 export interface EvalCapabilities {
   isNewCompatible: boolean;
   allowLegacy: boolean;
@@ -19,7 +20,8 @@ const mockOtelStatus = {
  * @returns Capabilities object indicating which eval features are allowed
  */
 export function useEvalCapabilities(projectId: string): EvalCapabilities {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const isSessionLoading = sessionStatus === "loading";
 
   // Query OTEL SDK status
   const { isOtel, isPropagating } = mockOtelStatus;
@@ -28,17 +30,19 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
   const evalCounts = api.evals.counts.useQuery({ projectId });
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
 
-  // New users (canToggleV4 = false) should not see legacy options unless they have existing legacy evals
-  // Default to true for non-cloud deployments to show legacy options
-  const canToggleV4 = session?.user?.canToggleV4 ?? true;
+  // Only hide legacy options for new cloud users (canToggleV4 = false)
+  // Non-cloud deployments always see legacy options
+  // Use === true to default to false while session is loading, preventing flash of legacy options
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const canToggleV4 = session?.user?.canToggleV4 === true;
 
   return {
     isNewCompatible: isOtel,
-    // Allow legacy evals if user already has them OR if they can toggle v4 (existing users)
-    allowLegacy: hasLegacyEvals || canToggleV4,
+    // Allow legacy if: not cloud OR user has legacy evals OR user can toggle v4 (existing user)
+    allowLegacy: !isLangfuseCloud || hasLegacyEvals || canToggleV4,
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
-    isLoading: evalCounts.isLoading,
+    isLoading: evalCounts.isLoading || isSessionLoading,
     hasLegacyEvals,
   };
 }
