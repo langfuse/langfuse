@@ -33,6 +33,7 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
   // Only hide legacy options for new cloud users (canToggleV4 = false)
   // Non-cloud deployments always see legacy options
   // Use === true to default to false while session is loading, preventing flash of legacy options
+  // New users (canToggleV4 = false) default to observation-level evals regardless of v3/v4
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const canToggleV4 = session?.user?.canToggleV4 === true;
 
