@@ -32,7 +32,11 @@ jobs:
         run: |
           if [ -f snyk.sarif ]; then
             # GitHub rejects non-numeric security-severity values such as "undefined" and "null".
-            node scripts/normalize-snyk-sarif.mjs snyk.sarif
+            sed -i \
+              -e 's/"security-severity": "undefined"/"security-severity": "0"/g' \
+              -e 's/"security-severity": "null"/"security-severity": "0"/g' \
+              -e 's/"security-severity": null/"security-severity": "0"/g' \
+              snyk.sarif
           else
             echo "No SARIF file found"
           fi
