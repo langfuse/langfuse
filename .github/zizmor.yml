@@ -1,0 +1,23 @@
+rules:
+  secrets-outside-env:
+    config:
+      allow:
+        # Shared read-only CI credentials used to avoid Docker Hub rate limits in test jobs.
+        - DOCKERHUB_USERNAME_READ
+        - DOCKERHUB_TOKEN_READ
+        # Shared integration-test credentials intentionally kept together for the multi-provider LLM connection test job.
+        - LANGFUSE_LLM_CONNECTION_OPENAI_KEY
+        - LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY
+        - LANGFUSE_LLM_CONNECTION_AZURE_KEY
+        - LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL
+        - LANGFUSE_LLM_CONNECTION_AZURE_MODEL
+        - LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID
+        - LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY
+        - LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY
+        - LANGFUSE_LLM_CONNECTION_BEDROCK_REGION
+        - LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY
+        - LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY
+        # Shared CI notification secret, not tied to a deployment environment.
+        - SLACK_WEBHOOK_URL
+        # Fern token is generation-only; GitHub write actions are handled by GH_ACCESS_TOKEN in a protected environment.
+        - FERN_TOKEN
