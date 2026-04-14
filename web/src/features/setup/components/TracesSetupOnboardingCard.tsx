@@ -49,11 +49,7 @@ function CopyableSnippet({
         className="shrink-0 gap-2"
         onClick={() => void handleCopy()}
       >
-        {copied ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <Copy className="h-4 w-4" />
-        )}
+        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         {copied ? "Copied" : "Copy prompt"}
       </Button>
     </div>
