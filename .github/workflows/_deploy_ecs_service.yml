@@ -10,6 +10,15 @@ on:
         type: string
         description: Name of the service to be deployed, e.g. web-ingestion, web, or worker.
         required: true
+    # Environment secrets don't auto-resolve in reusable workflows.
+    # See: https://github.com/actions/runner/issues/3206
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      SENTRY_AUTH_TOKEN:
+        required: false
 jobs:
   ecs-deploy:
     runs-on: blacksmith-4vcpu-ubuntu-2404
