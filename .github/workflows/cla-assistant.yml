@@ -9,6 +9,8 @@ on:
   issue_comment:
     types: [created]
 
+permissions: {}
+
 jobs:
   retrigger_cla:
     # Only run on PR comments (not issue comments) with the /check-cla command

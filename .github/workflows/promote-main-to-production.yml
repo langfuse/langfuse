@@ -12,6 +12,8 @@ concurrency:
   group: promote-main-to-production
   cancel-in-progress: false
 
+permissions: {}
+
 jobs:
   promote:
     runs-on: ubuntu-latest
@@ -19,16 +21,19 @@ jobs:
     steps:
       - name: Validate confirmation
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "promote" ]; then
+          if [ "${INPUT_CONFIRM}" != "promote" ]; then
             echo "Input 'confirm' must be 'promote'."
             exit 1
           fi
+        env:
+          INPUT_CONFIRM: ${{ github.event.inputs.confirm }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: main
           fetch-depth: 0
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          persist-credentials: false
 
       - name: Print commit refs
         run: |
@@ -41,4 +46,6 @@ jobs:
           fi
 
       - name: Force push main to production
-        run: git push origin +main:production
+        run: git push "https://x-access-token:${GH_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" +main:production
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
