@@ -99,33 +99,33 @@ export function TracesSetupOnboardingCard({
 
   return (
     <section className={cn("bg-background", className)}>
-      <div className="mx-auto flex max-w-4xl flex-col px-6 py-8 sm:px-10 sm:py-10">
-        <div className="mb-10 text-left">
+      <div className="mx-auto flex max-w-4xl flex-col px-6 py-5 sm:px-10 sm:py-6">
+        <div className="mb-6 text-left">
           <StatusBadge
             type="waiting"
             showText={false}
-            className="mb-4 px-3 py-1.5 text-sm"
+            className="mb-3 px-3 py-1 text-sm"
           >
             Waiting for first trace
           </StatusBadge>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Time to log your first trace, it only takes a minute
           </h2>
-          <p className="text-muted-foreground mt-4 max-w-3xl text-lg leading-8">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-base leading-7">
             Get your API keys first, then ask your coding agent to add
             observability with Langfuse to your application.
           </p>
         </div>
 
-        <div className="w-full max-w-4xl space-y-8">
+        <div className="w-full max-w-4xl space-y-5">
           <div className="text-left">
-            <div className="mb-3 flex items-center gap-3">
-              <span className="text-muted-foreground text-3xl font-light">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="text-muted-foreground text-2xl font-light">
                 1
               </span>
-              <h3 className="text-2xl font-semibold">Get API keys</h3>
+              <h3 className="text-xl font-semibold">Get API keys</h3>
             </div>
-            <p className="text-muted-foreground text-base leading-7">
+            <p className="text-muted-foreground text-sm leading-6">
               You need API keys before your application can send traces to
               Langfuse.
             </p>
@@ -133,10 +133,10 @@ export function TracesSetupOnboardingCard({
               <ApiKeyRender
                 generatedKeys={apiKeys}
                 scope="project"
-                className="mt-4"
+                className="mt-3"
               />
             ) : (
-              <div className="mt-4 flex flex-col gap-4">
+              <div className="mt-3 flex flex-col gap-3">
                 <div className="flex flex-wrap gap-2">
                   {hasApiKeyCreateAccess ? (
                     <Button
@@ -166,12 +166,12 @@ export function TracesSetupOnboardingCard({
             )}
           </div>
 
-          <div className="border-border border-t pt-8 text-left">
-            <div className="mb-3 flex items-center gap-3 text-left">
-              <span className="text-muted-foreground text-3xl font-light">
+          <div className="border-border border-t pt-5 text-left">
+            <div className="mb-2 flex items-center gap-3 text-left">
+              <span className="text-muted-foreground text-2xl font-light">
                 2
               </span>
-              <h3 className="text-2xl font-semibold">
+              <h3 className="text-xl font-semibold">
                 Add tracing with your coding agent
               </h3>
               <Badge variant="tertiary" className="gap-1">
@@ -179,11 +179,11 @@ export function TracesSetupOnboardingCard({
                 Recommended
               </Badge>
             </div>
-            <p className="text-muted-foreground text-base leading-7">
+            <p className="text-muted-foreground text-sm leading-6">
               Paste this prompt into Claude, Cursor, Copilot, or another coding
               agent.
             </p>
-            <div className="mt-6 w-full max-w-4xl">
+            <div className="mt-4 w-full max-w-4xl">
               <CopyableSnippet
                 value={SKILLS_INSTALL_COMMAND}
                 onCopy={() =>
@@ -194,7 +194,7 @@ export function TracesSetupOnboardingCard({
               />
             </div>
 
-            <div className="mt-5 w-full max-w-4xl text-center">
+            <div className="mt-3 w-full max-w-4xl text-center">
               <Link
                 href={MANUAL_TRACING_DOCS_URL}
                 target="_blank"
