@@ -15,26 +15,29 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # master
+        with:
+          snyk-version: v1.1304.0
       - name: Run Snyk to check Docker image for vulnerabilities
         # Snyk can be used to break the build when it detects vulnerabilities.
         # In this case we want to upload the issues to GitHub Code Scanning
         continue-on-error: true
-        uses: snyk/actions/docker@9adf32b1121593767fc3c057af55b55db032dc04 # master
         env:
           # In order to use the Snyk Action you will need to have a Snyk API token.
           # See https://docs.snyk.io/integrations/ci-cd-integrations/github-actions-integration#getting-your-snyk-token
           # or you can sign up for free at https://snyk.io/login
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: langfuse/langfuse
-          args: --sarif-file-output=snyk.sarif
-      - name: Fix SARIF file
+        run: |
+          snyk container test langfuse/langfuse \
+            --file=web/Dockerfile \
+            --sarif-file-output=snyk.sarif
+      - name: Normalize SARIF file
         if: always()
         run: |
           if [ -f snyk.sarif ]; then
-            # Fix undefined security severity values in SARIF file
-            sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
-            echo "SARIF file fixed"
+            # GitHub rejects non-numeric security-severity values such as "undefined" and "null".
+            node scripts/normalize-snyk-sarif.mjs snyk.sarif
           else
             echo "No SARIF file found"
           fi
@@ -53,3 +56,4 @@ jobs:
         if: always()
         with:
           sarif_file: snyk.sarif
+          category: snyk-container-web
