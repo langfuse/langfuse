@@ -69,6 +69,7 @@ export const upsertManagedEvaluators = async (force = false) => {
         version: evaluator.version,
         outputDefinition: evaluator.outputDefinition,
         prompt: evaluator.prompt,
+        vars: parsePromptVariables(evaluator.prompt),
         updatedAt: evaluator.updated_at,
       };
 
@@ -83,7 +84,6 @@ export const upsertManagedEvaluators = async (force = false) => {
             id: evaluator.id,
             projectId: null,
             updatedAt: evaluator.updated_at,
-            vars: parsePromptVariables(evaluator.prompt),
           },
         })
         .then(() =>
