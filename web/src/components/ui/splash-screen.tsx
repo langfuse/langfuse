@@ -88,7 +88,6 @@ export function SplashScreen({
   secondaryAction,
   gettingStarted,
   children,
-  className,
   videoPosition = "top",
 }: SplashScreenProps) {
   const mediaBlock = (
@@ -109,12 +108,7 @@ export function SplashScreen({
   );
 
   return (
-    <div
-      className={cn(
-        "mx-auto flex max-w-4xl flex-col items-center p-8",
-        className,
-      )}
-    >
+    <div className="mx-auto flex max-w-4xl flex-col items-center p-8">
       <div className="mb-6 text-center">
         {waitingFor && (
           <StatusBadge
