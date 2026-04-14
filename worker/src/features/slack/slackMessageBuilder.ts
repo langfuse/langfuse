@@ -101,16 +101,6 @@ export class SlackMessageBuilder {
             },
           ]
         : []),
-      // Footer with timestamp
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `🕒 ${new Date().toLocaleString()} | Langfuse`,
-          },
-        ],
-      },
     ];
 
     return blocks;
@@ -127,15 +117,6 @@ export class SlackMessageBuilder {
           type: "mrkdwn",
           text: `*Langfuse Notification*\n${payload.type} event: *${payload.action}*`,
         },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `🕒 ${new Date().toLocaleString()} | Langfuse`,
-          },
-        ],
       },
     ];
   }
