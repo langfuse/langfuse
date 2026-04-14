@@ -57,10 +57,8 @@ function CopyableSnippet({
 }
 
 export function TracesSetupOnboardingCard({
-  className,
   projectId,
 }: {
-  className?: string;
   projectId: string;
 }) {
   const capture = usePostHogClientCapture();
@@ -90,7 +88,6 @@ export function TracesSetupOnboardingCard({
 
   return (
     <SplashScreen
-      className={className}
       waitingFor="Waiting for first trace"
       title="Time to log your first trace, it only takes a minute"
       description="Get your API keys first, then ask your coding agent to add observability with Langfuse to your application."
