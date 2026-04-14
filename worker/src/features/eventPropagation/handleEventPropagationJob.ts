@@ -141,6 +141,7 @@ export const handleEventPropagationJob = async (
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+          and project_id != 'cmbktgdyf0059ad07yexqm2gp'
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -291,6 +292,7 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
+        AND obs.project_id != 'cmbktgdyf0059ad07yexqm2gp'
       `,
       tags: {
         feature: "ingestion",
