@@ -32,24 +32,20 @@ jobs:
         if: always()
         run: |
           if [ -f snyk.sarif ]; then
-            # Fix undefined security severity values in SARIF file
+            # Snyk emits invalid security-severity values ("undefined", "null").
+            # codeql-action/upload-sarif requires a numeric string.
+            # See: https://github.com/github/codeql-action/issues/2187#issuecomment-3708019503
             sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
+            sed -i 's/"security-severity": "null"/"security-severity": "0"/g' snyk.sarif
             echo "SARIF file fixed"
           else
             echo "No SARIF file found"
-          fi
-      - name: Echo SARIF file for debugging
-        if: always()
-        run: |
-          if [ -f snyk.sarif ]; then
-            echo "=== SARIF File Contents ==="
-            cat snyk.sarif
-            echo "=== End of SARIF File ==="
-          else
-            echo "No SARIF file found to display"
           fi
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
         if: always()
         with:
           sarif_file: snyk.sarif
+      - name: Echo SARIF file for debugging
+        if: failure()
+        run: cat snyk.sarif
