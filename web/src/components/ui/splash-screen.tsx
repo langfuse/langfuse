@@ -121,31 +121,29 @@ export function SplashScreen({
         <p className="text-muted-foreground">{description}</p>
       </div>
 
-      {(primaryAction || secondaryAction) && (
-        <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
-          {primaryAction &&
-            (primaryAction.component || (
-              <ActionButton
-                size="lg"
-                onClick={primaryAction.onClick}
-                href={primaryAction.href}
-              >
-                {primaryAction.label}
-              </ActionButton>
-            ))}
-          {secondaryAction &&
-            (secondaryAction.component || (
-              <ActionButton
-                variant="outline"
-                size="lg"
-                onClick={secondaryAction.onClick}
-                href={secondaryAction.href}
-              >
-                {secondaryAction.label}
-              </ActionButton>
-            ))}
-        </div>
-      )}
+      <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
+        {primaryAction &&
+          (primaryAction.component || (
+            <ActionButton
+              size="lg"
+              onClick={primaryAction.onClick}
+              href={primaryAction.href}
+            >
+              {primaryAction.label}
+            </ActionButton>
+          ))}
+        {secondaryAction &&
+          (secondaryAction.component || (
+            <ActionButton
+              variant="outline"
+              size="lg"
+              onClick={secondaryAction.onClick}
+              href={secondaryAction.href}
+            >
+              {secondaryAction.label}
+            </ActionButton>
+          ))}
+      </div>
 
       {gettingStarted && (
         <Alert className="w-full max-w-3xl">

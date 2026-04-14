@@ -39,7 +39,7 @@ function CopyableSnippet({
   };
 
   return (
-    <div className="bg-muted/50 flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-xs">
+    <div className="bg-muted/50 flex items-center gap-4 rounded-2xl border p-5 shadow-xs">
       <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
         {value}
       </code>
