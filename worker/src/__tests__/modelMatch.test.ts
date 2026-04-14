@@ -1,15 +1,62 @@
-import { expect, describe, it } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import {
-  findModel,
-  findModelInPostgres,
-  getRedisModelKey,
-  clearModelCacheForProject,
-} from "@langfuse/shared/src/server";
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { prisma } from "../../../packages/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 
+type SharedServerModule = typeof import("../../../packages/shared/src/server");
+
+let createOrgProjectAndApiKey: SharedServerModule["createOrgProjectAndApiKey"];
+let redis: SharedServerModule["redis"];
+let clearModelMatchLocalCache: SharedServerModule["clearModelMatchLocalCache"];
+let findModel: SharedServerModule["findModel"];
+let findModelInPostgres: SharedServerModule["findModelInPostgres"];
+let getRedisModelKey: SharedServerModule["getRedisModelKey"];
+let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
+
+const originalLocalCacheSetting =
+  process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
+
 describe("modelMatch", () => {
+  beforeAll(async () => {
+    process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED = "true";
+    vi.resetModules();
+
+    const sharedServer: SharedServerModule =
+      await import("../../../packages/shared/src/server");
+
+    ({
+      createOrgProjectAndApiKey,
+      redis,
+      clearModelMatchLocalCache,
+      findModel,
+      findModelInPostgres,
+      getRedisModelKey,
+      clearModelCacheForProject,
+    } = sharedServer);
+  });
+
+  afterAll(() => {
+    if (originalLocalCacheSetting === undefined) {
+      delete process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
+    } else {
+      process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED =
+        originalLocalCacheSetting;
+    }
+
+    vi.resetModules();
+  });
+
+  beforeEach(() => {
+    clearModelMatchLocalCache();
+  });
+
   describe("findModel", () => {
     it("should return model with prices from Redis if available", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
@@ -47,7 +94,7 @@ describe("modelMatch", () => {
         model: "gpt-4",
       });
 
-      // Now find it again - should come from Redis
+      // Now find it again - it should come from cache without changing the result
       const result = await findModel({
         projectId,
         model: "gpt-4",
@@ -143,6 +190,51 @@ describe("modelMatch", () => {
       });
       const cachedValue = await redis?.get(redisKey);
       expect(cachedValue).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
+    });
+
+    it("should serve models from the local cache after the Redis entry is deleted", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const model = await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4o",
+          matchPattern: "gpt-4o",
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({ projectId, model: "gpt-4o" });
+
+      const redisKey = getRedisModelKey({ projectId, model: "gpt-4o" });
+      await redis?.del(redisKey);
+
+      const result = await findModel({ projectId, model: "gpt-4o" });
+
+      expect(result.model?.id).toBe(model.id);
+      expect(await redis?.get(redisKey)).toBeNull();
+    });
+
+    it("should locally cache not-found models for a short time", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const modelName = "new-model-after-cache";
+
+      await findModel({ projectId, model: modelName });
+
+      const redisKey = getRedisModelKey({ projectId, model: modelName });
+      await redis?.del(redisKey);
+
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+        },
+      });
+
+      const result = await findModel({ projectId, model: modelName });
+
+      expect(result.model).toBeNull();
     });
   });
 

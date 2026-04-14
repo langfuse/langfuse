@@ -3,11 +3,18 @@ on:
   push:
     branches: ["production", "main"]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   snyk:
     runs-on: ubuntu-latest
+    environment: snyk
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Run Snyk to check Docker image for vulnerabilities
         # Snyk can be used to break the build when it detects vulnerabilities.
         # In this case we want to upload the issues to GitHub Code Scanning
