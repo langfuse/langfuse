@@ -12,6 +12,7 @@ import {
   getModelPickerAnimationStyle,
   SpielwieseModelPickerContents,
   spielwieseModelPickerPanelClassName,
+  spielwieseModelPickerPanelStyle,
   type SpielwieseModelPickerProps,
 } from "./SpielwieseModelPicker";
 import { SpielwieseModelProviderMark } from "./SpielwieseModelProviderMark";
@@ -317,6 +318,7 @@ export function SpielwieseAgentNodeTitleControlContent({
           keepMounted={isOnboardingPickerStep}
           role="dialog"
           style={{
+            ...spielwieseModelPickerPanelStyle,
             ...getModelPickerAnimationStyle({
               valueMs: pickerPanelProps.popoverAnimationDelayMs,
               variableName: "--spielwiese-picker-open-delay",

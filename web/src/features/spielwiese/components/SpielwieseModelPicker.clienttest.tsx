@@ -46,6 +46,9 @@ function renderModelPickerPanel({
 function expectDefaultPickerChrome() {
   const panel = screen.getByRole("dialog", { name: "Model picker" });
   const grid = screen.getByTestId("spielwiese-model-picker-grid");
+  const openAiProviderButton = within(panel).getByRole("button", {
+    name: "OpenAI",
+  });
   const recommendButton = within(panel).getByRole("button", {
     name: "Recommend model",
   });
@@ -62,6 +65,7 @@ function expectDefaultPickerChrome() {
   expectDefaultPickerAnimationChrome(panel);
   expect(panel.className).toContain("data-[side=bottom]:slide-in-from-top-1");
   expect(panel.className).toContain("overflow-visible");
+  expect(panel.className).toContain("text-foreground");
   expect(panel.className).not.toContain("overflow-hidden");
   expect(panel.className).not.toContain("overflow-auto");
   expect(panel.className).not.toContain(
@@ -77,12 +81,16 @@ function expectDefaultPickerChrome() {
   expect(grid.className).toContain(
     "rounded-[var(--spielwiese-picker-inner-radius)]",
   );
-  expect(within(panel).getByRole("button", { name: "OpenAI" })).toBeTruthy();
+  expect(openAiProviderButton).toBeTruthy();
+  expect(openAiProviderButton.className).toContain("text-foreground");
   expect(within(panel).queryByText("Models")).toBeNull();
   expect(within(panel).queryByText("Benchmarks")).toBeNull();
   expect(within(panel).queryByText("Providers")).toBeNull();
   expect(within(panel).queryByRole("button", { name: "GPT-5.4" })).toBeNull();
   expect(within(panel).queryByText(/Frontier general-purpose/i)).toBeNull();
+  expect(panel.style.colorScheme).toBe("light");
+  expect(panel.style.getPropertyValue("--background")).toBe("0 0% 100%");
+  expect(panel.style.getPropertyValue("--foreground")).toBe("222.2 84% 4.9%");
   expect(recommendButton.className).toContain("bg-background/88");
   expect(recommendButton.className).toContain("text-foreground/76");
   expect(recommendButton.className).toContain(
@@ -391,6 +399,9 @@ describe("SpielwieseModelPickerPanel Anthropic provider switching", () => {
     expect(
       within(panel).getByRole("button", { name: "Claude Opus 4.6" }),
     ).toBeTruthy();
+    expect(
+      within(panel).getByRole("button", { name: "Claude Opus 4.6" }).className,
+    ).toContain("text-foreground");
     expect(
       within(panel).getByRole("button", { name: "Claude Sonnet 4.6" }),
     ).toBeTruthy();

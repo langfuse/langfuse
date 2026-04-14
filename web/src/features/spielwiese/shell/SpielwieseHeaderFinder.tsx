@@ -15,7 +15,9 @@ import { useSpielwieseHeaderFinderState } from "./useSpielwieseHeaderFinderState
 type FinderTriggerVariant = "header" | "sidebar";
 
 export type SpielwieseHeaderFinderProps = {
+  active?: boolean;
   breadcrumb: SpielwieseDashboardVM["header"]["breadcrumb"];
+  disabled?: boolean;
   isOpen: boolean;
   onClose: () => void;
   onOpen: () => void;
@@ -75,9 +77,13 @@ function FinderTriggerShortcut({
 }
 
 function getFinderTriggerClassName({
+  active,
+  disabled,
   isOpen,
   variant,
 }: {
+  active: boolean;
+  disabled: boolean;
   isOpen: boolean;
   variant: FinderTriggerVariant;
 }) {
@@ -86,9 +92,10 @@ function getFinderTriggerClassName({
     variant === "sidebar"
       ? cn(
           "group/sidebar-item max-w-none rounded-[10px] focus-visible:outline-0",
-          sidebarMenuButtonVariants({ tone: "primary" }),
+          sidebarMenuButtonVariants({ active, tone: "primary" }),
         )
       : "max-w-[21rem] rounded-full md:cursor-text md:rounded",
+    disabled ? "cursor-default" : undefined,
     isOpen ? "invisible" : "pointer-events-auto",
   );
 }
@@ -169,8 +176,26 @@ function FinderTriggerContent({
   );
 }
 
+function handleFinderTriggerClick({
+  disabled,
+  event,
+  onOpen,
+}: {
+  disabled: boolean;
+  event: { preventDefault: () => void };
+  onOpen: () => void;
+}) {
+  if (disabled) {
+    event.preventDefault();
+    return;
+  }
+
+  onOpen();
+}
 function FinderTrigger({
+  active,
   backgroundRef,
+  disabled,
   iconRef,
   isOpen,
   onOpen,
@@ -180,7 +205,9 @@ function FinderTrigger({
   triggerRef,
   variant,
 }: {
+  active: boolean;
   backgroundRef: RefObject<HTMLSpanElement | null>;
+  disabled: boolean;
   iconRef: RefObject<SVGSVGElement | null>;
   isOpen: boolean;
   onOpen: () => void;
@@ -193,13 +220,19 @@ function FinderTrigger({
   return (
     <button
       aria-controls="spielwiese-header-finder-panel"
+      aria-disabled={disabled || undefined}
       aria-expanded={isOpen}
       aria-label="Open workspace finder"
-      className={getFinderTriggerClassName({ isOpen, variant })}
+      className={getFinderTriggerClassName({
+        active,
+        disabled,
+        isOpen,
+        variant,
+      })}
       data-testid="spielwiese-header-finder-trigger"
-      onClick={onOpen}
+      onClick={(event) => handleFinderTriggerClick({ disabled, event, onOpen })}
       ref={triggerRef}
-      tabIndex={isOpen ? -1 : 0}
+      tabIndex={isOpen || disabled ? -1 : 0}
       type="button"
     >
       <FinderTriggerBackground
@@ -218,7 +251,9 @@ function FinderTrigger({
 }
 
 export function SpielwieseHeaderFinder({
+  active = false,
   breadcrumb,
+  disabled = false,
   isOpen,
   onClose,
   onOpen,
@@ -234,18 +269,17 @@ export function SpielwieseHeaderFinder({
     pageId,
     shell,
   });
+  const containerClassName =
+    variant === "sidebar" ? "w-full justify-start" : "h-full justify-center";
 
   return (
     <div
-      className={cn(
-        "relative flex min-w-0 items-center",
-        variant === "sidebar"
-          ? "w-full justify-start"
-          : "h-full justify-center",
-      )}
+      className={cn("relative flex min-w-0 items-center", containerClassName)}
     >
       <FinderTrigger
+        active={active}
         backgroundRef={motion.triggerBackgroundRef}
+        disabled={disabled}
         iconRef={motion.triggerIconRef}
         isOpen={isOpen}
         onOpen={onOpen}
@@ -255,7 +289,7 @@ export function SpielwieseHeaderFinder({
         triggerRef={motion.triggerRef}
         variant={variant}
       />
-      {isOpen ? (
+      {isOpen && (
         <SpielwieseHeaderFinderPanel
           activeIndex={finderState.activeIndex}
           items={finderState.filteredItems}
@@ -273,7 +307,7 @@ export function SpielwieseHeaderFinder({
           query={finderState.query}
           variant={variant}
         />
-      ) : null}
+      )}
     </div>
   );
 }

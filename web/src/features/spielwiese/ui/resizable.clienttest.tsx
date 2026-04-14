@@ -50,6 +50,46 @@ jest.mock("react-resizable-panels", () => {
   };
 });
 
+function expectPanelGroupChrome(group: HTMLElement) {
+  expect(group.className).toContain("[&>[data-panel]]:min-h-0");
+  expect(group.className).toContain("[&>[data-panel]]:overflow-hidden");
+  expect(group.className).toContain("[&>[data-separator]]:shrink-0");
+}
+
+function expectRestingHandleChrome(restingHandle: HTMLElement | null) {
+  expect(restingHandle).toBeTruthy();
+  expect(restingHandle?.className).toContain("h-1.5");
+  expect(restingHandle?.className).toContain("w-10");
+  expect(restingHandle?.className).toContain("rounded-full");
+}
+
+function expectHoverHandleChrome(hoverHandle: HTMLElement | null) {
+  expect(hoverHandle).toBeTruthy();
+  expect(hoverHandle?.className).toContain("rounded-full");
+  expect(hoverHandle?.className).toContain("z-30");
+  expect(hoverHandle?.className).toContain(
+    "group-hover/resize-handle:opacity-100",
+  );
+}
+
+function expectHandleChrome({
+  handle,
+  hoverHandle,
+  restingHandle,
+}: {
+  handle: HTMLElement | null;
+  hoverHandle: HTMLElement | null;
+  restingHandle: HTMLElement | null;
+}) {
+  expect(handle).toBeTruthy();
+  expect(handle?.className).toContain("bg-transparent");
+  expect(handle?.className).toContain("group/resize-handle");
+  expect(handle?.className).toContain("z-20");
+  expect(handle?.className).toContain("h-4");
+  expectRestingHandleChrome(restingHandle);
+  expectHoverHandleChrome(hoverHandle);
+}
+
 describe("spielwiese resizable primitives", () => {
   it("applies viewport-safe constraints to the real panel roots", () => {
     render(
@@ -69,15 +109,16 @@ describe("spielwiese resizable primitives", () => {
     ) as HTMLElement | null;
 
     expect(group).toBeTruthy();
-    expect(group.className).toContain("[&>[data-panel]]:min-h-0");
-    expect(group.className).toContain("[&>[data-panel]]:overflow-hidden");
-    expect(group.className).toContain("[&>[data-separator]]:shrink-0");
+    expectPanelGroupChrome(group as HTMLElement);
 
     const panels = document.querySelectorAll(
       '[data-slot="spielwiese-resizable-panel"]',
     );
     const handle = document.querySelector(
       '[data-slot="spielwiese-resizable-handle"]',
+    ) as HTMLElement | null;
+    const restingHandle = document.querySelector(
+      '[data-testid="spielwiese-resizable-handle-resting-pill"]',
     ) as HTMLElement | null;
     const hoverHandle = document.querySelector(
       "[data-resizable-hover-handle]",
@@ -87,16 +128,6 @@ describe("spielwiese resizable primitives", () => {
     expect((panels[0] as HTMLElement).className).toContain("h-full");
     expect((panels[0] as HTMLElement).className).toContain("overflow-hidden");
     expect((panels[0] as HTMLElement).className).toContain("[&>*]:min-h-0");
-    expect(handle).toBeTruthy();
-    expect(handle?.className).toContain("bg-border/70");
-    expect(handle?.className).toContain("group/resize-handle");
-    expect(handle?.className).toContain("z-20");
-    expect(handle?.className).toContain("h-px");
-    expect(hoverHandle).toBeTruthy();
-    expect(hoverHandle?.className).toContain("rounded-full");
-    expect(hoverHandle?.className).toContain("z-30");
-    expect(hoverHandle?.className).toContain(
-      "group-hover/resize-handle:opacity-100",
-    );
+    expectHandleChrome({ handle, hoverHandle, restingHandle });
   });
 });

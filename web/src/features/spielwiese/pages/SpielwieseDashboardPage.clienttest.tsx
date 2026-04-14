@@ -97,6 +97,8 @@ describe("SpielwieseDashboardPage rendering", () => {
     expect(getEmptyStateNewNodeTrigger()).toBeTruthy();
     expect(root?.className).toContain("h-screen-with-banner");
     expect(root?.className).toContain("overflow-hidden");
+    expect(root?.className).toContain("bg-background");
+    expect(root?.className).toContain("text-foreground");
   });
 
   it("renders the vision agent canvas when the hash selects it", () => {

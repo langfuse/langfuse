@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type { HTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, HTMLAttributes, MouseEvent } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const sidebarMenuButtonVariants = cva(
@@ -36,10 +36,17 @@ const sidebarMenuButtonVariants = cva(
   },
 );
 
-type SidebarMenuButtonProps = HTMLAttributes<HTMLAnchorElement> &
+type SidebarMenuButtonProps = AnchorHTMLAttributes<HTMLAnchorElement> &
   VariantProps<typeof sidebarMenuButtonVariants> & {
+    disabled?: boolean;
     href: string;
   };
+
+function preventDisabledSidebarMenuButtonClick(
+  event: MouseEvent<HTMLAnchorElement>,
+) {
+  event.preventDefault();
+}
 
 export function SidebarSurface({
   className,
@@ -135,19 +142,26 @@ export function SidebarMenuButton({
   active,
   className,
   compact,
+  disabled = false,
   href,
+  onClick,
+  tabIndex,
   tone,
   ...props
 }: SidebarMenuButtonProps) {
   return (
     <a
+      aria-disabled={disabled || undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
         sidebarMenuButtonVariants({ active, compact, tone }),
+        disabled && "cursor-default",
         className,
       )}
       href={href}
       {...props}
+      onClick={disabled ? preventDisabledSidebarMenuButtonClick : onClick}
+      tabIndex={disabled ? -1 : tabIndex}
     />
   );
 }

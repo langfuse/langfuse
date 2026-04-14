@@ -266,7 +266,7 @@ export function SpielwieseCanvasPaneStack({
         onTitleChange={onTitleChange}
       />
       <ResizableHandle
-        className="aria-[orientation=horizontal]:hover:ring-border/70 h-px shrink-0 bg-[#F3F3F4] aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:hover:ring-1"
+        className="h-4 shrink-0 bg-transparent aria-[orientation=horizontal]:h-4"
         data-testid="spielwiese-canvas-pane-resize-handle"
       />
       <CanvasPaneBottomPanel

@@ -38,6 +38,7 @@ function UtilityNavRow({ item }: { item: SpielwieseNavItem }) {
     <SidebarMenuButton
       active={item.isActive}
       className="group/sidebar-item"
+      disabled
       href={item.href}
       tone="primary"
     >
@@ -72,6 +73,7 @@ function ExpandedUtilityNav({
               {finderProps && item.id === "search" ? (
                 <SpielwieseHeaderFinder
                   {...finderProps}
+                  active
                   shortcutLabel={item.shortcut}
                   variant="sidebar"
                 />
@@ -104,6 +106,7 @@ function CompactUtilityNav({ items }: { items: SpielwieseNavItem[] }) {
             key={item.id}
             href={item.href}
             active={item.isActive}
+            disabled
             title={item.label}
             tone="primary"
           >

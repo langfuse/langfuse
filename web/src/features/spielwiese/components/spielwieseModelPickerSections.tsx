@@ -27,10 +27,10 @@ function ProviderButton({
     <button
       aria-pressed={isActive}
       className={cn(
-        "flex w-full items-start gap-2 rounded-[10px] px-2 py-2 text-left transition-[background-color,box-shadow] outline-none",
+        "text-foreground/76 flex w-full items-start gap-2 rounded-[10px] px-2 py-2 text-left transition-[background-color,box-shadow,color] outline-none",
         isActive
-          ? "bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
-          : "hover:bg-black/[0.025]",
+          ? "text-foreground bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
+          : "text-foreground hover:bg-black/[0.025]",
       )}
       data-state={isActive ? "active" : "inactive"}
       type="button"
@@ -66,10 +66,10 @@ function ModelButton({
       aria-label={label}
       aria-pressed={isActive}
       className={cn(
-        "focus-visible:ring-ring/30 flex w-full items-start gap-2 rounded-[10px] border border-transparent px-2 py-2 text-left transition-[background-color,border-color,box-shadow] outline-none focus-visible:ring-2",
+        "text-foreground/76 focus-visible:ring-ring/30 flex w-full items-start gap-2 rounded-[10px] border border-transparent px-2 py-2 text-left transition-[background-color,border-color,box-shadow,color] outline-none focus-visible:ring-2",
         isActive
-          ? "border-black/8 bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
-          : "hover:border-black/6 hover:bg-black/[0.025]",
+          ? "text-foreground border-black/8 bg-black/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
+          : "text-foreground hover:border-black/6 hover:bg-black/[0.025]",
       )}
       data-state={isActive ? "active" : "inactive"}
       type="button"

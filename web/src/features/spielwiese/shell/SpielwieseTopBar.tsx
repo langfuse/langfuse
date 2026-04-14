@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Bell, PanelLeft, PanelRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar, AvatarFallback } from "../ui/avatar";
@@ -10,6 +9,7 @@ import { SpielwieseWorkspaceSwitcher } from "./SpielwieseWorkspaceSwitcher";
 
 const topBarActionClassName =
   "rounded-md text-foreground/72 hover:bg-black/4 hover:text-foreground";
+const topBarBlockedActionClassName = "pointer-events-none cursor-default";
 const topBarPageNavButtonClassName =
   "text-[#242529] border-0 bg-transparent shadow-none transition-colors duration-75 hover:bg-black/[0.06] hover:text-[#242529] active:bg-black/[0.08] h-8 rounded-[0.6rem] px-2.5 text-[0.75rem] font-medium";
 const topBarPageNavIconButtonClassName =
@@ -28,7 +28,6 @@ const topBarModeToggleButtonClassName =
   "text-foreground/62 hover:text-foreground inline-flex h-6 min-w-24 items-center justify-center gap-1.25 rounded-[8px] px-2 py-0 text-[11px] font-medium tracking-[0.01em] transition-colors outline-none focus-visible:ring-0";
 const topBarModeToggleButtonActiveClassName =
   "bg-white text-[#202427] shadow-[0_1px_2px_rgba(15,23,42,0.08)]";
-const headerDocsHref = "https://langfuse.com/docs";
 const topBarViews = [
   "Agent Composition",
   "Observability",
@@ -51,7 +50,7 @@ function HeaderPrimaryActions({
 }) {
   return (
     <div className="flex h-full min-w-0 items-center gap-1.5">
-      <SpielwieseWorkspaceSwitcher name={teamName} variant="topbar" />
+      <SpielwieseWorkspaceSwitcher disabled name={teamName} variant="topbar" />
       <Button
         aria-label="Toggle primary sidebar"
         className={topBarActionClassName}
@@ -89,8 +88,7 @@ function getFilePathSegments(filePath: string) {
 }
 
 function HeaderCanvasRail({ filePath }: { filePath: string }) {
-  const [activeView, setActiveView] =
-    useState<SpielwieseTopBarView>("Agent Composition");
+  const activeView: SpielwieseTopBarView = "Agent Composition";
   const pathSegments = getFilePathSegments(filePath);
 
   return (
@@ -129,14 +127,16 @@ function HeaderCanvasRail({ filePath }: { filePath: string }) {
 
             return (
               <button
+                aria-disabled="true"
                 aria-label={view}
                 aria-pressed={isActive}
                 className={cn(
                   topBarModeToggleButtonClassName,
+                  topBarBlockedActionClassName,
                   isActive && topBarModeToggleButtonActiveClassName,
                 )}
                 key={view}
-                onClick={() => setActiveView(view)}
+                tabIndex={-1}
                 type="button"
               >
                 {view}
@@ -166,8 +166,10 @@ function HeaderSecondaryActions({
       <HeaderDesktopActions />
       <Button
         aria-label="Notifications"
-        className={topBarPageNavIconButtonClassName}
+        aria-disabled="true"
+        className={`${topBarPageNavIconButtonClassName} ${topBarBlockedActionClassName}`}
         size="icon-sm"
+        tabIndex={-1}
         variant="ghost"
       >
         <Bell size={16} />
@@ -190,16 +192,21 @@ function HeaderDesktopActions() {
   return (
     <>
       <Button
-        className={`${topBarPageNavButtonClassName} hidden lg:inline-flex`}
+        aria-disabled="true"
+        className={`${topBarPageNavButtonClassName} ${topBarBlockedActionClassName} hidden lg:inline-flex`}
         size="sm"
+        tabIndex={-1}
         variant="ghost"
       >
         Share
       </Button>
       <a
-        className={`${topBarPageNavButtonClassName} hidden inline-flex items-center justify-center whitespace-nowrap lg:inline-flex`}
-        href={headerDocsHref}
+        aria-disabled="true"
+        className={`${topBarPageNavButtonClassName} ${topBarBlockedActionClassName} hidden inline-flex items-center justify-center whitespace-nowrap lg:inline-flex`}
+        href="https://langfuse.com/docs"
+        onClick={(event) => event.preventDefault()}
         rel="noreferrer"
+        tabIndex={-1}
         target="_blank"
       >
         Docs
@@ -218,7 +225,9 @@ function HeaderProfileButton({
   return (
     <button
       aria-label="Your profile"
-      className={topBarProfileButtonClassName}
+      aria-disabled="true"
+      className={`${topBarProfileButtonClassName} ${topBarBlockedActionClassName}`}
+      tabIndex={-1}
       title={userName}
       type="button"
     >

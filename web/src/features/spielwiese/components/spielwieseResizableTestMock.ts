@@ -18,6 +18,36 @@ type MockPanelProps = MockResizableProps & {
   withHandle?: boolean;
 };
 
+function renderMockHandleAffordances(
+  React: { createElement: (...args: unknown[]) => unknown },
+  withHandle?: boolean,
+) {
+  if (withHandle) {
+    return [
+      React.createElement("div", {
+        className: "bg-border z-10 flex h-8 w-1.5 shrink-0 rounded-full",
+        "data-resizable-handle-pill": "",
+        key: "pill",
+      }),
+    ];
+  }
+
+  return [
+    React.createElement("div", {
+      "aria-hidden": "true",
+      className: "h-1.5 w-10 rounded-full group-hover/resize-handle:opacity-0",
+      "data-testid": "spielwiese-resizable-handle-resting-pill",
+      key: "resting",
+    }),
+    React.createElement("div", {
+      "aria-hidden": "true",
+      className: "rounded-full z-30",
+      "data-resizable-hover-handle": "",
+      key: "hover",
+    }),
+  ];
+}
+
 jest.mock("../ui/resizable", () => {
   const React = require("react");
   const sanitizeProps = ({
@@ -61,11 +91,12 @@ jest.mock("../ui/resizable", () => {
         children,
       );
     },
-    ResizableHandle: ({ children, ...props }: MockPanelProps) =>
+    ResizableHandle: ({ children, withHandle, ...props }: MockPanelProps) =>
       React.createElement(
         "div",
         { role: "separator", ...sanitizeProps(props) },
         children,
+        ...renderMockHandleAffordances(React, withHandle),
       ),
   };
 });

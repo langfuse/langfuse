@@ -163,61 +163,106 @@ function expectSidebarHeaderChrome() {
   expect(screen.queryByText("Rudel")).toBeNull();
 }
 
+function expectExpandedSidebarTextContent() {
+  ["spielwiese-left-sidebar", "spielwiese-left-sidebar-scroll-area"].forEach(
+    (testId) => expect(screen.getByTestId(testId)).toBeTruthy(),
+  );
+
+  [
+    "Home",
+    "Search",
+    "Library",
+    "Organization settings",
+    "Documentation",
+    "Files",
+    "Example Evaluators",
+    "Micronutrient tracker",
+    "Vision Agent",
+  ].forEach((label) => expect(screen.getByText(label)).toBeTruthy());
+
+  expect(screen.queryByText("New Document")).toBeNull();
+  expect(screen.queryByText("New")).toBeNull();
+  expect(screen.getByText("Example Evaluators").closest("details")?.open).toBe(
+    true,
+  );
+}
+
+function expectExpandedSidebarChrome() {
+  expectBorderlessSidebarChrome();
+  expectSidebarHeaderChrome();
+  expectPrimarySidebarButtonChrome("Home");
+  expectPrimarySidebarButtonChrome("Search");
+  expectPrimarySidebarButtonChrome("Library");
+  expectSidebarShortcutChrome("Home", "H", {
+    classToken: "bg-black/[0.04]",
+  });
+  expectSidebarShortcutChrome("Search", "F", {
+    classToken: "bg-black/[0.04]",
+    selector: "button",
+  });
+  expectSidebarShortcutChrome("Library", "L");
+  expectSidebarShortcutChrome("Organization settings", "O");
+  expectSidebarShortcutChrome("Documentation", "D");
+  expectSidebarGroupRowChrome("Example Evaluators");
+  expectNoSidebarShortcut("Example Evaluators");
+  expectSidebarSectionHeaderActionChrome("Files");
+  expectNestedTreeChrome("Micronutrient tracker");
+  expectNoSidebarShortcut("Micronutrient tracker");
+  expectDummyNestedTreeChrome("Vision Agent");
+  expectNoSidebarShortcut("Vision Agent");
+}
+
+function expectExpandedSidebarControlsDisabled() {
+  expect(
+    screen.getByText("Home").closest("a")?.getAttribute("aria-disabled"),
+  ).toBe("true");
+  expect(
+    screen
+      .getByText("Example Evaluators")
+      .closest("summary")
+      ?.getAttribute("aria-disabled"),
+  ).toBe("true");
+  expect(
+    screen
+      .getByText("Micronutrient tracker")
+      .closest("a")
+      ?.getAttribute("aria-disabled"),
+  ).toBe("true");
+  expect(
+    screen
+      .getByRole("button", { name: "Add to Files" })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  expect(
+    screen
+      .getByLabelText("Open workspace finder")
+      .getAttribute("aria-disabled"),
+  ).toBeNull();
+}
+
+function expectExpandedSidebarState() {
+  expect(screen.getByText("Search").closest("button")?.className).toContain(
+    "bg-[#EEEFF1]",
+  );
+  expect(
+    screen
+      .getByText("Micronutrient tracker")
+      .closest("a")
+      ?.getAttribute("aria-current"),
+  ).toBe("page");
+}
+
+function expectExpandedSidebarInertControls() {
+  renderExpandedSidebar();
+  expectExpandedSidebarTextContent();
+  expectExpandedSidebarChrome();
+  expectExpandedSidebarControlsDisabled();
+  expectExpandedSidebarState();
+}
+
 describe("SpielwieseSidebarLeft expanded", () => {
-  it("renders the simplified left rail structure and keeps search interactive", () => {
-    renderExpandedSidebar();
-
-    ["spielwiese-left-sidebar", "spielwiese-left-sidebar-scroll-area"].forEach(
-      (testId) => expect(screen.getByTestId(testId)).toBeTruthy(),
-    );
-
-    [
-      "Home",
-      "Search",
-      "Library",
-      "Organization settings",
-      "Documentation",
-      "Files",
-      "Example Evaluators",
-      "Micronutrient tracker",
-      "Vision Agent",
-    ].forEach((label) => expect(screen.getByText(label)).toBeTruthy());
-
-    expect(screen.queryByText("New Document")).toBeNull();
-    expect(screen.queryByText("New")).toBeNull();
-    expect(
-      screen.getByText("Example Evaluators").closest("details")?.open,
-    ).toBe(true);
-
-    expectBorderlessSidebarChrome();
-    expectSidebarHeaderChrome();
-    expectPrimarySidebarButtonChrome("Home");
-    expectPrimarySidebarButtonChrome("Search");
-    expectPrimarySidebarButtonChrome("Library");
-    expectSidebarShortcutChrome("Home", "H", {
-      classToken: "bg-black/[0.04]",
-    });
-    expectSidebarShortcutChrome("Search", "F", {
-      classToken: "bg-black/[0.04]",
-      selector: "button",
-    });
-    expectSidebarShortcutChrome("Library", "L");
-    expectSidebarShortcutChrome("Organization settings", "O");
-    expectSidebarShortcutChrome("Documentation", "D");
-    expectSidebarGroupRowChrome("Example Evaluators");
-    expectNoSidebarShortcut("Example Evaluators");
-    expectSidebarSectionHeaderActionChrome("Files");
-    expectNestedTreeChrome("Micronutrient tracker");
-    expectNoSidebarShortcut("Micronutrient tracker");
-    expectDummyNestedTreeChrome("Vision Agent");
-    expectNoSidebarShortcut("Vision Agent");
-    expect(
-      screen
-        .getByText("Micronutrient tracker")
-        .closest("a")
-        ?.getAttribute("aria-current"),
-    ).toBe("page");
-    expect(screen.getByLabelText("Open workspace finder")).toBeTruthy();
+  it("renders the simplified left rail structure with inert sidebar controls", () => {
+    expectExpandedSidebarInertControls();
   });
 });
 
@@ -246,6 +291,9 @@ describe("SpielwieseSidebarLeft compact", () => {
     expect(screen.getByTitle("Home").className).toContain("size-7");
     expect(screen.getByTitle("Home").className).toContain("justify-center");
     expect(screen.getByTitle("Home").className).toContain("text-black/[0.55]");
+    expect(screen.getByTitle("Home").getAttribute("aria-disabled")).toBe(
+      "true",
+    );
     expect(screen.queryByTitle("Rudel")).toBeNull();
   });
 });

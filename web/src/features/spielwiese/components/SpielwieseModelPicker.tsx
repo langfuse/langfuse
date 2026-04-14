@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
 import {
   type SpielwieseModelOption,
   type SpielwieseModelProvider,
@@ -20,7 +21,7 @@ import {
 export { SpielwieseModelPickerTrigger } from "./SpielwieseModelPickerTrigger";
 
 const spielwieseModelPickerPanelClassName =
-  "w-fit max-w-[calc(100vw-1rem)] overflow-visible rounded-[var(--spielwiese-picker-outer-radius)] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] p-[var(--spielwiese-picker-padding)] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)] [--spielwiese-picker-outer-radius:18px] [--spielwiese-picker-padding:6px] [--spielwiese-picker-open-delay:0ms] [--spielwiese-picker-open-duration:220ms] [--spielwiese-picker-close-duration:160ms] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] data-[open]:animate-in data-[closed]:animate-out data-[open]:[animation-duration:var(--spielwiese-picker-open-duration)] data-[closed]:[animation-duration:var(--spielwiese-picker-close-duration)] data-[open]:[animation-delay:var(--spielwiese-picker-open-delay)] data-[open]:[animation-fill-mode:backwards] data-[open]:fade-in-0 data-[open]:zoom-in-95 data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1";
+  "text-foreground w-fit max-w-[calc(100vw-1rem)] overflow-visible rounded-[var(--spielwiese-picker-outer-radius)] border border-[rgba(0,0,0,0.08)] bg-[#FCFCFA] p-[var(--spielwiese-picker-padding)] shadow-[0_18px_38px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.08)] [--spielwiese-picker-outer-radius:18px] [--spielwiese-picker-padding:6px] [--spielwiese-picker-open-delay:0ms] [--spielwiese-picker-open-duration:220ms] [--spielwiese-picker-close-duration:160ms] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] data-[open]:animate-in data-[closed]:animate-out data-[open]:[animation-duration:var(--spielwiese-picker-open-duration)] data-[closed]:[animation-duration:var(--spielwiese-picker-close-duration)] data-[open]:[animation-delay:var(--spielwiese-picker-open-delay)] data-[open]:[animation-fill-mode:backwards] data-[open]:fade-in-0 data-[open]:zoom-in-95 data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1";
 const anthropicApiKeyHref = "https://console.anthropic.com/settings/keys";
 const spielwieseModelPickerAnthropicApiKeyPaneClassName =
   "grid min-w-[23rem] gap-3 rounded-[var(--spielwiese-picker-inner-radius)] border border-[rgba(0,0,0,0.05)] bg-white/72 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] [--spielwiese-picker-inner-radius:calc(var(--spielwiese-picker-outer-radius)-var(--spielwiese-picker-padding))] [--spielwiese-picker-pane-delay:0ms] [--spielwiese-picker-pane-duration:220ms] animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 [animation-duration:var(--spielwiese-picker-pane-duration)] [animation-delay:var(--spielwiese-picker-pane-delay)] [animation-fill-mode:backwards] will-change-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] sm:min-w-[28rem]";
@@ -31,6 +32,10 @@ type SpielwieseModelPickerStyle = CSSProperties & {
   "--spielwiese-picker-open-delay"?: string;
   "--spielwiese-picker-pane-duration"?: string;
   "--spielwiese-picker-pane-delay"?: string;
+};
+
+const spielwieseModelPickerPanelStyle: SpielwieseModelPickerStyle = {
+  ...spielwieseLightThemeStyle,
 };
 
 export function getModelPickerAnimationStyle({
@@ -274,6 +279,7 @@ export function SpielwieseModelPickerPanel(props: SpielwieseModelPickerProps) {
       data-testid="spielwiese-model-picker-panel"
       role="dialog"
       style={{
+        ...spielwieseModelPickerPanelStyle,
         ...getModelPickerAnimationStyle({
           valueMs: props.popoverAnimationDelayMs,
           variableName: "--spielwiese-picker-open-delay",
@@ -289,4 +295,8 @@ export function SpielwieseModelPickerPanel(props: SpielwieseModelPickerProps) {
   );
 }
 
-export { isCurrentModel, spielwieseModelPickerPanelClassName };
+export {
+  isCurrentModel,
+  spielwieseModelPickerPanelClassName,
+  spielwieseModelPickerPanelStyle,
+};

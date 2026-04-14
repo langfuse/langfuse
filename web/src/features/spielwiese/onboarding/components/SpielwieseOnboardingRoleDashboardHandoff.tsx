@@ -53,7 +53,7 @@ function getNodeTransform({
 
   const shrinkRatio = Math.max((width - cardShrinkInsetX * 2) / width, 0.1);
 
-  return `translate3d(0, -${cardLiftDistanceY}px, 0) scaleX(${shrinkRatio})`;
+  return `translate3d(0, -${cardLiftDistanceY}px, 0) scale(${shrinkRatio})`;
 }
 
 function getCloneStyle({

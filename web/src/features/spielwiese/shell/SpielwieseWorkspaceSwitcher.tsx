@@ -1,7 +1,8 @@
 import Image from "next/image";
+import type { MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
-
 type SpielwieseWorkspaceSwitcherProps = {
+  disabled?: boolean;
   name: string;
   variant: "compact" | "sidebar" | "topbar";
 };
@@ -24,7 +25,9 @@ function SpielwieseWorkspaceMark({ size }: { size: string }) {
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SpielwieseWorkspaceSwitcher({
+  disabled = false,
   name,
   variant,
 }: SpielwieseWorkspaceSwitcherProps) {
@@ -35,13 +38,22 @@ export function SpielwieseWorkspaceSwitcher({
   } satisfies Record<SpielwieseWorkspaceSwitcherProps["variant"], string>;
   const markSize = markSizeByVariant[variant];
   const mark = <SpielwieseWorkspaceMark size={markSize} />;
+  const disabledProps = disabled
+    ? {
+        "aria-disabled": "true",
+        onClick: (event: MouseEvent<HTMLElement>) => event.preventDefault(),
+        tabIndex: -1,
+      }
+    : undefined;
 
   if (variant === "compact") {
     return (
       <a
-        className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl transition-colors"
+        className={`hover:bg-sidebar-accent inline-flex size-11 items-center justify-center rounded-xl transition-colors ${disabled ? "pointer-events-none cursor-default" : ""}`}
+        data-testid="spielwiese-workspace-switcher"
         href="#assistant"
         title={name}
+        {...disabledProps}
       >
         <span className="scale-[0.89]">{mark}</span>
       </a>
@@ -51,8 +63,10 @@ export function SpielwieseWorkspaceSwitcher({
   if (variant === "topbar") {
     return (
       <a
-        className="ml-px flex h-[calc(var(--spielwiese-header-height)-4px)] max-w-[12rem] min-w-0 items-center gap-2.5 rounded-[10px] pr-2.5 pl-[3px] text-[#242529]"
+        className={`ml-px flex h-[calc(var(--spielwiese-header-height)-4px)] max-w-[12rem] min-w-0 items-center gap-2.5 rounded-[10px] pr-2.5 pl-[3px] text-[#242529] ${disabled ? "pointer-events-none cursor-default" : ""}`}
+        data-testid="spielwiese-workspace-switcher"
         href="#assistant"
+        {...disabledProps}
       >
         {mark}
         <span className="min-w-0 flex-1 truncate text-[0.875rem] leading-5 font-medium tracking-[-0.14px]">
@@ -65,8 +79,10 @@ export function SpielwieseWorkspaceSwitcher({
 
   return (
     <a
-      className="flex h-12 items-center gap-2.5 px-3 pr-12 text-[#242529] transition-[background-color,color] hover:bg-black/[0.03]"
+      className={`flex h-12 items-center gap-2.5 px-3 pr-12 text-[#242529] transition-[background-color,color] hover:bg-black/[0.03] ${disabled ? "pointer-events-none cursor-default" : ""}`}
+      data-testid="spielwiese-workspace-switcher"
       href="#assistant"
+      {...disabledProps}
     >
       {mark}
       <span className="min-w-0 flex-1 truncate text-[1rem] leading-5 font-semibold tracking-[-0.32px]">

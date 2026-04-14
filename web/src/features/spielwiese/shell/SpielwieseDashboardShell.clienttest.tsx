@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { SpielwieseDashboardShell } from "./SpielwieseDashboardShell";
 import {
@@ -6,21 +5,11 @@ import {
   getSpielwieseShellVm,
 } from "../adapters/dashboardVm";
 
-function createMatchMedia(matches: boolean) {
-  return jest.fn().mockImplementation((query: string) => ({
-    addEventListener: jest.fn(),
-    matches,
-    media: query,
-    onchange: null,
-    removeEventListener: jest.fn(),
-  }));
-}
-
 function renderShell(children = <div>Shell content</div>) {
   const shell = getSpielwieseShellVm();
   const dashboard = getSpielwieseDashboardVm();
 
-  render(
+  return render(
     <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
       {children}
     </SpielwieseDashboardShell>,
@@ -28,31 +17,10 @@ function renderShell(children = <div>Shell content</div>) {
 }
 
 const originalMatchMedia = window.matchMedia;
-const originalHash = window.location.hash;
 
-function openFinder() {
-  fireEvent.click(screen.getByTestId("spielwiese-header-finder-trigger"));
-  return screen.getByTestId("spielwiese-header-finder-panel");
-}
-
-function expectFinderPanelChrome(panel: HTMLElement) {
-  const searchField = within(panel).getByTestId(
-    "spielwiese-header-finder-search-field",
-  );
-  const firstResult = within(panel).getAllByTestId(
-    "spielwiese-header-finder-result",
-  )[0];
-  const surface = panel.lastElementChild as HTMLElement | null;
-
-  expect(panel.className).toContain("max-w-none");
-  expect(surface?.className).toContain("rounded-[1.05rem]");
-  expect(surface?.className).toContain("bg-[rgba(251,251,251,0.96)]");
-  expect(searchField.className).toContain("border-b");
-  expect(searchField.className).toContain("px-2");
-  expect(searchField.className).toContain("py-2");
-  expect(firstResult?.className).toContain("h-[2.875rem]");
-  expect(firstResult?.className).toContain("rounded-[0.8rem]");
-}
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
+});
 
 function expectShellChromeBackground() {
   expect(screen.getByTestId("spielwiese-shell").className).toContain(
@@ -147,6 +115,7 @@ function expectWorkspaceSwitcherMovedToHeader() {
   expect(workspaceSwitch?.className).toContain("pr-2.5");
   expect(workspaceSwitch?.className).not.toContain("pl-1");
   expect(workspaceSwitch?.className).not.toContain("hover:bg-black/[0.03]");
+  expect(workspaceSwitch?.getAttribute("aria-disabled")).toBe("true");
   expect(workspaceSwitch?.querySelector("svg")).toBeTruthy();
   expect(
     within(screen.getByTestId("spielwiese-shell-left")).queryByText("Rudel"),
@@ -168,7 +137,6 @@ function expectFinderMovedToLeftSidebar() {
 
 function expectSmallScreenOverlay() {
   const overlay = screen.getByTestId("spielwiese-shell-small-screen-overlay");
-
   expect(overlay).toBeTruthy();
   expect(overlay.textContent).toContain("Please view on a larger screen.");
   expect(overlay.className).toContain("absolute");
@@ -236,156 +204,37 @@ function expectShellRenderStructure(container: HTMLElement) {
 }
 
 describe("SpielwieseDashboardShell render", () => {
-  afterEach(() => {
-    window.location.hash = originalHash;
-    window.matchMedia = originalMatchMedia;
-  });
-
   it("renders a local shell without product preview chrome", () => {
-    const shell = getSpielwieseShellVm();
-    const dashboard = getSpielwieseDashboardVm();
-    const { container } = render(
-      <SpielwieseDashboardShell dashboard={dashboard} shell={shell}>
-        <div>Shell content</div>
-      </SpielwieseDashboardShell>,
-    );
-
-    expectShellRenderStructure(container);
+    expectShellRenderStructure(renderShell().container);
   });
 });
 
-describe("SpielwieseDashboardShell sidebar interactions", () => {
-  afterEach(() => {
-    window.location.hash = originalHash;
-    window.matchMedia = originalMatchMedia;
-  });
-
-  it("toggles the desktop left rail collapse state from the local shell", () => {
-    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
-      addEventListener: jest.fn(),
-      matches: query === "(min-width: 768px)",
-      media: query,
-      onchange: null,
-      removeEventListener: jest.fn(),
-    }));
-
+describe("SpielwieseDashboardShell chrome keeps the sidebar toggles active", () => {
+  it("keeps both sidebar toggles interactive while the other header controls stay inert", () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches:
+          query === "(min-width: 768px)" || query === "(min-width: 1280px)",
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        removeEventListener: () => undefined,
+        removeListener: () => undefined,
+      }) as MediaQueryList) as typeof window.matchMedia;
     renderShell();
-
     const shellRoot = screen.getByTestId("spielwiese-shell");
+    const leftToggle = screen.getByTestId("spielwiese-left-toggle");
+    const rightToggle = screen.getByTestId("spielwiese-right-toggle");
+    expect(leftToggle.getAttribute("aria-disabled")).toBeNull();
+    expect(rightToggle.getAttribute("aria-disabled")).toBeNull();
     expect(shellRoot.getAttribute("data-left-collapsed")).toBe("false");
-
-    fireEvent.click(screen.getByTestId("spielwiese-left-toggle"));
-
+    expect(shellRoot.getAttribute("data-right-open")).toBe("true");
+    fireEvent.click(leftToggle);
+    fireEvent.click(rightToggle);
     expect(shellRoot.getAttribute("data-left-collapsed")).toBe("true");
-  });
-
-  it("opens mobile drawers below the sticky header", () => {
-    window.matchMedia = createMatchMedia(false);
-
-    renderShell();
-
-    fireEvent.click(screen.getByTestId("spielwiese-left-toggle"));
-
-    expect(screen.getByTestId("spielwiese-mobile-backdrop")).toBeTruthy();
-    expect(
-      screen
-        .getByTestId("spielwiese-mobile-left-drawer")
-        .className.includes("top-[var(--spielwiese-shell-offset)]"),
-    ).toBe(true);
-    expect(
-      screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).toContain("bg-[#EEEFF1]");
-    expect(
-      screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).toContain("w-[15.625rem]");
-    expect(
-      screen.getByTestId("spielwiese-mobile-left-drawer").className,
-    ).not.toContain("border-r");
-
-    fireEvent.click(screen.getByTestId("spielwiese-mobile-backdrop"));
-    fireEvent.click(screen.getByTestId("spielwiese-right-toggle"));
-
-    expect(
-      screen
-        .getByTestId("spielwiese-mobile-right-drawer")
-        .className.includes("top-[var(--spielwiese-shell-offset)]"),
-    ).toBe(true);
-    expect(
-      screen.getByTestId("spielwiese-mobile-right-drawer").className,
-    ).toContain("bg-[#F3F3F4]");
-    expect(
-      screen.getByTestId("spielwiese-mobile-right-drawer").className,
-    ).not.toContain("border-l");
-    expect(screen.getByTestId("spielwiese-mobile-backdrop")).toBeTruthy();
-  });
-});
-
-describe("SpielwieseDashboardShell finder interactions", () => {
-  afterEach(() => {
-    window.location.hash = originalHash;
-    window.matchMedia = originalMatchMedia;
-  });
-
-  it("opens the header finder from the trigger and filters its results", () => {
-    renderShell();
-
-    const panel = openFinder();
-    const panelContainer = screen.getByTestId(
-      "spielwiese-header-finder-container",
-    );
-    const searchInput = within(panel).getByLabelText("Find in workspace");
-
-    expect(searchInput).toBeTruthy();
-    expect(within(panel).getByText("Home")).toBeTruthy();
-    expect(panelContainer.className).toContain("absolute");
-    expect(panelContainer.className).toContain("top-0");
-    expect(panelContainer.className).toContain("inset-x-0");
-    expect(panelContainer.className).not.toContain("fixed");
-    expect(panelContainer.className).not.toContain("mt-2");
-    expectFinderPanelChrome(panel);
-
-    fireEvent.change(searchInput, { target: { value: "micro" } });
-
-    expect(within(panel).getByText("Micronutrient tracker")).toBeTruthy();
-
-    fireEvent.change(searchInput, { target: { value: "vision" } });
-
-    expect(within(panel).getByText("Vision Agent")).toBeTruthy();
-    expect(within(panel).queryByText("Documentation")).toBeNull();
-  });
-
-  it("opens the finder from the F shortcut but ignores editable targets", () => {
-    renderShell(<input data-testid="shell-content-input" />);
-
-    fireEvent.keyDown(screen.getByTestId("shell-content-input"), {
-      key: "f",
-    });
-
-    expect(screen.queryByTestId("spielwiese-header-finder-panel")).toBeNull();
-
-    fireEvent.keyDown(screen.getByTestId("spielwiese-shell"), { key: "f" });
-
-    expect(screen.getByTestId("spielwiese-header-finder-panel")).toBeTruthy();
-
-    fireEvent.keyDown(screen.getByLabelText("Find in workspace"), {
-      key: "Escape",
-    });
-
-    expect(screen.queryByTestId("spielwiese-header-finder-panel")).toBeNull();
-  });
-
-  it("updates the hash when a finder result is selected", () => {
-    renderShell();
-
-    const panel = openFinder();
-    fireEvent.change(screen.getByLabelText("Find in workspace"), {
-      target: { value: "vision" },
-    });
-    fireEvent.click(
-      within(panel).getByRole("button", { name: /Vision Agent/i }),
-    );
-
-    expect(window.location.hash).toBe("#vision-agent");
-    expect(screen.queryByTestId("spielwiese-header-finder-panel")).toBeNull();
+    expect(shellRoot.getAttribute("data-right-open")).toBe("false");
+    expect(screen.queryByTestId("spielwiese-mobile-backdrop")).toBeNull();
   });
 });

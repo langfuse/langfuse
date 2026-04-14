@@ -8,7 +8,6 @@ import { SpielwieseOnboardingProgress } from "./SpielwieseOnboardingProgress";
 import SpielwieseOnboardingSurface from "./SpielwieseOnboardingSurface";
 import SpielwieseOnboardingWordmarkButton from "./SpielwieseOnboardingWordmark";
 import { getOnboardingProgressValue } from "../spielwieseOnboardingFlow";
-import { getOnboardingEntryTextMotionClassName } from "../spielwieseOnboardingEntryMotion";
 import type { RoleHandoffTransition } from "../spielwieseRoleHandoff";
 
 const onboardingCanvasStepMinHeightRem = 40;
@@ -30,7 +29,8 @@ function OnboardingStepProgressOverlay({
         <SpielwieseOnboardingProgress value={value} />
       </div>
       <div
-        className={`absolute inset-x-0 top-6 flex justify-center sm:top-7 ${getOnboardingEntryTextMotionClassName(!isTransitioningOut, 0)}`}
+        className="absolute inset-x-0 top-6 flex justify-center sm:top-7"
+        data-testid="spielwiese-onboarding-step-wordmark-shell"
       >
         <SpielwieseOnboardingWordmarkButton
           onClick={preventInertOnboardingClick}

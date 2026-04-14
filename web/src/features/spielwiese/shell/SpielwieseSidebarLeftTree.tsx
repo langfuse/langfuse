@@ -7,6 +7,10 @@ import type {
 } from "../types/shell";
 import { SpielwieseSidebarShortcut } from "./SpielwieseSidebarShortcut";
 
+function preventSidebarTreeAction(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
 function SidebarFileLeafContent({
   item,
   showShortcut,
@@ -53,6 +57,7 @@ function SidebarFileLeaf({
         aria-disabled="true"
         className={className}
         data-sidebar-dummy
+        tabIndex={-1}
         type="button"
       >
         <SidebarFileLeafContent item={item} showShortcut={showShortcut} />
@@ -62,9 +67,12 @@ function SidebarFileLeaf({
 
   return (
     <a
+      aria-disabled="true"
       aria-current={item.isActive ? "page" : undefined}
       className={className}
       href={item.href}
+      onClick={preventSidebarTreeAction}
+      tabIndex={-1}
     >
       <SidebarFileLeafContent item={item} showShortcut={showShortcut} />
     </a>
@@ -86,10 +94,13 @@ function SidebarFileBranch({
       open={isOpen}
     >
       <summary
+        aria-disabled="true"
         className={cn(
           sidebarMenuButtonVariants({ active: item.isActive, tone: "primary" }),
           "group/sidebar-item list-none text-black/[0.55] hover:text-black/[0.55]",
         )}
+        onClick={preventSidebarTreeAction}
+        tabIndex={-1}
       >
         <ChevronRight
           className="size-3.5 shrink-0 transition-transform group-open/branch:rotate-90"
@@ -142,6 +153,8 @@ function SidebarSectionBlock({
         <button
           aria-label={`Add to ${section.label}`}
           className="inline-flex size-5 items-center justify-center rounded-[7px] text-black/[0.46] transition-colors hover:bg-black/[0.045] hover:text-[#242529]"
+          aria-disabled="true"
+          tabIndex={-1}
           type="button"
         >
           <Plus className="size-3.5 shrink-0" data-sidebar-icon />

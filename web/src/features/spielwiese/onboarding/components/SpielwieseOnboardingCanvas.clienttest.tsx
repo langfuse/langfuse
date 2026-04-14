@@ -103,8 +103,16 @@ function expectNoLegacyQuestionnaireChrome() {
 function expectSharedChromeOutsideStepLayer() {
   const stepLayer = getStepLayer();
   const wordmarkButton = screen.getByRole("button", { name: "Langfuse" });
+  const wordmarkShell = screen.getByTestId(
+    "spielwiese-onboarding-step-wordmark-shell",
+  );
 
   expect(stepLayer.contains(wordmarkButton)).toBe(false);
+  expect(wordmarkShell.className).not.toContain(
+    "transition-[opacity,transform,filter]",
+  );
+  expect(wordmarkShell.className).not.toContain("will-change-auto");
+  expect(wordmarkShell.className).not.toContain("[transition-delay:0ms]");
   expect(
     screen.queryByRole("button", {
       name: "© 2022-2026 Langfuse GmbH / Finto Technologies Inc.",
@@ -463,8 +471,11 @@ it("lets the role handoff freeze at a custom lift offset for tuning", async () =
   });
 
   expect(push).not.toHaveBeenCalled();
-  expect(
-    screen.getByTestId("spielwiese-onboarding-role-dashboard-handoff-node")
-      .style.transform,
-  ).toContain("-88px");
+  const handoffTransform = screen.getByTestId(
+    "spielwiese-onboarding-role-dashboard-handoff-node",
+  ).style.transform;
+
+  expect(handoffTransform).toContain("-88px");
+  expect(handoffTransform).toContain("scale(");
+  expect(handoffTransform).not.toContain("scaleX(");
 });

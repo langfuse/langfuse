@@ -17,7 +17,7 @@ import { spielwieseLightThemeStyle } from "./spielwieseLightTheme";
 import type { SpielwieseDashboardVM } from "./types/dashboard";
 
 export const spielwieseDashboardRootClassName =
-  "h-screen-with-banner relative isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased";
+  "bg-background text-foreground h-screen-with-banner relative isolate overflow-hidden [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased";
 
 export const spielwieseDashboardRootStyle = {
   ...spielwieseLightThemeStyle,

@@ -69,12 +69,19 @@ function expectResizeHandleChrome() {
   const resizeHandle = screen.getByTestId(
     "spielwiese-canvas-pane-resize-handle",
   );
+  const restingHandle = within(resizeHandle).getByTestId(
+    "spielwiese-resizable-handle-resting-pill",
+  );
 
   expect(resizeHandle.className).toContain("shrink-0");
-  expect(resizeHandle.className).toContain("bg-[#F3F3F4]");
-  expect(resizeHandle.className).toContain("h-px");
-  expect(resizeHandle.className).toContain("hover:ring-1");
-  expect(resizeHandle.className).toContain("hover:ring-border/70");
+  expect(resizeHandle.className).toContain("bg-transparent");
+  expect(resizeHandle.className).toContain("h-4");
+  expect(restingHandle.className).toContain("h-1.5");
+  expect(restingHandle.className).toContain("w-10");
+  expect(restingHandle.className).toContain("rounded-full");
+  expect(restingHandle.className).toContain(
+    "group-hover/resize-handle:opacity-0",
+  );
   expect(
     within(resizeHandle).queryByTestId("spielwiese-canvas-pane-mode-toggle"),
   ).toBeNull();
