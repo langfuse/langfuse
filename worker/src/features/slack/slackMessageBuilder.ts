@@ -40,7 +40,7 @@ export class SlackMessageBuilder {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${prompt.name}* (version ${prompt.version}) has been *${action}*`,
+          text: `*${escapeSlackMrkdwn(prompt.name)}* (version ${prompt.version}) has been *${action}*`,
         },
       },
       // Details section with key information
@@ -65,7 +65,7 @@ export class SlackMessageBuilder {
           },
           {
             type: "mrkdwn",
-            text: `*Tags:*\n${prompt.tags.length > 0 ? prompt.tags.join(", ") : "None"}`,
+            text: `*Tags:*\n${prompt.tags.length > 0 ? prompt.tags.map(escapeSlackMrkdwn).join(", ") : "None"}`,
           },
         ],
       },
@@ -76,7 +76,7 @@ export class SlackMessageBuilder {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `*Commit Message:*\n> ${prompt.commitMessage}`,
+                text: `*Commit Message:*\n> ${escapeSlackMrkdwn(prompt.commitMessage)}`,
               },
             },
           ]
