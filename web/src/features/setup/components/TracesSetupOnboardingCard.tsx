@@ -108,38 +108,30 @@ export function TracesSetupOnboardingCard({
               className="mt-1"
             />
           ) : (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                {hasApiKeyCreateAccess ? (
-                  <Button
-                    onClick={createApiKey}
-                    loading={mutCreateApiKey.isPending}
-                    className="self-start"
-                  >
-                    Create new API key
-                  </Button>
-                ) : (
-                  <Button disabled className="self-start">
-                    <LockIcon
-                      className="mr-2 -ml-0.5 h-4 w-4"
-                      aria-hidden="true"
-                    />
-                    Create new API key
-                  </Button>
-                )}
-                <ActionButton
-                  href={`/project/${projectId}/settings/api-keys`}
-                  variant="secondary"
+            <div className="flex flex-wrap gap-2">
+              {hasApiKeyCreateAccess ? (
+                <Button
+                  onClick={createApiKey}
+                  loading={mutCreateApiKey.isPending}
+                  className="self-start"
                 >
-                  Manage API keys
-                </ActionButton>
-              </div>
-              {!hasApiKeyCreateAccess && (
-                <p className="text-muted-foreground text-xs">
-                  You don&apos;t have permission to create API keys. Ask your
-                  project admin or use an existing key.
-                </p>
+                  Create new API key
+                </Button>
+              ) : (
+                <Button disabled className="self-start">
+                  <LockIcon
+                    className="mr-2 -ml-0.5 h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  Create new API key
+                </Button>
               )}
+              <ActionButton
+                href={`/project/${projectId}/settings/api-keys`}
+                variant="secondary"
+              >
+                Manage API keys
+              </ActionButton>
             </div>
           ),
         },
