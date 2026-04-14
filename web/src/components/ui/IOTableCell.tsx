@@ -87,6 +87,7 @@ export const IOTableCell = ({
     return (
       <JsonSkeleton
         borderless
+        numRows={singleLine ? 1 : undefined}
         className="h-full w-full overflow-hidden px-2 py-1"
       />
     );
