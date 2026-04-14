@@ -75,7 +75,7 @@ export const upsertManagedEvaluators = async (force = false) => {
 
       return prisma.evalTemplate
         .upsert({
-          where: { id: evaluator.id },
+          where: { id: evaluator.id, projectId: null },
           update: {
             ...baseEvaluator,
           },
