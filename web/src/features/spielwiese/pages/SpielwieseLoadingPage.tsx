@@ -1,4 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
+import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
 
 export type SpielwieseLoadingRoute = "dashboard" | "intro" | "onboarding";
 
@@ -203,6 +204,7 @@ export default function SpielwieseLoadingPage({
         data-route={route}
         data-spielwiese
         data-testid="spielwiese-loading-page"
+        style={spielwieseLightThemeStyle}
       >
         <OnboardingLoadingSkeleton />
       </div>
@@ -215,6 +217,7 @@ export default function SpielwieseLoadingPage({
         data-route={route}
         data-spielwiese
         data-testid="spielwiese-loading-page"
+        style={spielwieseLightThemeStyle}
       >
         <DashboardLoadingSkeleton />
       </div>
@@ -226,6 +229,7 @@ export default function SpielwieseLoadingPage({
       data-route={route}
       data-spielwiese
       data-testid="spielwiese-loading-page"
+      style={spielwieseLightThemeStyle}
     >
       <IntroLoadingSkeleton />
     </div>

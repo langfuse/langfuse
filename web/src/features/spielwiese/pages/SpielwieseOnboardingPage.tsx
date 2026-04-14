@@ -9,6 +9,7 @@ import {
 } from "../onboarding/spielwieseOnboardingFlow";
 import { SpielwieseOnboardingCanvas } from "../onboarding/components/SpielwieseOnboardingCanvas";
 import { getOnboardingSceneLayerClassName } from "../onboarding/spielwieseOnboardingEntryMotion";
+import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
 
 type SpielwieseOnboardingPageProps = {
   stepId?: string;
@@ -96,6 +97,7 @@ export default function SpielwieseOnboardingPage({
     <div
       className="bg-background min-h-screen-with-banner isolate [font-family:Inter,ui-sans-serif,system-ui,sans-serif] antialiased"
       data-spielwiese
+      style={spielwieseLightThemeStyle}
     >
       {entryStep ? (
         <EntryScene

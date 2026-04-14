@@ -7,7 +7,11 @@ const renderIntroPage = () => render(<SpielwieseIntroPage />);
 it("renders the intro header and roadmap metadata", () => {
   renderIntroPage();
 
-  expect(screen.getByTestId("spielwiese-intro-page")).toBeTruthy();
+  const root = screen.getByTestId("spielwiese-intro-page");
+
+  expect(root).toBeTruthy();
+  expect(root.style.colorScheme).toBe("light");
+  expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
   expect(
     screen.getByRole("heading", {
       name: "Langfuse redesign",

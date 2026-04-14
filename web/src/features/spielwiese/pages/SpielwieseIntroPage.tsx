@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { spielwieseSetupMomentContent } from "../components/spielwieseSetupMomentContent";
+import { spielwieseLightThemeStyle } from "../spielwieseLightTheme";
 
 const introLinkClassName =
   "text-[rgba(17,17,17,1)] transition-opacity duration-150 hover:opacity-70";
@@ -275,6 +276,7 @@ export default function SpielwieseIntroPage() {
       className="isolate min-h-dvh bg-white [font-family:Inter,ui-sans-serif,system-ui,sans-serif] text-[rgba(17,17,17,1)] antialiased"
       data-spielwiese
       data-testid="spielwiese-intro-page"
+      style={spielwieseLightThemeStyle}
     >
       <div className="min-h-dvh bg-white">
         <main className="mx-auto w-full max-w-[34.375rem] px-5 pt-20 sm:px-0">

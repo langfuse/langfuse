@@ -25,6 +25,8 @@ function mockRouter() {
 }
 
 function expectPersonalDetailsChrome(container: HTMLElement) {
+  const root = container.querySelector("[data-spielwiese]") as HTMLElement;
+
   expect(
     screen.getByTestId("spielwiese-onboarding-personal-details"),
   ).toBeTruthy();
@@ -38,7 +40,9 @@ function expectPersonalDetailsChrome(container: HTMLElement) {
   ).toBeTruthy();
   expect(screen.queryByTestId("spielwiese-onboarding-canvas")).toBeNull();
   expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
-  expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
+  expect(root).toBeTruthy();
+  expect(root.style.colorScheme).toBe("light");
+  expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
 }
 
 function expectCanCodeOptions() {
@@ -54,6 +58,7 @@ function expectCanCodeOptions() {
 }
 
 function expectSignUpRootChrome(container: HTMLElement) {
+  const root = container.querySelector("[data-spielwiese]") as HTMLElement;
   const welcomeHeading = screen.getByRole("heading", {
     name: "Welcome to Langfuse.",
   });
@@ -91,7 +96,9 @@ function expectSignUpRootChrome(container: HTMLElement) {
   expect(screen.queryByTestId("spielwiese-shell")).toBeNull();
   expect(screen.queryByTestId("spielwiese-shell-header")).toBeNull();
   expect(screen.queryByTestId("spielwiese-left-sidebar")).toBeNull();
-  expect(container.querySelector("[data-spielwiese]")).toBeTruthy();
+  expect(root).toBeTruthy();
+  expect(root.style.colorScheme).toBe("light");
+  expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
 }
 
 beforeEach(() => {

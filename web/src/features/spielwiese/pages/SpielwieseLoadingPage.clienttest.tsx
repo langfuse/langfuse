@@ -37,6 +37,8 @@ describe("SpielwieseLoadingPage", () => {
 
     expect(root.getAttribute("data-route")).toBe("dashboard");
     expect(root.getAttribute("data-spielwiese")).not.toBeNull();
+    expect(root.style.colorScheme).toBe("light");
+    expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
     expect(root.textContent).toBe("");
   });
 

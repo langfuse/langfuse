@@ -37,6 +37,9 @@ function getEmptyStateNewNodeTrigger() {
 }
 
 function expectDefaultCanvasLayerVars(root: HTMLElement) {
+  expect(root.style.colorScheme).toBe("light");
+  expect(root.style.getPropertyValue("--background")).toBe("0 0% 100%");
+  expect(root.style.getPropertyValue("--foreground")).toBe("222.2 84% 4.9%");
   expect(
     root.style.getPropertyValue(
       "--spielwiese-dashboard-canvas-pane-background",
