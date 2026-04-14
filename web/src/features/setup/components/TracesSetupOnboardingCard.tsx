@@ -39,27 +39,23 @@ function CopyableSnippet({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="bg-muted/50 mx-auto flex flex-col rounded-2xl border shadow-xs">
-        <div className="flex justify-end px-3 pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => void handleCopy()}
-          >
-            {copied ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-            {copied ? "Copied" : "Copy prompt"}
-          </Button>
-        </div>
-        <code className="block min-w-0 px-5 pt-2 pb-4 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
-          {value}
-        </code>
-      </div>
+    <div className="bg-muted/50 flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-xs">
+      <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-words whitespace-pre-wrap sm:text-sm">
+        {value}
+      </code>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-2"
+        onClick={() => void handleCopy()}
+      >
+        {copied ? (
+          <Check className="h-4 w-4" />
+        ) : (
+          <Copy className="h-4 w-4" />
+        )}
+        {copied ? "Copied" : "Copy prompt"}
+      </Button>
     </div>
   );
 }
@@ -116,30 +112,38 @@ export function TracesSetupOnboardingCard({
               className="mt-1"
             />
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {hasApiKeyCreateAccess ? (
-                <Button
-                  onClick={createApiKey}
-                  loading={mutCreateApiKey.isPending}
-                  className="self-start"
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                {hasApiKeyCreateAccess ? (
+                  <Button
+                    onClick={createApiKey}
+                    loading={mutCreateApiKey.isPending}
+                    className="self-start"
+                  >
+                    Create new API key
+                  </Button>
+                ) : (
+                  <Button disabled className="self-start">
+                    <LockIcon
+                      className="mr-2 -ml-0.5 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                    Create new API key
+                  </Button>
+                )}
+                <ActionButton
+                  href={`/project/${projectId}/settings/api-keys`}
+                  variant="secondary"
                 >
-                  Create new API key
-                </Button>
-              ) : (
-                <Button disabled className="self-start">
-                  <LockIcon
-                    className="mr-2 -ml-0.5 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                  Create new API key
-                </Button>
+                  Manage API keys
+                </ActionButton>
+              </div>
+              {!hasApiKeyCreateAccess && (
+                <p className="text-muted-foreground text-xs">
+                  You don&apos;t have permission to create API keys. Ask your
+                  project admin or use an existing key.
+                </p>
               )}
-              <ActionButton
-                href={`/project/${projectId}/settings/api-keys`}
-                variant="secondary"
-              >
-                Manage API keys
-              </ActionButton>
             </div>
           ),
         },
