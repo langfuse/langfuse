@@ -100,7 +100,7 @@ export function TracesSetupOnboardingCard({
   return (
     <section className={cn("bg-background", className)}>
       <div className="mx-auto flex max-w-4xl flex-col px-6 py-8 sm:px-10 sm:py-10">
-        <div className="mb-10 text-center">
+        <div className="mb-10 text-left">
           <StatusBadge
             type="waiting"
             showText={false}
@@ -111,63 +111,17 @@ export function TracesSetupOnboardingCard({
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Time to log your first trace, it only takes a minute
           </h2>
-          <p className="text-muted-foreground mx-auto mt-4 max-w-3xl text-lg leading-8">
-            Ask your coding agent to add observability with Langfuse to your
-            application, then add your API keys to start logging traces.
+          <p className="text-muted-foreground mt-4 max-w-3xl text-lg leading-8">
+            Get your API keys first, then ask your coding agent to add
+            observability with Langfuse to your application.
           </p>
         </div>
 
         <div className="w-full max-w-4xl space-y-8">
           <div className="text-left">
-            <div className="mb-3 flex items-center gap-3 text-left">
-              <span className="text-muted-foreground text-3xl font-light">
-                1
-              </span>
-              <h3 className="text-2xl font-semibold">
-                Add tracing with your coding agent
-              </h3>
-              <Badge variant="tertiary" className="gap-1">
-                <Sparkles className="h-3 w-3" />
-                Recommended
-              </Badge>
-            </div>
-            <p className="text-muted-foreground text-base leading-7">
-              Paste this prompt into Claude, Cursor, Copilot, or another coding
-              agent.
-            </p>
-            <div className="mt-6 w-full max-w-4xl">
-              <CopyableSnippet
-                value={SKILLS_INSTALL_COMMAND}
-                onCopy={() =>
-                  capture("onboarding:tracing_agent_prompt_copy_clicked", {
-                    projectId,
-                  })
-                }
-              />
-            </div>
-
-            <div className="mt-5 w-full max-w-4xl text-center">
-              <Link
-                href={MANUAL_TRACING_DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex text-sm underline underline-offset-4 hover:no-underline"
-                onClick={() =>
-                  capture("onboarding:tracing_manual_docs_link_clicked", {
-                    href: MANUAL_TRACING_DOCS_URL,
-                    projectId,
-                  })
-                }
-              >
-                or follow our docs to set up tracing manually
-              </Link>
-            </div>
-          </div>
-
-          <div className="border-border border-t pt-8 text-left">
             <div className="mb-3 flex items-center gap-3">
               <span className="text-muted-foreground text-3xl font-light">
-                2
+                1
               </span>
               <h3 className="text-2xl font-semibold">Get API keys</h3>
             </div>
@@ -210,6 +164,52 @@ export function TracesSetupOnboardingCard({
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="border-border border-t pt-8 text-left">
+            <div className="mb-3 flex items-center gap-3 text-left">
+              <span className="text-muted-foreground text-3xl font-light">
+                2
+              </span>
+              <h3 className="text-2xl font-semibold">
+                Add tracing with your coding agent
+              </h3>
+              <Badge variant="tertiary" className="gap-1">
+                <Sparkles className="h-3 w-3" />
+                Recommended
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-base leading-7">
+              Paste this prompt into Claude, Cursor, Copilot, or another coding
+              agent.
+            </p>
+            <div className="mt-6 w-full max-w-4xl">
+              <CopyableSnippet
+                value={SKILLS_INSTALL_COMMAND}
+                onCopy={() =>
+                  capture("onboarding:tracing_agent_prompt_copy_clicked", {
+                    projectId,
+                  })
+                }
+              />
+            </div>
+
+            <div className="mt-5 w-full max-w-4xl text-center">
+              <Link
+                href={MANUAL_TRACING_DOCS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary inline-flex text-sm underline underline-offset-4 hover:no-underline"
+                onClick={() =>
+                  capture("onboarding:tracing_manual_docs_link_clicked", {
+                    href: MANUAL_TRACING_DOCS_URL,
+                    projectId,
+                  })
+                }
+              >
+                or follow our docs to set up tracing manually
+              </Link>
+            </div>
           </div>
         </div>
       </div>
