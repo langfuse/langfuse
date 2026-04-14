@@ -142,6 +142,7 @@ export function useMessageSearch() {
     openSearch: controller.openSearch,
     closeSearch: controller.closeSearch,
     setQueryInput: controller.setQueryInput,
+    blurQueryInput: controller.blurQueryInput,
     nextMatch: controller.nextMatch,
     previousMatch: controller.previousMatch,
   };

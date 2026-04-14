@@ -25,6 +25,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
     openSearch,
     closeSearch,
     setQueryInput,
+    blurQueryInput,
     nextMatch,
     previousMatch,
   } = useMessageSearch();
@@ -71,6 +72,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         ref={inputRef}
         value={queryInput}
         onChange={(event) => setQueryInput(event.target.value)}
+        onBlur={blurQueryInput}
         placeholder="Find in messages"
         className="h-6 min-w-40 border-0 px-1 text-xs shadow-none focus-visible:ring-0 sm:min-w-56"
         onKeyDown={(event) => {
