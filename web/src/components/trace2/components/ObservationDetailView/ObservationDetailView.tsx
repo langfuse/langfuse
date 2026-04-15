@@ -82,9 +82,9 @@ export function ObservationDetailView({
   } = useSelection();
 
   // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
-  const showLogViewTab = isV4BetaEnabled && observations.length > 0;
+  const showLogViewTab = isV4Enabled && observations.length > 0;
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -129,6 +129,7 @@ export function ObservationDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -351,7 +352,7 @@ export function ObservationDetailView({
                           sideOffset={8}
                         >
                           <p className="font-medium">JSON view unavailable</p>
-                          <p className="mt-1 text-muted-foreground">
+                          <p className="text-muted-foreground mt-1">
                             Disabled for traces with{" "}
                             {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
                             observations to maintain performance.
@@ -374,7 +375,7 @@ export function ObservationDetailView({
                         checked={jsonBetaEnabled}
                         onCheckedChange={handleBetaToggle}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Beta
                       </span>
                     </div>
@@ -457,7 +458,7 @@ export function ObservationDetailView({
               environment={observation.environment}
             />
             {currentView !== "json-beta" && (
-              <div className="h-4 w-full flex-shrink-0" />
+              <div className="h-4 w-full shrink-0" />
             )}
           </div>
         </TabsBarContent>
@@ -465,7 +466,7 @@ export function ObservationDetailView({
         {/* Scores tab content */}
         <TabsBarContent
           value="scores"
-          className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
+          className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
         >
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             <ScoresTable
@@ -476,11 +477,12 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
-              disableUrlPersistence
+              disableUrlPersistence={isPeekMode}
             />
           </div>
         </TabsBarContent>

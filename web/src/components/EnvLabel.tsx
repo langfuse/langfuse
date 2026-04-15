@@ -13,7 +13,7 @@ export const EnvLabel = ({ className }: { className?: string }) => {
   return (
     <div
       className={cn(
-        "flex cursor-pointer items-center gap-1 self-stretch whitespace-nowrap rounded-md px-1 py-0.5 text-xs",
+        "flex cursor-pointer items-center gap-1 self-stretch rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
         region === "STAGING"
           ? "bg-light-blue text-dark-blue"
           : region === "DEV"
@@ -23,7 +23,7 @@ export const EnvLabel = ({ className }: { className?: string }) => {
       )}
       onClick={() => setIsHidden(true)}
     >
-      {region && ["EU", "US", "HIPAA"].includes(region)
+      {region && ["EU", "US", "HIPAA", "JP"].includes(region)
         ? `PROD-${region}`
         : region}
     </div>

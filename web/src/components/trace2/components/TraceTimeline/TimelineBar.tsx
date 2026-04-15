@@ -46,17 +46,17 @@ export function TimelineBar({
       >
         <div
           className={cn(
-            "flex rounded-sm border border-border",
+            "border-border flex rounded-sm border",
             isSelected
-              ? "ring ring-primary-accent"
-              : "group-hover:ring group-hover:ring-tertiary",
+              ? "ring-primary-accent ring-3"
+              : "group-hover:ring-tertiary group-hover:ring-3",
           )}
           style={{ marginLeft: `${startOffset}px` }}
         >
           {/* First token time bar (waiting period) */}
           <div
             className={cn(
-              "flex h-8 items-center justify-start rounded-l-sm border-r border-gray-400 bg-muted opacity-60",
+              "bg-muted flex h-8 items-center justify-start rounded-l-sm border-r border-gray-400 opacity-60",
               itemWidth ? "" : "border border-dashed",
             )}
             style={{ width: `${firstTokenWidth}px` }}
@@ -65,15 +65,15 @@ export function TimelineBar({
           {/* Completion time bar */}
           <div
             className={cn(
-              "flex h-8 items-center justify-start rounded-r-sm bg-muted",
+              "bg-muted flex h-8 items-center justify-start rounded-r-sm",
               itemWidth ? "" : "border border-dashed",
             )}
             style={{ width: `${completionWidth}px` }}
           >
-            <div className="-ml-8 flex flex-row items-center justify-start gap-2 text-xs text-muted-foreground">
+            <div className="text-muted-foreground -ml-8 flex flex-row items-center justify-start gap-2 text-xs">
               <span className="text-xxs text-primary">First token</span>
               <ItemBadge type={node.type} isSmall />
-              <span className="whitespace-nowrap text-sm font-medium text-primary">
+              <span className="text-primary text-sm font-medium whitespace-nowrap">
                 {node.name}
               </span>
               {showComments && commentCount ? (
@@ -82,7 +82,7 @@ export function TimelineBar({
               {showDuration && isPresent(latency) && (
                 <span
                   className={cn(
-                    "text-xs text-muted-foreground",
+                    "text-muted-foreground text-xs",
                     parentTotalDuration &&
                       colorCodeMetrics &&
                       duration &&
@@ -98,7 +98,7 @@ export function TimelineBar({
               {showCostTokens && node.totalCost && (
                 <span
                   className={cn(
-                    "text-xs text-muted-foreground",
+                    "text-muted-foreground text-xs",
                     parentTotalCost &&
                       colorCodeMetrics &&
                       heatMapTextColor({
@@ -132,22 +132,22 @@ export function TimelineBar({
       <div className="relative" style={{ marginLeft: `${startOffset}px` }}>
         <div
           className={cn(
-            "flex h-8 items-center justify-start rounded-sm border border-border bg-muted",
+            "border-border bg-muted flex h-8 items-center justify-start rounded-sm border",
             itemWidth ? "" : "border-dashed",
             isSelected
-              ? "ring ring-primary-accent"
-              : "group-hover:ring group-hover:ring-tertiary",
+              ? "ring-primary-accent ring-3"
+              : "group-hover:ring-tertiary group-hover:ring-3",
           )}
           style={{ width: `${itemWidth || 10}px` }}
         >
           <div
             className={cn(
-              "flex flex-row items-center justify-start gap-2 text-xs text-muted-foreground",
+              "text-muted-foreground flex flex-row items-center justify-start gap-2 text-xs",
               hasChildren ? "ml-6" : "ml-1",
             )}
           >
             <ItemBadge type={node.type} isSmall />
-            <span className="whitespace-nowrap text-sm font-medium text-primary">
+            <span className="text-primary text-sm font-medium whitespace-nowrap">
               {node.name}
             </span>
             {showComments && commentCount ? (
@@ -156,7 +156,7 @@ export function TimelineBar({
             {showDuration && isPresent(latency) && (
               <span
                 className={cn(
-                  "text-xs text-muted-foreground",
+                  "text-muted-foreground text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
                     duration &&
@@ -172,7 +172,7 @@ export function TimelineBar({
             {showCostTokens && node.totalCost && (
               <span
                 className={cn(
-                  "text-xs text-muted-foreground",
+                  "text-muted-foreground text-xs",
                   parentTotalCost &&
                     colorCodeMetrics &&
                     heatMapTextColor({

@@ -1,7 +1,7 @@
 /** @jest-environment node */
 
 import type { Session } from "next-auth";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
 jest.mock("@langfuse/shared/src/server", () => {

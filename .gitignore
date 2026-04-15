@@ -9,6 +9,7 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
 
 # database
@@ -46,6 +47,7 @@ yarn-error.log*
 !.env.dev-redis-cluster.example
 !.env.prod.example
 !.env.test.example
+!.env.dev-oci.example
 
 # vercel
 .vercel
@@ -72,6 +74,16 @@ node_modules
 .turbo
 
 web/test-results/*
+.playwright-mcp/*
+.codex-artifacts/
+.mcp.json
+.claude/settings.json
+.claude/skills/
+.cursor/mcp.json
+.cursor/environment.json
+.vscode/mcp.json
+.codex/config.toml
+.codex/environments/environment.toml
 
 # local config files
 *.local.*

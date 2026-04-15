@@ -69,7 +69,7 @@ export function DataTableAIFilters({
   if (!organization?.aiFeaturesEnabled) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           AI-powered filters use natural language to generate deterministic
           filters.
           {!hasAdminAccess &&
@@ -103,7 +103,7 @@ export function DataTableAIFilters({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Info className="h-4 w-4 text-muted-foreground" />
+              <Info className="text-muted-foreground h-4 w-4" />
             </TooltipTrigger>
             <TooltipContent>
               <p className="text-xs">

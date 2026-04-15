@@ -146,7 +146,7 @@ const DatasetAggregateCellContent = ({
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative h-[50%] w-full min-w-0 flex-shrink-0 overflow-auto",
+          "relative h-[50%] w-full min-w-0 shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
@@ -159,7 +159,7 @@ const DatasetAggregateCellContent = ({
           <MemoizedIOTableCell
             isLoading={isLoading || !data}
             data={data?.output ?? "null"}
-            className={"min-h-8 bg-accent-light-green"}
+            className={"bg-accent-light-green min-h-8"}
             singleLine={false}
             enableExpandOnHover
           />
@@ -172,7 +172,7 @@ const DatasetAggregateCellContent = ({
           !selectedFields.includes("scores") && "hidden",
         )}
       >
-        <div className="w-full min-w-0 overflow-hidden @container">
+        <div className="@container w-full min-w-0 overflow-hidden">
           <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[500px]:grid-cols-2">
             {mergedScoreColumns.length > 0 ? (
               mergedScoreColumns.map((scoreColumn) => (
@@ -186,14 +186,14 @@ const DatasetAggregateCellContent = ({
                 />
               ))
             ) : (
-              <span className="text-xs text-muted-foreground">No scores</span>
+              <span className="text-muted-foreground text-xs">No scores</span>
             )}
           </div>
         </div>
       </div>
       {/* Displays resource metrics and action buttons */}
       {!isLoading && (
-        <div className="mt-auto flex min-h-6 flex-shrink-0 items-center justify-between gap-2 px-1 pb-1">
+        <div className="mt-auto flex min-h-6 shrink-0 items-center justify-between gap-2 px-1 pb-1">
           <div
             className={cn(
               "flex flex-row flex-wrap gap-1",
@@ -210,7 +210,7 @@ const DatasetAggregateCellContent = ({
                 />
               ) : (
                 <Badge variant="tertiary" size="sm" className="font-normal">
-                  <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>

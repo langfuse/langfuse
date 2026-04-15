@@ -51,4 +51,11 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: 'dri."dataset_item_id"',
   },
+  // require join of scores with experiments via trace_id and project_id
+  {
+    uiTableName: "Experiment IDs",
+    uiTableId: "experimentIds",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."experiment_id"',
+  },
 ];

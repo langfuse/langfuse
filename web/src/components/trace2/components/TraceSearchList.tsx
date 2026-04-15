@@ -43,7 +43,7 @@ export function TraceSearchList() {
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
         <div className="space-y-4">
           <p className="text-muted-foreground">No results found</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Try searching by type, title, or id
           </p>
           <Button

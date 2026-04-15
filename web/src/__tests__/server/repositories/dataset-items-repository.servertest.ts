@@ -1690,4 +1690,52 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(allVersions[1].isDeleted).toBe(true);
     });
   });
+
+  describe("getDatasetItems() with search", () => {
+    it("should search dataset items by expected output only", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Create dataset items with distinct input and expected output
+      const item1 = await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { query: "simple input text" },
+        expectedOutput: { result: "unique_output_search_keyword" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      const item2 = await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { query: "another input with keyword" },
+        expectedOutput: { result: "different output" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      if (!item1.success || !item2.success) {
+        throw new Error("Failed to create items");
+      }
+
+      // Search for keyword that only exists in expected output
+      const searchResults = await getDatasetItems({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        limit: 100,
+        page: 0,
+        searchQuery: "unique_output_search_keyword",
+        searchType: ["output"], // Search only in expected output
+      });
+
+      expect(searchResults.length).toBe(1);
+      expect(searchResults[0].id).toBe(item1.datasetItem.id);
+      expect(searchResults[0].expectedOutput).toEqual({
+        result: "unique_output_search_keyword",
+      });
+    });
+  });
 });

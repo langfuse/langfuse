@@ -76,7 +76,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
             children
           ) : (
             <div className="px-2 py-1">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {emptyMessage || "No items configured."}
               </p>
             </div>
@@ -87,7 +87,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
       {/* Compact summary when collapsed */}
       {!isExpanded && (hasContent || summaryContent) && (
         <div className="px-2 py-0.5">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {summaryContent ||
               (count !== undefined && count > 0
                 ? `${count} item${count === 1 ? "" : "s"} configured`

@@ -66,11 +66,11 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
           {templates.isLoading ? (
             <Skeleton className="h-full w-full" />
           ) : templates.isError ? (
-            <div className="py-8 text-center text-destructive">
+            <div className="text-destructive py-8 text-center">
               Error: {templates.error.message}
             </div>
           ) : templates.data?.templates.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
+            <div className="text-muted-foreground py-8 text-center">
               No evaluators found. Create a new evaluator to get started.
             </div>
           ) : (
@@ -107,7 +107,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         open={isCreateTemplateOpen}
         onOpenChange={setIsCreateTemplateOpen}
       >
-        <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-md) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create new evaluator</DialogTitle>
           </DialogHeader>

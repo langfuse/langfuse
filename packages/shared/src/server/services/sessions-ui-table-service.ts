@@ -2,6 +2,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
+import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
@@ -174,7 +175,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     tracesPrefix: "s",
   });
 
-  tracesFilter.push(...createFilterFromFilterState(filter, sessionCols));
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
+  );
 
   const tracesFilterRes = tracesFilter
     .filter((f) => f.field !== "environment")

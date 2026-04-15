@@ -37,7 +37,7 @@ const notifications: SidebarNotification[] = [
       // eslint-disable-next-line @next/next/no-img-element
       <img
         alt="Langfuse GitHub stars"
-        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
+        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&style=social"
       />
     ),
   },
@@ -76,12 +76,12 @@ export function SidebarNotifications() {
       {activeNotifications.map((notification) => (
         <Card
           key={notification.id}
-          className="relative max-h-60 overflow-hidden rounded-md bg-opacity-50 shadow-none"
+          className="bg-opacity-50 relative max-h-60 overflow-hidden rounded-md shadow-none"
         >
           <Button
             variant="ghost"
             size="sm"
-            className="absolute right-1.5 top-2.5 h-5 w-5 p-0"
+            className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
             onClick={() => {
               capture("notification:dismiss_notification", {
                 notification_id: notification.id,
@@ -92,13 +92,13 @@ export function SidebarNotifications() {
           >
             <X className="h-3.5 w-3.5" />
           </Button>
-          <CardHeader className="px-3 pb-0 pr-6 pt-2.5">
+          <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
             <CardTitle className="text-sm">{notification.title}</CardTitle>
             <CardDescription className="mt-1">
               {notification.description}
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-3 pb-2.5 pt-1.5">
+          <CardContent className="px-3 pt-1.5 pb-2.5">
             {notification.link &&
               (notification.linkContent ? (
                 <Link

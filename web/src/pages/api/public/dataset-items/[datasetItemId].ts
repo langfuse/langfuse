@@ -46,7 +46,7 @@ export default withMiddlewares({
 
       // Note that we cascade items on delete, so returning a 404 here is expected
       if (!dataset) {
-        throw new LangfuseNotFoundError("Dataset item not found");
+        throw new LangfuseNotFoundError("Dataset not found");
       }
 
       return transformDbDatasetItemDomainToAPIDatasetItem({

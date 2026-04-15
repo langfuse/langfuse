@@ -14,7 +14,7 @@ export function TraceGraphView() {
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <span className="text-sm text-muted-foreground">Loading graph...</span>
+        <span className="text-muted-foreground text-sm">Loading graph...</span>
       </div>
     );
   }

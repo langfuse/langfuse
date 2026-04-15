@@ -12,25 +12,42 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 export const DetailPageNav = (props: {
   currentId: string;
   path: (entry: ListEntry) => string;
   listKey: string;
+  onNavigate?: (entry: ListEntry) => void;
 }) => {
+  const { currentId, path, listKey, onNavigate } = props;
   const { detailPagelists } = useDetailPageLists();
-  const entries = detailPagelists[props.listKey] ?? [];
+  const entries = detailPagelists[listKey] ?? [];
 
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const currentIndex = entries.findIndex(
-    (entry) => entry.id === props.currentId,
-  );
+  const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
     currentIndex > 0 ? entries[currentIndex - 1] : undefined;
   const nextPageEntry =
     currentIndex < entries.length - 1 ? entries[currentIndex + 1] : undefined;
+
+  const navigateToEntry = useCallback(
+    (entry: ListEntry) => {
+      if (onNavigate) {
+        onNavigate(entry);
+        return;
+      }
+
+      void router.push(
+        path({
+          id: encodeURIComponent(entry.id),
+          params: entry.params,
+        }),
+      );
+    },
+    [onNavigate, path, router],
+  );
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
@@ -50,22 +67,14 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageEntry) {
-        const newPath = props.path({
-          id: encodeURIComponent(previousPageEntry.id),
-          params: previousPageEntry.params,
-        });
-        void router.push(newPath);
+        navigateToEntry(previousPageEntry);
       } else if (event.key === "j" && nextPageEntry) {
-        const newPath = props.path({
-          id: encodeURIComponent(nextPageEntry.id),
-          params: nextPageEntry.params,
-        });
-        void router.push(newPath);
+        navigateToEntry(nextPageEntry);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previousPageEntry, nextPageEntry, router, props]);
+  }, [previousPageEntry, nextPageEntry, navigateToEntry]);
 
   if (entries.length > 1)
     return (
@@ -80,24 +89,19 @@ export const DetailPageNav = (props: {
               onClick={() => {
                 if (previousPageEntry) {
                   capture("navigate_detail_pages:button_click_prev_or_next");
-                  void router.push(
-                    props.path({
-                      id: encodeURIComponent(previousPageEntry.id),
-                      params: previousPageEntry.params,
-                    }),
-                  );
+                  navigateToEntry(previousPageEntry);
                 }
               }}
             >
               <ChevronUp className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
                 K
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
               k
             </InputCommandShortcut>
           </TooltipContent>
@@ -113,24 +117,19 @@ export const DetailPageNav = (props: {
               onClick={() => {
                 if (nextPageEntry) {
                   capture("navigate_detail_pages:button_click_prev_or_next");
-                  void router.push(
-                    props.path({
-                      id: encodeURIComponent(nextPageEntry.id),
-                      params: nextPageEntry.params,
-                    }),
-                  );
+                  navigateToEntry(nextPageEntry);
                 }
               }}
             >
               <ChevronDown className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
                 J
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
               j
             </InputCommandShortcut>
           </TooltipContent>

@@ -106,11 +106,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         side="right"
         className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
       >
-        <SheetHeader className="flex min-h-11 flex-row flex-nowrap items-center justify-between bg-header px-2 py-1">
-          <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
+        <SheetHeader className="bg-header flex min-h-11 flex-row flex-nowrap items-center justify-between px-2 py-1">
+          <SheetTitle className="mt-0! ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span
-              className="truncate text-sm font-medium focus:outline-none"
+              className="truncate text-sm font-medium focus:outline-hidden"
               tabIndex={0}
             >
               {peekView.customTitlePrefix
@@ -120,7 +120,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </SheetTitle>
           <div
             className={cn(
-              "!mt-0 flex flex-shrink-0 flex-row items-center gap-2",
+              "mt-0! flex shrink-0 flex-row items-center gap-2",
               !canExpand && "mr-8",
             )}
           >
@@ -134,7 +134,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 />
               )}
             {canExpand && (
-              <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
+              <div className="mt-0! mr-8 flex h-full flex-row items-center gap-1 border-l">
                 <Button
                   variant="ghost"
                   size="icon-xs"

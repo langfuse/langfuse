@@ -25,7 +25,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name", "hasParentObservation"],
+  defaultExpanded: ["environment", "name", "hasParentObservation", "type"],
 
   facets: [
     {
@@ -61,12 +61,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
-    },
-    {
-      type: "positionInTrace" as const,
-      column: "positionInTrace",
-      label: getEventsColumnName("positionInTrace"),
-      mutuallyExclusiveWith: ["score_categories", "scores_avg"],
     },
     {
       type: "categorical" as const,
@@ -227,6 +221,16 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "keyValue" as const,
+      column: "trace_score_categories",
+      label: "Trace Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "trace_scores_avg",
+      label: "Trace Numeric Scores",
     },
     {
       type: "numeric" as const,

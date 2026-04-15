@@ -153,14 +153,14 @@ export default function RemapEvaluatorPage() {
     >
       <div className="space-y-4">
         <div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Review your legacy evaluator on the left and configure the new eval
             settings on the right.{" "}
             <a
               href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-dark-blue hover:opacity-80"
+              className="text-dark-blue font-medium hover:opacity-80"
             >
               Follow our step-by-step guide
             </a>{" "}
@@ -169,7 +169,7 @@ export default function RemapEvaluatorPage() {
           {mappedConfig ? (
             <Alert
               variant="default"
-              className="mt-2 border-light-yellow bg-light-yellow"
+              className="border-light-yellow bg-light-yellow mt-2"
             >
               <AlertDescription>
                 <div className="flex flex-col gap-2">
@@ -205,7 +205,7 @@ export default function RemapEvaluatorPage() {
                       ? "(runs on traces)"
                       : ""}
                   </h3>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     Read-only
                   </span>
                 </div>

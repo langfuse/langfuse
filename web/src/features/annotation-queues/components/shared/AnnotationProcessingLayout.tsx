@@ -41,7 +41,7 @@ export const AnnotationProcessingLayout: React.FC<
         >
           <ResizablePanel
             id="annotation-left"
-            className="col-span-1 h-full !overflow-y-auto rounded-md border"
+            className="col-span-1 h-full overflow-y-auto! rounded-md border"
             minSize="30%"
             defaultSize={`${panelSize}%`}
           >

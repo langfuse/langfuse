@@ -15,7 +15,7 @@ import {
   OBSERVATION_FIELD_GROUPS,
   type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEventsTableSchema } from "../../query/types";
 
 // Re-export for convenience
@@ -156,6 +156,12 @@ export const transformDbToApiObservation = (
     toolCalls,
 
     toolCallNames,
+
+    // Exclude publish/bookmark flags from V1 public observations API.
+    // V2 observations already exposes these on the events-based contract.
+    bookmarked,
+
+    public: _public,
     ...rest
   } = observation as EventsObservation & ObservationPriceFields;
 

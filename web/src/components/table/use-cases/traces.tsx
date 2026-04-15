@@ -74,6 +74,7 @@ import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -136,6 +137,7 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
   hideControls?: boolean;
+  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -146,6 +148,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
   hideControls = false,
+  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -290,13 +293,13 @@ export default function TracesTable({
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
-      name:
+      traceName:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
         })) ?? undefined,
       // tags don't have counts
-      tags:
+      traceTags:
         traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
@@ -325,15 +328,17 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(
-    traceFilterConfig,
-    filterOptions,
-    projectId,
-    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
-  );
+  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions, {
+    loading:
+      traceFilterOptionsResponse.isPending ||
+      environmentFilterOptions.isPending,
+    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+    sessionFilterContextId: projectId,
+    // Sidebar-only implicit environment defaults
+    implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+  });
 
-  const combinedFilterState = queryFilter.filterState.concat(
+  const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
     dateRangeFilter,
   );
@@ -429,11 +434,13 @@ export default function TracesTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
 
+  // Trace rows render trace-scoped aggregates: direct trace scores plus
+  // observation scores that belong to the same trace.
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<TracesTableRow>({
       scoreColumnKey: "scores",
       projectId,
-      filter: scoreFilters.forTraces(),
+      filter: scoreFilters.forTraceScopedAggregates(),
       fromTimestamp: dateRange?.from,
     });
 
@@ -773,7 +780,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/tags"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -813,7 +820,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/metadata"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -871,7 +878,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/sessions"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -905,7 +912,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/users"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -981,7 +988,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/releases-and-versioning"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -1009,7 +1016,7 @@ export default function TracesTable({
               href="https://langfuse.com/docs/observability/features/releases-and-versioning"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline decoration-primary/30 hover:decoration-primary"
+              className="decoration-primary/30 hover:decoration-primary underline"
               onClick={(e) => e.stopPropagation()}
             >
               here
@@ -1235,6 +1242,7 @@ export default function TracesTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
+    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
@@ -1246,7 +1254,8 @@ export default function TracesTable({
       columns,
       filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    disabled: hideControls,
   });
 
   const rows = useMemo(() => {
@@ -1303,7 +1312,7 @@ export default function TracesTable({
           <DataTableToolbar
             columns={columns}
             filterWithAI
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,
@@ -1317,7 +1326,7 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            columnsWithCustomSelect={["name", "tags"]}
+            columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>
                 traces.data?.traces.map((t) => t.id).includes(traceId),

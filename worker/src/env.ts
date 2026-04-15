@@ -1,5 +1,5 @@
 import { removeEmptyEnvVariables } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const EnvSchema = z.object({
   BUILD_ID: z.string().optional(),
@@ -17,7 +17,7 @@ const EnvSchema = z.object({
   NEXTAUTH_URL: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
-    .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+    .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
     .optional(),
 
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -121,6 +121,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -159,6 +163,11 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS: z.coerce
+    .number()
+    .positive()
+    .default(24),
 
   // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
   LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
@@ -256,11 +265,23 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
-    .default(200),
+    .default(100),
   LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
     .number()
     .positive()
     .default(5 * 60 * 1000), // 5 minutes
+
+  // Comma-separated list of project IDs to exclude from experiment backfill processing
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  // Comma-separated list of project IDs to exclude from event propagation dual-write
+  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -336,6 +357,12 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
+
+  // Batch Project Media Cleaner configuration (S3/PostgreSQL)
+  LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(5000), // Media items per chunk
 
   // Batch Data Retention Cleaner configuration (ClickHouse)
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED: z
@@ -416,6 +443,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.3), // Probability for recording sharded queue depth metrics
 });
 
 export const env: z.infer<typeof EnvSchema> =

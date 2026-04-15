@@ -625,6 +625,91 @@ describe("batch export test suite", () => {
     );
   });
 
+  it("should export traces with categorical score names containing colons", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    const categoricalScore = createTraceScore({
+      project_id: projectId,
+      trace_id: trace.id,
+      name: "QA: #1 Primary Failure",
+      value: undefined,
+      string_value: "yes",
+      data_type: "CATEGORICAL",
+    });
+
+    await createScoresCh([categoricalScore]);
+
+    const stream = await getTraceStream({
+      projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
+  });
+
+  it("should export observations with categorical score names containing colons", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+    });
+
+    await createTracesCh([trace]);
+
+    const observation = createObservation({
+      project_id: projectId,
+      trace_id: traceId,
+      id: randomUUID(),
+      type: "GENERATION",
+    });
+
+    await createObservationsCh([observation]);
+
+    const categoricalScore = createTraceScore({
+      project_id: projectId,
+      trace_id: traceId,
+      observation_id: observation.id,
+      name: "QA: #1 Primary Failure",
+      value: undefined,
+      string_value: "yes",
+      data_type: "CATEGORICAL",
+    });
+
+    await createScoresCh([categoricalScore]);
+
+    const stream = await getObservationStream({
+      projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
+  });
+
   it("should export traces with filter and sort", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -2550,6 +2635,51 @@ describe("batch export test suite", () => {
       expect(rows[0].sentiment).toEqual(["positive"]);
     });
 
+    it("should export events with categorical score names containing colons", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "colon-scored-event",
+        start_time: now,
+      });
+
+      await createEventsCh([event]);
+
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: event.span_id,
+        name: "QA: #1 Primary Failure",
+        value: undefined,
+        string_value: "yes",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([score]);
+
+      const stream = await getEventsStream({
+        projectId: projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      });
+
+      const rows: any[] = [];
+
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("colon-scored-event");
+      expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
+    });
+
     it("should handle empty events export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -3311,6 +3441,51 @@ describe("batch export test suite", () => {
       expect(rows[0].sentiment).toEqual(["positive"]);
     });
 
+    it("should export events with categorical score names containing colons", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "colon-scored-event",
+        start_time: now,
+      });
+
+      await createEventsCh([event]);
+
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: event.span_id,
+        name: "QA: #1 Primary Failure",
+        value: undefined,
+        string_value: "yes",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([score]);
+
+      const stream = await getEventsStream({
+        projectId: projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      });
+
+      const rows: any[] = [];
+
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("colon-scored-event");
+      expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
+    });
+
     it("should handle empty events export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -3826,6 +4001,44 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(rows[0].id).toBe(event.span_id);
     expect(rows[0].name).toBe("test-blob-event");
     expect(rows[0].type).toBe("GENERATION");
+  });
+
+  it("should export bookmarked, public, created_at, and updated_at fields", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "test-fields-event",
+      start_time: now * 1000,
+      bookmarked: true,
+      public: true,
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bookmarked).toBe(true);
+    expect(rows[0].public).toBe(true);
+    expect(rows[0].created_at).toBeDefined();
+    expect(rows[0].updated_at).toBeDefined();
+    expect(rows[0].tool_calls).toBeDefined();
+    expect(rows[0].tool_definitions).toBeDefined();
+    expect(rows[0].tool_call_names).toBeDefined();
   });
 
   it("should filter events by time range", async () => {

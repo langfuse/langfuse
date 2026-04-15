@@ -4,12 +4,18 @@ import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 
-export async function createProjectMembershipsOnSignup(user: {
-  id: string;
-  email: string | null;
-}) {
+export async function createProjectMembershipsOnSignup(
+  user: {
+    id: string;
+    email: string | null;
+  },
+  options?: { userWasJustCreated?: boolean },
+) {
   try {
+    const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
     // in no case do we want to send duplicate sign up events to posthog
     const isNewUser = !(await prisma.organizationMembership.findFirst({
       where: { userId: user.id },
@@ -149,6 +155,60 @@ export async function createProjectMembershipsOnSignup(user: {
 
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
+
+    if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
+      const userRolloutState = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          createdAt: true,
+          v4BetaEnabled: true,
+          organizationMemberships: {
+            select: {
+              organization: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (userRolloutState) {
+        const shouldAutoEnableV4ForUser = shouldAutoEnableV4({
+          userCreatedAt: userRolloutState.createdAt,
+          organizations: userRolloutState.organizationMemberships.map(
+            (membership) => ({
+              id: membership.organization.id,
+              createdAt: membership.organization.createdAt,
+            }),
+          ),
+          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+            : [],
+        });
+        const shouldInitializeForNewUser =
+          options?.userWasJustCreated &&
+          !userRolloutState.v4BetaEnabled &&
+          shouldAutoEnableV4ForUser;
+        const shouldInitializeForFirstOrganization =
+          !options?.userWasJustCreated &&
+          isNewUser &&
+          !userRolloutState.v4BetaEnabled &&
+          shouldAutoEnableV4ForUser;
+
+        if (
+          shouldInitializeForNewUser ||
+          shouldInitializeForFirstOrganization
+        ) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { v4BetaEnabled: true },
+          });
+        }
+      }
+    }
 
     // for conversion metric tracking in posthog: did a new user sign up?
     if (

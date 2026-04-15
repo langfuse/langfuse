@@ -44,7 +44,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
@@ -64,6 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -234,22 +235,47 @@ if (
   env.AUTH_AUTHENTIK_CLIENT_ID &&
   env.AUTH_AUTHENTIK_CLIENT_SECRET &&
   env.AUTH_AUTHENTIK_ISSUER
-)
-  staticProviders.push(
-    AuthentikProvider({
-      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
-      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
-      issuer: env.AUTH_AUTHENTIK_ISSUER,
-      allowDangerousEmailAccountLinking:
-        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
-      client: {
-        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
-      },
-      ...(env.AUTH_AUTHENTIK_CHECKS
-        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
-        : {}),
-    }),
-  );
+) {
+  const authentikProvider = AuthentikProvider({
+    clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+    clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    issuer: env.AUTH_AUTHENTIK_ISSUER,
+    allowDangerousEmailAccountLinking:
+      env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+    client: {
+      token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+    },
+    ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
+  });
+
+  if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
+    // For reverse proxy setups where authentik's external URL differs from
+    // the internal issuer, well-known discovery can't be used. We disable it
+    // and derive token/userinfo/JWKS endpoints from the issuer, assuming
+    // authentik's standard URL layout: <host>/application/o/<slug>.
+    const authentikIssuer = env.AUTH_AUTHENTIK_ISSUER.replace(/\/$/, "");
+    const authentikBase = authentikIssuer.replace(
+      /\/application\/o\/[^/]+$/,
+      "/application/o/",
+    );
+    const authentikJwksUrl = `${authentikIssuer}/jwks/`;
+
+    authentikProvider.wellKnown = undefined;
+    authentikProvider.authorization = {
+      url: env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
+      params: { scope: "openid email profile" },
+    };
+    authentikProvider.token = {
+      url: `${authentikBase}token/`,
+    };
+    authentikProvider.userinfo = {
+      url: `${authentikBase}userinfo/`,
+    };
+    authentikProvider.jwks_endpoint = authentikJwksUrl;
+  }
+
+  staticProviders.push(authentikProvider);
+}
 
 if (
   env.AUTH_ONELOGIN_CLIENT_ID &&
@@ -328,6 +354,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -347,6 +377,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -520,7 +551,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -665,6 +696,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
@@ -693,6 +725,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          const isCloudDeployment = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
 
           return {
             ...session,
@@ -715,7 +750,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    v4BetaEnabled: isCloudDeployment
+                      ? dbUser.v4BetaEnabled
+                      : false,
+                    canToggleV4: isCloudDeployment
+                      ? canToggleV4({
+                          userCreatedAt: dbUser.createdAt,
+                          organizations: dbUser.organizationMemberships.map(
+                            (orgMembership) => ({
+                              id: orgMembership.organization.id,
+                              createdAt: orgMembership.organization.createdAt,
+                            }),
+                          ),
+                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                            : [],
+                        })
+                      : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
