@@ -113,6 +113,9 @@
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@swc/core"
+    ]
   }
 }
