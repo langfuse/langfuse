@@ -169,7 +169,12 @@ export const events = {
     "modal_open",
     "create_new_button_click",
   ],
-  onboarding: ["code_example_tab_switch", "tracing_check_active"],
+  onboarding: [
+    "code_example_tab_switch",
+    "tracing_check_active",
+    "tracing_agent_prompt_copy_clicked",
+    "tracing_manual_docs_link_clicked",
+  ],
   user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",
