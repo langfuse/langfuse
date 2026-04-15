@@ -5,6 +5,7 @@ import {
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
+import { TraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { useState, useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -15,7 +16,6 @@ import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 
 interface SessionAnnotationProcessorProps {
@@ -30,85 +30,6 @@ interface SessionAnnotationProcessorProps {
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
 const PAGE_SIZE = 10;
-
-/**
- * V4-aware component for rendering trace I/O in annotation queue session view.
- * Uses events table via observationsForTraceFromEvents instead of traces.byId.
- */
-const SessionEventsIO: React.FC<{
-  traceId: string;
-  projectId: string;
-  sessionId: string;
-}> = ({ traceId, projectId, sessionId }) => {
-  const observationsQuery =
-    api.sessions.observationsForTraceFromEvents.useQuery(
-      {
-        projectId,
-        sessionId,
-        traceId,
-        filter: null,
-      },
-      {
-        enabled: !!traceId,
-        trpc: { context: { skipBatch: true } },
-        staleTime: 60 * 1000,
-      },
-    );
-
-  if (observationsQuery.isLoading) {
-    return (
-      <JsonSkeleton
-        className="h-full w-full overflow-hidden px-2 py-1"
-        numRows={4}
-      />
-    );
-  }
-
-  if (observationsQuery.isError) {
-    return (
-      <div className="text-destructive p-2 text-xs">
-        Failed to load observations.
-      </div>
-    );
-  }
-
-  if (!observationsQuery.data || observationsQuery.data.length === 0) {
-    return (
-      <div className="text-muted-foreground p-2 text-xs">
-        This trace has no observations.
-      </div>
-    );
-  }
-
-  // Find root observation (no parent) or first observation for I/O display
-  const rootObservation =
-    observationsQuery.data.find((o) => !o.parentObservationId) ??
-    observationsQuery.data[0];
-
-  if (!rootObservation?.input && !rootObservation?.output) {
-    return (
-      <div className="text-muted-foreground p-2 text-xs">
-        This trace has no input or output.
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex w-full flex-col gap-2 overflow-hidden p-0">
-      <IOPreview
-        input={rootObservation.input ?? undefined}
-        output={rootObservation.output ?? undefined}
-        metadata={rootObservation.metadata ?? undefined}
-        hideIfNull
-        projectId={projectId}
-        traceId={traceId}
-        observationId={rootObservation.id}
-        environment={rootObservation.environment ?? undefined}
-        showCorrections
-      />
-    </div>
-  );
-};
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
@@ -132,6 +53,15 @@ export const SessionAnnotationProcessor: React.FC<
       },
     },
   );
+
+  const traceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId: item.objectId,
+      },
+      { enabled: isBetaEnabled },
+    );
 
   // Unify traces from both paths:
   // - v4 beta OFF: traces come from data.traces (byIdWithScores endpoint)
@@ -209,8 +139,29 @@ export const SessionAnnotationProcessor: React.FC<
               Failed to load traces for this session.
             </div>
           )}
-          {/* Trace list */}
-          {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
+          {/* Trace list - v4 path uses TraceEventsRow */}
+          {isBetaEnabled &&
+            tracesFromEventsQuery.isSuccess &&
+            traces.slice(0, visibleTraces).map((trace: any) => (
+              <div key={trace.id} className="pb-3">
+                <TraceEventsRow
+                  trace={trace}
+                  projectId={projectId}
+                  sessionId={item.objectId}
+                  openPeek={(traceId) => {
+                    window.open(
+                      `/project/${projectId}/traces/${traceId}`,
+                      "_blank",
+                    );
+                  }}
+                  traceCommentCounts={traceCommentCounts.data ?? undefined}
+                  showCorrections
+                  filterState={[]}
+                />
+              </div>
+            ))}
+          {/* Trace list - v3 path uses SessionIO */}
+          {!isBetaEnabled &&
             traces.slice(0, visibleTraces).map((trace: any) => (
               <Card
                 className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
@@ -227,20 +178,12 @@ export const SessionAnnotationProcessor: React.FC<
                     {trace.timestamp.toLocaleString()}
                   </div>
                 </div>
-                {isBetaEnabled ? (
-                  <SessionEventsIO
-                    traceId={trace.id}
-                    projectId={projectId}
-                    sessionId={item.objectId}
-                  />
-                ) : (
-                  <SessionIO
-                    traceId={trace.id}
-                    projectId={projectId}
-                    timestamp={trace.timestamp}
-                    showCorrections
-                  />
-                )}
+                <SessionIO
+                  traceId={trace.id}
+                  projectId={projectId}
+                  timestamp={trace.timestamp}
+                  showCorrections
+                />
               </Card>
             ))}
           {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
