@@ -582,6 +582,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />
@@ -607,6 +608,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />
@@ -636,6 +638,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />

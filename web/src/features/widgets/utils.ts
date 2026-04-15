@@ -149,11 +149,11 @@ export function getDefaultView(
  * SSE progress is only enabled on the v4 beta dashboard query path.
  */
 export function shouldUseWidgetSSE({
-  isV4BetaEnabled,
+  isV4Enabled,
   version,
 }: {
-  isV4BetaEnabled: boolean;
+  isV4Enabled: boolean;
   version: "v1" | "v2";
 }): boolean {
-  return isV4BetaEnabled && version === "v2";
+  return isV4Enabled && version === "v2";
 }
