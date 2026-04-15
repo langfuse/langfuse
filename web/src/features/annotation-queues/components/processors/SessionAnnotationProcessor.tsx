@@ -5,7 +5,7 @@ import {
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -106,7 +106,6 @@ export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
-  const [currentTraceIndex, setCurrentTraceIndex] = useState(1);
   const { isBetaEnabled } = useV4Beta();
 
   // Fetch traces separately when v4 beta is enabled (events table path)
@@ -136,47 +135,14 @@ export const SessionAnnotationProcessor: React.FC<
     return data?.traces ?? [];
   }, [isBetaEnabled, tracesFromEventsQuery.data, data?.traces]);
 
-  // For the "X / Y" position counter, always use traces.length since that's what we're displaying
-  // For the "Total traces" badge in v4 mode, we can show countTraces while traces are loading
+  // For the "Total traces" badge, show countTraces from session metadata when available (v4),
+  // or fall back to loaded traces length
   const totalTracesForBadge = useMemo(() => {
     if (isBetaEnabled) {
-      // Show countTraces from session metadata (available immediately),
-      // or fall back to loaded traces length
       return data?.countTraces ?? traces.length;
     }
     return traces.length;
   }, [isBetaEnabled, data?.countTraces, traces.length]);
-
-  // For the position counter "Trace X / Y", use actual loaded traces count
-  const loadedTracesCount = traces.length;
-
-  // Intersection observer to track which trace is currently in view
-  useEffect(() => {
-    if (traces.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
-            const index = parseInt(
-              entry.target.getAttribute("data-trace-index") || "0",
-            );
-            setCurrentTraceIndex(index + 1);
-          }
-        });
-      },
-      {
-        threshold: 0.5, // Trigger when 50% of trace is visible
-        rootMargin: "-25% 0px -25% 0px", // Focus on center area
-      },
-    );
-
-    // Observe all trace cards
-    const traceCards = document.querySelectorAll("[data-trace-index]");
-    traceCards.forEach((card) => observer.observe(card));
-
-    return () => observer.disconnect();
-  }, [traces, visibleTraces]);
 
   const leftPanel = (
     <div className="flex h-full flex-col overflow-hidden">
@@ -194,13 +160,6 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
-          {!isBetaEnabled && loadedTracesCount > 0 && (
-            <div className="flex items-center">
-              <Badge variant="outline" className="text-xs">
-                Trace {currentTraceIndex} / {loadedTracesCount}
-              </Badge>
-            </div>
-          )}
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
@@ -208,7 +167,9 @@ export const SessionAnnotationProcessor: React.FC<
               {data?.environment && (
                 <Badge variant="tertiary">Env: {data.environment}</Badge>
               )}
-              <Badge variant="outline">Total traces: {totalTracesForBadge}</Badge>
+              <Badge variant="outline">
+                Total traces: {totalTracesForBadge}
+              </Badge>
             </div>
           </div>
         </div>
@@ -218,11 +179,10 @@ export const SessionAnnotationProcessor: React.FC<
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4">
-          {traces.slice(0, visibleTraces).map((trace: any, index: number) => (
+          {traces.slice(0, visibleTraces).map((trace: any) => (
             <Card
               className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
               key={trace.id}
-              data-trace-index={index}
             >
               <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
                 <Link
@@ -251,13 +211,13 @@ export const SessionAnnotationProcessor: React.FC<
               )}
             </Card>
           ))}
-          {loadedTracesCount > visibleTraces && (
+          {traces.length > visibleTraces && (
             <div className="flex justify-center py-4">
               <Button
                 onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
                 variant="ghost"
               >
-                {`Load ${Math.min(loadedTracesCount - visibleTraces, PAGE_SIZE)} More`}
+                {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
               </Button>
             </div>
           )}
