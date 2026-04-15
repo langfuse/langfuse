@@ -79,14 +79,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
-> & {
-  tags?: string[];
-};
-
-type EventsObservationWithPriceAndRawTags = EventsObservation &
-  ObservationPriceFields & {
-    tags?: string[];
-  };
+>;
 
 /**
  * Internal helper: enrich observations with model pricing data
@@ -109,14 +102,14 @@ async function enrichObservationsWithModelData(
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: null,
-): Promise<Array<EventsObservationWithPriceAndRawTags>>;
+): Promise<Array<EventsObservation & ObservationPriceFields>>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroup[] | null,
 ): Promise<
-  Array<EventsObservationWithPriceAndRawTags | EventsObservationPublic>
+  Array<(EventsObservation & ObservationPriceFields) | EventsObservationPublic>
 > {
   // Determine if this is V1 (complete) or V2 (partial) API
   const isV2 = Array.isArray(requestedFields);
@@ -170,7 +163,6 @@ async function enrichObservationsWithModelData(
 
     const enriched = {
       ...converted,
-      ...(!isV2 ? { tags: o.tags ?? [] } : {}),
       // Use ClickHouse-calculated latency/timeToFirstToken if available, otherwise use what converter calculated
       latency:
         o.latency !== undefined
@@ -199,7 +191,7 @@ async function enrichObservationsWithModelData(
 }
 
 async function enrichObservationsWithTraceFields(
-  observationRecords: Array<EventsObservationWithPriceAndRawTags>,
+  observationRecords: Array<EventsObservation & ObservationPriceFields>,
 ): Promise<FullEventsObservations> {
   return observationRecords.map((observation) => {
     // Remove raw tags field as this is re-mapped to traceTags
@@ -601,7 +593,6 @@ export const getObservationByIdFromEventsTable = async ({
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
   preferredClickhouseService,
-  includeTraceTags = true,
 }: {
   id: string;
   projectId: string;
@@ -611,7 +602,6 @@ export const getObservationByIdFromEventsTable = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
-  includeTraceTags?: boolean;
 }) => {
   const records = await getObservationByIdFromEventsTableInternal({
     id,
@@ -624,13 +614,17 @@ export const getObservationByIdFromEventsTable = async ({
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) => {
-    const converted = convertEventsObservation(record, renderingProps, true);
-    return includeTraceTags
-      ? {
-          ...converted,
-          traceTags: record.tags ?? [],
-        }
-      : converted;
+    // Remove raw tags field as this is re-mapped to traceTags
+    const { tags, ...converted } = convertEventsObservation(
+      record,
+      renderingProps,
+      true,
+    );
+
+    return {
+      ...converted,
+      traceTags: tags ?? [],
+    };
   });
 
   mapped.forEach((observation) => {
@@ -1092,7 +1086,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
  */
 export const getObservationsFromEventsTableForPublicApi = async (
   opts: Omit<PublicApiObservationsQuery, "fields">,
-): Promise<Array<Observation & ObservationPriceFields>> => {
+): Promise<Array<EventsObservation & ObservationPriceFields>> => {
   const { projectId } = opts;
 
   // Build query with filters and common CTEs
@@ -1118,11 +1112,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
     null, // V1 API: no field groups, return complete observations
   );
 
-  return observations.map((observation) => {
-    // Tags should not be returned in the Public API
-    const { tags: _tags, ...observationWithoutRawTags } = observation;
-    return observationWithoutRawTags;
-  });
+  return observations;
 };
 
 /**

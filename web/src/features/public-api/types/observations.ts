@@ -149,6 +149,11 @@ export const transformDbToApiObservation = (
 
     // exclude trace name, this will only be available on events api
     traceName,
+
+    // Exclude tags
+    tags,
+    traceTags,
+
     // Exclude tool data from public API (not yet released)
 
     toolDefinitions,
@@ -163,7 +168,10 @@ export const transformDbToApiObservation = (
 
     public: _public,
     ...rest
-  } = observation as EventsObservation & ObservationPriceFields;
+  } = observation as EventsObservation &
+    ObservationPriceFields & {
+      traceTags?: string[];
+    };
 
   return {
     ...rest,
