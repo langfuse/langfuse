@@ -13,9 +13,11 @@ import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  scoreFilterConfig,
+  getScoreFilterConfig,
   SCORE_COLUMN_TO_BACKEND_KEY,
+  type ScoresTableHiddenColumn,
 } from "@/src/features/filters/config/scores-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -28,6 +30,7 @@ import {
   isPresent,
   type FilterState,
   type ScoreDataTypeType,
+  LISTABLE_SCORE_TYPES,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
@@ -78,6 +81,16 @@ export type ScoresTableRow = {
   executionTraceId?: string;
 };
 
+export type ScoresTableProps = {
+  projectId: string;
+  userId?: string;
+  traceId?: string;
+  observationId?: string;
+  hiddenColumns?: ScoresTableHiddenColumn[];
+  localStorageSuffix?: string;
+  disableUrlPersistence?: boolean;
+};
+
 function createFilterState(
   userFilterState: FilterState,
   omittedFilters: Record<string, string>[],
@@ -102,16 +115,15 @@ export default function ScoresTable({
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
-}: {
-  projectId: string;
-  userId?: string;
-  traceId?: string;
-  observationId?: string;
-  omittedFilter?: string[];
-  hiddenColumns?: string[];
-  localStorageSuffix?: string;
-  disableUrlPersistence?: boolean;
-}) {
+}: ScoresTableProps) {
+  const scoresFilterConfig = useMemo(
+    () => getScoreFilterConfig(hiddenColumns),
+    [hiddenColumns],
+  );
+  const hiddenColumnSet = useMemo(
+    () => new Set<string>(hiddenColumns),
+    [hiddenColumns],
+  );
   const { isBetaEnabled } = useV4Beta();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
   const useEventsBackedScores = isBetaEnabled;
@@ -262,7 +274,7 @@ export default function ScoresTable({
           count: n.count !== undefined ? Number(n.count) : undefined,
         })) ?? undefined,
       source: ["ANNOTATION", "API", "EVAL"],
-      dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
+      dataType: [...LISTABLE_SCORE_TYPES],
       value: [],
       stringValue:
         filterOptions.data?.stringValue?.map((sv) => ({
@@ -286,11 +298,15 @@ export default function ScoresTable({
   );
 
   const queryFilter = useSidebarFilterState(
-    scoreFilterConfig,
+    scoresFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
-    disableUrlPersistence,
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      disableUrlPersistence,
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -303,7 +319,7 @@ export default function ScoresTable({
   );
 
   const filterState = createFilterState(
-    queryFilter.filterState.concat(dateRangeFilter),
+    queryFilter.effectiveFilterState.concat(dateRangeFilter),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
@@ -316,7 +332,7 @@ export default function ScoresTable({
   const backendFilterState = transformFiltersForBackend(
     filterState,
     SCORE_COLUMN_TO_BACKEND_KEY,
-    scoreFilterConfig.columnDefinitions,
+    scoresFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
@@ -708,7 +724,7 @@ export default function ScoresTable({
   ];
 
   const columns = rawColumns.filter(
-    (c) => !!c.id && !hiddenColumns.includes(c.id),
+    (c) => !!c.id && !hiddenColumnSet.has(c.id),
   );
 
   const [columnVisibility, setColumnVisibility] =
@@ -813,21 +829,21 @@ export default function ScoresTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: scoreFilterConfig.columnDefinitions,
+      filterColumnDefinition: scoresFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
     <DataTableControlsProvider
-      tableName={scoreFilterConfig.tableName}
-      defaultSidebarCollapsed={scoreFilterConfig.defaultSidebarCollapsed}
+      tableName={scoresFilterConfig.tableName}
+      defaultSidebarCollapsed={scoresFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterState={queryFilter.filterState}
+          filterState={queryFilter.explicitFilterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
@@ -883,7 +899,7 @@ export default function ScoresTable({
                   <span>No scores found.</span>
                   <a
                     href="https://langfuse.com/faq/all/what-are-scores"
-                    className="pointer-events-auto italic text-primary underline"
+                    className="text-primary pointer-events-auto italic underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >

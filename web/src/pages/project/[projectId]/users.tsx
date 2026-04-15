@@ -91,7 +91,7 @@ export default function UsersPage() {
                 href="https://langfuse.com/docs/observability/features/users"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline decoration-primary/30 hover:decoration-primary"
+                className="decoration-primary/30 hover:decoration-primary underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 docs

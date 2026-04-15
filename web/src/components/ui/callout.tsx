@@ -91,14 +91,14 @@ export function Callout({
       <AlertDescription
         className={`flex ${alignmentClass} ml-1 justify-between`}
       >
-        <div className="flex-1 text-sm text-foreground">{children}</div>
+        <div className="text-foreground flex-1 text-sm">{children}</div>
         <div className="ml-4 flex items-center gap-2">
           {actions && actions()}
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-6 w-6 p-0"
             aria-label="Dismiss"
           >
             <X className="h-4 w-4" />

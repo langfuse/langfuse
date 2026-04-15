@@ -5,7 +5,7 @@
  * Common cross-feature validations live in /core/validation.ts
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   PROMPT_NAME_MAX_LENGTH,
   PROMPT_LABEL_MAX_LENGTH,

@@ -1,6 +1,7 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
+  TextConfigFields,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
@@ -9,7 +10,7 @@ import {
   validateCategories,
   validateNumericRangeFields,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -17,11 +18,9 @@ import { z } from "zod/v4";
 const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
   const parseResult = z.array(ScoreConfigCategory).safeParse(categories);
   if (!parseResult.success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        "Category must be an array of objects with label value pairs, where labels and values are unique.",
-    } as z.core.$ZodIssueCustom);
+    ctx.addIssue(
+      "Category must be an array of objects with label value pairs, where labels and values are unique.",
+    );
     return;
   }
 
@@ -54,6 +53,10 @@ const APIScoreConfig = z
     z.object({
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);
@@ -92,6 +95,15 @@ export const PostScoreConfigBody = z
       ...z.object({
         dataType: z.literal("BOOLEAN"),
         categories: z.undefined(),
+      }).shape,
+    }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...z.object({
+        dataType: z.literal("TEXT"),
+        categories: z.undefined(),
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
       }).shape,
     }),
   ])

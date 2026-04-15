@@ -13,7 +13,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { createMocks } from "node-mocks-http";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
 // Mock the logger and traceException

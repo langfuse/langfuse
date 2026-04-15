@@ -4,7 +4,9 @@ import {
   type ScoreSimplified,
   type ScoreSourceType,
   type ScoreDomain,
-  type AggregatableScoreDataType,
+  type ScoreDataTypeType,
+  type ListableScore,
+  type ListableScoreDataType,
 } from "@langfuse/shared";
 
 /**
@@ -22,7 +24,7 @@ export const composeAggregateScoreKey = ({
 }: {
   name: string;
   source: ScoreSourceType;
-  dataType: AggregatableScoreDataType;
+  dataType: ScoreDataTypeType;
   keyPrefix?: string;
 }): string => {
   const formattedName = normalizeScoreName(name);
@@ -34,13 +36,13 @@ export const decomposeAggregateScoreKey = (
 ): {
   name: string;
   source: ScoreSourceType;
-  dataType: AggregatableScoreDataType;
+  dataType: ScoreDataTypeType;
 } => {
   const [name, source, dataType] = key.split("-");
   return {
     name,
     source: source as ScoreSourceType,
-    dataType: dataType as AggregatableScoreDataType,
+    dataType: dataType as ScoreDataTypeType,
   };
 };
 
@@ -51,7 +53,7 @@ export const getScoreLabelFromKey = (key: string): string => {
 
 export type ScoreToAggregate =
   | (Omit<ScoreDomain, "dataType"> & {
-      dataType: AggregatableScoreDataType;
+      dataType: ListableScore["dataType"];
       hasMetadata?: boolean;
     })
   | (ScoreSimplified & {
@@ -64,9 +66,9 @@ export type ScoreToAggregate =
  * aggregation logic (value counting vs numeric averaging).
  */
 export const resolveAggregateType = (
-  dataType: AggregatableScoreDataType,
+  dataType: ListableScoreDataType,
 ): "NUMERIC" | "CATEGORICAL" => {
-  return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
+  return dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL";
 };
 
 export const aggregateScores = <T extends ScoreToAggregate>(

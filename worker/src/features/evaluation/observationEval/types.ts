@@ -28,6 +28,8 @@ export type ObservationEvalConfig = Pick<
   | "scoreName"
   | "targetObject"
   | "variableMapping"
+  | "status"
+  | "blockedAt"
 >;
 
 /**

@@ -9,15 +9,21 @@ on:
     branches:
       - "main"
 
+permissions:
+  contents: read
+  checks: write # Needed to create a check run for the license compliance check results
+
 jobs:
   license_check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 18
 
@@ -32,7 +38,7 @@ jobs:
 
       - name: Check license-checker CSV file without headers
         id: license_check_report
-        uses: pilosus/action-pip-license-checker@v2
+        uses: pilosus/action-pip-license-checker@e909b0226ff49d3235c99c4585bc617f49fff16a # v3.1.0
         with:
           external: "npm-license-checker.csv"
           external-format: "csv"
@@ -44,6 +50,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Echo error
         if: failure()
-        run: echo "::error::${{ steps.license_check_report.outputs.report }}"
+        run: echo "::error::${STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT}"
+        env:
+          STEPS_LICENSE_CHECK_REPORT_OUTPUTS_REPORT: ${{ steps.license_check_report.outputs.report }}
       - name: Delete license-checker CSV file
         run: rm npm-license-checker.csv

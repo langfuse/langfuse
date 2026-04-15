@@ -23,7 +23,7 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
 export class ApiAuthService {
@@ -316,10 +316,10 @@ export class ApiAuthService {
     // add the key to redis for future use if available, this does not throw
     // only do so if the new hashkey exists already.
     if (apiKeyAndOrganisation && apiKeyAndOrganisation.fastHashedSecretKey) {
-      await this.addApiKeyToRedis(
-        hash,
-        this.convertToRedisRepresentation(apiKeyAndOrganisation),
+      const cachedApiKey = this.convertToRedisRepresentation(
+        apiKeyAndOrganisation,
       );
+      await this.addApiKeyToRedis(hash, cachedApiKey);
     }
     return apiKeyAndOrganisation
       ? this.convertToRedisRepresentation(apiKeyAndOrganisation)

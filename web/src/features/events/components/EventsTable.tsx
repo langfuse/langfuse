@@ -13,6 +13,7 @@ import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
+import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -63,11 +64,16 @@ import {
   TablePeekView,
 } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  addPrefixToScoreKeys,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
@@ -153,12 +159,14 @@ export type EventsTableRow = {
 
   // Scores
   scores: ScoreAggregate;
+  traceScores: ScoreAggregate;
 };
 
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
   hideControls?: boolean;
+  viewPersistenceKey?: string;
   // External control props for embedded preview tables
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -170,6 +178,7 @@ export default function ObservationsEventsTable({
   projectId,
   userId,
   hideControls = false,
+  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -270,7 +279,7 @@ export default function ObservationsEventsTable({
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-events-${projectId}`,
-      60_000,
+      null,
     );
 
   // Validate session storage value against allowed intervals
@@ -349,9 +358,13 @@ export default function ObservationsEventsTable({
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
-    hideControls, // Disable URL persistence for embedded preview tables
+    {
+      loading: isFilterOptionsPending,
+      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+      sessionFilterContextId: projectId,
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -399,7 +412,7 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const combinedFilterState = queryFilter.filterState
+  const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
@@ -455,6 +468,14 @@ export default function ObservationsEventsTable({
       projectId,
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
+    });
+  const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
+    useScoreColumns<EventsTableRow>({
+      scoreColumnKey: "traceScores",
+      projectId,
+      filter: scoreFilters.forTraceLevel(),
+      fromTimestamp: dateRange?.from,
+      prefix: "Trace",
     });
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
@@ -561,6 +582,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />
@@ -586,6 +608,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />
@@ -615,6 +638,7 @@ export default function ObservationsEventsTable({
         if (ioLoading) {
           return (
             <JsonSkeleton
+              numRows={rowHeight === "s" ? 1 : undefined}
               borderless
               className="h-full w-full overflow-hidden px-2 py-1"
             />
@@ -1023,6 +1047,17 @@ export default function ObservationsEventsTable({
       columns: scoreColumns,
     },
     {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isTraceColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: traceScoreColumns,
+    },
+    {
       accessorKey: "endTime",
       id: "endTime",
       header: getEventsColumnName("endTime"),
@@ -1116,6 +1151,7 @@ export default function ObservationsEventsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
+    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
@@ -1127,7 +1163,8 @@ export default function ObservationsEventsTable({
       columns,
       filterColumnDefinition: observationEventsFilterConfig.columnDefinitions,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    disabled: hideControls,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1155,6 +1192,10 @@ export default function ObservationsEventsTable({
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
               scores: observation.scores ?? {},
+              traceScores: addPrefixToScoreKeys(
+                observation.traceScores ?? {},
+                "Trace",
+              ),
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {
@@ -1235,7 +1276,7 @@ export default function ObservationsEventsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.filterState}
+            filterState={queryFilter.explicitFilterState}
             searchConfig={{
               metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
               updateQuery: setSearchQuery,
@@ -1404,18 +1445,18 @@ export default function ObservationsEventsTable({
                   const timestamp = row.timestamp;
 
                   if (traceId) {
-                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+                    const observationUrl = buildTraceDetailPath({
+                      projectId,
+                      traceId,
+                      observationId,
+                      timestamp,
+                    });
 
-                    const params = new URLSearchParams();
-                    params.set("observation", observationId);
-                    if (timestamp) {
-                      params.set("timestamp", timestamp.toISOString());
-                    }
-
-                    observationUrl += `?${params.toString()}`;
-
-                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-                    window.open(fullUrl, "_blank");
+                    window.open(
+                      getSafeRedirectPath(observationUrl),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }
                 // For normal clicks, let the data-table handle opening the peek view

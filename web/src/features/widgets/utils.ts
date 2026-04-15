@@ -144,3 +144,16 @@ export function getDefaultView(
 ): "traces" | "observations" {
   return isBetaEnabled ? "observations" : "traces";
 }
+
+/**
+ * SSE progress is only enabled on the v4 beta dashboard query path.
+ */
+export function shouldUseWidgetSSE({
+  isV4Enabled,
+  version,
+}: {
+  isV4Enabled: boolean;
+  version: "v1" | "v2";
+}): boolean {
+  return isV4Enabled && version === "v2";
+}

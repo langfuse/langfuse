@@ -1011,6 +1011,177 @@ describe("OTel Resource Span Mapping", () => {
       expect(embeddingEvent).toBeDefined();
       expect(embeddingEvent?.body.model).toBe("gemini-embedding-001");
     });
+
+    it("should convert a Genkit OTel span to Langfuse generation-create event", async () => {
+      const genkitInput = JSON.stringify({
+        config: {},
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: "Output should be in JSON format.",
+              },
+            ],
+          },
+        ],
+        output: {
+          contentType: "application/json",
+          format: "json",
+        },
+      });
+
+      const genkitOutput = JSON.stringify({
+        finishReason: "stop",
+        latencyMs: 6270.767958,
+        message: {
+          content: [
+            {
+              text: {
+                confidence_level: 0.95,
+              },
+            },
+          ],
+          role: "model",
+        },
+        request: {
+          config: {},
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Output should be in JSON format.",
+                },
+              ],
+            },
+          ],
+          output: {
+            contentType: "application/json",
+            format: "json",
+          },
+        },
+        usage: {
+          inputCharacters: 10667,
+          inputTokens: 1618,
+          outputCharacters: 25,
+          outputTokens: 337,
+          thoughtsTokens: 320,
+          totalTokens: 1955,
+        },
+      });
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "unknown_service" } },
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "go" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.40.0" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "genkit-tracer", version: "v1" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [
+                    11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154,
+                    165, 176,
+                  ],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8],
+                },
+                name: "genkit-action",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  { key: "genkit:type", value: { stringValue: "action" } },
+                  {
+                    key: "genkit:name",
+                    value: { stringValue: "openai/gpt-5-mini" },
+                  },
+                  {
+                    key: "genkit:metadata:subtype",
+                    value: { stringValue: "model" },
+                  },
+                  { key: "genkit:input", value: { stringValue: genkitInput } },
+                  {
+                    key: "genkit:output",
+                    value: { stringValue: genkitOutput },
+                  },
+                ],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2);
+
+      const generationEvent = parsedEvents.find(
+        (event) => event.type === "generation-create",
+      );
+      expect(generationEvent).toBeDefined();
+      expect(generationEvent?.body.name).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.model).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.input).toEqual([
+        {
+          role: "user",
+          content: [
+            {
+              text: "Output should be in JSON format.",
+            },
+          ],
+        },
+      ]);
+      expect(generationEvent?.body.output).toEqual({
+        content: [
+          {
+            text: {
+              confidence_level: 0.95,
+            },
+          },
+        ],
+        role: "model",
+      });
+      expect(generationEvent?.body.usageDetails).toMatchObject({
+        input: 1618,
+        output_reasoning: 320,
+        output: 17,
+        total: 1955,
+      });
+    });
   });
 
   describe("Property Mapping", () => {
@@ -1712,6 +1883,366 @@ describe("OTel Resource Span Mapping", () => {
         observationEvent?.body.metadata?.attributes ?? {};
       expect(metadataAttributes).not.toHaveProperty("final_result");
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
+    });
+
+    it("should normalize current Pydantic AI cache usage fields into Langfuse usage details", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const pydanticAiRootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf6", "hex"),
+                name: "pydantic-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 120, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.input_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_audio_read_tokens",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.output_audio_tokens",
+                    value: { intValue: { low: 7, high: 0, unsigned: false } },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiRootSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(80);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(30);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.input_audio_tokens).toBe(5);
+      expect(observationEvent?.body.usageDetails.cache_audio_read_tokens).toBe(
+        2,
+      );
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(7);
+    });
+
+    it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
+      const traceId = "9d7aa9a729def1eadc0b2063ca4ebeb4";
+
+      const allMessages = [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              content:
+                "What are the main benefits of using async programming in Python?",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content: "Async programming in Python offers several benefits.",
+            },
+          ],
+          finish_reason: "stop",
+        },
+      ];
+
+      const systemInstructions = [
+        {
+          type: "text",
+          content:
+            "You are a helpful assistant. Answer questions concisely and clearly.",
+        },
+      ];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf5", "hex"),
+                name: "instructions_agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "agent_name",
+                    value: { stringValue: "instructions_agent" },
+                  },
+                  {
+                    key: "gen_ai.agent.name",
+                    value: { stringValue: "instructions_agent" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "instructions_agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: {
+                      stringValue:
+                        "Async programming in Python offers several benefits.",
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { stringValue: "37" },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { stringValue: "248" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const traceEvent = events.find((e) => e.type === "trace-create");
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(traceEvent).toBeDefined();
+      expect(observationEvent).toBeDefined();
+
+      const expectedMessages = [
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant. Answer questions concisely and clearly.",
+        },
+        ...allMessages,
+      ];
+
+      expect(observationEvent?.body.input).toBe(
+        JSON.stringify(expectedMessages),
+      );
+      expect(observationEvent?.body.output).toBe(
+        "Async programming in Python offers several benefits.",
+      );
+
+      // Verify gen_ai.system_instructions is NOT duplicated in metadata
+      const metadataAttributes =
+        observationEvent?.body.metadata?.attributes ?? {};
+      expect(metadataAttributes).not.toHaveProperty(
+        "gen_ai.system_instructions",
+      );
+      expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
+      expect(metadataAttributes).not.toHaveProperty("final_result");
+    });
+
+    it("should not duplicate system instructions when pydantic_ai.all_messages already has a system message", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const allMessages = [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              content: "Existing system prompt.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      const systemInstructions = [
+        {
+          type: "text",
+          content: "You are a helpful assistant.",
+        },
+      ];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf6", "hex"),
+                name: "agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: { stringValue: "result" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+      expect(observationEvent).toBeDefined();
+
+      // Should NOT prepend system_instructions since all_messages already has a system message
+      expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
     });
 
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
@@ -3486,6 +4017,103 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should map gen_ai.tool.definitions to input.tools for gen_ai.input.messages", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "otel-genai-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.input.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        { role: "user", content: "What is 2 + 2?" },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          type: "function",
+                          name: "calculator",
+                          description: "Do math",
+                          parameters: {
+                            type: "object",
+                            properties: {
+                              expression: { type: "string" },
+                            },
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput.messages).toEqual([
+        { role: "user", content: "What is 2 + 2?" },
+      ]);
+      expect(parsedInput.tools).toEqual([
+        {
+          type: "function",
+          name: "calculator",
+          description: "Do math",
+          parameters: {
+            type: "object",
+            properties: {
+              expression: { type: "string" },
+            },
+          },
+        },
+      ]);
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
@@ -3913,6 +4541,136 @@ describe("OTel Resource Span Mapping", () => {
       const observation = ingestionEvents.find((e) => e.type === "span-create");
       expect(observation?.body.startTime).toBe(expectedISO);
       expect(observation?.body.endTime).toBe(expectedISO);
+    });
+
+    it("should apply the same AI SDK name extraction in processToEvent and ingestion-event mapping", async () => {
+      const resourceSpan = {
+        resource: {
+          attributes: [{ key: "service.name", value: { stringValue: "test" } }],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "5.0.0",
+            },
+            spans: [
+              {
+                traceId: "2cce18f7e8cd065a0b4e634eef728391",
+                spanId: "57f0255417974100",
+                name: "ai.generateText",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 466848096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 467248096,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "generateText" },
+                  },
+                  {
+                    key: "ai.telemetry.functionId",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "gpt-4.1-mini" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: { stringValue: '[{"role":"user","content":"hi"}]' },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "langfuse.prompt.name",
+                    value: { stringValue: "my-prompt" },
+                  },
+                  {
+                    key: "langfuse.prompt.version",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "langfuse.observation.level",
+                    value: { stringValue: "WARNING" },
+                  },
+                  {
+                    key: "langfuse.observation.status_message",
+                    value: { stringValue: "ok" },
+                  },
+                  {
+                    key: "langfuse.public",
+                    value: { boolValue: true },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.userId",
+                    value: { stringValue: "user-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.sessionId",
+                    value: { stringValue: "session-1" },
+                  },
+                  {
+                    key: "ai.telemetry.metadata.tags",
+                    value: { stringValue: '["a","b"]' },
+                  },
+                  {
+                    key: "langfuse.release",
+                    value: { stringValue: "v1" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+      expect(eventInputs).toHaveLength(1);
+      expect(eventInputs[0].name).toBe("chat:generateText");
+
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const trace = ingestionEvents.find((e) => e.type === "trace-create");
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+
+      expect(trace?.body.name).toBe("chat:generateText");
+      expect(observation?.body.name).toBe("chat:generateText");
+      expect(eventInputs[0].environment).toBe(observation?.body.environment);
+      expect(eventInputs[0].version).toBe(observation?.body.version);
+      expect(eventInputs[0].level).toBe(observation?.body.level);
+      expect(eventInputs[0].statusMessage).toBe(
+        observation?.body.statusMessage,
+      );
+      expect(eventInputs[0].promptName).toBe(observation?.body.promptName);
+      expect(eventInputs[0].promptVersion).toBe(
+        observation?.body.promptVersion,
+      );
+      expect(eventInputs[0].modelName).toBe(observation?.body.model);
+      expect(eventInputs[0].input).toBe(observation?.body.input);
+      expect(eventInputs[0].output).toBe(observation?.body.output);
+      expect(eventInputs[0].userId).toBe(trace?.body.userId);
+      expect(eventInputs[0].sessionId).toBe(trace?.body.sessionId);
+      expect(eventInputs[0].public).toBe(trace?.body.public);
+      expect(eventInputs[0].tags).toEqual(trace?.body.tags);
+      expect(eventInputs[0].release).toBe(trace?.body.release);
     });
   });
 
@@ -5544,6 +6302,92 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
+  describe("GenAI usage normalization", () => {
+    it("should normalize official gen_ai cache usage into Langfuse canonical keys", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const genAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gen_ai",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde1", "hex"),
+                name: "normalized-genai-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.total_tokens",
+                    value: { intValue: { low: 140, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        genAiSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(70);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.total).toBe(140);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(20);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
+    });
+  });
+
   describe("Vercel AI SDK Usage details", () => {
     it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
@@ -5649,12 +6493,229 @@ describe("OTel Resource Span Mapping", () => {
       expect(
         observationEvent?.body.usageDetails.input_cache_read,
       ).toBeUndefined(); // no double accounting
-      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+
+      // Duration-specific cache creation tokens deducted from total
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cache_creation_5m).toBe(
         2089,
       );
+      expect(observationEvent?.body.usageDetails.input_cache_creation_1h).toBe(
+        0,
+      );
+
       expect(
         observationEvent?.body.usageDetails.input_cache_write,
       ).toBeUndefined(); // no double accounting
+    });
+
+    it("should extract both 5m and 1h cache creation tokens from Anthropic provider metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+      const spanId = "1234567890abcde0";
+
+      const vercelAIAnthropicSpanMixed = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "anthropic-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 5000,
+                            cache_creation_input_tokens: 3000,
+                            cache_read_input_tokens: 1500,
+                            cache_creation: {
+                              ephemeral_5m_input_tokens: 2000,
+                              ephemeral_1h_input_tokens: 1000,
+                            },
+                            output_tokens: 200,
+                            service_tier: "standard",
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpanMixed,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // input = 5000 - 1500 (cached) - 0 (cache_creation remainder) - 2000 (5m) - 1000 (1h) = 500
+      expect(observationEvent?.body.usageDetails.input).toBe(500);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+
+      // Cache read tokens
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        1500,
+      );
+
+      // Duration-specific: 5m + 1h = 3000 = total, so remainder = 0
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cache_creation_5m).toBe(
+        2000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation_1h).toBe(
+        1000,
+      );
+    });
+
+    it("should handle Anthropic provider metadata without cache_creation sub-object (backward compatibility)", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+      const spanId = "1234567890abcde1";
+
+      const vercelAIAnthropicSpanLegacy = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "3.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "anthropic-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 10000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 300, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 10000,
+                            cache_creation_input_tokens: 4000,
+                            cache_read_input_tokens: 2000,
+                            output_tokens: 300,
+                            service_tier: "standard",
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpanLegacy,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // input = 10000 - 2000 (cached) - 4000 (cache_creation, no duration breakdown) = 4000
+      expect(observationEvent?.body.usageDetails.input).toBe(4000);
+      expect(observationEvent?.body.usageDetails.output).toBe(300);
+
+      // Cache tokens preserved as-is when no duration sub-object
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        2000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        4000,
+      );
+
+      // Duration-specific keys should not be set
+      expect(
+        observationEvent?.body.usageDetails.input_cache_creation_5m,
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails.input_cache_creation_1h,
+      ).toBeUndefined();
     });
     it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";

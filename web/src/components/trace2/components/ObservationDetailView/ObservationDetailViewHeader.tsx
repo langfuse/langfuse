@@ -2,7 +2,7 @@
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
- * - Title row with ItemBadge, observation name, CopyIdsPopover
+ * - Title row with ItemBadge, observation name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Playground, Comments)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
@@ -19,7 +19,6 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -48,6 +47,7 @@ import {
 import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
 import type Decimal from "decimal.js";
+import { DetailHeaderActionsMenu } from "@/src/components/trace2/components/_shared/DetailHeaderActionsMenu";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -96,21 +96,24 @@ export const ObservationDetailViewHeader = memo(
     const outputUsage = observation.outputUsage;
 
     return (
-      <div className="flex-shrink-0 space-y-2 border-b p-2 @container">
+      <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
+        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={observation.type as ObservationType} isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
               {observation.name || observation.id}
             </span>
-            <CopyIdsPopover
+            <DetailHeaderActionsMenu
               idItems={[
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
               ]}
+              observationType={observation.type}
+              projectId={projectId}
+              spanName={observation.name ?? ""}
             />
           </div>
           {/* Action buttons */}

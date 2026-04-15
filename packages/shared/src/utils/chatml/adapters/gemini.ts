@@ -3,8 +3,9 @@ import {
   parseMetadata,
   stringifyToolResultContent,
   isRichToolResult,
+  getNestedProperty,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for Gemini/VertexAI formats
@@ -458,8 +459,19 @@ export const geminiAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.framework === "gemini") return true;
+
+    // EXCLUSIONS: Fast checks for explicit non-Gemini indicators
+    const scopeName = getNestedProperty(meta, "scope", "name");
+    if (scopeName === "pydantic-ai") return false;
+    if (scopeName === "agent_framework") return false;
+    if (
+      typeof scopeName === "string" &&
+      scopeName.includes("Microsoft.Extensions.AI")
+    )
+      return false;
+
+    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.observationName?.toLowerCase().includes("gemini")) return true;
     if (ctx.observationName?.toLowerCase().includes("vertex")) return true;
     if (meta?.ls_provider === "google_vertexai") return true;

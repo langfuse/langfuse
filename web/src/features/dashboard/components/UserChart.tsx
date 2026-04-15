@@ -42,6 +42,8 @@ export const UserChart = ({
   schedulerId?: string;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
+
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -61,7 +63,11 @@ export const UserChart = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
   const user = useScheduledDashboardExecuteQuery(
@@ -84,13 +90,27 @@ export const UserChart = ({
   const isV2 = metricsVersion === "v2";
   const countField = isV2 ? "uniq_traceId" : "count_count";
 
+  const traceViewBase = traceViewQuery({ metricsVersion, globalFilterState });
+  const traceMetric = traceViewBase.metrics[0] ?? {
+    aggregation: "count",
+    measure: "count",
+  };
   const traceCountQuery: QueryType = {
-    ...traceViewQuery({ metricsVersion, globalFilterState }),
+    ...traceViewBase,
     dimensions: [{ field: "userId" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [
+      {
+        field: `${traceMetric.aggregation}_${traceMetric.measure}`,
+        direction: "desc",
+      },
+    ],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
   const traces = useScheduledDashboardExecuteQuery(
@@ -141,8 +161,6 @@ export const UserChart = ({
     (acc, curr) => acc + (Number(curr[countField]) || 0),
     0,
   );
-
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;

@@ -17,7 +17,7 @@ import {
 } from "@/src/components/ui/select";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   type ActionDomain,
   type ActionDomainWithSecrets,
@@ -128,7 +128,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
         render={({ field }) => (
           <FormItem>
             <FormLabel className="flex items-center">
-              Webhook URL <span className="ml-1 text-destructive">*</span>
+              Webhook URL <span className="text-destructive ml-1">*</span>
             </FormLabel>
             <FormControl>
               <Input
@@ -189,7 +189,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           }).map(([key, value]) => (
             <div
               key={key}
-              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
+              className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
             >
               <FormItem>
                 <FormControl>
@@ -229,7 +229,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           return (
             <div
               key={field.id}
-              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
+              className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
             >
               <FormField
                 control={form.control}
@@ -279,7 +279,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 {isSecret ? (
                   <Lock className="h-4 w-4 text-orange-500" />
                 ) : (
-                  <LockOpen className="h-4 w-4 text-muted-foreground" />
+                  <LockOpen className="text-muted-foreground h-4 w-4" />
                 )}
               </Button>
               <Button
@@ -334,13 +334,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 />
               </div>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground mt-1 text-xs">
               Secret is encrypted and can only be viewed when generated or
               regenerated
             </div>
           </div>
         ) : (
-          <div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+          <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
             Webhook secret will be generated when the automation is created.
           </div>
         )}

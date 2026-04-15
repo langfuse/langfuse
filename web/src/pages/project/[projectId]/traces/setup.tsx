@@ -49,7 +49,7 @@ export const TracingSetup = ({
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need to create an API key to start tracing your application.
               You can create more keys later in the project settings.
             </p>
@@ -77,7 +77,7 @@ export const TracingSetup = ({
           title="2. Add tracing to your application"
           status={hasTracingConfigured ? "active" : "pending"}
         />
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mb-4 text-sm">
           Langfuse relies on OpenTelemetry to instrument your application and
           export LLM application/agent traces to Langfuse. You can use one of
           our SDKs or 50+ framework integrations. Please follow the quickstart

@@ -53,7 +53,7 @@ export function FinalPreviewStep({
     <div className="h-[62vh] space-y-6 p-6">
       <div>
         <h3 className="text-lg font-semibold">Review Configuration</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Adding {totalCount} observation{totalCount !== 1 ? "s" : ""} to
           dataset &quot;
           {dataset.name}&quot;
@@ -96,13 +96,13 @@ export function FinalPreviewStep({
         </div>
       )}
 
-      <div className="text-sm text-muted-foreground">
+      <div className="text-muted-foreground text-sm">
         Sample dataset item preview (from first selected observation):
       </div>
 
       {!observationData ? (
-        <div className="flex h-64 items-center justify-center rounded-md border bg-muted/30 p-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
+          <p className="text-muted-foreground text-sm">
             No observation data available for preview
           </p>
         </div>
@@ -151,7 +151,7 @@ function PreviewCard({ label, data, onEdit, errors }: PreviewCardProps) {
     <div
       className={cn("rounded-lg border", hasErrors && "border-amber-500/50")}
     >
-      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+      <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2">
         <span className="flex items-center gap-1.5 text-sm font-medium">
           {hasErrors && (
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
@@ -170,7 +170,7 @@ function PreviewCard({ label, data, onEdit, errors }: PreviewCardProps) {
       </div>
       <div className="max-h-62 overflow-auto">
         {data === null ? (
-          <div className="p-4 text-sm italic text-muted-foreground">null</div>
+          <div className="text-muted-foreground p-4 text-sm italic">null</div>
         ) : (
           <JSONView json={data} className="text-xs" />
         )}

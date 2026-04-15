@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -14,6 +14,8 @@ import {
   GetDefaultViewInput,
   SetDefaultViewInput,
   ClearDefaultViewInput,
+  DefaultViewAssignmentsSchema,
+  TableViewPresetsNamesCreatorListSchema,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -137,6 +139,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
+    .output(TableViewPresetsNamesCreatorListSchema)
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -199,6 +202,22 @@ export const TableViewPresetsRouter = createTRPCRouter({
       });
 
       return await DefaultViewService.getResolvedDefault({
+        ...input,
+        userId: ctx.session.user?.id,
+      });
+    }),
+
+  getDefaultAssignments: protectedProjectProcedure
+    .input(GetDefaultViewInput)
+    .output(DefaultViewAssignmentsSchema)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "TableViewPresets:read",
+      });
+
+      return await DefaultViewService.getDefaultAssignments({
         ...input,
         userId: ctx.session.user?.id,
       });

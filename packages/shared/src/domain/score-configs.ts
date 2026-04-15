@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { isPresent } from "../utils/typeChecks";
 
 // Category type, used for categorical and boolean configs
@@ -72,6 +72,13 @@ export const CategoricalConfigFields = z.object({
   categories: z.array(ScoreConfigCategory).superRefine(validateCategories),
 });
 
+export const TextConfigFields = z.object({
+  maxValue: z.undefined().nullish(),
+  minValue: z.undefined().nullish(),
+  dataType: z.literal("TEXT"),
+  categories: z.undefined().nullish(),
+});
+
 const ScoreConfigBase = z.object({
   id: z.string(),
   name: z.string().min(1).max(35),
@@ -113,6 +120,10 @@ export const ScoreConfigSchema = z
     z.object({
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);

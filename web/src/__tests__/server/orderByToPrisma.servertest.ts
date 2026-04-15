@@ -1,5 +1,13 @@
-import { orderByToPrismaSql } from "@langfuse/shared/src/server";
-import { tracesTableCols } from "@langfuse/shared";
+import {
+  orderByToClickhouseSql,
+  orderByToPrismaSql,
+  tracesTableUiColumnDefinitions,
+} from "@langfuse/shared/src/server";
+import {
+  InvalidRequestError,
+  normalizeOrderByForTable,
+  tracesTableCols,
+} from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
@@ -25,5 +33,30 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         tracesTableCols,
       ),
     ).toThrow(/Invalid order: test/);
+  });
+
+  test("normalizeOrderByForTable maps leaked time aliases to expected table column", () => {
+    expect(
+      normalizeOrderByForTable({
+        orderBy: { column: "startTime", order: "DESC" },
+        expectedTimeColumn: "timestamp",
+      }),
+    ).toEqual({ column: "timestamp", order: "DESC" });
+
+    expect(
+      normalizeOrderByForTable({
+        orderBy: { column: "timestamp", order: "ASC" },
+        expectedTimeColumn: "createdAt",
+      }),
+    ).toEqual({ column: "createdAt", order: "ASC" });
+  });
+
+  test("orderByToClickhouseSql throws InvalidRequestError for invalid columns", () => {
+    expect(() =>
+      orderByToClickhouseSql(
+        { column: "not_a_column", order: "ASC" },
+        tracesTableUiColumnDefinitions,
+      ),
+    ).toThrow(InvalidRequestError);
   });
 });

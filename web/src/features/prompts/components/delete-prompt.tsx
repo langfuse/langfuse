@@ -40,7 +40,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
         <p className="mb-3 text-sm">
           This action permanently deletes this prompt. All requests to fetch
           prompt{" "}
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+          <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {promptName}
           </code>{" "}
           will error.

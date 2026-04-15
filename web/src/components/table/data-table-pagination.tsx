@@ -76,16 +76,16 @@ export function DataTablePagination<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex-1 text-sm">
         {/* {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
       <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="whitespace-nowrap text-sm font-medium md:hidden">
+          <p className="text-sm font-medium whitespace-nowrap md:hidden">
             Rows
           </p>
-          <p className="hidden whitespace-nowrap text-sm font-medium md:block">
+          <p className="hidden text-sm font-medium whitespace-nowrap md:block">
             Rows per page
           </p>
           <Select
@@ -109,7 +109,7 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center gap-1 whitespace-nowrap text-sm font-medium">
+        <div className="flex items-center justify-center gap-1 text-sm font-medium whitespace-nowrap">
           {table.getPageCount() !== -1 ? (
             <>
               Page
@@ -150,7 +150,7 @@ export function DataTablePagination<TData>({
                 <span>
                   of{" "}
                   {isLoading ? (
-                    <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+                    <LoaderCircle className="text-muted-foreground ml-1 inline-block h-3 w-3 animate-spin" />
                   ) : (
                     1
                   )}

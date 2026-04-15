@@ -1,6 +1,7 @@
-import z from "zod/v4";
+import z from "zod";
 import { OrderByState } from "../../../interfaces/orderBy";
 import { UiColumnMappings } from "../../../tableDefinitions";
+import { InvalidRequestError } from "../../../errors";
 import { logger } from "../../logger";
 import type { OrderByDirection, OrderByEntry } from "./event-query-builder";
 
@@ -35,7 +36,7 @@ export function orderByToClickhouseSql(
 
     if (!col) {
       logger.warn(`Invalid order by column: ${ob.column}`);
-      throw new Error("Invalid order by column: " + ob.column);
+      throw new InvalidRequestError("Invalid order by column: " + ob.column);
     }
 
     // Assert that ob.order is either "asc" or "desc"
@@ -88,7 +89,7 @@ export function orderByToEntries(
 
     if (!col) {
       logger.warn(`Invalid order by column: ${ob.column}`);
-      throw new Error("Invalid order by column: " + ob.column);
+      throw new InvalidRequestError("Invalid order by column: " + ob.column);
     }
 
     const orderByOrder = z.enum(["ASC", "DESC"]);

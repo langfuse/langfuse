@@ -5,7 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
@@ -29,7 +29,7 @@ export type DeleteButtonProps = {
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
-  variant?: "outline" | "ghost";
+  variant?: ButtonProps["variant"];
   scope: NonNullable<DeleteButtonProps["scope"]>;
   invalidateFunc: NonNullable<DeleteButtonProps["invalidateFunc"]>;
   captureDeleteOpen: (
@@ -93,7 +93,7 @@ export function DeleteButton({
     <Popover key={itemId ?? "delete-action"}>
       <PopoverTrigger asChild>
         <Button
-          variant={variant ?? (icon ? "outline" : "ghost")}
+          variant={variant ?? (icon ? "outline-solid" : "ghost")}
           size={icon ? "icon" : "default"}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {

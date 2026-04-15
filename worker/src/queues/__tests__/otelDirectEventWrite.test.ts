@@ -63,6 +63,11 @@ describe("checkHeaderBasedDirectWrite", () => {
       label: "python 4.1.0-rc.1 (pre-release above minimum)",
     },
     {
+      input: { sdkName: "python", sdkVersion: "4.0.0b1" },
+      expected: true,
+      label: "python 4.0.0b1 (pep440 beta shorthand at minimum)",
+    },
+    {
       input: { sdkName: "python", sdkVersion: "3.9.0-rc.1" },
       expected: false,
       label: "python 3.9.0-rc.1 (pre-release below minimum)",

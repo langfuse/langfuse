@@ -79,7 +79,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
   if (!automation) {
     return (
-      <div className="py-4 text-center text-muted-foreground">
+      <div className="text-muted-foreground py-4 text-center">
         Automation not found.
       </div>
     );

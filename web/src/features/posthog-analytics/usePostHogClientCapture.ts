@@ -1,6 +1,8 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 
+export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
+
 // resource:action, only use snake_case
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
@@ -205,7 +207,7 @@ export const events = {
   ], // also used on landing page for consistency
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
-  sidebar: ["book_a_call_clicked"],
+  sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

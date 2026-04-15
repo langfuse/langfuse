@@ -69,4 +69,13 @@ describe("RBAC access checks", () => {
       }),
     ).toBe(true);
   });
+
+  it("allows members to manage llm tools", () => {
+    expect(
+      hasProjectAccess({
+        role: "MEMBER",
+        scope: "llmTools:CUD",
+      }),
+    ).toBe(true);
+  });
 });

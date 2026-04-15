@@ -5,7 +5,7 @@ import {
   OtelIngestionProcessor,
   markProjectAsOtelUser,
 } from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
@@ -114,6 +114,22 @@ export default withMiddlewares({
 
       if (!resourceSpans || resourceSpans.length === 0) {
         return {};
+      }
+
+      // Warn on oversized OTEL request bodies (16MB threshold)
+      const bodyBytes = body.byteLength;
+      if (bodyBytes > 16 * 1024 * 1024) {
+        let spanCount = 0;
+        for (const rs of resourceSpans) {
+          for (const ss of rs?.scopeSpans ?? []) {
+            spanCount += ss?.spans?.length ?? 0;
+          }
+        }
+        logger.warn("OTEL request body exceeds 16MB", {
+          projectId: auth.scope.projectId,
+          bodyBytes,
+          spanCount,
+        });
       }
 
       // Extract SDK headers for write path decision (supports both hyphen and underscore formats)

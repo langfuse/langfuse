@@ -5,7 +5,7 @@ import { redis } from "./";
  * Redis cache utilities for eval job configuration optimization.
  *
  * This module provides caching functionality to reduce database calls when
- * checking for job configurations. When a project has no active evaluation
+ * checking for job configurations. When a project has no executable evaluation
  * job configurations, we cache this information in Redis to avoid unnecessary
  * database queries and queue processing.
  */
@@ -45,7 +45,7 @@ export const hasNoEvalConfigsCache = async (
 };
 
 /**
- * Cache that a project has no active eval configurations.
+ * Cache that a project has no executable eval configurations.
  * The cache expires after 10 minutes to ensure eventual consistency.
  */
 export const setNoEvalConfigsCache = async (
@@ -69,7 +69,7 @@ export const setNoEvalConfigsCache = async (
 
 /**
  * Clear the "no eval configs" cache for a project.
- * Should be called when job configurations are created or activated.
+ * Should be called when job configurations become executable again.
  */
 export const clearNoEvalConfigsCache = async (
   projectId: string,
@@ -89,3 +89,11 @@ export const clearNoEvalConfigsCache = async (
     logger.error(`Failed to clear no ${cacheType} eval configs cache`, error);
   }
 };
+
+export const invalidateProjectEvalConfigCaches = (
+  projectId: string,
+): Promise<[void, void]> =>
+  Promise.all([
+    clearNoEvalConfigsCache(projectId, "traceBased"),
+    clearNoEvalConfigsCache(projectId, "eventBased"),
+  ]);

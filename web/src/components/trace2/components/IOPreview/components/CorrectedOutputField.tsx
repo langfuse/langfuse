@@ -182,7 +182,7 @@ export function CorrectedOutputField({
                       href="https://langfuse.com/docs/observability/features/corrections"
                       target="_blank"
                       rel="noreferrer"
-                      className="underline hover:text-foreground"
+                      className="hover:text-foreground underline"
                     >
                       documentation
                     </Link>
@@ -203,7 +203,7 @@ export function CorrectedOutputField({
                 {isValidJson && saveStatus === "saving" && (
                   <div className="mr-2 flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       Saving
                     </span>
                   </div>
@@ -211,7 +211,7 @@ export function CorrectedOutputField({
                 {isValidJson && saveStatus === "saved" && (
                   <div className="mr-2 flex items-center gap-1">
                     <Check className="h-3 w-3" />
-                    <span className="text-xs text-muted-foreground">Saved</span>
+                    <span className="text-muted-foreground text-xs">Saved</span>
                   </div>
                 )}
                 {hasContent && (
@@ -257,7 +257,7 @@ export function CorrectedOutputField({
                   disabled={!isEditing}
                   className="scale-75"
                 />
-                <span className="text-xs text-muted-foreground">JSON</span>
+                <span className="text-muted-foreground text-xs">JSON</span>
               </div>
             </div>
           </div>
@@ -267,7 +267,7 @@ export function CorrectedOutputField({
               onClick={handleEdit}
               disabled={!hasAccess}
               className={cn(
-                "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
+                "text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors",
               )}
             >
               Click to add corrected output

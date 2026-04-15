@@ -48,7 +48,7 @@ export function AdvancedJsonSectionHeader({
 
   return (
     <div
-      className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80"
+      className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors"
       style={{ backgroundColor }}
     >
       <div
@@ -69,7 +69,7 @@ export function AdvancedJsonSectionHeader({
               e.stopPropagation();
               onToggleCollapse();
             }}
-            className="inline-flex items-center justify-center rounded-sm p-0.5 transition-colors hover:bg-accent"
+            className="hover:bg-accent inline-flex items-center justify-center rounded-sm p-0.5 transition-colors"
             aria-label={
               sectionCollapsed ? "Expand section" : "Collapse section"
             }
@@ -84,7 +84,7 @@ export function AdvancedJsonSectionHeader({
         {titleIcon}
         {title}
       </div>
-      <div className="mr-1 flex min-w-0 flex-shrink flex-row items-center gap-1">
+      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
         {controlButtons}
         <Button
           title="Copy to clipboard"
@@ -96,7 +96,7 @@ export function AdvancedJsonSectionHeader({
             handleOnCopy(event);
             setTimeout(() => setIsCopied(false), 1000);
           }}
-          className="-mr-2 hover:bg-border"
+          className="hover:bg-border -mr-2"
         >
           {isCopied ? (
             <Check className="h-3 w-3" />

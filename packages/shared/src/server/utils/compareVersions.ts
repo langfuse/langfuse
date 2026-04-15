@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const versionSchema = z.string().regex(/^v?\d+\.\d+\.\d+(?:[-+].+)?$/); // e.g. v1.2.3, 1.2.3, v1.2.3-rc.1, v1.2.3+build.123
 

@@ -333,4 +333,70 @@ describe("dashboard widget minVersion", () => {
       expect(result.success).toBe(true);
     });
   });
+
+  // ── tRPC uiHidden dimension validation ────────────────────────────────
+
+  describe("tRPC uiHidden dimension validation", () => {
+    it.each([
+      ["id", true],
+      ["traceId", true],
+      ["parentObservationId", true],
+      ["name", false],
+    ])(
+      "create with dimension '%s' on v2 observations → rejected=%s",
+      async (field, shouldReject) => {
+        const caller = makeCaller();
+        const promise = caller.dashboardWidgets.create({
+          projectId,
+          name: "uiHidden test widget",
+          description: `${field} dimension on v2`,
+          view: "observations",
+          dimensions: [{ field }],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        });
+
+        if (shouldReject) {
+          await expect(promise).rejects.toThrow(/not available for widgets/);
+        } else {
+          await expect(promise).resolves.toMatchObject({ success: true });
+        }
+      },
+    );
+
+    it("should validate uiHidden dimensions on update mutation", async () => {
+      const caller = makeCaller();
+      const created = await caller.dashboardWidgets.create({
+        projectId,
+        name: "Widget to update",
+        description: "will try hidden dim update",
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+        minVersion: 2,
+      });
+
+      await expect(
+        caller.dashboardWidgets.update({
+          projectId,
+          widgetId: created.widget.id,
+          name: "Widget to update",
+          description: "hidden dim update",
+          view: "observations",
+          dimensions: [{ field: "id" }],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        }),
+      ).rejects.toThrow(/not available for widgets/);
+    });
+  });
 });

@@ -766,7 +766,7 @@ describe("/api/public/observations API Endpoint", () => {
             `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
           );
 
-          expect(response.status).toBe(500); // TODO 400
+          expect(response.status).toBe(400);
           // Score filter should be ignored, so some observations should be returned
           expect(JSON.stringify(response.body)).toContain(
             "does not match a UI / CH table mapping",
