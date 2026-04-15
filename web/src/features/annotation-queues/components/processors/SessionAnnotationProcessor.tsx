@@ -13,6 +13,10 @@ import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
+import { api } from "@/src/utils/api";
+import { getNumberFromMap } from "@/src/utils/map-utils";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 interface SessionAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -32,6 +36,25 @@ export const SessionAnnotationProcessor: React.FC<
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const [currentTraceIndex, setCurrentTraceIndex] = useState(1);
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId,
+      objectId: item.objectId,
+      objectType: "SESSION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
 
   // Intersection observer to which trace is currently in view
   useEffect(() => {
@@ -77,13 +100,20 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
-          {data?.traces && (
-            <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={item.objectId}
+              objectType="SESSION"
+              variant="outline"
+              count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
+            />
+            {data?.traces && (
               <Badge variant="outline" className="text-xs">
                 Trace {currentTraceIndex} / {data.traces.length}
               </Badge>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
