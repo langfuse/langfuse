@@ -6,7 +6,10 @@ import {
   GetTraceV1Response,
   DeleteTraceV1Query,
   DeleteTraceV1Response,
+  TRACE_FIELD_GROUPS,
+  type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+import { env } from "@/src/env.mjs";
 import {
   filterAndValidateDbTraceScoreList,
   LangfuseNotFoundError,
@@ -29,11 +32,32 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
+
+      let effectiveFields: readonly TraceFieldGroup[] =
+        query.fields ?? TRACE_FIELD_GROUPS;
+      if (!query.fields && env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS) {
+        const parsed = env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS.split(",")
+          .map((f) => f.trim())
+          .filter((f): f is TraceFieldGroup =>
+            TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup),
+          );
+        if (parsed.length > 0) {
+          effectiveFields = parsed;
+        }
+      }
+      const requestedFields = effectiveFields;
+      const includeIO = requestedFields.includes("io");
+      const includeObservations = requestedFields.includes("observations");
+      const includeScores = requestedFields.includes("scores");
+      const includeMetrics = requestedFields.includes("metrics");
+
       const trace = await getTraceById({
         traceId,
         projectId: auth.scope.projectId,
         clickhouseFeatureTag: "tracing-public-api",
         preferredClickhouseService: "ReadOnly",
+        excludeInputOutput: !includeIO,
+        excludeMetadata: !includeIO,
       });
 
       if (!trace) {
@@ -43,19 +67,23 @@ export default withMiddlewares({
       }
 
       const [observations, scores] = await Promise.all([
-        getObservationsForTrace({
-          traceId,
-          projectId: auth.scope.projectId,
-          timestamp: trace?.timestamp,
-          includeIO: true,
-          preferredClickhouseService: "ReadOnly",
-        }),
-        getScoresForTraces({
-          projectId: auth.scope.projectId,
-          traceIds: [traceId],
-          timestamp: trace?.timestamp,
-          preferredClickhouseService: "ReadOnly",
-        }),
+        includeObservations || includeMetrics
+          ? getObservationsForTrace({
+              traceId,
+              projectId: auth.scope.projectId,
+              timestamp: trace?.timestamp,
+              includeIO: includeObservations,
+              preferredClickhouseService: "ReadOnly",
+            })
+          : Promise.resolve([]),
+        includeScores
+          ? getScoresForTraces({
+              projectId: auth.scope.projectId,
+              traceIds: [traceId],
+              timestamp: trace?.timestamp,
+              preferredClickhouseService: "ReadOnly",
+            })
+          : Promise.resolve([]),
       ]);
 
       const uniqueModels: string[] = Array.from(
@@ -129,16 +157,24 @@ export default withMiddlewares({
       return {
         ...trace,
         externalId: null,
-        scores: validatedScores,
-        latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
-        observations: outObservations,
+        metadata: includeIO ? trace.metadata : {},
+        scores: includeScores ? validatedScores : [],
+        latency: includeMetrics
+          ? latencyMs !== undefined
+            ? latencyMs / 1000
+            : 0
+          : -1,
+        observations: includeObservations ? outObservations : [],
         htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
-        totalCost: outObservations
-          .reduce(
-            (acc, obs) => acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
-            new Decimal(0),
-          )
-          .toNumber(),
+        totalCost: includeMetrics
+          ? outObservations
+              .reduce(
+                (acc, obs) =>
+                  acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
+                new Decimal(0),
+              )
+              .toNumber()
+          : -1,
       };
     },
   }),

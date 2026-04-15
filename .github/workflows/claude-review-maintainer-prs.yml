@@ -1,14 +1,15 @@
 name: Claude Review on Maintainer PRs
 
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - ready_for_review
 
 jobs:
   comment:
-    if: github.event.pull_request.draft == false
+    # Only run on PRs that are not drafts and are from the same repository (i.e., not from forks)
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -16,7 +17,7 @@ jobs:
     steps:
       - name: Check author permission and existing review request
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const owner = context.repo.owner;
@@ -57,7 +58,7 @@ jobs:
 
       - name: Add Claude review comment
         if: steps.check.outputs.should_comment == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             await github.rest.issues.createComment({

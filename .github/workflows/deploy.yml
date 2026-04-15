@@ -27,6 +27,8 @@ on:
           - prod-jp
         required: true
 
+permissions: {}
+
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
   group: deploy-${{ github.event_name }}-${{ github.ref }}
@@ -35,13 +37,13 @@ concurrency:
 name: Deploy to ECS
 jobs:
   affected-services:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       services: ${{ steps.affected-services.outputs.result }}
     steps:
       - name: Get affected services
         id: affected-services
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -56,7 +58,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print services to build
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           services: ${{ steps.affected-services.outputs.result }}
         with:
@@ -65,13 +67,13 @@ jobs:
             console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       environments: ${{ steps.affected-environments.outputs.result }}
     steps:
       - name: Get affected environments
         id: affected-environments
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -88,7 +90,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print environments to build
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           environments: ${{ steps.affected-environments.outputs.result }}
         with:
@@ -99,7 +101,14 @@ jobs:
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-services, affected-environments]
-    secrets: inherit
+    permissions:
+      contents: read
+    # Environment secrets must be passed explicitly to reusable workflows.
+    # See: https://github.com/actions/runner/issues/3206
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}

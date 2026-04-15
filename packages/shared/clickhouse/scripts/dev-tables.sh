@@ -372,7 +372,8 @@ CREATE TABLE IF NOT EXISTS events_core
     INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
     INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
-    INDEX idx_provided_model_name provided_model_name TYPE bloom_filter(0.01) GRANULARITY 2
+    INDEX idx_provided_model_name provided_model_name TYPE bloom_filter(0.01) GRANULARITY 2,
+    INDEX idx_experiment_id experiment_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toYYYYMM(start_time)
@@ -508,10 +509,7 @@ clickhouse client \
   TRUNCATE events_core;
   TRUNCATE events_full;
 
-  -- Note: production excludes experiment traces here (LEFT ANTI JOIN dataset_run_items_rmt)
-  -- and re-inserts them with experiment metadata via handleExperimentBackfill.
-  -- For dev seeding, we include all traces directly to ensure events_core and
-  -- traces/observations tables have matching row counts for dashboard testing.
+  -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
@@ -519,6 +517,11 @@ clickhouse client \
                       usage_pricing_tier_id, usage_pricing_tier_name,
                       tool_definitions, tool_calls, tool_call_names, input,
                       output, metadata_names, metadata_values,
+                      experiment_id, experiment_name, experiment_description, experiment_dataset_id,
+                      experiment_item_id, experiment_item_expected_output,
+                      experiment_metadata_names, experiment_metadata_values,
+                      experiment_item_metadata_names, experiment_item_metadata_values,
+                      experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT o.project_id,
@@ -563,7 +566,18 @@ clickhouse client \
          coalesce(o.output, '')                                                          AS output,
          mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map())))                     AS metadata_names,
          mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_values,
-         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
+         coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
+         coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
+         coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
+         coalesce(dri.dataset_id, '')                                                    AS experiment_dataset_id,
+         coalesce(dri.dataset_item_id, '')                                               AS experiment_item_id,
+         coalesce(dri.dataset_item_expected_output, '')                                  AS experiment_item_expected_output,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_run_metadata), [])             AS experiment_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_run_metadata), [])           AS experiment_metadata_values,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_item_metadata), [])            AS experiment_item_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
+         if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
+         multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          o.created_at,
@@ -572,9 +586,10 @@ clickhouse client \
          o.is_deleted
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
+  LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
   WHERE (o.is_deleted = 0);
 
-  -- Backfill events from traces table as well
+  -- Backfill events from traces table as well (experiment metadata included when dataset_run_items match)
   -- Traces are converted to synthetic observations with id = 't-' + trace_id
   -- (matching convertTraceToStagingObservation in the ingestion pipeline)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
@@ -584,6 +599,11 @@ clickhouse client \
                       tool_definitions, tool_calls, tool_call_names,
                       input, output,
                       metadata_names, metadata_values,
+                      experiment_id, experiment_name, experiment_description, experiment_dataset_id,
+                      experiment_item_id, experiment_item_expected_output,
+                      experiment_metadata_names, experiment_metadata_values,
+                      experiment_item_metadata_names, experiment_item_metadata_values,
+                      experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT t.project_id,
@@ -617,7 +637,18 @@ clickhouse client \
          coalesce(t.output, '')                                                          AS output,
          mapKeys(t.metadata)                                                             AS metadata_names,
          mapValues(t.metadata)                                                           AS metadata_values,
-         multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
+         coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
+         coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
+         coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
+         coalesce(dri.dataset_id, '')                                                    AS experiment_dataset_id,
+         coalesce(dri.dataset_item_id, '')                                               AS experiment_item_id,
+         coalesce(dri.dataset_item_expected_output, '')                                  AS experiment_item_expected_output,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_run_metadata), [])             AS experiment_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_run_metadata), [])           AS experiment_metadata_values,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_item_metadata), [])            AS experiment_item_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
+         if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
+         multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          t.created_at,
@@ -625,6 +656,7 @@ clickhouse client \
          t.event_ts,
          t.is_deleted
   FROM traces t FINAL
+  LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
   WHERE (t.is_deleted = 0);
 
 EOF

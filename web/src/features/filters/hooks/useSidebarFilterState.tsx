@@ -49,6 +49,10 @@ export function decodeAndNormalizeFilters(
     for (const columnDefinition of columnDefinitions) {
       knownColumns.set(columnDefinition.id, columnDefinition.id);
       knownColumns.set(columnDefinition.name, columnDefinition.id);
+      // Map old column IDs to current canonical ID for backward compat
+      for (const alias of columnDefinition.aliases ?? []) {
+        knownColumns.set(alias, columnDefinition.id);
+      }
     }
 
     // Normalize display names to column IDs immediately after decoding
@@ -135,6 +139,7 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   value: string[];
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
@@ -248,9 +253,11 @@ const EMPTY_MAP: Map<string, number> = new Map();
 function processOptions(options: (string | SingleValueOption)[]): {
   values: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
 } {
   const values: string[] = [];
   const counts = new Map<string, number>();
+  const displayByValue = new Map<string, string>();
 
   for (const opt of options) {
     if (typeof opt === "string") {
@@ -260,10 +267,20 @@ function processOptions(options: (string | SingleValueOption)[]): {
       if (opt.count !== undefined) {
         counts.set(opt.value, opt.count);
       }
+      if (
+        typeof opt.displayValue === "string" &&
+        opt.displayValue !== opt.value
+      ) {
+        displayByValue.set(opt.value, opt.displayValue);
+      }
     }
   }
 
-  return { values, counts: counts.size > 0 ? counts : EMPTY_MAP };
+  return {
+    values,
+    counts: counts.size > 0 ? counts : EMPTY_MAP,
+    displayByValue: displayByValue.size > 0 ? displayByValue : undefined,
+  };
 }
 
 type UpdateFilter = (
@@ -280,6 +297,12 @@ type UseSidebarFilterStateOptions = {
    * the parent page's URL with filters that don't apply to the parent context.
    */
   disableUrlPersistence?: boolean;
+  /**
+   * If true, prevents filter state from being persisted to/read from session storage.
+   * URL persistence remains active. Use this when you want filters in the URL but
+   * don't want them to persist across page navigations within the same session.
+   */
+  disableSessionPersistence?: boolean;
   /**
    * Optional context identifier (for example projectId) to guard against
    * carrying persisted filters across contexts.
@@ -349,6 +372,7 @@ export function useSidebarFilterState(
   const {
     loading,
     disableUrlPersistence,
+    disableSessionPersistence,
     sessionFilterContextId,
     implicitDefaultConfig,
   } = hookOptions;
@@ -412,7 +436,9 @@ export function useSidebarFilterState(
   );
   const filtersQuery = disableUrlPersistence
     ? ""
-    : (pendingFiltersQuery ?? urlFiltersQuery ?? storedFiltersQuery);
+    : (pendingFiltersQuery ??
+      urlFiltersQuery ??
+      (disableSessionPersistence ? "" : storedFiltersQuery));
   const urlFilterState: FilterState = useMemo(() => {
     // If URL persistence is disabled, return empty filter state
     if (disableUrlPersistence) return [];
@@ -490,12 +516,15 @@ export function useSidebarFilterState(
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
-      setStoredFiltersQuery(encoded);
+      if (!disableSessionPersistence) {
+        setStoredFiltersQuery(encoded);
+      }
     },
     [
       setUrlFiltersQuery,
       setStoredFiltersQuery,
       disableUrlPersistence,
+      disableSessionPersistence,
       peekContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
@@ -536,17 +565,24 @@ export function useSidebarFilterState(
         setUrlFiltersQuery(canonicalFiltersQuery || null);
       }
 
-      if (storedFiltersQuery !== canonicalFiltersQuery) {
+      if (
+        !disableSessionPersistence &&
+        storedFiltersQuery !== canonicalFiltersQuery
+      ) {
         setStoredFiltersQuery(canonicalFiltersQuery);
       }
       return;
     }
 
-    if (storedFiltersQuery !== canonicalFiltersQuery) {
+    if (
+      !disableSessionPersistence &&
+      storedFiltersQuery !== canonicalFiltersQuery
+    ) {
       setStoredFiltersQuery(canonicalFiltersQuery);
     }
   }, [
     disableUrlPersistence,
+    disableSessionPersistence,
     peekContext,
     pendingFiltersQuery,
     urlFiltersQuery,
@@ -559,6 +595,7 @@ export function useSidebarFilterState(
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
     if (disableUrlPersistence) return;
+    if (disableSessionPersistence) return;
     if (peekContext) return;
     if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
@@ -570,6 +607,7 @@ export function useSidebarFilterState(
     setStoredFiltersQuery(urlFiltersQuery);
   }, [
     disableUrlPersistence,
+    disableSessionPersistence,
     peekContext,
     pendingFiltersQuery,
     urlFiltersQuery,
@@ -1374,11 +1412,13 @@ export function useSidebarFilterState(
           : [];
 
         // Extract counts and values to display along multi-select values
-        const { values: availableValues, counts } = Array.isArray(
-          availableValuesWithOptions,
-        )
+        const {
+          values: availableValues,
+          counts,
+          displayByValue,
+        } = Array.isArray(availableValuesWithOptions)
           ? processOptions(availableValuesWithOptions)
-          : { values: [], counts: EMPTY_MAP };
+          : { values: [], counts: EMPTY_MAP, displayByValue: undefined };
 
         // Check if this column supports operator toggle
         // Only arrayOptions columns get the ANY/ALL toggle
@@ -1478,6 +1518,7 @@ export function useSidebarFilterState(
           value: selectedValues,
           options: availableValues,
           counts,
+          displayByValue,
           loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,

@@ -7,17 +7,31 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.8.20 --global
+RUN npm install turbo@2.9.5 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@9.5.0 --activate
+RUN corepack prepare pnpm@10.33.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
 # uses it to install prisma and optional dd-trace before removing it.
 RUN rm -rf /usr/local/lib/node_modules/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+    rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+FROM --platform=${BUILDPLATFORM} golang:1.24 AS migrate-builder
+ARG TARGETOS
+ARG TARGETARCH
+ENV CGO_ENABLED=0 \
+    GOBIN=/out \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH}
+# Build only the ClickHouse migrate CLI Langfuse uses at runtime.
+# compile this ourselves instead of downloading the upstream release
+# because prebuilt bins bundle many unused drivers and thus inherit CVEs
+# eg.: https://github.com/golang-migrate/migrate/issues/1357
+RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
+    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -122,7 +136,7 @@ ARG GID=1001
 RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@6.17.1
+RUN npm install -g --no-package-lock --no-save prisma@6.19.3
 
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
@@ -130,13 +144,11 @@ RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
     npm install --no-package-lock --no-save dd-trace@5.65.0; \
     fi
 
-# Runtime images do not need npm once explicit runtime tools are installed.
+# npm is only used for the installs above; remove it from the final runtime image.
 RUN rm -rf /usr/local/lib/node_modules/npm && \
     rm -f /usr/local/bin/npm /usr/local/bin/npx
 
-RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
-    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
-    mv migrate /usr/bin/migrate
+COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .

@@ -337,6 +337,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
         limit: MAX_OBSERVATIONS_PER_TRACE + 1,
         offset: 0,
         select: "rows",
+        selectToolData: false,
         tags: { kind: "byTraceId" },
       },
     );
@@ -394,6 +395,7 @@ export const getObservationsWithModelDataFromEventsTable = async (
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
+    selectToolData?: boolean;
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> {
@@ -401,6 +403,7 @@ async function getObservationsFromEventsTableInternal<T>(
     projectId,
     filter,
     selectIOAndMetadata,
+    selectToolData = true,
     renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
     offset,
@@ -447,7 +450,7 @@ async function getObservationsFromEventsTableInternal<T>(
     opts.searchQuery,
     opts.searchType,
     "e",
-    ["span_id", "name", "user_id", "session_id", "trace_id"],
+    ["span_id", "name", "trace_name", "user_id", "session_id", "trace_id"],
   );
 
   const orderByEntries = orderByToEntries(
@@ -461,7 +464,10 @@ async function getObservationsFromEventsTableInternal<T>(
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
   } else {
-    queryBuilder.selectFieldSet("base", "calculated");
+    queryBuilder.selectFieldSet(
+      selectToolData ? "base" : "baseWithoutTools",
+      "calculated",
+    );
     if (selectIOAndMetadata) {
       queryBuilder
         .selectIO(
@@ -474,14 +480,15 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
   // All modes use the same pattern: rank observations per trace, pick rn = N.
-  // root/nthFromStart → ORDER BY start_time ASC
-  // last/nthFromEnd   → ORDER BY start_time DESC
+  // `root` remains only for backward compatibility and maps to `first`.
+  // root/first/nthFromStart → ORDER BY start_time ASC
+  // last/nthFromEnd         → ORDER BY start_time DESC
   if (positionFilter && "key" in positionFilter) {
     const key = positionFilter.key;
     const isFromEnd = key === "last" || key === "nthFromEnd";
     const direction = isFromEnd ? "DESC" : "ASC";
     const position =
-      key === "last" || key === "root"
+      key === "last" || key === "first" || key === "root"
         ? 1
         : typeof positionFilter.value === "number"
           ? positionFilter.value
@@ -1518,6 +1525,7 @@ export const getEventsGroupedByModel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res.map((r) => ({ model: r.name, count: r.count }));
 };
@@ -1561,6 +1569,7 @@ export const getEventsGroupedByModelId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res.map((r) => ({ modelId: r.modelId, count: r.count }));
 };
@@ -1604,6 +1613,7 @@ export const getEventsGroupedByName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1650,6 +1660,7 @@ export const getEventsGroupedByTraceName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1718,6 +1729,7 @@ export const getEventsGroupedByTraceTags = async (
           kind: "analytic",
           projectId,
         },
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1763,6 +1775,7 @@ export const getEventsGroupedByPromptName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res.filter((r) => Boolean(r.promptName));
@@ -1807,6 +1820,7 @@ export const getEventsGroupedByType = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1855,6 +1869,7 @@ export const getEventsGroupedByUserId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1900,6 +1915,7 @@ export const getEventsGroupedByVersion = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1945,6 +1961,7 @@ export const getEventsGroupedBySessionId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -1990,6 +2007,7 @@ export const getEventsGroupedByLevel = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2035,6 +2053,7 @@ export const getEventsGroupedByEnvironment = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2084,6 +2103,7 @@ export const getEventsGroupedByExperimentDatasetId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2127,6 +2147,7 @@ export const getEventsGroupedByExperimentId = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2170,6 +2191,7 @@ export const getEventsGroupedByExperimentName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2213,6 +2235,7 @@ export const getEventsGroupedByHasParentObservation = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -2256,6 +2279,7 @@ export const getEventsGroupedByToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };
@@ -2303,6 +2327,7 @@ export const getEventsGroupedByCalledToolName = async (
       kind: "analytic",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
   return res;
 };

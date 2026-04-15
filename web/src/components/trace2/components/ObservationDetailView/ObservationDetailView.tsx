@@ -82,9 +82,9 @@ export function ObservationDetailView({
   } = useSelection();
 
   // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
-  const showLogViewTab = isV4BetaEnabled && observations.length > 0;
+  const showLogViewTab = isV4Enabled && observations.length > 0;
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -129,6 +129,7 @@ export function ObservationDetailView({
     setJsonViewPreference,
     jsonBetaEnabled,
     setJsonBetaEnabled,
+    isPeekMode,
   } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
@@ -476,11 +477,12 @@ export function ObservationDetailView({
                 "traceId",
                 "observationId",
                 "traceName",
+                "traceTags",
                 "jobConfigurationId",
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
-              disableUrlPersistence
+              disableUrlPersistence={isPeekMode}
             />
           </div>
         </TabsBarContent>

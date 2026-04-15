@@ -86,6 +86,9 @@ export default function SlackIntegrationSettings() {
     scope: "automations:CUD",
   });
 
+  // Channel was typed by name rather than selected from the list
+  const isManualEntry = selectedChannel?.id.startsWith("#") ?? false;
+
   return (
     <ContainerPage
       headerProps={{
@@ -121,6 +124,7 @@ export default function SlackIntegrationSettings() {
                   <ChannelSelector
                     projectId={projectId}
                     selectedChannelId={selectedChannel?.id}
+                    selectedChannel={selectedChannel}
                     onChannelSelect={setSelectedChannel}
                     placeholder="Choose a channel to test"
                     showRefreshButton={true}
@@ -143,15 +147,27 @@ export default function SlackIntegrationSettings() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">Channel Type</p>
-                        <Badge variant="outline" className="text-xs">
-                          {selectedChannel.isPrivate ? "Private" : "Public"}
-                        </Badge>
+                        {isManualEntry ? (
+                          <span className="text-muted-foreground text-xs">
+                            Available after sending a test message
+                          </span>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            {selectedChannel.isPrivate ? "Private" : "Public"}
+                          </Badge>
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-medium">Channel ID</p>
-                        <p className="text-muted-foreground font-mono text-sm">
-                          {selectedChannel.id}
-                        </p>
+                        {isManualEntry ? (
+                          <span className="text-muted-foreground text-xs">
+                            Available after sending a test message
+                          </span>
+                        ) : (
+                          <p className="text-muted-foreground font-mono text-sm">
+                            {selectedChannel.id}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -162,6 +178,19 @@ export default function SlackIntegrationSettings() {
                       selectedChannel={selectedChannel}
                       hasAccess={hasAccess}
                       disabled={false}
+                      onSuccess={(channelInfo) => {
+                        setSelectedChannel((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                id: channelInfo.id,
+                                name: channelInfo.name ?? prev.name,
+                                isPrivate:
+                                  channelInfo.isPrivate ?? prev.isPrivate,
+                              }
+                            : prev,
+                        );
+                      }}
                     />
                   </div>
                 </div>
@@ -170,7 +199,11 @@ export default function SlackIntegrationSettings() {
               {!selectedChannel && (
                 <div className="text-muted-foreground text-sm">
                   Select a channel above to view its details and test message
-                  delivery.
+                  delivery. For private channels, invite the app first with{" "}
+                  <code className="bg-muted rounded px-1 py-0.5">
+                    /invite @Langfuse
+                  </code>{" "}
+                  in that channel.
                 </div>
               )}
             </CardContent>

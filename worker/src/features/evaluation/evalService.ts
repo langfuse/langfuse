@@ -262,6 +262,7 @@ export const createEvalJobs = async ({
               : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
+        excludeMetadata: false, // Metadata needed for in-memory filter evaluation
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -921,7 +922,9 @@ export async function executeLLMAsJudgeEvaluation({
         `Job ${jobExecutionId} received LLM output: ${
           parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
             ? `score=${parsedLLMOutput.data.score}`
-            : `matches=${parsedLLMOutput.data.matches.join(",")}`
+            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
+              ? `score=${parsedLLMOutput.data.score}`
+              : `matches=${parsedLLMOutput.data.matches.join(",")}`
         }`,
       );
 
@@ -984,7 +987,9 @@ export async function executeLLMAsJudgeEvaluation({
         `Eval job ${job.id} completed with ${
           parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
             ? `score ${parsedLLMOutput.data.score}`
-            : `matches ${parsedLLMOutput.data.matches.join(",")}`
+            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
+              ? `score ${parsedLLMOutput.data.score}`
+              : `matches ${parsedLLMOutput.data.matches.join(",")}`
         }`,
       );
     },

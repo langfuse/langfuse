@@ -137,6 +137,7 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
   hideControls?: boolean;
+  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -147,6 +148,7 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
   hideControls = false,
+  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -291,13 +293,13 @@ export default function TracesTable({
       traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
-      name:
+      traceName:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
         })) ?? undefined,
       // tags don't have counts
-      tags:
+      traceTags:
         traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
@@ -432,11 +434,13 @@ export default function TracesTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
 
+  // Trace rows render trace-scoped aggregates: direct trace scores plus
+  // observation scores that belong to the same trace.
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<TracesTableRow>({
       scoreColumnKey: "scores",
       projectId,
-      filter: scoreFilters.forTraces(),
+      filter: scoreFilters.forTraceScopedAggregates(),
       fromTimestamp: dateRange?.from,
     });
 
@@ -1238,6 +1242,7 @@ export default function TracesTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
+    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
@@ -1321,7 +1326,7 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            columnsWithCustomSelect={["name", "tags"]}
+            columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>
                 traces.data?.traces.map((t) => t.id).includes(traceId),

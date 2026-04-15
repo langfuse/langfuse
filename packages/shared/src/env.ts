@@ -57,6 +57,18 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
   CLICKHOUSE_URL: z.string().url(),
@@ -97,6 +109,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_MAX_SPAN_BYTES: z.coerce.number().positive().default(9_500_000), // 9.5MB — just under ClickHouse's 10MB min_chunk_bytes_for_parallel_parsing default
   LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -118,7 +131,7 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
-  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+  LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -178,6 +191,21 @@ const EnvSchema = z.object({
     .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
+  LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OCI_AUTH_TYPE: z
+    .enum([
+      "workload_identity",
+      "instance_principal",
+      "resource_principal",
+      "oci_profile",
+      "session_token",
+    ])
+    .optional(),
+  LANGFUSE_OCI_CONFIG_FILE: z.string().optional(),
+  LANGFUSE_OCI_CONFIG_PROFILE: z.string().optional(),
+  NODE_EXTRA_CA_CERTS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
@@ -260,6 +288,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -271,6 +317,14 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_PAGE_SIZE: z.coerce
+    .number()
+    .positive()
+    .int()
+    .max(1000)
+    .optional()
+    .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
+    .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce

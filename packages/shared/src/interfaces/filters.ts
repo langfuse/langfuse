@@ -88,7 +88,7 @@ export const positionInTraceFilter = z
     type: z.literal("positionInTrace"),
     column: z.string(),
     operator: z.literal("="),
-    key: z.enum(["root", "last", "nthFromEnd", "nthFromStart"]),
+    key: z.enum(["root", "first", "last", "nthFromEnd", "nthFromStart"]),
     value: z.number().optional(),
   })
   .superRefine((data, ctx) => {

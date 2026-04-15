@@ -4003,6 +4003,44 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(rows[0].type).toBe("GENERATION");
   });
 
+  it("should export bookmarked, public, created_at, and updated_at fields", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "test-fields-event",
+      start_time: now * 1000,
+      bookmarked: true,
+      public: true,
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000),
+      new Date(now + 60 * 60 * 1000),
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bookmarked).toBe(true);
+    expect(rows[0].public).toBe(true);
+    expect(rows[0].created_at).toBeDefined();
+    expect(rows[0].updated_at).toBeDefined();
+    expect(rows[0].tool_calls).toBeDefined();
+    expect(rows[0].tool_definitions).toBeDefined();
+    expect(rows[0].tool_call_names).toBeDefined();
+  });
+
   it("should filter events by time range", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const now = Date.now();

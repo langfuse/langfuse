@@ -111,7 +111,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.9.5.0
+- Pnpm v.10.33.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -418,45 +418,48 @@ The background color of the following component will be `hsl(var(--primary))` an
 
 ### Color Variables
 
-| Variable                 | Description                                                        | Examples                         |
-| ------------------------ | ------------------------------------------------------------------ | -------------------------------- |
-| --background             | Background color                                                   | Default background color of body |
-| --foreground             | Foreground color                                                   | Default text color of body       |
-| --muted                  | Muted background color                                             | TabsList, Skeleton and Switch    |
-| --muted-foreground       | Muted foreground color                                             |                                  |
-| --popover                | Popover background color                                           | DropdownMenu, HoverCard, Popover |
-| --popover-foreground     | Popover foreground color                                           |                                  |
-| --card                   | Card background color                                              | Card                             |
-| --card-foreground        | Card foreground color                                              |                                  |
-| --border                 | Border color                                                       | Default border color             |
-| --input                  | Input field border color                                           | Input, Select, Textarea          |
-| --primary                | Primary button background colors                                   | Button variant="primary"         |
-| --primary-foreground     | Primary button foreground color                                    |                                  |
-| --secondary              | Secondary button background color                                  | Button variant="secondary"       |
-| --secondary-foreground   | Secondary button foreground color                                  |                                  |
-| --accent                 | Used for accents such as hover effects                             | DropdownMenuItem, SelectItem     |
-| --accent-foreground      | Used for texts on hover effects                                    | DropdownMenuItem, SelectItem     |
-| --destructive            | Destructive action color for background                            | Button variant="destructive"     |
-| --destructive-foreground | Destructive action color for text                                  |                                  |
-| --ring                   | Focus ring color                                                   | MultiSelect                      |
-| --primary-accent         | Primary accent color used for branding                             | Layout                           |
-| --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
-| --muted-green            | Muted green for Event label                                        | ObservationTree                  |
-| --muted-magenta          | Muted magenta for Generation label                                 | ObservationTree                  |
-| --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
-| --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
-| --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
-| --accent-dark-green      | Dark green accent for border of output and assistant messages      | CodeJsonViewer and IOPReview     |
-| --light-red              | Light red for error background                                     | level-color and StatusBadge      |
-| --dark-red               | Dark red for error text and error badge dot color                  | level-color and ErrorPage        |
-| --light-yellow           | Light yellow for warning background                                | LevelColor                       |
-| --dark-yellow            | Dark yellow for warning text                                       | LevelColor                       |
-| --light-green            | Light green for success status badge background                    | StatusBadge                      |
-| --dark-green             | Dark green for success status badge text and dot                   | StatusBadge                      |
-| --light-blue             | Light blue for background of Staging label                         | LangfuseLogo                     |
-| --dark-blue              | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
-| --accent-light-blue      | Light blue accent for table link hover effect                      | TableLink                        |
-| --accent-dark-blue       | Dark blue accent for table link text                               | TableLink                        |
+| Variable                         | Description                                                        | Examples                         |
+| -------------------------------- | ------------------------------------------------------------------ | -------------------------------- |
+| --background                     | Background color                                                   | Default background color of body |
+| --foreground                     | Foreground color                                                   | Default text color of body       |
+| --muted                          | Muted background color                                             | TabsList, Skeleton and Switch    |
+| --muted-foreground               | Muted foreground color                                             |                                  |
+| --popover                        | Popover background color                                           | DropdownMenu, HoverCard, Popover |
+| --popover-foreground             | Popover foreground color                                           |                                  |
+| --card                           | Card background color                                              | Card                             |
+| --card-foreground                | Card foreground color                                              |                                  |
+| --border                         | Border color                                                       | Default border color             |
+| --input                          | Input field border color                                           | Input, Select, Textarea          |
+| --primary                        | Primary button background colors                                   | Button variant="primary"         |
+| --primary-foreground             | Primary button foreground color                                    |                                  |
+| --secondary                      | Secondary button background color                                  | Button variant="secondary"       |
+| --secondary-foreground           | Secondary button foreground color                                  |                                  |
+| --accent                         | Used for accents such as hover effects                             | DropdownMenuItem, SelectItem     |
+| --accent-foreground              | Used for texts on hover effects                                    | DropdownMenuItem, SelectItem     |
+| --destructive                    | Destructive action color for background                            | Button variant="destructive"     |
+| --destructive-foreground         | Destructive action color for text                                  |                                  |
+| --ring                           | Focus ring color                                                   | MultiSelect                      |
+| --primary-accent                 | Primary accent color used for branding                             | Layout                           |
+| --hover-primary-accent           | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
+| --muted-green                    | Muted green for Event label                                        | ObservationTree                  |
+| --muted-magenta                  | Muted magenta for Generation label                                 | ObservationTree                  |
+| --muted-blue                     | Muted blue for Span label                                          | ObservationTree                  |
+| --muted-gray                     | Muted gray for disabled status badges                              | StatusBadge                      |
+| --accent-light-green             | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
+| --accent-dark-green              | Dark green accent for border of output and assistant messages      | CodeJsonViewer and IOPReview     |
+| --light-red                      | Light red for error background                                     | level-color and StatusBadge      |
+| --dark-red                       | Dark red for error text and error badge dot color                  | level-color and ErrorPage        |
+| --light-yellow                   | Light yellow for warning background                                | LevelColor                       |
+| --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
+| --light-green                    | Light green for success status badge background                    | StatusBadge                      |
+| --dark-green                     | Dark green for success status badge text and dot                   | StatusBadge                      |
+| --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --dark-blue                      | Dark blue for text and border of Staging label                     | LangfuseLogo                     |
+| --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
+| --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
+| --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |
+| --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
+| --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 
 ### Adding New Colors
 
@@ -510,3 +513,5 @@ npx fern-api generate --api organizations  # for the organizations API
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
+
+If the CLA check gets stuck after signing (a [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520)), comment `/check-cla` on your PR to retrigger it.

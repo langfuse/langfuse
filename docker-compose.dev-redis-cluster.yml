@@ -1,3 +1,15 @@
+x-redis-cluster-common-env: &redis-cluster-common-env
+  REDIS_PASSWORD: bitnami
+  REDIS_CLUSTER_DYNAMIC_IPS: "no"
+  REDIS_CLUSTER_ANNOUNCE_IP: 127.0.0.1
+  REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+x-redis-cluster-healthcheck: &redis-cluster-healthcheck
+  interval: 1s
+  timeout: 5s
+  retries: 30
+  start_period: 5s
+
 services:
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:24.3
@@ -12,6 +24,12 @@ services:
     ports:
       - 127.0.0.1:8123:8123
       - 127.0.0.1:9000:9000
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
     depends_on:
       - postgres
 
@@ -62,9 +80,13 @@ services:
     volumes:
       - redis-cluster_data-0:/bitnami/redis/data
     environment:
-      REDIS_PASSWORD: bitnami
+      <<: *redis-cluster-common-env
       REDIS_PORT_NUMBER: 6370
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6370
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16370
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6370 cluster info | grep -q 'cluster_state:ok'"]
 
   redis-node-1:
     image: docker.io/bitnamilegacy/redis-cluster:8.0
@@ -72,9 +94,13 @@ services:
     volumes:
       - redis-cluster_data-1:/bitnami/redis/data
     environment:
-      REDIS_PASSWORD: bitnami
+      <<: *redis-cluster-common-env
       REDIS_PORT_NUMBER: 6371
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6371
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16371
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6371 cluster info | grep -q 'cluster_state:ok'"]
 
   redis-node-2:
     image: docker.io/bitnamilegacy/redis-cluster:8.0
@@ -82,9 +108,13 @@ services:
     volumes:
       - redis-cluster_data-2:/bitnami/redis/data
     environment:
-      REDIS_PASSWORD: bitnami
+      <<: *redis-cluster-common-env
       REDIS_PORT_NUMBER: 6372
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6372
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16372
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6372 cluster info | grep -q 'cluster_state:ok'"]
 
   redis-node-3:
     image: docker.io/bitnamilegacy/redis-cluster:8.0
@@ -92,9 +122,13 @@ services:
     volumes:
       - redis-cluster_data-3:/bitnami/redis/data
     environment:
-      REDIS_PASSWORD: bitnami
+      <<: *redis-cluster-common-env
       REDIS_PORT_NUMBER: 6373
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6373
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16373
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6373 cluster info | grep -q 'cluster_state:ok'"]
 
   redis-node-4:
     image: docker.io/bitnamilegacy/redis-cluster:8.0
@@ -102,9 +136,13 @@ services:
     volumes:
       - redis-cluster_data-4:/bitnami/redis/data
     environment:
-      REDIS_PASSWORD: bitnami
+      <<: *redis-cluster-common-env
       REDIS_PORT_NUMBER: 6374
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6374
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16374
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6374 cluster info | grep -q 'cluster_state:ok'"]
 
   redis-node-5:
     image: docker.io/bitnamilegacy/redis-cluster:8.0
@@ -118,12 +156,16 @@ services:
       - redis-node-3
       - redis-node-4
     environment:
+      <<: *redis-cluster-common-env
       REDISCLI_AUTH: bitnami
       REDIS_CLUSTER_REPLICAS: 1
-      REDIS_PASSWORD: bitnami
       REDIS_PORT_NUMBER: 6375
-      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_ANNOUNCE_PORT: 6375
+      REDIS_CLUSTER_ANNOUNCE_BUS_PORT: 16375
       REDIS_CLUSTER_CREATOR: yes
+    healthcheck:
+      <<: *redis-cluster-healthcheck
+      test: ["CMD-SHELL", "redis-cli -a bitnami -p 6375 cluster info | grep -q 'cluster_state:ok'"]
 
 volumes:
   langfuse_postgres_data:
