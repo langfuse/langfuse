@@ -30,7 +30,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 export const NewOrganizationForm = ({
   onSuccess,
 }: {
-  onSuccess: (orgId: string) => void;
+  onSuccess: (orgId: string) => void | Promise<void>;
 }) => {
   const { update: updateSession } = useSession();
 
@@ -78,8 +78,11 @@ export const NewOrganizationForm = ({
           }
         }
 
-        void updateSession();
-        onSuccess(org.id);
+        // the setup (next step) resolves the current org from session state,
+        // so we refresh it, so that the UI doesn't render stale state.
+        // for example, it could otherwise show the v4 enable toggle.
+        await updateSession();
+        await onSuccess(org.id);
         form.reset();
       })
       .catch((error) => {

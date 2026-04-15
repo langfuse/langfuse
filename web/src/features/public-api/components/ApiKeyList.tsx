@@ -15,6 +15,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableCellWithCopyButton,
   TableHead,
   TableHeader,
   TableRow,
@@ -95,7 +96,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         }}
         actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
-      <CodeView content={envCode} title=".env" />
+      <CodeView
+        content={envCode}
+        title=".env"
+        copiedToClipboardMessage="Secrets are not included, create a new key to copy them."
+      />
       <Card className="mb-4 overflow-hidden">
         <Table>
           <TableHeader>
@@ -113,7 +118,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           <TableBody className="text-muted-foreground">
             {apiKeysQuery.data?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
+                <TableCell
+                  density="comfortable"
+                  colSpan={5}
+                  className="text-center"
+                >
                   None
                 </TableCell>
               </TableRow>
@@ -123,29 +132,31 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                   key={apiKey.id}
                   className="hover:bg-primary-foreground"
                 >
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell
+                    density="comfortable"
+                    className="hidden md:table-cell"
+                  >
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
-                  <TableCell>
+                  <TableCell density="comfortable">
                     <ApiKeyNote
                       apiKey={apiKey}
                       entityId={entityId}
                       scope={scope}
                     />
                   </TableCell>
-                  <TableCell className="font-mono">
-                    <CodeView
-                      className="inline-block text-xs"
-                      content={apiKey.publicKey}
-                    />
-                  </TableCell>
-                  <TableCell className="font-mono">
+                  <TableCellWithCopyButton
+                    density="comfortable"
+                    text={apiKey.publicKey}
+                    className="truncate font-mono"
+                  />
+                  <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
                   </TableCell>
                   {/* <TableCell>
                   {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}
                 </TableCell> */}
-                  <TableCell>
+                  <TableCell density="comfortable">
                     <DeleteApiKeyButton
                       entityId={entityId}
                       apiKeyId={apiKey.id}

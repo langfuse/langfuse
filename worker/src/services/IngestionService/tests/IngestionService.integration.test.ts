@@ -624,6 +624,69 @@ describe("Ingestion end-to-end tests", () => {
     }, 10_000);
   });
 
+  it("should correctly ingest a TEXT score", async () => {
+    const traceId = randomUUID();
+    const scoreId = randomUUID();
+
+    const traceEventList: TraceEventType[] = [
+      {
+        type: "trace-create",
+        id: traceId,
+        timestamp: new Date().toISOString(),
+        body: {
+          name: "trace-for-text-score",
+          timestamp: new Date().toISOString(),
+          environment,
+        },
+      },
+    ];
+
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          dataType: "TEXT",
+          name: "text-score",
+          value: "Great explanation of the concept",
+          source: ScoreSourceEnum.API,
+          traceId: traceId,
+          environment,
+        },
+      },
+    ];
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        createdAtTimestamp: new Date(),
+        traceEventList,
+      }),
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: scoreId,
+        createdAtTimestamp: new Date(),
+        scoreEventList,
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    const score = await getClickhouseRecord(TableName.Scores, scoreId);
+
+    expect(score.id).toBe(scoreId);
+    expect(score.trace_id).toBe(traceId);
+    expect(score.name).toBe("text-score");
+    expect(score.data_type).toBe("TEXT");
+    expect(score.string_value).toBe("Great explanation of the concept");
+    expect(score.value).toBe(0);
+    expect(score.source).toBe(ScoreSourceEnum.API);
+    expect(score.project_id).toBe(projectId);
+  }, 10_000);
+
   [
     {
       observationExternalModel: "gpt-3.5",

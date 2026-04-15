@@ -14,6 +14,7 @@ import {
   logger,
   processEventBatch,
 } from "@langfuse/shared/src/server";
+import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({
@@ -21,7 +22,14 @@ export default withMiddlewares({
     name: "Create Score",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
+    allowedAccessLevels: ["project", "scores"],
     fn: async ({ body, auth, res }) => {
+      if (auth.scope.isIngestionSuspended) {
+        throw new ForbiddenError(
+          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+        );
+      }
+
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,

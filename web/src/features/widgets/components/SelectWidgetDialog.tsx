@@ -119,19 +119,20 @@ export function SelectWidgetDialog({
                         selectedWidgetId === widget.id ? "bg-muted" : ""
                       }`}
                     >
-                      <TableCell className="font-medium">
+                      <TableCell density="comfortable" className="font-medium">
                         {widget.name}
                       </TableCell>
                       <TableCell
+                        density="comfortable"
                         className="truncate"
                         title={widget.description}
                       >
                         {widget.description}
                       </TableCell>
-                      <TableCell>
+                      <TableCell density="comfortable">
                         {startCase(widget.view.toLowerCase())}
                       </TableCell>
-                      <TableCell>
+                      <TableCell density="comfortable">
                         {getChartTypeDisplayName(
                           widget.chartType as DashboardWidgetChartType,
                         )}

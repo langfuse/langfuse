@@ -375,16 +375,35 @@ export async function upsertDatasetItem(
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row by setting valid_to, then create new row
       await prisma.$transaction(async (tx) => {
-        const newValidFrom = new Date();
+        // 0. Re-read if there is an existing item to get the validFrom timestamp
+        const current = await tx.datasetItem.findFirst({
+          where: {
+            id: itemId,
+            projectId: props.projectId,
+            validTo: null,
+          },
+          orderBy: {
+            validFrom: "desc",
+          },
+        });
+
+        if (current && current.datasetId !== dataset.id) {
+          throw new LangfuseNotFoundError(
+            `Dataset item with id ${itemId} not found for project ${props.projectId}`,
+          );
+        }
+
+        const baseTs = current?.validFrom.getTime() ?? 0;
+        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
 
         // 1. If updating existing item, invalidate the current version
-        if (existingItem) {
+        if (current) {
           await tx.datasetItem.update({
             where: {
               id_projectId_validFrom: {
-                id: existingItem.id,
+                id: current.id,
                 projectId: props.projectId,
-                validFrom: existingItem.validFrom,
+                validFrom: current.validFrom,
               },
             },
             data: {

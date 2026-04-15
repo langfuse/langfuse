@@ -583,9 +583,14 @@ export const TracePreview = ({
               <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3 md:flex-1">
                 <ScoresTable
                   projectId={trace.projectId}
-                  omittedFilter={["Trace ID"]}
                   traceId={trace.id}
-                  hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+                  hiddenColumns={[
+                    "traceId",
+                    "traceName",
+                    "traceTags",
+                    "jobConfigurationId",
+                    "userId",
+                  ]}
                   localStorageSuffix="TracePreview"
                   disableUrlPersistence
                 />

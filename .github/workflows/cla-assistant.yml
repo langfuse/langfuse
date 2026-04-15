@@ -1,0 +1,22 @@
+# Workaround for a known cla-assistant bug where the CLA check gets stuck and
+# never re-runs after a contributor signs the CLA.
+# See: https://github.com/cla-assistant/cla-assistant/issues/528
+#
+# Usage: comment `/check-cla` on any PR to manually retrigger the CLA check.
+name: CLA Assistant
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  retrigger_cla:
+    # Only run on PR comments (not issue comments) with the /check-cla command
+    if: github.event.issue.pull_request && github.event.comment.body == '/check-cla'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrigger CLA check
+        run: |
+          curl -s "https://cla-assistant.io/check/langfuse/langfuse?pullRequest=${{ github.event.issue.number }}"
