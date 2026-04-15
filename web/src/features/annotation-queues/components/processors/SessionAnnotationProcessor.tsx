@@ -64,6 +64,14 @@ const SessionEventsIO: React.FC<{
     );
   }
 
+  if (observationsQuery.isError) {
+    return (
+      <div className="text-destructive p-2 text-xs">
+        Failed to load observations.
+      </div>
+    );
+  }
+
   if (!observationsQuery.data || observationsQuery.data.length === 0) {
     return (
       <div className="text-muted-foreground p-2 text-xs">
@@ -179,48 +187,73 @@ export const SessionAnnotationProcessor: React.FC<
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4">
-          {traces.slice(0, visibleTraces).map((trace: any) => (
-            <Card
-              className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
-              key={trace.id}
-            >
-              <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
-                <Link
-                  href={`/project/${projectId}/traces/${trace.id}`}
-                  className="text-xs hover:underline"
+          {/* Loading state for v4 beta traces */}
+          {isBetaEnabled && tracesFromEventsQuery.isLoading && (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Card
+                  key={i}
+                  className="border-border mb-2 grid gap-2 p-2 shadow-none"
                 >
-                  Trace: {trace.name} ({trace.id})&nbsp;↗
-                </Link>
-                <div className="text-muted-foreground text-xs">
-                  {trace.timestamp.toLocaleString()}
-                </div>
-              </div>
-              {isBetaEnabled ? (
-                <SessionEventsIO
-                  traceId={trace.id}
-                  projectId={projectId}
-                  sessionId={item.objectId}
-                />
-              ) : (
-                <SessionIO
-                  traceId={trace.id}
-                  projectId={projectId}
-                  timestamp={trace.timestamp}
-                  showCorrections
-                />
-              )}
-            </Card>
-          ))}
-          {traces.length > visibleTraces && (
-            <div className="flex justify-center py-4">
-              <Button
-                onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-                variant="ghost"
-              >
-                {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-              </Button>
+                  <JsonSkeleton
+                    className="h-full w-full overflow-hidden"
+                    numRows={4}
+                  />
+                </Card>
+              ))}
             </div>
           )}
+          {/* Error state for v4 beta traces */}
+          {isBetaEnabled && tracesFromEventsQuery.isError && (
+            <div className="text-destructive p-2 text-sm">
+              Failed to load traces for this session.
+            </div>
+          )}
+          {/* Trace list */}
+          {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
+            traces.slice(0, visibleTraces).map((trace: any) => (
+              <Card
+                className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
+                key={trace.id}
+              >
+                <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
+                  <Link
+                    href={`/project/${projectId}/traces/${trace.id}`}
+                    className="text-xs hover:underline"
+                  >
+                    Trace: {trace.name} ({trace.id})&nbsp;↗
+                  </Link>
+                  <div className="text-muted-foreground text-xs">
+                    {trace.timestamp.toLocaleString()}
+                  </div>
+                </div>
+                {isBetaEnabled ? (
+                  <SessionEventsIO
+                    traceId={trace.id}
+                    projectId={projectId}
+                    sessionId={item.objectId}
+                  />
+                ) : (
+                  <SessionIO
+                    traceId={trace.id}
+                    projectId={projectId}
+                    timestamp={trace.timestamp}
+                    showCorrections
+                  />
+                )}
+              </Card>
+            ))}
+          {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
+            traces.length > visibleTraces && (
+              <div className="flex justify-center py-4">
+                <Button
+                  onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
+                  variant="ghost"
+                >
+                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                </Button>
+              </div>
+            )}
         </div>
       </div>
     </div>
