@@ -1,4 +1,7 @@
-import { eventsTableCols } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+} from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -46,6 +49,15 @@ export const observationEventsFilterConfig: FilterConfig = {
       tooltip:
         "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
       invertValue: true, // "True" = hasParentObservation=false (is root)
+    },
+    {
+      type: "boolean" as const,
+      column: FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+      label: "1st Observation In Trace",
+      tooltip:
+        "Returns only the first observation per trace within the selected time range. This high-performance mode disables expensive filters such as scores, comments, metadata, and I/O content filters.",
+      trueLabel: "1st only",
+      hideFalseOption: true,
     },
     {
       type: "categorical" as const,

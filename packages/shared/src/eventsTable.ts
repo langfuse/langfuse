@@ -1,4 +1,5 @@
 import { type ColumnDefinition } from "./tableDefinitions";
+import { FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN } from "./features/events/firstObservationInTrace";
 
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
@@ -15,6 +16,12 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "traceId",
     type: "string",
     internal: "e.trace_id",
+  },
+  {
+    name: "1st Observation In Trace",
+    id: FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
+    type: "boolean",
+    internal: FIRST_OBSERVATION_IN_TRACE_FILTER_COLUMN,
   },
   {
     name: "Start Time",
