@@ -12,7 +12,7 @@ export const ScoreConfigNameSchema = z
   .string()
   .min(1)
   .max(35)
-  .regex(/^[\w\s.()-]+$/, "Name contains invalid characters");
+  .regex(/^[\p{L}\p{N} .()-]+$/u, "Name contains invalid characters");
 
 // Numeric config fields
 export const NumericConfigFields = z.object({
