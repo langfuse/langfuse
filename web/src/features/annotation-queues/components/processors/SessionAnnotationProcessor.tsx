@@ -6,7 +6,7 @@ import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
 import { TraceEventsRow } from "@/src/components/session/TraceEventsRow";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -30,6 +30,9 @@ interface SessionAnnotationProcessorProps {
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
 const PAGE_SIZE = 10;
+
+// Stable empty array to avoid creating new references on every render (defeats React.memo)
+const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
@@ -81,6 +84,14 @@ export const SessionAnnotationProcessor: React.FC<
     }
     return traces.length;
   }, [isBetaEnabled, data?.countTraces, traces.length]);
+
+  // Stable callback to avoid creating new function reference on every render (defeats React.memo)
+  const openPeek = useCallback(
+    (traceId: string) => {
+      window.open(`/project/${projectId}/traces/${traceId}`, "_blank");
+    },
+    [projectId],
+  );
 
   const leftPanel = (
     <div className="flex h-full flex-col overflow-hidden">
@@ -148,15 +159,10 @@ export const SessionAnnotationProcessor: React.FC<
                   trace={trace}
                   projectId={projectId}
                   sessionId={item.objectId}
-                  openPeek={(traceId) => {
-                    window.open(
-                      `/project/${projectId}/traces/${traceId}`,
-                      "_blank",
-                    );
-                  }}
+                  openPeek={openPeek}
                   traceCommentCounts={traceCommentCounts.data ?? undefined}
                   showCorrections
-                  filterState={[]}
+                  filterState={EMPTY_FILTER_STATE}
                 />
               </div>
             ))}
