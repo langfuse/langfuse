@@ -42,6 +42,19 @@ export class BlobStorageIntegrationQueue {
 
     if (BlobStorageIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for BlobStorageIntegrationQueue");
+      // Remove the old hourly cron pattern — BullMQ keys repeatable jobs by
+      // name + pattern, so changing the pattern creates a second schedule
+      // while the old one keeps firing.
+      BlobStorageIntegrationQueue.instance
+        .removeRepeatable(QueueJobs.BlobStorageIntegrationJob, {
+          pattern: "20 * * * *",
+        })
+        .catch((err) => {
+          logger.error(
+            "Error removing legacy BlobStorageIntegrationJob schedule",
+            err,
+          );
+        });
       BlobStorageIntegrationQueue.instance
         .add(
           QueueJobs.BlobStorageIntegrationJob,

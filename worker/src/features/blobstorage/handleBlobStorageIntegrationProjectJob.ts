@@ -31,6 +31,8 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
 
+const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
+
 async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
@@ -368,7 +370,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   );
 
   const now = new Date();
-  const uncappedMaxTimestamp = new Date(now.getTime() - 20 * 60 * 1000); // 20-minute lag buffer
+  const uncappedMaxTimestamp = new Date(now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS);
   const frequencyIntervalMs = getFrequencyIntervalMs(
     blobStorageIntegration.exportFrequency,
   );

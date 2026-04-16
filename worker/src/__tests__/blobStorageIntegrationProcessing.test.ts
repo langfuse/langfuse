@@ -149,7 +149,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       });
 
       // Create test data within the export window (2 hours ago to 1 hour ago)
-      // With 30-min lag buffer, actual window is 2h ago to (1h ago or now-30min, whichever is earlier)
+      // With 20-min lag buffer, actual window is 2h ago to (1h ago or now-20min, whichever is earlier)
       const traceId = randomUUID();
       const observationId = randomUUID();
       const scoreId = randomUUID();
