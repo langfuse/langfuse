@@ -30,10 +30,28 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      # Replaces fkirc/skip-duplicate-actions — skips runs whose git tree
+      # was already tested in a prior successful run of this workflow.
       - id: skip_check
-        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5
-        with:
-          do_not_skip: '["workflow_dispatch"]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_TREE=$(gh api "repos/${{ github.repository }}/git/commits/${{ github.sha }}" --jq '.tree.sha')
+
+          MATCH=$(gh api "repos/${{ github.repository }}/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
+            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }} and .head_commit.tree_id == \"$CURRENT_TREE\")] | first | .head_sha // empty")
+
+          if [[ -n "$MATCH" ]]; then
+            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Recommended for paths-filter action
