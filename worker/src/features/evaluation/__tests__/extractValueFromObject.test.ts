@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractValueFromObject } from "../../../../../packages/shared/src/features/evals/utilities";
+import { extractValueFromObject } from "@langfuse/shared";
 
 describe("extractValueFromObject", () => {
   describe("JSONPath slice expressions returning multiple elements", () => {
