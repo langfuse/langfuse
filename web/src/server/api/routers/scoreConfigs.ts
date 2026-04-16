@@ -12,6 +12,7 @@ import {
   optionalPaginationZod,
   ScoreConfigCategory,
   ScoreConfigDataType,
+  ScoreConfigNameSchema,
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
@@ -28,7 +29,7 @@ const ScoreConfigAllInputPaginated = ScoreConfigAllInput.extend({
 
 const ScoreConfigCreateInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1).max(35),
+  name: ScoreConfigNameSchema,
   dataType: z.enum(ScoreConfigDataType),
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
@@ -41,7 +42,7 @@ const ScoreConfigUpdateInput = z.object({
   id: z.string(),
   // Optional fields that may be updated
   isArchived: z.boolean().optional(),
-  name: z.string().min(1).max(35).optional(),
+  name: ScoreConfigNameSchema.optional(),
   description: z.string().nullish(),
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
