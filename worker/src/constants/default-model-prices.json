@@ -3389,7 +3389,7 @@
     "tokenizerId": "claude",
     "pricingTiers": [
       {
-        "id": "ee6447eb-305a-40f0-ace2-7f08b484ac31",
+        "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8_tier_default",
         "name": "Standard",
         "isDefault": true,
         "priority": 0,
