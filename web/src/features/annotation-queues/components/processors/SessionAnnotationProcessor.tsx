@@ -5,7 +5,7 @@ import {
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
-import { TraceEventsRow } from "@/src/components/session/TraceEventsRow";
+import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -150,12 +150,14 @@ export const SessionAnnotationProcessor: React.FC<
               Failed to load traces for this session.
             </div>
           )}
-          {/* Trace list - v4 path uses TraceEventsRow */}
+          {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
           {isBetaEnabled &&
             tracesFromEventsQuery.isSuccess &&
-            traces.slice(0, visibleTraces).map((trace: any) => (
-              <div key={trace.id} className="pb-3">
-                <TraceEventsRow
+            traces
+              .slice(0, visibleTraces)
+              .map((trace: any, index: number) => (
+                <LazyTraceEventsRow
+                  key={trace.id}
                   trace={trace}
                   projectId={projectId}
                   sessionId={item.objectId}
@@ -163,9 +165,10 @@ export const SessionAnnotationProcessor: React.FC<
                   traceCommentCounts={traceCommentCounts.data ?? undefined}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
+                  hideTracePanel
+                  index={index}
                 />
-              </div>
-            ))}
+              ))}
           {/* Trace list - v3 path uses SessionIO */}
           {!isBetaEnabled &&
             traces.slice(0, visibleTraces).map((trace: any) => (
