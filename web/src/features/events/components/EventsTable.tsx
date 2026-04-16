@@ -1022,7 +1022,8 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -1216,7 +1217,7 @@ export default function ObservationsEventsTable({
               promptId: observation.promptId ?? undefined,
               promptName: observation.promptName ?? undefined,
               promptVersion: observation.promptVersion?.toString() ?? undefined,
-              traceTags: undefined, // TODO: traceTags not available in EventsObservation
+              traceTags: observation.traceTags ?? undefined,
               traceName: observation.traceName ?? undefined,
               timestamp: observation.startTime ?? undefined,
               usageDetails: observation.usageDetails ?? {},

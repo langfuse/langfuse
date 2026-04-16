@@ -39,6 +39,34 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    it("should return trace tags for events table observations", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "tagged-event",
+          tags: ["chat", "prod"],
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+    });
+
     it("should return observations with model data", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1219,6 +1247,37 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
+    it("should return trace-level fields for event observations", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-trace-fields-byid",
+          trace_name: "trace-with-tags",
+          tags: ["chat", "prod"],
+          user_id: "user-123",
+          session_id: "session-123",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBe("trace-with-tags");
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+      expect(observation?.userId).toBe("user-123");
+      expect(observation?.sessionId).toBe("session-123");
+    });
+
     it("should return observation by id with input and output", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
