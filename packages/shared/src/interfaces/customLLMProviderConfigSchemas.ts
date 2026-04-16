@@ -11,12 +11,25 @@ export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
-export const BedrockCredentialSchema = z
+export const BedrockAccessKeysSchema = z
   .object({
-    accessKeyId: z.string(),
-    secretAccessKey: z.string(),
+    accessKeyId: z.string().min(1),
+    secretAccessKey: z.string().min(1),
   })
-  .optional();
+  .strict();
+export type BedrockAccessKeys = z.infer<typeof BedrockAccessKeysSchema>;
+
+export const BedrockApiKeySchema = z
+  .object({
+    apiKey: z.string().min(1),
+  })
+  .strict();
+export type BedrockApiKey = z.infer<typeof BedrockApiKeySchema>;
+
+export const BedrockCredentialSchema = z.union([
+  BedrockAccessKeysSchema,
+  BedrockApiKeySchema,
+]);
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
 export const VertexAIConfigSchema = z

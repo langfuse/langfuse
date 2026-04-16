@@ -358,6 +358,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           columnOrder={columnOrder}
           onColumnOrderChange={setColumnOrder}
           rowHeight={rowHeight}
+          cellPadding="comfortable"
           onRowClick={(row) => {
             router.push(`/project/${projectId}/settings/models/${row.modelId}`);
           }}

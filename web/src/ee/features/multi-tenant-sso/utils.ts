@@ -188,6 +188,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      issuer: "https://github.com/login/oauth",
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "gitlab")
@@ -264,6 +265,8 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       enterprise: {
         baseUrl: provider.authConfig.enterprise.baseUrl,
       },
+      issuer: new URL("/login/oauth", provider.authConfig.enterprise.baseUrl)
+        .href,
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "jumpcloud")

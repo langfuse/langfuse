@@ -181,9 +181,44 @@ const FIELD_SETS = {
     "userId",
     "sessionId",
     "traceName",
+    "tags",
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+  ],
+  baseWithoutTools: [
+    "id",
+    "type",
+    "projectId",
+    "name",
+    "modelParameters",
+    "startTime",
+    "endTime",
+    "traceId",
+    "completionStartTime",
+    "providedUsageDetails",
+    "usageDetails",
+    "providedCostDetails",
+    "costDetails",
+    "level",
+    "environment",
+    "bookmarked",
+    "public",
+    "statusMessage",
+    "version",
+    "parentObservationId",
+    "createdAt",
+    "updatedAt",
+    "providedModelName",
+    "totalCost",
+    "promptId",
+    "promptName",
+    "promptVersion",
+    "internalModelId",
+    "userId",
+    "sessionId",
+    "traceName",
+    "tags",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
@@ -206,6 +241,12 @@ const FIELD_SETS = {
     "level",
     "statusMessage",
     "version",
+    "userId",
+    "sessionId",
+    "traceName",
+    "tags",
+    "bookmarked",
+    "public",
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
@@ -1677,6 +1718,11 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
     "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
+
+  // Metrics fields
+  totalCost: "SUM(e.total_cost) AS total_cost",
+  latencyAvg:
+    "avgIf(date_diff('millisecond', e.start_time, e.end_time), e.span_id = e.experiment_item_root_span_id AND e.end_time IS NOT NULL) AS latency_avg",
 } as const;
 
 /**
@@ -1695,6 +1741,7 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "prompts",
     "experimentMetadata",
   ] as const,
+  metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
 } as const;
 
 export type ExperimentsAggregationFieldSetName =
@@ -1703,9 +1750,9 @@ export type ExperimentsAggregationFieldSetName =
 /**
  * ExperimentsAggregationQueryBuilder - Aggregates events by (experiment_id, project_id).
  *
- * For metrics requiring trace-level aggregation first (cost, latency), use CTEQueryBuilder
- * to wrap a trace CTE and re-aggregate at experiment level with selectRaw() + groupBy().
- * selectRaw() is intentionally used for explicit two-level aggregation semantics.
+ * Use the "metrics" field set for cost and latency aggregations:
+ * - Cost: SUM of all event costs for the experiment
+ * - Latency: AVG of root span duration (where span_id = experiment_item_root_span_id)
  */
 export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EXPERIMENTS_AGGREGATION_FIELDS

@@ -392,7 +392,7 @@ const BlobStorageIntegrationSettingsForm = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "The Azure storage container name"
+                  ? "Azure container name (3-63 chars, lowercase letters, numbers, and hyphens only)"
                   : "The S3 bucket name"}
               </FormDescription>
               <FormMessage />

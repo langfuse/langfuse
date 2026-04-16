@@ -34,6 +34,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   isBooleanDataType,
   isCategoricalDataType,
+  isTextDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -192,16 +193,19 @@ export function UpsertScoreConfigDialog({
                         disabled={!!id}
                         defaultValue={field.value}
                         onValueChange={(value) => {
-                          field.onChange(value as ScoreConfigDataType);
+                          const dt = value as ScoreConfigDataType;
+                          field.onChange(dt);
                           form.clearErrors();
-                          if (isNumericDataType(value as ScoreConfigDataType)) {
+                          if (isNumericDataType(dt)) {
                             form.setValue("categories", undefined);
+                          } else if (isTextDataType(dt)) {
+                            form.setValue("categories", undefined);
+                            form.setValue("minValue", undefined);
+                            form.setValue("maxValue", undefined);
                           } else {
                             form.setValue("minValue", undefined);
                             form.setValue("maxValue", undefined);
-                            if (
-                              isBooleanDataType(value as ScoreConfigDataType)
-                            ) {
+                            if (isBooleanDataType(dt)) {
                               replace([
                                 { label: "True", value: 1 },
                                 { label: "False", value: 0 },
@@ -282,7 +286,7 @@ export function UpsertScoreConfigDialog({
                       )}
                     />
                   </>
-                ) : (
+                ) : isTextDataType(form.getValues("dataType")) ? null : (
                   <div className="grid grid-flow-row gap-2">
                     <FormField
                       control={form.control}

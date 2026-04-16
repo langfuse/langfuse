@@ -37,25 +37,21 @@ const PaymentBanner = dynamic(
   },
 );
 
-const V4BetaEnabledBanner = dynamic(
+const V4EnabledBanner = dynamic(
   () =>
-    import("@/src/features/events/components/V4BetaEnabledBanner").then(
-      (mod) => ({
-        default: mod.V4BetaEnabledBanner,
-      }),
-    ),
+    import("@/src/features/events/components/V4EnabledBanner").then((mod) => ({
+      default: mod.V4EnabledBanner,
+    })),
   {
     ssr: false,
   },
 );
 
-const V4BetaPromoBanner = dynamic(
+const V4PromoBanner = dynamic(
   () =>
-    import("@/src/features/events/components/V4BetaPromoBanner").then(
-      (mod) => ({
-        default: mod.V4BetaPromoBanner,
-      }),
-    ),
+    import("@/src/features/events/components/V4PromoBanner").then((mod) => ({
+      default: mod.V4PromoBanner,
+    })),
   {
     ssr: false,
   },
@@ -140,8 +136,8 @@ export function AuthenticatedLayout({
         <SidebarProvider>
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
-            <V4BetaEnabledBanner />
-            <V4BetaPromoBanner />
+            <V4EnabledBanner />
+            <V4PromoBanner />
             <div className="pt-banner-offset flex min-h-0 flex-1">
               <AppSidebar
                 navItems={navigation.mainNavigation}

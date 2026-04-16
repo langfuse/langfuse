@@ -220,6 +220,139 @@ describe("/api/public/traces API Endpoint", () => {
     );
   });
 
+  it("should fetch a trace with core-only fields when fields=core", async () => {
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-core-only",
+      user_id: "user-1",
+      project_id: projectId,
+      metadata: { key: "value" },
+      input: JSON.stringify({ prompt: "test" }),
+      output: JSON.stringify({ response: "test response" }),
+    });
+
+    const observation = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+      name: "test-observation",
+      end_time: new Date().getTime(),
+      start_time: new Date().getTime() - 1000,
+      cost_details: { input: 0.02, output: 0.03, total: 0.05 },
+    });
+
+    const score = createTraceScore({
+      trace_id: traceId,
+      project_id: projectId,
+      name: "test-score",
+      value: 0.8,
+    });
+
+    await createTracesCh([createdTrace]);
+    await createObservationsCh([observation]);
+    await createScoresCh([score]);
+
+    const trace = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}?fields=core`,
+    );
+
+    expect(trace.body.id).toBe(traceId);
+    expect(trace.body.input).toBeNull();
+    expect(trace.body.output).toBeNull();
+    expect(trace.body.metadata).toEqual({});
+    expect(trace.body.observations).toEqual([]);
+    expect(trace.body.scores).toEqual([]);
+    expect(trace.body.totalCost).toBe(-1);
+    expect(trace.body.latency).toBe(-1);
+  });
+
+  it("should fetch a trace with core,scores,metrics fields", async () => {
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-with-scores-metrics",
+      project_id: projectId,
+      input: JSON.stringify({ prompt: "test" }),
+      output: JSON.stringify({ response: "test response" }),
+    });
+
+    const observation = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+      name: "test-observation",
+      end_time: new Date().getTime(),
+      start_time: new Date().getTime() - 1000,
+      cost_details: { input: 0.02, output: 0.03, total: 0.05 },
+      input: "observation input",
+      output: "observation output",
+    });
+
+    const score = createTraceScore({
+      trace_id: traceId,
+      project_id: projectId,
+      name: "test-score",
+      value: 0.8,
+    });
+
+    await createTracesCh([createdTrace]);
+    await createObservationsCh([observation]);
+    await createScoresCh([score]);
+
+    const trace = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}?fields=core,scores,metrics`,
+    );
+
+    expect(trace.body.id).toBe(traceId);
+    expect(trace.body.input).toBeNull();
+    expect(trace.body.output).toBeNull();
+    expect(trace.body.observations).toEqual([]);
+    expect(trace.body.scores).toHaveLength(1);
+    expect(trace.body.totalCost).toBe(0.05);
+    expect(trace.body.latency).toBeCloseTo(1);
+  });
+
+  it("should return all fields when fields param contains only invalid groups", async () => {
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-invalid-fields",
+      project_id: projectId,
+      input: JSON.stringify({ prompt: "test" }),
+      output: JSON.stringify({ response: "test response" }),
+      metadata: { key: "value" },
+    });
+
+    const observation = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+      name: "test-observation",
+      end_time: new Date().getTime(),
+      start_time: new Date().getTime() - 1000,
+      cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+    });
+
+    await createTracesCh([createdTrace]);
+    await createObservationsCh([observation]);
+
+    const trace = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}?fields=invalid_group,also_invalid`,
+    );
+
+    // All invalid fields should fall back to returning all field groups
+    expect(trace.body.id).toBe(traceId);
+    expect(trace.body.input).not.toBeNull();
+    expect(trace.body.output).not.toBeNull();
+    expect(trace.body.observations).toHaveLength(1);
+    expect(trace.body.totalCost).toBeGreaterThanOrEqual(0);
+    expect(trace.body.latency).toBeGreaterThanOrEqual(0);
+  });
+
   it("should fetch all traces", async () => {
     const timestamp = new Date();
     const createdTrace = createTrace({

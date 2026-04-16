@@ -1,4 +1,5 @@
 export * from "./services/StorageService";
+export * from "./cache";
 export * from "./services/BufferedStreamUploader";
 export * from "./services/S3ChunkedUploadStrategy";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
@@ -29,8 +30,10 @@ export * from "./llm/errors";
 export * from "./llm/ociIam";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/internalTraceEvents";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
+export * from "./llm/baseUrlValidation";
 export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";

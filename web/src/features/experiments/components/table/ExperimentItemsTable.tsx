@@ -40,7 +40,7 @@ import {
   type ExperimentItemsTableProps,
   type ExperimentItemData,
   type ExperimentOutputData,
-  getExperimentColor,
+  getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import {
@@ -101,21 +101,28 @@ const StackedExperimentCell = ({
     >
       {allExperimentIds.map((experimentId) => {
         const exp = experimentsById.get(experimentId);
+        const colorStyles = getExperimentColorStyles(
+          experimentId,
+          colorExperimentIds ?? allExperimentIds,
+        );
+        const content = exp ? renderValue(exp) : null;
         return (
           <div
             key={experimentId}
-            className={cn(
-              "flex min-h-0 items-start overflow-hidden px-2",
-              getExperimentColor(
-                experimentId,
-                colorExperimentIds ?? allExperimentIds,
-              ),
-            )}
+            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
           >
-            {exp ? (
-              renderValue(exp)
+            {content ? (
+              <>
+                <span
+                  className={cn(
+                    "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
+                    colorStyles.markerClass,
+                  )}
+                />
+                {content}
+              </>
             ) : (
-              <span className="text-muted-foreground">-</span>
+              <span className="text-muted-foreground">—</span>
             )}
           </div>
         );
@@ -154,32 +161,41 @@ const StackedOutputCell = ({
     >
       {allExperimentIds.map((experimentId) => {
         const out = outputsByExperimentId.get(experimentId);
+        const colorStyles = getExperimentColorStyles(
+          experimentId,
+          colorExperimentIds ?? allExperimentIds,
+        );
         return (
           <div
             key={experimentId}
-            className={cn(
-              "flex min-h-0 items-start overflow-hidden",
-              getExperimentColor(
-                experimentId,
-                colorExperimentIds ?? allExperimentIds,
-              ),
-            )}
+            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
           >
             {isLoading ? (
-              <MemoizedIOTableCell
-                isLoading={true}
-                data={null}
-                singleLine={singleLine}
-              />
+              <div className="flex min-w-0 items-start">
+                <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
+                <MemoizedIOTableCell
+                  isLoading={true}
+                  data={null}
+                  singleLine={singleLine}
+                />
+              </div>
             ) : out?.output ? (
-              <MemoizedIOTableCell
-                isLoading={false}
-                data={out.output}
-                singleLine={singleLine}
-                className="bg-accent-light-green"
-              />
+              <div className="flex min-w-0 items-start">
+                <span
+                  className={cn(
+                    "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
+                    colorStyles.markerClass,
+                  )}
+                />
+                <MemoizedIOTableCell
+                  isLoading={false}
+                  data={out.output}
+                  singleLine={singleLine}
+                  className="bg-accent-light-green"
+                />
+              </div>
             ) : (
-              <span className="text-muted-foreground px-2 py-1">-</span>
+              <span className="text-muted-foreground px-2 py-1">—</span>
             )}
           </div>
         );
