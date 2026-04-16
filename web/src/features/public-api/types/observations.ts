@@ -149,6 +149,11 @@ export const transformDbToApiObservation = (
 
     // exclude trace name, this will only be available on events api
     traceName,
+
+    // Exclude tags
+    tags,
+    traceTags,
+
     // Exclude tool data from public API (not yet released)
 
     toolDefinitions,
@@ -163,7 +168,14 @@ export const transformDbToApiObservation = (
 
     public: _public,
     ...rest
-  } = observation as EventsObservation & ObservationPriceFields;
+  } = observation as EventsObservation &
+    ObservationPriceFields & {
+      // The `tags` field is sometimes renamed to `traceTags` depending on context.
+      // Since `transformDbToApiObservation` is called from multiple sources,
+      // either `tags` or `traceTags` may exist on the input observation.
+      // This is not part of the standard `EventsObservation` type.
+      traceTags?: string[];
+    };
 
   return {
     ...rest,
