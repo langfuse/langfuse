@@ -424,9 +424,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         },
       );
 
-      // Should be set to 7 days in the future from maxTimestamp (now - 30min)
+      // Should be set to 7 days in the future from maxTimestamp (now - 20min lag buffer)
       const expectedNextSync = new Date(
-        now.getTime() - 30 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
+        now.getTime() - 20 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
       );
 
       if (updatedIntegration?.nextSyncAt) {
