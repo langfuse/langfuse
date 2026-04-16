@@ -263,11 +263,11 @@ if (
     client: {
       token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
       ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
-          ? {
-              id_token_signed_response_alg:
-                env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
-            }
-          : {}),
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
+        : {}),
     },
     ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
   });
