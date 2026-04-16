@@ -457,6 +457,61 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toBe("[]");
     });
 
+    it("should return full slice result for $[1:] on an array input", () => {
+      const observationWithArray: ObservationForEval = {
+        ...mockObservation,
+        input: JSON.stringify([
+          { role: "human" },
+          { role: "ai" },
+          { role: "human" },
+        ]),
+      };
+
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "sliced",
+          selectedColumnId: "input",
+          jsonSelector: "$[1:]",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: observationWithArray,
+        variableMapping,
+      });
+
+      expect(result[0].value).toBe(
+        JSON.stringify([{ role: "ai" }, { role: "human" }]),
+      );
+    });
+
+    it("should return single element for $[0] on an array input", () => {
+      const observationWithArray: ObservationForEval = {
+        ...mockObservation,
+        input: JSON.stringify([
+          { role: "human" },
+          { role: "ai" },
+          { role: "human" },
+        ]),
+      };
+
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "first",
+          selectedColumnId: "input",
+          jsonSelector: "$[0]",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: observationWithArray,
+        variableMapping,
+      });
+
+      // Single-element results are unwrapped
+      expect(result[0].value).toBe(JSON.stringify({ role: "human" }));
+    });
+
     it("should handle non-JSON string column with JSON selector", () => {
       const observationWithPlainText: ObservationForEval = {
         ...mockObservation,
