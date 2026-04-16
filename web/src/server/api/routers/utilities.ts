@@ -12,6 +12,7 @@ const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
 const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
+const IP_6_UNIQUE_LOCAL_SUBNET = "fc00::/7";
 
 /**
  * Check if the ipAddress is a private IP address
@@ -26,7 +27,16 @@ const isPrivateIp = (ipAddress: string): boolean => {
   try {
     if (Address6.isValid(ipAddress)) {
       const address = new Address6(ipAddress);
-      const isValidAddress6 = address.isLinkLocal() || address.isLoopback();
+      const isUniqueLocalAddress = address.isInSubnet(
+        new Address6(IP_6_UNIQUE_LOCAL_SUBNET),
+      );
+      const isPrivateMappedIpv4Address =
+        address.is4() && isPrivateIp(address.to4().correctForm());
+      const isValidAddress6 =
+        address.isLinkLocal() ||
+        address.isLoopback() ||
+        isUniqueLocalAddress ||
+        isPrivateMappedIpv4Address;
       if (isValidAddress6) return true;
     }
     if (Address4.isValid(ipAddress)) {
