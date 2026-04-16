@@ -170,6 +170,10 @@ export const transformDbToApiObservation = (
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
+      // The `tags` field is sometimes renamed to `traceTags` depending on context.
+      // Since `transformDbToApiObservation` is called from multiple sources,
+      // either `tags` or `traceTags` may exist on the input observation.
+      // This is not part of the standard `EventsObservation` type.
       traceTags?: string[];
     };
 
