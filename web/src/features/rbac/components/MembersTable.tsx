@@ -267,6 +267,7 @@ export function MembersTable({
             cell: ({
               row,
             }: {
+              // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
               row: Row<MembersTableRow>; // need to specify the type here due to conditional rendering
             }) => {
               const projectRole = row.getValue(

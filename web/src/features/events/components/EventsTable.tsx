@@ -955,6 +955,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
+          // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;

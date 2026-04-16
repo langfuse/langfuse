@@ -507,6 +507,7 @@ export default function ExperimentItemsTable({
       scoreColumns.map((scoreCol) => ({
         ...scoreCol,
         // Override the cell renderer to show stacked scores for each experiment
+        // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
         cell: ({ row }: { row: any }) => {
           const experiments = row.original.experiments;
           const baselineExperiment = hasBaseline

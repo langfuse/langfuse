@@ -485,6 +485,7 @@ interface TableBodyComponentProps<TData> {
   getRowClassName?: (row: TData) => string;
   topAlignCells?: boolean;
   cellPadding?: "compact" | "comfortable";
+  // eslint-disable-next-line react/no-unused-prop-types
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;

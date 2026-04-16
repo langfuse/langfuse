@@ -1207,6 +1207,7 @@ export default function TracesTable({
             header: "Action",
             size: 70,
             isFixedPosition: true,
+            // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const traceId: TracesTableRow["id"] = row.getValue("id");
               return (
