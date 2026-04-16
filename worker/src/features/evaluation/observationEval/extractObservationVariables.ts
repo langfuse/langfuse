@@ -88,11 +88,18 @@ export function extractObservationVariables(
       : observation[internal];
 
     // Build a single-key object so extractValueFromObject can look it up
-    const { value } = extractValueFromObject(
+    const { value, error } = extractValueFromObject(
       { [mapping.selectedColumnId]: fieldValue },
       mapping.selectedColumnId,
       mapping.jsonSelector ?? undefined,
     );
+
+    if (error) {
+      logger.debug(
+        `Error applying JSON selector "${mapping.jsonSelector}" for variable "${mapping.templateVariable}". Falling back to original value.`,
+        { error },
+      );
+    }
 
     variables.push({
       var: mapping.templateVariable,

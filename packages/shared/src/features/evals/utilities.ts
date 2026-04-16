@@ -78,12 +78,7 @@ export function extractValueFromObject(
   jsonSelector?: string,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
 ): { value: string; error: Error | null } {
-  let selectedColumn = obj[selectedColumnId];
-
-  // Simple preprocessing: attempt to parse to valid JSON object
-  if (typeof selectedColumn === "string") {
-    selectedColumn = parseMultiEncodedJson(selectedColumn);
-  }
+  const selectedColumn = obj[selectedColumnId];
 
   const jsonParser = parseJson || parseJsonDefault;
 
@@ -91,14 +86,21 @@ export function extractValueFromObject(
   let error: Error | null = null;
 
   if (jsonSelector && selectedColumn) {
+    // Only parse multi-encoded JSON when a selector is present — avoids
+    // mutating formatting (e.g. whitespace) for the no-selector passthrough.
+    const parsed =
+      typeof selectedColumn === "string"
+        ? parseMultiEncodedJson(selectedColumn)
+        : selectedColumn;
+
     try {
-      jsonSelectedColumn = jsonParser(selectedColumn, jsonSelector);
+      jsonSelectedColumn = jsonParser(parsed, jsonSelector);
     } catch (err) {
       error =
         err instanceof Error
           ? err
           : new Error("There was an unknown error parsing the JSON");
-      jsonSelectedColumn = selectedColumn; // Fallback to original value
+      jsonSelectedColumn = selectedColumn; // Fallback to raw original value
     }
   } else {
     jsonSelectedColumn = selectedColumn;
