@@ -18,17 +18,16 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
 }
 
 /**
- * Validates a webhook URL to prevent SSRF attacks by blocking internal/private IP addresses
- * Should be called when saving webhook URLs and before sending webhooks
+ * Validates a webhook URL to prevent SSRF attacks by blocking internal/private IP addresses.
+ * Returns the resolved IP addresses so callers can pin DNS and avoid TOCTOU races
+ * between validation and the actual HTTP request.
  *
- * Security Note: This validation has a Time-of-Check-Time-of-Use (TOCTOU) vulnerability
- * where DNS can change between validation and actual HTTP request. For maximum security,
- * the HTTP client should also implement IP blocking at connection time.
+ * Should be called when saving webhook URLs and before sending webhooks.
  */
-export async function validateWebhookURL(
+export async function validateWebhookURLAndGetIPs(
   urlString: string,
   whitelist: WebhookValidationWhitelist = whitelistFromEnv(),
-): Promise<void> {
+): Promise<string[]> {
   const url = parseOutboundUrl(urlString);
 
   if (!["https:", "http:"].includes(url.protocol)) {
@@ -39,7 +38,7 @@ export async function validateWebhookURL(
     throw new Error("Only ports 80 and 443 are allowed");
   }
 
-  await validateOutboundUrlHost({
+  return await validateOutboundUrlHost({
     url,
     whitelist,
     logContext: "Webhook",

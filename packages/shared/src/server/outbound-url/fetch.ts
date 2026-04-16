@@ -1,5 +1,8 @@
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
+import { env } from "../../env";
+import { createPinnedAgent } from "../webhooks/pinnedAgent";
+import { type Agent } from "undici";
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
   "authorization",
@@ -58,10 +61,15 @@ export interface RedirectResult {
   finalUrl: string;
 }
 
+/**
+ * Validates a redirect target URL and returns the resolved IPs so the next-hop
+ * fetch can pin DNS to those addresses. Validators that do not need pinning
+ * may return an empty array.
+ */
 export type RedirectUrlValidator = (
   url: string,
   whitelist?: OutboundUrlValidationWhitelist,
-) => Promise<void>;
+) => Promise<string[]>;
 
 interface BaseRedirectOptions {
   maxRedirects: number;
@@ -71,6 +79,12 @@ interface BaseRedirectOptions {
 interface RedirectValidationOptions {
   validateUrl: RedirectUrlValidator;
   whitelist?: OutboundUrlValidationWhitelist;
+  /**
+   * Pre-resolved IPs for the initial URL (typically returned by the same
+   * validator the caller already invoked). When provided, the first hop pins
+   * DNS to these IPs to close the TOCTOU gap between validation and fetch.
+   */
+  initialResolvedIPs?: string[];
 }
 
 /**
@@ -93,6 +107,11 @@ export type RedirectOptions =
  * target before following it. Callers provide validation so each outbound flow
  * can enforce its own protocol, port, and whitelist rules.
  *
+ * When validators return resolved IPs, fetch pins DNS to those addresses via
+ * an undici Agent to close the TOCTOU gap between validation and connect.
+ * Pinning is skipped automatically when HTTPS_PROXY is configured because the
+ * proxy handles DNS + connection routing.
+ *
  * @param url - The initial URL to fetch
  * @param options - Fetch options (method, body, headers, signal, etc.)
  * @param redirectOptions - Configuration for redirect handling (maxRedirects, validation, whitelist)
@@ -108,7 +127,10 @@ export type RedirectOptions =
  *   { method: "POST", body: payload, headers, signal },
  *   {
  *     maxRedirects: 10,
- *     redirectValidation: { validateUrl: validateWebhookURL },
+ *     redirectValidation: {
+ *       validateUrl: validateWebhookURLAndGetIPs,
+ *       initialResolvedIPs,
+ *     },
  *   }
  * );
  * console.log(`Final URL: ${result.finalUrl}`);
@@ -126,10 +148,20 @@ export async function fetchWithSecureRedirects(
     ...additionalSensitiveHeaders.map((headerName) => headerName.toLowerCase()),
   ]);
 
+  // When HTTPS_PROXY is configured the proxy handles DNS + connection routing,
+  // so we skip our own IP pinning to avoid conflicts.
+  const useIPPinning = !env.HTTPS_PROXY;
+
   // Track redirect chain for loop detection and logging
   const redirectChain: string[] = [];
   let currentUrl = url;
   let redirectDepth = 0;
+  let currentResolvedIPs: string[] | undefined =
+    redirectOptions.skipValidation === true
+      ? undefined
+      : useIPPinning
+        ? redirectOptions.redirectValidation.initialResolvedIPs
+        : undefined;
 
   // Force manual redirect handling to prevent automatic following.
   let fetchOptions: RequestInit = {
@@ -144,8 +176,22 @@ export async function fetchWithSecureRedirects(
       maxRedirects,
     });
 
-    // Fetch the current URL
-    const response = await fetch(currentUrl, fetchOptions);
+    // Build per-request fetch options, pinning DNS when we have validated IPs.
+    let agent: Agent | undefined;
+    const perRequestFetchOptions: RequestInit = { ...fetchOptions };
+    if (currentResolvedIPs?.length) {
+      agent = createPinnedAgent(currentResolvedIPs);
+      // Node.js global fetch (undici) supports the dispatcher option at runtime.
+      (perRequestFetchOptions as Record<string, unknown>).dispatcher = agent;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(currentUrl, perRequestFetchOptions);
+    } finally {
+      // Close the single-use agent to release its connection pool.
+      await agent?.close();
+    }
 
     // Check if this is a redirect response (3xx status codes)
     const isRedirect =
@@ -216,10 +262,12 @@ export async function fetchWithSecureRedirects(
         // Redirect safety is domain-specific: webhooks allow HTTP(S) on 80/443,
         // while image URLs require HTTPS. Keep the fetch helper generic and
         // require callers to pass the validator that matches their flow.
-        await redirectOptions.redirectValidation.validateUrl(
+        // The validator returns the resolved IPs so the next hop can pin DNS.
+        const resolvedIPs = await redirectOptions.redirectValidation.validateUrl(
           redirectUrl,
           redirectOptions.redirectValidation.whitelist,
         );
+        currentResolvedIPs = useIPPinning ? resolvedIPs : undefined;
       } catch (error) {
         logger.warn("Redirect validation failed", {
           from: currentUrl,
@@ -234,6 +282,8 @@ export async function fetchWithSecureRedirects(
           redirectDepth,
         );
       }
+    } else {
+      currentResolvedIPs = undefined;
     }
 
     const currentOrigin = new URL(currentUrl).origin;

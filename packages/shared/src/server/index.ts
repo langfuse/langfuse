@@ -83,6 +83,8 @@ export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/notificationQueue";
 export * from "./webhooks/validation";
 export * from "./webhooks/ipBlocking";
+export * from "./webhooks/redirectHandler";
+export * from "./webhooks/pinnedAgent";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";

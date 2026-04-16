@@ -26,7 +26,7 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
 export async function validateLlmConnectionBaseURL(
   urlString: string,
   whitelist: LlmBaseUrlValidationWhitelist = llmBaseUrlWhitelistFromEnv(),
-): Promise<void> {
+): Promise<string[]> {
   const effectiveWhitelist = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
     ? {
         hosts: [],
@@ -41,7 +41,7 @@ export async function validateLlmConnectionBaseURL(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
-  await validateOutboundUrlHost({
+  const ips = await validateOutboundUrlHost({
     url,
     whitelist: effectiveWhitelist,
     logContext: "LLM base URL",
@@ -53,4 +53,6 @@ export async function validateLlmConnectionBaseURL(
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
     throw new Error("Only HTTPS base URLs are allowed on Langfuse Cloud");
   }
+
+  return ips;
 }
