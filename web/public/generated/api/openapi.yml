@@ -10760,6 +10760,9 @@ components:
       properties:
         name:
           type: string
+          description: >-
+            Name of the score config. Max 35 characters. Only letters, numbers,
+            underscores, spaces, periods, parentheses, and hyphens are allowed.
         dataType:
           $ref: '#/components/schemas/ScoreConfigDataType'
         categories:
@@ -10806,7 +10809,9 @@ components:
         name:
           type: string
           nullable: true
-          description: The name of the score config
+          description: >-
+            Name of the score config. Max 35 characters. Only letters, numbers,
+            underscores, spaces, periods, parentheses, and hyphens are allowed.
         categories:
           type: array
           items:
