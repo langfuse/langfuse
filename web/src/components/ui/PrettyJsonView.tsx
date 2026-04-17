@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -81,6 +82,32 @@ const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+/**
+ * Recursively decode \uXXXX escape sequences in all string values of a parsed JSON
+ * structure. Used so that traces ingested via Python SDK's json.dumps(ensure_ascii=True)
+ * display non-ASCII characters (e.g. Japanese, Chinese) correctly in the trace detail
+ * view. Mirrors the approach used in IOTableCell and batch export (see PR #12882).
+ *
+ * Uses greedy mode to handle both \uXXXX (single-escaped) and \\uXXXX (double-escaped)
+ * forms that can appear depending on the ingest path.
+ */
+function decodeUnicodeInJson(value: unknown): unknown {
+  if (typeof value === "string") {
+    return decodeUnicodeEscapesOnly(value, true);
+  }
+  if (Array.isArray(value)) {
+    return value.map(decodeUnicodeInJson);
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      result[k] = decodeUnicodeInJson(v);
+    }
+    return result;
+  }
+  return value;
+}
 
 function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
   if (showNullValues) return true;
@@ -772,7 +799,7 @@ export function PrettyJsonView(props: {
   const parsedJson = useMemo(() => {
     // If pre-parsed data is provided, use it directly (skip parsing)
     if (props.parsedJson !== undefined) {
-      return props.parsedJson;
+      return decodeUnicodeInJson(props.parsedJson);
     }
 
     // If still parsing in Web Worker, return null (will show loading state)
@@ -782,7 +809,7 @@ export function PrettyJsonView(props: {
 
     // Fast path: if already an object, likely no parsing needed
     if (typeof props.json !== "string") {
-      return props.json;
+      return decodeUnicodeInJson(props.json);
     }
 
     // Only parse strings, with size/depth limits
@@ -791,7 +818,9 @@ export function PrettyJsonView(props: {
       maxDepth: 2,
     });
 
-    return result;
+    // Decode \uXXXX escapes so Python SDK (ensure_ascii=True) traces display
+    // non-ASCII characters correctly in the trace detail view.
+    return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
@@ -1293,7 +1322,9 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
-              json={props.json}
+              // Use parsedJson (already unicode-decoded) so that \uXXXX escapes
+              // from Python SDK ensure_ascii=True render as original characters.
+              json={parsedJson ?? props.json}
               title={props.title} // Title value used for background styling
               hideTitle={true} // But hide the title, we display it
               className=""
