@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.167.4",
+  "version": "3.169.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -136,7 +136,7 @@
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
     "prisma": "^6.19.3",
-    "protobufjs": "^7.4.0",
+    "protobufjs": "^7.5.5",
     "rate-limiter-flexible": "^5.0.4",
     "react": "19.2.4",
     "react-day-picker": "^9.14.0",

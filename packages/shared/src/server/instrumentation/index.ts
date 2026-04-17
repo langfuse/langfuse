@@ -298,7 +298,19 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 0, true);
+    // For .depth metrics, flatten tags into the metric name so CloudWatch
+    // can distinguish e.g. depth.shard_all.type_waiting from depth.type_active.
+    // Other metrics are unaffected.
+    let cwKey = stat;
+    if (stat.endsWith(".depth") && tags) {
+      const suffix = Object.entries(tags)
+        .filter(([k]) => k !== "unit")
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}_${v}`)
+        .join(".");
+      if (suffix) cwKey = `${stat}.${suffix}`;
+    }
+    sendCloudWatchMetric(cwKey, value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
