@@ -163,7 +163,9 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   // Extract Bearer token
   const bearerToken = authHeader.replace("Bearer ", "");
 
-  // Verify both the Bearer token and header match the ADMIN_API_KEY
+  // Verify both the Bearer token and header match the ADMIN_API_KEY.
+  // Keep this comparison in sync with the admin-key check in
+  // web/src/ee/features/admin-api/server/adminApiAuth.ts.
   try {
     // timingSafeEqual throws on different input lengths, handle accordingly
     const bearerTokenEqual = crypto.timingSafeEqual(
