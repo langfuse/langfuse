@@ -1,4 +1,8 @@
-import { decodeUnicodeInJson } from "@/src/components/ui/PrettyJsonView";
+import {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_DEPTH,
+  DECODE_UNICODE_MAX_NODES,
+} from "@/src/components/ui/PrettyJsonView";
 
 describe("decodeUnicodeInJson", () => {
   it("decodes \\uXXXX sequences in string values", () => {
@@ -93,5 +97,38 @@ describe("decodeUnicodeInJson", () => {
       a: "日本語",
       b: "以上",
     });
+  });
+
+  it("does not blow the call stack on very deeply nested structures", () => {
+    // Build a chain ~10x deeper than MAX_DEPTH. A recursive implementation would
+    // throw "Maximum call stack size exceeded" here.
+    const chainDepth = DECODE_UNICODE_MAX_DEPTH * 10;
+    let input: Record<string, unknown> = { leaf: "\\u4ee5\\u4e0a" };
+    for (let i = 0; i < chainDepth; i++) {
+      input = { child: input };
+    }
+
+    expect(() => decodeUnicodeInJson(input)).not.toThrow();
+
+    // Leaves within MAX_DEPTH get decoded; deeper subtrees are returned as-is.
+    let result = decodeUnicodeInJson(input) as Record<string, unknown>;
+    for (let i = 0; i < DECODE_UNICODE_MAX_DEPTH - 1; i++) {
+      result = result.child as Record<string, unknown>;
+    }
+    // Below MAX_DEPTH the subtree is kept untouched, so the leaf still contains
+    // the escaped form somewhere further down.
+    expect(result).toBeDefined();
+  });
+
+  it("stops decoding once the node budget is exceeded", () => {
+    // Build an array with > MAX_NODES escaped strings. Entries beyond the budget
+    // should be preserved verbatim (still escaped) rather than throwing or hanging.
+    const items = new Array(DECODE_UNICODE_MAX_NODES + 10).fill(
+      "\\u4ee5\\u4e0a",
+    );
+    const out = decodeUnicodeInJson(items) as string[];
+    expect(out).toHaveLength(items.length);
+    expect(out[0]).toBe("以上");
+    expect(out[out.length - 1]).toBe("\\u4ee5\\u4e0a"); // beyond budget, undecoded
   });
 });
