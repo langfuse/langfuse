@@ -173,14 +173,27 @@ export const CreateExperimentsForm = ({
               <CardFooter className="mt-auto flex flex-row gap-2">
                 {!!existingRemoteExperiment.data && datasetId && (
                   <div className="flex items-start">
+                    {existingRemoteExperiment.data.enabled !== false && (
+                      <Button
+                        className="rounded-r-none"
+                        onClick={() =>
+                          setShowRemoteExperimentTriggerModal(true)
+                        }
+                      >
+                        Run
+                      </Button>
+                    )}
                     <Button
-                      className="rounded-r-none"
-                      onClick={() => setShowRemoteExperimentTriggerModal(true)}
-                    >
-                      Run
-                    </Button>
-                    <Button
-                      className="rounded-l-none rounded-r-md border-l-2 px-2"
+                      className={
+                        existingRemoteExperiment.data.enabled !== false
+                          ? "rounded-l-none rounded-r-md border-l-2 px-2"
+                          : "rounded-md px-2"
+                      }
+                      title={
+                        existingRemoteExperiment.data.enabled !== false
+                          ? "Edit remote dataset run trigger"
+                          : "Remote trigger is disabled. Click to edit settings."
+                      }
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
                       <span className="relative mr-1 text-xs">
