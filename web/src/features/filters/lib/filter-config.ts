@@ -65,3 +65,24 @@ export interface FilterConfig {
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];
 }
+
+export function omitFilterFacets(
+  config: FilterConfig,
+  omittedColumns: string[],
+): FilterConfig {
+  if (omittedColumns.length === 0) {
+    return config;
+  }
+
+  const omittedColumnSet = new Set(omittedColumns);
+
+  return {
+    ...config,
+    defaultExpanded: config.defaultExpanded?.filter(
+      (column) => !omittedColumnSet.has(column),
+    ),
+    facets: config.facets.filter(
+      (facet) => !omittedColumnSet.has(facet.column),
+    ),
+  };
+}

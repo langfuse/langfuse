@@ -12,8 +12,9 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  sessionFilterConfig,
+  getSessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
+  type SessionOmittableFilterColumn,
 } from "@/src/features/filters/config/sessions-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
@@ -78,7 +79,7 @@ export type SessionTableRow = {
 export type SessionTableProps = {
   projectId: string;
   userId?: string;
-  omittedFilter?: string[];
+  omittedFilter?: SessionOmittableFilterColumn[];
   isBetaEnabled?: boolean;
 };
 
@@ -88,6 +89,10 @@ export default function SessionsTable({
   omittedFilter = [],
   isBetaEnabled = false,
 }: SessionTableProps) {
+  const sessionsFilterConfig = useMemo(
+    () => getSessionFilterConfig(omittedFilter),
+    [omittedFilter],
+  );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
@@ -239,7 +244,7 @@ export default function SessionsTable({
   }, [environmentOptions, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
-    sessionFilterConfig,
+    sessionsFilterConfig,
     newFilterOptions,
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
@@ -266,7 +271,7 @@ export default function SessionsTable({
   const backendFilterState = transformFiltersForBackend(
     combinedFilterState,
     SESSION_COLUMN_TO_BACKEND_KEY,
-    sessionFilterConfig.columnDefinitions,
+    sessionsFilterConfig.columnDefinitions,
   );
 
   const payloadCount = {
@@ -528,7 +533,7 @@ export default function SessionsTable({
     },
     {
       accessorKey: "userIds",
-      enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
+      enableColumnFilter: !omittedFilter.includes("userIds"),
       id: "userIds",
       header: "User IDs",
       size: 200,
@@ -754,13 +759,13 @@ export default function SessionsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: sessionFilterConfig.columnDefinitions,
+      filterColumnDefinition: sessionsFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
   });
 
   return (
-    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
+    <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
