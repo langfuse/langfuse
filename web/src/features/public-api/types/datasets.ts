@@ -30,6 +30,7 @@ const APIDataset = z
     expectedOutputSchema: z.any().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+    remoteExperimentEnabled: z.boolean(),
   })
   .strict();
 
