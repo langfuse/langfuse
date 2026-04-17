@@ -1,4 +1,7 @@
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import type { ColumnDefinition } from "@langfuse/shared";
 
@@ -174,3 +177,17 @@ export const experimentsFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export type ExperimentsOmittableFilterColumn = "experimentDatasetId";
+
+export function isExperimentsOmittableFilterColumn(
+  column: string,
+): column is ExperimentsOmittableFilterColumn {
+  return column === "experimentDatasetId";
+}
+
+export function getExperimentsFilterConfig(
+  omittedFilter: ExperimentsOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(experimentsFilterConfig, omittedFilter);
+}

@@ -92,6 +92,8 @@ export type ExperimentsTableProps = {
   hideControls?: boolean;
   /** Default filters to apply on mount when no existing filters are set */
   defaultFilter?: FilterState;
+  /** Hidden filters that scope the table but should not be user-visible */
+  fixedFilter?: FilterState;
   /** Unique context ID to isolate filter state from other ExperimentsTable instances */
   sessionFilterContextId?: string;
 };

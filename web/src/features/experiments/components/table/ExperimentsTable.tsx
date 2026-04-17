@@ -10,8 +10,9 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
+  getExperimentsFilterConfig,
   getExperimentsColumnName,
-  experimentsFilterConfig,
+  isExperimentsOmittableFilterColumn,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
@@ -48,9 +49,19 @@ import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptio
 export default function ExperimentsTable({
   projectId,
   defaultFilter,
+  fixedFilter = [],
   sessionFilterContextId,
 }: ExperimentsTableProps) {
   const router = useRouter();
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+      ),
+    [fixedFilter],
+  );
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -99,7 +110,7 @@ export default function ExperimentsTable({
       ]
     : [];
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
   const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
@@ -107,14 +118,10 @@ export default function ExperimentsTable({
     oldFilterState,
   });
 
-  const queryFilter = useSidebarFilterState(
-    experimentsFilterConfig,
-    filterOptions,
-    {
-      loading: isFilterOptionsPending,
-      sessionFilterContextId,
-    },
-  );
+  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
+    loading: isFilterOptionsPending,
+    sessionFilterContextId,
+  });
 
   // Apply default filter on mount (only if no existing filter)
   const hasAppliedDefaultFilter = useRef(false);
@@ -138,7 +145,10 @@ export default function ExperimentsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(dateRangeFilter);
+  const combinedFilterState = queryFilter.filterState.concat(
+    dateRangeFilter,
+    fixedFilter,
+  );
 
   const filterState = combinedFilterState;
 
@@ -463,7 +473,7 @@ export default function ExperimentsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: experimentsFilterConfig.columnDefinitions,
+      filterColumnDefinition: filterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.filterState,
   });
