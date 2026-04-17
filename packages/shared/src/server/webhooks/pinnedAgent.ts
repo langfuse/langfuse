@@ -7,6 +7,9 @@ import { Agent } from "undici";
  * client never re-resolves the hostname independently.
  */
 export function createPinnedAgent(resolvedIPs: string[]): Agent {
+  // Deliberately pin to a single validated IP. Cycling through alternates on
+  // connection failure could re-open the TOCTOU gap by allowing a DNS-rebinding
+  // attacker to smuggle a malicious IP into the retry path.
   const ip = resolvedIPs[0];
   const family = ip.includes(":") ? 6 : 4;
   return new Agent({

@@ -190,7 +190,9 @@ export async function fetchWithSecureRedirects(
       response = await fetch(currentUrl, perRequestFetchOptions);
     } finally {
       // Close the single-use agent to release its connection pool.
-      await agent?.close();
+      // Swallow close errors so they can't replace a fetch error or mask
+      // the response on the happy path.
+      await agent?.close().catch(() => undefined);
     }
 
     // Check if this is a redirect response (3xx status codes)

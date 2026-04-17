@@ -697,8 +697,9 @@ export async function fetchLLMCompletion(
     await processTracedEvents();
     // Close the single-use pinned agent to release its connection pool.
     // ProxyAgent also extends Agent, so this handles both cases.
+    // Swallow close errors so they can't mask the original completion error.
     if (llmDispatcher && !proxyUrl) {
-      await llmDispatcher.close();
+      await llmDispatcher.close().catch(() => undefined);
     }
   }
 }

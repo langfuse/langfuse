@@ -274,12 +274,10 @@ async function executeHttpAction({
           startedAt: executionStart,
           finishedAt: new Date(),
           error: error instanceof Error ? error.message : "Unknown error",
-          output: httpStatus
-            ? {
-                httpStatus,
-                responseBody: responseBody?.substring(0, 1000),
-              }
-            : undefined,
+          // Do not persist the external response body: a hostile endpoint could
+          // echo data from an internal service reached via SSRF before a
+          // redirect is blocked, turning this column into an exfiltration channel.
+          output: httpStatus ? { httpStatus } : undefined,
         },
       });
 
