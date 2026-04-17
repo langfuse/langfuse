@@ -147,12 +147,15 @@ export function decodeUnicodeInJson(value: unknown): unknown {
       const obj = target as Record<string, unknown>;
       for (const k of Object.keys(source as Record<string, unknown>)) {
         const v = (source as Record<string, unknown>)[k];
+        // Keys can also contain \uXXXX escapes when the ingest path double-
+        // encodes the payload, so decode them alongside the values.
+        const decodedKey = decodeUnicodeEscapesOnly(k, true);
         if (budgetExceeded || ++nodeCount > DECODE_UNICODE_MAX_NODES) {
           budgetExceeded = true;
-          obj[k] = v;
+          obj[decodedKey] = v;
           continue;
         }
-        obj[k] = assignDecodedOrDescend(v, depth, stack);
+        obj[decodedKey] = assignDecodedOrDescend(v, depth, stack);
       }
     }
   }
@@ -900,6 +903,19 @@ export function PrettyJsonView(props: {
     // non-ASCII characters correctly in the trace detail view.
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing]);
+
+  // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
+  // nested string fields in place. Because baseTableData[].rawChildData holds
+  // references back into parsedJson, sharing parsedJson with JSONView would
+  // corrupt the table's lazy-loaded children whenever JSONView renders (even
+  // while hidden via display:none). Pass a deep clone so the two views stay
+  // independent.
+  const jsonViewInput = useMemo(() => {
+    if (parsedJson === null || parsedJson === undefined) return props.json;
+    if (typeof parsedJson !== "object") return parsedJson;
+    return structuredClone(parsedJson);
+  }, [parsedJson, props.json]);
+
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -1400,9 +1416,11 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
-              // Use parsedJson (already unicode-decoded) so that \uXXXX escapes
-              // from Python SDK ensure_ascii=True render as original characters.
-              json={parsedJson ?? props.json}
+              // Use the unicode-decoded payload so that \uXXXX escapes from
+              // Python SDK ensure_ascii=True render as original characters.
+              // Pass a clone to avoid JSONView's internal deepParseJson
+              // mutating the shared parsedJson / rawChildData tree.
+              json={jsonViewInput}
               title={props.title} // Title value used for background styling
               hideTitle={true} // But hide the title, we display it
               className=""

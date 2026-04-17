@@ -99,6 +99,23 @@ describe("decodeUnicodeInJson", () => {
     });
   });
 
+  it("decodes escaped object keys as well as values", () => {
+    expect(decodeUnicodeInJson({ "\\u8cea\\u554f": "\\u56de\\u7b54" })).toEqual(
+      { 質問: "回答" },
+    );
+  });
+
+  it("decodes escaped keys inside nested structures", () => {
+    const input = {
+      "\\u5916\\u5074": {
+        "\\u5185\\u5074": "\\u5024",
+      },
+    };
+    expect(decodeUnicodeInJson(input)).toEqual({
+      外側: { 内側: "値" },
+    });
+  });
+
   it("does not blow the call stack on very deeply nested structures", () => {
     // Build a chain ~10x deeper than MAX_DEPTH. A recursive implementation would
     // throw "Maximum call stack size exceeded" here.
