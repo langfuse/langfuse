@@ -62,6 +62,7 @@ export default withMiddlewares({
           createdAt: true,
           updatedAt: true,
           id: true,
+          remoteExperimentEnabled: true,
         },
         where: {
           projectId: auth.scope.projectId,
