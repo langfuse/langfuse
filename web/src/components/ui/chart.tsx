@@ -99,7 +99,7 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color;
-    const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeKey = key.replace(/[^\p{L}\p{N}_ .()-]/gu, "_");
     return color ? `  --color-${safeKey}: ${color};` : null;
   })
   .join("\n")}
