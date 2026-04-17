@@ -28,6 +28,9 @@ Use this skill for interactive dependency bumps in Langfuse.
 - If the current parent range does not cover the requested transitive version,
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
+- Never manually edit `pnpm-lock.yaml`; regenerate lockfile changes with
+  `pnpm` commands only. If a lockfile-only refresh causes unrelated churn,
+  adjust the pnpm command and rerun instead of patching the lockfile by hand.
 - If a compatible transitive package still stays pinned after the normal
   refresh path, you may suggest `pnpm dedupe` to the user as an optional manual
   follow-up, but do not run it automatically and do not require it.
