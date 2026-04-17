@@ -135,6 +135,21 @@ Ajkub+uJkGqjbz7QpGz8Oo0=
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("requires a base URL for OCI IAM origin pinning", () => {
+    expect(() =>
+      buildOciIamFetch({
+        credentials: {
+          tenancyId: "ocid1.tenancy.oc1..example",
+          userId: "ocid1.user.oc1..example",
+          fingerprint: "12:34:56:78:90:ab:cd:ef",
+          privateKey: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+          region: "us-chicago-1",
+        },
+        baseURL: null,
+      }),
+    ).toThrow("OCI IAM requires a base URL for origin pinning.");
+  });
+
   it("drops user-controlled protected headers before OCI IAM signing", async () => {
     const fetchSpy = jest
       .spyOn(globalThis, "fetch")

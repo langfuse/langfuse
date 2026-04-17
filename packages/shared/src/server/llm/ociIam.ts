@@ -87,11 +87,13 @@ export const buildOciIamFetch = ({
   credentials: OciIAMCredential;
   baseURL?: string | null;
 }) => {
-  if (baseURL) {
-    const baseUrlError = getOciBaseUrlValidationError(baseURL);
-    if (baseUrlError) {
-      throw new Error(baseUrlError);
-    }
+  if (!baseURL) {
+    throw new Error("OCI IAM requires a base URL for origin pinning.");
+  }
+
+  const baseUrlError = getOciBaseUrlValidationError(baseURL);
+  if (baseUrlError) {
+    throw new Error(baseUrlError);
   }
 
   const authenticationProvider = new SimpleAuthenticationDetailsProvider(
@@ -104,7 +106,7 @@ export const buildOciIamFetch = ({
   );
 
   const signer = new DefaultRequestSigner(authenticationProvider);
-  const allowedOrigin = baseURL ? new URL(baseURL).origin : null;
+  const allowedOrigin = new URL(baseURL).origin;
 
   return async (input: string | URL | Request, init?: RequestInit) => {
     const existingRequest = input instanceof Request ? input.clone() : null;
@@ -120,7 +122,7 @@ export const buildOciIamFetch = ({
         ? input.toString()
         : input.url;
 
-    if (allowedOrigin && new URL(requestUrl).origin !== allowedOrigin) {
+    if (new URL(requestUrl).origin !== allowedOrigin) {
       throw new Error(
         "OCI IAM requests must stay on the configured OCI base URL origin.",
       );

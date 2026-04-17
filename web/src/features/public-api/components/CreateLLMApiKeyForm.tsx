@@ -246,7 +246,7 @@ const createFormSchema = (params: {
           return true;
         }
 
-        if (mode === "update" && !data.secretKey) {
+        if (params.mode === "update" && !data.secretKey) {
           return true;
         }
 

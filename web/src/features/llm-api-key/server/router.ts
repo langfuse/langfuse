@@ -117,7 +117,16 @@ function validatePersistedOciSecret({
 }) {
   if (adapter !== LLMAdapter.Oci || !config) return;
 
-  const parsedConfig = OciConfigSchema.parse(config);
+  const parsedConfigResult = OciConfigSchema.safeParse(config);
+  if (!parsedConfigResult.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        'Invalid OCI config. Expected: { authMode?: "api_key" | "iam", compartmentId?: string }',
+    });
+  }
+
+  const parsedConfig = parsedConfigResult.data;
   if (parsedConfig.authMode !== "iam") return;
 
   let parsedSecretKey: unknown;
