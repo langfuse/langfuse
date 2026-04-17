@@ -92,7 +92,7 @@ const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
  * Uses greedy mode to handle both \uXXXX (single-escaped) and \\uXXXX (double-escaped)
  * forms that can appear depending on the ingest path.
  */
-function decodeUnicodeInJson(value: unknown): unknown {
+export function decodeUnicodeInJson(value: unknown): unknown {
   if (typeof value === "string") {
     return decodeUnicodeEscapesOnly(value, true);
   }
