@@ -323,7 +323,12 @@ export const datasetRouter = createTRPCRouter({
         // datasets
         ctx.prisma.$queryRaw<
           Array<
-            Omit<Dataset, "remoteExperimentUrl" | "remoteExperimentPayload"> & {
+            Omit<
+              Dataset,
+              | "remoteExperimentUrl"
+              | "remoteExperimentPayload"
+              | "remoteExperimentEnabled"
+            > & {
               row_type: "folder" | "dataset";
             }
           >
@@ -1839,6 +1844,7 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          remoteExperimentEnabled: true,
         },
         projectId: input.projectId,
       });
