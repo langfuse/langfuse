@@ -12,8 +12,9 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  observationFilterConfig,
+  getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
+  type ObservationsOmittableFilterColumn,
 } from "@/src/features/filters/config/observations-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
@@ -134,9 +135,10 @@ export type ObservationsTableProps = {
   promptName?: string;
   promptVersion?: number;
   modelId?: string;
-  omittedFilter?: string[];
+  omittedFilter?: ObservationsOmittableFilterColumn[];
   // External control props for embedded preview tables
   hideControls?: boolean;
+  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -147,11 +149,17 @@ export default function ObservationsTable({
   promptName,
   promptVersion,
   modelId,
+  omittedFilter = [],
   hideControls = false,
+  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
 }: ObservationsTableProps) {
+  const observationsFilterConfig = useMemo(
+    () => getObservationsFilterConfig(omittedFilter),
+    [omittedFilter],
+  );
   const router = useRouter();
   const { viewId } = router.query;
   const utils = api.useUtils();
@@ -435,7 +443,7 @@ export default function ObservationsTable({
   }, [environmentFilterOptions.data, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
-    observationFilterConfig,
+    observationsFilterConfig,
     newFilterOptions,
     {
       loading: filterOptions.isPending || environmentFilterOptions.isPending,
@@ -468,7 +476,7 @@ export default function ObservationsTable({
   const backendFilterState = transformFiltersForBackend(
     filterState,
     OBSERVATION_COLUMN_TO_BACKEND_KEY,
-    observationFilterConfig.columnDefinitions,
+    observationsFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
@@ -1215,6 +1223,7 @@ export default function ObservationsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
+    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
@@ -1224,7 +1233,7 @@ export default function ObservationsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: observationFilterConfig.columnDefinitions,
+      filterColumnDefinition: observationsFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
     disabled: hideControls,
@@ -1287,7 +1296,7 @@ export default function ObservationsTable({
   }, [generations]);
 
   return (
-    <DataTableControlsProvider tableName={observationFilterConfig.tableName}>
+    <DataTableControlsProvider tableName={observationsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (

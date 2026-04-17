@@ -4,6 +4,7 @@ import {
   createTrace,
   createSessionScore,
   getScoresByIds,
+  getScoreById,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -1302,6 +1303,123 @@ describe("/api/public/scores API Endpoint", () => {
         );
         expect(response.status).toBe(404);
       });
+    });
+  });
+
+  describe("Bearer auth (public key only)", () => {
+    it("should create a score via POST /api/public/scores with Bearer public key", async () => {
+      const { projectId, publicKey } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "feedback",
+          value: 1,
+        },
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("id", scoreId);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+        expect(score!.traceId).toBe(traceId);
+        expect(score!.name).toBe("feedback");
+        expect(score!.value).toBe(1);
+      });
+    });
+
+    it("should reject GET /api/public/scores with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/scores",
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject GET /api/public/scores/:scoreId with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/scores/${v4()}`,
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject DELETE /api/public/scores/:scoreId with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/scores/${v4()}`,
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject POST /api/public/scores with invalid Bearer token", async () => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          traceId: v4(),
+          name: "feedback",
+          value: 1,
+        },
+        `Bearer pk-invalid-key-that-does-not-exist`,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject Bearer public key on non-scores endpoints", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const [tracesRes, observationsRes, sessionsRes] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/traces",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/observations",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/sessions",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+      ]);
+
+      expect(tracesRes.status).toBe(401);
+      expect(observationsRes.status).toBe(401);
+      expect(sessionsRes.status).toBe(401);
     });
   });
 });

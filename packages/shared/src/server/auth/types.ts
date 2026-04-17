@@ -54,9 +54,11 @@ export type AuthHeaderValidVerificationResultIngestion = {
   scope: ApiAccessScopeIngestion;
 };
 
+export type ApiAccessLevel = "organization" | "project" | "scores";
+
 type BaseApiAccessScope = {
   projectId: string | null;
-  accessLevel: "organization" | "project" | "scores";
+  accessLevel: ApiAccessLevel;
 };
 
 type ApiAccessScopeMetadata = {

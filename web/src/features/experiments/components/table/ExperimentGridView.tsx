@@ -6,7 +6,10 @@ import {
   ExperimentGridCell,
   ExperimentGridCellEmpty,
 } from "./ExperimentGridCell";
-import { type ExperimentItemsTableRow, getExperimentColor } from "./types";
+import {
+  type ExperimentItemsTableRow,
+  getExperimentColorStyles,
+} from "./types";
 import { useMemo } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
@@ -79,8 +82,8 @@ export const ExperimentGridView = ({
       const isBaseline = index === 0;
       const expInfo = experimentNames.find((e) => e.experimentId === expId);
       const expName = expInfo?.experimentName ?? expId.slice(0, 8);
-      const colorClass = useExperimentColors
-        ? getExperimentColor(expId, allExperimentIds)
+      const colorStyles = useExperimentColors
+        ? getExperimentColorStyles(expId, allExperimentIds)
         : undefined;
 
       return {
@@ -88,16 +91,18 @@ export const ExperimentGridView = ({
         id: expId,
         header: () => (
           <div className="flex items-center gap-2">
-            <span className={cn("truncate font-medium", colorClass)}>
+            <span
+              className={cn("truncate font-medium", colorStyles?.textClass)}
+            >
               {expName}
             </span>
-            {isBaseline && useExperimentColors && (
+            {useExperimentColors && (
               <Badge
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                className="shrink-0 font-medium"
+                className={cn("shrink-0 font-medium", colorStyles?.badgeClass)}
               >
-                Baseline
+                {isBaseline ? "Baseline" : "Comp"}
               </Badge>
             )}
           </div>
@@ -144,6 +149,7 @@ export const ExperimentGridView = ({
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
+              markerClassName={colorStyles?.markerClass}
             />
           );
         },
@@ -212,6 +218,7 @@ export const ExperimentGridView = ({
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       topAlignCells
       peekView={peekView}
+      columnVisibility={columnVisibility}
     />
   );
 };

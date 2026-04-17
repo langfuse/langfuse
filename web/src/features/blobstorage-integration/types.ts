@@ -5,8 +5,9 @@ import {
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
 } from "@langfuse/shared";
+import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
 
-export const blobStorageIntegrationFormSchema = z.object({
+export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.string().url().optional().nullable(),
@@ -35,6 +36,9 @@ export const blobStorageIntegrationFormSchema = z.object({
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   compressed: z.boolean().default(true),
 });
+
+export const blobStorageIntegrationFormSchema =
+  blobStorageIntegrationFormSchemaBase.superRefine(validateAzureContainerName);
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema

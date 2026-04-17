@@ -10,8 +10,9 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
+  getExperimentsFilterConfig,
   getExperimentsColumnName,
-  experimentsFilterConfig,
+  isExperimentsOmittableFilterColumn,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
@@ -48,9 +49,19 @@ import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptio
 export default function ExperimentsTable({
   projectId,
   defaultFilter,
+  fixedFilter = [],
   sessionFilterContextId,
 }: ExperimentsTableProps) {
   const router = useRouter();
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+      ),
+    [fixedFilter],
+  );
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -99,7 +110,7 @@ export default function ExperimentsTable({
       ]
     : [];
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
   const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
@@ -107,14 +118,10 @@ export default function ExperimentsTable({
     oldFilterState,
   });
 
-  const queryFilter = useSidebarFilterState(
-    experimentsFilterConfig,
-    filterOptions,
-    {
-      loading: isFilterOptionsPending,
-      sessionFilterContextId,
-    },
-  );
+  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
+    loading: isFilterOptionsPending,
+    sessionFilterContextId,
+  });
 
   // Apply default filter on mount (only if no existing filter)
   const hasAppliedDefaultFilter = useRef(false);
@@ -138,7 +145,10 @@ export default function ExperimentsTable({
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(dateRangeFilter);
+  const combinedFilterState = queryFilter.filterState.concat(
+    dateRangeFilter,
+    fixedFilter,
+  );
 
   const filterState = combinedFilterState;
 
@@ -301,11 +311,29 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("experimentDatasetId"),
       size: 150,
       cell: ({ row }) => {
-        const key: string | undefined = row.getValue("datasetId");
-        const value = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === key,
+        const datasetId: string | undefined = row.getValue("datasetId");
+        const datasetName = filterOptions.experimentDatasetId?.find(
+          (d) => d.value === datasetId,
         )?.displayValue;
-        return value ? <TableIdOrName value={value} /> : undefined;
+
+        if (!datasetId || !datasetName) {
+          return undefined;
+        }
+
+        return (
+          <Link
+            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge
+              variant="secondary"
+              className="hover:bg-secondary/80 max-w-full cursor-pointer"
+            >
+              {datasetName}
+            </Badge>
+          </Link>
+        );
       },
     },
     {
@@ -317,13 +345,20 @@ export default function ExperimentsTable({
       cell: ({ row }) => {
         const value: Array<[string, number | null]> = row.getValue("prompts");
         return (
-          <div className="flex flex-wrap gap-1">
+          <div
+            className={
+              rowHeight === "s"
+                ? "flex max-w-full flex-nowrap gap-1 overflow-x-auto py-0.5 whitespace-nowrap"
+                : "flex flex-wrap gap-1"
+            }
+          >
             {value.map(([name, version]) => (
               <Link
                 key={`${name}-${version}`}
                 href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="shrink-0"
               >
                 <Badge
                   variant="secondary"
@@ -343,9 +378,12 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
+      headerTooltip: {
+        description: "Average duration of the root span per experiment item.",
+      },
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === null) return undefined;
         return <span>{numberFormatter(value / 1000, 4)}s</span>;
       },
     },
@@ -357,7 +395,7 @@ export default function ExperimentsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined) return undefined;
+        if (value === undefined || value === null) return undefined;
         return <span>${numberFormatter(value, 6)}</span>;
       },
     },
@@ -435,7 +473,7 @@ export default function ExperimentsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: experimentsFilterConfig.columnDefinitions,
+      filterColumnDefinition: filterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.filterState,
   });

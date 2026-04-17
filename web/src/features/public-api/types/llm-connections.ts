@@ -1,6 +1,13 @@
 import { z } from "zod";
-import { paginationZod, LLMAdapter, type JSONValue } from "@langfuse/shared";
-import { BedrockConfigSchema, VertexAIConfigSchema } from "@langfuse/shared";
+import {
+  paginationZod,
+  LLMAdapter,
+  type JSONValue,
+  BedrockConfigSchema,
+  BedrockCredentialSchema,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VertexAIConfigSchema,
+} from "@langfuse/shared";
 
 // Base LLM connection response schema - strict to prevent secret leakage
 export const LlmConnectionResponse = z
@@ -60,20 +67,41 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
       // Bedrock requires config with region
       if (!config) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message:
             "Config is required for Bedrock adapter. Expected: { region: string }",
           path: ["config"],
         });
         return;
       }
-      const result = BedrockConfigSchema.safeParse(config);
-      if (!result.success) {
+      const configResult = BedrockConfigSchema.safeParse(config);
+      if (!configResult.success) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Invalid Bedrock config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string }`,
+          code: "custom",
+          message: `Invalid Bedrock config: ${configResult.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string }`,
           path: ["config"],
         });
+      }
+
+      // Validate secretKey is either the default-credentials sentinel or valid credential JSON
+      if (data.secretKey !== BEDROCK_USE_DEFAULT_CREDENTIALS) {
+        const credResult = BedrockCredentialSchema.safeParse(
+          (() => {
+            try {
+              return JSON.parse(data.secretKey);
+            } catch {
+              return undefined;
+            }
+          })(),
+        );
+        if (!credResult.success) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "Invalid Bedrock credentials. Expected a JSON object with either {accessKeyId, secretAccessKey} or {apiKey}.",
+            path: ["secretKey"],
+          });
+        }
       }
     } else if (adapter === LLMAdapter.VertexAI) {
       // VertexAI config is optional, but if provided must be valid
@@ -81,7 +109,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
         const result = VertexAIConfigSchema.safeParse(config);
         if (!result.success) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: `Invalid VertexAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { location: string }`,
             path: ["config"],
           });
@@ -91,7 +119,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
       // Other adapters should not have config
       if (config && Object.keys(config).length > 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Config is not supported for ${adapter} adapter. Remove the config field.`,
           path: ["config"],
         });

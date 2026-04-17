@@ -9,6 +9,31 @@ import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;
 
+/**
+ * IORedis request hook that records the full Redis command as a span attribute.
+ * Redacts credentials from AUTH/HELLO and values from API key cache operations.
+ */
+export function ioredisRequestHook(
+  span: opentelemetry.Span,
+  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
+): void {
+  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
+  const cmd = cmdName.toUpperCase();
+  // AUTH and HELLO carry raw credentials — redact all args
+  if (cmd === "AUTH" || cmd === "HELLO") {
+    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
+    return;
+  }
+  const args = [...cmdArgs].map(String);
+  // Redact API key cache values: SET [prefix:]api-key:{hash} <json>
+  if (args[0]?.includes("api-key:")) {
+    for (let i = 1; i < args.length; i++) {
+      args[i] = "[REDACTED]";
+    }
+  }
+  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
+}
+
 export type TCarrier = {
   traceparent?: string;
   tracestate?: string;

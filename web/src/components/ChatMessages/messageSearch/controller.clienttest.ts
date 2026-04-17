@@ -123,4 +123,60 @@ describe("message search controller", () => {
       expect.objectContaining({ from: 5, to: 6 }),
     ]);
   });
+
+  it("preserves leading and trailing whitespace in literal queries", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: " foo foo ",
+      },
+    ]);
+
+    expect(commitQuery(controller, " foo")).toEqual([
+      expect.objectContaining({ from: 0, to: 4 }),
+      expect.objectContaining({ from: 4, to: 8 }),
+    ]);
+    expect(controller.getSnapshot().query).toBe(" foo");
+
+    controller.setQueryInput("foo ");
+    controller.nextMatch();
+
+    expect(controller.getSnapshot().query).toBe("foo ");
+    expect(controller.getSnapshot().matches).toEqual([
+      expect.objectContaining({ from: 1, to: 5 }),
+      expect.objectContaining({ from: 5, to: 9 }),
+    ]);
+  });
+
+  it("clears whitespace-only input on blur", () => {
+    const controller = createMessageSearchController(["page-1"]);
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "a   b",
+      },
+    ]);
+
+    controller.setQueryInput("   ");
+    jest.runAllTimers();
+
+    expect(controller.getSnapshot().queryInput).toBe("   ");
+    expect(controller.getSnapshot().query).toBe("   ");
+    expect(controller.getSnapshot().matches).toEqual([
+      expect.objectContaining({ from: 1, to: 4 }),
+    ]);
+
+    controller.blurQueryInput();
+
+    expect(controller.getSnapshot().queryInput).toBe("");
+    expect(controller.getSnapshot().query).toBe("");
+    expect(controller.getSnapshot().matches).toEqual([]);
+  });
 });

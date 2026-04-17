@@ -235,7 +235,7 @@ export default function Dataset() {
       >
         <ExperimentsTable
           projectId={projectId}
-          defaultFilter={[
+          fixedFilter={[
             {
               column: "experimentDatasetId",
               type: "stringOptions",

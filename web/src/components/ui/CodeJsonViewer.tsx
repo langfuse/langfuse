@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Check,
@@ -24,6 +24,7 @@ import {
   usePromptReferenceProjectId,
 } from "@/src/components/ui/PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -221,32 +222,32 @@ export function CodeView(props: {
 }) {
   const { copiedToClipboardMessage } = props;
 
-  const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
-  const copySuccessStateDuration = copiedToClipboardMessage ? 3_000 : 1_000;
-  const copySuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const { copy, isCopied } = useCopyToClipboard({
+    successDuration: copiedToClipboardMessage ? 3_000 : 1_000,
+  });
 
-  const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    setIsCopied(true);
+    const button = event.currentTarget;
     const content =
       props.originalContent ??
       (typeof props.content === "string"
         ? props.content
         : (props.content?.join("\n") ?? ""));
-    void copyTextToClipboard(content);
-    if (copySuccessTimeoutRef.current)
-      clearTimeout(copySuccessTimeoutRef.current);
-    copySuccessTimeoutRef.current = setTimeout(
-      () => setIsCopied(false),
-      copySuccessStateDuration,
-    );
 
-    // Keep focus on the copy button to prevent focus shifting
-    event.currentTarget.focus();
+    try {
+      await copy(content);
+    } catch {
+      // Clipboard writes can be rejected when the browser denies permission.
+    }
+
+    if (button) {
+      // Keep focus on the copy button to prevent focus shifting
+      // Note: the original button might no longer be in the DOM if React re-rendered the component after the state update.
+      button.focus();
+    }
   };
 
   const handleShowAll = () => setCollapsed(!isCollapsed);
@@ -339,10 +340,13 @@ export const JsonSkeleton = ({
   borderless?: boolean;
   className?: string;
 }) => {
+  const isSingleLine = numRows === 1;
+
   return (
     <div
       className={cn(
-        "w-[400px] rounded-md",
+        isSingleLine ? "w-full" : "w-[400px]",
+        "rounded-md",
         borderless ? "" : "border",
         className,
       )}
@@ -352,7 +356,7 @@ export const JsonSkeleton = ({
           <Skeleton
             className={cn(
               "h-4 w-full",
-              i === numRows - 1 ? "w-3/4" : undefined,
+              !isSingleLine && i === numRows - 1 ? "w-3/4" : undefined,
             )}
             key={i}
           />

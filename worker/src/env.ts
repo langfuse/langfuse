@@ -277,6 +277,12 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  // Comma-separated list of project IDs to exclude from event propagation dual-write
+  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
@@ -437,6 +443,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.3), // Probability for recording sharded queue depth metrics
+  LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
+  LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

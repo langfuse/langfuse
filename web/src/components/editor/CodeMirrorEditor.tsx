@@ -6,7 +6,12 @@ import CodeMirror, {
   ViewPlugin,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
-import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import {
+  EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
 import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
@@ -428,6 +433,10 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Block document changes (including paste) when not editable; the
+        // `editable` DOM facet alone does not always prevent paste (see CM6
+        // EditorState.readOnly vs EditorView.editable).
+        ...(!editable ? [EditorState.readOnly.of(true)] : []),
         searchHighlightingSupport,
         search(),
         // RTL/bidi support - must be early for proper line decoration

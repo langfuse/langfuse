@@ -8,6 +8,7 @@ import {
   safeMultiDel,
   scanKeys,
 } from "../";
+import { LocalCache } from "../cache";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
@@ -24,6 +25,22 @@ export type ModelWithPrices = {
 };
 
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
+const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
+const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
+// This L1 cache is intentionally TTL-only. Cross-container consistency continues
+// to come from Redis invalidation plus the short local TTL.
+const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
+  namespace: "model_match",
+  enabled: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
+  ttlMs: getPositiveNumberOrDefault(
+    env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
+    DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS,
+  ),
+  max: getPositiveNumberOrDefault(
+    env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
+    DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
+  ),
+});
 
 export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
   return instrumentAsync(
@@ -33,65 +50,131 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
     },
     async (span) => {
       if (logger.isLevelEnabled("debug")) {
-        logger.debug(`Finding model for ${JSON.stringify(p)}`);
-      }
-      const cachedResult = await getModelWithPricesFromRedis(p);
-      if (cachedResult) {
-        span.setAttribute("model_match_source", "redis");
-
-        if (cachedResult.model === null) {
-          return { model: null, pricingTiers: [] };
-        } else {
-          logger.debug(
-            `Found model name ${cachedResult.model?.modelName} (id: ${cachedResult.model?.id}) for project ${p.projectId} and model ${p.model}`,
-          );
-          span.setAttribute("matched_model_id", cachedResult.model.id);
-        }
-
-        return cachedResult;
-      }
-
-      // try to find model in Postgres
-      const postgresModel = await findModelInPostgres(p);
-
-      if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-        const pricingTiers = await findPricingTiersForModel(postgresModel.id);
-        await addModelWithPricingTiersToRedis(p, postgresModel, pricingTiers);
-
-        span.setAttribute("matched_model_id", postgresModel.id);
-        span.setAttribute("model_match_source", "postgres");
-        span.setAttribute("model_cache_set", "true");
-
         logger.debug(
-          `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
+          formatModelMatchDebugMessage("Resolving model match", {
+            projectId: p.projectId,
+            model: p.model,
+            localCacheEnabled:
+              env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
+            redisCacheEnabled:
+              env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true",
+          }),
         );
-        return { model: postgresModel, pricingTiers };
-      } else if (postgresModel) {
-        const pricingTiers = await findPricingTiersForModel(postgresModel.id);
-        span.setAttribute("matched_model_id", postgresModel.id);
-        span.setAttribute("model_match_source", "postgres");
-        span.setAttribute("model_cache_set", "false");
+      }
+      const localCacheKey = getRedisModelKey(p);
+      const { source, value } = await modelMatchLocalCache.getOrLoad(
+        localCacheKey,
+        async () => {
+          const cachedResult = await getModelWithPricesFromRedis(p);
+          if (cachedResult) {
+            return {
+              value: cachedResult,
+              source: "redis",
+            };
+          }
 
-        logger.debug(
-          `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
-        );
-        return { model: postgresModel, pricingTiers };
-      } else {
-        span.setAttribute("model_match_source", "none");
+          const postgresModel = await findModelInPostgres(p);
+          if (postgresModel) {
+            const pricingTiers = await findPricingTiersForModel(
+              postgresModel.id,
+            );
 
-        if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-          await addModelNotFoundTokenToRedis(p);
+            if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+              await addModelWithPricingTiersToRedis(
+                p,
+                postgresModel,
+                pricingTiers,
+              );
+            }
+
+            return {
+              value: { model: postgresModel, pricingTiers },
+              source: "postgres",
+            };
+          }
+
+          if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+            await addModelNotFoundTokenToRedis(p);
+          }
+
+          return {
+            value: { model: null, pricingTiers: [] },
+            source: "none",
+          };
+        },
+      );
+
+      if (!value || value.model === null) {
+        span.setAttribute("model_match_source", source ?? "none");
+        if (
+          source === "none" &&
+          env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true"
+        ) {
           span.setAttribute("model_cache_set", "true");
         }
 
-        logger.debug(
-          `Model not found for project ${p.projectId} and model ${p.model}`,
-        );
+        if (logger.isLevelEnabled("debug")) {
+          logger.debug(
+            formatModelMatchDebugMessage(
+              "Model match resolved without a model",
+              {
+                projectId: p.projectId,
+                model: p.model,
+                source: source ?? "none",
+                pricingTierCount: 0,
+              },
+            ),
+          );
+        }
+
         return { model: null, pricingTiers: [] };
       }
+
+      span.setAttribute("model_match_source", source ?? "unknown");
+      span.setAttribute("matched_model_id", value.model.id);
+      if (source === "postgres") {
+        span.setAttribute(
+          "model_cache_set",
+          String(env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true"),
+        );
+      }
+
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug(
+          formatModelMatchDebugMessage("Model match resolved", {
+            projectId: p.projectId,
+            model: p.model,
+            source: source ?? "unknown",
+            matchedModelId: value.model.id,
+            matchedModelName: value.model.modelName,
+            pricingTierCount: value.pricingTiers.length,
+          }),
+        );
+      }
+      return value;
     },
   );
 }
+
+const formatModelMatchDebugMessage = (
+  message: string,
+  metadata: Record<string, unknown>,
+): string => {
+  try {
+    return `${message} ${JSON.stringify(metadata)}`;
+  } catch {
+    return `${message} [unserializable]`;
+  }
+};
+
+function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const clearModelMatchLocalCache = (): void => {
+  modelMatchLocalCache.clear();
+};
 
 const getModelWithPricesFromRedis = async (
   p: ModelMatchProps,
