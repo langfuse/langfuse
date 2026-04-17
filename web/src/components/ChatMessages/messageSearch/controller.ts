@@ -67,6 +67,7 @@ export type MessageSearchController = {
   openSearch: () => void;
   closeSearch: () => void;
   setQueryInput: (value: string) => void;
+  blurQueryInput: () => void;
   nextMatch: () => void;
   previousMatch: () => void;
   setPageIds: (pageIds: string[]) => void;
@@ -376,7 +377,7 @@ export function createMessageSearchController(
 
     clearPendingQueryTimeout();
 
-    const queryChanged = commitSearchQuery(state.queryInput.trim());
+    const queryChanged = commitSearchQuery(state.queryInput);
     if (queryChanged) {
       emit();
     }
@@ -465,8 +466,7 @@ export function createMessageSearchController(
       state.queryInput = value;
       clearPendingQueryTimeout();
 
-      const nextSearchQuery = value.trim();
-      if (nextSearchQuery === "") {
+      if (value === "") {
         commitSearchQuery("");
         emit();
         return;
@@ -474,18 +474,36 @@ export function createMessageSearchController(
 
       emit();
 
-      if (nextSearchQuery === state.searchQuery) {
+      if (value === state.searchQuery) {
         return;
       }
 
       pendingQueryTimeout = window.setTimeout(() => {
         pendingQueryTimeout = null;
 
-        const queryChanged = commitSearchQuery(nextSearchQuery);
+        const queryChanged = commitSearchQuery(value);
         if (queryChanged) {
           emit();
         }
       }, SEARCH_INPUT_DEBOUNCE_MS);
+    },
+
+    blurQueryInput() {
+      if (state.queryInput.trim() !== "") {
+        return;
+      }
+
+      clearPendingQueryTimeout();
+
+      const queryChanged = commitSearchQuery("");
+      const inputChanged = state.queryInput !== "";
+      if (inputChanged) {
+        state.queryInput = "";
+      }
+
+      if (queryChanged || inputChanged) {
+        emit();
+      }
     },
 
     nextMatch() {

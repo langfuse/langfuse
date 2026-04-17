@@ -3,8 +3,8 @@ import {
   observationEvalVariableColumns,
   type ObservationVariableMapping,
   deepParseJson,
+  extractValueFromObject,
 } from "@langfuse/shared";
-import { JSONPath } from "jsonpath-plus";
 import { logger } from "@langfuse/shared/src/server";
 
 /**
@@ -87,78 +87,25 @@ export function extractObservationVariables(
       ? parsedFields.get(mapping.selectedColumnId)
       : observation[internal];
 
-    const extractedValue = mapping.jsonSelector
-      ? applyJsonSelector({
-          value: fieldValue,
-          selector: mapping.jsonSelector,
-        })
-      : fieldValue;
+    // Build a single-key object so extractValueFromObject can look it up
+    const { value, error } = extractValueFromObject(
+      { [mapping.selectedColumnId]: fieldValue },
+      mapping.selectedColumnId,
+      mapping.jsonSelector ?? undefined,
+    );
+
+    if (error) {
+      logger.debug(
+        `Error applying JSON selector "${mapping.jsonSelector}" for variable "${mapping.templateVariable}". Falling back to original value.`,
+        { error },
+      );
+    }
 
     variables.push({
       var: mapping.templateVariable,
-      value: parseUnknownToString(extractedValue),
+      value,
     });
   }
 
   return variables;
-}
-
-interface ApplyJsonSelectorParams {
-  value: unknown;
-  selector: string;
-}
-
-/**
- * Applies a JSONPath selector to extract a nested value.
- * Assumes value is already parsed via deepParseJson.
- */
-function applyJsonSelector(params: ApplyJsonSelectorParams): unknown {
-  const { value, selector } = params;
-
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (typeof value !== "object") {
-    logger.debug(
-      `Can't apply JSONPath to primitive value for selector "${selector}". Falling back to original value.`,
-    );
-    return value; // Can't apply JSONPath to primitives
-  }
-
-  try {
-    return JSONPath({
-      path: selector,
-      json: value,
-    });
-  } catch (error) {
-    logger.debug(
-      `Error applying JSON selector "${selector}". Falling back to original value.`,
-      { error },
-    );
-    return value;
-  }
-}
-
-/**
- * Converts an unknown value to a string for use in prompt templates.
- */
-function parseUnknownToString(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value.toString();
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  return "";
 }

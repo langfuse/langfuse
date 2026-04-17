@@ -2940,7 +2940,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultInput).toEqual([
         {
-          value: '["Hello world"]',
+          value: "Hello world",
           var: "user_message",
         },
       ]);
@@ -2965,7 +2965,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultOutput).toEqual([
         {
-          value: '["positive"]',
+          value: "positive",
           var: "expected_label",
         },
       ]);
@@ -3015,12 +3015,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '["What is the weather?"]',
+          value: "What is the weather?",
           var: "user_input",
           environment: "production",
         },
         {
-          value: '["It is sunny"]',
+          value: "It is sunny",
           var: "response_text",
           environment: "production",
         },
