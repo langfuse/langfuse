@@ -179,11 +179,17 @@ async function enrichObservationsWithModelData(
       // Add model pricing fields (null if not fetched)
       modelId: model?.id ?? null,
       inputPrice:
-        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+        model?.Price?.find((m) => m.usageType === "input")?.price ??
+        model?.inputPrice ??
+        null,
       outputPrice:
-        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+        model?.Price?.find((m) => m.usageType === "output")?.price ??
+        model?.outputPrice ??
+        null,
       totalPrice:
-        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+        model?.Price?.find((m) => m.usageType === "total")?.price ??
+        model?.totalPrice ??
+        null,
     };
 
     return enriched;

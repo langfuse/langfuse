@@ -2,6 +2,10 @@ import { setupServer } from "msw/node";
 import { HttpResponse, http, passthrough } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
+const minioEndpoint =
+  process.env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT ?? // eslint-disable-line turbo/no-undeclared-env-vars
+  "http://localhost:9090";
+
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",
   object: "chat.completion",
@@ -52,7 +56,7 @@ function JsonCompletionHandler(data: object) {
 }
 
 function MinioCompletionHandler() {
-  return http.all("http://localhost:9090*", async (request) => {
+  return http.all(`${minioEndpoint}*`, async (request) => {
     logger.info("minio handler");
     if ((request.params[0] as string).startsWith("/langfuse/events/")) {
       return new HttpResponse("Success");

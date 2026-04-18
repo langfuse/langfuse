@@ -54,7 +54,7 @@
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["db:generate"],
+      "dependsOn": ["db:generate", "^build"],
       "cache": true,
       "outputs": []
     },

@@ -312,5 +312,30 @@ describe("chat-message-utils", () => {
         ),
       ).toEqual(directToolCalls);
     });
+
+    it("normalizes Anthropic tool_use blocks to standard tool_calls", () => {
+      expect(
+        parseToolCallsFromMessage(
+          createMessage({
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_123",
+                name: "Read",
+                input: { file_path: "/tmp/example.ts", limit: 20 },
+              },
+            ],
+          }),
+        ),
+      ).toEqual([
+        {
+          id: "toolu_123",
+          name: "Read",
+          arguments: '{"file_path":"/tmp/example.ts","limit":20}',
+          type: "function",
+        },
+      ]);
+    });
   });
 });

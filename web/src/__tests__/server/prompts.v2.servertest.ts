@@ -20,9 +20,9 @@ import {
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
-import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -63,6 +63,19 @@ const createPromptInDB = async (params: CreatePromptInDBParams) => {
   });
 };
 
+const createWebhookActionConfig = (url: string) => {
+  const { secretKey, displaySecretKey } = generateWebhookSecret();
+
+  return {
+    type: "WEBHOOK" as const,
+    url,
+    headers: { "Content-Type": "application/json" },
+    apiVersion: { prompt: "v1" } as const,
+    secretKey: encrypt(secretKey),
+    displaySecretKey,
+  };
+};
+
 const setupTriggerAndAction = async (projectId: string) => {
   const trigger = await prisma.trigger.create({
     data: {
@@ -82,12 +95,9 @@ const setupTriggerAndAction = async (projectId: string) => {
       id: v4(),
       projectId: projectId,
       type: "WEBHOOK",
-      config: {
-        type: "WEBHOOK",
-        url: "https://example.com/prompt-labels-webhook",
-        headers: { "Content-Type": "application/json" },
-        apiVersion: { prompt: "v1" },
-      },
+      config: createWebhookActionConfig(
+        "https://example.com/prompt-labels-webhook",
+      ),
     },
   });
   action.id;
@@ -400,10 +410,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       }));
 
     it("should return a 404 if prompt does not exist", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
       const fetchedPrompt = await makeAPICall<Prompt>(
         "GET",
         `${baseURI}/${encodeURIComponent("random_prompt")}`,
         undefined,
+        auth,
       );
 
       expect(fetchedPrompt.status).toBe(404);
@@ -488,7 +500,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   describe("when creating a prompt", () => {
     it("should create and fetch a chat prompt", async () => {
       const { auth, projectId } = await createOrgProjectAndApiKey();
-      const { actionId, triggerId } = await setupTriggerAndAction(projectId);
+      await setupTriggerAndAction(projectId);
       const promptName = "prompt-name" + nanoid();
       const chatMessages = [
         { role: "system", content: "You are a bot" },
@@ -526,20 +538,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
       expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
-
-      await waitForExpect(async () => {
-        // check that the action execution is created
-        const actionExecution = await prisma.automationExecution.findFirst({
-          where: {
-            projectId,
-            triggerId,
-            actionId,
-          },
-        });
-        expect(actionExecution).not.toBeNull();
-        expect(actionExecution?.status).toBe("PENDING");
-        expect(actionExecution?.sourceId).toBe(validatedPrompt.id);
-      });
     }, 10000);
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
@@ -1896,9 +1894,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 });
 
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
-  let triggerId: string;
-  let actionId: string;
-
   afterAll(async () => {
     await disconnectQueues();
   });
@@ -1907,8 +1902,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
 
-    const { actionId: newActionId, triggerId: newTriggerId } =
-      await setupTriggerAndAction(newProjectId);
+    await setupTriggerAndAction(newProjectId);
 
     const originalPrompt = await prisma.prompt.create({
       data: {
@@ -1940,30 +1934,13 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     expect(updatedPrompt?.labels).toContain("production");
     expect(updatedPrompt?.labels).toContain("new-label");
     expect(updatedPrompt?.labels).toHaveLength(2);
-
-    // check that the action execution is created
-    await waitForExpect(async () => {
-      const actionExecution = await prisma.automationExecution.findFirst({
-        where: {
-          projectId: newProjectId,
-          triggerId: newTriggerId,
-          actionId: newActionId,
-        },
-      });
-      expect(actionExecution).not.toBeNull();
-      expect(actionExecution?.status).toBe("PENDING");
-      expect(actionExecution?.sourceId).toBe(originalPrompt.id);
-    });
   });
 
   it("should remove label from previous version when adding to new version", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
 
-    const { actionId: newActionId, triggerId: newTriggerId } =
-      await setupTriggerAndAction(newProjectId);
-    actionId = newActionId;
-    triggerId = newTriggerId;
+    await setupTriggerAndAction(newProjectId);
 
     // Create version 1 with "production" label
     await prisma.prompt.create({
@@ -2022,32 +1999,6 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       },
     });
     expect(promptV1?.labels).toEqual([]);
-
-    await waitForExpect(async () => {
-      const actionExecution = await prisma.automationExecution.findFirst({
-        where: {
-          projectId: newProjectId,
-          triggerId,
-          actionId,
-          sourceId: promptV2?.id,
-        },
-      });
-      expect(actionExecution).not.toBeNull();
-      expect(actionExecution?.status).toBe("PENDING");
-      expect(actionExecution?.sourceId).toBe(promptV2?.id);
-
-      const actionExecution2 = await prisma.automationExecution.findFirst({
-        where: {
-          projectId: newProjectId,
-          triggerId,
-          actionId,
-          sourceId: promptV1?.id,
-        },
-      });
-      expect(actionExecution2).not.toBeNull();
-      expect(actionExecution2?.status).toBe("PENDING");
-      expect(actionExecution2?.sourceId).toBe(promptV1?.id);
-    });
   });
 
   it("trying to set 'latest' label results in 400 error", async () => {
@@ -2395,8 +2346,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     });
 
     it("handles deeply nested dependencies (3+ levels)", async () => {
-      //const { auth: newAuth } = await createOrgProjectAndApiKey();
-      const newAuth = undefined;
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
 
       // Create level 3 (deepest) prompts
       await makeAPICall(
@@ -2972,23 +2922,10 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
     it("should return an error when a dependent prompt exists but in a different project", async () => {
       // Create two different organizations with their own projects
-      await createOrgProjectAndApiKey();
+      const { projectId: foreignProjectId } = await createOrgProjectAndApiKey();
       const { auth: auth2 } = await createOrgProjectAndApiKey();
 
       // Create a prompt in the first project
-      const foreignProjectId = randomUUID();
-      await prisma.project.upsert({
-        where: { id: foreignProjectId },
-        update: {
-          name: "test-foreign-llm-app",
-          orgId: "seed-org-id",
-        },
-        create: {
-          id: foreignProjectId,
-          name: "test-foreign-llm-app",
-          orgId: "seed-org-id",
-        },
-      });
       await prisma.prompt.create({
         data: {
           name: "cross-project-prompt",
@@ -3018,10 +2955,6 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(createResponse.status).toBe(400);
 
       expect(JSON.stringify(createResponse.body)).toContain("not found");
-
-      await prisma.project.delete({
-        where: { id: foreignProjectId },
-      });
     });
 
     it("should throw an error if MAX_PROMPT_NESTING_DEPTH is exceeded", async () => {

@@ -12,6 +12,7 @@ export {
   selectAdapter,
   langgraphAdapter,
   aisdkAdapter,
+  anthropicAdapter,
   openAIAdapter,
   geminiAdapter,
   microsoftAgentAdapter,

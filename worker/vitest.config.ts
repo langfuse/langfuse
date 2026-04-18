@@ -1,8 +1,9 @@
 import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
 
-// Load ../.env so direct Vitest runs and package scripts use the same worker env.
+// Load the shared worker env first, then let test-specific overrides win.
 config({ path: "../.env" });
+config({ path: "../.env.test", override: true });
 
 export default defineConfig({
   test: {

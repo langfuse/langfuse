@@ -54,23 +54,40 @@ else
   exit 1
 fi
 
-if ! command -v clickhouse &>/dev/null; then
-  echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
+CLICKHOUSE_CONTAINER_NAME="${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}"
+
+run_clickhouse() {
+  if command -v docker &>/dev/null && docker inspect "${CLICKHOUSE_CONTAINER_NAME}" &>/dev/null; then
+    docker exec -i "${CLICKHOUSE_CONTAINER_NAME}" clickhouse-client \
+      --user="${CLICKHOUSE_USER}" \
+      --password="${CLICKHOUSE_PASSWORD}" \
+      --database="${CLICKHOUSE_DB}" \
+      "$@"
+    return
+  fi
+
+  if command -v clickhouse &>/dev/null; then
+    clickhouse client \
+      --host="${CLICKHOUSE_HOST}" \
+      --port="${CLICKHOUSE_PORT}" \
+      --user="${CLICKHOUSE_USER}" \
+      --password="${CLICKHOUSE_PASSWORD}" \
+      --database="${CLICKHOUSE_DB}" \
+      "$@"
+    return
+  fi
+
+  echo "Error: neither Docker ClickHouse container '${CLICKHOUSE_CONTAINER_NAME}' nor local clickhouse client is available."
+  echo "Please start the local dev containers or install ClickHouse client tools."
   exit 1
-fi
+}
 
 echo "Creating development tables in ClickHouse..."
 
 # Execute the CREATE TABLE statements
 # Add your development tables here using CREATE TABLE IF NOT EXISTS
 
-clickhouse client \
-  --host="${CLICKHOUSE_HOST}" \
-  --port="${CLICKHOUSE_PORT}" \
-  --user="${CLICKHOUSE_USER}" \
-  --password="${CLICKHOUSE_PASSWORD}" \
-  --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+run_clickhouse --multiquery <<EOF
 
 -- Create observations_batch_staging table for batch processing
 -- This table uses 3-minute partitions to efficiently process observations in batches
@@ -457,7 +474,7 @@ SELECT
     is_deleted
 FROM events_full;
 
-CREATE VIEW analytics_events_core AS
+CREATE VIEW IF NOT EXISTS analytics_events_core AS
 SELECT
   project_id,
   toStartOfHour(start_time) AS hour,
@@ -498,13 +515,7 @@ EOF
 
 echo "Populating development tables with sample data..."
 
-clickhouse client \
-  --host="${CLICKHOUSE_HOST}" \
-  --port="${CLICKHOUSE_PORT}" \
-  --user="${CLICKHOUSE_USER}" \
-  --password="${CLICKHOUSE_PASSWORD}" \
-  --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+run_clickhouse --multiquery <<EOF
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;

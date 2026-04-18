@@ -17,12 +17,12 @@
     "analyze": "dotenv -e ../.env -- next experimental-analyze",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --selectProjects server",
-    "test-client": "dotenv -e ../.env.test -e ../.env -- jest --verbose --selectProjects client",
-    "test:watch": "dotenv -e ../.env.test -e ../.env -- jest --watch --runInBand",
-    "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
-    "test:e2e:server": "dotenv -e ../.env.test -e ../.env -- jest --runInBand --verbose --selectProjects e2e-server",
-    "test:debug-handles": "dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects server",
+    "test": "TZ=UTC dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --selectProjects server",
+    "test-client": "TZ=UTC dotenv -e ../.env.test -e ../.env -- jest --verbose --selectProjects client",
+    "test:watch": "TZ=UTC dotenv -e ../.env.test -e ../.env -- jest --watch --runInBand",
+    "test:e2e": "TZ=UTC dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
+    "test:e2e:server": "TZ=UTC dotenv -e ../.env.test -e ../.env -- jest --runInBand --verbose --selectProjects e2e-server",
+    "test:debug-handles": "TZ=UTC dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack"
   },
   "dependencies": {

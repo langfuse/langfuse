@@ -46,7 +46,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   const region = env.LANGFUSE_S3_EVENT_UPLOAD_REGION || undefined;
   const minioAccessKeyId = "minio";
   const minioAccessKeySecret = "miniosecret";
-  const minioEndpoint = "http://localhost:9090";
+  const minioEndpoint =
+    env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT || "http://localhost:9090";
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({

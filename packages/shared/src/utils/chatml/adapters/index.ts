@@ -1,6 +1,7 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import { langgraphAdapter } from "./langgraph";
 import { aisdkAdapter } from "./aisdk";
+import { anthropicAdapter } from "./anthropic";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { microsoftAgentAdapter } from "./microsoft-agent";
@@ -11,6 +12,7 @@ import { genericAdapter } from "./generic";
 const adapters: ProviderAdapter[] = [
   langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
   aisdkAdapter, // Vercel AI SDK v5 (for all LLM providers like OpenAI, Bedrock, Anthropic, etc.)
+  anthropicAdapter, // Anthropic Messages API (native tool_use/thinking blocks)
   openAIAdapter, // OpenAI (Chat Completions & Responses API)
   geminiAdapter, // Gemini/VertexAI format
   microsoftAgentAdapter, // Microsoft Agent Framework
@@ -42,6 +44,7 @@ export { selectAdapter };
 export type { NormalizerContext, ProviderAdapter } from "../types";
 export { langgraphAdapter } from "./langgraph";
 export { aisdkAdapter } from "./aisdk";
+export { anthropicAdapter } from "./anthropic";
 export { openAIAdapter } from "./openai";
 export { geminiAdapter } from "./gemini";
 export { microsoftAgentAdapter } from "./microsoft-agent";
