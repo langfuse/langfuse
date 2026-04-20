@@ -10,7 +10,10 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
@@ -39,6 +42,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
@@ -156,10 +160,13 @@ export default function ObservationsTable({
   externalDateRange,
   limitRows,
 }: ObservationsTableProps) {
+  const peekContext = usePeekTableState();
+
   const observationsFilterConfig = useMemo(
     () => getObservationsFilterConfig(omittedFilter),
     [omittedFilter],
   );
+
   const router = useRouter();
   const { viewId } = router.query;
   const utils = api.useUtils();
@@ -442,16 +449,41 @@ export default function ObservationsTable({
     };
   }, [environmentFilterOptions.data, filterOptions.data]);
 
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (hideControls) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+
   const queryFilter = useSidebarFilterState(
     observationsFilterConfig,
     newFilterOptions,
-    {
-      loading: filterOptions.isPending || environmentFilterOptions.isPending,
-      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
-      sessionFilterContextId: projectId,
-      // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-    },
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
