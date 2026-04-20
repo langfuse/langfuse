@@ -379,12 +379,15 @@ export function createMessageSearchController(
     syncActiveMatch = false,
   }: RefreshSearchOptions) => {
     const activeMatchChanged = recomputeMatches();
+    const shouldSyncEditors = syncEditors || activeMatchChanged;
 
-    if (syncEditors || activeMatchChanged) {
+    if (shouldSyncEditors) {
       syncEditorsToQuery();
     }
 
-    if (syncActiveMatch || activeMatchChanged) {
+    // Redrawing the editor search marks clears the selected active-match mark,
+    // so the active match must always be re-applied after syncing editors.
+    if (shouldSyncEditors || syncActiveMatch) {
       syncActiveMatchTarget();
     }
   };
