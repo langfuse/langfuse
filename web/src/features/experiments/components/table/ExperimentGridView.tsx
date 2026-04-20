@@ -50,8 +50,8 @@ type ExperimentGridViewProps = {
   peekView?: DataTablePeekViewProps;
   // Selection props
   selectActionColumn?: LangfuseColumnDef<ExperimentItemsTableRow>;
-  rowSelection?: RowSelectionState;
-  setRowSelection?: (rows: RowSelectionState) => void;
+  rowSelection: RowSelectionState;
+  setRowSelection: OnChangeFn<RowSelectionState>;
 };
 
 /**
