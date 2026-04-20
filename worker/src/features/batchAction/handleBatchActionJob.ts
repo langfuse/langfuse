@@ -439,6 +439,11 @@ export const handleBatchActionJob = async (
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
       rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      config: {
+        experimentRootObservationsOnly: evaluators?.some(
+          (e) => e.targetObject === EvalTargetObject.EXPERIMENT,
+        ),
+      },
     });
 
     await processBatchedObservationEval({
