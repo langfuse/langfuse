@@ -98,7 +98,7 @@ export function AuthenticatedLayout({
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
-  const { region: currentRegion } = useLangfuseCloudRegion();
+  const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -129,18 +129,22 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
-      {
-        name: "Regions",
-        subItems: regionMenuItems,
-        content: (
-          <>
-            Regions
-            <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-              Current: {currentRegion}
-            </div>
-          </>
-        ),
-      },
+      ...(isLangfuseCloud
+        ? [
+            {
+              name: "Regions",
+              subItems: regionMenuItems,
+              content: (
+                <>
+                  Regions
+                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                    Current: {currentRegion}
+                  </div>
+                </>
+              ),
+            },
+          ]
+        : []),
       { name: "Sign out", onClick: onSignOut },
     ],
   };
