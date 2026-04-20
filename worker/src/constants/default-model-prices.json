@@ -3172,9 +3172,9 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-04-20T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
