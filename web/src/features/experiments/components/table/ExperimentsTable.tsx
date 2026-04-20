@@ -725,7 +725,7 @@ export default function ExperimentsTable({
         </div>
       </DataTableControlsProvider>
 
-      {showRunEvaluationDialog && (
+      {showRunEvaluationDialog && selectedExperimentIds.length > 0 && (
         <RunEvaluationDialog
           projectId={projectId}
           selectedObservationIds={[]}
