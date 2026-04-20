@@ -332,6 +332,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         description: "The earliest trace recorded for this user.",
       },
       size: 150,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
@@ -347,6 +348,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         description: "The latest trace recorded for this user.",
       },
       size: 150,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
@@ -364,6 +366,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
@@ -381,6 +384,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
@@ -397,6 +401,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
