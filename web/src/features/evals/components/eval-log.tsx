@@ -63,6 +63,7 @@ export default function EvalLogTable({
     {}, // No dynamic options needed - status options are in column definition
     {
       loading: false,
+      stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );

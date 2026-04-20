@@ -76,7 +76,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
@@ -93,6 +96,7 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
@@ -160,6 +164,7 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
 }: TracesTableProps) {
+  const peekContext = usePeekTableState();
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
     [omittedFilter],
@@ -339,15 +344,42 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(tracesFilterConfig, filterOptions, {
-    loading:
-      traceFilterOptionsResponse.isPending ||
-      environmentFilterOptions.isPending,
-    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
-    sessionFilterContextId: projectId,
-    // Sidebar-only implicit environment defaults
-    implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-  });
+  const isSidebarFilterLoading =
+    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (hideControls) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+
+  const queryFilter = useSidebarFilterState(
+    tracesFilterConfig,
+    filterOptions,
+    queryFilterOptions,
+  );
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
