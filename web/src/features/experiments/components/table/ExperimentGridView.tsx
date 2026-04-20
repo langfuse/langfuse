@@ -108,8 +108,7 @@ export const ExperimentGridView = ({
           </div>
         ),
         size: 400,
-        // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
-        cell: ({ row }: { row: { original: ExperimentItemsTableRow } }) => {
+        cell: ({ row }) => {
           // Find this experiment's data
           const expData = row.original.experiments.find(
             (e) => e.experimentId === expId,

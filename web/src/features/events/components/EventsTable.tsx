@@ -50,7 +50,7 @@ import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { type Row, type RowSelectionState } from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -793,7 +793,7 @@ export default function ObservationsEventsTable({
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -812,7 +812,7 @@ export default function ObservationsEventsTable({
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -826,7 +826,7 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     {
       accessorKey: "toolDefinitions",
@@ -893,7 +893,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage = row.getValue("usage") as {
               inputUsage: number;
@@ -921,7 +921,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -938,7 +938,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -955,8 +955,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          // eslint-disable-next-line react/no-unused-prop-types -- false positive on typed TanStack cell renderer context
-          cell: ({ row }: { row: Row<EventsTableRow> }) => {
+          cell: ({ row }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -965,7 +964,7 @@ export default function ObservationsEventsTable({
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
         },
-      ],
+      ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     {
       accessorKey: "providedModelName",
