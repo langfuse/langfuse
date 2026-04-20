@@ -15,7 +15,13 @@ import {
   isExperimentsOmittableFilterColumn,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
+import {
+  type FilterState,
+  TableViewPresetTableName,
+  BatchExportTableName,
+  ActionId,
+  BatchActionType,
+} from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -25,7 +31,8 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import Link from "next/link";
-import { Button } from "@/src/components/ui/button";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -539,6 +546,48 @@ export default function ExperimentsTable({
     );
   }, [selectedExperimentIds, projectId, router]);
 
+  // Build table actions - Compare is disabled (not hidden) when >5 rows selected
+  const tableActions: TableAction[] = useMemo(() => {
+    const actions: TableAction[] = [];
+
+    // Compare action: only when not using selectAll, disabled when >5 experiments selected
+    if (!selectAll) {
+      const tooManySelected = selectedExperimentIds.length > 5;
+      actions.push({
+        id: ActionId.ExperimentCompare,
+        type: BatchActionType.Create,
+        label: "Compare",
+        description: "Compare selected experiments",
+        icon: <GitCompareArrows className="mr-2 h-4 w-4" />,
+        customDialog: true,
+        disabled: tooManySelected,
+        disabledReason: tooManySelected
+          ? "Select only up to 5 experiments to compare"
+          : undefined,
+        accessCheck: {
+          scope: "experiments:read",
+        },
+      } as TableAction);
+    }
+
+    // Run Evaluator action: only when user has eval access
+    if (hasEvalAccess) {
+      actions.push({
+        id: ActionId.ObservationBatchEvaluation,
+        type: BatchActionType.Create,
+        label: "Run Evaluator",
+        description: "Run evaluators on selected experiments",
+        icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+        customDialog: true,
+        accessCheck: {
+          scope: "evalJob:CUD",
+        },
+      } as TableAction);
+    }
+
+    return actions;
+  }, [selectAll, selectedExperimentIds.length, hasEvalAccess]);
+
   return (
     <>
       <DataTableControlsProvider>
@@ -575,30 +624,23 @@ export default function ExperimentsTable({
               pageIndex: paginationState.page - 1,
             }}
             actionButtons={
-              selectedExperimentIds.length > 0
+              selectedExperimentIds.length > 0 && tableActions.length > 0
                 ? [
-                    <Button
-                      key="compare-selected"
-                      variant="outline"
-                      onClick={handleCompareSelected}
-                      className="gap-1"
-                    >
-                      <GitCompareArrows className="h-4 w-4" />
-                      Compare ({selectedExperimentIds.length})
-                    </Button>,
-                    ...(hasEvalAccess
-                      ? [
-                          <Button
-                            key="run-evaluator"
-                            variant="outline"
-                            onClick={() => setShowRunEvaluationDialog(true)}
-                            className="gap-1"
-                          >
-                            <LightbulbIcon className="h-4 w-4" />
-                            Run Evaluator
-                          </Button>,
-                        ]
-                      : []),
+                    <TableActionMenu
+                      key="experiments-multi-select-actions"
+                      projectId={projectId}
+                      actions={tableActions}
+                      tableName={BatchExportTableName.Sessions}
+                      onCustomAction={(actionId) => {
+                        if (actionId === ActionId.ExperimentCompare) {
+                          handleCompareSelected();
+                        } else if (
+                          actionId === ActionId.ObservationBatchEvaluation
+                        ) {
+                          setShowRunEvaluationDialog(true);
+                        }
+                      }}
+                    />,
                   ]
                 : undefined
             }

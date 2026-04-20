@@ -7,9 +7,10 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { Button } from "@/src/components/ui/button";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
@@ -21,6 +22,9 @@ import {
   type FilterState,
   type FilterCondition,
   TableViewPresetTableName,
+  BatchExportTableName,
+  ActionId,
+  BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -979,6 +983,22 @@ export default function ExperimentItemsTable({
     [filtersByExperiment, orderByState, allExperimentIds],
   );
 
+  const tableActions: TableAction[] = hasEvalAccess
+    ? [
+        {
+          id: ActionId.ObservationBatchEvaluation,
+          type: BatchActionType.Create,
+          label: "Evaluate",
+          description: "Run evaluators on selected items",
+          icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+          customDialog: true,
+          accessCheck: {
+            scope: "evalJob:CUD",
+          },
+        } as TableAction,
+      ]
+    : [];
+
   return (
     <DataTableControlsProvider
       tableName={experimentItemsFilterConfig.tableName}
@@ -1017,19 +1037,21 @@ export default function ExperimentItemsTable({
               pageIndex: paginationState.pageIndex,
             }}
             actionButtons={
-              hasEvalAccess && (selectAll || selectedItemCount > 0) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRunEvaluationDialog(true)}
-                >
-                  <LightbulbIcon className="mr-2 h-4 w-4" />
-                  Evaluate
-                  {!selectAll && selectedItemCount > 0
-                    ? ` (${selectedItemCount})`
-                    : null}
-                </Button>
-              ) : null
+              (selectAll || selectedItemCount > 0) && tableActions.length > 0
+                ? [
+                    <TableActionMenu
+                      key="experiment-items-multi-select-actions"
+                      projectId={projectId}
+                      actions={tableActions}
+                      tableName={BatchExportTableName.Sessions}
+                      onCustomAction={(actionId) => {
+                        if (actionId === ActionId.ObservationBatchEvaluation) {
+                          setShowRunEvaluationDialog(true);
+                        }
+                      }}
+                    />,
+                  ]
+                : undefined
             }
           />
         )}
