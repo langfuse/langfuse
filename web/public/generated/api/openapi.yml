@@ -12757,7 +12757,6 @@ components:
         - duplicate_variable_mapping
         - resource_not_found
         - name_conflict
-        - evaluator_in_use
         - evaluator_preflight_failed
         - conflict
         - unprocessable_content

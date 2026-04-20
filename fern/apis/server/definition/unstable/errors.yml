@@ -19,7 +19,6 @@ types:
       - duplicate_variable_mapping
       - resource_not_found
       - name_conflict
-      - evaluator_in_use
       - evaluator_preflight_failed
       - conflict
       - unprocessable_content
@@ -154,7 +153,7 @@ types:
             model: null
       - name: MissingVariableMapping
         value:
-          message: 'Missing mappings for evaluator variable(s): output'
+          message: "Missing mappings for evaluator variable(s): output"
           code: missing_variable_mapping
           details:
             field: mapping

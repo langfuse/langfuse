@@ -278,6 +278,7 @@ function validateJsonPath(params: {
     JSONPath({
       path: jsonPath,
       json: {},
+      eval: false,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
