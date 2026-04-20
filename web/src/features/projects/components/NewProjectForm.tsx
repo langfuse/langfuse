@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Form,
@@ -25,6 +26,7 @@ export const NewProjectForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(projectNameSchema),
@@ -38,6 +40,7 @@ export const NewProjectForm = ({
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
     capture("projects:new_form_submit");
+    setIsSubmitting(true);
     createProjectMutation
       .mutateAsync({
         name: values.name,
@@ -45,11 +48,12 @@ export const NewProjectForm = ({
       })
       .then(async (project) => {
         await updateSession();
-        await onSuccess(project.id);
         form.reset();
+        await onSuccess(project.id);
       })
       .catch((error) => {
         console.error(error);
+        setIsSubmitting(false);
       });
   }
   return (
@@ -82,7 +86,7 @@ export const NewProjectForm = ({
             </FormItem>
           )}
         />
-        <Button type="submit" loading={createProjectMutation.isPending}>
+        <Button type="submit" loading={isSubmitting}>
           Create
         </Button>
       </form>
