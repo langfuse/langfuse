@@ -30,6 +30,7 @@ jest.mock("../../../features/evals/server/unstable-public-api/queries", () => ({
 }));
 
 jest.mock("@langfuse/shared/src/server", () => ({
+  ...jest.requireActual("@langfuse/shared/src/server"),
   invalidateProjectEvalConfigCaches: jest.fn(),
   ClickHouseClientManager: {
     getInstance: () => ({
@@ -38,10 +39,6 @@ jest.mock("@langfuse/shared/src/server", () => ({
   },
   logger: {
     debug: jest.fn(),
-  },
-  redis: {
-    status: "end",
-    disconnect: jest.fn(),
   },
 }));
 
