@@ -12,7 +12,7 @@ import { Eye, Plus, X } from "lucide-react";
 
 type Evaluator = RouterOutputs["evals"]["jobConfigsByTarget"][number];
 type ObservationPreview = RouterOutputs["observations"]["byId"];
-type EventPreview = RouterOutputs["events"]["batchIO"][number][0];
+type EventPreview = RouterOutputs["events"]["batchIO"][number];
 
 type EvaluatorSelectionStepProps = {
   eligibleEvaluators: Evaluator[];
