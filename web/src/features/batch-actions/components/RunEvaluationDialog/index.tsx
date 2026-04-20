@@ -241,6 +241,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   name: e.scoreName,
                 }))}
                 hideCount={targetObject === EvalTargetObject.EXPERIMENT}
+                sourceTable={sourceTable}
+                experimentCount={experimentItemsExperimentCount}
               />
             )}
           </DialogBody>
