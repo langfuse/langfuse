@@ -1,23 +1,18 @@
 /** @jest-environment node */
 
-jest.mock("@langfuse/shared/src/server", () => ({
-  ClickHouseClientManager: {
-    getInstance: () => ({
-      closeAllConnections: jest.fn().mockResolvedValue(undefined),
-    }),
-  },
-  DefaultEvalModelService: {
-    fetchValidModelConfig: jest.fn(),
-  },
-  logger: {
-    debug: jest.fn(),
-  },
-  redis: {
-    status: "end",
-    disconnect: jest.fn(),
-  },
-  testModelCall: jest.fn(),
-}));
+jest.mock("@langfuse/shared/src/server", () => {
+  const actual = jest.requireActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    DefaultEvalModelService: {
+      fetchValidModelConfig: jest.fn(),
+    },
+    logger: {
+      debug: jest.fn(),
+    },
+    testModelCall: jest.fn(),
+  };
+});
 
 import {
   createNumericEvalOutputDefinition,
