@@ -1054,6 +1054,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (

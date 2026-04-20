@@ -637,6 +637,13 @@ export default function ScoresTable({
       id: "comment",
       enableHiding: true,
       size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
         return (

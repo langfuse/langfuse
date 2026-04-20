@@ -823,6 +823,7 @@ export default function TracesTable({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("tags");
         return (

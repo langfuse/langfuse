@@ -948,6 +948,7 @@ export default function ObservationsTable({
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
