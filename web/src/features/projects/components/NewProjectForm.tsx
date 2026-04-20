@@ -21,7 +21,7 @@ export const NewProjectForm = ({
   onSuccess,
 }: {
   orgId: string;
-  onSuccess: (projectId: string) => void | Promise<void>;
+  onSuccess: (projectId: string) => void;
 }) => {
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
