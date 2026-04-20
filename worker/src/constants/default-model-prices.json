@@ -3172,9 +3172,9 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-04-20T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3359,6 +3359,37 @@
     "pricingTiers": [
       {
         "id": "13458bc0-1c20-44c2-8753-172f54b67647_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "input_cache_creation_5m": 6.25e-6,
+          "input_cache_creation_1h": 10e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8",
+    "modelName": "claude-opus-4-7",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
+    "createdAt": "2026-04-16T00:00:00.000Z",
+    "updatedAt": "2026-04-16T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8_tier_default",
         "name": "Standard",
         "isDefault": true,
         "priority": 0,

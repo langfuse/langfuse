@@ -51,16 +51,16 @@ import {
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
-import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
+import {
+  EventsObservationRecordReadType,
+  TraceRecordReadType,
+} from "./definitions";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
-import {
-  convertEventsObservation,
-  convertObservation,
-} from "./observations_converters";
+import { convertEventsObservation } from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
@@ -193,18 +193,22 @@ async function enrichObservationsWithModelData(
 async function enrichObservationsWithTraceFields(
   observationRecords: Array<EventsObservation & ObservationPriceFields>,
 ): Promise<FullEventsObservations> {
-  return observationRecords.map((o) => {
+  return observationRecords.map((observation) => {
+    // Remove raw tags field as this is re-mapped to traceTags
+    const { tags: _tags, ...observationWithoutRawTags } = observation;
     return {
-      ...o,
-      traceTags: [], // TODO pull from PG
+      ...observationWithoutRawTags,
+      traceTags: observation.tags ?? [],
       traceTimestamp: null,
-      toolDefinitions: o.toolDefinitions ?? null,
-      toolCalls: o.toolCalls ?? null,
+      toolDefinitions: observation.toolDefinitions ?? null,
+      toolCalls: observation.toolCalls ?? null,
       // Compute counts from actual data for events table
-      toolDefinitionsCount: o.toolDefinitions
-        ? Object.keys(o.toolDefinitions).length
+      toolDefinitionsCount: observation.toolDefinitions
+        ? Object.keys(observation.toolDefinitions).length
         : null,
-      toolCallsCount: o.toolCalls ? o.toolCalls.length : null,
+      toolCallsCount: observation.toolCalls
+        ? observation.toolCalls.length
+        : null,
     };
   });
 }
@@ -609,9 +613,19 @@ export const getObservationByIdFromEventsTable = async ({
     renderingProps,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
-  const mapped = records.map((record) =>
-    convertObservation(record, renderingProps),
-  );
+  const mapped = records.map((record) => {
+    // Remove raw tags field as this is re-mapped to traceTags
+    const { tags, ...converted } = convertEventsObservation(
+      record,
+      renderingProps,
+      true,
+    );
+
+    return {
+      ...converted,
+      traceTags: tags ?? [],
+    };
+  });
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -682,7 +696,7 @@ async function getObservationByIdFromEventsTableInternal({
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return await queryClickhouse<ObservationRecordReadType>({
+  return await queryClickhouse<EventsObservationRecordReadType>({
     query,
     params,
     tags: {
@@ -1072,7 +1086,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
  */
 export const getObservationsFromEventsTableForPublicApi = async (
   opts: Omit<PublicApiObservationsQuery, "fields">,
-): Promise<Array<Observation & ObservationPriceFields>> => {
+): Promise<Array<EventsObservation & ObservationPriceFields>> => {
   const { projectId } = opts;
 
   // Build query with filters and common CTEs
@@ -1090,12 +1104,15 @@ export const getObservationsFromEventsTableForPublicApi = async (
       projectId,
       queryBuilder,
     );
-  return await enrichObservationsWithModelData(
+
+  const observations = await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
     opts.parseIoAsJson ?? true, // V1 API: default to parsing JSON (backwards compatibility)
     null, // V1 API: no field groups, return complete observations
   );
+
+  return observations;
 };
 
 /**
