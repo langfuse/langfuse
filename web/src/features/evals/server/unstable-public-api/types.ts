@@ -5,12 +5,12 @@ import type {
   prisma,
 } from "@langfuse/shared/src/db";
 import type {
-  PublicContinuousEvaluationEvaluatorReferenceType,
-  PublicContinuousEvaluationEvaluatorType,
-  PublicContinuousEvaluationFilterType,
-  PublicContinuousEvaluationMappingType,
-  PublicContinuousEvaluationStatusType,
-  PublicContinuousEvaluationTargetType,
+  PublicEvaluationRuleEvaluatorReferenceType,
+  PublicEvaluationRuleEvaluatorType,
+  PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleStatusType,
+  PublicEvaluationRuleTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
   PublicEvaluatorScopeType,
@@ -30,29 +30,29 @@ export type ApiEvaluatorRecord = {
   variables: string[];
   outputDefinition: PublicEvaluatorOutputDefinitionType;
   modelConfig: PublicEvaluatorModelConfigType | null;
-  continuousEvaluationCount: number;
+  evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
 
-export type ApiContinuousEvaluationRecord = {
+export type ApiEvaluationRuleRecord = {
   id: string;
   name: string;
-  evaluator: PublicContinuousEvaluationEvaluatorType;
-  target: PublicContinuousEvaluationTargetType;
+  evaluator: PublicEvaluationRuleEvaluatorType;
+  target: PublicEvaluationRuleTargetType;
   enabled: boolean;
-  status: PublicContinuousEvaluationStatusType;
+  status: PublicEvaluationRuleStatusType;
   pausedReason: string | null;
   pausedMessage: string | null;
   sampling: number;
-  filter: PublicContinuousEvaluationFilterType[];
-  mapping: PublicContinuousEvaluationMappingType[];
+  filter: PublicEvaluationRuleFilterType[];
+  mapping: PublicEvaluationRuleMappingType[];
   createdAt: Date;
   updatedAt: Date;
 };
 
-export type ContinuousEvaluationEvaluatorFamilyReference =
-  PublicContinuousEvaluationEvaluatorReferenceType;
+export type EvaluationRuleEvaluatorFamilyReference =
+  PublicEvaluationRuleEvaluatorReferenceType;
 
 export type StoredPublicEvaluatorTemplate = Pick<
   EvalTemplate,
@@ -71,7 +71,7 @@ export type StoredPublicEvaluatorTemplate = Pick<
   | "updatedAt"
 >;
 
-export type StoredPublicContinuousEvaluationConfig = Pick<
+export type StoredPublicEvaluationRuleConfig = Pick<
   JobConfiguration,
   | "id"
   | "projectId"

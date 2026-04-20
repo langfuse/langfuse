@@ -6107,15 +6107,14 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
-  /api/public/unstable/continuous-evaluations:
+  /api/public/unstable/evaluation-rules:
     post:
       description: >-
-        Create a continuous evaluation.
+        Create an evaluation rule.
 
 
-        A continuous evaluation defines **what** incoming data should be
-        evaluated and **how prompt variables should be populated** from that
-        data.
+        An evaluation rule defines **what** incoming data should be evaluated
+        and **how prompt variables should be populated** from that data.
 
 
         Use this resource after choosing an evaluator from the evaluator
@@ -6124,8 +6123,7 @@ paths:
 
         Key rules:
 
-        - `name` must be unique within the project for public continuous
-        evaluations
+        - `name` must be unique within the project for public evaluation rules
 
         - `target` must be `observation` or `experiment`
 
@@ -6133,7 +6131,7 @@ paths:
         evaluator family returned by the evaluator endpoints
 
         - Langfuse resolves that family to its latest version before saving the
-        continuous evaluation
+        evaluation rule
 
         - for `target=experiment`, use dataset `id` values from `GET
         /api/public/v2/datasets` when filtering by `datasetId`
@@ -6145,28 +6143,28 @@ paths:
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
 
-        - at most 50 continuous evaluations can be effectively active in one
-        project at the same time
+        - at most 50 evaluation rules can be effectively active in one project
+        at the same time
 
 
-        If a continuous evaluation with the same `name` already exists in the
+        If an evaluation rule with the same `name` already exists in the
         project, the API returns `409`.
 
         In that case, update the existing resource with `PATCH
-        /api/public/unstable/continuous-evaluations/{continuousEvaluationId}`
-        instead of creating a second one.
+        /api/public/unstable/evaluation-rules/{evaluationRuleId}` instead of
+        creating a second one.
 
 
         If enabling this resource would exceed the 50-active limit, the API also
         returns `409`.
 
-        In that case, disable or pause another active continuous evaluation
-        before enabling a new one.
+        In that case, disable or pause another active evaluation rule before
+        enabling a new one.
 
 
         Current scope:
 
-        - continuous evaluations are live-ingestion rules only
+        - evaluation rules are live-ingestion rules only
 
         - they do not trigger historical backfills
 
@@ -6194,9 +6192,9 @@ paths:
         - `422 evaluator_preflight_failed`: the selected evaluator cannot run
         with the resolved model configuration. Fix the evaluator/default model
         setup, then retry the create request.
-      operationId: unstable_continuousEvaluations_create
+      operationId: unstable_evaluationRules_create
       tags:
-        - UnstableContinuousEvaluations
+        - UnstableEvaluationRules
       parameters: []
       responses:
         '200':
@@ -6204,11 +6202,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableContinuousEvaluation'
+                $ref: '#/components/schemas/unstableEvaluationRule'
               examples:
-                CreateObservationContinuousEvaluation:
+                CreateObservationEvaluationRule:
                   value:
-                    id: ceval_123
+                    id: erule_123
                     name: answer-correctness-live
                     evaluator:
                       id: evaltmpl_123
@@ -6231,9 +6229,9 @@ paths:
                         source: output
                     createdAt: '2026-03-30T09:20:00.000Z'
                     updatedAt: '2026-03-30T09:20:00.000Z'
-                CreateExperimentContinuousEvaluation:
+                CreateExperimentEvaluationRule:
                   value:
-                    id: ceval_456
+                    id: erule_456
                     name: experiment-expected-output-match
                     evaluator:
                       id: evaltmpl_456
@@ -6312,9 +6310,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/unstableCreateContinuousEvaluationRequest'
+              $ref: '#/components/schemas/unstableCreateEvaluationRuleRequest'
             examples:
-              CreateObservationContinuousEvaluation:
+              CreateObservationEvaluationRule:
                 value:
                   name: answer-correctness-live
                   evaluator:
@@ -6334,7 +6332,7 @@ paths:
                       source: input
                     - variable: output
                       source: output
-              CreateExperimentContinuousEvaluation:
+              CreateExperimentEvaluationRule:
                 value:
                   name: experiment-expected-output-match
                   evaluator:
@@ -6356,14 +6354,14 @@ paths:
                       source: expected_output
     get:
       description: >-
-        List continuous evaluations in the authenticated project.
+        List evaluation rules in the authenticated project.
 
 
         Each item describes one live evaluation rule and its effective runtime
         status.
-      operationId: unstable_continuousEvaluations_list
+      operationId: unstable_evaluationRules_list
       tags:
-        - UnstableContinuousEvaluations
+        - UnstableEvaluationRules
       parameters:
         - name: page
           in: query
@@ -6385,7 +6383,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableContinuousEvaluations'
+                $ref: '#/components/schemas/unstableEvaluationRules'
         '400':
           description: ''
           content:
@@ -6425,23 +6423,23 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security:
         - BasicAuth: []
-  /api/public/unstable/continuous-evaluations/{continuousEvaluationId}:
+  /api/public/unstable/evaluation-rules/{evaluationRuleId}:
     get:
       description: >-
-        Get one continuous evaluation by its identifier.
+        Get one evaluation rule by its identifier.
 
 
         Use this endpoint to inspect the current evaluator, target, mapping,
         filters, and effective runtime status.
-      operationId: unstable_continuousEvaluations_get
+      operationId: unstable_evaluationRules_get
       tags:
-        - UnstableContinuousEvaluations
+        - UnstableEvaluationRules
       parameters:
-        - name: continuousEvaluationId
+        - name: evaluationRuleId
           in: path
           description: >-
-            Continuous evaluation identifier returned by the continuous
-            evaluation endpoints.
+            Evaluation rule identifier returned by the evaluation rule
+            endpoints.
           required: true
           schema:
             type: string
@@ -6451,7 +6449,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableContinuousEvaluation'
+                $ref: '#/components/schemas/unstableEvaluationRule'
         '400':
           description: ''
           content:
@@ -6493,7 +6491,7 @@ paths:
         - BasicAuth: []
     patch:
       description: >-
-        Update a continuous evaluation.
+        Update an evaluation rule.
 
 
         Typical uses:
@@ -6526,9 +6524,9 @@ paths:
         - if the resulting config is enabled, Langfuse re-validates that the
         selected evaluator can run
 
-        - if the update would move a non-active continuous evaluation into the
-        active state and the project already has 50 active continuous
-        evaluations, the API returns `409`
+        - if the update would move a non-active evaluation rule into the active
+        state and the project already has 50 active evaluation rules, the API
+        returns `409`
 
 
         Recovery guidance:
@@ -6539,13 +6537,13 @@ paths:
 
         - if the update fails with `invalid_filter_value` after changing
         `target`, resend the request with a target-compatible `filter`
-      operationId: unstable_continuousEvaluations_update
+      operationId: unstable_evaluationRules_update
       tags:
-        - UnstableContinuousEvaluations
+        - UnstableEvaluationRules
       parameters:
-        - name: continuousEvaluationId
+        - name: evaluationRuleId
           in: path
-          description: Continuous evaluation identifier.
+          description: Evaluation rule identifier.
           required: true
           schema:
             type: string
@@ -6555,7 +6553,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableContinuousEvaluation'
+                $ref: '#/components/schemas/unstableEvaluationRule'
         '400':
           description: ''
           content:
@@ -6606,21 +6604,21 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/unstableUpdateContinuousEvaluationRequest'
+              $ref: '#/components/schemas/unstableUpdateEvaluationRuleRequest'
     delete:
       description: >-
-        Delete a continuous evaluation.
+        Delete an evaluation rule.
 
 
         This removes the live-ingestion rule only. It does not delete the
         referenced evaluator.
-      operationId: unstable_continuousEvaluations_delete
+      operationId: unstable_evaluationRules_delete
       tags:
-        - UnstableContinuousEvaluations
+        - UnstableEvaluationRules
       parameters:
-        - name: continuousEvaluationId
+        - name: evaluationRuleId
           in: path
-          description: Continuous evaluation identifier.
+          description: Evaluation rule identifier.
           required: true
           schema:
             type: string
@@ -6630,8 +6628,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: >-
-                  #/components/schemas/unstableDeleteContinuousEvaluationResponse
+                $ref: '#/components/schemas/unstableDeleteEvaluationRuleResponse'
         '400':
           description: ''
           content:
@@ -6689,9 +6686,9 @@ paths:
         - If the name already exists in your project, Langfuse creates the next
         version and returns it.
 
-        - When a new project version is created, existing continuous evaluations
-        in that project automatically move to the newest version for that
-        evaluator name.
+        - When a new project version is created, existing evaluation rules in
+        that project automatically move to the newest version for that evaluator
+        name.
 
 
         Recommended workflow:
@@ -6703,7 +6700,7 @@ paths:
         3. Read the returned `outputDefinition.dataType` so the client knows
         whether future scores will be numeric, boolean, or categorical.
 
-        4. Create one or more continuous evaluations that reference the returned
+        4. Create one or more evaluation rules that reference the returned
         evaluator family using `name` and `scope`.
 
 
@@ -6768,7 +6765,7 @@ paths:
                     modelConfig:
                       provider: openai
                       model: gpt-4.1-mini
-                    continuousEvaluationCount: 0
+                    evaluationRuleCount: 0
                     createdAt: '2026-03-30T09:00:00.000Z'
                     updatedAt: '2026-03-30T09:00:00.000Z'
         '400':
@@ -6937,7 +6934,7 @@ paths:
 
         Use this endpoint when you want the prompt, output definition, model
         configuration, and derived variables for the evaluator you plan to use
-        in a continuous evaluation.
+        in an evaluation rule.
       operationId: unstable_evaluators_get
       tags:
         - UnstableEvaluators
@@ -11926,8 +11923,8 @@ components:
 
         - `project`: created in your project
         - `managed`: provided by Langfuse
-    unstableContinuousEvaluationTarget:
-      title: unstableContinuousEvaluationTarget
+    unstableEvaluationRuleTarget:
+      title: unstableEvaluationRuleTarget
       type: string
       enum:
         - observation
@@ -11946,15 +11943,15 @@ components:
         map `expected_output`.
           It currently supports filtering by `datasetId`.
           Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
-    unstableContinuousEvaluationStatus:
-      title: unstableContinuousEvaluationStatus
+    unstableEvaluationRuleStatus:
+      title: unstableEvaluationRuleStatus
       type: string
       enum:
         - active
         - inactive
         - paused
       description: >-
-        Effective runtime status of the continuous evaluation.
+        Effective runtime status of the evaluation rule.
 
 
         - `active`: enabled and currently runnable.
@@ -11963,8 +11960,8 @@ components:
 
         - `paused`: enabled, but Langfuse has blocked execution until the
         underlying issue is resolved.
-    unstableContinuousEvaluationMappingSource:
-      title: unstableContinuousEvaluationMappingSource
+    unstableEvaluationRuleMappingSource:
+      title: unstableEvaluationRuleMappingSource
       type: string
       enum:
         - input
@@ -12007,7 +12004,7 @@ components:
         If omitted, Langfuse uses the project's default evaluation model.
 
         If provided, the model must be available to the project when the
-        evaluator or continuous evaluation is enabled.
+        evaluator or evaluation rule is enabled.
 
 
         To discover valid configured `provider` values for a project, call `GET
@@ -12250,8 +12247,8 @@ components:
         - `BOOLEAN`: expect `true` / `false`
 
         - `CATEGORICAL`: expect one or more values from `score.categories`
-    unstableContinuousEvaluationStringFilterOperator:
-      title: unstableContinuousEvaluationStringFilterOperator
+    unstableEvaluationRuleStringFilterOperator:
+      title: unstableEvaluationRuleStringFilterOperator
       type: string
       enum:
         - '='
@@ -12259,8 +12256,8 @@ components:
         - does not contain
         - starts with
         - ends with
-    unstableContinuousEvaluationNumberFilterOperator:
-      title: unstableContinuousEvaluationNumberFilterOperator
+    unstableEvaluationRuleNumberFilterOperator:
+      title: unstableEvaluationRuleNumberFilterOperator
       type: string
       enum:
         - '='
@@ -12268,41 +12265,40 @@ components:
         - <
         - '>='
         - <=
-    unstableContinuousEvaluationOptionsFilterOperator:
-      title: unstableContinuousEvaluationOptionsFilterOperator
+    unstableEvaluationRuleOptionsFilterOperator:
+      title: unstableEvaluationRuleOptionsFilterOperator
       type: string
       enum:
         - any of
         - none of
-    unstableContinuousEvaluationArrayOptionsFilterOperator:
-      title: unstableContinuousEvaluationArrayOptionsFilterOperator
+    unstableEvaluationRuleArrayOptionsFilterOperator:
+      title: unstableEvaluationRuleArrayOptionsFilterOperator
       type: string
       enum:
         - any of
         - none of
         - all of
-    unstableContinuousEvaluationBooleanFilterOperator:
-      title: unstableContinuousEvaluationBooleanFilterOperator
+    unstableEvaluationRuleBooleanFilterOperator:
+      title: unstableEvaluationRuleBooleanFilterOperator
       type: string
       enum:
         - '='
         - <>
-    unstableContinuousEvaluationNullFilterOperator:
-      title: unstableContinuousEvaluationNullFilterOperator
+    unstableEvaluationRuleNullFilterOperator:
+      title: unstableEvaluationRuleNullFilterOperator
       type: string
       enum:
         - is null
         - is not null
-    unstableDateTimeContinuousEvaluationFilter:
-      title: unstableDateTimeContinuousEvaluationFilter
+    unstableDateTimeEvaluationRuleFilter:
+      title: unstableDateTimeEvaluationRuleFilter
       type: object
       properties:
         column:
           type: string
           description: Column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationNumberFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
           description: Comparison operator for datetime values.
         value:
           type: string
@@ -12312,32 +12308,30 @@ components:
         - column
         - operator
         - value
-    unstableStringContinuousEvaluationFilter:
-      title: unstableStringContinuousEvaluationFilter
+    unstableStringEvaluationRuleFilter:
+      title: unstableStringEvaluationRuleFilter
       type: object
       properties:
         column:
           type: string
           description: Column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationStringFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleStringFilterOperator'
         value:
           type: string
       required:
         - column
         - operator
         - value
-    unstableNumberContinuousEvaluationFilter:
-      title: unstableNumberContinuousEvaluationFilter
+    unstableNumberEvaluationRuleFilter:
+      title: unstableNumberEvaluationRuleFilter
       type: object
       properties:
         column:
           type: string
           description: Column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationNumberFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
         value:
           type: number
           format: double
@@ -12345,16 +12339,15 @@ components:
         - column
         - operator
         - value
-    unstableStringOptionsContinuousEvaluationFilter:
-      title: unstableStringOptionsContinuousEvaluationFilter
+    unstableStringOptionsEvaluationRuleFilter:
+      title: unstableStringOptionsEvaluationRuleFilter
       type: object
       properties:
         column:
           type: string
           description: Column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationOptionsFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleOptionsFilterOperator'
         value:
           type: array
           items:
@@ -12364,8 +12357,8 @@ components:
         - column
         - operator
         - value
-    unstableArrayOptionsContinuousEvaluationFilter:
-      title: unstableArrayOptionsContinuousEvaluationFilter
+    unstableArrayOptionsEvaluationRuleFilter:
+      title: unstableArrayOptionsEvaluationRuleFilter
       type: object
       properties:
         column:
@@ -12373,7 +12366,7 @@ components:
           description: Column to filter on.
         operator:
           $ref: >-
-            #/components/schemas/unstableContinuousEvaluationArrayOptionsFilterOperator
+            #/components/schemas/unstableEvaluationRuleArrayOptionsFilterOperator
         value:
           type: array
           items:
@@ -12383,8 +12376,8 @@ components:
         - column
         - operator
         - value
-    unstableStringObjectContinuousEvaluationFilter:
-      title: unstableStringObjectContinuousEvaluationFilter
+    unstableStringObjectEvaluationRuleFilter:
+      title: unstableStringObjectEvaluationRuleFilter
       type: object
       properties:
         column:
@@ -12396,8 +12389,7 @@ components:
           type: string
           description: Top-level key inside the object-valued column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationStringFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleStringFilterOperator'
         value:
           type: string
       required:
@@ -12405,8 +12397,8 @@ components:
         - key
         - operator
         - value
-    unstableNumberObjectContinuousEvaluationFilter:
-      title: unstableNumberObjectContinuousEvaluationFilter
+    unstableNumberObjectEvaluationRuleFilter:
+      title: unstableNumberObjectEvaluationRuleFilter
       type: object
       properties:
         column:
@@ -12416,8 +12408,7 @@ components:
           type: string
           description: Key inside the object-valued column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationNumberFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleNumberFilterOperator'
         value:
           type: number
           format: double
@@ -12426,8 +12417,8 @@ components:
         - key
         - operator
         - value
-    unstableCategoryOptionsContinuousEvaluationFilter:
-      title: unstableCategoryOptionsContinuousEvaluationFilter
+    unstableCategoryOptionsEvaluationRuleFilter:
+      title: unstableCategoryOptionsEvaluationRuleFilter
       type: object
       properties:
         column:
@@ -12437,8 +12428,7 @@ components:
           type: string
           description: Key inside the object-valued column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationOptionsFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleOptionsFilterOperator'
         value:
           type: array
           items:
@@ -12448,24 +12438,23 @@ components:
         - key
         - operator
         - value
-    unstableBooleanContinuousEvaluationFilter:
-      title: unstableBooleanContinuousEvaluationFilter
+    unstableBooleanEvaluationRuleFilter:
+      title: unstableBooleanEvaluationRuleFilter
       type: object
       properties:
         column:
           type: string
           description: Column to filter on.
         operator:
-          $ref: >-
-            #/components/schemas/unstableContinuousEvaluationBooleanFilterOperator
+          $ref: '#/components/schemas/unstableEvaluationRuleBooleanFilterOperator'
         value:
           type: boolean
       required:
         - column
         - operator
         - value
-    unstableNullContinuousEvaluationFilter:
-      title: unstableNullContinuousEvaluationFilter
+    unstableNullEvaluationRuleFilter:
+      title: unstableNullEvaluationRuleFilter
       type: object
       properties:
         column:
@@ -12474,7 +12463,7 @@ components:
             Column to filter on. In the unstable public API this is currently
             `parentObservationId`.
         operator:
-          $ref: '#/components/schemas/unstableContinuousEvaluationNullFilterOperator'
+          $ref: '#/components/schemas/unstableEvaluationRuleNullFilterOperator'
         value:
           type: string
           nullable: true
@@ -12484,8 +12473,8 @@ components:
       required:
         - column
         - operator
-    unstableContinuousEvaluationMapping:
-      title: unstableContinuousEvaluationMapping
+    unstableEvaluationRuleMapping:
+      title: unstableEvaluationRuleMapping
       type: object
       description: >-
         Maps one evaluator prompt variable to one source field from the target
@@ -12535,7 +12524,7 @@ components:
             `input` and `output`.
           example: input
         source:
-          $ref: '#/components/schemas/unstableContinuousEvaluationMappingSource'
+          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
           description: >-
             Source field that should populate the prompt variable.
 
@@ -12564,8 +12553,8 @@ components:
       required:
         - variable
         - source
-    unstableContinuousEvaluationFilter:
-      title: unstableContinuousEvaluationFilter
+    unstableEvaluationRuleFilter:
+      title: unstableEvaluationRuleFilter
       oneOf:
         - type: object
           allOf:
@@ -12575,7 +12564,7 @@ components:
                   type: string
                   enum:
                     - datetime
-            - $ref: '#/components/schemas/unstableDateTimeContinuousEvaluationFilter'
+            - $ref: '#/components/schemas/unstableDateTimeEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12586,7 +12575,7 @@ components:
                   type: string
                   enum:
                     - string
-            - $ref: '#/components/schemas/unstableStringContinuousEvaluationFilter'
+            - $ref: '#/components/schemas/unstableStringEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12597,7 +12586,7 @@ components:
                   type: string
                   enum:
                     - number
-            - $ref: '#/components/schemas/unstableNumberContinuousEvaluationFilter'
+            - $ref: '#/components/schemas/unstableNumberEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12608,8 +12597,7 @@ components:
                   type: string
                   enum:
                     - stringOptions
-            - $ref: >-
-                #/components/schemas/unstableStringOptionsContinuousEvaluationFilter
+            - $ref: '#/components/schemas/unstableStringOptionsEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12620,8 +12608,7 @@ components:
                   type: string
                   enum:
                     - categoryOptions
-            - $ref: >-
-                #/components/schemas/unstableCategoryOptionsContinuousEvaluationFilter
+            - $ref: '#/components/schemas/unstableCategoryOptionsEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12632,8 +12619,7 @@ components:
                   type: string
                   enum:
                     - arrayOptions
-            - $ref: >-
-                #/components/schemas/unstableArrayOptionsContinuousEvaluationFilter
+            - $ref: '#/components/schemas/unstableArrayOptionsEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12644,8 +12630,7 @@ components:
                   type: string
                   enum:
                     - stringObject
-            - $ref: >-
-                #/components/schemas/unstableStringObjectContinuousEvaluationFilter
+            - $ref: '#/components/schemas/unstableStringObjectEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12656,8 +12641,7 @@ components:
                   type: string
                   enum:
                     - numberObject
-            - $ref: >-
-                #/components/schemas/unstableNumberObjectContinuousEvaluationFilter
+            - $ref: '#/components/schemas/unstableNumberObjectEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12668,7 +12652,7 @@ components:
                   type: string
                   enum:
                     - boolean
-            - $ref: '#/components/schemas/unstableBooleanContinuousEvaluationFilter'
+            - $ref: '#/components/schemas/unstableBooleanEvaluationRuleFilter'
           required:
             - type
         - type: object
@@ -12679,7 +12663,7 @@ components:
                   type: string
                   enum:
                     - 'null'
-            - $ref: '#/components/schemas/unstableNullContinuousEvaluationFilter'
+            - $ref: '#/components/schemas/unstableNullEvaluationRuleFilter'
           required:
             - type
       description: >-
@@ -12687,8 +12671,8 @@ components:
         should be evaluated.
 
 
-        A continuous evaluation can include zero or more filter objects. All
-        filters must be satisfied for the target to run.
+        An evaluation rule can include zero or more filter objects. All filters
+        must be satisfied for the target to run.
 
 
         How to build a valid filter object:
@@ -12752,350 +12736,6 @@ components:
         - `invalid_filter_value` for `column=datasetId`: call `GET
         /api/public/v2/datasets`, then retry with dataset `id` values from that
         response.
-    unstableContinuousEvaluation:
-      title: unstableContinuousEvaluation
-      type: object
-      description: >-
-        Live evaluation rule for incoming data.
-
-
-        A continuous evaluation answers:
-
-        - which evaluator should be used
-
-        - which target objects should trigger scoring
-
-        - how often scoring should run
-
-        - which target fields should populate each evaluator variable
-
-        - whether the deployment is active, inactive, or paused
-
-
-        Important status semantics:
-
-        - `enabled` is the desired on/off setting from the client
-
-        - `status` is the effective runtime state after Langfuse applies
-        validation and blocking rules
-
-        - `enabled=true` with `status=paused` means the rule should run, but
-        Langfuse has paused it until the underlying problem is fixed
-      properties:
-        id:
-          type: string
-          description: Stable continuous evaluation identifier.
-          example: ceval_123
-        name:
-          type: string
-          description: >-
-            Human-readable deployment name. This is independent from the
-            evaluator name.
-          example: answer-correctness-live
-        evaluator:
-          $ref: '#/components/schemas/unstableContinuousEvaluationEvaluator'
-          description: >-
-            Evaluator currently used by this rule.
-
-
-            `name` and `scope` identify the evaluator family conceptually.
-
-            `id` is the currently active evaluator version in that family.
-
-            If you create a newer project version with the same evaluator name
-            later, existing continuous evaluations are moved to it
-            automatically.
-        target:
-          $ref: '#/components/schemas/unstableContinuousEvaluationTarget'
-          description: Target object type that should trigger scoring.
-        enabled:
-          type: boolean
-          description: Desired enabled state configured by the client.
-          example: true
-        status:
-          $ref: '#/components/schemas/unstableContinuousEvaluationStatus'
-          description: >-
-            Effective runtime status after Langfuse applies validation and
-            blocking rules.
-        pausedReason:
-          type: string
-          nullable: true
-          description: Machine-readable reason when `status=paused`, otherwise `null`.
-        pausedMessage:
-          type: string
-          nullable: true
-          description: Human-readable explanation when `status=paused`, otherwise `null`.
-        sampling:
-          type: number
-          format: double
-          description: |-
-            Fraction of matching target objects that should be evaluated.
-
-            Must be greater than `0` and less than or equal to `1`.
-            - `1` means evaluate every matching target.
-            - `0.25` means evaluate approximately 25% of matching targets.
-          example: 1
-        filter:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationFilter'
-          description: >-
-            List of filter conditions used to decide whether a target should be
-            evaluated.
-        mapping:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationMapping'
-          description: >-
-            Variable mappings used to populate the evaluator prompt from the
-            live target object.
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the continuous evaluation was created.
-          example: '2026-03-30T09:20:00.000Z'
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the continuous evaluation was last updated.
-          example: '2026-03-30T09:20:00.000Z'
-      required:
-        - id
-        - name
-        - evaluator
-        - target
-        - enabled
-        - status
-        - sampling
-        - filter
-        - mapping
-        - createdAt
-        - updatedAt
-    unstableContinuousEvaluations:
-      title: unstableContinuousEvaluations
-      type: object
-      description: Paginated list of continuous evaluations.
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluation'
-          description: Continuous evaluations in the current page.
-        meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
-          description: Standard pagination metadata.
-      required:
-        - data
-        - meta
-    unstableCreateContinuousEvaluationRequest:
-      title: unstableCreateContinuousEvaluationRequest
-      type: object
-      description: >-
-        Request body for creating a continuous evaluation.
-
-
-        Checklist for agents and SDK clients:
-
-        - reference an existing evaluator family by `evaluator.name` and
-        `evaluator.scope`
-
-        - choose `target=observation` or `target=experiment`
-
-        - if `target=experiment` and you want a dataset filter, call `GET
-        /api/public/v2/datasets` first and use dataset `id` values in
-        `filter[].value`
-
-        - fetch or inspect the evaluator first, then provide a complete variable
-        mapping for every evaluator variable listed in `variables`
-
-        - optionally narrow execution with `filter`
-
-        - set `enabled=true` only when you want live execution immediately
-      properties:
-        name:
-          type: string
-          description: Human-readable deployment name.
-          example: answer-correctness-live
-        evaluator:
-          $ref: '#/components/schemas/unstableContinuousEvaluationEvaluatorReference'
-          description: >-
-            Evaluator family to use.
-
-
-            Use `name` and `scope` from the evaluator endpoints.
-
-            Langfuse resolves that family to its latest version before saving
-            the rule.
-        target:
-          $ref: '#/components/schemas/unstableContinuousEvaluationTarget'
-          description: Target object type to evaluate.
-        enabled:
-          type: boolean
-          description: Whether the deployment should be active immediately after creation.
-          example: true
-        sampling:
-          type: number
-          format: double
-          nullable: true
-          description: Optional sampling fraction. Defaults to `1`.
-        filter:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationFilter'
-          nullable: true
-          description: >-
-            Optional filter list.
-
-
-            Omit or pass an empty list to evaluate all matching targets for the
-            selected `target`.
-
-            Each filter object must use a column that is valid for that
-            `target`.
-
-            For `target=experiment`, `column=datasetId` expects dataset `id`
-            values from `GET /api/public/v2/datasets`, not dataset names.
-        mapping:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationMapping'
-          description: >-
-            Required variable mappings.
-
-
-            Every evaluator variable must appear exactly once.
-
-            Build this list from the evaluator `variables` array returned by the
-            evaluator endpoints.
-      required:
-        - name
-        - evaluator
-        - target
-        - enabled
-        - mapping
-    unstableUpdateContinuousEvaluationRequest:
-      title: unstableUpdateContinuousEvaluationRequest
-      type: object
-      description: >-
-        Partial update body for a continuous evaluation.
-
-
-        Provide only the fields you want to change.
-
-        An empty body is rejected.
-
-
-        Practical guidance:
-
-        - If you only want to rename the rule or change sampling, send just
-        those fields.
-
-        - If you change `evaluator`, send a fresh `mapping` unless you are
-        certain the existing mapping still matches the evaluator variables.
-
-        - If you change `target`, usually send both `filter` and `mapping` in
-        the same request.
-
-        - If you change an experiment `datasetId` filter, call `GET
-        /api/public/v2/datasets` and use dataset `id` values from that response.
-      properties:
-        name:
-          type: string
-          nullable: true
-          description: Updated deployment name.
-        evaluator:
-          $ref: '#/components/schemas/unstableContinuousEvaluationEvaluatorReference'
-          nullable: true
-          description: >-
-            Updated evaluator family.
-
-
-            Langfuse resolves the provided evaluator family to its latest
-            version before saving the rule.
-        target:
-          $ref: '#/components/schemas/unstableContinuousEvaluationTarget'
-          nullable: true
-          description: Updated target object type.
-        enabled:
-          type: boolean
-          nullable: true
-          description: Updated desired enabled state.
-        sampling:
-          type: number
-          format: double
-          nullable: true
-          description: Updated sampling fraction.
-        filter:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationFilter'
-          nullable: true
-          description: >-
-            Updated filter list.
-
-
-            For `target=experiment`, `column=datasetId` expects dataset `id`
-            values from `GET /api/public/v2/datasets`, not dataset names.
-        mapping:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableContinuousEvaluationMapping'
-          nullable: true
-          description: Updated variable mappings.
-    unstableDeleteContinuousEvaluationResponse:
-      title: unstableDeleteContinuousEvaluationResponse
-      type: object
-      description: Confirmation response returned after successful deletion.
-      properties:
-        message:
-          type: string
-          description: Always `Continuous evaluation successfully deleted`.
-      required:
-        - message
-    unstableContinuousEvaluationEvaluatorReference:
-      title: unstableContinuousEvaluationEvaluatorReference
-      type: object
-      description: >-
-        Evaluator family reference used when creating or updating a continuous
-        evaluation.
-
-
-        `name` and `scope` are enough to identify the evaluator family in the
-        authenticated project context.
-      properties:
-        name:
-          type: string
-          description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
-      required:
-        - name
-        - scope
-    unstableContinuousEvaluationEvaluator:
-      title: unstableContinuousEvaluationEvaluator
-      type: object
-      description: |-
-        Resolved evaluator currently used by the continuous evaluation.
-
-        `id` is the exact active evaluator version.
-        `name` and `scope` identify the evaluator family conceptually.
-      properties:
-        id:
-          type: string
-          description: >-
-            Identifier of the exact evaluator version currently used by the
-            rule.
-        name:
-          type: string
-          description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
-      required:
-        - id
-        - name
-        - scope
     unstablePublicApiErrorCode:
       title: unstablePublicApiErrorCode
       type: string
@@ -13246,7 +12886,7 @@ components:
           nullable: true
           description: >-
             Numeric limit associated with the failure, for example the active
-            continuous-evaluation cap or the current rate-limit window.
+            evaluation-rule cap or the current rate-limit window.
         remaining:
           type: integer
           nullable: true
@@ -13291,6 +12931,349 @@ components:
       required:
         - message
         - code
+    unstableEvaluationRule:
+      title: unstableEvaluationRule
+      type: object
+      description: >-
+        Live evaluation rule for incoming data.
+
+
+        An evaluation rule answers:
+
+        - which evaluator should be used
+
+        - which target objects should trigger scoring
+
+        - how often scoring should run
+
+        - which target fields should populate each evaluator variable
+
+        - whether the deployment is active, inactive, or paused
+
+
+        Important status semantics:
+
+        - `enabled` is the desired on/off setting from the client
+
+        - `status` is the effective runtime state after Langfuse applies
+        validation and blocking rules
+
+        - `enabled=true` with `status=paused` means the rule should run, but
+        Langfuse has paused it until the underlying problem is fixed
+      properties:
+        id:
+          type: string
+          description: Stable evaluation rule identifier.
+          example: erule_123
+        name:
+          type: string
+          description: >-
+            Human-readable deployment name. This is independent from the
+            evaluator name.
+          example: answer-correctness-live
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+          description: >-
+            Evaluator currently used by this rule.
+
+
+            `name` and `scope` identify the evaluator family conceptually.
+
+            `id` is the currently active evaluator version in that family.
+
+            If you create a newer project version with the same evaluator name
+            later, existing evaluation rules are moved to it automatically.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type that should trigger scoring.
+        enabled:
+          type: boolean
+          description: Desired enabled state configured by the client.
+          example: true
+        status:
+          $ref: '#/components/schemas/unstableEvaluationRuleStatus'
+          description: >-
+            Effective runtime status after Langfuse applies validation and
+            blocking rules.
+        pausedReason:
+          type: string
+          nullable: true
+          description: Machine-readable reason when `status=paused`, otherwise `null`.
+        pausedMessage:
+          type: string
+          nullable: true
+          description: Human-readable explanation when `status=paused`, otherwise `null`.
+        sampling:
+          type: number
+          format: double
+          description: |-
+            Fraction of matching target objects that should be evaluated.
+
+            Must be greater than `0` and less than or equal to `1`.
+            - `1` means evaluate every matching target.
+            - `0.25` means evaluate approximately 25% of matching targets.
+          example: 1
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          description: >-
+            List of filter conditions used to decide whether a target should be
+            evaluated.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          description: >-
+            Variable mappings used to populate the evaluator prompt from the
+            live target object.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was created.
+          example: '2026-03-30T09:20:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was last updated.
+          example: '2026-03-30T09:20:00.000Z'
+      required:
+        - id
+        - name
+        - evaluator
+        - target
+        - enabled
+        - status
+        - sampling
+        - filter
+        - mapping
+        - createdAt
+        - updatedAt
+    unstableEvaluationRules:
+      title: unstableEvaluationRules
+      type: object
+      description: Paginated list of evaluation rules.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRule'
+          description: Evaluation rules in the current page.
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+          description: Standard pagination metadata.
+      required:
+        - data
+        - meta
+    unstableCreateEvaluationRuleRequest:
+      title: unstableCreateEvaluationRuleRequest
+      type: object
+      description: >-
+        Request body for creating an evaluation rule.
+
+
+        Checklist for agents and SDK clients:
+
+        - reference an existing evaluator family by `evaluator.name` and
+        `evaluator.scope`
+
+        - choose `target=observation` or `target=experiment`
+
+        - if `target=experiment` and you want a dataset filter, call `GET
+        /api/public/v2/datasets` first and use dataset `id` values in
+        `filter[].value`
+
+        - fetch or inspect the evaluator first, then provide a complete variable
+        mapping for every evaluator variable listed in `variables`
+
+        - optionally narrow execution with `filter`
+
+        - set `enabled=true` only when you want live execution immediately
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+          example: answer-correctness-live
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
+          description: >-
+            Evaluator family to use.
+
+
+            Use `name` and `scope` from the evaluator endpoints.
+
+            Langfuse resolves that family to its latest version before saving
+            the rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type to evaluate.
+        enabled:
+          type: boolean
+          description: Whether the deployment should be active immediately after creation.
+          example: true
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Optional sampling fraction. Defaults to `1`.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Optional filter list.
+
+
+            Omit or pass an empty list to evaluate all matching targets for the
+            selected `target`.
+
+            Each filter object must use a column that is valid for that
+            `target`.
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          description: >-
+            Required variable mappings.
+
+
+            Every evaluator variable must appear exactly once.
+
+            Build this list from the evaluator `variables` array returned by the
+            evaluator endpoints.
+      required:
+        - name
+        - evaluator
+        - target
+        - enabled
+        - mapping
+    unstableUpdateEvaluationRuleRequest:
+      title: unstableUpdateEvaluationRuleRequest
+      type: object
+      description: >-
+        Partial update body for an evaluation rule.
+
+
+        Provide only the fields you want to change.
+
+        An empty body is rejected.
+
+
+        Practical guidance:
+
+        - If you only want to rename the rule or change sampling, send just
+        those fields.
+
+        - If you change `evaluator`, send a fresh `mapping` unless you are
+        certain the existing mapping still matches the evaluator variables.
+
+        - If you change `target`, usually send both `filter` and `mapping` in
+        the same request.
+
+        - If you change an experiment `datasetId` filter, call `GET
+        /api/public/v2/datasets` and use dataset `id` values from that response.
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: Updated deployment name.
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
+          nullable: true
+          description: >-
+            Updated evaluator family.
+
+
+            Langfuse resolves the provided evaluator family to its latest
+            version before saving the rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          nullable: true
+          description: Updated target object type.
+        enabled:
+          type: boolean
+          nullable: true
+          description: Updated desired enabled state.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Updated sampling fraction.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Updated filter list.
+
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: Updated variable mappings.
+    unstableDeleteEvaluationRuleResponse:
+      title: unstableDeleteEvaluationRuleResponse
+      type: object
+      description: Confirmation response returned after successful deletion.
+      properties:
+        message:
+          type: string
+          description: Always `Evaluation rule successfully deleted`.
+      required:
+        - message
+    unstableEvaluationRuleEvaluatorReference:
+      title: unstableEvaluationRuleEvaluatorReference
+      type: object
+      description: >-
+        Evaluator family reference used when creating or updating an evaluation
+        rule.
+
+
+        `name` and `scope` are enough to identify the evaluator family in the
+        authenticated project context.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+      required:
+        - name
+        - scope
+    unstableEvaluationRuleEvaluator:
+      title: unstableEvaluationRuleEvaluator
+      type: object
+      description: |-
+        Resolved evaluator currently used by the evaluation rule.
+
+        `id` is the exact active evaluator version.
+        `name` and `scope` identify the evaluator family conceptually.
+      properties:
+        id:
+          type: string
+          description: >-
+            Identifier of the exact evaluator version currently used by the
+            rule.
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+      required:
+        - id
+        - name
+        - scope
     unstableEvaluator:
       title: unstableEvaluator
       type: object
@@ -13310,13 +13293,13 @@ components:
 
 
         It does not define **which** live objects are evaluated. That is the job
-        of `continuous-evaluations`.
+        of `evaluation-rules`.
 
 
         For agent clients, the most important fields are:
 
-        - `variables`: use these exact names when building the
-        continuous-evaluation `mapping` array
+        - `variables`: use these exact names when building the evaluation-rule
+        `mapping` array
 
         - `outputDefinition`: tells you the expected score type and the
         evaluator's response instructions
@@ -13332,7 +13315,7 @@ components:
 
         - `GET /evaluators/{id}` can return an older version.
 
-        - Continuous evaluations always run against the latest version for the
+        - Evaluation rules always run against the latest version for the
         selected evaluator name within the same source (`project` or `managed`).
       properties:
         id:
@@ -13377,7 +13360,7 @@ components:
 
 
             Every variable in this list must be mapped exactly once when
-            creating a continuous evaluation.
+            creating an evaluation rule.
           example:
             - input
             - output
@@ -13397,11 +13380,11 @@ components:
           description: >-
             Explicit model configuration, or `null` when the project default
             evaluation model is used.
-        continuousEvaluationCount:
+        evaluationRuleCount:
           type: integer
           description: >-
-            Number of continuous evaluations in the project that currently use
-            this evaluator version.
+            Number of evaluation rules in the project that currently use this
+            evaluator version.
           example: 0
         createdAt:
           type: string
@@ -13422,7 +13405,7 @@ components:
         - prompt
         - variables
         - outputDefinition
-        - continuousEvaluationCount
+        - evaluationRuleCount
         - createdAt
         - updatedAt
     unstableEvaluators:
@@ -13448,8 +13431,8 @@ components:
         If the same `name` already exists in your project, Langfuse creates the
         next version and returns it.
 
-        Existing continuous evaluations in the same project are then moved to
-        that new latest version automatically.
+        Existing evaluation rules in the same project are then moved to that new
+        latest version automatically.
       properties:
         name:
           type: string

@@ -69,34 +69,31 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
   ],
 );
 
-export const PublicContinuousEvaluationTarget = z.enum([
-  "observation",
-  "experiment",
-]);
+export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
 
-export const PublicContinuousEvaluationStatus = z.enum([
+export const PublicEvaluationRuleStatus = z.enum([
   "active",
   "inactive",
   "paused",
 ]);
 
-export const PublicContinuousEvaluationEvaluatorReference = z.object({
+export const PublicEvaluationRuleEvaluatorReference = z.object({
   name: z.string().min(1),
   scope: PublicEvaluatorScope,
 });
 
-export const PublicContinuousEvaluationEvaluator =
-  PublicContinuousEvaluationEvaluatorReference.extend({
+export const PublicEvaluationRuleEvaluator =
+  PublicEvaluationRuleEvaluatorReference.extend({
     id: z.string(),
   });
 
-export const ObservationContinuousEvaluationMappingSource = z.enum([
+export const ObservationEvaluationRuleMappingSource = z.enum([
   "input",
   "output",
   "metadata",
 ]);
 
-export const ExperimentContinuousEvaluationMappingSource = z.enum([
+export const ExperimentEvaluationRuleMappingSource = z.enum([
   "input",
   "output",
   "metadata",
@@ -115,17 +112,17 @@ function createMappingSchema<
   });
 }
 
-export const ObservationContinuousEvaluationMapping = createMappingSchema(
-  ObservationContinuousEvaluationMappingSource,
+export const ObservationEvaluationRuleMapping = createMappingSchema(
+  ObservationEvaluationRuleMappingSource,
 );
 
-export const ExperimentContinuousEvaluationMapping = createMappingSchema(
-  ExperimentContinuousEvaluationMappingSource,
+export const ExperimentEvaluationRuleMapping = createMappingSchema(
+  ExperimentEvaluationRuleMappingSource,
 );
 
-export const PublicContinuousEvaluationMapping = z.union([
-  ObservationContinuousEvaluationMapping,
-  ExperimentContinuousEvaluationMapping,
+export const PublicEvaluationRuleMapping = z.union([
+  ObservationEvaluationRuleMapping,
+  ExperimentEvaluationRuleMapping,
 ]);
 
 const filterSchemaFactories = {
@@ -173,30 +170,30 @@ function createTargetFilterSchema(
   );
 }
 
-export const OBSERVATION_CONTINUOUS_EVALUATION_FILTER_COLUMNS =
+export const OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS =
   observationEvalFilterColumns.map((column) => ({
     id: column.id,
     type: column.type as SupportedFilterFactory,
   }));
 
-export const EXPERIMENT_CONTINUOUS_EVALUATION_FILTER_COLUMNS = [
+export const EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS = [
   {
     id: "datasetId",
     type: experimentEvalFilterColumns[0]!.type as SupportedFilterFactory,
   },
 ];
 
-export const ObservationContinuousEvaluationFilter = createTargetFilterSchema(
-  OBSERVATION_CONTINUOUS_EVALUATION_FILTER_COLUMNS,
+export const ObservationEvaluationRuleFilter = createTargetFilterSchema(
+  OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS,
 );
 
-export const ExperimentContinuousEvaluationFilter = createTargetFilterSchema(
-  EXPERIMENT_CONTINUOUS_EVALUATION_FILTER_COLUMNS,
+export const ExperimentEvaluationRuleFilter = createTargetFilterSchema(
+  EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS,
 );
 
-export const PublicContinuousEvaluationFilter = z.union([
-  ObservationContinuousEvaluationFilter,
-  ExperimentContinuousEvaluationFilter,
+export const PublicEvaluationRuleFilter = z.union([
+  ObservationEvaluationRuleFilter,
+  ExperimentEvaluationRuleFilter,
 ]);
 
 export type PublicEvaluatorModelConfigType = z.infer<
@@ -206,23 +203,23 @@ export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
 >;
 export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
-export type PublicContinuousEvaluationTargetType = z.infer<
-  typeof PublicContinuousEvaluationTarget
+export type PublicEvaluationRuleTargetType = z.infer<
+  typeof PublicEvaluationRuleTarget
 >;
-export type PublicContinuousEvaluationStatusType = z.infer<
-  typeof PublicContinuousEvaluationStatus
+export type PublicEvaluationRuleStatusType = z.infer<
+  typeof PublicEvaluationRuleStatus
 >;
-export type PublicContinuousEvaluationEvaluatorReferenceType = z.infer<
-  typeof PublicContinuousEvaluationEvaluatorReference
+export type PublicEvaluationRuleEvaluatorReferenceType = z.infer<
+  typeof PublicEvaluationRuleEvaluatorReference
 >;
-export type PublicContinuousEvaluationEvaluatorType = z.infer<
-  typeof PublicContinuousEvaluationEvaluator
+export type PublicEvaluationRuleEvaluatorType = z.infer<
+  typeof PublicEvaluationRuleEvaluator
 >;
-export type PublicContinuousEvaluationMappingType = z.infer<
-  typeof PublicContinuousEvaluationMapping
+export type PublicEvaluationRuleMappingType = z.infer<
+  typeof PublicEvaluationRuleMapping
 >;
-export type PublicContinuousEvaluationFilterType = z.infer<
-  typeof PublicContinuousEvaluationFilter
+export type PublicEvaluationRuleFilterType = z.infer<
+  typeof PublicEvaluationRuleFilter
 >;
 export type {
   UnstablePublicApiErrorCodeType,

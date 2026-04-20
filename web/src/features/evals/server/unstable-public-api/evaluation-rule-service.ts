@@ -2,55 +2,54 @@ import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
 import type {
-  PatchUnstableContinuousEvaluationBodyType,
-  PostUnstableContinuousEvaluationBodyType,
-} from "@/src/features/public-api/types/unstable-continuous-evaluations";
+  PatchUnstableEvaluationRuleBodyType,
+  PostUnstableEvaluationRuleBodyType,
+} from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
   deriveEvaluatorVariables,
-  toApiContinuousEvaluation,
+  toApiEvaluationRule,
   toJobConfigurationInput,
 } from "./adapters";
 import {
-  countActiveContinuousEvaluations,
-  findPublicContinuousEvaluationOrThrow,
-  listPublicContinuousEvaluationConfigs,
-  loadEvaluatorForContinuousEvaluation,
+  countActiveEvaluationRules,
+  findPublicEvaluationRuleOrThrow,
+  listPublicEvaluationRuleConfigs,
+  loadEvaluatorForEvaluationRule,
 } from "./queries";
 import {
-  assertContinuousEvaluationFilterValuesExistForProject,
+  assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
-const MAX_ACTIVE_CONTINUOUS_EVALUATIONS = 50;
+const MAX_ACTIVE_EVALUATION_RULES = 50;
 
-async function assertActivePublicApiContinuousEvaluationLimitNotExceeded(
+async function assertActivePublicApiEvaluationRuleLimitNotExceeded(
   projectId: string,
 ) {
-  const activeCount = await countActiveContinuousEvaluations({ projectId });
+  const activeCount = await countActiveEvaluationRules({ projectId });
 
-  if (activeCount >= MAX_ACTIVE_CONTINUOUS_EVALUATIONS) {
+  if (activeCount >= MAX_ACTIVE_EVALUATION_RULES) {
     throw createUnstablePublicApiError({
       httpCode: 409,
       code: "conflict",
-      message: `This project already has the maximum number of active continuous evaluations (${MAX_ACTIVE_CONTINUOUS_EVALUATIONS}). Disable an existing active continuous evaluation before enabling another one.`,
+      message: `This project already has the maximum number of active evaluation rules (${MAX_ACTIVE_EVALUATION_RULES}). Disable an existing active evaluation rule before enabling another one.`,
       details: {
-        limit: MAX_ACTIVE_CONTINUOUS_EVALUATIONS,
+        limit: MAX_ACTIVE_EVALUATION_RULES,
       },
     });
   }
 }
 
-export async function listPublicContinuousEvaluations(params: {
+export async function listPublicEvaluationRules(params: {
   projectId: string;
   page: number;
   limit: number;
 }) {
-  const { configs, totalItems } =
-    await listPublicContinuousEvaluationConfigs(params);
+  const { configs, totalItems } = await listPublicEvaluationRuleConfigs(params);
 
   return {
-    data: configs.map((config) => toApiContinuousEvaluation(config)),
+    data: configs.map((config) => toApiEvaluationRule(config)),
     meta: {
       page: params.page,
       limit: params.limit,
@@ -60,17 +59,17 @@ export async function listPublicContinuousEvaluations(params: {
   };
 }
 
-export async function getPublicContinuousEvaluation(params: {
+export async function getPublicEvaluationRule(params: {
   projectId: string;
-  continuousEvaluationId: string;
+  evaluationRuleId: string;
 }) {
-  const config = await findPublicContinuousEvaluationOrThrow(params);
-  return toApiContinuousEvaluation(config);
+  const config = await findPublicEvaluationRuleOrThrow(params);
+  return toApiEvaluationRule(config);
 }
 
-export async function createPublicContinuousEvaluation(params: {
+export async function createPublicEvaluationRule(params: {
   projectId: string;
-  input: PostUnstableContinuousEvaluationBodyType;
+  input: PostUnstableEvaluationRuleBodyType;
 }) {
   const existing = await prisma.jobConfiguration.findFirst({
     where: {
@@ -90,7 +89,7 @@ export async function createPublicContinuousEvaluation(params: {
     throw createUnstablePublicApiError({
       httpCode: 409,
       code: "name_conflict",
-      message: `A continuous evaluation named "${params.input.name}" already exists in this project. Use PATCH /api/public/unstable/continuous-evaluations/${existing.id} to update it instead of creating a duplicate.`,
+      message: `An evaluation rule named "${params.input.name}" already exists in this project. Use PATCH /api/public/unstable/evaluation-rules/${existing.id} to update it instead of creating a duplicate.`,
       details: {
         field: "name",
       },
@@ -98,18 +97,16 @@ export async function createPublicContinuousEvaluation(params: {
   }
 
   if (params.input.enabled) {
-    await assertActivePublicApiContinuousEvaluationLimitNotExceeded(
-      params.projectId,
-    );
+    await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
 
-  await assertContinuousEvaluationFilterValuesExistForProject({
+  await assertEvaluationRuleFilterValuesExistForProject({
     projectId: params.projectId,
     target: params.input.target,
     filters: params.input.filter,
   });
 
-  const { template } = await loadEvaluatorForContinuousEvaluation({
+  const { template } = await loadEvaluatorForEvaluationRule({
     projectId: params.projectId,
     evaluator: params.input.evaluator,
   });
@@ -170,34 +167,32 @@ export async function createPublicContinuousEvaluation(params: {
     await invalidateProjectEvalConfigCaches(params.projectId);
   }
 
-  return toApiContinuousEvaluation(created);
+  return toApiEvaluationRule(created);
 }
 
-export async function updatePublicContinuousEvaluation(params: {
+export async function updatePublicEvaluationRule(params: {
   projectId: string;
-  continuousEvaluationId: string;
-  input: PatchUnstableContinuousEvaluationBodyType;
+  evaluationRuleId: string;
+  input: PatchUnstableEvaluationRuleBodyType;
 }) {
-  const existing = await findPublicContinuousEvaluationOrThrow({
+  const existing = await findPublicEvaluationRuleOrThrow({
     projectId: params.projectId,
-    continuousEvaluationId: params.continuousEvaluationId,
+    evaluationRuleId: params.evaluationRuleId,
   });
-  const existingPublic = toApiContinuousEvaluation(existing);
+  const existingPublic = toApiEvaluationRule(existing);
   const nextEnabled = params.input.enabled ?? existingPublic.enabled;
   const shouldCountAgainstActiveLimit =
     nextEnabled && existingPublic.status !== "active";
 
   if (shouldCountAgainstActiveLimit) {
-    await assertActivePublicApiContinuousEvaluationLimitNotExceeded(
-      params.projectId,
-    );
+    await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
 
   const nextEvaluator = params.input.evaluator ?? {
     name: existingPublic.evaluator.name,
     scope: existingPublic.evaluator.scope,
   };
-  const { template } = await loadEvaluatorForContinuousEvaluation({
+  const { template } = await loadEvaluatorForEvaluationRule({
     projectId: params.projectId,
     evaluator: nextEvaluator,
   });
@@ -210,7 +205,7 @@ export async function updatePublicContinuousEvaluation(params: {
       ? params.input.filter
       : existingPublic.filter;
   if ("filter" in params.input && params.input.filter !== undefined) {
-    await assertContinuousEvaluationFilterValuesExistForProject({
+    await assertEvaluationRuleFilterValuesExistForProject({
       projectId: params.projectId,
       target: nextTarget,
       filters: params.input.filter,
@@ -249,7 +244,7 @@ export async function updatePublicContinuousEvaluation(params: {
 
   const updated = await prisma.jobConfiguration.update({
     where: {
-      id: params.continuousEvaluationId,
+      id: params.evaluationRuleId,
       projectId: params.projectId,
     },
     data: {
@@ -283,18 +278,18 @@ export async function updatePublicContinuousEvaluation(params: {
 
   await invalidateProjectEvalConfigCaches(params.projectId);
 
-  return toApiContinuousEvaluation(updated);
+  return toApiEvaluationRule(updated);
 }
 
-export async function deletePublicContinuousEvaluation(params: {
+export async function deletePublicEvaluationRule(params: {
   projectId: string;
-  continuousEvaluationId: string;
+  evaluationRuleId: string;
 }) {
-  const existing = await findPublicContinuousEvaluationOrThrow(params);
+  const existing = await findPublicEvaluationRuleOrThrow(params);
 
   await prisma.jobConfiguration.delete({
     where: {
-      id: params.continuousEvaluationId,
+      id: params.evaluationRuleId,
       projectId: params.projectId,
     },
   });

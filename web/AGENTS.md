@@ -25,7 +25,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
-- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,continuous-evaluations}/*`
+- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:
@@ -91,7 +91,7 @@ signoff of user-visible changes.
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
 - Public eval endpoints should keep the split between reusable `evaluators`
-  and ingestion-scoped `continuous-evaluations`; do not leak `EvalTemplate` or
+  and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.

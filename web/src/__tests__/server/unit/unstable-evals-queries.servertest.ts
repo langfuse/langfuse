@@ -24,9 +24,9 @@ jest.mock("@langfuse/shared/src/db", () => {
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  countActiveContinuousEvaluations,
-  countContinuousEvaluationsForEvaluatorIds,
-  loadEvaluatorForContinuousEvaluation,
+  countActiveEvaluationRules,
+  countEvaluationRulesForEvaluatorIds,
+  loadEvaluatorForEvaluationRule,
   listPublicEvaluatorTemplates,
 } from "@/src/features/evals/server/unstable-public-api/queries";
 
@@ -86,7 +86,7 @@ describe("unstable public eval queries", () => {
   });
 
   it("skips the groupBy lookup when no evaluator ids are requested", async () => {
-    const result = await countContinuousEvaluationsForEvaluatorIds({
+    const result = await countEvaluationRulesForEvaluatorIds({
       projectId: "project_123",
       evaluatorIds: [],
     });
@@ -95,7 +95,7 @@ describe("unstable public eval queries", () => {
     expect(mockJobConfigurationGroupBy).not.toHaveBeenCalled();
   });
 
-  it("counts continuous evaluations by exact evaluator template id", async () => {
+  it("counts evaluation rules by exact evaluator template id", async () => {
     mockJobConfigurationGroupBy.mockResolvedValueOnce([
       {
         evalTemplateId: "tmpl_project_v2",
@@ -107,7 +107,7 @@ describe("unstable public eval queries", () => {
       },
     ]);
 
-    const result = await countContinuousEvaluationsForEvaluatorIds({
+    const result = await countEvaluationRulesForEvaluatorIds({
       projectId: "project_123",
       evaluatorIds: ["tmpl_project_v2", "tmpl_managed_v7"],
     });
@@ -133,10 +133,10 @@ describe("unstable public eval queries", () => {
     });
   });
 
-  it("counts all active continuous evaluations in the project", async () => {
+  it("counts all active evaluation rules in the project", async () => {
     mockJobConfigurationCount.mockResolvedValueOnce(17);
 
-    const result = await countActiveContinuousEvaluations({
+    const result = await countActiveEvaluationRules({
       projectId: "project_123",
     });
 
@@ -162,7 +162,7 @@ describe("unstable public eval queries", () => {
       version: 3,
     });
 
-    const result = await loadEvaluatorForContinuousEvaluation({
+    const result = await loadEvaluatorForEvaluationRule({
       projectId: "project_123",
       evaluator: {
         name: "Answer correctness",
@@ -189,7 +189,7 @@ describe("unstable public eval queries", () => {
       version: 7,
     });
 
-    const result = await loadEvaluatorForContinuousEvaluation({
+    const result = await loadEvaluatorForEvaluationRule({
       projectId: "project_123",
       evaluator: {
         name: "Answer correctness",

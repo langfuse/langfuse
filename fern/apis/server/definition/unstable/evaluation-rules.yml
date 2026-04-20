@@ -10,31 +10,31 @@ service:
   endpoints:
     create:
       docs: |
-        Create a continuous evaluation.
+        Create an evaluation rule.
 
-        A continuous evaluation defines **what** incoming data should be evaluated and **how prompt variables should be populated** from that data.
+        An evaluation rule defines **what** incoming data should be evaluated and **how prompt variables should be populated** from that data.
 
         Use this resource after choosing an evaluator from the evaluator endpoints.
 
         Key rules:
-        - `name` must be unique within the project for public continuous evaluations
+        - `name` must be unique within the project for public evaluation rules
         - `target` must be `observation` or `experiment`
         - `evaluator.name` + `evaluator.scope` must identify an existing evaluator family returned by the evaluator endpoints
-        - Langfuse resolves that family to its latest version before saving the continuous evaluation
+        - Langfuse resolves that family to its latest version before saving the evaluation rule
         - for `target=experiment`, use dataset `id` values from `GET /api/public/v2/datasets` when filtering by `datasetId`
         - every evaluator prompt variable must be mapped exactly once
         - `expected_output` mappings are only valid for `target=experiment`
         - if `enabled=true`, Langfuse validates that the referenced evaluator can currently run
-        - at most 50 continuous evaluations can be effectively active in one project at the same time
+        - at most 50 evaluation rules can be effectively active in one project at the same time
 
-        If a continuous evaluation with the same `name` already exists in the project, the API returns `409`.
-        In that case, update the existing resource with `PATCH /api/public/unstable/continuous-evaluations/{continuousEvaluationId}` instead of creating a second one.
+        If an evaluation rule with the same `name` already exists in the project, the API returns `409`.
+        In that case, update the existing resource with `PATCH /api/public/unstable/evaluation-rules/{evaluationRuleId}` instead of creating a second one.
 
         If enabling this resource would exceed the 50-active limit, the API also returns `409`.
-        In that case, disable or pause another active continuous evaluation before enabling a new one.
+        In that case, disable or pause another active evaluation rule before enabling a new one.
 
         Current scope:
-        - continuous evaluations are live-ingestion rules only
+        - evaluation rules are live-ingestion rules only
         - they do not trigger historical backfills
 
         Recovery guidance:
@@ -46,9 +46,9 @@ service:
         - `400 invalid_json_path`: remove or correct the `jsonPath`
         - `422 evaluator_preflight_failed`: the selected evaluator cannot run with the resolved model configuration. Fix the evaluator/default model setup, then retry the create request.
       method: POST
-      path: /continuous-evaluations
-      request: CreateContinuousEvaluationRequest
-      response: ContinuousEvaluation
+      path: /evaluation-rules
+      request: CreateEvaluationRuleRequest
+      response: EvaluationRule
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -60,7 +60,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
       examples:
-        - name: CreateObservationContinuousEvaluation
+        - name: CreateObservationEvaluationRule
           docs: Deploy an evaluator to score live generations only.
           request:
             name: answer-correctness-live
@@ -83,7 +83,7 @@ service:
                 source: output
           response:
             body:
-              id: ceval_123
+              id: erule_123
               name: answer-correctness-live
               evaluator:
                 id: evaltmpl_123
@@ -108,7 +108,7 @@ service:
                   source: output
               createdAt: "2026-03-30T09:20:00.000Z"
               updatedAt: "2026-03-30T09:20:00.000Z"
-        - name: CreateExperimentContinuousEvaluation
+        - name: CreateExperimentEvaluationRule
           docs: Deploy an evaluator to compare experiment outputs against expected outputs. Discover valid dataset IDs with `GET /api/public/v2/datasets` first.
           request:
             name: experiment-expected-output-match
@@ -131,7 +131,7 @@ service:
                 source: expected_output
           response:
             body:
-              id: ceval_456
+              id: erule_456
               name: experiment-expected-output-match
               evaluator:
                 id: evaltmpl_456
@@ -159,13 +159,13 @@ service:
 
     list:
       docs: |
-        List continuous evaluations in the authenticated project.
+        List evaluation rules in the authenticated project.
 
         Each item describes one live evaluation rule and its effective runtime status.
       method: GET
-      path: /continuous-evaluations
+      path: /evaluation-rules
       request:
-        name: ListContinuousEvaluationsRequest
+        name: ListEvaluationRulesRequest
         query-parameters:
           page:
             type: optional<integer>
@@ -173,7 +173,7 @@ service:
           limit:
             type: optional<integer>
             docs: Maximum number of items per page. Defaults to `50`.
-      response: ContinuousEvaluations
+      response: EvaluationRules
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -184,16 +184,16 @@ service:
 
     get:
       docs: |
-        Get one continuous evaluation by its identifier.
+        Get one evaluation rule by its identifier.
 
         Use this endpoint to inspect the current evaluator, target, mapping, filters, and effective runtime status.
       method: GET
-      path: /continuous-evaluations/{continuousEvaluationId}
+      path: /evaluation-rules/{evaluationRuleId}
       path-parameters:
-        continuousEvaluationId:
+        evaluationRuleId:
           type: string
-          docs: Continuous evaluation identifier returned by the continuous evaluation endpoints.
-      response: ContinuousEvaluation
+          docs: Evaluation rule identifier returned by the evaluation rule endpoints.
+      response: EvaluationRule
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -205,7 +205,7 @@ service:
 
     update:
       docs: |
-        Update a continuous evaluation.
+        Update an evaluation rule.
 
         Typical uses:
         - enable or disable live execution
@@ -220,19 +220,19 @@ service:
         - changing `target`, `filter`, or `mapping` must still produce a valid target-specific configuration
         - if you change `target`, also send a compatible `filter` and `mapping` in the same request unless the existing ones are still valid for the new target
         - if the resulting config is enabled, Langfuse re-validates that the selected evaluator can run
-        - if the update would move a non-active continuous evaluation into the active state and the project already has 50 active continuous evaluations, the API returns `409`
+        - if the update would move a non-active evaluation rule into the active state and the project already has 50 active evaluation rules, the API returns `409`
 
         Recovery guidance:
         - if the update fails with `missing_variable_mapping` or `invalid_variable_mapping` after changing `evaluator` or `target`, resend the request with a complete new `mapping`
         - if the update fails with `invalid_filter_value` after changing `target`, resend the request with a target-compatible `filter`
       method: PATCH
-      path: /continuous-evaluations/{continuousEvaluationId}
+      path: /evaluation-rules/{evaluationRuleId}
       path-parameters:
-        continuousEvaluationId:
+        evaluationRuleId:
           type: string
-          docs: Continuous evaluation identifier.
-      request: UpdateContinuousEvaluationRequest
-      response: ContinuousEvaluation
+          docs: Evaluation rule identifier.
+      request: UpdateEvaluationRuleRequest
+      response: EvaluationRule
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -245,16 +245,16 @@ service:
 
     delete:
       docs: |
-        Delete a continuous evaluation.
+        Delete an evaluation rule.
 
         This removes the live-ingestion rule only. It does not delete the referenced evaluator.
       method: DELETE
-      path: /continuous-evaluations/{continuousEvaluationId}
+      path: /evaluation-rules/{evaluationRuleId}
       path-parameters:
-        continuousEvaluationId:
+        evaluationRuleId:
           type: string
-          docs: Continuous evaluation identifier.
-      response: DeleteContinuousEvaluationResponse
+          docs: Evaluation rule identifier.
+      response: DeleteEvaluationRuleResponse
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -265,11 +265,11 @@ service:
         - errors.InternalServerError
 
 types:
-  ContinuousEvaluation:
+  EvaluationRule:
     docs: |
       Live evaluation rule for incoming data.
 
-      A continuous evaluation answers:
+      An evaluation rule answers:
       - which evaluator should be used
       - which target objects should trigger scoring
       - how often scoring should run
@@ -283,26 +283,26 @@ types:
     properties:
       id:
         type: string
-        docs: Stable continuous evaluation identifier.
+        docs: Stable evaluation rule identifier.
       name:
         type: string
         docs: Human-readable deployment name. This is independent from the evaluator name.
       evaluator:
-        type: ContinuousEvaluationEvaluator
+        type: EvaluationRuleEvaluator
         docs: |
           Evaluator currently used by this rule.
 
           `name` and `scope` identify the evaluator family conceptually.
           `id` is the currently active evaluator version in that family.
-          If you create a newer project version with the same evaluator name later, existing continuous evaluations are moved to it automatically.
+          If you create a newer project version with the same evaluator name later, existing evaluation rules are moved to it automatically.
       target:
-        type: commons.ContinuousEvaluationTarget
+        type: commons.EvaluationRuleTarget
         docs: Target object type that should trigger scoring.
       enabled:
         type: boolean
         docs: Desired enabled state configured by the client.
       status:
-        type: commons.ContinuousEvaluationStatus
+        type: commons.EvaluationRuleStatus
         docs: Effective runtime status after Langfuse applies validation and blocking rules.
       pausedReason:
         type: nullable<string>
@@ -319,20 +319,20 @@ types:
           - `1` means evaluate every matching target.
           - `0.25` means evaluate approximately 25% of matching targets.
       filter:
-        type: list<commons.ContinuousEvaluationFilter>
+        type: list<commons.EvaluationRuleFilter>
         docs: List of filter conditions used to decide whether a target should be evaluated.
       mapping:
-        type: list<commons.ContinuousEvaluationMapping>
+        type: list<commons.EvaluationRuleMapping>
         docs: Variable mappings used to populate the evaluator prompt from the live target object.
       createdAt:
         type: datetime
-        docs: Timestamp when the continuous evaluation was created.
+        docs: Timestamp when the evaluation rule was created.
       updatedAt:
         type: datetime
-        docs: Timestamp when the continuous evaluation was last updated.
+        docs: Timestamp when the evaluation rule was last updated.
     examples:
       - value:
-          id: ceval_123
+          id: erule_123
           name: answer-correctness-live
           evaluator:
             id: evaltmpl_123
@@ -358,19 +358,19 @@ types:
           createdAt: "2026-03-30T09:20:00.000Z"
           updatedAt: "2026-03-30T09:20:00.000Z"
 
-  ContinuousEvaluations:
-    docs: Paginated list of continuous evaluations.
+  EvaluationRules:
+    docs: Paginated list of evaluation rules.
     properties:
       data:
-        type: list<ContinuousEvaluation>
-        docs: Continuous evaluations in the current page.
+        type: list<EvaluationRule>
+        docs: Evaluation rules in the current page.
       meta:
         type: pagination.MetaResponse
         docs: Standard pagination metadata.
 
-  CreateContinuousEvaluationRequest:
+  CreateEvaluationRuleRequest:
     docs: |
-      Request body for creating a continuous evaluation.
+      Request body for creating an evaluation rule.
 
       Checklist for agents and SDK clients:
       - reference an existing evaluator family by `evaluator.name` and `evaluator.scope`
@@ -384,14 +384,14 @@ types:
         type: string
         docs: Human-readable deployment name.
       evaluator:
-        type: ContinuousEvaluationEvaluatorReference
+        type: EvaluationRuleEvaluatorReference
         docs: |
           Evaluator family to use.
 
           Use `name` and `scope` from the evaluator endpoints.
           Langfuse resolves that family to its latest version before saving the rule.
       target:
-        type: commons.ContinuousEvaluationTarget
+        type: commons.EvaluationRuleTarget
         docs: Target object type to evaluate.
       enabled:
         type: boolean
@@ -400,7 +400,7 @@ types:
         type: optional<double>
         docs: Optional sampling fraction. Defaults to `1`.
       filter:
-        type: optional<list<commons.ContinuousEvaluationFilter>>
+        type: optional<list<commons.EvaluationRuleFilter>>
         docs: |
           Optional filter list.
 
@@ -408,16 +408,16 @@ types:
           Each filter object must use a column that is valid for that `target`.
           For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
       mapping:
-        type: list<commons.ContinuousEvaluationMapping>
+        type: list<commons.EvaluationRuleMapping>
         docs: |
           Required variable mappings.
 
           Every evaluator variable must appear exactly once.
           Build this list from the evaluator `variables` array returned by the evaluator endpoints.
 
-  UpdateContinuousEvaluationRequest:
+  UpdateEvaluationRuleRequest:
     docs: |
-      Partial update body for a continuous evaluation.
+      Partial update body for an evaluation rule.
 
       Provide only the fields you want to change.
       An empty body is rejected.
@@ -432,13 +432,13 @@ types:
         type: optional<string>
         docs: Updated deployment name.
       evaluator:
-        type: optional<ContinuousEvaluationEvaluatorReference>
+        type: optional<EvaluationRuleEvaluatorReference>
         docs: |
           Updated evaluator family.
 
           Langfuse resolves the provided evaluator family to its latest version before saving the rule.
       target:
-        type: optional<commons.ContinuousEvaluationTarget>
+        type: optional<commons.EvaluationRuleTarget>
         docs: Updated target object type.
       enabled:
         type: optional<boolean>
@@ -447,25 +447,25 @@ types:
         type: optional<double>
         docs: Updated sampling fraction.
       filter:
-        type: optional<list<commons.ContinuousEvaluationFilter>>
+        type: optional<list<commons.EvaluationRuleFilter>>
         docs: |
           Updated filter list.
 
           For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
       mapping:
-        type: optional<list<commons.ContinuousEvaluationMapping>>
+        type: optional<list<commons.EvaluationRuleMapping>>
         docs: Updated variable mappings.
 
-  DeleteContinuousEvaluationResponse:
+  DeleteEvaluationRuleResponse:
     docs: Confirmation response returned after successful deletion.
     properties:
       message:
         type: string
-        docs: Always `Continuous evaluation successfully deleted`.
+        docs: Always `Evaluation rule successfully deleted`.
 
-  ContinuousEvaluationEvaluatorReference:
+  EvaluationRuleEvaluatorReference:
     docs: |
-      Evaluator family reference used when creating or updating a continuous evaluation.
+      Evaluator family reference used when creating or updating an evaluation rule.
 
       `name` and `scope` are enough to identify the evaluator family in the authenticated project context.
     properties:
@@ -476,9 +476,9 @@ types:
         type: commons.EvaluatorScope
         docs: Whether the evaluator family is project-owned or Langfuse-managed.
 
-  ContinuousEvaluationEvaluator:
+  EvaluationRuleEvaluator:
     docs: |
-      Resolved evaluator currently used by the continuous evaluation.
+      Resolved evaluator currently used by the evaluation rule.
 
       `id` is the exact active evaluator version.
       `name` and `scope` identify the evaluator family conceptually.

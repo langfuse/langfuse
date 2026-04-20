@@ -20,7 +20,7 @@ export const APIEvaluator = z
     variables: z.array(z.string()),
     outputDefinition: PublicEvaluatorOutputDefinition,
     modelConfig: PublicEvaluatorModelConfig.nullable(),
-    continuousEvaluationCount: z.number().int().nonnegative(),
+    evaluationRuleCount: z.number().int().nonnegative(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })

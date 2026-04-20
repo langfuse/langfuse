@@ -20,13 +20,13 @@ jest.mock(
 );
 
 jest.mock("../../../features/evals/server/unstable-public-api/queries", () => ({
-  countActiveContinuousEvaluations: jest.fn(),
+  countActiveEvaluationRules: jest.fn(),
   findPublicEvaluatorTemplateOrThrow: jest.fn(),
-  countContinuousEvaluationsForEvaluator: jest.fn(),
-  countContinuousEvaluationsForEvaluatorIds: jest.fn(),
+  countEvaluationRulesForEvaluator: jest.fn(),
+  countEvaluationRulesForEvaluatorIds: jest.fn(),
   listPublicEvaluatorTemplates: jest.fn(),
-  loadEvaluatorForContinuousEvaluation: jest.fn(),
-  findPublicContinuousEvaluationOrThrow: jest.fn(),
+  loadEvaluatorForEvaluationRule: jest.fn(),
+  findPublicEvaluationRuleOrThrow: jest.fn(),
 }));
 
 jest.mock("@langfuse/shared/src/server", () => ({
@@ -88,9 +88,9 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
-  createPublicContinuousEvaluation,
-  updatePublicContinuousEvaluation,
-} from "@/src/features/evals/server/unstable-public-api/continuous-evaluation-service";
+  createPublicEvaluationRule,
+  updatePublicEvaluationRule,
+} from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api/evaluator-service";
 import * as queryModule from "@/src/features/evals/server/unstable-public-api/queries";
 import * as validationModule from "@/src/features/evals/server/unstable-public-api/validation";
@@ -146,22 +146,20 @@ const mockedPrisma = prisma as unknown as {
 const mockAssertEvaluatorDefinitionCanRunForPublicApi = jest.mocked(
   validationModule.assertEvaluatorDefinitionCanRunForPublicApi,
 );
-const mockLoadEvaluatorForContinuousEvaluation = jest.mocked(
-  queryModule.loadEvaluatorForContinuousEvaluation,
+const mockLoadEvaluatorForEvaluationRule = jest.mocked(
+  queryModule.loadEvaluatorForEvaluationRule,
 );
-const mockCountActiveContinuousEvaluations = jest.mocked(
-  queryModule.countActiveContinuousEvaluations,
+const mockCountActiveEvaluationRules = jest.mocked(
+  queryModule.countActiveEvaluationRules,
 );
-const mockFindPublicContinuousEvaluationOrThrow = jest.mocked(
-  queryModule.findPublicContinuousEvaluationOrThrow,
+const mockFindPublicEvaluationRuleOrThrow = jest.mocked(
+  queryModule.findPublicEvaluationRuleOrThrow,
 );
-const mockCountContinuousEvaluationsForEvaluator = jest.mocked(
-  queryModule.countContinuousEvaluationsForEvaluator,
+const mockCountEvaluationRulesForEvaluator = jest.mocked(
+  queryModule.countEvaluationRulesForEvaluator,
 );
 
-const createContinuousEvaluationRecord = (
-  overrides?: Record<string, unknown>,
-) =>
+const createEvaluationRuleRecord = (overrides?: Record<string, unknown>) =>
   ({
     id: "ceval_123",
     projectId: "project_123",
@@ -196,8 +194,8 @@ const createContinuousEvaluationRecord = (
 describe("unstable public eval services", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCountActiveContinuousEvaluations.mockResolvedValue(0);
-    mockCountContinuousEvaluationsForEvaluator.mockResolvedValue(0);
+    mockCountActiveEvaluationRules.mockResolvedValue(0);
+    mockCountEvaluationRulesForEvaluator.mockResolvedValue(0);
     mockedPrisma.dataset.findMany.mockResolvedValue([]);
 
     mockedPrisma.$transaction.mockImplementation(async (callback) =>
@@ -295,7 +293,7 @@ describe("unstable public eval services", () => {
   });
 
   it("creates a new evaluator version when the project name already exists", async () => {
-    mockCountContinuousEvaluationsForEvaluator.mockResolvedValueOnce(2);
+    mockCountEvaluationRulesForEvaluator.mockResolvedValueOnce(2);
     mockEvalTemplateFindMany.mockResolvedValueOnce([
       {
         id: "tmpl_project_v2",
@@ -374,11 +372,11 @@ describe("unstable public eval services", () => {
       id: "tmpl_project_v3",
       version: 3,
       scope: "project",
-      continuousEvaluationCount: 2,
+      evaluationRuleCount: 2,
     });
   });
 
-  it("drops obsolete variable mappings when auto-upgrading linked continuous evaluations", async () => {
+  it("drops obsolete variable mappings when auto-upgrading linked evaluation rules", async () => {
     mockEvalTemplateFindMany.mockResolvedValueOnce([
       {
         id: "tmpl_project_v2",
@@ -438,7 +436,7 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("rejects evaluator version creation when linked continuous evaluations need new mappings", async () => {
+  it("rejects evaluator version creation when linked evaluation rules need new mappings", async () => {
     mockEvalTemplateFindMany.mockResolvedValueOnce([
       {
         id: "tmpl_project_v2",
@@ -469,15 +467,15 @@ describe("unstable public eval services", () => {
         },
       }),
     ).rejects.toThrow(
-      'Creating a new evaluator version would invalidate the continuous evaluation "answer_quality"',
+      'Creating a new evaluator version would invalidate the evaluation rule "answer_quality"',
     );
 
     expect(mockEvalTemplateCreate).not.toHaveBeenCalled();
     expect(mockJobConfigurationUpdate).not.toHaveBeenCalled();
   });
 
-  it("resolves an older evaluator version to the latest version when creating a continuous evaluation", async () => {
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+  it("resolves an older evaluator version to the latest version when creating an evaluation rule", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: {
         ...projectTemplate,
         id: "tmpl_project_v3",
@@ -485,7 +483,7 @@ describe("unstable public eval services", () => {
       },
     });
     mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+      createEvaluationRuleRecord({
         evalTemplateId: "tmpl_project_v3",
         evalTemplate: {
           id: "tmpl_project_v3",
@@ -497,7 +495,7 @@ describe("unstable public eval services", () => {
       }),
     );
 
-    const result = await createPublicContinuousEvaluation({
+    const result = await createPublicEvaluationRule({
       projectId: "project_123",
       input: {
         name: "answer_quality_latest",
@@ -513,7 +511,7 @@ describe("unstable public eval services", () => {
       },
     });
 
-    expect(mockLoadEvaluatorForContinuousEvaluation).toHaveBeenCalledWith({
+    expect(mockLoadEvaluatorForEvaluationRule).toHaveBeenCalledWith({
       projectId: "project_123",
       evaluator: {
         name: "Answer correctness",
@@ -535,8 +533,8 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("rejects unrunnable enabled continuous evaluations before writing", async () => {
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+  it("rejects unrunnable enabled evaluation rules before writing", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: projectTemplate,
     });
     mockAssertEvaluatorDefinitionCanRunForPublicApi.mockRejectedValueOnce(
@@ -548,7 +546,7 @@ describe("unstable public eval services", () => {
     );
 
     await expect(
-      createPublicContinuousEvaluation({
+      createPublicEvaluationRule({
         projectId: "project_123",
         input: {
           name: "answer_quality",
@@ -568,13 +566,13 @@ describe("unstable public eval services", () => {
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
-  it("returns a conflict when a continuous evaluation name already exists in the project", async () => {
+  it("returns a conflict when an evaluation rule name already exists in the project", async () => {
     mockedPrisma.jobConfiguration.findFirst.mockResolvedValueOnce({
       id: "ceval_existing",
     });
 
     await expect(
-      createPublicContinuousEvaluation({
+      createPublicEvaluationRule({
         projectId: "project_123",
         input: {
           name: "answer_quality",
@@ -590,18 +588,18 @@ describe("unstable public eval services", () => {
         },
       }),
     ).rejects.toThrow(
-      'A continuous evaluation named "answer_quality" already exists in this project.',
+      'An evaluation rule named "answer_quality" already exists in this project.',
     );
 
-    expect(mockLoadEvaluatorForContinuousEvaluation).not.toHaveBeenCalled();
+    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
-  it("rejects creating more than 50 active continuous evaluations", async () => {
-    mockCountActiveContinuousEvaluations.mockResolvedValueOnce(50);
+  it("rejects creating more than 50 active evaluation rules", async () => {
+    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
 
     await expect(
-      createPublicContinuousEvaluation({
+      createPublicEvaluationRule({
         projectId: "project_123",
         input: {
           name: "answer_quality",
@@ -617,20 +615,20 @@ describe("unstable public eval services", () => {
         },
       }),
     ).rejects.toThrow(
-      "This project already has the maximum number of active continuous evaluations (50).",
+      "This project already has the maximum number of active evaluation rules (50).",
     );
 
-    expect(mockLoadEvaluatorForContinuousEvaluation).not.toHaveBeenCalled();
+    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
-  it("rejects experiment continuous evaluations that reference unknown dataset ids", async () => {
+  it("rejects experiment evaluation rules that reference unknown dataset ids", async () => {
     mockedPrisma.dataset.findMany.mockResolvedValueOnce([
       { id: "dataset_valid" },
     ]);
 
     await expect(
-      createPublicContinuousEvaluation({
+      createPublicEvaluationRule({
         projectId: "project_123",
         input: {
           name: "experiment_answer_quality",
@@ -667,12 +665,12 @@ describe("unstable public eval services", () => {
         id: true,
       },
     });
-    expect(mockLoadEvaluatorForContinuousEvaluation).not.toHaveBeenCalled();
+    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
   it("passes stored modelParams into create-time evaluator preflight", async () => {
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: {
         ...projectTemplate,
         provider: "openai",
@@ -681,10 +679,10 @@ describe("unstable public eval services", () => {
       },
     });
     mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createContinuousEvaluationRecord(),
+      createEvaluationRuleRecord(),
     );
 
-    await createPublicContinuousEvaluation({
+    await createPublicEvaluationRule({
       projectId: "project_123",
       input: {
         name: "answer_quality",
@@ -713,17 +711,17 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("allows disabled continuous evaluations without preflight", async () => {
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+  it("allows disabled evaluation rules without preflight", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: projectTemplate,
     });
     mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+      createEvaluationRuleRecord({
         status: JobConfigState.INACTIVE,
       }),
     );
 
-    const result = await createPublicContinuousEvaluation({
+    const result = await createPublicEvaluationRule({
       projectId: "project_123",
       input: {
         name: "answer_quality",
@@ -753,12 +751,12 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("allows continuous evaluations to reference managed evaluators by exact template id", async () => {
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+  it("allows evaluation rules to reference managed evaluators by exact template id", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: managedTemplate,
     });
     mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+      createEvaluationRuleRecord({
         evalTemplateId: "tmpl_managed",
         evalTemplate: {
           id: "tmpl_managed",
@@ -770,7 +768,7 @@ describe("unstable public eval services", () => {
       }),
     );
 
-    const result = await createPublicContinuousEvaluation({
+    const result = await createPublicEvaluationRule({
       projectId: "project_123",
       input: {
         name: "managed_answer_quality",
@@ -804,19 +802,19 @@ describe("unstable public eval services", () => {
   });
 
   it("preserves block metadata when updating without a fresh successful preflight", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
         blockedAt: new Date("2026-03-30T10:00:00.000Z"),
         blockReason: "EVAL_MODEL_CONFIG_INVALID",
         blockMessage: "Evaluator paused",
       }),
     );
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: projectTemplate,
     });
     mockedPrisma.jobConfiguration.update.mockImplementationOnce(
       async ({ data }: any) =>
-        createContinuousEvaluationRecord({
+        createEvaluationRuleRecord({
           status: data.status,
           sampling: data.sampling,
           filter: data.filter,
@@ -827,9 +825,9 @@ describe("unstable public eval services", () => {
         }),
     );
 
-    const result = await updatePublicContinuousEvaluation({
+    const result = await updatePublicEvaluationRule({
       projectId: "project_123",
-      continuousEvaluationId: "ceval_123",
+      evaluationRuleId: "ceval_123",
       input: {
         enabled: false,
       },
@@ -851,10 +849,10 @@ describe("unstable public eval services", () => {
   });
 
   it("passes stored modelParams into update-time evaluator preflight", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord(),
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord(),
     );
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: {
         ...projectTemplate,
         provider: "openai",
@@ -863,12 +861,12 @@ describe("unstable public eval services", () => {
       },
     });
     mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createContinuousEvaluationRecord(),
+      createEvaluationRuleRecord(),
     );
 
-    await updatePublicContinuousEvaluation({
+    await updatePublicEvaluationRule({
       projectId: "project_123",
-      continuousEvaluationId: "ceval_123",
+      evaluationRuleId: "ceval_123",
       input: {
         name: "renamed_answer_quality",
       },
@@ -887,42 +885,42 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("rejects enabling a non-active continuous evaluation when the active limit is reached", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+  it("rejects enabling a non-active evaluation rule when the active limit is reached", async () => {
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
         status: JobConfigState.INACTIVE,
       }),
     );
-    mockCountActiveContinuousEvaluations.mockResolvedValueOnce(50);
+    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
 
     await expect(
-      updatePublicContinuousEvaluation({
+      updatePublicEvaluationRule({
         projectId: "project_123",
-        continuousEvaluationId: "ceval_123",
+        evaluationRuleId: "ceval_123",
         input: {
           enabled: true,
         },
       }),
     ).rejects.toThrow(
-      "This project already has the maximum number of active continuous evaluations (50).",
+      "This project already has the maximum number of active evaluation rules (50).",
     );
 
-    expect(mockLoadEvaluatorForContinuousEvaluation).not.toHaveBeenCalled();
+    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
   });
 
   it("rejects experiment filter updates that reference unknown dataset ids", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
         targetObject: EvalTargetObject.EXPERIMENT,
       }),
     );
     mockedPrisma.dataset.findMany.mockResolvedValueOnce([]);
 
     await expect(
-      updatePublicContinuousEvaluation({
+      updatePublicEvaluationRule({
         projectId: "project_123",
-        continuousEvaluationId: "ceval_123",
+        evaluationRuleId: "ceval_123",
         input: {
           target: "experiment",
           filter: [
@@ -951,13 +949,13 @@ describe("unstable public eval services", () => {
         id: true,
       },
     });
-    expect(mockLoadEvaluatorForContinuousEvaluation).not.toHaveBeenCalled();
+    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
   });
 
   it("allows unrelated experiment updates without revalidating stale stored dataset filters", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord({
         targetObject: EvalTargetObject.EXPERIMENT,
         filter: [
           {
@@ -969,11 +967,11 @@ describe("unstable public eval services", () => {
         ],
       }),
     );
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: projectTemplate,
     });
     mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+      createEvaluationRuleRecord({
         targetObject: EvalTargetObject.EXPERIMENT,
         scoreName: "renamed_experiment_answer_quality",
         filter: [
@@ -987,9 +985,9 @@ describe("unstable public eval services", () => {
       }),
     );
 
-    const result = await updatePublicContinuousEvaluation({
+    const result = await updatePublicEvaluationRule({
       projectId: "project_123",
-      continuousEvaluationId: "ceval_123",
+      evaluationRuleId: "ceval_123",
       input: {
         name: "renamed_experiment_answer_quality",
       },
@@ -1011,28 +1009,28 @@ describe("unstable public eval services", () => {
     });
   });
 
-  it("does not re-check the active limit for already-active continuous evaluations", async () => {
-    mockFindPublicContinuousEvaluationOrThrow.mockResolvedValueOnce(
-      createContinuousEvaluationRecord(),
+  it("does not re-check the active limit for already-active evaluation rules", async () => {
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord(),
     );
-    mockLoadEvaluatorForContinuousEvaluation.mockResolvedValueOnce({
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: projectTemplate,
     });
     mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createContinuousEvaluationRecord({
+      createEvaluationRuleRecord({
         scoreName: "renamed_answer_quality",
       }),
     );
 
-    await updatePublicContinuousEvaluation({
+    await updatePublicEvaluationRule({
       projectId: "project_123",
-      continuousEvaluationId: "ceval_123",
+      evaluationRuleId: "ceval_123",
       input: {
         name: "renamed_answer_quality",
       },
     });
 
-    expect(mockCountActiveContinuousEvaluations).not.toHaveBeenCalled();
+    expect(mockCountActiveEvaluationRules).not.toHaveBeenCalled();
     expect(mockedPrisma.jobConfiguration.update).toHaveBeenCalled();
   });
 });

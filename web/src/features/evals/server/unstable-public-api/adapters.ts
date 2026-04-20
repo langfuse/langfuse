@@ -16,27 +16,27 @@ import { InternalServerError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
-  ExperimentContinuousEvaluationFilter,
-  ObservationContinuousEvaluationFilter,
-  type PublicContinuousEvaluationFilterType,
-  type PublicContinuousEvaluationMappingType,
-  type PublicContinuousEvaluationTargetType,
+  ExperimentEvaluationRuleFilter,
+  ObservationEvaluationRuleFilter,
+  type PublicEvaluationRuleFilterType,
+  type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleTargetType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import type {
-  ApiContinuousEvaluationRecord,
+  ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,
-  StoredPublicContinuousEvaluationConfig,
+  StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "./types";
 import {
-  validateContinuousEvaluationFilters,
+  validateEvaluationRuleFilters,
   validateEvaluatorVariableMappings,
 } from "./validation";
 
 const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT: Record<
-  PublicContinuousEvaluationTargetType,
+  PublicEvaluationRuleTargetType,
   string
 > = {
   observation: EvalTargetObject.EVENT,
@@ -45,14 +45,14 @@ const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT: Record<
 
 const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
   string,
-  PublicContinuousEvaluationTargetType
+  PublicEvaluationRuleTargetType
 > = {
   [EvalTargetObject.EVENT]: "observation",
   [EvalTargetObject.EXPERIMENT]: "experiment",
 };
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
-  PublicContinuousEvaluationMappingType["source"],
+  PublicEvaluationRuleMappingType["source"],
   ObservationVariableMapping["selectedColumnId"]
 > = {
   input: "input",
@@ -63,7 +63,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   string,
-  PublicContinuousEvaluationMappingType["source"]
+  PublicEvaluationRuleMappingType["source"]
 > = {
   input: "input",
   output: "output",
@@ -74,13 +74,11 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experimentItemExpectedOutput: "expected_output",
 };
 
-function getPublicFilterArraySchema(
-  target: PublicContinuousEvaluationTargetType,
-) {
+function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
   return z.array(
     target === "observation"
-      ? ObservationContinuousEvaluationFilter
-      : ExperimentContinuousEvaluationFilter,
+      ? ObservationEvaluationRuleFilter
+      : ExperimentEvaluationRuleFilter,
   );
 }
 
@@ -199,9 +197,9 @@ export function toApiModelConfig(
   };
 }
 
-function toApiContinuousEvaluationStatus(
-  config: Pick<StoredPublicContinuousEvaluationConfig, "status" | "blockedAt">,
-): ApiContinuousEvaluationRecord["status"] {
+function toApiEvaluationRuleStatus(
+  config: Pick<StoredPublicEvaluationRuleConfig, "status" | "blockedAt">,
+): ApiEvaluationRuleRecord["status"] {
   if (config.status === JobConfigState.INACTIVE) {
     return "inactive";
   }
@@ -215,20 +213,20 @@ function toApiContinuousEvaluationStatus(
 
 function assertPublicTarget(
   targetObject: string,
-): PublicContinuousEvaluationTargetType {
+): PublicEvaluationRuleTargetType {
   const publicTarget = INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET[targetObject];
 
   if (!publicTarget) {
-    throw new InternalServerError("Continuous evaluation target is corrupted");
+    throw new InternalServerError("Evaluation rule target is corrupted");
   }
 
   return publicTarget;
 }
 
 function toStoredFilter(
-  filter: PublicContinuousEvaluationFilterType,
-  target: PublicContinuousEvaluationTargetType,
-): PublicContinuousEvaluationFilterType {
+  filter: PublicEvaluationRuleFilterType,
+  target: PublicEvaluationRuleTargetType,
+): PublicEvaluationRuleFilterType {
   if (target === "experiment" && filter.column === "datasetId") {
     return {
       ...filter,
@@ -241,31 +239,26 @@ function toStoredFilter(
 
 function toApiFilter(
   filter: z.infer<typeof singleFilter>,
-  target: PublicContinuousEvaluationTargetType,
-): PublicContinuousEvaluationFilterType {
+  target: PublicEvaluationRuleTargetType,
+): PublicEvaluationRuleFilterType {
   if (target === "experiment" && filter.column === "experimentDatasetId") {
     return {
       ...filter,
       column: "datasetId",
-    } as PublicContinuousEvaluationFilterType;
+    } as PublicEvaluationRuleFilterType;
   }
 
-  return filter as PublicContinuousEvaluationFilterType;
+  return filter as PublicEvaluationRuleFilterType;
 }
 
-function toApiMappings(
-  mappings: unknown,
-): ApiContinuousEvaluationRecord["mapping"] {
+function toApiMappings(mappings: unknown): ApiEvaluationRuleRecord["mapping"] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
-    logger.error(
-      "Failed to parse unstable public continuous evaluation mappings",
-      {
-        issues: parsed.error.issues,
-      },
-    );
-    throw new InternalServerError("Continuous evaluation mapping is corrupted");
+    logger.error("Failed to parse unstable public evaluation rule mappings", {
+      issues: parsed.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
   }
 
   return parsed.data.map((mapping) => {
@@ -273,9 +266,7 @@ function toApiMappings(
       INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId];
 
     if (!source) {
-      throw new InternalServerError(
-        "Continuous evaluation mapping is corrupted",
-      );
+      throw new InternalServerError("Evaluation rule mapping is corrupted");
     }
 
     return {
@@ -288,18 +279,15 @@ function toApiMappings(
 
 function toApiFilters(
   filters: unknown,
-  target: PublicContinuousEvaluationTargetType,
-): ApiContinuousEvaluationRecord["filter"] {
+  target: PublicEvaluationRuleTargetType,
+): ApiEvaluationRuleRecord["filter"] {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
-    logger.error(
-      "Failed to parse unstable public continuous evaluation filters",
-      {
-        issues: storedFilters.error.issues,
-      },
-    );
-    throw new InternalServerError("Continuous evaluation filter is corrupted");
+    logger.error("Failed to parse unstable public evaluation rule filters", {
+      issues: storedFilters.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule filter is corrupted");
   }
 
   const publicFilters = storedFilters.data.map((filter) =>
@@ -309,13 +297,10 @@ function toApiFilters(
     getPublicFilterArraySchema(target).safeParse(publicFilters);
 
   if (!parsedPublicFilters.success) {
-    logger.error(
-      "Failed to parse unstable public continuous evaluation filters",
-      {
-        issues: parsedPublicFilters.error.issues,
-      },
-    );
-    throw new InternalServerError("Continuous evaluation filter is corrupted");
+    logger.error("Failed to parse unstable public evaluation rule filters", {
+      issues: parsedPublicFilters.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule filter is corrupted");
   }
 
   return parsedPublicFilters.data;
@@ -323,7 +308,7 @@ function toApiFilters(
 
 export function toApiEvaluator(params: {
   template: StoredPublicEvaluatorTemplate;
-  continuousEvaluationCount: number;
+  evaluationRuleCount: number;
 }): ApiEvaluatorRecord {
   const template = params.template;
 
@@ -337,19 +322,17 @@ export function toApiEvaluator(params: {
     variables: deriveEvaluatorVariables(template),
     outputDefinition: parseStoredOutputDefinition(template),
     modelConfig: toApiModelConfig(template),
-    continuousEvaluationCount: params.continuousEvaluationCount,
+    evaluationRuleCount: params.evaluationRuleCount,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
   };
 }
 
-export function toApiContinuousEvaluation(
-  config: StoredPublicContinuousEvaluationConfig,
-): ApiContinuousEvaluationRecord {
+export function toApiEvaluationRule(
+  config: StoredPublicEvaluationRuleConfig,
+): ApiEvaluationRuleRecord {
   if (!config.evalTemplate?.id) {
-    throw new InternalServerError(
-      "Continuous evaluation evaluator is corrupted",
-    );
+    throw new InternalServerError("Evaluation rule evaluator is corrupted");
   }
 
   const target = assertPublicTarget(config.targetObject);
@@ -364,7 +347,7 @@ export function toApiContinuousEvaluation(
     },
     target,
     enabled: config.status === JobConfigState.ACTIVE,
-    status: toApiContinuousEvaluationStatus(config),
+    status: toApiEvaluationRuleStatus(config),
     pausedReason: config.blockReason ?? null,
     pausedMessage: config.blockMessage ?? null,
     sampling: Number(config.sampling),
@@ -378,15 +361,15 @@ export function toApiContinuousEvaluation(
 export function toJobConfigurationInput(params: {
   input: {
     name: string;
-    target: PublicContinuousEvaluationTargetType;
+    target: PublicEvaluationRuleTargetType;
     enabled: boolean;
     sampling: number;
-    filter: PublicContinuousEvaluationFilterType[];
-    mapping: PublicContinuousEvaluationMappingType[];
+    filter: PublicEvaluationRuleFilterType[];
+    mapping: PublicEvaluationRuleMappingType[];
   };
   evaluatorVariables: string[];
 }) {
-  validateContinuousEvaluationFilters({
+  validateEvaluationRuleFilters({
     target: params.input.target,
     filters: params.input.filter,
   });

@@ -14,8 +14,8 @@ import {
   toStoredOutputDefinition,
 } from "./adapters";
 import {
-  countContinuousEvaluationsForEvaluator,
-  countContinuousEvaluationsForEvaluatorIds,
+  countEvaluationRulesForEvaluator,
+  countEvaluationRulesForEvaluatorIds,
   findPublicEvaluatorTemplateOrThrow,
   listPublicEvaluatorTemplates,
 } from "./queries";
@@ -33,7 +33,7 @@ function prepareVariableMappingForEvaluatorUpgrade(params: {
     .safeParse(params.variableMapping);
 
   if (!mappingParseResult.success) {
-    throw new InternalServerError("Continuous evaluation mapping is corrupted");
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
   }
 
   const migratedVariableMapping = mappingParseResult.data.filter((mapping) =>
@@ -50,7 +50,7 @@ function prepareVariableMappingForEvaluatorUpgrade(params: {
     throw createUnstablePublicApiError({
       httpCode: 409,
       code: "conflict",
-      message: `Creating a new evaluator version would invalidate the continuous evaluation "${params.scoreName}" because it is missing mappings for new evaluator variables: ${missingVariables.join(", ")}.`,
+      message: `Creating a new evaluator version would invalidate the evaluation rule "${params.scoreName}" because it is missing mappings for new evaluator variables: ${missingVariables.join(", ")}.`,
       details: {
         field: "mapping",
         variables: missingVariables,
@@ -67,17 +67,16 @@ export async function listPublicEvaluators(params: {
   limit: number;
 }) {
   const { templates, totalItems } = await listPublicEvaluatorTemplates(params);
-  const continuousEvaluationCounts =
-    await countContinuousEvaluationsForEvaluatorIds({
-      projectId: params.projectId,
-      evaluatorIds: templates.map((template) => template.id),
-    });
+  const evaluationRuleCounts = await countEvaluationRulesForEvaluatorIds({
+    projectId: params.projectId,
+    evaluatorIds: templates.map((template) => template.id),
+  });
 
   return {
     data: templates.map((template) =>
       toApiEvaluator({
         template,
-        continuousEvaluationCount: continuousEvaluationCounts[template.id] ?? 0,
+        evaluationRuleCount: evaluationRuleCounts[template.id] ?? 0,
       }),
     ),
     meta: {
@@ -94,12 +93,11 @@ export async function getPublicEvaluator(params: {
   evaluatorId: string;
 }) {
   const template = await findPublicEvaluatorTemplateOrThrow(params);
-  const continuousEvaluationCount =
-    await countContinuousEvaluationsForEvaluator(params);
+  const evaluationRuleCount = await countEvaluationRulesForEvaluator(params);
 
   return toApiEvaluator({
     template,
-    continuousEvaluationCount,
+    evaluationRuleCount,
   });
 }
 
@@ -217,15 +215,14 @@ export async function createPublicEvaluator(params: {
       await invalidateProjectEvalConfigCaches(params.projectId);
     }
 
-    const continuousEvaluationCount =
-      await countContinuousEvaluationsForEvaluator({
-        projectId: params.projectId,
-        evaluatorId: template.id,
-      });
+    const evaluationRuleCount = await countEvaluationRulesForEvaluator({
+      projectId: params.projectId,
+      evaluatorId: template.id,
+    });
 
     return toApiEvaluator({
       template: template as StoredPublicEvaluatorTemplate,
-      continuousEvaluationCount,
+      evaluationRuleCount,
     });
   } catch (error) {
     if (

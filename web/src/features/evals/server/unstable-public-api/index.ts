@@ -1,10 +1,10 @@
 export {
-  createPublicContinuousEvaluation,
-  deletePublicContinuousEvaluation,
-  getPublicContinuousEvaluation,
-  listPublicContinuousEvaluations,
-  updatePublicContinuousEvaluation,
-} from "./continuous-evaluation-service";
+  createPublicEvaluationRule,
+  deletePublicEvaluationRule,
+  getPublicEvaluationRule,
+  listPublicEvaluationRules,
+  updatePublicEvaluationRule,
+} from "./evaluation-rule-service";
 export {
   createPublicEvaluator,
   getPublicEvaluator,

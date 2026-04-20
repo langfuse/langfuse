@@ -5,9 +5,9 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { JSONPath } from "jsonpath-plus";
 import type {
-  PublicContinuousEvaluationFilterType,
-  PublicContinuousEvaluationMappingType,
-  PublicContinuousEvaluationTargetType,
+  PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
@@ -58,7 +58,7 @@ const STATIC_FILTER_OPTIONS_BY_TARGET = {
     }),
   ),
 } as const satisfies Record<
-  PublicContinuousEvaluationTargetType,
+  PublicEvaluationRuleTargetType,
   Map<string, Set<string>>
 >;
 
@@ -69,16 +69,16 @@ const SUPPORTED_FILTER_COLUMNS_BY_TARGET = {
       column.id === "experimentDatasetId" ? "datasetId" : column.id,
     ),
   ),
-} as const satisfies Record<PublicContinuousEvaluationTargetType, Set<string>>;
+} as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
 const SUPPORTED_MAPPING_SOURCES_BY_TARGET = {
   observation: new Set(["input", "output", "metadata"]),
   experiment: new Set(["input", "output", "metadata", "expected_output"]),
-} as const satisfies Record<PublicContinuousEvaluationTargetType, Set<string>>;
+} as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
-export function validateContinuousEvaluationFilters(params: {
-  target: PublicContinuousEvaluationTargetType;
-  filters: PublicContinuousEvaluationFilterType[];
+export function validateEvaluationRuleFilters(params: {
+  target: PublicEvaluationRuleTargetType;
+  filters: PublicEvaluationRuleFilterType[];
 }) {
   const knownOptionValues = STATIC_FILTER_OPTIONS_BY_TARGET[params.target];
   const supportedColumns = SUPPORTED_FILTER_COLUMNS_BY_TARGET[params.target];
@@ -127,10 +127,10 @@ export function validateContinuousEvaluationFilters(params: {
   }
 }
 
-export async function assertContinuousEvaluationFilterValuesExistForProject(params: {
+export async function assertEvaluationRuleFilterValuesExistForProject(params: {
   projectId: string;
-  target: PublicContinuousEvaluationTargetType;
-  filters: PublicContinuousEvaluationFilterType[];
+  target: PublicEvaluationRuleTargetType;
+  filters: PublicEvaluationRuleFilterType[];
 }) {
   if (params.target !== "experiment") {
     return;
@@ -295,9 +295,9 @@ function validateJsonPath(params: {
 }
 
 export function validateEvaluatorVariableMappings(params: {
-  mappings: PublicContinuousEvaluationMappingType[];
+  mappings: PublicEvaluationRuleMappingType[];
   variables: string[];
-  target: PublicContinuousEvaluationTargetType;
+  target: PublicEvaluationRuleTargetType;
 }) {
   const variableSet = new Set(params.variables);
   const mappedVariables = new Set<string>();

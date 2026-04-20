@@ -94,7 +94,7 @@ types:
         docs: Suggested retry delay for rate-limited requests.
       limit:
         type: optional<integer>
-        docs: Numeric limit associated with the failure, for example the active continuous-evaluation cap or the current rate-limit window.
+        docs: Numeric limit associated with the failure, for example the active evaluation-rule cap or the current rate-limit window.
       remaining:
         type: optional<integer>
         docs: Remaining requests in the current rate-limit window.
@@ -170,13 +170,13 @@ types:
             value: "$["
       - name: NameConflict
         value:
-          message: 'A continuous evaluation named "answer-quality-live" already exists in this project. Use PATCH /api/public/unstable/continuous-evaluations/ceval_123 to update it instead of creating a duplicate.'
+          message: 'An evaluation rule named "answer-quality-live" already exists in this project. Use PATCH /api/public/unstable/evaluation-rules/erule_123 to update it instead of creating a duplicate.'
           code: name_conflict
           details:
             field: name
-      - name: ActiveContinuousEvaluationLimit
+      - name: ActiveEvaluationRuleLimit
         value:
-          message: This project already has the maximum number of active continuous evaluations (50). Disable an existing active continuous evaluation before enabling another one.
+          message: This project already has the maximum number of active evaluation rules (50). Disable an existing active evaluation rule before enabling another one.
           code: conflict
           details:
             limit: 50
@@ -227,7 +227,7 @@ errors:
     status-code: 403
     type: PublicApiError
   NotFoundError:
-    docs: The requested evaluator or continuous evaluation does not exist within the authorized project.
+    docs: The requested evaluator or evaluation rule does not exist within the authorized project.
     status-code: 404
     type: PublicApiError
   MethodNotAllowedError:
@@ -240,13 +240,13 @@ errors:
 
       Typical unstable-eval examples:
       - evaluator version changed during concurrent creation
-      - a continuous evaluation name already exists in the project, so the caller should PATCH the existing resource instead
-      - enabling another continuous evaluation would exceed the project limit of 50 active continuous evaluations
+      - an evaluation rule name already exists in the project, so the caller should PATCH the existing resource instead
+      - enabling another evaluation rule would exceed the project limit of 50 active evaluation rules
       - the underlying state changed between read and write operations, so the client should retry
 
       Recovery guidance:
-      - for `name_conflict`, PATCH the existing continuous evaluation instead of creating another one
-      - for the active-limit conflict, disable another active continuous evaluation before enabling a new one
+      - for `name_conflict`, PATCH the existing evaluation rule instead of creating another one
+      - for the active-limit conflict, disable another active evaluation rule before enabling a new one
     status-code: 409
     type: PublicApiError
   UnprocessableContentError:

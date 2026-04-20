@@ -6,20 +6,20 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import {
-  toApiContinuousEvaluation,
+  toApiEvaluationRule,
   toApiEvaluator,
   toJobConfigurationInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import type {
-  StoredPublicContinuousEvaluationConfig,
+  StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "@/src/features/evals/server/unstable-public-api/types";
 import {
-  GetUnstableContinuousEvaluationsQuery,
-  PatchUnstableContinuousEvaluationBody,
-  PostUnstableContinuousEvaluationBody,
-} from "@/src/features/public-api/types/unstable-continuous-evaluations";
+  GetUnstableEvaluationRulesQuery,
+  PatchUnstableEvaluationRuleBody,
+  PostUnstableEvaluationRuleBody,
+} from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
   GetUnstableEvaluatorsQuery,
   PostUnstableEvaluatorBody,
@@ -110,8 +110,8 @@ describe("unstable public eval contracts", () => {
     );
   });
 
-  it("rejects observation continuous evaluations that use expected_output mappings", () => {
-    const parsed = PostUnstableContinuousEvaluationBody.safeParse({
+  it("rejects observation evaluation rules that use expected_output mappings", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
       name: "answer_quality",
       evaluator: {
         name: "Answer correctness",
@@ -138,7 +138,7 @@ describe("unstable public eval contracts", () => {
   });
 
   it("rejects experiment filter updates unless target is provided", () => {
-    const parsed = PatchUnstableContinuousEvaluationBody.safeParse({
+    const parsed = PatchUnstableEvaluationRuleBody.safeParse({
       filter: [
         {
           type: "stringOptions",
@@ -161,7 +161,7 @@ describe("unstable public eval contracts", () => {
       }).success,
     ).toBe(false);
     expect(
-      GetUnstableContinuousEvaluationsQuery.safeParse({
+      GetUnstableEvaluationRulesQuery.safeParse({
         page: 1,
         limit: -1,
       }).success,
@@ -176,15 +176,15 @@ describe("unstable public eval contracts", () => {
       }).success,
     ).toBe(false);
     expect(
-      GetUnstableContinuousEvaluationsQuery.safeParse({
+      GetUnstableEvaluationRulesQuery.safeParse({
         page: 1,
         limit: 1.5,
       }).success,
     ).toBe(false);
   });
 
-  it("ignores unknown continuous evaluation update fields for forward compatibility", () => {
-    const parsed = PatchUnstableContinuousEvaluationBody.parse({
+  it("ignores unknown evaluation rule update fields for forward compatibility", () => {
+    const parsed = PatchUnstableEvaluationRuleBody.parse({
       name: "answer_quality",
       newFieldFromFutureVersion: true,
     });
@@ -195,7 +195,7 @@ describe("unstable public eval contracts", () => {
   });
 
   it("preserves target-specific patch fields instead of dropping them into the untargeted schema", () => {
-    const parsed = PatchUnstableContinuousEvaluationBody.parse({
+    const parsed = PatchUnstableEvaluationRuleBody.parse({
       name: "experiment-expected-output-match",
       target: "experiment",
       filter: [
@@ -231,7 +231,7 @@ describe("unstable public eval contracts", () => {
   });
 
   it("rejects invalid target-specific patch payloads instead of silently parsing a name-only subset", () => {
-    const parsed = PatchUnstableContinuousEvaluationBody.safeParse({
+    const parsed = PatchUnstableEvaluationRuleBody.safeParse({
       name: "experiment-expected-output-match",
       target: "experiment",
       filter: [
@@ -250,7 +250,7 @@ describe("unstable public eval contracts", () => {
 });
 
 describe("unstable public eval adapters", () => {
-  it("translates continuous evaluation writes into job configuration inputs", () => {
+  it("translates evaluation rule writes into job configuration inputs", () => {
     const writeModel = toJobConfigurationInput({
       input: {
         name: "expected_output_match",
@@ -302,7 +302,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("reads legacy expected output mapping column ids without failing", () => {
-    const continuousEvaluation = toApiContinuousEvaluation({
+    const evaluationRule = toApiEvaluationRule({
       id: "ceval_123",
       projectId: "project_123",
       evalTemplateId: "tmpl_project_v2",
@@ -330,9 +330,9 @@ describe("unstable public eval adapters", () => {
         vars: ["expected_output"],
         prompt: "Judge {{expected_output}}",
       },
-    } as unknown as StoredPublicContinuousEvaluationConfig);
+    } as unknown as StoredPublicEvaluationRuleConfig);
 
-    expect(continuousEvaluation.mapping).toEqual([
+    expect(evaluationRule.mapping).toEqual([
       {
         variable: "expected_output",
         source: "expected_output",
@@ -473,7 +473,7 @@ describe("unstable public eval adapters", () => {
     expect(
       toApiEvaluator({
         template,
-        continuousEvaluationCount: 2,
+        evaluationRuleCount: 2,
       }),
     ).toMatchObject({
       id: "tmpl_latest",
@@ -495,7 +495,7 @@ describe("unstable public eval adapters", () => {
         model: "gpt-4.1-mini",
       },
       variables: ["input", "output"],
-      continuousEvaluationCount: 2,
+      evaluationRuleCount: 2,
     });
   });
 
@@ -522,7 +522,7 @@ describe("unstable public eval adapters", () => {
     expect(
       toApiEvaluator({
         template,
-        continuousEvaluationCount: 0,
+        evaluationRuleCount: 0,
       }).outputDefinition,
     ).toEqual({
       dataType: "NUMERIC",
@@ -535,8 +535,8 @@ describe("unstable public eval adapters", () => {
     });
   });
 
-  it("maps continuous evaluations to exact referenced template ids", () => {
-    const config: StoredPublicContinuousEvaluationConfig = {
+  it("maps evaluation rules to exact referenced template ids", () => {
+    const config: StoredPublicEvaluationRuleConfig = {
       id: "ceval_123",
       projectId: "project_123",
       evalTemplateId: "tmpl_exact",
@@ -566,7 +566,7 @@ describe("unstable public eval adapters", () => {
       },
     };
 
-    expect(toApiContinuousEvaluation(config)).toMatchObject({
+    expect(toApiEvaluationRule(config)).toMatchObject({
       evaluator: {
         id: "tmpl_exact",
         name: "Answer correctness",

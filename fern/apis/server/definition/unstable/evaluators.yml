@@ -17,13 +17,13 @@ service:
         Naming behavior:
         - If this is a new evaluator name in your project, Langfuse creates version `1`.
         - If the name already exists in your project, Langfuse creates the next version and returns it.
-        - When a new project version is created, existing continuous evaluations in that project automatically move to the newest version for that evaluator name.
+        - When a new project version is created, existing evaluation rules in that project automatically move to the newest version for that evaluator name.
 
         Recommended workflow:
         1. Create the evaluator.
         2. Read the returned `variables` array.
         3. Read the returned `outputDefinition.dataType` so the client knows whether future scores will be numeric, boolean, or categorical.
-        4. Create one or more continuous evaluations that reference the returned evaluator family using `name` and `scope`.
+        4. Create one or more evaluation rules that reference the returned evaluator family using `name` and `scope`.
 
         Recovery guidance:
         - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run with the resolved model configuration. Add a valid explicit `modelConfig`, or configure the project's default evaluation model, then retry the same request.
@@ -98,7 +98,7 @@ service:
               modelConfig:
                 provider: openai
                 model: gpt-4.1-mini
-              continuousEvaluationCount: 0
+              evaluationRuleCount: 0
               createdAt: "2026-03-30T09:00:00.000Z"
               updatedAt: "2026-03-30T09:00:00.000Z"
 
@@ -134,7 +134,7 @@ service:
       docs: |
         Get one evaluator by `id`.
 
-        Use this endpoint when you want the prompt, output definition, model configuration, and derived variables for the evaluator you plan to use in a continuous evaluation.
+        Use this endpoint when you want the prompt, output definition, model configuration, and derived variables for the evaluator you plan to use in an evaluation rule.
       method: GET
       path: /evaluators/{evaluatorId}
       path-parameters:
@@ -162,17 +162,17 @@ types:
       - output schema
       - optional explicit model configuration
 
-      It does not define **which** live objects are evaluated. That is the job of `continuous-evaluations`.
+      It does not define **which** live objects are evaluated. That is the job of `evaluation-rules`.
 
       For agent clients, the most important fields are:
-      - `variables`: use these exact names when building the continuous-evaluation `mapping` array
+      - `variables`: use these exact names when building the evaluation-rule `mapping` array
       - `outputDefinition`: tells you the expected score type and the evaluator's response instructions
       - `modelConfig`: tells you whether the evaluator uses the project default model (`null`) or an explicit provider/model
 
       Versioning behavior:
       - `GET /evaluators` returns the latest version of each available evaluator.
       - `GET /evaluators/{id}` can return an older version.
-      - Continuous evaluations always run against the latest version for the selected evaluator name within the same source (`project` or `managed`).
+      - Evaluation rules always run against the latest version for the selected evaluator name within the same source (`project` or `managed`).
     properties:
       id:
         type: string
@@ -197,7 +197,7 @@ types:
         docs: |
           Variables extracted from the evaluator prompt.
 
-          Every variable in this list must be mapped exactly once when creating a continuous evaluation.
+          Every variable in this list must be mapped exactly once when creating an evaluation rule.
       outputDefinition:
         type: commons.PublicEvaluatorOutputDefinition
         docs: |
@@ -208,9 +208,9 @@ types:
       modelConfig:
         type: nullable<commons.EvaluatorModelConfig>
         docs: Explicit model configuration, or `null` when the project default evaluation model is used.
-      continuousEvaluationCount:
+      evaluationRuleCount:
         type: integer
-        docs: Number of continuous evaluations in the project that currently use this evaluator version.
+        docs: Number of evaluation rules in the project that currently use this evaluator version.
       createdAt:
         type: datetime
         docs: Timestamp when this evaluator was created.
@@ -230,7 +230,7 @@ types:
       Request body for creating an evaluator.
 
       If the same `name` already exists in your project, Langfuse creates the next version and returns it.
-      Existing continuous evaluations in the same project are then moved to that new latest version automatically.
+      Existing evaluation rules in the same project are then moved to that new latest version automatically.
     properties:
       name:
         type: string

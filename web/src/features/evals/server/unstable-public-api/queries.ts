@@ -5,9 +5,9 @@ import {
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import type {
-  ContinuousEvaluationEvaluatorFamilyReference,
+  EvaluationRuleEvaluatorFamilyReference,
   PrismaClientLike,
-  StoredPublicContinuousEvaluationConfig,
+  StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "./types";
 
@@ -43,7 +43,7 @@ export async function findPublicEvaluatorTemplateOrThrow(params: {
 export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
   client?: PrismaClientLike;
   projectId: string;
-  evaluator: ContinuousEvaluationEvaluatorFamilyReference;
+  evaluator: EvaluationRuleEvaluatorFamilyReference;
 }) {
   const client = getPrismaClient(params.client);
   const latestTemplate = await client.evalTemplate.findFirst({
@@ -65,7 +65,7 @@ export async function findLatestPublicEvaluatorTemplateInFamilyOrThrow(params: {
   return latestTemplate as StoredPublicEvaluatorTemplate;
 }
 
-export async function countContinuousEvaluationsForEvaluator(params: {
+export async function countEvaluationRulesForEvaluator(params: {
   client?: PrismaClientLike;
   projectId: string;
   evaluatorId: string;
@@ -83,7 +83,7 @@ export async function countContinuousEvaluationsForEvaluator(params: {
   });
 }
 
-export async function countContinuousEvaluationsForEvaluatorIds(params: {
+export async function countEvaluationRulesForEvaluatorIds(params: {
   client?: PrismaClientLike;
   projectId: string;
   evaluatorIds: string[];
@@ -198,16 +198,16 @@ export async function listPublicEvaluatorTemplates(params: {
   };
 }
 
-export async function findPublicContinuousEvaluationOrThrow(params: {
+export async function findPublicEvaluationRuleOrThrow(params: {
   client?: PrismaClientLike;
   projectId: string;
-  continuousEvaluationId: string;
+  evaluationRuleId: string;
 }) {
   const client = getPrismaClient(params.client);
 
   const config = await client.jobConfiguration.findFirst({
     where: {
-      id: params.continuousEvaluationId,
+      id: params.evaluationRuleId,
       projectId: params.projectId,
       targetObject: {
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
@@ -233,17 +233,17 @@ export async function findPublicContinuousEvaluationOrThrow(params: {
 
   if (!config) {
     throw new LangfuseNotFoundError(
-      "Continuous evaluation not found within authorized project",
+      "Evaluation rule not found within authorized project",
     );
   }
 
-  return config as StoredPublicContinuousEvaluationConfig;
+  return config as StoredPublicEvaluationRuleConfig;
 }
 
-export async function loadEvaluatorForContinuousEvaluation(params: {
+export async function loadEvaluatorForEvaluationRule(params: {
   client?: PrismaClientLike;
   projectId: string;
-  evaluator: ContinuousEvaluationEvaluatorFamilyReference;
+  evaluator: EvaluationRuleEvaluatorFamilyReference;
 }) {
   const template =
     await findLatestPublicEvaluatorTemplateInFamilyOrThrow(params);
@@ -253,7 +253,7 @@ export async function loadEvaluatorForContinuousEvaluation(params: {
   };
 }
 
-export async function countActiveContinuousEvaluations(params: {
+export async function countActiveEvaluationRules(params: {
   client?: PrismaClientLike;
   projectId: string;
 }) {
@@ -271,7 +271,7 @@ export async function countActiveContinuousEvaluations(params: {
   });
 }
 
-export async function listPublicContinuousEvaluationConfigs(params: {
+export async function listPublicEvaluationRuleConfigs(params: {
   projectId: string;
   page: number;
   limit: number;
@@ -322,7 +322,7 @@ export async function listPublicContinuousEvaluationConfigs(params: {
   ]);
 
   return {
-    configs: configs as StoredPublicContinuousEvaluationConfig[],
+    configs: configs as StoredPublicEvaluationRuleConfig[],
     totalItems,
   };
 }

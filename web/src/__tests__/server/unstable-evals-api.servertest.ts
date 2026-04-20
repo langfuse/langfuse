@@ -5,10 +5,10 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import {
-  DeleteUnstableContinuousEvaluationResponse,
-  GetUnstableContinuousEvaluationResponse,
-  PostUnstableContinuousEvaluationResponse,
-} from "@/src/features/public-api/types/unstable-continuous-evaluations";
+  DeleteUnstableEvaluationRuleResponse,
+  GetUnstableEvaluationRuleResponse,
+  PostUnstableEvaluationRuleResponse,
+} from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
   GetUnstableEvaluatorResponse,
   GetUnstableEvaluatorsResponse,
@@ -216,7 +216,7 @@ describe("/api/public/unstable evaluators API", () => {
     ).toBe(false);
   });
 
-  it("automatically moves existing continuous evaluations to the newest project evaluator version", async () => {
+  it("automatically moves existing evaluation rules to the newest project evaluator version", async () => {
     await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
       "POST",
@@ -230,9 +230,9 @@ describe("/api/public/unstable evaluators API", () => {
     );
 
     const created = await makeZodVerifiedAPICall(
-      PostUnstableContinuousEvaluationResponse,
+      PostUnstableEvaluationRuleResponse,
       "POST",
-      "/api/public/unstable/continuous-evaluations",
+      "/api/public/unstable/evaluation-rules",
       {
         name: "faithfulness-live",
         evaluator: {
@@ -264,9 +264,9 @@ describe("/api/public/unstable evaluators API", () => {
     );
 
     const fetched = await makeZodVerifiedAPICall(
-      GetUnstableContinuousEvaluationResponse,
+      GetUnstableEvaluationRuleResponse,
       "GET",
-      `/api/public/unstable/continuous-evaluations/${created.body.id}`,
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
       undefined,
       auth,
     );
@@ -279,7 +279,7 @@ describe("/api/public/unstable evaluators API", () => {
     });
   });
 
-  it("resolves project evaluator families to the latest version when creating a continuous evaluation", async () => {
+  it("resolves project evaluator families to the latest version when creating an evaluation rule", async () => {
     await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
       "POST",
@@ -305,9 +305,9 @@ describe("/api/public/unstable evaluators API", () => {
     );
 
     const created = await makeZodVerifiedAPICall(
-      PostUnstableContinuousEvaluationResponse,
+      PostUnstableEvaluationRuleResponse,
       "POST",
-      "/api/public/unstable/continuous-evaluations",
+      "/api/public/unstable/evaluation-rules",
       {
         name: "answer_groundedness_live",
         evaluator: {
@@ -379,16 +379,16 @@ describe("/api/public/unstable evaluators API", () => {
     );
   });
 
-  it("allows continuous evaluations to reference managed evaluators by exact id", async () => {
+  it("allows evaluation rules to reference managed evaluators by exact id", async () => {
     const managed = await createManagedEvaluator({
       name: "Answer relevance",
       version: 3,
     });
 
     const created = await makeZodVerifiedAPICall(
-      PostUnstableContinuousEvaluationResponse,
+      PostUnstableEvaluationRuleResponse,
       "POST",
-      "/api/public/unstable/continuous-evaluations",
+      "/api/public/unstable/evaluation-rules",
       {
         name: "answer_relevance_managed",
         evaluator: {
@@ -419,9 +419,9 @@ describe("/api/public/unstable evaluators API", () => {
     });
 
     const fetched = await makeZodVerifiedAPICall(
-      GetUnstableContinuousEvaluationResponse,
+      GetUnstableEvaluationRuleResponse,
       "GET",
-      `/api/public/unstable/continuous-evaluations/${created.body.id}`,
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
       undefined,
       auth,
     );
@@ -433,16 +433,14 @@ describe("/api/public/unstable evaluators API", () => {
     });
 
     const deleted = await makeZodVerifiedAPICall(
-      DeleteUnstableContinuousEvaluationResponse,
+      DeleteUnstableEvaluationRuleResponse,
       "DELETE",
-      `/api/public/unstable/continuous-evaluations/${created.body.id}`,
+      `/api/public/unstable/evaluation-rules/${created.body.id}`,
       undefined,
       auth,
     );
 
-    expect(deleted.body.message).toBe(
-      "Continuous evaluation successfully deleted",
-    );
+    expect(deleted.body.message).toBe("Evaluation rule successfully deleted");
   });
 
   it("returns method_not_allowed for evaluator patch and delete", async () => {
