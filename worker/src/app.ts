@@ -37,6 +37,7 @@ import {
   OtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudUsageMeteringQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -357,6 +358,9 @@ if (
   env.QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED === "true" &&
   env.STRIPE_SECRET_KEY
 ) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudUsageMeteringQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
