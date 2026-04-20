@@ -188,6 +188,18 @@ export async function updatePublicEvaluationRule(params: {
     await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
 
+  const nextTarget =
+    "target" in params.input && params.input.target !== undefined
+      ? params.input.target
+      : existingPublic.target;
+  if ("filter" in params.input && params.input.filter !== undefined) {
+    await assertEvaluationRuleFilterValuesExistForProject({
+      projectId: params.projectId,
+      target: nextTarget,
+      filters: params.input.filter,
+    });
+  }
+
   const nextEvaluator = params.input.evaluator ?? {
     name: existingPublic.evaluator.name,
     scope: existingPublic.evaluator.scope,
@@ -196,21 +208,10 @@ export async function updatePublicEvaluationRule(params: {
     projectId: params.projectId,
     evaluator: nextEvaluator,
   });
-  const nextTarget =
-    "target" in params.input && params.input.target !== undefined
-      ? params.input.target
-      : existingPublic.target;
   const nextFilter =
     "filter" in params.input && params.input.filter !== undefined
       ? params.input.filter
       : existingPublic.filter;
-  if ("filter" in params.input && params.input.filter !== undefined) {
-    await assertEvaluationRuleFilterValuesExistForProject({
-      projectId: params.projectId,
-      target: nextTarget,
-      filters: params.input.filter,
-    });
-  }
   const nextMapping =
     "mapping" in params.input && params.input.mapping !== undefined
       ? params.input.mapping
