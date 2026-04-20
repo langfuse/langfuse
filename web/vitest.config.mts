@@ -31,6 +31,7 @@ export default defineConfig({
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
           globalSetup: ["./src/__tests__/vitest-global-teardown.ts"],
+          maxWorkers: 1,
         },
       },
       {
@@ -42,6 +43,7 @@ export default defineConfig({
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
           globalSetup: ["./src/__tests__/vitest-global-teardown.ts"],
+          maxWorkers: 1,
         },
       },
     ],
