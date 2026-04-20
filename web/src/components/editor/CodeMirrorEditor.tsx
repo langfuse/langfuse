@@ -334,17 +334,23 @@ export function applyCodeMirrorSearchQuery(
 export function setActiveSearchMarkCodeMirrorRange(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   range: { from: number; to: number } | null,
+  { scrollIntoView = true }: { scrollIntoView?: boolean } = {},
 ) {
   const view = editorRef?.current?.view;
   if (!view || !range) {
     return;
   }
 
+  const effects: StateEffect<unknown>[] = [
+    setSelectedSearchHighlightMark.of(range),
+  ];
+
+  if (scrollIntoView) {
+    effects.push(EditorView.scrollIntoView(range.from));
+  }
+
   view.dispatch({
-    effects: [
-      setSelectedSearchHighlightMark.of(range),
-      EditorView.scrollIntoView(range.from),
-    ],
+    effects,
   });
 }
 

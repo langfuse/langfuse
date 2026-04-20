@@ -62,12 +62,16 @@ type MessageSearchMessageTarget = {
 
 type RefreshSearchOptions = {
   syncEditors?: boolean;
-  syncActiveMatch?: boolean;
+  scrollToActiveMatch?: boolean;
 };
 
 type SearchMatchRange = {
   from: number;
   to: number;
+};
+
+type SyncActiveMatchTargetOptions = {
+  scrollIntoView?: boolean;
 };
 
 export type MessageSearchController = {
@@ -300,17 +304,21 @@ export function createMessageSearchController(
     }
   };
 
-  const syncActiveMatchTarget = () => {
+  const syncActiveMatchTarget = ({
+    scrollIntoView = true,
+  }: SyncActiveMatchTargetOptions = {}) => {
     const activeMatch = getActiveMatch(state);
     if (!activeMatch) {
       return;
     }
 
-    pageTargets.get(activeMatch.pageId)?.pageRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center",
-    });
+    if (scrollIntoView) {
+      pageTargets.get(activeMatch.pageId)?.pageRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
 
     let activeMessageTarget: MessageSearchMessageTarget | null = null;
     const inactiveMessageTargets: MessageSearchMessageTarget[] = [];
@@ -332,16 +340,22 @@ export function createMessageSearchController(
       unsetActiveSearchMarkCodeMirrorRange(target?.editorRef);
     }
 
-    activeMessageTarget?.rowRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
-    });
+    if (scrollIntoView) {
+      activeMessageTarget?.rowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    }
 
-    setActiveSearchMarkCodeMirrorRange(activeMessageTarget?.editorRef, {
-      from: activeMatch.from,
-      to: activeMatch.to,
-    });
+    setActiveSearchMarkCodeMirrorRange(
+      activeMessageTarget?.editorRef,
+      {
+        from: activeMatch.from,
+        to: activeMatch.to,
+      },
+      { scrollIntoView },
+    );
   };
 
   const recomputeMatches = () => {
@@ -376,10 +390,11 @@ export function createMessageSearchController(
 
   const refreshSearchResults = ({
     syncEditors = false,
-    syncActiveMatch = false,
+    scrollToActiveMatch = false,
   }: RefreshSearchOptions) => {
     const activeMatchChanged = recomputeMatches();
     const shouldSyncEditors = syncEditors || activeMatchChanged;
+    const shouldScrollToActiveMatch = scrollToActiveMatch || activeMatchChanged;
 
     if (shouldSyncEditors) {
       syncEditorsToQuery();
@@ -387,8 +402,8 @@ export function createMessageSearchController(
 
     // Redrawing the editor search marks clears the selected active-match mark,
     // so the active match must always be re-applied after syncing editors.
-    if (shouldSyncEditors || syncActiveMatch) {
-      syncActiveMatchTarget();
+    if (shouldSyncEditors || shouldScrollToActiveMatch) {
+      syncActiveMatchTarget({ scrollIntoView: shouldScrollToActiveMatch });
     }
   };
 
@@ -407,7 +422,7 @@ export function createMessageSearchController(
     }
 
     state.searchQuery = nextSearchQuery;
-    refreshSearchResults({ syncEditors: true, syncActiveMatch: true });
+    refreshSearchResults({ syncEditors: true, scrollToActiveMatch: true });
     return true;
   };
 
@@ -563,7 +578,6 @@ export function createMessageSearchController(
       state.pageIds = pageIds;
       refreshSearchResultsIfSearching({
         syncEditors: true,
-        syncActiveMatch: true,
       });
     },
 
@@ -580,7 +594,6 @@ export function createMessageSearchController(
       state.pageMessagesById[pageId] = messages;
       refreshSearchResultsIfSearching({
         syncEditors: true,
-        syncActiveMatch: true,
       });
     },
 
@@ -592,7 +605,6 @@ export function createMessageSearchController(
       delete state.pageMessagesById[pageId];
       refreshSearchResultsIfSearching({
         syncEditors: true,
-        syncActiveMatch: true,
       });
     },
 
