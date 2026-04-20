@@ -565,7 +565,7 @@ export default function ExperimentsTable({
           ? "Select only up to 5 experiments to compare"
           : undefined,
         accessCheck: {
-          scope: "experiments:read",
+          scope: "project:read",
         },
       } as TableAction);
     }
@@ -587,6 +587,9 @@ export default function ExperimentsTable({
 
     return actions;
   }, [selectAll, selectedExperimentIds.length, hasEvalAccess]);
+
+  const shouldShowActions =
+    (selectAll || selectedExperimentIds.length > 0) && tableActions.length > 0;
 
   return (
     <>
@@ -624,7 +627,7 @@ export default function ExperimentsTable({
               pageIndex: paginationState.page - 1,
             }}
             actionButtons={
-              selectedExperimentIds.length > 0 && tableActions.length > 0
+              shouldShowActions
                 ? [
                     <TableActionMenu
                       key="experiments-multi-select-actions"
@@ -731,6 +734,7 @@ export default function ExperimentsTable({
           onClose={() => {
             setShowRunEvaluationDialog(false);
             setSelectedRows({});
+            setSelectAll(false);
           }}
           sourceTable="experiments"
         />

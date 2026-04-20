@@ -33,6 +33,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  experimentCount?: number;
   exampleObservation?: {
     id: string;
     traceId: string;
@@ -81,6 +82,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const isExperimentsSource = sourceTable === SourceTable.EXPERIMENTS;
   const scopeLabel =
     sourceTable === SourceTable.EVENTS ? "observation" : "experiment item";
+  const evaluatorScopeLabel =
+    targetObject === EvalTargetObject.EVENT ? "observation" : "experiment";
+  const experimentItemsExperimentCount =
+    sourceTable === SourceTable.EXPERIMENT_ITEMS
+      ? (props.experimentCount ?? 0)
+      : 0;
 
   const previewObservationQuery = api.observations.byId.useQuery(
     {
@@ -170,7 +177,9 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       title: "Evaluation queued",
       description: isExperimentsSource
         ? `Scheduled evaluation for items from ${displayCount} selected experiment${displayCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`
-        : `Scheduled evaluation for ${displayCount} selected ${scopeLabel}${displayCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`,
+        : sourceTable === SourceTable.EXPERIMENT_ITEMS
+          ? `Scheduled evaluation for up to ${displayCount} dataset item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`
+          : `Scheduled evaluation for ${displayCount} selected ${scopeLabel}${displayCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`,
       link: {
         href: `/project/${projectId}/settings/batch-actions`,
         text: "View batch actions",
@@ -188,12 +197,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             <DialogTitle>
               {isExperimentsSource
                 ? `Evaluate items from ${displayCount} experiment${displayCount === 1 ? "" : "s"}`
-                : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
+                : sourceTable === SourceTable.EXPERIMENT_ITEMS
+                  ? `Evaluate up to ${displayCount} dataset item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"}`
+                  : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
             </DialogTitle>
             <DialogDescription>
               {step === "confirm"
                 ? "Review your evaluation configuration before running."
-                : `Select one or more experiment-scoped evaluators.`}
+                : `Select one or more ${evaluatorScopeLabel}-scoped evaluators.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -214,6 +225,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   previewObservationQuery.isLoading ||
                   previewEventQuery.isLoading
                 }
+                evaluatorScopeLabel={evaluatorScopeLabel}
                 selectedEvaluatorIds={selectedEvaluatorIds}
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}

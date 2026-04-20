@@ -22,6 +22,7 @@ type EvaluatorSelectionStepProps = {
   queryErrorMessage: string | undefined;
   previewObservation: ObservationPreview | EventPreview | undefined;
   isPreviewLoading: boolean;
+  evaluatorScopeLabel: "observation" | "experiment";
   selectedEvaluatorIds: string[];
   evaluatorSearchQuery: string;
   onSearchQueryChange: (query: string) => void;
@@ -38,6 +39,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     queryErrorMessage,
     previewObservation,
     isPreviewLoading,
+    evaluatorScopeLabel,
     selectedEvaluatorIds,
     evaluatorSearchQuery,
     onSearchQueryChange,
@@ -103,8 +105,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
             <CardContent className="text-muted-foreground p-4 text-sm">
-              No observation-scoped evaluators found. Create a new
-              observation-scoped evaluator and it will appear here.
+              No {evaluatorScopeLabel}-scoped evaluators found. Create a new{" "}
+              {evaluatorScopeLabel}-scoped evaluator and it will appear here.
             </CardContent>
           </Card>
         ) : (

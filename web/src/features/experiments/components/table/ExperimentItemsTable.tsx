@@ -1140,16 +1140,13 @@ export default function ExperimentItemsTable({
             selectedObservationIds={selectedObservationIds}
             query={batchActionQuery}
             selectAll={selectAll}
-            totalCount={
-              selectAll
-                ? (totalCount ?? 0) * allExperimentIds.length
-                : selectedObservationIds.length
-            }
+            totalCount={selectAll ? (totalCount ?? 0) : selectedItemCount}
             onClose={() => {
               setShowRunEvaluationDialog(false);
               setSelectedRows({});
               setSelectAll(false);
             }}
+            experimentCount={allExperimentIds.length}
             exampleObservation={exampleObservation}
             sourceTable="experiment-items"
           />

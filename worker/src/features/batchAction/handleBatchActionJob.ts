@@ -425,7 +425,7 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
+              : "Selected evaluators are missing or invalid for historical evaluation.",
         },
       });
 
