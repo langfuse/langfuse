@@ -357,10 +357,6 @@ export const getEventsStreamForEval = async (props: {
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
-  config?: {
-    /** When true, only return observations where span_id = experiment_item_root_span_id */
-    experimentRootObservationsOnly?: boolean;
-  };
 }): Promise<Readable> => {
   const {
     projectId,
@@ -369,7 +365,6 @@ export const getEventsStreamForEval = async (props: {
     searchQuery,
     searchType,
     rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-    config,
   } = props;
 
   // Filter out score and comment filters since they're not relevant for eval
@@ -418,11 +413,6 @@ export const getEventsStreamForEval = async (props: {
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
-    .when(
-      Boolean(config?.experimentRootObservationsOnly) &&
-        config?.experimentRootObservationsOnly === true,
-      (b) => b.whereRaw("e.experiment_item_root_span_id = e.span_id"),
-    )
     .orderByDefault()
     .limitBy("e.span_id", "e.project_id")
     .limit(rowLimit);

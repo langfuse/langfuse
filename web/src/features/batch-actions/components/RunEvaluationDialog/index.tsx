@@ -178,7 +178,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       description: isExperimentsSource
         ? `Scheduled evaluation for items from ${displayCount} selected experiment${displayCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`
         : sourceTable === SourceTable.EXPERIMENT_ITEMS
-          ? `Scheduled evaluation for up to ${displayCount} dataset item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`
+          ? `Scheduled evaluation for up to ${displayCount} experiment item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`
           : `Scheduled evaluation for ${displayCount} selected ${scopeLabel}${displayCount === 1 ? "" : "s"} with ${selectedEvaluators.length} ${selectedEvaluators.length === 1 ? "evaluator" : "evaluators"}.`,
       link: {
         href: `/project/${projectId}/settings/batch-actions`,
@@ -198,7 +198,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               {isExperimentsSource
                 ? `Evaluate items from ${displayCount} experiment${displayCount === 1 ? "" : "s"}`
                 : sourceTable === SourceTable.EXPERIMENT_ITEMS
-                  ? `Evaluate up to ${displayCount} dataset item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"}`
+                  ? `Evaluate up to ${displayCount} experiment item${displayCount === 1 ? "" : "s"} across ${experimentItemsExperimentCount} experiment${experimentItemsExperimentCount === 1 ? "" : "s"}`
                   : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
             </DialogTitle>
             <DialogDescription>

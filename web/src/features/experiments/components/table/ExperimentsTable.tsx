@@ -41,7 +41,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -75,8 +74,6 @@ export default function ExperimentsTable({
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
-
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "experiments");
 
   const hasEvalAccess = useHasProjectAccess({
     projectId,
@@ -522,6 +519,12 @@ export default function ExperimentsTable({
                 value: selectedExperimentIds,
                 type: "stringOptions" as const,
               },
+              {
+                column: "isExperimentItemRootSpan" as const,
+                operator: "=" as const,
+                value: true,
+                type: "boolean" as const,
+              },
             ]
           : [],
       orderBy: { column: "startTime" as const, order: "DESC" as const },
@@ -550,25 +553,23 @@ export default function ExperimentsTable({
   const tableActions: TableAction[] = useMemo(() => {
     const actions: TableAction[] = [];
 
-    // Compare action: only when not using selectAll, disabled when >5 experiments selected
-    if (!selectAll) {
-      const tooManySelected = selectedExperimentIds.length > 5;
-      actions.push({
-        id: ActionId.ExperimentCompare,
-        type: BatchActionType.Create,
-        label: "Compare",
-        description: "Compare selected experiments",
-        icon: <GitCompareArrows className="mr-2 h-4 w-4" />,
-        customDialog: true,
-        disabled: tooManySelected,
-        disabledReason: tooManySelected
-          ? "Select only up to 5 experiments to compare"
-          : undefined,
-        accessCheck: {
-          scope: "project:read",
-        },
-      } as TableAction);
-    }
+    // Compare action: disabled when >5 experiments selected
+    const tooManySelected = selectedExperimentIds.length > 5;
+    actions.push({
+      id: ActionId.ExperimentCompare,
+      type: BatchActionType.Create,
+      label: "Compare",
+      description: "Compare selected experiments",
+      icon: <GitCompareArrows className="mr-2 h-4 w-4" />,
+      customDialog: true,
+      disabled: tooManySelected,
+      disabledReason: tooManySelected
+        ? "Select only up to 5 experiments to compare"
+        : undefined,
+      accessCheck: {
+        scope: "project:read",
+      },
+    } as TableAction);
 
     // Run Evaluator action: only when user has eval access
     if (hasEvalAccess) {
@@ -586,10 +587,10 @@ export default function ExperimentsTable({
     }
 
     return actions;
-  }, [selectAll, selectedExperimentIds.length, hasEvalAccess]);
+  }, [selectedExperimentIds.length, hasEvalAccess]);
 
   const shouldShowActions =
-    (selectAll || selectedExperimentIds.length > 0) && tableActions.length > 0;
+    selectedExperimentIds.length > 0 && tableActions.length > 0;
 
   return (
     <>
@@ -615,14 +616,14 @@ export default function ExperimentsTable({
             timeRange={timeRange}
             setTimeRange={setTimeRange}
             multiSelect={{
-              selectAll,
-              setSelectAll,
+              selectAll: false,
+              setSelectAll: () => {},
+              totalCount,
               selectedRowIds:
                 Object.keys(selectedRows).filter((experimentId) =>
                   experiments.rows?.map((e) => e.id).includes(experimentId),
                 ) ?? [],
               setRowSelection: setSelectedRows,
-              totalCount,
               pageSize: paginationState.limit,
               pageIndex: paginationState.page - 1,
             }}
@@ -734,7 +735,6 @@ export default function ExperimentsTable({
           onClose={() => {
             setShowRunEvaluationDialog(false);
             setSelectedRows({});
-            setSelectAll(false);
           }}
           sourceTable="experiments"
         />

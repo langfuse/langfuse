@@ -961,7 +961,7 @@ export default function ExperimentItemsTable({
     ).length;
   }, [selectedRows, rows]);
 
-  // Build query for batch actions (includes experiment context filter)
+  // Build query for batch actions (includes experiment context filter and root span filter)
   const batchActionQuery = useMemo(
     () => ({
       filter: [
@@ -977,6 +977,13 @@ export default function ExperimentItemsTable({
               },
             ]
           : []),
+        // Only target root spans of experiment items
+        {
+          column: "isExperimentItemRootSpan" as const,
+          operator: "=" as const,
+          value: true,
+          type: "boolean" as const,
+        },
       ],
       orderBy: orderByState,
     }),
@@ -1140,7 +1147,11 @@ export default function ExperimentItemsTable({
             selectedObservationIds={selectedObservationIds}
             query={batchActionQuery}
             selectAll={selectAll}
-            totalCount={selectAll ? (totalCount ?? 0) : selectedItemCount}
+            totalCount={
+              selectAll
+                ? (totalCount ?? 0) * allExperimentIds.length
+                : selectedItemCount
+            }
             onClose={() => {
               setShowRunEvaluationDialog(false);
               setSelectedRows({});
