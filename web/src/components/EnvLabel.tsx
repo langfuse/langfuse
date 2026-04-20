@@ -7,6 +7,11 @@ export const EnvLabel = ({ className }: { className?: string }) => {
   const [isHidden, setIsHidden] = useState(false);
   const session = useSession();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const label =
+    region && ["EU", "US", "HIPAA", "JP"].includes(region)
+      ? `PROD-${region}`
+      : region;
+
   if (!isLangfuseCloud) return null;
   if (!session.data?.user?.email?.endsWith("@langfuse.com")) return null;
   if (isHidden) return null;
@@ -23,9 +28,7 @@ export const EnvLabel = ({ className }: { className?: string }) => {
       )}
       onClick={() => setIsHidden(true)}
     >
-      {region && ["EU", "US", "HIPAA", "JP"].includes(region)
-        ? `PROD-${region}`
-        : region}
+      {label}
     </div>
   );
 };
