@@ -8,7 +8,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import type { Prisma } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { generateSchemaExample } from "../lib/generateSchemaExample";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -29,7 +29,16 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   const schemaString = JSON.stringify(schema, null, 2);
 
   // Generate example object from schema
-  const exampleObject = useMemo(() => generateSchemaExample(schema), [schema]);
+  const [exampleObject, setExampleObject] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void generateSchemaExample(schema).then((result) => {
+      if (!cancelled) setExampleObject(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [schema]);
 
   // State for copy button feedback
   const [copied, setCopied] = useState(false);
