@@ -70,7 +70,7 @@ export default function Traces() {
       },
     );
 
-  const showOnboarding = !isInitializing && !isLoading && !hasTracingConfigured;
+  const showOnboarding = !isLoading && !hasTracingConfigured;
 
   if (showOnboarding) {
     return (

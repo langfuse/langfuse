@@ -585,7 +585,7 @@ function TableBodyComponent<TData>({
                       return loadingCell();
                     }
 
-                    if (loadingCell) {
+                    if (loadingCell !== undefined) {
                       return loadingCell;
                     }
 

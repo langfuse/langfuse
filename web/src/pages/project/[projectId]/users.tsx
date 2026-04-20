@@ -47,7 +47,7 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const { isBetaEnabled } = useV4Beta();
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
@@ -79,7 +79,7 @@ export default function UsersPage() {
 
   const hasUsers = isBetaEnabled ? hasAnyUserFromEvents : hasAnyUser;
   const isLoadingUsers = isBetaEnabled ? isLoadingFromEvents : isLoading;
-  const showOnboarding = !isInitializing && !isLoadingUsers && !hasUsers;
+  const showOnboarding = !isLoadingUsers && !hasUsers;
 
   return (
     <Page
