@@ -180,7 +180,6 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/chroma-js": "^3.1.2",
     "@types/cors": "^2.8.19",
-    "@types/dompurify": "^3.2.0",
     "@types/eslint": "^9.6.1",
     "@types/jest": "^29.5.12",
     "@types/lodash": "^4.17.24",
