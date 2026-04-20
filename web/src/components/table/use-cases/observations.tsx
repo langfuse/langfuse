@@ -1121,6 +1121,7 @@ export default function ObservationsTable({
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -1138,6 +1139,7 @@ export default function ObservationsTable({
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -1155,6 +1157,7 @@ export default function ObservationsTable({
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -1184,6 +1187,7 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
+          loadingCell: <TableTextLoadingCell />,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
               inputCost: number | undefined;
@@ -1203,6 +1207,7 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
+          loadingCell: <TableTextLoadingCell />,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
               inputCost: number | undefined;

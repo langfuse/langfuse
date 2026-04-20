@@ -788,6 +788,7 @@ export default function ObservationsEventsTable({
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
+          loadingCell: <TableTextLoadingCell />,
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
@@ -807,6 +808,7 @@ export default function ObservationsEventsTable({
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
+          loadingCell: <TableTextLoadingCell />,
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
@@ -913,6 +915,7 @@ export default function ObservationsEventsTable({
           id: "inputTokens",
           header: getEventsColumnName("inputTokens"),
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -930,6 +933,7 @@ export default function ObservationsEventsTable({
           id: "outputTokens",
           header: getEventsColumnName("outputTokens"),
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -947,6 +951,7 @@ export default function ObservationsEventsTable({
           id: "totalTokens",
           header: getEventsColumnName("totalTokens"),
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
