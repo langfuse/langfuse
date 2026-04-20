@@ -321,7 +321,7 @@ We're using Vitest in the `web` package. There are two types of unit tests:
 - `test` (server tests)
 - `test-client`
 
-To run a specific test file, for example `prompts.v2.servertest.ts`, run:
+To run a specific test by name within a file, run:
 
 ```sh
 cd web  # or with --filter=web
