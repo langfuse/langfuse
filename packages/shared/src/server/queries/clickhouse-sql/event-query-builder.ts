@@ -363,6 +363,7 @@ const FIELD_SETS = {
     "toolCallNames",
     "experimentId",
     "experimentItemRootSpanId",
+    "experimentItemExpectedOutput",
   ],
 
   // Experiment items field set
