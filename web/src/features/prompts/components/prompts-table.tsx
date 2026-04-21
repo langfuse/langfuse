@@ -63,10 +63,19 @@ function createRow(
 export function PromptTable() {
   const projectId = useProjectIdFromURL() ?? "";
   const { setDetailPageList } = useDetailPageLists();
-  const promptMetricsFromTimestamp = useMemo(
-    () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    [],
-  );
+  const promptMetricsTimeWindow = useMemo(() => {
+    const today = new Date();
+
+    const fromTimestamp = new Date(today);
+    fromTimestamp.setDate(fromTimestamp.getDate() - 7);
+    fromTimestamp.setHours(0, 0, 0, 0);
+
+    const toTimestamp = new Date(today);
+    toTimestamp.setHours(0, 0, 0, 0);
+    toTimestamp.setMilliseconds(toTimestamp.getMilliseconds() - 1);
+
+    return { fromTimestamp, toTimestamp };
+  }, []);
 
   const [filterState] = useQueryFilterState([], "prompts", projectId);
 
@@ -119,7 +128,7 @@ export function PromptTable() {
         prompts.data?.prompts.map((p) =>
           buildFullPath(currentFolderPath, p.name),
         ) ?? [],
-      fromTimestamp: promptMetricsFromTimestamp,
+      ...promptMetricsTimeWindow,
     },
     {
       enabled:
