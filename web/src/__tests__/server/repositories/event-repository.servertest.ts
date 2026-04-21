@@ -2360,5 +2360,37 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.isOtel).toBe(true);
       expect(result.version).toBe("4.2.0");
     });
+
+    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK
+      // scope.name is "ai" (instrumentation scope), no version
+      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
+            '{"name":"ai","attributes":{}}',
+          ],
+          scope_name: "", // No direct columns for raw OTel
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("ai");
+      expect(result.language).toBe("nodejs");
+      expect(result.version).toBeUndefined();
+    });
   });
 });
