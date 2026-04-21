@@ -41,6 +41,7 @@ import {
   toAbsoluteTimeRange,
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/normalizeSingleValueOptions";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -580,7 +581,9 @@ export function WidgetForm({
     environmentFilterOptions.data?.map((value) => ({
       value: value.environment,
     })) || [];
-  const nameOptions = traceFilterOptions.data?.name || [];
+  const nameOptions = normalizeSingleValueOptions(
+    traceFilterOptions.data?.name,
+  );
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
