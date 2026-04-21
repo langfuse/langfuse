@@ -1346,8 +1346,12 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Strip scoreValue filters — the score filter was removed from the UI
+      // but bookmarked URLs may still include it.
+      const filters = input.filter.filter((f) => f.column !== "scoreValue");
+
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        filters,
         evalExecutionsFilterCols,
         "job_executions",
       );
@@ -1604,7 +1608,6 @@ const generateExecutionsQuery = (
    ${select}
    FROM job_executions je
    LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
-   LEFT JOIN scores s ON je.job_output_score_id = s.id AND je.project_id = s.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'

@@ -28,10 +28,4 @@ export const evalExecutionsFilterCols: ColumnDefinition[] = [
     type: "string",
     internal: 'je."execution_trace_id"',
   },
-  {
-    name: "Score Value",
-    id: "scoreValue",
-    type: "number",
-    internal: 's."value"',
-  },
 ];
