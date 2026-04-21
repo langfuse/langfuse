@@ -16,6 +16,7 @@ import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 export const NewProjectForm = ({
   orgId,
@@ -47,7 +48,18 @@ export const NewProjectForm = ({
         orgId,
       })
       .then(async (project) => {
-        await updateSession();
+        try {
+          await updateSession();
+        } catch (error) {
+          console.error(error);
+          setIsSubmitting(false);
+          showErrorToast(
+            "Project created",
+            "Your project was created, but we couldn't refresh your session. Please reload the page to continue.",
+            "WARNING",
+          );
+          return;
+        }
         form.reset();
         await onSuccess(project.id);
       })
