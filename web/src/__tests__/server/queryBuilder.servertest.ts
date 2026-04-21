@@ -313,7 +313,7 @@ describe("queryBuilder", () => {
         observationId?: string;
         value?: number;
         stringValue?: string;
-        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
+        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN" | "TEXT" | "CORRECTION";
         source?: string;
         environment?: string;
       }>,
@@ -328,7 +328,9 @@ describe("queryBuilder", () => {
             observation_id: data.observationId,
             name: data.name,
             value: data.dataType === "NUMERIC" ? data.value || 0 : null,
-            string_value: ["CATEGORICAL", "BOOLEAN"].includes(data.dataType)
+            string_value: ["CATEGORICAL", "BOOLEAN", "TEXT"].includes(
+              data.dataType,
+            )
               ? data.stringValue || ""
               : null,
             environment: data.environment || "default",
@@ -1871,6 +1873,25 @@ describe("queryBuilder", () => {
             dataType: "CATEGORICAL" as const,
             source: "human",
           },
+
+          // Adding a TEXT (free-text) score that should also be excluded by the segments filter
+          {
+            name: "feedback",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            stringValue: "looks good to me",
+            dataType: "TEXT" as const,
+            source: "human",
+          },
+
+          // Adding a CORRECTION score that should also be excluded by the segments filter
+          {
+            name: "correction",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            dataType: "CORRECTION" as const,
+            source: "human",
+          },
         ];
 
         await setupScores(projectId, scores);
@@ -1902,18 +1923,33 @@ describe("queryBuilder", () => {
           projectId,
         );
 
-        // Verify SQL includes segment filter for NUMERIC types
-        // Verify SQL includes segment filter for non-NUMERIC types
-        expect(compiledQuery).toContain("position(scores_numeric.data_type, {");
-        expect(compiledQuery).toContain(": String}) = 0");
-        expect(Object.values(parameters)).toContain("CATEGORICAL");
+        // Verify SQL restricts scores-numeric to the NUMERIC/BOOLEAN allow-list
+        expect(compiledQuery).toContain(
+          "scores_numeric.data_type IN ({stringOptionsFilter",
+        );
+        expect(compiledQuery).toContain(": Array(String)})");
+        expect(Object.values(parameters)).toContainEqual([
+          "NUMERIC",
+          "BOOLEAN",
+        ]);
 
         // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
         // Assert
+        // CATEGORICAL ("evaluation"), TEXT ("feedback"), and CORRECTION ("correction")
+        // scores must be excluded by the segments allow-list
         expect(result.data).toHaveLength(3); // accuracy, relevance, coherence
+        expect(
+          result.data.find((row: any) => row.name === "feedback"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "evaluation"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "correction"),
+        ).toBeUndefined();
 
         // Check each score type
         const accuracyRow = result.data.find(

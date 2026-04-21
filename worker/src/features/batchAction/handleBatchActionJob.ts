@@ -390,7 +390,6 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
-          targetObject: EvalTargetObject.EVENT,
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -426,7 +425,7 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
+              : "Selected evaluators are missing or invalid for historical evaluation.",
         },
       });
 

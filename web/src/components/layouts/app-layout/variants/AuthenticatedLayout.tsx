@@ -12,6 +12,8 @@ import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { ResizableContent } from "../components/ResizableContent";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -96,6 +98,8 @@ export function AuthenticatedLayout({
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
+  const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
   const user = session.user;
@@ -103,6 +107,17 @@ export function AuthenticatedLayout({
     // This should never happen due to guards in AppLayout, but TypeScript needs this
     return null;
   }
+
+  const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
+    (region) => ({
+      name: region.name,
+      content: `${region.flag} ${region.name}`,
+      onClick: () => {
+        if (!region.rootUrl) return;
+        window.open(region.rootUrl, "_blank", "noopener,noreferrer");
+      },
+    }),
+  );
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -114,6 +129,22 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+      ...(isLangfuseCloud
+        ? [
+            {
+              name: "Regions",
+              subItems: regionMenuItems,
+              content: (
+                <>
+                  Regions
+                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                    Current: {currentRegion}
+                  </div>
+                </>
+              ),
+            },
+          ]
+        : []),
       { name: "Sign out", onClick: onSignOut },
     ],
   };

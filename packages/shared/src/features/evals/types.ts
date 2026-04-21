@@ -12,6 +12,35 @@ export type EvalTargetObject =
 
 export const EvalTargetObjectSchema = z.enum(Object.values(EvalTargetObject));
 
+// Batch action source tables that support evaluation
+export const BatchEvalSourceTable = {
+  EVENTS: "events",
+  EXPERIMENT_ITEMS: "experiment-items",
+  EXPERIMENTS: "experiments",
+} as const;
+
+export type BatchEvalSourceTable =
+  (typeof BatchEvalSourceTable)[keyof typeof BatchEvalSourceTable];
+
+export const BatchEvalSourceTableSchema = z.enum([
+  BatchEvalSourceTable.EVENTS,
+  BatchEvalSourceTable.EXPERIMENT_ITEMS,
+  BatchEvalSourceTable.EXPERIMENTS,
+]);
+
+/**
+ * Maps a batch evaluation source table to its corresponding eval target object.
+ * - "events" → EvalTargetObject.EVENT (observation-scoped evaluators)
+ * - "experiment-items" / "experiments" → EvalTargetObject.EXPERIMENT (experiment-scoped evaluators)
+ */
+export function getEvalTargetObjectFromSourceTable(
+  sourceTable: BatchEvalSourceTable,
+): EvalTargetObject {
+  return sourceTable === BatchEvalSourceTable.EVENTS
+    ? EvalTargetObject.EVENT
+    : EvalTargetObject.EXPERIMENT;
+}
+
 export const langfuseObjects = [
   "trace",
   "span",
