@@ -63,7 +63,6 @@ function formatFilterForPill(filter: FilterCondition): string {
 
 interface FilterPillWithTargetProps {
   filter: FilterCondition;
-  filterIndex: number;
   experimentId: string;
   experimentName: string;
   selectedExperimentNames: { experimentId: string; experimentName: string }[];
@@ -183,7 +182,6 @@ export function ExperimentFilterPills({
         <FilterPillWithTarget
           key={item.key}
           filter={item.filter}
-          filterIndex={item.filterIndex}
           experimentId={item.experimentId}
           experimentName={item.experimentName}
           selectedExperimentNames={selectedExperimentNames}
