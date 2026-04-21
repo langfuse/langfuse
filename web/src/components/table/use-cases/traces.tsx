@@ -72,8 +72,14 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  getTraceFilterConfig,
+  type TraceOmittableFilterColumn,
+} from "@/src/features/filters/config/traces-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -86,6 +92,7 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
@@ -135,7 +142,7 @@ export type TracesTableRow = {
 export type TracesTableProps = {
   projectId: string;
   userId?: string;
-  omittedFilter?: string[];
+  omittedFilter?: TraceOmittableFilterColumn[];
   hideControls?: boolean;
   viewPersistenceKey?: string;
   externalFilterState?: FilterState;
@@ -153,6 +160,11 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
 }: TracesTableProps) {
+  const peekContext = usePeekTableState();
+  const tracesFilterConfig = useMemo(
+    () => getTraceFilterConfig(omittedFilter),
+    [omittedFilter],
+  );
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [rawRefreshInterval, setRawRefreshInterval] =
@@ -328,15 +340,42 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions, {
-    loading:
-      traceFilterOptionsResponse.isPending ||
-      environmentFilterOptions.isPending,
-    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
-    sessionFilterContextId: projectId,
-    // Sidebar-only implicit environment defaults
-    implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-  });
+  const isSidebarFilterLoading =
+    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (hideControls) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+
+  const queryFilter = useSidebarFilterState(
+    tracesFilterConfig,
+    filterOptions,
+    queryFilterOptions,
+  );
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
@@ -865,7 +904,7 @@ export default function TracesTable({
         ]),
     {
       accessorKey: "sessionId",
-      enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
+      enableColumnFilter: !omittedFilter.includes("sessionId"),
       id: "sessionId",
       header: "Session",
       size: 150,
@@ -1252,7 +1291,7 @@ export default function TracesTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: traceFilterConfig.columnDefinitions,
+      filterColumnDefinition: tracesFilterConfig.columnDefinitions,
     },
     currentFilterState: queryFilter.explicitFilterState,
     disabled: hideControls,
@@ -1305,7 +1344,7 @@ export default function TracesTable({
   }, [traces.isSuccess, traceRowData?.rows]);
 
   return (
-    <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
+    <DataTableControlsProvider tableName={tracesFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (

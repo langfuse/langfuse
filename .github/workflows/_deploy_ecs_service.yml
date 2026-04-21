@@ -46,7 +46,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
       - name: Login to AWS ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2
+        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
