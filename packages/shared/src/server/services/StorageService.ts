@@ -509,6 +509,10 @@ class S3StorageService implements StorageService {
       endpoint: params.endpoint,
       region: params.region,
       forcePathStyle: params.forcePathStyle,
+      // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
+      // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler: {
         httpsAgent: {
           maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
@@ -525,6 +529,8 @@ class S3StorageService implements StorageService {
           endpoint: params.externalEndpoint,
           region: params.region,
           forcePathStyle: params.forcePathStyle,
+          requestChecksumCalculation: "WHEN_REQUIRED",
+          responseChecksumValidation: "WHEN_REQUIRED",
           requestHandler: {
             httpsAgent: {
               maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,

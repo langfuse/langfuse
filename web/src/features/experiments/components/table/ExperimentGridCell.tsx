@@ -32,7 +32,6 @@ import { cn } from "@/src/utils/tailwind";
 
 type ExperimentGridCellProps = {
   projectId: string;
-  experimentId: string;
   itemId: string;
   output: unknown;
   level: string;

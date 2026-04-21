@@ -20,6 +20,23 @@ const zAuthChecks = z
   .transform((s) => s?.split(",").map((s) => s.trim()))
   .pipe(z.array(z.enum(["nonce", "none", "pkce", "state"])).optional());
 
+const zIdTokenAlg = z
+  .enum([
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "HS256",
+    "HS384",
+    "HS512",
+  ])
+  .optional();
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -99,6 +116,7 @@ export const env = createEnv({
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GOOGLE_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GOOGLE_CHECKS: zAuthChecks,
+    AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -118,6 +136,7 @@ export const env = createEnv({
     AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
+    AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
@@ -125,12 +144,14 @@ export const env = createEnv({
     AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AZURE_AD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AZURE_AD_CHECKS: zAuthChecks,
+    AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_OKTA_CLIENT_ID: z.string().optional(),
     AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
     AUTH_OKTA_ISSUER: z.string().optional(),
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_OKTA_CHECKS: zAuthChecks,
     AUTH_OKTA_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTHENTIK_CLIENT_ID: z.string().optional(),
     AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTHENTIK_ISSUER: z
@@ -143,6 +164,7 @@ export const env = createEnv({
     AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTHENTIK_CHECKS: zAuthChecks,
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTHENTIK_AUTHORIZATION_URL: z.string().url().optional(),
     AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
     AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
@@ -150,12 +172,14 @@ export const env = createEnv({
     AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_ONELOGIN_CHECKS: zAuthChecks,
     AUTH_ONELOGIN_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTH0_ISSUER: z.string().url().optional(),
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
+    AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     // Langfuse Cloud only: "Sign in with ClickHouse Cloud" (Auth0 under the hood).
     // NOT intended for self-hosted Langfuse — use AUTH_AUTH0_* instead.
     AUTH_CLICKHOUSE_CLOUD_CLIENT_ID: z.string().optional(),
@@ -166,18 +190,21 @@ export const env = createEnv({
       .optional(),
     AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_CLICKHOUSE_CLOUD_CHECKS: zAuthChecks,
+    AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_COGNITO_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_COGNITO_CHECKS: zAuthChecks,
+    AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_KEYCLOAK_CLIENT_ID: z.string().optional(),
     AUTH_KEYCLOAK_CLIENT_SECRET: z.string().optional(),
     AUTH_KEYCLOAK_ISSUER: z.string().optional(),
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_KEYCLOAK_CHECKS: zAuthChecks,
+    AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_KEYCLOAK_SCOPE: z.string().optional(),
     AUTH_KEYCLOAK_ID_TOKEN: z
       .enum(["true", "false"])
@@ -190,6 +217,7 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_JUMPCLOUD_CHECKS: zAuthChecks,
+    AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_JUMPCLOUD_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
@@ -198,6 +226,7 @@ export const env = createEnv({
     AUTH_CUSTOM_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_CUSTOM_CHECKS: zAuthChecks,
+    AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
@@ -210,6 +239,7 @@ export const env = createEnv({
     AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_WORDPRESS_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_WORDPRESS_CHECKS: zAuthChecks,
+    AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -500,6 +530,8 @@ export const env = createEnv({
       process.env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING,
     AUTH_GOOGLE_CLIENT_AUTH_METHOD: process.env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
     AUTH_GOOGLE_CHECKS: process.env.AUTH_GOOGLE_CHECKS,
+    AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
@@ -524,6 +556,8 @@ export const env = createEnv({
       process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_CLIENT_AUTH_METHOD: process.env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
     AUTH_GITLAB_CHECKS: process.env.AUTH_GITLAB_CHECKS,
+    AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_GITLAB_URL: process.env.AUTH_GITLAB_URL,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
@@ -536,6 +570,8 @@ export const env = createEnv({
       process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
     AUTH_AZURE_AD_CHECKS:
       process.env.AUTH_AZURE_AD_CHECKS ?? process.env.AUTH_AZURE_CHECKS, // fallback on old env var
+    AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
     AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
     AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
@@ -543,6 +579,8 @@ export const env = createEnv({
       process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_OKTA_CLIENT_AUTH_METHOD: process.env.AUTH_OKTA_CLIENT_AUTH_METHOD,
     AUTH_OKTA_CHECKS: process.env.AUTH_OKTA_CHECKS,
+    AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_AUTHENTIK_CLIENT_ID: process.env.AUTH_AUTHENTIK_CLIENT_ID,
     AUTH_AUTHENTIK_CLIENT_SECRET: process.env.AUTH_AUTHENTIK_CLIENT_SECRET,
     AUTH_AUTHENTIK_ISSUER: process.env.AUTH_AUTHENTIK_ISSUER,
@@ -551,6 +589,8 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
       process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
     AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_AUTHENTIK_AUTHORIZATION_URL:
       process.env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
     AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
@@ -561,6 +601,8 @@ export const env = createEnv({
     AUTH_ONELOGIN_CLIENT_AUTH_METHOD:
       process.env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
     AUTH_ONELOGIN_CHECKS: process.env.AUTH_ONELOGIN_CHECKS,
+    AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
@@ -568,6 +610,8 @@ export const env = createEnv({
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_AUTH0_CLIENT_AUTH_METHOD: process.env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
     AUTH_AUTH0_CHECKS: process.env.AUTH_AUTH0_CHECKS,
+    AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_CLICKHOUSE_CLOUD_CLIENT_ID:
       process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
     AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET:
@@ -578,6 +622,8 @@ export const env = createEnv({
     AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD:
       process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
     AUTH_CLICKHOUSE_CLOUD_CHECKS: process.env.AUTH_CLICKHOUSE_CLOUD_CHECKS,
+    AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
@@ -586,6 +632,8 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_AUTH_METHOD:
       process.env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
     AUTH_COGNITO_CHECKS: process.env.AUTH_COGNITO_CHECKS,
+    AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_KEYCLOAK_CLIENT_ID: process.env.AUTH_KEYCLOAK_CLIENT_ID,
     AUTH_KEYCLOAK_CLIENT_SECRET: process.env.AUTH_KEYCLOAK_CLIENT_SECRET,
     AUTH_KEYCLOAK_ISSUER: process.env.AUTH_KEYCLOAK_ISSUER,
@@ -594,6 +642,8 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD:
       process.env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
+    AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
     AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
     AUTH_KEYCLOAK_NAME: process.env.AUTH_KEYCLOAK_NAME,
@@ -605,6 +655,8 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD:
       process.env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
     AUTH_JUMPCLOUD_CHECKS: process.env.AUTH_JUMPCLOUD_CHECKS,
+    AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_JUMPCLOUD_SCOPE: process.env.AUTH_JUMPCLOUD_SCOPE,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
@@ -613,6 +665,8 @@ export const env = createEnv({
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_CHECKS: process.env.AUTH_CUSTOM_CHECKS,
+    AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
@@ -629,6 +683,8 @@ export const env = createEnv({
     AUTH_WORDPRESS_CLIENT_AUTH_METHOD:
       process.env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
     AUTH_WORDPRESS_CHECKS: process.env.AUTH_WORDPRESS_CHECKS,
+    AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG:
+      process.env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,

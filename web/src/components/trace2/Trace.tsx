@@ -1,5 +1,4 @@
 import { type TraceDomain } from "@langfuse/shared";
-import { type UrlUpdateType } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -32,14 +31,7 @@ export type TraceProps = {
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
-  viewType?: "detailed" | "focused";
   context?: "peek" | "fullscreen";
-  isValidObservationId?: boolean;
-  selectedTab?: string;
-  setSelectedTab?: (
-    newValue?: string | null,
-    updateType?: UrlUpdateType,
-  ) => void;
 };
 
 export function Trace({

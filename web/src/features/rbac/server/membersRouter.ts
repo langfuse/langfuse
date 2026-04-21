@@ -572,15 +572,7 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: membership.id,
-        action: "update",
-        before: membership,
-      });
-
-      return await ctx.prisma.organizationMembership.update({
+      const updatedMembership = await ctx.prisma.organizationMembership.update({
         where: {
           id: membership.id,
           orgId: input.orgId,
@@ -589,6 +581,17 @@ export const membersRouter = createTRPCRouter({
           role: input.role,
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+        before: membership,
+        after: updatedMembership,
+      });
+
+      return updatedMembership;
     }),
   updateProjectRole: protectedOrganizationProcedure
     .input(
@@ -675,7 +678,7 @@ export const membersRouter = createTRPCRouter({
           await auditLog({
             session: ctx.session,
             resourceType: "projectMembership",
-            resourceId: `${input.orgMembershipId}--${input.projectId}`,
+            resourceId: `${input.projectId}--${input.userId}`,
             action: "delete",
             before: projectMembership,
           });
@@ -716,9 +719,10 @@ export const membersRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "projectMembership",
-        resourceId: input.projectId + "--" + input.userId,
-        action: "update",
+        resourceId: `${input.projectId}--${input.userId}`,
+        action: projectMembership ? "update" : "create",
         before: projectMembership,
+        after: updatedProjectMembership,
       });
 
       return updatedProjectMembership;

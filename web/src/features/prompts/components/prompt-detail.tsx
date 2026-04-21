@@ -371,7 +371,6 @@ export const PromptDetail = ({
                 setCurrentPromptVersion(version);
                 setCurrentPromptLabel(null);
               }}
-              totalCount={promptHistory.data.totalCount}
               commentCounts={commentCounts.data}
             />
           </div>
