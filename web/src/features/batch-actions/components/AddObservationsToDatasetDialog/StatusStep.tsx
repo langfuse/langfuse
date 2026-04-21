@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { Check, AlertCircle, Loader2 } from "lucide-react";
 
 type StatusStepProps = {
@@ -27,6 +28,8 @@ export function StatusStep({
   expectedCount,
   onClose,
 }: StatusStepProps) {
+  const router = useRouter();
+
   // Poll for status updates
   const status = api.batchAction.byId.useQuery(
     {
@@ -192,12 +195,16 @@ export function StatusStep({
               Close
             </Button>
             {isComplete && hasPartialSuccess && (
-              <Link
-                href={`/project/${projectId}/datasets/${dataset.id}/items`}
+              <Button
                 className="flex-1"
+                onClick={() =>
+                  void router.push(
+                    `/project/${projectId}/datasets/${encodeURIComponent(dataset.id)}/items`,
+                  )
+                }
               >
-                <Button className="w-full">Go to Dataset</Button>
-              </Link>
+                Go to Dataset
+              </Button>
             )}
           </div>
         </div>
