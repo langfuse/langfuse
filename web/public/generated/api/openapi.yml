@@ -2409,6 +2409,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpsertLlmConnectionRequest'
+  /api/public/llm-connections/{id}:
+    delete:
+      description: >-
+        Delete an LLM connection by id. Evaluators that depend on the deleted
+        connection are automatically paused.
+      operationId: llmConnections_delete
+      tags:
+        - LlmConnections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteLlmConnectionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -9436,6 +9484,14 @@ components:
         - provider
         - adapter
         - secretKey
+    DeleteLlmConnectionResponse:
+      title: DeleteLlmConnectionResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     LlmAdapter:
       title: LlmAdapter
       type: string
