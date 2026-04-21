@@ -3253,7 +3253,7 @@ function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
 }
 
 /**
- * Detects SDK metadata from recent events (last 7 days).
+ * Infers SDK details from the most recent event in the past 7 days containing Langfuse SDK metadata attributes.
  *
  * Detection priority:
  * - v4+: Direct columns (scope_name, scope_version, telemetry_sdk_language)
@@ -3263,7 +3263,7 @@ function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
  * Returns the most recent matching event's SDK info. Projects with no events
  * in the past 7 days return isOtel: false (acceptable for inactive projects).
  */
-export async function getSdkMetadataFromEvents(params: {
+export async function getLatestSdkVersionInfoFromEvents(params: {
   projectId: string;
 }): Promise<SdkMetadata> {
   const { projectId } = params;

@@ -9,7 +9,7 @@ import {
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
-  getSdkMetadataFromEvents,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -2242,7 +2242,7 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
-  maybe("getSdkMetadataFromEvents", () => {
+  maybe("getLatestSdkVersionInfoFromEvents", () => {
     it("should return isOtel: false for v2 data (no scope metadata)", async () => {
       const uniqueProjectId = randomUUID();
 
@@ -2259,7 +2259,7 @@ describe("Clickhouse Events Repository Test", () => {
         }),
       ]);
 
-      const result = await getSdkMetadataFromEvents({
+      const result = await getLatestSdkVersionInfoFromEvents({
         projectId: uniqueProjectId,
       });
 
@@ -2299,7 +2299,7 @@ describe("Clickhouse Events Repository Test", () => {
         }),
       ]);
 
-      const result = await getSdkMetadataFromEvents({
+      const result = await getLatestSdkVersionInfoFromEvents({
         projectId: uniqueProjectId,
       });
 
@@ -2353,7 +2353,7 @@ describe("Clickhouse Events Repository Test", () => {
         }),
       ]);
 
-      const result = await getSdkMetadataFromEvents({
+      const result = await getLatestSdkVersionInfoFromEvents({
         projectId: uniqueProjectId,
       });
 
