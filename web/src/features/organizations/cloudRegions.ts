@@ -43,14 +43,12 @@ const cloudRegions = [
   },
 ] as const;
 
-const authCloudRegionNamesByCurrentRegion = {
+const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
   JP: ["JP", "US", "EU", "HIPAA"],
   default: ["US", "EU", "HIPAA"],
 } as const;
-
-const userNavigationCloudRegionNames = ["EU", "US", "JP", "HIPAA"] as const;
 
 const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
   const region = cloudRegions.find((region) => region.name === name);
@@ -61,26 +59,23 @@ const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
   return region;
 };
 
-export const getAuthCloudRegionOptions = (currentRegion?: string) => {
+export const getAvailableCloudRegionOptions = (currentRegion?: string) => {
   if (currentRegion === "STAGING") {
-    return authCloudRegionNamesByCurrentRegion.STAGING.map(getCloudRegion);
+    return availableRegionsByCurrentRegion.STAGING.map(getCloudRegion);
   }
 
   if (currentRegion === "DEV") {
-    return authCloudRegionNamesByCurrentRegion.DEV.map(getCloudRegion);
+    return availableRegionsByCurrentRegion.DEV.map(getCloudRegion);
   }
 
   if (currentRegion === "JP") {
-    return authCloudRegionNamesByCurrentRegion.JP.map(getCloudRegion);
+    return availableRegionsByCurrentRegion.JP.map(getCloudRegion);
   }
 
-  return authCloudRegionNamesByCurrentRegion.default.map(getCloudRegion);
+  return availableRegionsByCurrentRegion.default.map(getCloudRegion);
 };
 
 export const isRegionProduction = (regionName: string): boolean => {
   const region = cloudRegions.find((r) => r.name === regionName);
   return region ? region.isProduction : false;
 };
-
-export const getUserNavigationCloudRegionOptions = () =>
-  userNavigationCloudRegionNames.map(getCloudRegion);

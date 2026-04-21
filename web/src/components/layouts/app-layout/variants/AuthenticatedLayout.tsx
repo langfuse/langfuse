@@ -12,7 +12,7 @@ import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { ResizableContent } from "../components/ResizableContent";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
-import { getUserNavigationCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
+import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
@@ -108,7 +108,7 @@ export function AuthenticatedLayout({
     return null;
   }
 
-  const regionMenuItems = getUserNavigationCloudRegionOptions().map(
+  const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
       name: region.name,
       content: `${region.flag} ${region.name}`,
