@@ -5,13 +5,21 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import {
+  TableBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   getScoreFilterConfig,
   SCORE_COLUMN_TO_BACKEND_KEY,
@@ -54,7 +62,6 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { Skeleton } from "@/src/components/ui/skeleton";
 
 export type ScoresTableRow = {
   id: string;
@@ -116,6 +123,8 @@ export default function ScoresTable({
   localStorageSuffix = "",
   disableUrlPersistence = false,
 }: ScoresTableProps) {
+  const peekContext = usePeekTableState();
+
   const scoresFilterConfig = useMemo(
     () => getScoreFilterConfig(hiddenColumns),
     [hiddenColumns],
@@ -297,16 +306,41 @@ export default function ScoresTable({
     [filterOptions.data, environmentOptions],
   );
 
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (disableUrlPersistence) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [disableUrlPersistence, isSidebarFilterLoading, peekContext, projectId]);
+
   const queryFilter = useSidebarFilterState(
     scoresFilterConfig,
     newFilterOptions,
-    {
-      loading: filterOptions.isPending || environmentFilterOptions.isPending,
-      disableUrlPersistence,
-      sessionFilterContextId: projectId,
-      // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-    },
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -421,9 +455,10 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 150,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         if (isBetaEnabled && !scoreMetrics.data)
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
@@ -515,6 +550,7 @@ export default function ScoresTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value = row.getValue("environment") as string | undefined;
         return value ? (
@@ -538,9 +574,10 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 100,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         if (isBetaEnabled && !scoreMetrics.data)
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         const value = row.getValue("userId");
         return typeof value === "string" ? (
           <>
@@ -601,6 +638,13 @@ export default function ScoresTable({
       header: "Metadata",
       id: "metadata",
       size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
         // TODO: docs for metadata on scores
@@ -624,6 +668,13 @@ export default function ScoresTable({
       id: "comment",
       enableHiding: true,
       size: 400,
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const value = row.getValue("comment") as ScoresTableRow["comment"];
         return (
@@ -684,9 +735,10 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         if (isBetaEnabled && !scoreMetrics.data)
-          return <Skeleton className="h-3 w-1/2" />;
+          return <TableTextLoadingCell />;
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags && (
