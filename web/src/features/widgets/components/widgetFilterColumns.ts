@@ -61,20 +61,6 @@ export const getWidgetFilterColumns = ({
       internal: "internalValue",
     },
     {
-      name: "Tool Names (Available)",
-      id: "toolNames",
-      type: "arrayOptions",
-      options: toolNamesOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Tool Names (Called)",
-      id: "calledToolNames",
-      type: "arrayOptions",
-      options: calledToolNamesOptions,
-      internal: "internalValue",
-    },
-    {
       name: "User",
       id: "user",
       type: "string",
@@ -107,6 +93,20 @@ export const getWidgetFilterColumns = ({
   ];
 
   if (selectedView === "observations") {
+    filterColumns.push({
+      name: "Tool Names (Available)",
+      id: "toolNames",
+      type: "arrayOptions",
+      options: toolNamesOptions,
+      internal: "internalValue",
+    });
+    filterColumns.push({
+      name: "Tool Names (Called)",
+      id: "calledToolNames",
+      type: "arrayOptions",
+      options: calledToolNamesOptions,
+      internal: "internalValue",
+    });
     filterColumns.push({
       name: "Model",
       id: "providedModelName",

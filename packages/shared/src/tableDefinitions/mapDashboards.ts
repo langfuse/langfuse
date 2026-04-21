@@ -103,13 +103,8 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: "mapKeys(tool_definitions)",
     uiTableId: "toolNames",
-    uiTableName: "Tool Names",
-  },
-  {
-    clickhouseTableName: "observations",
-    clickhouseSelect: "mapKeys(tool_definitions)",
-    uiTableId: "toolNames",
     uiTableName: "Tool Names (Available)",
+    aliases: ["Tool Names"],
   },
   {
     clickhouseTableName: "observations",

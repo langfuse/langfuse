@@ -1,270 +1,346 @@
 import { z } from "zod";
-import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
+import {
+  findUiColumnMapping,
+  singleFilter,
+  type UiColumnMatchable,
+} from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
 export const FilterArray = z.array(singleFilter);
 
-const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
+/**
+ * Central compatibility layer for dashboard/widget filter columns.
+ *
+ * Legacy dashboard filters can arrive in three shapes:
+ * - uiTableName display labels from the old dashboard filter bar, e.g. "Model"
+ * - uiTableId values from ad hoc callers, e.g. "model"
+ * - explicit legacy aliases, e.g. "Tool Names"
+ *
+ * The query engine expects canonical view field names instead, e.g.
+ * "providedModelName" or "toolNames". Widgets also need the inverse mapping
+ * when reopening saved filters in the editor so persisted query fields render
+ * with the current user-facing labels again.
+ *
+ * Keep all dashboard/widget filter migration and fallback logic in this module.
+ * If a new legacy dashboard column shape needs to remain supported, add it to
+ * this mapping rather than patching individual router or widget code paths.
+ */
+type DashboardViewFilterMapping = UiColumnMatchable & {
+  viewName: string;
+};
+
+const viewMappings: Record<
+  z.infer<typeof views>,
+  readonly DashboardViewFilterMapping[]
+> = {
   traces: [
     {
       uiTableName: "Trace Name",
+      uiTableId: "traceName",
       viewName: "name",
     },
     {
       uiTableName: "Observation Name",
+      uiTableId: "observationName",
       viewName: "observationName",
     },
     {
       uiTableName: "Score Name",
+      uiTableId: "scoreName",
       viewName: "scoreName",
     },
     {
       uiTableName: "Tags",
+      uiTableId: "traceTags",
       viewName: "tags",
     },
     {
       uiTableName: "User",
+      uiTableId: "userId",
       viewName: "userId",
     },
     {
       uiTableName: "Session",
+      uiTableId: "sessionId",
       viewName: "sessionId",
     },
     {
       uiTableName: "Metadata",
+      uiTableId: "metadata",
       viewName: "metadata",
     },
     {
       uiTableName: "Release",
+      uiTableId: "release",
       viewName: "release",
     },
     {
       uiTableName: "Version",
+      uiTableId: "version",
       viewName: "version",
     },
     {
       uiTableName: "Environment",
+      uiTableId: "environment",
       viewName: "environment",
     },
   ],
   observations: [
     {
       uiTableName: "Trace Name",
+      uiTableId: "traceName",
       viewName: "traceName",
     },
     {
       uiTableName: "Observation Name",
+      uiTableId: "observationName",
       viewName: "name",
     },
     {
       uiTableName: "Score Name",
+      uiTableId: "scoreName",
       viewName: "scoreName",
     },
     {
       uiTableName: "User",
+      uiTableId: "userId",
       viewName: "userId",
     },
     {
       uiTableName: "Session",
+      uiTableId: "sessionId",
       viewName: "sessionId",
     },
     {
       uiTableName: "Metadata",
+      uiTableId: "metadata",
       viewName: "metadata",
     },
     {
       uiTableName: "Type",
+      uiTableId: "type",
       viewName: "type",
     },
     {
       uiTableName: "Tags",
+      uiTableId: "traceTags",
       viewName: "tags",
     },
     {
       uiTableName: "Model",
+      uiTableId: "model",
       viewName: "providedModelName",
     },
     {
       uiTableName: "Level",
+      uiTableId: "level",
       viewName: "level",
     },
     {
-      uiTableName: "Tool Names",
-      viewName: "toolNames",
-    },
-    {
       uiTableName: "Tool Names (Available)",
+      uiTableId: "toolNames",
+      aliases: ["Tool Names"],
       viewName: "toolNames",
     },
     {
       uiTableName: "Tool Names (Called)",
+      uiTableId: "calledToolNames",
       viewName: "calledToolNames",
     },
     {
       uiTableName: "Environment",
+      uiTableId: "environment",
       viewName: "environment",
     },
     {
       uiTableName: "Release",
+      uiTableId: "release",
       viewName: "traceRelease",
     },
     {
       uiTableName: "Version",
+      uiTableId: "version",
       viewName: "traceVersion",
     },
   ],
   "scores-numeric": [
     {
       uiTableName: "Score Name",
+      uiTableId: "scoreName",
       viewName: "name",
     },
     {
       uiTableName: "Score Source",
+      uiTableId: "scoreSource",
       viewName: "source",
     },
     {
       uiTableName: "Score Value",
-      viewName: "value",
-    },
-    {
-      // Legacy column name from dashboardColumnDefinitions (uiTableName: "value")
-      uiTableName: "value",
+      uiTableId: "value",
+      aliases: ["value"],
       viewName: "value",
     },
     {
       uiTableName: "Scores Data Type",
+      uiTableId: "scoreDataType",
       viewName: "dataType",
     },
     {
       uiTableName: "Tags",
+      uiTableId: "traceTags",
       viewName: "tags",
     },
     {
       uiTableName: "Environment",
+      uiTableId: "environment",
       viewName: "environment",
     },
     {
       uiTableName: "User",
+      uiTableId: "userId",
       viewName: "userId",
     },
     {
       uiTableName: "Session",
+      uiTableId: "sessionId",
       viewName: "sessionId",
     },
     {
       uiTableName: "Metadata",
+      uiTableId: "metadata",
       viewName: "metadata",
     },
     {
       uiTableName: "Trace Name",
+      uiTableId: "traceName",
       viewName: "traceName",
     },
     {
       uiTableName: "Observation Name",
+      uiTableId: "observationName",
       viewName: "observationName",
     },
     {
       uiTableName: "Release",
+      uiTableId: "release",
       viewName: "traceRelease",
     },
     {
       uiTableName: "Version",
+      uiTableId: "version",
       viewName: "traceVersion",
     },
   ],
   "scores-categorical": [
     {
       uiTableName: "Score Name",
+      uiTableId: "scoreName",
       viewName: "name",
     },
     {
       uiTableName: "Score Source",
+      uiTableId: "scoreSource",
       viewName: "source",
     },
     {
       uiTableName: "Score String Value",
+      uiTableId: "stringValue",
       viewName: "stringValue",
     },
     {
       uiTableName: "Scores Data Type",
+      uiTableId: "scoreDataType",
       viewName: "dataType",
     },
     {
       uiTableName: "Tags",
+      uiTableId: "traceTags",
       viewName: "tags",
     },
     {
       uiTableName: "Environment",
+      uiTableId: "environment",
       viewName: "environment",
     },
     {
       uiTableName: "User",
+      uiTableId: "userId",
       viewName: "userId",
     },
     {
       uiTableName: "Session",
+      uiTableId: "sessionId",
       viewName: "sessionId",
     },
     {
       uiTableName: "Metadata",
+      uiTableId: "metadata",
       viewName: "metadata",
     },
     {
       uiTableName: "Trace Name",
+      uiTableId: "traceName",
       viewName: "traceName",
     },
     {
       uiTableName: "Observation Name",
+      uiTableId: "observationName",
       viewName: "observationName",
     },
     {
       uiTableName: "Release",
+      uiTableId: "release",
       viewName: "traceRelease",
     },
     {
       uiTableName: "Version",
+      uiTableId: "version",
       viewName: "traceVersion",
     },
   ],
 };
 
-const isLegacyUiTableFilter = (
-  filter: z.infer<typeof singleFilter>,
-): boolean => {
-  const legacyUiTableNames = new Set([
-    ...dashboardColumnDefinitions.map((columnDef) => columnDef.uiTableName),
-    "Session",
-    "Observation Name",
-    "Metadata",
-    "Score Value",
-    "Score String Value",
-    "Tool Names (Available)",
-    "Tool Names (Called)",
-  ]);
+const allLegacyDashboardFilterMappings = Object.values(viewMappings).flat();
 
-  return legacyUiTableNames.has(filter.column);
-};
+const findViewFilterMapping = (
+  view: z.infer<typeof views>,
+  column: string | undefined,
+): DashboardViewFilterMapping | undefined =>
+  findUiColumnMapping(viewMappings[view], column);
+
+const isLegacyDashboardFilterColumn = (column: string | undefined): boolean =>
+  findUiColumnMapping(allLegacyDashboardFilterMappings, column) !== undefined;
 
 export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
 ): z.infer<typeof FilterArray> => {
   return filters.flatMap((filter) => {
-    // If it's not a legacy filter, return it as is
-    if (!isLegacyUiTableFilter(filter)) {
-      return [filter];
+    const definition = findViewFilterMapping(view, filter.column);
+
+    if (definition) {
+      return [{ ...filter, column: definition.viewName }];
     }
-    // Check if we have a match in our mapping
-    const definition = viewMappings[view].find(
-      (def) => def.uiTableName === filter.column,
-    );
-    // Ignore if there is no match
-    if (!definition) {
+
+    if (isLegacyDashboardFilterColumn(filter.column)) {
       return [];
     }
-    // Overwrite column name if a match is found
-    return [{ ...filter, column: definition.viewName }];
+
+    return [filter];
+  });
+};
+
+export const mapViewFilterToUiTableFilter = (
+  view: z.infer<typeof views>,
+  filters: z.infer<typeof FilterArray>,
+): z.infer<typeof FilterArray> => {
+  return filters.map((filter) => {
+    const definition = viewMappings[view].find(
+      (mapping) => mapping.viewName === filter.column,
+    );
+
+    return definition ? { ...filter, column: definition.uiTableName } : filter;
   });
 };

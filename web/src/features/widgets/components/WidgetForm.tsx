@@ -12,6 +12,7 @@ import {
   getValidAggregationsForMeasureType,
   type QueryType,
   mapLegacyUiTableFilterToView,
+  mapViewFilterToUiTableFilter,
 } from "@/src/features/query";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -393,22 +394,14 @@ export function WidgetForm({
       setTimeRange({ range: option });
     }
   };
-  const [userFilterState, setUserFilterState] = useState<FilterState>(
-    initialValues.filters?.map((filter) => {
-      if (filter.column === "name") {
-        // We need to map the generic `name` property to the correct column name for the selected view
-        return {
-          ...filter,
-          column:
-            initialValues.view === "traces"
-              ? "traceName"
-              : initialValues.view === "observations"
-                ? "observationName"
-                : "scoreName",
-        };
-      }
-      return filter;
-    }) ?? [],
+  const [userFilterState, setUserFilterState] = useState<FilterState>(() =>
+    mapViewFilterToUiTableFilter(
+      initialValues.view,
+      mapLegacyUiTableFilterToView(
+        initialValues.view,
+        initialValues.filters ?? [],
+      ),
+    ),
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
