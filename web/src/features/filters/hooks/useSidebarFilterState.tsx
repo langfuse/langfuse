@@ -29,7 +29,7 @@ import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -289,26 +289,29 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
-type UseSidebarFilterStateOptions = {
+type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
-  /**
-   * If true, prevents filter state from being persisted to/read from URL query params.
-   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
-   * the parent page's URL with filters that don't apply to the parent context.
-   */
-  disableUrlPersistence?: boolean;
-  /**
-   * If true, prevents filter state from being persisted to/read from session storage.
-   * URL persistence remains active. Use this when you want filters in the URL but
-   * don't want them to persist across page navigations within the same session.
-   */
-  disableSessionPersistence?: boolean;
-  /**
-   * Optional context identifier (for example projectId) to guard against
-   * carrying persisted filters across contexts.
-   */
-  sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+};
+
+export type UseSidebarFilterStateOptions =
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "peekContext";
+      context: PeekTableStateContextValue;
+    })
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "urlAndSessionStorage";
+      /**
+       * Optional context identifier (for example projectId) to guard against
+       * carrying persisted filters across contexts.
+       */
+      sessionFilterContextId?: string | null;
+    })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "url" })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "memory" });
+
+const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
+  stateLocation: "urlAndSessionStorage",
 };
 
 /**
@@ -367,16 +370,13 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  hookOptions: UseSidebarFilterStateOptions = {},
+  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const {
-    loading,
-    disableUrlPersistence,
-    disableSessionPersistence,
-    sessionFilterContextId,
-    implicitDefaultConfig,
-  } = hookOptions;
-  const peekContext = usePeekTableState();
+  const { loading, implicitDefaultConfig } = hookOptions;
+  const stateLocationType = hookOptions.stateLocation;
+  const peekContext =
+    stateLocationType === "peekContext" ? hookOptions.context : undefined;
+  const setPeekTableState = peekContext?.setTableState;
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -395,7 +395,10 @@ export function useSidebarFilterState(
     [setExpandedString],
   );
 
-  const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
+  const normalizedSessionFilterContextId =
+    stateLocationType === "urlAndSessionStorage"
+      ? (hookOptions.sessionFilterContextId ?? null)
+      : null;
   const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
     tableName: config.tableName,
     contextId: normalizedSessionFilterContextId,
@@ -434,24 +437,52 @@ export function useSidebarFilterState(
   const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
     null,
   );
-  const filtersQuery = disableUrlPersistence
-    ? ""
-    : (pendingFiltersQuery ??
-      urlFiltersQuery ??
-      (disableSessionPersistence ? "" : storedFiltersQuery));
+  const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
+
   const urlFilterState: FilterState = useMemo(() => {
-    // If URL persistence is disabled, return empty filter state
-    if (disableUrlPersistence) return [];
-    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
-  }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return [];
+    }
+
+    const rawQuery = (() => {
+      if (pendingFiltersQuery !== null) {
+        return pendingFiltersQuery;
+      }
+
+      if (typeof urlFiltersQuery === "string") {
+        return urlFiltersQuery;
+      }
+
+      if (stateLocationType === "urlAndSessionStorage") {
+        return storedFiltersQuery;
+      }
+
+      return "";
+    })();
+
+    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
+  }, [
+    config.columnDefinitions,
+    stateLocationType,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
+  ]);
+
   const canonicalFiltersQuery = useMemo(
     () => encodeFiltersGeneric(urlFilterState),
     [urlFilterState],
   );
 
-  const rawFilterState: FilterState = peekContext
-    ? peekContext.tableState.filters
-    : urlFilterState;
+  const explicitFilterState: FilterState =
+    stateLocationType === "peekContext"
+      ? hookOptions.context.tableState.filters
+      : stateLocationType === "memory"
+        ? memoryFilterState
+        : urlFilterState;
 
   const managedEnvironmentPolicyConfig = useMemo(
     () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
@@ -469,8 +500,6 @@ export function useSidebarFilterState(
     );
   }, [options, managedEnvironmentColumn]);
 
-  const explicitFilterState: FilterState = rawFilterState;
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -481,12 +510,10 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(
-    () => [
-      ...explicitFilterState.filter(
-        (filter) => filter.column !== managedEnvironmentColumn,
-      ),
-      ...effectiveEnvironmentFilterState,
-    ],
+    () =>
+      explicitFilterState
+        .filter((filter) => filter.column !== managedEnvironmentColumn)
+        .concat(effectiveEnvironmentFilterState),
     [
       explicitFilterState,
       effectiveEnvironmentFilterState,
@@ -502,30 +529,31 @@ export function useSidebarFilterState(
         config: managedEnvironmentPolicyConfig,
       });
 
-      if (peekContext) {
-        peekContext.setTableState({
-          ...peekContext.tableState,
+      if (stateLocationType === "peekContext" && setPeekTableState) {
+        setPeekTableState((current) => ({
+          ...current,
           filters: explicitFilters,
-        });
+        }));
         return;
       }
 
-      // Don't modify URL if persistence is disabled
-      if (disableUrlPersistence) return;
+      if (stateLocationType === "memory") {
+        setMemoryFilterState(explicitFilters);
+        return;
+      }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
-      if (!disableSessionPersistence) {
+      if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
     },
     [
+      stateLocationType,
+      setPeekTableState,
       setUrlFiltersQuery,
       setStoredFiltersQuery,
-      disableUrlPersistence,
-      disableSessionPersistence,
-      peekContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
     ],
@@ -533,20 +561,19 @@ export function useSidebarFilterState(
 
   // Drop optimistic override once URL catches up to the requested value.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
     if (pendingFiltersQuery === null) return;
 
     const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
     if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
       setPendingFiltersQuery(null);
     }
-  }, [
-    disableUrlPersistence,
-    peekContext,
-    pendingFiltersQuery,
-    urlFiltersQuery,
-  ]);
+  }, [stateLocationType, pendingFiltersQuery, urlFiltersQuery]);
 
   // Sanitize stale or outdated filter queries in URL/session state.
   // TODO(2026-04-15): Remove this entire effect once stale
@@ -555,8 +582,13 @@ export function useSidebarFilterState(
   // stale-positionInTrace migration tests in sidebarFilterSessionPersistence
   // / filter-integration when this is no longer needed.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
+
     if (pendingFiltersQuery !== null) return;
 
     if (typeof urlFiltersQuery === "string") {
@@ -566,7 +598,7 @@ export function useSidebarFilterState(
       }
 
       if (
-        !disableSessionPersistence &&
+        stateLocationType === "urlAndSessionStorage" &&
         storedFiltersQuery !== canonicalFiltersQuery
       ) {
         setStoredFiltersQuery(canonicalFiltersQuery);
@@ -575,15 +607,13 @@ export function useSidebarFilterState(
     }
 
     if (
-      !disableSessionPersistence &&
+      stateLocationType === "urlAndSessionStorage" &&
       storedFiltersQuery !== canonicalFiltersQuery
     ) {
       setStoredFiltersQuery(canonicalFiltersQuery);
     }
   }, [
-    disableUrlPersistence,
-    disableSessionPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
@@ -594,9 +624,7 @@ export function useSidebarFilterState(
 
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (disableSessionPersistence) return;
-    if (peekContext) return;
+    if (stateLocationType !== "urlAndSessionStorage") return;
     if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
     if (!urlFiltersQuery) return;
@@ -606,9 +634,7 @@ export function useSidebarFilterState(
     // previously saved state when URL has no `filter` parameter.
     setStoredFiltersQuery(urlFiltersQuery);
   }, [
-    disableUrlPersistence,
-    disableSessionPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,

@@ -244,10 +244,16 @@ export const otelIngestionQueueProcessor: Processor = async (
       });
 
       if (!maskingResult.success) {
-        // Fail-closed: drop event
+        // Fail-closed: drop event. Emit the S3 location so operators can
+        // scan logs to identify which raw payloads need to be replayed via
+        // worker/src/scripts/replayIngestionEventsV2 once the upstream
+        // masking callback is healthy again.
         logger.warn(`Dropping OTEL event due to masking failure`, {
           projectId,
+          orgId: job.data.payload.authCheck.scope.orgId,
+          fileKey,
           error: maskingResult.error,
+          propagatedHeaders: job.data.payload.propagatedHeaders,
         });
         return;
       }
@@ -275,7 +281,10 @@ export const otelIngestionQueueProcessor: Processor = async (
         if (!o.success) {
           logger.warn(
             `Failed to parse otel observation for project ${projectId} in ${fileKey}: ${o.error}`,
-            o.error,
+            {
+              error: o.error,
+              fileKey,
+            },
           );
           return [];
         }
@@ -443,7 +452,7 @@ export const otelIngestionQueueProcessor: Processor = async (
           traceException(error);
           logger.error(
             `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-            error,
+            { error, fileKey },
           );
 
           return;
@@ -465,7 +474,7 @@ export const otelIngestionQueueProcessor: Processor = async (
 
             logger.error(
               `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-              error,
+              { error, fileKey },
             );
           }
         }
@@ -478,22 +487,26 @@ export const otelIngestionQueueProcessor: Processor = async (
             traceException(error);
             logger.error(
               `Failed to write event record for ${eventInput.spanId}`,
-              error,
+              { error, fileKey },
             );
           }
         }
       }),
     );
   } catch (e) {
+    const fileKey = job.data.payload.data.fileKey;
     if (e instanceof ForbiddenError) {
       traceException(e);
-      logger.warn(`Failed to parse otel observation: ${e.message}`, e);
+      logger.warn(`Failed to parse otel observation: ${e.message}`, {
+        error: e,
+        fileKey,
+      });
       return;
     }
 
     logger.error(
       `Failed job otel ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-      e,
+      { error: e, fileKey },
     );
     traceException(e);
     throw e;

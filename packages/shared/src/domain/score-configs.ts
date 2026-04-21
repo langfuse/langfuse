@@ -7,6 +7,13 @@ export const ScoreConfigCategory = z.object({
   value: z.number(),
 });
 
+/** Input-only schema for score config names. Use at API/tRPC boundaries, not for DB reads. */
+export const ScoreConfigNameSchema = z
+  .string()
+  .min(1)
+  .max(35)
+  .regex(/^[\p{L}\p{N}_ .()-]+$/u, "Name contains invalid characters");
+
 // Numeric config fields
 export const NumericConfigFields = z.object({
   maxValue: z.number().nullish(),

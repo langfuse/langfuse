@@ -193,6 +193,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
@@ -207,6 +213,12 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
@@ -226,6 +238,12 @@ if (
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
@@ -244,6 +262,12 @@ if (
       env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
     client: {
       token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
+        : {}),
     },
     ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
   });
@@ -291,6 +315,12 @@ if (
         env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
@@ -310,6 +340,12 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
@@ -342,6 +378,12 @@ if (
       client: {
         token_endpoint_auth_method:
           env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
         ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
@@ -401,6 +443,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       issuer: env.AUTH_GITLAB_ISSUER,
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
@@ -426,6 +474,12 @@ if (
         env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
@@ -445,6 +499,12 @@ if (
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_COGNITO_CHECKS
         ? { checks: env.AUTH_COGNITO_CHECKS }
@@ -470,6 +530,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
@@ -492,6 +558,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_JUMPCLOUD_CHECKS
         ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
@@ -521,6 +593,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_WORDPRESS_CHECKS
         ? { checks: env.AUTH_WORDPRESS_CHECKS }

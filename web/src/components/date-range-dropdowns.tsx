@@ -12,12 +12,8 @@ import {
   dashboardDateRangeAggregationSettings,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,
-  type TableDateRangeOptions,
   DASHBOARD_AGGREGATION_OPTIONS,
   type DashboardDateRange,
-  TABLE_AGGREGATION_OPTIONS,
-  getDateFromOption,
-  isTableDataRangeOptionAvailable,
   isDashboardDateRangeOptionAvailable,
   getAbbreviatedTimeRange,
   getTimeRangeLabel,
@@ -144,55 +140,6 @@ export const DashboardDateRangeDropdown: React.FC<
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
       options={options}
-      limitedOptions={disabledOptions}
-      onSelectionChange={onDropDownSelection}
-    />
-  );
-};
-
-type TableDateRangeDropdownProps = {
-  selectedOption: TableDateRangeOptions;
-  setDateRangeAndOption: (
-    option: TableDateRangeOptions,
-    date?: DashboardDateRange,
-  ) => void;
-};
-
-export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
-  selectedOption,
-  setDateRangeAndOption,
-}) => {
-  const lookbackLimit = useEntitlementLimit("data-access-days");
-  const disabledOptions = useMemo(() => {
-    return TABLE_AGGREGATION_OPTIONS.filter(
-      (option) =>
-        !isTableDataRangeOptionAvailable({ option, limitDays: lookbackLimit }),
-    );
-  }, [lookbackLimit]);
-
-  const onDropDownSelection = (value: TableDateRangeOptions) => {
-    // Handle "custom" placeholder case
-    if (value === "custom") {
-      setDateRangeAndOption(value, undefined);
-      return;
-    }
-
-    const dateFromOption = getDateFromOption({
-      filterSource: "TABLE",
-      option: value,
-    });
-
-    const initialDateRange = !!dateFromOption
-      ? { from: dateFromOption, to: new Date() }
-      : undefined;
-
-    setDateRangeAndOption(value, initialDateRange);
-  };
-
-  return (
-    <BaseDateRangeDropdown
-      selectedOption={selectedOption}
-      options={TABLE_AGGREGATION_OPTIONS}
       limitedOptions={disabledOptions}
       onSelectionChange={onDropDownSelection}
     />

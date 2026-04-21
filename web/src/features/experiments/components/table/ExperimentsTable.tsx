@@ -120,6 +120,7 @@ export default function ExperimentsTable({
 
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
+    stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
   });
 
