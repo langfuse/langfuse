@@ -26,6 +26,7 @@ import {
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -331,6 +332,23 @@ export const eventsRouter = createTRPCRouter({
         );
       },
     ),
+  /**
+   * Get SDK metadata for a project.
+   * Returns info about the SDK being used (name, version, language).
+   */
+  getSdkVersionInfo: protectedProjectProcedure
+    .input(zodSchema.object({ projectId: zodSchema.string() }))
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-sdk-metadata-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getLatestSdkVersionInfoFromEvents({
+            projectId: input.projectId,
+          });
+        },
+      );
+    }),
 });
 
 export const addAttributesToSpan = ({

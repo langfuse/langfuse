@@ -324,4 +324,10 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "length(e.tool_calls)",
     nullable: true,
   },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "e.experiment_item_root_span_id = e.span_id",
+  },
 ];

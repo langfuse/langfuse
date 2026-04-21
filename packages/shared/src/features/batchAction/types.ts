@@ -25,6 +25,7 @@ export enum ActionId {
   ObservationAddToAnnotationQueue = "observation-add-to-annotation-queue",
   ObservationAddToDataset = "observation-add-to-dataset",
   ObservationBatchEvaluation = "observation-run-batched-evaluation",
+  ExperimentCompare = "experiment-compare",
 }
 
 const ActionIdSchema = z.nativeEnum(ActionId);
