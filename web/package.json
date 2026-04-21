@@ -39,8 +39,6 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@ferrucc-io/emoji-picker": "^0.0.47",
-    "@headlessui/react": "2.2.7",
-    "@headlessui/tailwindcss": "0.2.2",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
     "@langchain/core": "^1.1.39",
