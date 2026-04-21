@@ -912,10 +912,11 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     segments: [
       {
         column: "data_type",
-        // We consider NUMERIC and BOOLEAN scores as numeric.
-        operator: "does not contain" as const,
-        value: "CATEGORICAL",
-        type: "string" as const,
+        // Positive allow-list: only NUMERIC and BOOLEAN count as numeric scores.
+        // CATEGORICAL, TEXT, and CORRECTION are excluded.
+        operator: "any of" as const,
+        value: ["NUMERIC", "BOOLEAN"],
+        type: "stringOptions" as const,
       },
     ], // Numeric
     timeDimension: "timestamp",

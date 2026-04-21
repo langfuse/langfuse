@@ -35,7 +35,28 @@ const endToEndServerTestConfig = {
 
 // To avoid the "Cannot use import statement outside a module" errors while transforming ESM.
 // jsonpath-plus is needed because @langfuse/shared barrel exports evals/utilities which imports it
-const esModules = ["superjson", "jsonpath-plus"];
+const esModules = ["superjson", "jsonpath-plus", "json-schema-faker"];
+
+// ESM-only packages need explicit resolution to bypass Jest's CJS exports-map resolver
+const esmOnlyModuleNameMapper = {
+  "^json-schema-faker$":
+    "<rootDir>/node_modules/json-schema-faker/dist/index.js",
+};
+
+const transformIgnorePatterns = [
+  `/web/node_modules/(?!(${esModules.join("|")})/)`,
+];
+
+// Helper to merge our ESM moduleNameMapper with Next.js's built-in mappings
+const withEsmMapper = (/** @type {import('jest').Config} */ resolved) => ({
+  ...resolved,
+  transformIgnorePatterns,
+  moduleNameMapper: {
+    ...resolved.moduleNameMapper,
+    ...esmOnlyModuleNameMapper,
+  },
+});
+
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {
@@ -45,26 +66,11 @@ const config = {
   workerIdleMemoryLimit: "512MB",
   // Add more setup options before each test is run
   projects: [
-    {
-      ...(await createJestConfig(clientTestConfig)()),
-      // Added transformIgnorePatterns to client tests to handle ESM dependencies from @langfuse/shared
-      // Without this, importing from @langfuse/shared fails with "Unexpected token 'export'" errors
-      transformIgnorePatterns: [
-        `/web/node_modules/(?!(${esModules.join("|")})/)`,
-      ],
-    },
-    {
-      ...(await createJestConfig(serverTestConfig)()),
-      transformIgnorePatterns: [
-        `/web/node_modules/(?!(${esModules.join("|")})/)`,
-      ],
-    },
-    {
-      ...(await createJestConfig(endToEndServerTestConfig)()),
-      transformIgnorePatterns: [
-        `/web/node_modules/(?!(${esModules.join("|")})/)`,
-      ],
-    },
+    // Added transformIgnorePatterns to handle ESM dependencies from @langfuse/shared
+    // Without this, importing from @langfuse/shared fails with "Unexpected token 'export'" errors
+    withEsmMapper(await createJestConfig(clientTestConfig)()),
+    withEsmMapper(await createJestConfig(serverTestConfig)()),
+    withEsmMapper(await createJestConfig(endToEndServerTestConfig)()),
   ],
 };
 

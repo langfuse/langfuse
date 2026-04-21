@@ -1048,7 +1048,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("GoogleAIStudio", () => {
-    const MODEL = "gemini-2.0-flash";
+    const MODEL = "gemini-2.5-flash-lite";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY) {

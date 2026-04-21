@@ -153,11 +153,7 @@ export function TestModelMatchDialog({
                                 Match Found
                               </span>
                             </div>
-                            <MatchedModelCard
-                              projectId={projectId}
-                              model={data.model}
-                              pricingTierId={data.matchedTier.id}
-                            />
+                            <MatchedModelCard model={data.model} />
                             <MatchedTierCard tier={data.matchedTier} />
                           </>
                         ) : (

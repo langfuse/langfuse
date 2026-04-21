@@ -16,6 +16,7 @@ import {
   type OnChangeFn,
   type PaginationState,
   type VisibilityState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
@@ -47,6 +48,10 @@ type ExperimentGridViewProps = {
   };
   noResultsMessage?: ReactNode;
   peekView?: DataTablePeekViewProps;
+  // Selection props
+  selectActionColumn?: LangfuseColumnDef<ExperimentItemsTableRow>;
+  rowSelection: RowSelectionState;
+  setRowSelection: OnChangeFn<RowSelectionState>;
 };
 
 /**
@@ -67,6 +72,9 @@ export const ExperimentGridView = ({
   pagination,
   noResultsMessage,
   peekView,
+  selectActionColumn,
+  rowSelection,
+  setRowSelection,
 }: ExperimentGridViewProps) => {
   // Build all experiment IDs (baseline first)
   const allExperimentIds = useMemo(
@@ -108,7 +116,7 @@ export const ExperimentGridView = ({
           </div>
         ),
         size: 400,
-        cell: ({ row }: { row: { original: ExperimentItemsTableRow } }) => {
+        cell: ({ row }) => {
           // Find this experiment's data
           const expData = row.original.experiments.find(
             (e) => e.experimentId === expId,
@@ -132,7 +140,6 @@ export const ExperimentGridView = ({
           return (
             <ExperimentGridCell
               projectId={projectId}
-              experimentId={expId}
               itemId={row.original.itemId}
               output={output}
               level={expData.level}
@@ -166,9 +173,11 @@ export const ExperimentGridView = ({
     useExperimentColors,
   ]);
 
-  // Build all columns: Input, Expected Output, then experiment columns
+  // Build all columns: Select, Input, Expected Output, then experiment columns
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
     () => [
+      // Include select column if provided
+      ...(selectActionColumn ? [selectActionColumn] : []),
       {
         accessorKey: "input",
         id: "input",
@@ -200,7 +209,7 @@ export const ExperimentGridView = ({
       },
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading],
+    [experimentColumns, isLoading, selectActionColumn],
   );
 
   return (
@@ -219,6 +228,8 @@ export const ExperimentGridView = ({
       topAlignCells
       peekView={peekView}
       columnVisibility={columnVisibility}
+      rowSelection={rowSelection}
+      setRowSelection={setRowSelection}
     />
   );
 };
