@@ -108,6 +108,18 @@ export const getWidgetFilterColumns = ({
       internal: "internalValue",
     });
     filterColumns.push({
+      name: "Trace Release",
+      id: "traceRelease",
+      type: "string",
+      internal: "internalValue",
+    });
+    filterColumns.push({
+      name: "Trace Version",
+      id: "traceVersion",
+      type: "string",
+      internal: "internalValue",
+    });
+    filterColumns.push({
       name: "Model",
       id: "providedModelName",
       type: "stringOptions",

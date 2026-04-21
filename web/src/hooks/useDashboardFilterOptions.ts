@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/normalizeSingleValueOptions";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import {
   toAbsoluteTimeRange,
   type TimeRange,

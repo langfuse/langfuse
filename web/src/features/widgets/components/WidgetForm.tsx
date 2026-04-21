@@ -11,8 +11,9 @@ import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
   type QueryType,
-  mapLegacyUiTableFilterToView,
-  mapViewFilterToUiTableFilter,
+  mapWidgetUiTableFilterToView,
+  normalizeStoredWidgetFiltersForEditor,
+  partitionWidgetUiTableFiltersToView,
 } from "@/src/features/query";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -41,7 +42,7 @@ import {
   toAbsoluteTimeRange,
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/normalizeSingleValueOptions";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -395,14 +396,29 @@ export function WidgetForm({
       setTimeRange({ range: option });
     }
   };
-  const [userFilterState, setUserFilterState] = useState<FilterState>(() =>
-    mapViewFilterToUiTableFilter(
-      initialValues.view,
-      mapLegacyUiTableFilterToView(
+  const [userFilterState, setUserFilterState] = useState<FilterState>(
+    () =>
+      normalizeStoredWidgetFiltersForEditor(
         initialValues.view,
         initialValues.filters ?? [],
-      ),
-    ),
+      ).editorFilters,
+  );
+  const unsupportedFilters = useMemo(
+    () =>
+      partitionWidgetUiTableFiltersToView(selectedView, userFilterState)
+        .unsupportedFilters,
+    [selectedView, userFilterState],
+  );
+  const unsupportedFilterColumns = useMemo(
+    () =>
+      Array.from(
+        new Set(unsupportedFilters.map((filter) => filter.column)),
+      ).join(", "),
+    [unsupportedFilters],
+  );
+  const normalizedUserFilters = useMemo(
+    () => mapWidgetUiTableFilterToView(selectedView, userFilterState),
+    [selectedView, userFilterState],
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
@@ -855,7 +871,7 @@ export function WidgetForm({
       view: selectedView,
       dimensions: queryDimensions,
       metrics: queryMetrics,
-      filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
+      filters: [...normalizedUserFilters],
       timeDimension: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
       )
@@ -872,7 +888,6 @@ export function WidgetForm({
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
-    userFilterState,
     dateRange,
     selectedChartType,
     histogramBins,
@@ -880,12 +895,21 @@ export function WidgetForm({
     rowLimit,
     previewSortState,
     viewVersion,
+    normalizedUserFilters,
   ]);
 
-  const queryValidation = useMemo(
-    () => validateQuery(query, viewVersion),
-    [query, viewVersion],
-  );
+  const queryValidation = useMemo(() => {
+    if (unsupportedFilters.length > 0) {
+      return {
+        valid: false as const,
+        reason:
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          "Remove them or switch to a compatible view before saving this widget.",
+      };
+    }
+
+    return validateQuery(query, viewVersion);
+  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
@@ -1011,7 +1035,7 @@ export function WidgetForm({
       view: selectedView,
       dimensions: saveDimensions,
       metrics: saveMetrics,
-      filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
+      filters: normalizedUserFilters,
       chartType: selectedChartType as DashboardWidgetChartType,
       chartConfig: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
@@ -1461,6 +1485,20 @@ export function WidgetForm({
               <div className="space-y-2">
                 <Label>Filters</Label>
                 <div className="space-y-2">
+                  {unsupportedFilters.length > 0 && (
+                    <Alert
+                      variant="default"
+                      className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+                    >
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                      <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+                        Unsupported legacy filters
+                      </AlertTitle>
+                      <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+                        {`This widget still contains filter columns that are not supported for ${startCase(selectedView)}: ${unsupportedFilterColumns}. Remove them or switch to a compatible view before saving.`}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <InlineFilterBuilder
                     columns={filterColumns}
                     filterState={userFilterState}
