@@ -3230,6 +3230,7 @@ function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
   name?: string;
   version?: string;
   language?: string;
+  telemetrySdkName?: string;
 } {
   try {
     const scopeJson = metadata["scope"];
@@ -3241,11 +3242,13 @@ function extractSdkInfoFromMetadata(metadata: Record<string, string>): {
     const name = scope?.name;
     const version = scope?.version;
     const language = resource?.["telemetry.sdk.language"];
+    const telemetrySdkName = resource?.["telemetry.sdk.name"];
 
     return {
       ...(name && { name }),
       ...(version && { version }),
       ...(language && { language }),
+      ...(telemetrySdkName && { telemetrySdkName }),
     };
   } catch {
     return {};
@@ -3327,10 +3330,14 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     };
   }
 
-  // Fall back to metadata extraction for v3
-  const sdkInfo = extractSdkInfoFromMetadata(row.metadata ?? {});
+  // Fall back to metadata extraction for v3 and raw OTel (e.g., Vercel AI SDK)
+  const { telemetrySdkName, ...sdkInfo } = extractSdkInfoFromMetadata(
+    row.metadata ?? {},
+  );
   return {
-    isOtel: Boolean(sdkInfo.name || sdkInfo.version || sdkInfo.language),
+    isOtel:
+      telemetrySdkName === "opentelemetry" ||
+      Boolean(sdkInfo.name || sdkInfo.version || sdkInfo.language),
     ...sdkInfo,
   };
 }
