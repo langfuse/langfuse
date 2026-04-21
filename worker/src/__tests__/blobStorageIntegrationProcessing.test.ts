@@ -18,7 +18,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import {
+  handleBlobStorageIntegrationProjectJob,
+  BLOB_STORAGE_LAG_BUFFER_MS,
+} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -424,9 +427,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         },
       );
 
-      // Should be set to 7 days in the future from maxTimestamp (now - 20min lag buffer)
+      // Should be set to 7 days in the future from maxTimestamp (now - lag buffer)
       const expectedNextSync = new Date(
-        now.getTime() - 20 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
+        now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS + 7 * 24 * 60 * 60 * 1000,
       );
 
       if (updatedIntegration?.nextSyncAt) {
