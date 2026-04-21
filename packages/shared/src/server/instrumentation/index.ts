@@ -288,6 +288,25 @@ const flushMetricsToCloudWatch = () => {
     });
 };
 
+// Metrics ending with these suffixes have their tags flattened into the
+// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+
+function buildCloudWatchKey(
+  stat: string,
+  tags?: { [tag: string]: string | number },
+): string {
+  if (!tags || !CW_TAG_FLATTENED_SUFFIXES.some((s) => stat.endsWith(s))) {
+    return stat;
+  }
+  const suffix = Object.entries(tags)
+    .filter(([k]) => k !== "unit")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}_${v}`)
+    .join(".");
+  return suffix ? `${stat}.${suffix}` : stat;
+}
+
 export const recordGauge = (
   stat: string,
   value?: number | undefined,
@@ -298,19 +317,7 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    // For .depth metrics, flatten tags into the metric name so CloudWatch
-    // can distinguish e.g. depth.shard_all.type_waiting from depth.type_active.
-    // Other metrics are unaffected.
-    let cwKey = stat;
-    if (stat.endsWith(".depth") && tags) {
-      const suffix = Object.entries(tags)
-        .filter(([k]) => k !== "unit")
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => `${k}_${v}`)
-        .join(".");
-      if (suffix) cwKey = `${stat}.${suffix}`;
-    }
-    sendCloudWatchMetric(cwKey, value ?? 0, true);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -321,7 +328,7 @@ export const recordIncrement = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value ?? 1, false);
+    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 1, false);
   }
   dd.dogstatsd.increment(stat, value, tags);
 };

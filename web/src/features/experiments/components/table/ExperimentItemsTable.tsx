@@ -280,7 +280,7 @@ export default function ExperimentItemsTable({
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     {},
-    { disableSessionPersistence: true },
+    { stateLocation: "url" },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -507,12 +507,10 @@ export default function ExperimentItemsTable({
       scoreColumns.map((scoreCol) => ({
         ...scoreCol,
         // Override the cell renderer to show stacked scores for each experiment
-        cell: ({ row }: { row: any }) => {
+        cell: ({ row }) => {
           const experiments = row.original.experiments;
           const baselineExperiment = hasBaseline
-            ? experiments.find(
-                (exp: ExperimentItemData) => exp.experimentId === baselineId,
-              )
+            ? experiments.find((exp) => exp.experimentId === baselineId)
             : undefined;
           const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
           // todo: fix properly

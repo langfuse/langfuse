@@ -2,7 +2,6 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { Trace } from "@/src/components/trace2/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   const router = useRouter();
@@ -16,11 +15,6 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
     timestamp,
   });
 
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
-  );
-
   return !peekId || !trace.data ? (
     <Skeleton className="h-full w-full rounded-none" />
   ) : (
@@ -31,8 +25,6 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
       corrections={trace.data.corrections}
       projectId={trace.data.projectId}
       observations={trace.data.observations}
-      selectedTab={selectedTab}
-      setSelectedTab={setSelectedTab}
       context="peek"
     />
   );

@@ -108,7 +108,7 @@ export const ExperimentGridView = ({
           </div>
         ),
         size: 400,
-        cell: ({ row }: { row: { original: ExperimentItemsTableRow } }) => {
+        cell: ({ row }) => {
           // Find this experiment's data
           const expData = row.original.experiments.find(
             (e) => e.experimentId === expId,
@@ -132,7 +132,6 @@ export const ExperimentGridView = ({
           return (
             <ExperimentGridCell
               projectId={projectId}
-              experimentId={expId}
               itemId={row.original.itemId}
               output={output}
               level={expData.level}

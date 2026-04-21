@@ -1,6 +1,16 @@
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
+import {
+  applyCodeMirrorSearchQuery,
+  setActiveSearchMarkCodeMirrorRange,
+} from "../../editor";
 
 import { createMessageSearchController } from "./controller";
+
+jest.mock("../../editor", () => ({
+  applyCodeMirrorSearchQuery: jest.fn(),
+  setActiveSearchMarkCodeMirrorRange: jest.fn(),
+  unsetActiveSearchMarkCodeMirrorRange: jest.fn(),
+}));
 
 describe("message search controller", () => {
   beforeEach(() => {
@@ -178,5 +188,139 @@ describe("message search controller", () => {
     expect(controller.getSnapshot().queryInput).toBe("");
     expect(controller.getSnapshot().query).toBe("");
     expect(controller.getSnapshot().matches).toEqual([]);
+  });
+
+  it("reapplies editor search decorations when message content changes during an active search", () => {
+    const controller = createMessageSearchController(["page-1"]);
+    const editorRef = { current: null };
+    const initialMessages = [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "foo bar",
+      },
+    ] as const;
+
+    controller.registerPageMessages("page-1", [...initialMessages]);
+    controller.registerMessageTarget("page-1", "message-1", {
+      rowRef: { current: null },
+      editorRef,
+    });
+
+    expect(commitQuery(controller, "foo")).toHaveLength(1);
+    const activeMatchBefore = controller.getSnapshot().activeMatch;
+
+    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
+    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+
+    controller.registerPageMessages("page-1", [
+      {
+        ...initialMessages[0],
+        content: "foo foo bar",
+      },
+    ]);
+
+    expect(controller.getSnapshot().matches).toHaveLength(2);
+    expect(controller.getSnapshot().activeMatch?.key).toBe(
+      activeMatchBefore?.key,
+    );
+    expect(applyCodeMirrorSearchQuery).toHaveBeenCalledTimes(1);
+    expect(applyCodeMirrorSearchQuery).toHaveBeenCalledWith(editorRef, "foo", [
+      { from: 0, to: 3 },
+      { from: 4, to: 7 },
+    ]);
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenCalledTimes(1);
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenCalledWith(
+      editorRef,
+      {
+        from: 0,
+        to: 3,
+      },
+      { scrollIntoView: false },
+    );
+  });
+
+  it("does not scroll the active match during streaming updates", () => {
+    const controller = createMessageSearchController(["page-1"]);
+    const editorRef = { current: null };
+    const pageScrollIntoView = jest.fn();
+    const rowScrollIntoView = jest.fn();
+
+    controller.registerPageTarget("page-1", {
+      pageRef: {
+        current: {
+          scrollIntoView: pageScrollIntoView,
+        } as unknown as HTMLDivElement,
+      },
+    });
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "foo",
+      },
+    ]);
+    controller.registerMessageTarget("page-1", "message-1", {
+      rowRef: {
+        current: {
+          scrollIntoView: rowScrollIntoView,
+        } as unknown as HTMLDivElement,
+      },
+      editorRef,
+    });
+
+    commitQuery(controller, "foo");
+
+    expect(pageScrollIntoView).toHaveBeenCalledTimes(1);
+    expect(rowScrollIntoView).toHaveBeenCalledTimes(1);
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenLastCalledWith(
+      editorRef,
+      { from: 0, to: 3 },
+      { scrollIntoView: true },
+    );
+
+    pageScrollIntoView.mockClear();
+    rowScrollIntoView.mockClear();
+    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
+    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "foo bar",
+      },
+    ]);
+    controller.registerPageMessages("page-1", [
+      {
+        id: "message-1",
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: "foo bar baz",
+      },
+    ]);
+
+    expect(controller.getSnapshot().activeMatch?.key).toBe(
+      "page-1:message-1:0:3",
+    );
+    expect(pageScrollIntoView).not.toHaveBeenCalled();
+    expect(rowScrollIntoView).not.toHaveBeenCalled();
+    expect(applyCodeMirrorSearchQuery).toHaveBeenCalledTimes(2);
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenCalledTimes(2);
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenNthCalledWith(
+      1,
+      editorRef,
+      { from: 0, to: 3 },
+      { scrollIntoView: false },
+    );
+    expect(setActiveSearchMarkCodeMirrorRange).toHaveBeenNthCalledWith(
+      2,
+      editorRef,
+      { from: 0, to: 3 },
+      { scrollIntoView: false },
+    );
   });
 });
