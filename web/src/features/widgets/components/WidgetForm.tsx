@@ -81,7 +81,10 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { getWidgetFilterColumns } from "./widgetFilterColumns";
+import {
+  getWidgetColumnsWithCustomSelect,
+  getWidgetFilterColumns,
+} from "./widgetFilterColumns";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -613,6 +616,16 @@ export function WidgetForm({
   ];
 
   const filterColumns = getWidgetFilterColumns({
+    selectedView,
+    environmentOptions,
+    nameOptions,
+    tagsOptions,
+    modelOptions,
+    toolNamesOptions,
+    calledToolNamesOptions,
+    observationLevelOptions,
+  });
+  const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
     selectedView,
     environmentOptions,
     nameOptions,
@@ -1503,12 +1516,7 @@ export function WidgetForm({
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
-                    columnsWithCustomSelect={[
-                      "environment",
-                      "traceName",
-                      "tags",
-                      "providedModelName",
-                    ]}
+                    columnsWithCustomSelect={columnsWithCustomSelect}
                   />
                 </div>
               </div>

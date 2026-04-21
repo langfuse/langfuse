@@ -253,17 +253,21 @@ const viewFilterDefinitions: Record<
 const buildFilterMappings = (
   source: "current" | "legacy",
 ): Record<ViewName, readonly DashboardViewFilterMapping[]> =>
-  Object.fromEntries(
-    (Object.keys(viewFilterDefinitions) as ViewName[]).map((view) => [
-      view,
-      viewFilterDefinitions[view].map((field) => ({
+  (Object.keys(viewFilterDefinitions) as ViewName[]).reduce<
+    Record<ViewName, readonly DashboardViewFilterMapping[]>
+  >(
+    (acc, view) => {
+      acc[view] = viewFilterDefinitions[view].map((field) => ({
         ...(source === "legacy"
           ? (field.legacy ?? field.current)
           : field.current),
         viewName: field.viewName,
-      })),
-    ]),
-  ) as Record<ViewName, readonly DashboardViewFilterMapping[]>;
+      }));
+
+      return acc;
+    },
+    {} as Record<ViewName, readonly DashboardViewFilterMapping[]>,
+  );
 
 const currentWidgetFilterMappings = buildFilterMappings("current");
 const legacyDashboardFilterMappings = buildFilterMappings("legacy");
