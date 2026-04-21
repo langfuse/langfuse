@@ -17,12 +17,6 @@ export const evalExecutionsFilterCols: ColumnDefinition[] = [
     internal: 'je."job_input_trace_id"',
   },
   {
-    name: "Session ID",
-    id: "sessionId",
-    type: "string",
-    internal: 't."session_id"',
-  },
-  {
     name: "Execution Trace ID",
     id: "executionTraceId",
     type: "string",

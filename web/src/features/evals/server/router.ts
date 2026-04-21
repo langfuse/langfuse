@@ -61,6 +61,12 @@ import {
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
 
+// Filter columns that used to be backed by the Postgres `traces` and
+// `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
+// query can no longer resolve them.  Filters referencing these columns are
+// dropped server-side to keep bookmarked URLs from failing.
+const DEPRECATED_FILTER_COLUMNS = new Set(["scoreValue", "sessionId"]);
+
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -1346,9 +1352,12 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
-      // Strip scoreValue filters — the score filter was removed from the UI
-      // but bookmarked URLs may still include it.
-      const filters = input.filter.filter((f) => f.column !== "scoreValue");
+      // Strip deprecated filters — these columns were removed from the UI
+      // because they required traces/scores data that no longer lives in
+      // Postgres, but bookmarked URLs may still include them.
+      const filters = input.filter.filter(
+        (f) => !DEPRECATED_FILTER_COLUMNS.has(f.column),
+      );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         filters,
@@ -1370,7 +1379,7 @@ export const evalRouter = createTRPCRouter({
               | "jobConfigurationId"
               | "executionTraceId"
               | "error"
-            > & { sessionId: string | null }
+            >
           >
         >(
           generateExecutionsQuery(
@@ -1383,8 +1392,7 @@ export const evalRouter = createTRPCRouter({
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
             je.execution_trace_id as "executionTraceId",
-            je.error,
-            t.session_id as "sessionId"
+            je.error
             `,
             input.projectId,
             filterCondition,
@@ -1607,7 +1615,6 @@ const generateExecutionsQuery = (
   SELECT
    ${select}
    FROM job_executions je
-   LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'
