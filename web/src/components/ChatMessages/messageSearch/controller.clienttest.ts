@@ -6,10 +6,10 @@ import {
 
 import { createMessageSearchController } from "./controller";
 
-jest.mock("../../editor", () => ({
-  applyCodeMirrorSearchQuery: jest.fn(),
-  setActiveSearchMarkCodeMirrorRange: jest.fn(),
-  unsetActiveSearchMarkCodeMirrorRange: jest.fn(),
+vi.mock("../../editor", () => ({
+  applyCodeMirrorSearchQuery: vi.fn(),
+  setActiveSearchMarkCodeMirrorRange: vi.fn(),
+  unsetActiveSearchMarkCodeMirrorRange: vi.fn(),
 }));
 
 describe("message search controller", () => {
@@ -211,8 +211,8 @@ describe("message search controller", () => {
     expect(commitQuery(controller, "foo")).toHaveLength(1);
     const activeMatchBefore = controller.getSnapshot().activeMatch;
 
-    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
-    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+    vi.mocked(applyCodeMirrorSearchQuery).mockClear();
+    vi.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
 
     controller.registerPageMessages("page-1", [
       {
@@ -244,8 +244,8 @@ describe("message search controller", () => {
   it("does not scroll the active match during streaming updates", () => {
     const controller = createMessageSearchController(["page-1"]);
     const editorRef = { current: null };
-    const pageScrollIntoView = jest.fn();
-    const rowScrollIntoView = jest.fn();
+    const pageScrollIntoView = vi.fn();
+    const rowScrollIntoView = vi.fn();
 
     controller.registerPageTarget("page-1", {
       pageRef: {
@@ -283,8 +283,8 @@ describe("message search controller", () => {
 
     pageScrollIntoView.mockClear();
     rowScrollIntoView.mockClear();
-    jest.mocked(applyCodeMirrorSearchQuery).mockClear();
-    jest.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
+    vi.mocked(applyCodeMirrorSearchQuery).mockClear();
+    vi.mocked(setActiveSearchMarkCodeMirrorRange).mockClear();
 
     controller.registerPageMessages("page-1", [
       {
