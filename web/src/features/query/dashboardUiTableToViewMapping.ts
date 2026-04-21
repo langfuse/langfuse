@@ -95,6 +95,14 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "toolNames",
     },
     {
+      uiTableName: "Tool Names (Available)",
+      viewName: "toolNames",
+    },
+    {
+      uiTableName: "Tool Names (Called)",
+      viewName: "calledToolNames",
+    },
+    {
       uiTableName: "Environment",
       viewName: "environment",
     },
@@ -225,40 +233,18 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
 const isLegacyUiTableFilter = (
   filter: z.infer<typeof singleFilter>,
 ): boolean => {
-  return dashboardColumnDefinitions
-    .concat([
-      {
-        uiTableName: "Session",
-        uiTableId: "sessionId",
-        clickhouseTableName: "traces",
-        clickhouseSelect: 't."sessionId"',
-      },
-      {
-        uiTableName: "Observation Name",
-        uiTableId: "observationName",
-        clickhouseTableName: "observations",
-        clickhouseSelect: 'o."name"',
-      },
-      {
-        uiTableName: "Metadata",
-        uiTableId: "metadata",
-        clickhouseTableName: "traces",
-        clickhouseSelect: 't."metadata"',
-      },
-      {
-        uiTableName: "Score Value",
-        uiTableId: "value",
-        clickhouseTableName: "scores",
-        clickhouseSelect: 's."value"',
-      },
-      {
-        uiTableName: "Score String Value",
-        uiTableId: "stringValue",
-        clickhouseTableName: "scores",
-        clickhouseSelect: 's."string_value"',
-      },
-    ])
-    .some((columnDef) => columnDef.uiTableName === filter.column);
+  const legacyUiTableNames = new Set([
+    ...dashboardColumnDefinitions.map((columnDef) => columnDef.uiTableName),
+    "Session",
+    "Observation Name",
+    "Metadata",
+    "Score Value",
+    "Score String Value",
+    "Tool Names (Available)",
+    "Tool Names (Called)",
+  ]);
+
+  return legacyUiTableNames.has(filter.column);
 };
 
 export const mapLegacyUiTableFilterToView = (
