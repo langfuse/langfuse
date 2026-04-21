@@ -1,12 +1,17 @@
 import { tracesTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
+
+export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
 
   columnDefinitions: tracesTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "traceName"],
 
   facets: [
     {
@@ -16,7 +21,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "name",
+      column: "traceName",
       label: "Trace Name",
     },
     {
@@ -70,7 +75,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "tags",
+      column: "traceTags",
       label: "Tags",
     },
     {
@@ -143,3 +148,9 @@ export const traceFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getTraceFilterConfig(
+  omittedFilter: TraceOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(traceFilterConfig, omittedFilter);
+}

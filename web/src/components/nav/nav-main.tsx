@@ -12,7 +12,6 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type RouteGroup } from "@/src/components/layouts/routes";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 
 export type NavMainItem = {
   title: string;
@@ -60,16 +59,6 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
-  const { isExperimentsBetaEnabled, setExperimentsBetaEnabled } =
-    useExperimentAccess();
-
-  const handleNavClick = (item: NavMainItem) => {
-    if (item.title !== "Experiments") return;
-    if (isExperimentsBetaEnabled) return;
-
-    setExperimentsBetaEnabled(true);
-  };
-
   return (
     <>
       <SidebarGroup>
@@ -86,7 +75,6 @@ export function NavMain({
                     <Link
                       href={item.url}
                       target={item.newTab ? "_blank" : undefined}
-                      onClick={() => handleNavClick(item)}
                     >
                       <NavItemContent item={item} />
                     </Link>
@@ -114,7 +102,6 @@ export function NavMain({
                         <Link
                           href={item.url}
                           target={item.newTab ? "_blank" : undefined}
-                          onClick={() => handleNavClick(item)}
                         >
                           <NavItemContent item={item} />
                         </Link>

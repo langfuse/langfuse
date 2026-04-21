@@ -14,6 +14,11 @@ import {
 } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -64,15 +69,33 @@ export function TableActionMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action.id}
-              onClick={() => handleActionSelect(action)}
-            >
-              {action.icon || getDefaultIcon(action.type)}
-              <span>{action.label}</span>
-            </DropdownMenuItem>
-          ))}
+          {actions.map((action) => {
+            const menuItem = (
+              <DropdownMenuItem
+                key={action.id}
+                onClick={() => handleActionSelect(action)}
+                disabled={action.disabled}
+              >
+                {action.icon || getDefaultIcon(action.type)}
+                <span>{action.label}</span>
+              </DropdownMenuItem>
+            );
+
+            if (action.disabled && action.disabledReason) {
+              return (
+                <Tooltip key={action.id}>
+                  <TooltipTrigger asChild>
+                    <span>{menuItem}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {action.disabledReason}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            return menuItem;
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
 

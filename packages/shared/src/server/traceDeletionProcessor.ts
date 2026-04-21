@@ -4,51 +4,10 @@ import { TraceDeleteQueue } from "./redis/traceDelete";
 import { QueueJobs } from "./queues";
 import { logger } from "./logger";
 import { env } from "../env";
+import { shouldSkipDeletionFor } from "./deletionGuard";
 
 export interface TraceDeletionProcessorOptions {
   delayMs?: number; // Default from LANGFUSE_TRACE_DELETE_DELAY_MS env var
-}
-
-export async function shouldSkipTraceDeletionFor(
-  projectId: string,
-  traceIds: string[],
-): Promise<boolean> {
-  // Check if project is in skip list
-  if (env.LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS.includes(projectId)) {
-    logger.info(
-      `Skipping trace deletion for project ${projectId} (in skip list). No pending deletions created, no queue job added.`,
-      {
-        projectId,
-        traceIds,
-        traceCount: traceIds.length,
-        skipReason: "LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS",
-      },
-    );
-
-    return true;
-  }
-
-  // Check if project still exists (might have been deleted)
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true },
-  });
-
-  if (!project) {
-    logger.info(
-      `Skipping trace deletion for project ${projectId} (project no longer exists). No pending deletions created, no queue job added.`,
-      {
-        projectId,
-        traceIds,
-        traceCount: traceIds.length,
-        skipReason: "PROJECT_NOT_FOUND",
-      },
-    );
-
-    return true;
-  }
-
-  return false;
 }
 
 /**
@@ -87,7 +46,7 @@ export async function traceDeletionProcessor(
     },
   );
 
-  if (await shouldSkipTraceDeletionFor(projectId, traceIds)) {
+  if (await shouldSkipDeletionFor(projectId, traceIds, "trace")) {
     return; // Early return - don't create pending_deletions or queue job
   }
 

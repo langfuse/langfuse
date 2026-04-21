@@ -64,6 +64,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -192,6 +193,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
@@ -206,6 +213,12 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
@@ -225,6 +238,12 @@ if (
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
@@ -243,6 +262,12 @@ if (
       env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
     client: {
       token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
+        : {}),
     },
     ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
   });
@@ -290,6 +315,12 @@ if (
         env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
@@ -309,6 +340,12 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
@@ -341,6 +378,12 @@ if (
       client: {
         token_endpoint_auth_method:
           env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
         ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
@@ -353,6 +396,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -372,6 +419,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -395,6 +443,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       issuer: env.AUTH_GITLAB_ISSUER,
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
@@ -420,6 +474,12 @@ if (
         env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
@@ -439,6 +499,12 @@ if (
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_COGNITO_CHECKS
         ? { checks: env.AUTH_COGNITO_CHECKS }
@@ -464,6 +530,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
@@ -486,6 +558,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_JUMPCLOUD_CHECKS
         ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
@@ -515,6 +593,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_WORDPRESS_CHECKS
         ? { checks: env.AUTH_WORDPRESS_CHECKS }
@@ -545,7 +629,7 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
 
     return user;
   },
@@ -690,6 +774,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
@@ -718,6 +803,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          const isCloudDeployment = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
 
           return {
             ...session,
@@ -740,7 +828,23 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    v4BetaEnabled: isCloudDeployment
+                      ? dbUser.v4BetaEnabled
+                      : false,
+                    canToggleV4: isCloudDeployment
+                      ? canToggleV4({
+                          userCreatedAt: dbUser.createdAt,
+                          organizations: dbUser.organizationMemberships.map(
+                            (orgMembership) => ({
+                              id: orgMembership.organization.id,
+                              createdAt: orgMembership.organization.createdAt,
+                            }),
+                          ),
+                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                            : [],
+                        })
+                      : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),

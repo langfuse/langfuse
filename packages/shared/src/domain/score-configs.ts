@@ -7,6 +7,13 @@ export const ScoreConfigCategory = z.object({
   value: z.number(),
 });
 
+/** Input-only schema for score config names. Use at API/tRPC boundaries, not for DB reads. */
+export const ScoreConfigNameSchema = z
+  .string()
+  .min(1)
+  .max(35)
+  .regex(/^[\p{L}\p{N}_ .()-]+$/u, "Name contains invalid characters");
+
 // Numeric config fields
 export const NumericConfigFields = z.object({
   maxValue: z.number().nullish(),
@@ -72,6 +79,13 @@ export const CategoricalConfigFields = z.object({
   categories: z.array(ScoreConfigCategory).superRefine(validateCategories),
 });
 
+export const TextConfigFields = z.object({
+  maxValue: z.undefined().nullish(),
+  minValue: z.undefined().nullish(),
+  dataType: z.literal("TEXT"),
+  categories: z.undefined().nullish(),
+});
+
 const ScoreConfigBase = z.object({
   id: z.string(),
   name: z.string().min(1).max(35),
@@ -113,6 +127,10 @@ export const ScoreConfigSchema = z
     z.object({
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
     }),
   ])
   .superRefine(validateNumericRangeFields);

@@ -333,13 +333,26 @@ export class OtelIngestionProcessor {
                   },
                 );
 
+                this.logOversizedSpan(span, spanAttributes, {
+                  spanId,
+                  traceId,
+                  eventBytes,
+                });
+
                 const experimentFields =
                   this.extractExperimentFields(spanAttributes);
+
+                const spanContext = {
+                  spanId,
+                  traceId,
+                  source: "event" as const,
+                };
 
                 const usageDetails = UsageDetails.safeParse(
                   this.extractUsageDetails(
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
+                    spanContext,
                   ),
                 );
                 if (!usageDetails.success) {
@@ -438,7 +451,10 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(spanAttributes),
+                  providedCostDetails: this.extractCostDetails(
+                    spanAttributes,
+                    spanContext,
+                  ),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -955,6 +971,13 @@ export class OtelIngestionProcessor {
       instrumentationScopeName,
     });
 
+    const observationSpanId = this.tryParseSpanId(span);
+    const observationContext = {
+      spanId: observationSpanId,
+      traceId,
+      source: "ingestion" as const,
+    };
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1008,8 +1031,9 @@ export class OtelIngestionProcessor {
       usageDetails: this.extractUsageDetails(
         attributes,
         instrumentationScopeName,
+        observationContext,
       ),
-      costDetails: this.extractCostDetails(attributes),
+      costDetails: this.extractCostDetails(attributes, observationContext),
       input,
       output,
     };
@@ -1108,6 +1132,144 @@ export class OtelIngestionProcessor {
     );
   }
 
+  private static isPlainObject(
+    value: unknown,
+  ): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private tryParseSpanId(span: any): string {
+    try {
+      if (span?.spanId != null) {
+        return this.parseId(span.spanId?.data ?? span.spanId);
+      }
+    } catch {
+      // Intentionally swallowed — return "unknown" below
+    }
+    return "unknown";
+  }
+
+  /**
+   * Parses a JSON-encoded attribute expected to be a plain object.
+   * Returns the parsed object on success, {} if present but wrong type (logged),
+   * null if absent or unparsable (signals caller to try fallback paths).
+   */
+  private parseJsonObjectAttribute(
+    attributes: Record<string, unknown>,
+    key: string,
+    context: { spanId: string; traceId: string; source: string },
+  ): Record<string, unknown> | null {
+    const raw = attributes[key];
+    if (!raw) return null;
+
+    const logContext = {
+      spanId: context.spanId,
+      traceId: context.traceId,
+      projectId: this.projectId,
+      attribute: key,
+      source: context.source,
+    };
+    const metricTags = {
+      attribute: key,
+      project_id: this.projectId,
+      source: context.source,
+    };
+
+    if (typeof raw !== "string") {
+      logger.warn("OTEL parseJsonObjectAttribute: non-string value", {
+        ...logContext,
+        reason: "non_string",
+        valueType: typeof raw,
+      });
+      recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+        ...metricTags,
+        reason: "non_string",
+      });
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!OtelIngestionProcessor.isPlainObject(parsed)) {
+        logger.warn("OTEL parseJsonObjectAttribute: non-object parsed value", {
+          ...logContext,
+          reason: "not_plain_object",
+          parsedType: typeof parsed,
+        });
+        recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+          ...metricTags,
+          reason: "not_plain_object",
+        });
+        return {};
+      }
+      return parsed;
+    } catch {
+      logger.warn("OTEL parseJsonObjectAttribute: invalid JSON", {
+        ...logContext,
+        reason: "invalid_json",
+      });
+      recordIncrement("langfuse.ingestion.otel.bad_json_attribute", 1, {
+        ...metricTags,
+        reason: "invalid_json",
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Logs details about spans that exceed the size threshold.
+   * Does NOT reject — just logs for observability.
+   */
+  private logOversizedSpan(
+    span: any,
+    spanAttributes: Record<string, unknown>,
+    context: { spanId: string; traceId: string; eventBytes: number },
+  ): void {
+    const maxBytes = env.LANGFUSE_OTEL_MAX_SPAN_BYTES;
+    if (context.eventBytes <= maxBytes) return;
+
+    const fieldThreshold = 1_000_000; // 1MB
+    const largeFields: Record<string, number> = {};
+
+    // Check extracted span attributes
+    for (const [key, value] of Object.entries(spanAttributes)) {
+      if (typeof value === "string") {
+        const bytes = Buffer.byteLength(value, "utf8");
+        if (bytes > fieldThreshold) {
+          largeFields[key] = bytes;
+        }
+      }
+    }
+
+    // Check span events (gen_ai.user.message, gen_ai.choice, etc.)
+    // Prompts and completions following OTel GenAI semantic conventions
+    // live in span.events[], not in span attributes.
+    for (const event of span?.events ?? []) {
+      for (const attr of event?.attributes ?? []) {
+        const val = attr?.value?.stringValue;
+        if (typeof val === "string") {
+          const bytes = Buffer.byteLength(val, "utf8");
+          if (bytes > fieldThreshold) {
+            const fieldKey = `events[${event.name ?? "?"}].${attr.key}`;
+            largeFields[fieldKey] = bytes;
+          }
+        }
+      }
+    }
+
+    logger.warn("OTEL oversized span detected", {
+      spanId: context.spanId,
+      traceId: context.traceId,
+      projectId: this.projectId,
+      eventBytes: context.eventBytes,
+      maxBytes,
+      largeFields,
+    });
+    recordIncrement("langfuse.ingestion.otel.oversized_span", 1, {
+      project_id: this.projectId,
+    });
+  }
+
   private convertValueToPlainJavascript(value: Record<string, any>): any {
     if (value.stringValue !== undefined) {
       return value.stringValue;
@@ -1153,18 +1315,25 @@ export class OtelIngestionProcessor {
     const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
+    // Blocklist to prevent prototype pollution via crafted OTel attribute keys
+    const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
     // Helper function to set a value at a nested path
     const setNestedValue = (obj: any, path: string[], value: unknown): void => {
       let current = obj;
       for (let i = 0; i < path.length - 1; i++) {
         const key = path[i];
+        if (DANGEROUS_KEYS.has(key)) return;
         if (!(key in current)) {
           // Check if next key is a number to decide if we need an array or object
           current[key] = /^\d+$/.test(path[i + 1]) ? [] : {};
         }
         current = current[key];
       }
-      current[path[path.length - 1]] = value;
+      const finalKey = path[path.length - 1];
+      if (!DANGEROUS_KEYS.has(finalKey)) {
+        current[finalKey] = value;
+      }
     };
 
     if (useArray) {
@@ -1173,7 +1342,7 @@ export class OtelIngestionProcessor {
         const pathParts = key.split(".");
         const index = parseInt(pathParts[0], 10);
         if (!result[index]) {
-          result[index] = {};
+          result[index] = Object.create(null);
         }
         if (pathParts.length === 2) {
           // Simple case: 0.content -> result[0].content
@@ -1189,7 +1358,7 @@ export class OtelIngestionProcessor {
       }
       return result;
     } else {
-      const result: Record<string, unknown> = {};
+      const result: Record<string, unknown> = Object.create(null);
       for (const key of keys) {
         const pathParts = key.split(".");
         if (pathParts.length === 1) {
@@ -2116,18 +2285,14 @@ export class OtelIngestionProcessor {
   private extractUsageDetails(
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
+    context: { spanId: string; traceId: string; source: string },
   ): Record<string, unknown> {
-    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]) {
-      try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS
-          ] as string,
-        );
-      } catch {
-        // Fallthrough
-      }
-    }
+    const fromAttribute = this.parseJsonObjectAttribute(
+      attributes,
+      LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
+      context,
+    );
+    if (fromAttribute !== null) return fromAttribute;
 
     // Genkit
     if (instrumentationScopeName === "genkit-tracer") {
@@ -2318,67 +2483,132 @@ export class OtelIngestionProcessor {
     }
 
     if (instrumentationScopeName === "pydantic-ai") {
-      const inputTokens = attributes["gen_ai.usage.input_tokens"];
-      const outputTokens = attributes["gen_ai.usage.output_tokens"];
-      const cacheReadTokens =
-        attributes["gen_ai.usage.cache_read_tokens"] ??
-        attributes["gen_ai.usage.details.cache_read_input_tokens"];
-      const cacheWriteTokens =
-        attributes["gen_ai.usage.cache_write_tokens"] ??
-        attributes["gen_ai.usage.details.cache_creation_input_tokens"];
-
-      return {
-        input: inputTokens,
-        output: outputTokens,
-        input_cache_read: cacheReadTokens,
-        input_cache_creation: cacheWriteTokens,
-      };
+      const usageDetails = this.extractGenericGenAiUsageDetails(attributes);
+      if (Object.keys(usageDetails).length > 0) return usageDetails;
     }
 
+    return this.extractGenericGenAiUsageDetails(attributes);
+  }
+
+  private extractGenericGenAiUsageDetails(
+    attributes: Record<string, unknown>,
+  ): Record<string, number> {
     const usageDetails = Object.keys(attributes).filter(
       (key) =>
         (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
-        key.startsWith("llm.token_count"),
+        key.startsWith("llm.token_count."),
     );
 
-    const usageDetailKeyMapping: Record<string, string> = {
-      prompt_tokens: "input",
-      completion_tokens: "output",
-      total_tokens: "total",
-      input_tokens: "input",
-      output_tokens: "output",
-      prompt: "input",
-      completion: "output",
-    };
+    if (usageDetails.length === 0) return {};
 
-    return usageDetails.reduce((acc: any, key) => {
-      const usageDetailKey = key
-        .replace("gen_ai.usage.", "")
-        .replace("llm.token_count.", "");
-      const mappedUsageDetailKey =
-        usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
-      const value = Number(attributes[key]);
-      if (!Number.isNaN(value)) {
-        acc[mappedUsageDetailKey] = value;
-      }
-      return acc;
-    }, {});
+    const rawUsageDetails = usageDetails.reduce(
+      (acc: Record<string, number>, key) => {
+        const usageDetailKey = key
+          .replace("gen_ai.usage.", "")
+          .replace("llm.token_count.", "");
+        const value = Number(attributes[key]);
+
+        if (!Number.isNaN(value)) {
+          acc[usageDetailKey] = value;
+        }
+
+        return acc;
+      },
+      {},
+    );
+
+    const inputTokens =
+      rawUsageDetails["prompt_tokens"] ??
+      rawUsageDetails["input_tokens"] ??
+      rawUsageDetails["prompt"];
+    const outputTokens =
+      rawUsageDetails["completion_tokens"] ??
+      rawUsageDetails["output_tokens"] ??
+      rawUsageDetails["completion"];
+    const totalTokens =
+      rawUsageDetails["total_tokens"] ?? rawUsageDetails["total"];
+    const cacheReadTokens =
+      rawUsageDetails["cache_read.input_tokens"] ??
+      rawUsageDetails["cache_read_tokens"] ??
+      rawUsageDetails["details.cache_read_tokens"] ??
+      rawUsageDetails["details.cache_read_input_tokens"];
+    const cacheCreationTokens =
+      rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_write_tokens"] ??
+      rawUsageDetails["details.cache_write_tokens"] ??
+      rawUsageDetails["details.cache_creation_input_tokens"];
+
+    const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
+      (acc: Record<string, number>, [key, value]) => {
+        if (
+          [
+            "prompt_tokens",
+            "input_tokens",
+            "prompt",
+            "completion_tokens",
+            "output_tokens",
+            "completion",
+            "total_tokens",
+            "total",
+            "cache_read.input_tokens",
+            "cache_read_tokens",
+            "details.cache_read_tokens",
+            "details.cache_read_input_tokens",
+            "cache_creation.input_tokens",
+            "cache_write_tokens",
+            "details.cache_write_tokens",
+            "details.cache_creation_input_tokens",
+          ].includes(key)
+        ) {
+          return acc;
+        }
+
+        const normalizedKey = key.startsWith("details.")
+          ? key.replace("details.", "")
+          : key;
+
+        acc[normalizedKey] = value;
+        return acc;
+      },
+      {},
+    );
+
+    if (inputTokens !== undefined) {
+      normalizedUsageDetails.input = Math.max(
+        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        0,
+      );
+    }
+
+    if (outputTokens !== undefined) {
+      normalizedUsageDetails.output = outputTokens;
+    }
+
+    if (totalTokens !== undefined) {
+      normalizedUsageDetails.total = totalTokens;
+    }
+
+    if (cacheReadTokens !== undefined) {
+      normalizedUsageDetails.input_cached_tokens = cacheReadTokens;
+    }
+
+    if (cacheCreationTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    }
+
+    return normalizedUsageDetails;
   }
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
+    context: { spanId: string; traceId: string; source: string },
   ): Record<string, unknown> {
-    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]) {
-      try {
-        return JSON.parse(
-          attributes[
-            LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS
-          ] as string,
-        );
-      } catch {
-        // Fallthrough
-      }
-    }
+    const fromAttribute = this.parseJsonObjectAttribute(
+      attributes,
+      LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
+      context,
+    );
+    if (fromAttribute !== null) return fromAttribute;
 
     if (attributes["gen_ai.usage.cost"]) {
       return { total: attributes["gen_ai.usage.cost"] };

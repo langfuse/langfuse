@@ -25,6 +25,7 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- Server cache utilities: `src/server/cache/*`
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
@@ -97,6 +98,15 @@ the same PR.
 2. Update ClickHouse query/mapping logic in `src/server/clickhouse/*` and
    related repositories.
 3. Validate ingestion/read path impact in both `web` and `worker`.
+4. If the change affects columns, types, or nullability of tables read by blob
+   storage export queries (`getTracesForBlobStorageExport`,
+   `getObservationsForBlobStorageExport`, `getScoresForBlobStorageExport`,
+   `getEventsForBlobStorageExport`, or the EventsQueryBuilder `export` field
+   set), fetch the latest published docs and check for discrepancies:
+   - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
+   - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
+   Surface any mismatches in field names, types, nullability, or filter
+   descriptions so they can be addressed in the docs repo.
 
 ### Queue payload contract change
 
@@ -130,3 +140,8 @@ the same PR.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
 - Avoid exposing server-only modules through `src/index.ts` if they must remain
   frontend-safe.
+- Changes to domain constants consumed by blob storage exports (e.g.
+  `LISTABLE_SCORE_TYPES` in `src/domain/scores.ts`, score data type enums)
+  should be reviewed against the blob storage export field reference docs for
+  consistency — fetch the latest page and surface any discrepancies:
+  https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields

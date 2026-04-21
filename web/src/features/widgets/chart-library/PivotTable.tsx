@@ -56,12 +56,6 @@ export interface PivotTableProps {
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
 
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
-
   /** Current sort state */
   sortState?: OrderByState;
 

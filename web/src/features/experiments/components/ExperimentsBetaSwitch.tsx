@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { Switch } from "@/src/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 export function ExperimentsBetaSwitch({
   enabled,
@@ -15,44 +15,29 @@ export function ExperimentsBetaSwitch({
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
 }) {
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-
-  const handleSwitchChange = (checked: boolean) => {
-    onEnabledChange(checked);
-
-    if (checked) {
-      setIsPopoverOpen(true);
-    }
-  };
-
   return (
-    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-      <PopoverTrigger asChild>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <Label htmlFor="experiments-beta-toggle">Experiments Beta</Label>
-          <Switch
-            id="experiments-beta-toggle"
-            checked={enabled}
-            onCheckedChange={handleSwitchChange}
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <p className="font-medium">Experiments Beta</p>
-            <p className="text-muted-foreground text-sm">
-              Get early-access to our new Experiments experience in Fast
-              Preview. Turn it off anytime.
-            </p>
-          </div>
-          <div className="flex justify-end">
-            <Button size="sm" onClick={() => setIsPopoverOpen(false)}>
-              Got it
-            </Button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="flex items-center gap-2 px-2 py-1">
+      <div className="flex items-center gap-1">
+        <Label htmlFor="experiments-beta-toggle">Experiments Beta</Label>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="text-muted-foreground h-3.5 w-3.5 cursor-pointer" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-xs">
+                View experiments decoupled from Datasets, extended filtering,
+                and faster performance. Turn off anytime.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      <Switch
+        id="experiments-beta-toggle"
+        checked={enabled}
+        onCheckedChange={onEnabledChange}
+      />
+    </div>
   );
 }

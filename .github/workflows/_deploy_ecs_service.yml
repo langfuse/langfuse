@@ -10,64 +10,91 @@ on:
         type: string
         description: Name of the service to be deployed, e.g. web-ingestion, web, or worker.
         required: true
+    # Environment secrets don't auto-resolve in reusable workflows.
+    # See: https://github.com/actions/runner/issues/3206
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      SENTRY_AUTH_TOKEN:
+        required: false
 jobs:
   ecs-deploy:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
     steps:
       - name: Get app name
-        uses: winterjung/split@v2
+        uses: winterjung/split@a211a1c46e35fcdc4097d59dd6282d4a9859651b # v2
         id: split
         with:
           msg: ${{ inputs.service }}
           separator: "-"
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Authenticate with AWS
         # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
         # Probably more painful to configure, but would remove all long-lived credentials.
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
       - name: Login to AWS ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}
+          STEPS_SPLIT_OUTPUTS__0: ${{ steps.split.outputs._0 }}
+          VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${{ vars.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION }}
+          VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_LANGFUSE_TRACING_SAMPLE_RATE }}
+          VARS_NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+          VARS_NEXT_PUBLIC_DEMO_ORG_ID: ${{ vars.NEXT_PUBLIC_DEMO_ORG_ID }}
+          VARS_NEXT_PUBLIC_DEMO_PROJECT_ID: ${{ vars.NEXT_PUBLIC_DEMO_PROJECT_ID }}
+          VARS_NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          VARS_NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
+          VARS_NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
+          VARS_NEXT_PUBLIC_PLAIN_APP_ID: ${{ vars.NEXT_PUBLIC_PLAIN_APP_ID }}
+          VARS_SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          VARS_SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }}
+          SECRETS_SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           docker build \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
-            -f ./${{ steps.split.outputs._0 }}/Dockerfile \
-            --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${{ vars.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION }} \
-            --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${{ vars.NEXT_LANGFUSE_TRACING_SAMPLE_RATE }} \
-            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }} \
-            --build-arg NEXT_PUBLIC_DEMO_ORG_ID=${{ vars.NEXT_PUBLIC_DEMO_ORG_ID }} \
-            --build-arg NEXT_PUBLIC_DEMO_PROJECT_ID=${{ vars.NEXT_PUBLIC_DEMO_PROJECT_ID }} \
-            --build-arg NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }} \
-            --build-arg NEXT_PUBLIC_BUILD_ID=${{ github.sha }} \
-            --build-arg NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }} \
-            --build-arg NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }} \
-            --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${{ vars.NEXT_PUBLIC_PLAIN_APP_ID }} \
-            --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
-            --build-arg SENTRY_ORG=${{ vars.SENTRY_ORG }} \
-            --build-arg SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }} \
-            --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }} \
+            -f ./${STEPS_SPLIT_OUTPUTS__0}/Dockerfile \
+            --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION} \
+            --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE} \
+            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${VARS_NEXT_PUBLIC_SENTRY_ENVIRONMENT} \
+            --build-arg NEXT_PUBLIC_DEMO_ORG_ID=${VARS_NEXT_PUBLIC_DEMO_ORG_ID} \
+            --build-arg NEXT_PUBLIC_DEMO_PROJECT_ID=${VARS_NEXT_PUBLIC_DEMO_PROJECT_ID} \
+            --build-arg NEXT_PUBLIC_SENTRY_DSN=${VARS_NEXT_PUBLIC_SENTRY_DSN} \
+            --build-arg NEXT_PUBLIC_BUILD_ID=${IMAGE_TAG} \
+            --build-arg NEXT_PUBLIC_POSTHOG_KEY=${VARS_NEXT_PUBLIC_POSTHOG_KEY} \
+            --build-arg NEXT_PUBLIC_POSTHOG_HOST=${VARS_NEXT_PUBLIC_POSTHOG_HOST} \
+            --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${VARS_NEXT_PUBLIC_PLAIN_APP_ID} \
+            --build-arg SENTRY_AUTH_TOKEN=${SECRETS_SENTRY_AUTH_TOKEN} \
+            --build-arg SENTRY_ORG=${VARS_SENTRY_ORG} \
+            --build-arg SENTRY_PROJECT=${VARS_SENTRY_PROJECT} \
+            --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@77954e213ba1f9f9cb016b86a1d4f6fcdea0d57e # v1
         with:
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@fc8fc60f3a60ffd500fcb13b209c59d221ac8c8c # v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
           service: ${{ inputs.environment }}-${{ inputs.service }}

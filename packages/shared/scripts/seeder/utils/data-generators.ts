@@ -87,6 +87,9 @@ export class DataGenerator {
       input.runNumber || 0,
     );
 
+    // Add small random offset (1-10 seconds) for realistic variation
+    const itemCreatedAt = input.runCreatedAt + this.randomInt(1, 10) * 1000;
+
     return createDatasetRunItem({
       id: datasetRunItemId,
       project_id: projectId,
@@ -110,6 +113,9 @@ export class DataGenerator {
       ),
       dataset_item_input: input.item.input,
       dataset_item_expected_output: input.item.expectedOutput,
+      created_at: itemCreatedAt,
+      updated_at: itemCreatedAt,
+      event_ts: itemCreatedAt,
     });
   }
 

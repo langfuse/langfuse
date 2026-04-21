@@ -190,6 +190,51 @@ describe("/api/public/v2/scores API Endpoint", () => {
         dataType: "NUMERIC",
       });
     });
+
+    it("should GET a text score", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const scoreId = v4();
+      const traceId = v4();
+      const score = createTraceScore({
+        id: scoreId,
+        project_id: projectId,
+        trace_id: traceId,
+        name: "Text Score",
+        timestamp: Date.now(),
+        value: 0,
+        string_value: "Great explanation",
+        source: "API",
+        comment: "comment",
+        data_type: "TEXT" as const,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        event_ts: Date.now(),
+        is_deleted: 0,
+      });
+
+      await createScoresCh([score]);
+
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoreResponseV2,
+        "GET",
+        `/api/public/v2/scores/${scoreId}`,
+        undefined,
+        auth,
+      );
+
+      expect(getScore.status).toBe(200);
+      expect(getScore.body).toMatchObject({
+        id: scoreId,
+        name: "Text Score",
+        stringValue: "Great explanation",
+        comment: "comment",
+        source: "API",
+        traceId,
+        dataType: "TEXT",
+      });
+      expect(getScore.body).not.toHaveProperty("value");
+    });
   });
 
   describe("GET /api/public/scores", () => {
@@ -217,6 +262,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const scoreId_9 = v4();
       const correctionScoreId_1 = v4();
       const correctionScoreId_2 = v4();
+      const textScoreId_1 = v4();
+      const textScoreId_2 = v4();
       let authentication: string;
       let newProjectId: string;
       let executionTraceId: string;
@@ -348,6 +395,26 @@ describe("/api/public/v2/scores API Endpoint", () => {
           environment: "annotation",
         });
 
+        const textScore1 = createTraceScore({
+          id: textScoreId_1,
+          project_id: newProjectId,
+          trace_id: traceId_2,
+          name: "text-score-name",
+          data_type: "TEXT",
+          string_value: "text-value-1",
+          value: 0,
+        });
+
+        const textScore2 = createTraceScore({
+          id: textScoreId_2,
+          project_id: newProjectId,
+          trace_id: traceId_3,
+          name: "text-score-name",
+          data_type: "TEXT",
+          string_value: "text-value-2",
+          value: 0,
+        });
+
         const sessionScore1 = createSessionScore({
           id: scoreId_6,
           project_id: newProjectId,
@@ -396,6 +463,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
           runScore2,
           correction1,
           correction2,
+          textScore1,
+          textScore2,
         ]);
       });
 
@@ -411,7 +480,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 11,
+          totalItems: 13,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
@@ -514,6 +583,31 @@ describe("/api/public/v2/scores API Endpoint", () => {
             name: "output",
           });
           expect(val.stringValue).toContain("correction-value");
+        }
+      });
+
+      it("get all scores for text data type", async () => {
+        const getAllScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?dataType=TEXT`,
+          undefined,
+          authentication,
+        );
+
+        expect(getAllScore.status).toBe(200);
+        expect(getAllScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        for (const val of getAllScore.body.data) {
+          expect(val).toMatchObject({
+            dataType: "TEXT",
+            name: "text-score-name",
+          });
+          expect(val.stringValue).toContain("text-value");
         }
       });
 
@@ -737,7 +831,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 2,
+          totalItems: 3,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {

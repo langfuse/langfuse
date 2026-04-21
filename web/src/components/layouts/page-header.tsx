@@ -18,7 +18,8 @@ import { type ReactNode } from "react";
 type TabDefinition = {
   value: string;
   label: string;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   querySelector?: (
     query: ParsedUrlQuery,
   ) => Record<string, string | string[] | undefined>;
@@ -196,25 +197,43 @@ const PageHeader = ({
                   tabsProps.listClassName,
                 )}
               >
-                {tabsProps.tabs.map((tab) => (
-                  <Link
-                    key={tab.value}
-                    href={{
-                      pathname: tab.href,
-                      query: tab.querySelector?.(router.query),
-                    }}
-                    className={cn(
-                      "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-                      tab.value === tabsProps.activeTab
-                        ? "border-primary-accent bg-transparent shadow-none"
-                        : "",
-                      tab.disabled && "pointer-events-none opacity-50",
-                      tab.className,
-                    )}
-                  >
-                    {tab.label}
-                  </Link>
-                ))}
+                {tabsProps.tabs.map((tab) => {
+                  const tabClassName = cn(
+                    "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    tab.value === tabsProps.activeTab
+                      ? "border-primary-accent bg-transparent shadow-none"
+                      : "",
+                    tab.disabled && "pointer-events-none opacity-50",
+                    tab.className,
+                  );
+
+                  if (tab.onClick) {
+                    return (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        onClick={tab.onClick}
+                        className={tabClassName}
+                        disabled={tab.disabled}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={tab.value}
+                      href={{
+                        pathname: tab.href ?? "",
+                        query: tab.querySelector?.(router.query),
+                      }}
+                      className={tabClassName}
+                    >
+                      {tab.label}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}

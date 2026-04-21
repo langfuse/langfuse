@@ -3,34 +3,41 @@ import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import { isPresent } from "../../../../utils/typeChecks";
 import { ScoreConfigCategory } from "../../../../domain/score-configs";
+import { TEXT_SCORE_MAX_LENGTH } from "../../../../domain/scores";
 
 export const ScoreBodyWithoutConfig = applyScoreValidation(
   z.discriminatedUnion("dataType", [
-    PostScoreBodyFoundationSchema.merge(
+    PostScoreBodyFoundationSchema.extend(
       z.object({
         value: z.number(),
         dataType: z.literal("NUMERIC"),
-      }),
+      }).shape,
     ),
-    PostScoreBodyFoundationSchema.merge(
+    PostScoreBodyFoundationSchema.extend(
       z.object({
         value: z.string(),
         dataType: z.literal("CATEGORICAL"),
-      }),
+      }).shape,
     ),
-    PostScoreBodyFoundationSchema.merge(
+    PostScoreBodyFoundationSchema.extend(
       z.object({
         value: z.string(),
         dataType: z.literal("CORRECTION"),
-      }),
+      }).shape,
     ),
-    PostScoreBodyFoundationSchema.merge(
+    PostScoreBodyFoundationSchema.extend(
       z.object({
         value: z.number().refine((val) => val === 0 || val === 1, {
           message: "Value must be either 0 or 1",
         }),
         dataType: z.literal("BOOLEAN"),
-      }),
+      }).shape,
+    ),
+    PostScoreBodyFoundationSchema.extend(
+      z.object({
+        value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+        dataType: z.literal("TEXT"),
+      }).shape,
     ),
   ]),
 );
@@ -80,5 +87,9 @@ export const ScorePropsAgainstConfig = z.union([
       message: "Value must be either 0 or 1",
     }),
     dataType: z.literal("BOOLEAN"),
+  }),
+  z.object({
+    value: z.string().min(1).max(TEXT_SCORE_MAX_LENGTH),
+    dataType: z.literal("TEXT"),
   }),
 ]);

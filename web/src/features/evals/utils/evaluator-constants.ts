@@ -24,6 +24,7 @@ export const OBSERVATION_VARIABLES = [
 export const COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION = new Set([
   "release",
   "traceName",
+  "traceTags",
   "userId",
   "sessionId",
   "tags",

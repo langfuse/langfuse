@@ -19,9 +19,45 @@ import {
   applyInputOutputRendering,
 } from "../utils/rendering";
 import { logger } from "../logger";
+import { prisma } from "../../db";
 import type { Model, Price } from "@prisma/client";
 
-type ModelWithPrice = Model & { Price: Price[] };
+export type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Creates a model cache that fetches models from the database on demand and stores them in memory.
+ * Only queries the database if a model ID is not already in the cache.
+ */
+export const createModelCache = (projectId: string) => {
+  const modelCache = new Map<string, ModelWithPrice | null>();
+
+  const getModel = async (
+    internalModelId: string | null | undefined,
+  ): Promise<ModelWithPrice | null> => {
+    if (!internalModelId) return null;
+
+    if (modelCache.has(internalModelId)) {
+      return modelCache.get(internalModelId) ?? null;
+    }
+
+    const model = await prisma.model.findFirst({
+      where: {
+        id: internalModelId,
+        OR: [{ projectId }, { projectId: null }],
+      },
+      include: {
+        Price: true,
+      },
+    });
+
+    modelCache.set(internalModelId, model);
+
+    logger.debug(`Model ${internalModelId} fetched from database`);
+    return model;
+  };
+
+  return { getModel };
+};
 
 /**
  * Converts a Record<string, number> to ensure all values are numbers.
@@ -375,6 +411,7 @@ export function convertEventsObservation(
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
     traceName: record.trace_name ?? null,
+    tags: record.tags ?? [],
     bookmarked: record.bookmarked,
     public: record.public,
   };

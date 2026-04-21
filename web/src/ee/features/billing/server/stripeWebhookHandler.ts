@@ -391,6 +391,9 @@ const DEFAULT_SPEND_ALERT_THRESHOLDS: Record<
   "cloud:enterprise": 2000,
 };
 
+// Universal threshold applied to all plans in addition to the plan-specific threshold
+const UNIVERSAL_SPEND_ALERT_THRESHOLD = 4000;
+
 export async function createDefaultSpendAlerts({
   orgId,
   productId,
@@ -409,8 +412,8 @@ export async function createDefaultSpendAlerts({
     return;
   }
 
-  const threshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
-  if (!threshold) {
+  const planThreshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
+  if (!planThreshold) {
     logger.error(
       `[Stripe Webhook] createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
     );
@@ -429,29 +432,36 @@ export async function createDefaultSpendAlerts({
     return;
   }
 
-  const alert = await prisma.cloudSpendAlert.create({
-    data: {
-      orgId,
-      title: `Default Spend alert ($${threshold})`,
-      threshold,
-    },
-  });
+  // Create plan-specific alert plus the universal $4K alert (deduplicated)
+  const thresholds = [
+    ...new Set([planThreshold, UNIVERSAL_SPEND_ALERT_THRESHOLD]),
+  ];
 
-  await auditLog({
-    session: {
-      user: { id: "stripe-webhook" },
-      orgId,
-    },
-    orgId,
-    resourceType: "cloudSpendAlert",
-    resourceId: alert.id,
-    action: "create",
-    after: alert,
-  });
+  for (const threshold of thresholds) {
+    const alert = await prisma.cloudSpendAlert.create({
+      data: {
+        orgId,
+        title: `Default Spend alert ($${threshold})`,
+        threshold,
+      },
+    });
 
-  logger.info(
-    `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
-  );
+    await auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId,
+      },
+      orgId,
+      resourceType: "cloudSpendAlert",
+      resourceId: alert.id,
+      action: "create",
+      after: alert,
+    });
+
+    logger.info(
+      `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
+    );
+  }
 }
 
 async function handleSubscriptionChanged(
