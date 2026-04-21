@@ -1,3 +1,4 @@
+import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   type Table,
@@ -26,6 +27,7 @@ export function TableSelectionManager<TData>({
       size: 35,
       isFixedPosition: true,
       isPinnedLeft: true,
+      loadingCell: <TableCheckboxLoadingCell />,
       header: ({ table }: { table: Table<TData> }) => (
         <div className="flex h-full items-center">
           <Checkbox
