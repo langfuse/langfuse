@@ -261,3 +261,185 @@ describe("membersRouter.create - organization member limit enforcement", () => {
     }, 25_000);
   });
 });
+
+describe("membersRouter.updateOrgMembership - audit log state capture", () => {
+  it("records both before and after when changing an org role", async () => {
+    const { org, caller } = await prepare("cloud:core");
+
+    const targetUser = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+
+    await caller.members.updateOrgMembership({
+      orgId: org.id,
+      orgMembershipId: membership.id,
+      role: Role.VIEWER,
+    });
+
+    const logEntry = await prisma.auditLog.findFirst({
+      where: {
+        orgId: org.id,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "update",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    expect(logEntry).not.toBeNull();
+    expect(logEntry?.before).not.toBeNull();
+    expect(logEntry?.after).not.toBeNull();
+
+    const before = JSON.parse(logEntry!.before!);
+    const after = JSON.parse(logEntry!.after!);
+    expect(before.role).toBe(Role.MEMBER);
+    expect(after.role).toBe(Role.VIEWER);
+  });
+});
+
+describe("membersRouter.updateProjectRole - audit log state capture", () => {
+  it("records action=create with after when assigning a new project role", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+
+    const targetUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+
+    await caller.members.updateProjectRole({
+      orgId: org.id,
+      orgMembershipId: orgMembership.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      projectRole: Role.ADMIN,
+    });
+
+    const logEntry = await prisma.auditLog.findFirst({
+      where: {
+        orgId: org.id,
+        resourceType: "projectMembership",
+        resourceId: `${project.id}--${targetUser.id}`,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    expect(logEntry).not.toBeNull();
+    expect(logEntry?.action).toBe("create");
+    expect(logEntry?.before).toBeNull();
+    expect(logEntry?.after).not.toBeNull();
+
+    const after = JSON.parse(logEntry!.after!);
+    expect(after.role).toBe(Role.ADMIN);
+    expect(after.projectId).toBe(project.id);
+    expect(after.userId).toBe(targetUser.id);
+  });
+
+  it("records action=update with before and after when changing an existing project role", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+
+    const targetUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: targetUser.id,
+        projectId: project.id,
+        role: Role.VIEWER,
+        orgMembershipId: orgMembership.id,
+      },
+    });
+
+    await caller.members.updateProjectRole({
+      orgId: org.id,
+      orgMembershipId: orgMembership.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      projectRole: Role.ADMIN,
+    });
+
+    const logEntry = await prisma.auditLog.findFirst({
+      where: {
+        orgId: org.id,
+        resourceType: "projectMembership",
+        resourceId: `${project.id}--${targetUser.id}`,
+        action: "update",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    expect(logEntry).not.toBeNull();
+    expect(logEntry?.before).not.toBeNull();
+    expect(logEntry?.after).not.toBeNull();
+
+    const before = JSON.parse(logEntry!.before!);
+    const after = JSON.parse(logEntry!.after!);
+    expect(before.role).toBe(Role.VIEWER);
+    expect(after.role).toBe(Role.ADMIN);
+  });
+
+  it("uses consistent resourceId across create, update, and delete", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+
+    const targetUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+
+    // create
+    await caller.members.updateProjectRole({
+      orgId: org.id,
+      orgMembershipId: orgMembership.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      projectRole: Role.VIEWER,
+    });
+
+    // update
+    await caller.members.updateProjectRole({
+      orgId: org.id,
+      orgMembershipId: orgMembership.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      projectRole: Role.ADMIN,
+    });
+
+    // delete
+    await caller.members.updateProjectRole({
+      orgId: org.id,
+      orgMembershipId: orgMembership.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      projectRole: null,
+    });
+
+    const expectedResourceId = `${project.id}--${targetUser.id}`;
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        orgId: org.id,
+        resourceType: "projectMembership",
+        resourceId: expectedResourceId,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    expect(logs.map((l) => l.action)).toEqual(["create", "update", "delete"]);
+  });
+});
