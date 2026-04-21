@@ -22,7 +22,6 @@ export default withMiddlewares({
     name: "Delete LLM Connection",
     querySchema: DeleteLlmConnectionV1Query,
     responseSchema: DeleteLlmConnectionV1Response,
-    isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
       const projectId = auth.scope.projectId;
 
