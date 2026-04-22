@@ -117,11 +117,25 @@ describe("applyFieldMapping", () => {
       expect(evaluateJsonPath(jsonString, "$.nested.value")).toBe(42);
     });
 
-    it("should return undefined for invalid JSON paths gracefully", () => {
-      expect(
-        evaluateJsonPath(sampleObservation.input, "invalid"),
-      ).toBeUndefined();
-    });
+     it("should return undefined for invalid JSON paths gracefully", () => {
+       expect(
+         evaluateJsonPath(sampleObservation.input, "invalid"),
+       ).toBeUndefined();
+     });
+
+     it("should handle malformed filter expressions gracefully", () => {
+       // Invalid filter expressions should throw and be caught by applyFullMapping
+       expect(() => {
+         evaluateJsonPath(sampleObservation.input, "($)");
+       }).toThrow();
+     });
+
+     it("should handle incomplete filter expressions gracefully", () => {
+       // Incomplete filter should throw
+       expect(() => {
+         evaluateJsonPath(sampleObservation.input, "$[?(@.price");
+       }).toThrow();
+     });
 
     it("should extract array elements", () => {
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[0]")).toBe(
@@ -877,34 +891,97 @@ describe("applyFieldMapping", () => {
       expect(result.errors[1].targetField).toBe("expectedOutput");
     });
 
-    it("should not collect errors for literal string values in keyValueMap", () => {
-      const result = applyFullMapping({
-        observation: sampleObservation,
-        mapping: {
-          input: {
-            mode: "custom",
-            custom: {
-              type: "keyValueMap",
-              keyValueMapConfig: {
-                entries: [
-                  {
-                    id: "1",
-                    key: "type",
-                    sourceField: "input",
-                    value: "conversation", // literal, not JSON path
-                  },
-                ],
-              },
-            },
-          },
-          expectedOutput: { mode: "full" },
-          metadata: { mode: "none" },
-        },
-      });
+     it("should not collect errors for literal string values in keyValueMap", () => {
+       const result = applyFullMapping({
+         observation: sampleObservation,
+         mapping: {
+           input: {
+             mode: "custom",
+             custom: {
+               type: "keyValueMap",
+               keyValueMapConfig: {
+                 entries: [
+                   {
+                     id: "1",
+                     key: "type",
+                     sourceField: "input",
+                     value: "conversation", // literal, not JSON path
+                   },
+                 ],
+               },
+             },
+           },
+           expectedOutput: { mode: "full" },
+           metadata: { mode: "none" },
+         },
+       });
 
-      expect(result.errors).toHaveLength(0);
-      expect(result.input).toEqual({ type: "conversation" });
-    });
+       expect(result.errors).toHaveLength(0);
+       expect(result.input).toEqual({ type: "conversation" });
+     });
+
+     it("should catch malformed JSONPath filter expressions", () => {
+       // This test reproduces issue #13243 - invalid JSONPath like "($)" should not crash
+       const result = applyFullMapping({
+         observation: sampleObservation,
+         mapping: {
+           input: {
+             mode: "custom",
+             custom: {
+               type: "root",
+               rootConfig: {
+                 sourceField: "input",
+                 jsonPath: "($)", // Invalid JSONPath expression
+               },
+             },
+           },
+           expectedOutput: { mode: "full" },
+           metadata: { mode: "none" },
+         },
+       });
+
+       // Should have a json_path_error, not crash
+       expect(result.errors).toHaveLength(1);
+       expect(result.errors[0]).toMatchObject({
+         type: "json_path_error",
+         targetField: "input",
+       });
+       expect(result.errors[0].message).toContain("JSON path evaluation error");
+       expect(result.input).toBeUndefined();
+     });
+
+     it("should catch incomplete JSONPath filter expressions in keyValueMap", () => {
+       const result = applyFullMapping({
+         observation: sampleObservation,
+         mapping: {
+           input: {
+             mode: "custom",
+             custom: {
+               type: "keyValueMap",
+               keyValueMapConfig: {
+                 entries: [
+                   {
+                     id: "1",
+                     key: "filtered",
+                     sourceField: "input",
+                     value: "$[?(@.price", // Incomplete filter
+                   },
+                 ],
+               },
+             },
+           },
+           expectedOutput: { mode: "full" },
+           metadata: { mode: "none" },
+         },
+       });
+
+       // Should have a json_path_error in the result, not crash the app
+       expect(result.errors).toHaveLength(1);
+       expect(result.errors[0]).toMatchObject({
+         type: "json_path_error",
+         targetField: "input",
+       });
+     });
   });
 
   describe("generateJsonPathSuggestions", () => {

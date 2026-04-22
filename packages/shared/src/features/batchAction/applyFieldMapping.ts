@@ -44,6 +44,7 @@ export function testJsonPath(props: { jsonPath: string; data: unknown }): {
 
 /**
  * Evaluate a JSON path against the given data and return the result
+ * @throws Error if the JSON path is invalid
  */
 export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
   const parsed = typeof data === "string" ? parseJsonPrioritised(data) : data;
