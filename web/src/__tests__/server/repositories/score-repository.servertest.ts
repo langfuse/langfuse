@@ -3,6 +3,7 @@ import {
   createScoresCh,
   getScoreById,
   getScoresByIds,
+  getCategoricalScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getScoresUiTable,
   getScoresForTraces,
@@ -403,6 +404,115 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "EVAL",
         dataType: "CATEGORICAL",
       });
+    });
+  });
+
+  describe("filter option score grouping limits", () => {
+    it("should return at most 200 categorical score names and 20 values per score", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const prioritizedScoreName =
+        "categorical-filter-score-with-config-priority";
+
+      const cappedScoreNames = Array.from(
+        { length: 10 },
+        (_, index) => `categorical-filter-score-capped-${index}`,
+      );
+      const cappedScoreRows = cappedScoreNames.flatMap((scoreName) =>
+        Array.from({ length: 25 }, (_, index) =>
+          createTraceScore({
+            project_id: isolatedProjectId,
+            trace_id: v4(),
+            name: scoreName,
+            data_type: "CATEGORICAL",
+            string_value: `${scoreName}-${index}`,
+            value: index,
+            source: "API",
+          }),
+        ),
+      );
+
+      await prisma.scoreConfig.create({
+        data: {
+          projectId: isolatedProjectId,
+          name: prioritizedScoreName,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "A", value: 1 },
+            { label: "B", value: 2 },
+            { label: "C", value: 3 },
+            { label: "D", value: 4 },
+            { label: "E", value: 5 },
+          ],
+        },
+      });
+
+      const prioritizedScoreRows = Array.from({ length: 25 }, (_, index) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: v4(),
+          name: prioritizedScoreName,
+          data_type: "CATEGORICAL",
+          string_value: `observed-${index}`,
+          value: index,
+          source: "API",
+        }),
+      );
+
+      const additionalScoreRows = Array.from({ length: 193 }, (_, index) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: v4(),
+          name: `categorical-filter-score-${index}`,
+          data_type: "CATEGORICAL",
+          string_value: `other-value-${index}`,
+          value: index,
+          source: "API",
+        }),
+      );
+
+      await createScoresCh([
+        ...cappedScoreRows,
+        ...prioritizedScoreRows,
+        ...additionalScoreRows,
+      ]);
+
+      const result = await getCategoricalScoresGroupedByName(
+        isolatedProjectId,
+        [],
+      );
+
+      expect(result).toHaveLength(200);
+
+      for (const cappedScoreName of cappedScoreNames) {
+        const cappedScore = result.find(
+          (score) => score.label === cappedScoreName,
+        );
+
+        expect(cappedScore).toBeDefined();
+        expect(cappedScore?.values).toHaveLength(20);
+        expect(
+          cappedScore?.values.every((value) =>
+            value.startsWith(`${cappedScoreName}-`),
+          ),
+        ).toBe(true);
+      }
+      const prioritizedScore = result.find(
+        (row) => row.label === prioritizedScoreName,
+      );
+
+      expect(prioritizedScore).toBeDefined();
+      expect(prioritizedScore?.values).toHaveLength(20);
+      expect(prioritizedScore?.values.slice(0, 5)).toEqual([
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+      ]);
+      expect(prioritizedScore?.values).toEqual(
+        expect.arrayContaining(["A", "B", "C", "D", "E"]),
+      );
     });
   });
 
