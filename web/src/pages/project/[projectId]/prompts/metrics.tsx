@@ -316,8 +316,7 @@ export default function PromptVersionTable({
       size: 150,
       headerTooltip: {
         description:
-          "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompt-management/get-started",
+          "This is calculated based on the selected date range, not the full usage history.",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("lastUsed");
@@ -335,8 +334,7 @@ export default function PromptVersionTable({
       enableHiding: true,
       headerTooltip: {
         description:
-          "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompt-management/get-started",
+          "This is calculated based on the selected date range, not the full usage history.",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("firstUsed");
