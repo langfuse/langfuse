@@ -1349,7 +1349,7 @@ describe("/api/public/scores API Endpoint", () => {
         `Bearer ${publicKey}`,
       );
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(403);
     });
 
     it("should reject GET /api/public/scores/:scoreId with Bearer public key", async () => {
@@ -1362,7 +1362,7 @@ describe("/api/public/scores API Endpoint", () => {
         `Bearer ${publicKey}`,
       );
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(403);
     });
 
     it("should reject DELETE /api/public/scores/:scoreId with Bearer public key", async () => {
@@ -1375,7 +1375,7 @@ describe("/api/public/scores API Endpoint", () => {
         `Bearer ${publicKey}`,
       );
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(403);
     });
 
     it("should reject POST /api/public/scores with invalid Bearer token", async () => {
@@ -1417,9 +1417,9 @@ describe("/api/public/scores API Endpoint", () => {
         ),
       ]);
 
-      expect(tracesRes.status).toBe(401);
-      expect(observationsRes.status).toBe(401);
-      expect(sessionsRes.status).toBe(401);
+      expect(tracesRes.status).toBe(403);
+      expect(observationsRes.status).toBe(403);
+      expect(sessionsRes.status).toBe(403);
     });
   });
 });

@@ -7,8 +7,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  compilePersistedEvalOutputDefinition,
   ZodModelConfig,
+  PersistedEvalOutputDefinitionSchema,
+  compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -25,7 +26,6 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
-  PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -60,6 +60,11 @@ import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
+import {
+  EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+  JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+} from "@/src/features/evals/server/audit-log-resource-types";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -194,40 +199,21 @@ const validateEvalTemplateCanRun = async ({
     });
   }
 
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+  const error = await getEvaluatorDefinitionPreflightError({
     projectId,
-    template.provider ?? undefined,
-    template.model ?? undefined,
-    template.modelParams,
-  );
+    template: {
+      name: template.name,
+      provider: template.provider,
+      model: template.model,
+      modelParams: template.modelParams,
+      outputDefinition: template.outputDefinition,
+    },
+  });
 
-  if (!modelConfig.valid) {
+  if (error) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
-    });
-  }
-
-  try {
-    const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
-      template.outputDefinition,
-    );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
-      parsedOutputDefinition,
-    );
-
-    await testModelCall({
-      provider: modelConfig.config.provider,
-      model: modelConfig.config.model,
-      apiKey: modelConfig.config.apiKey,
-      modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+      message: error,
     });
   }
 };
@@ -746,7 +732,7 @@ export const evalRouter = createTRPCRouter({
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: jobId,
         action: "create",
       });
@@ -984,7 +970,7 @@ export const evalRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "evalTemplate",
+          resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
           resourceId: evalTemplate.id,
           action: "create",
         });
@@ -1152,7 +1138,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "update",
       });
@@ -1267,7 +1253,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "delete",
       });
