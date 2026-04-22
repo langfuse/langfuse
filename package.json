@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.160.0",
+  "version": "3.169.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -8,6 +8,9 @@
     "node": "24"
   },
   "scripts": {
+    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check",
+    "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
+    "postinstall": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });\"",
     "preinstall": "npx only-allow pnpm",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
@@ -27,11 +30,12 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web -- --turbo",
-    "dev:web-no-turbo": "turbo run dev --filter=web",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "playwright:install": "pnpm --filter web exec playwright install chromium",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
@@ -42,9 +46,9 @@
     "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2",
-    "release-it": "^19.0.4",
-    "turbo": "2.8.16"
+    "prettier": "^3.8.1",
+    "release-it": "^19.2.4",
+    "turbo": "2.9.5"
   },
   "release-it": {
     "git": {
@@ -60,6 +64,10 @@
     "plugins": {
       "@release-it/bumper": {
         "out": [
+          {
+            "file": "./packages/shared/src/constants/VERSION.ts",
+            "type": "application/typescript"
+          },
           {
             "file": "./web/src/constants/VERSION.ts",
             "type": "application/typescript"
@@ -89,16 +97,19 @@
       }
     }
   },
-  "packageManager": "pnpm@9.5.0",
+  "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
+      "zod": "4.3.6",
       "nanoid": "^3.3.8",
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
+      "@types/react-dom": "19.2.3",
       "glob": "^10.5.0",
-      "qs": "6.14.1"
+      "qs": "6.14.1",
+      "path-to-regexp@0.1.12": "0.1.13"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"

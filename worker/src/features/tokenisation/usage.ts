@@ -9,7 +9,7 @@ import {
   encoding_for_model,
 } from "tiktoken";
 
-import { z } from "zod/v4";
+import { z } from "zod";
 import { logger } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({

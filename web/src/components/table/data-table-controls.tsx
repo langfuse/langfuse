@@ -32,7 +32,6 @@ import type {
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
   TextFilterEntry,
-  PositionInTraceMode,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
@@ -198,6 +197,7 @@ export function DataTableControls({
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
+                  displayByValue={filter.displayByValue}
                   loading={filter.loading}
                   value={filter.value}
                   onChange={filter.onChange}
@@ -320,27 +320,6 @@ export function DataTableControls({
               );
             }
 
-            if (filter.type === "positionInTrace") {
-              return (
-                <PositionInTraceFacetComponent
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  mode={filter.mode}
-                  nthValue={filter.nthValue}
-                  onModeChange={filter.onModeChange}
-                  onNthValueChange={filter.onNthValueChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
             return null;
           })}
         </Accordion>
@@ -352,7 +331,6 @@ export function DataTableControls({
 interface BaseFacetProps {
   label: string;
   tooltip?: string;
-  children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -366,6 +344,7 @@ interface BaseFacetProps {
 interface CategoricalFacetProps extends BaseFacetProps {
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
@@ -429,7 +408,7 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="bg-background sticky top-10 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
@@ -574,6 +553,7 @@ export function CategoricalFacet({
   loading,
   options,
   counts,
+  displayByValue,
   value,
   onChange,
   onOnlyChange,
@@ -619,11 +599,16 @@ export function CategoricalFacet({
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
 
-  // Filter options by search query
+  // Filter options by search query (check both raw value and display label)
   const filteredOptions = searchQuery
-    ? options.filter((option) =>
-        option.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? options.filter((option) => {
+        const search = searchQuery.toLowerCase();
+        const displayLabel = displayByValue?.get(option) ?? option;
+        return (
+          option.toLowerCase().includes(search) ||
+          displayLabel.toLowerCase().includes(search)
+        );
+      })
     : options;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
@@ -775,26 +760,32 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => (
-                      <FilterValueCheckbox
-                        key={option}
-                        id={`${filterKey}-${option}`}
-                        label={option}
-                        icon={renderIcon?.(option)}
-                        count={counts.get(option) || 0}
-                        checked={value.includes(option)}
-                        onCheckedChange={(checked) => {
-                          const newValues = checked
-                            ? [...value, option]
-                            : value.filter((v: string) => v !== option);
-                          onChange(newValues);
-                        }}
-                        onLabelClick={
-                          onOnlyChange ? () => onOnlyChange(option) : undefined
-                        }
-                        totalSelected={value.length}
-                      />
-                    ))}
+                    {visibleOptions.map((option: string) => {
+                      const displayLabel =
+                        displayByValue?.get(option) ?? option;
+                      return (
+                        <FilterValueCheckbox
+                          key={option}
+                          id={`${filterKey}-${option}`}
+                          label={displayLabel}
+                          icon={renderIcon?.(option)}
+                          count={counts.get(option) || 0}
+                          checked={value.includes(option)}
+                          onCheckedChange={(checked) => {
+                            const newValues = checked
+                              ? [...value, option]
+                              : value.filter((v: string) => v !== option);
+                            onChange(newValues);
+                          }}
+                          onLabelClick={
+                            onOnlyChange
+                              ? () => onOnlyChange(option)
+                              : undefined
+                          }
+                          totalSelected={value.length}
+                        />
+                      );
+                    })}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button
@@ -813,8 +804,6 @@ export function CategoricalFacet({
                 options.length === 1 &&
                 options[0]?.toLowerCase() === "default" ? (
                   <div className="text-muted-foreground mt-2 px-2 text-xs">
-                    Environments help you separate traces from different
-                    contexts (e.g. production, staging).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/environments"
                       target="_blank"
@@ -1217,102 +1206,6 @@ export function StringKeyValueFacet({
           keyPlaceholder={keyPlaceholder}
         />
       )}
-    </FilterAccordionItem>
-  );
-}
-
-interface PositionInTraceFacetProps extends BaseFacetProps {
-  mode: PositionInTraceMode | null;
-  nthValue: number;
-  onModeChange: (mode: PositionInTraceMode | null) => void;
-  onNthValueChange: (value: number) => void;
-}
-
-const POSITION_MODES: {
-  key: PositionInTraceMode;
-  label: string;
-}[] = [
-  { key: "root", label: "1st" },
-  { key: "last", label: "Last" },
-  { key: "nthFromStart", label: "Nth from start" },
-  { key: "nthFromEnd", label: "Nth from end" },
-];
-
-function PositionInTraceFacetComponent({
-  label,
-  tooltip,
-  filterKey,
-  filterKeyShort,
-  expanded: _expanded,
-  loading,
-  mode,
-  nthValue,
-  onModeChange,
-  onNthValueChange,
-  isActive,
-  isDisabled,
-  disabledReason,
-  onReset,
-}: PositionInTraceFacetProps) {
-  const showNthInput = mode === "nthFromStart" || mode === "nthFromEnd";
-
-  return (
-    <FilterAccordionItem
-      label={label}
-      tooltip={tooltip}
-      filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
-      isActive={isActive}
-      isDisabled={isDisabled}
-      disabledReason={disabledReason}
-      onReset={onReset}
-    >
-      <div className="px-4 py-1">
-        {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-1">
-              {POSITION_MODES.map(({ key, label: modeLabel }) => (
-                <button
-                  key={key}
-                  onClick={() => onModeChange(mode === key ? null : key)}
-                  className={cn(
-                    "rounded-md border px-2 py-1 text-xs transition-colors",
-                    mode === key
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )}
-                >
-                  {modeLabel}
-                </button>
-              ))}
-            </div>
-            {showNthInput && (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor={`nth-${filterKey}`}
-                  className="text-muted-foreground text-xs"
-                >
-                  Position:
-                </Label>
-                <Input
-                  id={`nth-${filterKey}`}
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={nthValue}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v)) onNthValueChange(v);
-                  }}
-                  className="h-7 w-20 text-xs"
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </FilterAccordionItem>
   );
 }

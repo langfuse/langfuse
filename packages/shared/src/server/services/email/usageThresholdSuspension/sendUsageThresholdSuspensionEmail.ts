@@ -4,7 +4,7 @@ import { render } from "@react-email/render";
 // import { UsageThresholdUpcomingEnforcementEmailTemplate } from "./UsageThresholdUpcomingEnforcementEmailTemplate";
 import { UsageThresholdSuspensionEmailTemplate } from "./UsageThresholdSuspensionEmailTemplate";
 import { logger } from "../../../logger";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export interface UsageThresholdSuspensionEmailProps {
   env: Partial<

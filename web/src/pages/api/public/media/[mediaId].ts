@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
@@ -123,7 +123,7 @@ export default withMiddlewares({
 
         throw new InternalServerError(
           `Error updating uploadedAt on media ID ${mediaId}` +
-          (e instanceof Error ? e.message : "")
+            (e instanceof Error ? e.message : "")
             ? (e as Error).message
             : "",
         );

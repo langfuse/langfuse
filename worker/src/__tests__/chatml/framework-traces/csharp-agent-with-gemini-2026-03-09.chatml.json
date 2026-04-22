@@ -1,0 +1,190 @@
+{
+  "50d470aa18418652": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
+        },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "{\"response_status\":\"Error\",\"message\":\"ERROR: No data found for dimensions: Campaign and metrics Cost,Displays,Clicks,Ctr,Sales,Cvr.\"}",
+          "tool_call_id": "get_custom_report"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\n\n### Parameters\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\n- Attribution model chosen is 30-Day Post Click\n- Currency: EUR\n- Time dimension: Month\n- Dimensions: Campaign\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\n\nPlease let me know if you'd like to try a different date range or different metrics.",
+          "json": {
+            "finish_reason": "stop"
+          }
+        }
+      ]
+    }
+  },
+  "c651c1dac855f97e": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "finish_reason": "stop"
+          }
+        }
+      ]
+    }
+  },
+  "cb394d8e10fdda0f": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What are my month over month performance insights the past quarter, by cost, displays, clicks, CTR, sales, CVR? Please split by campaign taxonomy"
+        },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "get_custom_report",
+              "name": "get_custom_report",
+              "arguments": "{\"dimensions\":[\"Campaign\"],\"filters\":{\"dateRange\":{\"from_date\":\"2025-10-01\",\"to_date\":\"2025-12-31\"}},\"timeDimension\":\"Month\",\"metrics\":[\"Cost\",\"Displays\",\"Clicks\",\"Ctr\",\"Sales\",\"Cvr\"]}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "{\"response_status\":\"Error\",\"message\":\"ERROR: No data found for dimensions: Campaign and metrics Cost,Displays,Clicks,Ctr,Sales,Cvr.\"}",
+          "tool_call_id": "get_custom_report"
+        },
+        {
+          "role": "assistant",
+          "content": "I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\n\n### Parameters\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\n- Attribution model chosen is 30-Day Post Click\n- Currency: EUR\n- Time dimension: Month\n- Dimensions: Campaign\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\n\nPlease let me know if you'd like to try a different date range or different metrics."
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "final_result",
+              "name": "final_result",
+              "arguments": "{\"input\":{\"comment\":\"I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\\n\\n### Parameters\\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\\n- Attribution model chosen is 30-Day Post Click\\n- Currency: EUR\\n- Time dimension: Month\\n- Dimensions: Campaign\\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\\n\\nPlease let me know if you'd like to try a different date range or different metrics.\",\"response_status\":\"NoDataFound\",\"follow_up_questions\":[\"Change date range to last month.\",\"Compare CTR across campaigns.\",\"Break down by country.\"]}}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "finish_reason": "stop"
+          }
+        }
+      ]
+    }
+  },
+  "5b9ba1e61e2e10fc": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received string\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "response": {
+              "comment": "I couldn't retrieve the month-over-month performance insights for the past quarter (October 2025 to December 2025) by campaign for the requested metrics (Cost, Displays, Clicks, CTR, Sales, CVR) as no data was found for this period.\n\n### Parameters\n- Data was requested from 2025-10-01 to 2025-12-31 with time zone Europe/London.\n- Attribution model chosen is 30-Day Post Click\n- Currency: EUR\n- Time dimension: Month\n- Dimensions: Campaign\n- Metrics: Cost, Displays, Clicks, CTR, Sales, CVR\n\nPlease let me know if you'd like to try a different date range or different metrics.",
+              "response": [],
+              "response_status": "noDataFound",
+              "followup_questions": [
+                "Change date range to last month.",
+                "Compare CTR across campaigns.",
+                "Break down by country."
+              ],
+              "response_context": null
+            },
+            "client_id": 22291,
+            "session_id": "9714061f-20c0-4d98-9220-1dc7df15c3c2",
+            "trace_id": "933dba1e9783f89d5d8bb032f041a2de",
+            "tool_inputs": null
+          }
+        }
+      ]
+    }
+  },
+  "390601577d7e35c2": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received null\"\n  }\n]"
+      }
+    }
+  },
+  "5977f5594f537b9e": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "response_status": "Error",
+            "message": "ERROR: No data found for dimensions: Campaign and metrics Cost,Displays,Clicks,Ctr,Sales,Cvr."
+          }
+        }
+      ]
+    }
+  }
+}

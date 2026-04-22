@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z
@@ -115,6 +115,7 @@ export const eventsObservationRecordReadSchema =
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
     trace_name: z.string().nullish(),
+    tags: z.array(z.string()).optional(),
     bookmarked: z.boolean().optional(),
     public: z.boolean().optional(),
   });
@@ -661,7 +662,7 @@ export const eventRecordBaseSchema = z.object({
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
-  prompt_version: z.string().nullish(),
+  prompt_version: z.number().nullish(),
 
   // Model
   model_id: z.string().nullish(),

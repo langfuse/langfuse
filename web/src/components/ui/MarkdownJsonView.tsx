@@ -8,7 +8,7 @@ import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 type MarkdownJsonViewHeaderProps = {

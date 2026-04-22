@@ -8,10 +8,9 @@ import {
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
-  type AggregatableScoreDataType,
   ScoreConfigDataType,
 } from "@langfuse/shared";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 
 export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
@@ -106,7 +105,7 @@ export type ScoreColumn = {
   key: string;
   name: string;
   source: ScoreSourceType;
-  dataType: AggregatableScoreDataType;
+  dataType: AnnotationScoreDataType;
 };
 
 export type ScoreConfigSelection =

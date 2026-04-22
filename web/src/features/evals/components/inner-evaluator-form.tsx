@@ -25,7 +25,7 @@ import {
   type availableDatasetEvalVariables,
   JobConfigState,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -271,6 +271,7 @@ export const InnerEvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
+  defaultTarget?: EvalTargetObject;
   renderFooter?: (params: {
     isLoading: boolean;
     formError: string | null;
@@ -308,14 +309,19 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+      target:
+        props.existingEvaluator?.targetObject ??
+        props.defaultTarget ??
+        EvalTargetObject.EVENT,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : (props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT) ===
-            EvalTargetObject.TRACE
+        : (props.existingEvaluator?.targetObject ??
+              props.defaultTarget ??
+              EvalTargetObject.EVENT) === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
           : (props.existingEvaluator?.targetObject ??
+                props.defaultTarget ??
                 EvalTargetObject.EVENT) === EvalTargetObject.EVENT
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
@@ -367,8 +373,8 @@ export const InnerEvaluatorForm = (props: {
 
     const mapping = form.getValues("mapping");
 
-    if (mapping.length === 0) {
-      // Initialize mapping for new evaluators
+    if (mapping.length === 0 && props.evalTemplate.vars.length > 0) {
+      // Initialize mapping for new evaluators (only if there are vars to map)
       const target = form.getValues("target");
       form.setValue(
         "mapping",
@@ -1026,9 +1032,11 @@ export const InnerEvaluatorForm = (props: {
                                 }}
                                 disabled={props.disabled}
                                 columnsWithCustomSelect={
-                                  isEventTarget(target) || isTraceTarget(target)
-                                    ? ["tags", "name"]
-                                    : undefined
+                                  isTraceTarget(target)
+                                    ? ["traceTags", "traceName"]
+                                    : isEventTarget(target)
+                                      ? ["tags", "name", "calledToolNames"]
+                                      : undefined
                                 }
                               />
                             )}

@@ -2,7 +2,7 @@ import {
   createTRPCRouter,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
 import { logger } from "@langfuse/shared/src/server";
@@ -79,10 +79,11 @@ const isValidAndSecureUrl = async (urlString: string): Promise<boolean> => {
 
     // Consider unresolvable or private hostnames as invalid/unsafe
     return (
-      (Boolean(ipAddresses.addresses4.length) &&
-        ipAddresses.addresses4.every((ip) => !isPrivateIp(ip))) ||
-      (Boolean(ipAddresses.addresses6.length) &&
-        ipAddresses.addresses6.every((ip) => !isPrivateIp(ip)))
+      (ipAddresses.addresses4.length === 0 ||
+        ipAddresses.addresses4.every((ip) => !isPrivateIp(ip))) &&
+      (ipAddresses.addresses6.length === 0 ||
+        ipAddresses.addresses6.every((ip) => !isPrivateIp(ip))) &&
+      (ipAddresses.addresses4.length > 0 || ipAddresses.addresses6.length > 0)
     );
   } catch (error) {
     logger.info("Invalid URL:", error);

@@ -29,7 +29,7 @@ import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -49,6 +49,10 @@ export function decodeAndNormalizeFilters(
     for (const columnDefinition of columnDefinitions) {
       knownColumns.set(columnDefinition.id, columnDefinition.id);
       knownColumns.set(columnDefinition.name, columnDefinition.id);
+      // Map old column IDs to current canonical ID for backward compat
+      for (const alias of columnDefinition.aliases ?? []) {
+        knownColumns.set(alias, columnDefinition.id);
+      }
     }
 
     // Normalize display names to column IDs immediately after decoding
@@ -65,9 +69,7 @@ export function decodeAndNormalizeFilters(
           validationResult.data.column,
         );
         if (!canonicalColumnId) {
-          console.warn(
-            `Unknown filter column skipped: ${validationResult.data.column}`,
-          );
+          // Gracefully ignore stale filters from old URLs or saved state.
           continue;
         }
 
@@ -137,6 +139,7 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   value: string[];
   options: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
@@ -235,90 +238,26 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
-export type PositionInTraceMode =
-  | "root"
-  | "last"
-  | "nthFromStart"
-  | "nthFromEnd";
-
-export interface PositionInTraceUIFilter extends BaseUIFilter {
-  type: "positionInTrace";
-  mode: PositionInTraceMode | null;
-  nthValue: number;
-  onModeChange: (mode: PositionInTraceMode | null) => void;
-  onNthValueChange: (value: number) => void;
-}
-
 export type UIFilter =
   | CategoricalUIFilter
   | NumericUIFilter
   | StringUIFilter
   | KeyValueUIFilter
   | NumericKeyValueUIFilter
-  | StringKeyValueUIFilter
-  | PositionInTraceUIFilter;
+  | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
-type MutualExclusionContext = {
-  facetsByColumn: Map<string, FilterConfig["facets"][number]>;
-};
-
-function buildMutualExclusionContext(
-  config: FilterConfig,
-): MutualExclusionContext {
-  return {
-    facetsByColumn: new Map(
-      config.facets.map((facet) => [facet.column, facet]),
-    ),
-  };
-}
-
-function areMutuallyExclusive(
-  firstColumn: string,
-  secondColumn: string,
-  context: MutualExclusionContext,
-): boolean {
-  if (firstColumn === secondColumn) return false;
-
-  const firstFacet = context.facetsByColumn.get(firstColumn);
-  const secondFacet = context.facetsByColumn.get(secondColumn);
-
-  if (!firstFacet || !secondFacet) return false;
-
-  const firstBlocksSecond =
-    firstFacet.mutuallyExclusiveWith?.includes(secondColumn) ?? false;
-  const secondBlocksFirst =
-    secondFacet.mutuallyExclusiveWith?.includes(firstColumn) ?? false;
-
-  return firstBlocksSecond || secondBlocksFirst;
-}
-
-function reconcileMutuallyExclusiveFilters(
-  filters: FilterState,
-  context: MutualExclusionContext,
-): FilterState {
-  // Last added filter wins: when a conflicting filter is added, drop the older side.
-  let reconciled: FilterState = [];
-
-  for (const filter of filters) {
-    reconciled = reconciled.filter(
-      (existing) =>
-        !areMutuallyExclusive(existing.column, filter.column, context),
-    );
-    reconciled.push(filter);
-  }
-
-  return reconciled;
-}
 
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
 function processOptions(options: (string | SingleValueOption)[]): {
   values: string[];
   counts: Map<string, number>;
+  displayByValue?: Map<string, string>;
 } {
   const values: string[] = [];
   const counts = new Map<string, number>();
+  const displayByValue = new Map<string, string>();
 
   for (const opt of options) {
     if (typeof opt === "string") {
@@ -328,10 +267,20 @@ function processOptions(options: (string | SingleValueOption)[]): {
       if (opt.count !== undefined) {
         counts.set(opt.value, opt.count);
       }
+      if (
+        typeof opt.displayValue === "string" &&
+        opt.displayValue !== opt.value
+      ) {
+        displayByValue.set(opt.value, opt.displayValue);
+      }
     }
   }
 
-  return { values, counts: counts.size > 0 ? counts : EMPTY_MAP };
+  return {
+    values,
+    counts: counts.size > 0 ? counts : EMPTY_MAP,
+    displayByValue: displayByValue.size > 0 ? displayByValue : undefined,
+  };
 }
 
 type UpdateFilter = (
@@ -340,20 +289,29 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
-type UseSidebarFilterStateOptions = {
+type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
-  /**
-   * If true, prevents filter state from being persisted to/read from URL query params.
-   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
-   * the parent page's URL with filters that don't apply to the parent context.
-   */
-  disableUrlPersistence?: boolean;
-  /**
-   * Optional context identifier (for example projectId) to guard against
-   * carrying persisted filters across contexts.
-   */
-  sessionFilterContextId?: string | null;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+};
+
+export type UseSidebarFilterStateOptions =
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "peekContext";
+      context: PeekTableStateContextValue;
+    })
+  | (BaseUseSidebarFilterStateOptions & {
+      stateLocation: "urlAndSessionStorage";
+      /**
+       * Optional context identifier (for example projectId) to guard against
+       * carrying persisted filters across contexts.
+       */
+      sessionFilterContextId?: string | null;
+    })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "url" })
+  | (BaseUseSidebarFilterStateOptions & { stateLocation: "memory" });
+
+const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
+  stateLocation: "urlAndSessionStorage",
 };
 
 /**
@@ -412,15 +370,13 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  hookOptions: UseSidebarFilterStateOptions = {},
+  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const {
-    loading,
-    disableUrlPersistence,
-    sessionFilterContextId,
-    implicitDefaultConfig,
-  } = hookOptions;
-  const peekContext = usePeekTableState();
+  const { loading, implicitDefaultConfig } = hookOptions;
+  const stateLocationType = hookOptions.stateLocation;
+  const peekContext =
+    stateLocationType === "peekContext" ? hookOptions.context : undefined;
+  const setPeekTableState = peekContext?.setTableState;
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -439,7 +395,10 @@ export function useSidebarFilterState(
     [setExpandedString],
   );
 
-  const normalizedSessionFilterContextId = sessionFilterContextId ?? null;
+  const normalizedSessionFilterContextId =
+    stateLocationType === "urlAndSessionStorage"
+      ? (hookOptions.sessionFilterContextId ?? null)
+      : null;
   const FILTER_QUERY_SESSION_STORAGE_KEY = buildSidebarFilterQueryStorageKey({
     tableName: config.tableName,
     contextId: normalizedSessionFilterContextId,
@@ -478,35 +437,52 @@ export function useSidebarFilterState(
   const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
     null,
   );
-  const filtersQuery = disableUrlPersistence
-    ? ""
-    : (pendingFiltersQuery ?? urlFiltersQuery ?? storedFiltersQuery);
+  const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
 
-  const mutualExclusionContext = useMemo(
-    () => buildMutualExclusionContext(config),
-    [config],
-  );
-
-  // TODO: Canonicalize URL when reconciliation drops mutually exclusive filters.
-  // Why: links can still contain mutually exclusive filters while the effective in-memory state has one side removed,
-  // which makes shared URLs and debugging confusing because URL no longer matches the applied filter state.
   const urlFilterState: FilterState = useMemo(() => {
-    // If URL persistence is disabled, return empty filter state
-    if (disableUrlPersistence) return [];
-    return reconcileMutuallyExclusiveFilters(
-      decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions),
-      mutualExclusionContext,
-    );
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return [];
+    }
+
+    const rawQuery = (() => {
+      if (pendingFiltersQuery !== null) {
+        return pendingFiltersQuery;
+      }
+
+      if (typeof urlFiltersQuery === "string") {
+        return urlFiltersQuery;
+      }
+
+      if (stateLocationType === "urlAndSessionStorage") {
+        return storedFiltersQuery;
+      }
+
+      return "";
+    })();
+
+    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
   }, [
-    filtersQuery,
     config.columnDefinitions,
-    disableUrlPersistence,
-    mutualExclusionContext,
+    stateLocationType,
+    pendingFiltersQuery,
+    urlFiltersQuery,
+    storedFiltersQuery,
   ]);
 
-  const rawFilterState: FilterState = peekContext
-    ? peekContext.tableState.filters
-    : urlFilterState;
+  const canonicalFiltersQuery = useMemo(
+    () => encodeFiltersGeneric(urlFilterState),
+    [urlFilterState],
+  );
+
+  const explicitFilterState: FilterState =
+    stateLocationType === "peekContext"
+      ? hookOptions.context.tableState.filters
+      : stateLocationType === "memory"
+        ? memoryFilterState
+        : urlFilterState;
 
   const managedEnvironmentPolicyConfig = useMemo(
     () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
@@ -524,12 +500,6 @@ export function useSidebarFilterState(
     );
   }, [options, managedEnvironmentColumn]);
 
-  const explicitFilterState: FilterState = useMemo(
-    () =>
-      reconcileMutuallyExclusiveFilters(rawFilterState, mutualExclusionContext),
-    [rawFilterState, mutualExclusionContext],
-  );
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -541,59 +511,49 @@ export function useSidebarFilterState(
 
   const filterState: FilterState = useMemo(
     () =>
-      reconcileMutuallyExclusiveFilters(
-        [
-          ...explicitFilterState.filter(
-            (filter) => filter.column !== managedEnvironmentColumn,
-          ),
-          ...effectiveEnvironmentFilterState,
-        ],
-        mutualExclusionContext,
-      ),
+      explicitFilterState
+        .filter((filter) => filter.column !== managedEnvironmentColumn)
+        .concat(effectiveEnvironmentFilterState),
     [
       explicitFilterState,
       effectiveEnvironmentFilterState,
-      mutualExclusionContext,
       managedEnvironmentColumn,
     ],
   );
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      // Keep mutual exclusion reconciliation canonicalized in one place.
-      // Any direct writes to peekContext.tableState.filters outside this hook can bypass this guard.
-      const reconciledFilters = reconcileMutuallyExclusiveFilters(
-        newFilters,
-        mutualExclusionContext,
-      );
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
-        explicitFilters: reconciledFilters,
+        explicitFilters: newFilters,
         availableEnvironmentValues,
         config: managedEnvironmentPolicyConfig,
       });
 
-      if (peekContext) {
-        peekContext.setTableState({
-          ...peekContext.tableState,
+      if (stateLocationType === "peekContext" && setPeekTableState) {
+        setPeekTableState((current) => ({
+          ...current,
           filters: explicitFilters,
-        });
+        }));
         return;
       }
 
-      // Don't modify URL if persistence is disabled
-      if (disableUrlPersistence) return;
+      if (stateLocationType === "memory") {
+        setMemoryFilterState(explicitFilters);
+        return;
+      }
 
       const encoded = encodeFiltersGeneric(explicitFilters);
       setPendingFiltersQuery(encoded);
       setUrlFiltersQuery(encoded || null);
-      setStoredFiltersQuery(encoded);
+      if (stateLocationType === "urlAndSessionStorage") {
+        setStoredFiltersQuery(encoded);
+      }
     },
     [
+      stateLocationType,
+      setPeekTableState,
       setUrlFiltersQuery,
       setStoredFiltersQuery,
-      disableUrlPersistence,
-      peekContext,
-      mutualExclusionContext,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
     ],
@@ -601,25 +561,70 @@ export function useSidebarFilterState(
 
   // Drop optimistic override once URL catches up to the requested value.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
     if (pendingFiltersQuery === null) return;
 
     const normalizedUrlFiltersQuery = urlFiltersQuery ?? "";
     if (normalizedUrlFiltersQuery === pendingFiltersQuery) {
       setPendingFiltersQuery(null);
     }
+  }, [stateLocationType, pendingFiltersQuery, urlFiltersQuery]);
+
+  // Sanitize stale or outdated filter queries in URL/session state.
+  // TODO(2026-04-15): Remove this entire effect once stale
+  // positionInTrace traces-table URL/session state has aged out.
+  // Remove the canonicalFiltersQuery cleanup path here and the matching
+  // stale-positionInTrace migration tests in sidebarFilterSessionPersistence
+  // / filter-integration when this is no longer needed.
+  useEffect(() => {
+    if (
+      stateLocationType !== "url" &&
+      stateLocationType !== "urlAndSessionStorage"
+    ) {
+      return;
+    }
+
+    if (pendingFiltersQuery !== null) return;
+
+    if (typeof urlFiltersQuery === "string") {
+      if (urlFiltersQuery !== canonicalFiltersQuery) {
+        setPendingFiltersQuery(canonicalFiltersQuery);
+        setUrlFiltersQuery(canonicalFiltersQuery || null);
+      }
+
+      if (
+        stateLocationType === "urlAndSessionStorage" &&
+        storedFiltersQuery !== canonicalFiltersQuery
+      ) {
+        setStoredFiltersQuery(canonicalFiltersQuery);
+      }
+      return;
+    }
+
+    if (
+      stateLocationType === "urlAndSessionStorage" &&
+      storedFiltersQuery !== canonicalFiltersQuery
+    ) {
+      setStoredFiltersQuery(canonicalFiltersQuery);
+    }
   }, [
-    disableUrlPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
+    storedFiltersQuery,
+    canonicalFiltersQuery,
+    setStoredFiltersQuery,
+    setUrlFiltersQuery,
   ]);
 
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
-    if (disableUrlPersistence) return;
-    if (peekContext) return;
+    if (stateLocationType !== "urlAndSessionStorage") return;
     if (pendingFiltersQuery !== null) return;
     if (typeof urlFiltersQuery !== "string") return;
     if (!urlFiltersQuery) return;
@@ -629,8 +634,7 @@ export function useSidebarFilterState(
     // previously saved state when URL has no `filter` parameter.
     setStoredFiltersQuery(urlFiltersQuery);
   }, [
-    disableUrlPersistence,
-    peekContext,
+    stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
@@ -992,7 +996,6 @@ export function useSidebarFilterState(
   const filters: UIFilter[] = useMemo((): UIFilter[] => {
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
-    const activeFilterColumns = new Set(filterState.map((f) => f.column));
 
     // Helper to determine if a filter should show loading state
     // Only filters that depend on options from the query should show loading
@@ -1006,7 +1009,6 @@ export function useSidebarFilterState(
 
     const getFacetDisabledState = (
       facet: FilterConfig["facets"][number],
-      isActive: boolean,
     ): { isDisabled: boolean; reason?: string } => {
       const staticDisabled = facet.isDisabled ?? false;
 
@@ -1017,112 +1019,11 @@ export function useSidebarFilterState(
         };
       }
 
-      // Keep currently active facets interactive so users can adjust or clear.
-      if (!isActive) {
-        for (const activeColumn of activeFilterColumns) {
-          if (
-            areMutuallyExclusive(
-              facet.column,
-              activeColumn,
-              mutualExclusionContext,
-            )
-          ) {
-            const blockingLabel =
-              mutualExclusionContext.facetsByColumn.get(activeColumn)?.label ??
-              activeColumn;
-            return {
-              isDisabled: true,
-              reason: `Disabled because "${facet.label}" cannot be used with "${blockingLabel}".`,
-            };
-          }
-        }
-      }
-
       return { isDisabled: false };
     };
 
     return config.facets
       .map((facet): UIFilter | null => {
-        if (facet.type === "positionInTrace") {
-          const existing = filterState.find(
-            (f) => f.column === facet.column && f.type === "positionInTrace",
-          );
-          const currentMode: PositionInTraceMode | null =
-            existing && "key" in existing
-              ? (existing.key as PositionInTraceMode)
-              : null;
-          const currentNthValue =
-            existing &&
-            "value" in existing &&
-            typeof existing.value === "number"
-              ? existing.value
-              : 1;
-          const isActive = currentMode !== null;
-          const disableState = getFacetDisabledState(facet, isActive);
-
-          return {
-            type: "positionInTrace",
-            column: facet.column,
-            label: facet.label,
-            mode: currentMode,
-            nthValue: currentNthValue,
-            loading: false,
-            expanded: expandedSet.has(facet.column),
-            isActive,
-            isDisabled: disableState.isDisabled,
-            disabledReason: disableState.reason,
-            onModeChange: (mode: PositionInTraceMode | null) => {
-              const withoutPosition = filterState.filter(
-                (f) =>
-                  !(f.column === facet.column && f.type === "positionInTrace"),
-              );
-              if (mode === null) {
-                setFilterState(withoutPosition);
-              } else {
-                const needsValue =
-                  mode === "nthFromStart" || mode === "nthFromEnd";
-                setFilterState([
-                  ...withoutPosition,
-                  {
-                    column: facet.column,
-                    type: "positionInTrace" as const,
-                    operator: "=" as const,
-                    key: mode,
-                    value: needsValue ? currentNthValue : undefined,
-                  },
-                ]);
-              }
-            },
-            onNthValueChange: (value: number) => {
-              const withoutPosition = filterState.filter(
-                (f) =>
-                  !(f.column === facet.column && f.type === "positionInTrace"),
-              );
-              const mode = currentMode ?? "nthFromStart";
-              setFilterState([
-                ...withoutPosition,
-                {
-                  column: facet.column,
-                  type: "positionInTrace" as const,
-                  operator: "=" as const,
-                  key: mode,
-                  value: Math.max(1, value),
-                },
-              ]);
-            },
-            onReset: () => {
-              setFilterState(
-                filterState.filter(
-                  (f) =>
-                    !(
-                      f.column === facet.column && f.type === "positionInTrace"
-                    ),
-                ),
-              );
-            },
-          };
-        }
-
         if (facet.type === "numeric") {
           const currentRange = computeNumericRange(
             facet.column,
@@ -1134,7 +1035,7 @@ export function useSidebarFilterState(
           const isActive = filterState.some(
             (f) => f.column === facet.column && f.type === "number",
           );
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
           return {
             type: "numeric",
             column: facet.column,
@@ -1167,7 +1068,7 @@ export function useSidebarFilterState(
               : "";
           const isActive = currentValue.trim() !== "";
 
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
           return {
             type: "string",
             column: facet.column,
@@ -1209,7 +1110,7 @@ export function useSidebarFilterState(
           );
 
           const isActive = activeFilters.length > 0;
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
@@ -1299,7 +1200,7 @@ export function useSidebarFilterState(
             }));
 
           const isActive = activeFilters.length > 0;
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
 
           // Get available keys from options (should be array of score names)
           const availableKeys = options[facet.column];
@@ -1383,7 +1284,7 @@ export function useSidebarFilterState(
           );
 
           const isActive = activeFilters.length > 0;
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
 
           // Get available keys from options
           const availableKeys = options[facet.column];
@@ -1463,7 +1364,7 @@ export function useSidebarFilterState(
             }
           }
           const isActive = selectedOptions.length === 1;
-          const disableState = getFacetDisabledState(facet, isActive);
+          const disableState = getFacetDisabledState(facet);
 
           // Build counts from options
           const rawOptions = options[facet.column];
@@ -1537,11 +1438,13 @@ export function useSidebarFilterState(
           : [];
 
         // Extract counts and values to display along multi-select values
-        const { values: availableValues, counts } = Array.isArray(
-          availableValuesWithOptions,
-        )
+        const {
+          values: availableValues,
+          counts,
+          displayByValue,
+        } = Array.isArray(availableValuesWithOptions)
           ? processOptions(availableValuesWithOptions)
-          : { values: [], counts: EMPTY_MAP };
+          : { values: [], counts: EMPTY_MAP, displayByValue: undefined };
 
         // Check if this column supports operator toggle
         // Only arrayOptions columns get the ANY/ALL toggle
@@ -1630,7 +1533,7 @@ export function useSidebarFilterState(
             : (currentOperator === "all of" &&
                 selectedValues.length === availableValues.length) ||
               hasCheckboxSelections);
-        const disableState = getFacetDisabledState(facet, isActive);
+        const disableState = getFacetDisabledState(facet);
 
         return {
           type: "categorical",
@@ -1641,6 +1544,7 @@ export function useSidebarFilterState(
           value: selectedValues,
           options: availableValues,
           counts,
+          displayByValue,
           loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,
@@ -1706,7 +1610,6 @@ export function useSidebarFilterState(
     removeTextFilter,
     expandedState,
     setFilterState,
-    mutualExclusionContext,
     managedEnvironmentColumn,
     managedEnvironmentPolicyConfig.hiddenEnvironments,
   ]);

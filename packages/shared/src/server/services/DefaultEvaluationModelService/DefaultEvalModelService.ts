@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";

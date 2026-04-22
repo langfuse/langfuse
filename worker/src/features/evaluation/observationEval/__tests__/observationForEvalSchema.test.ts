@@ -88,6 +88,7 @@ describe("observationForEvalSchema", () => {
       tool_definitions: { search: '{"description": "Search"}' },
       tool_calls: ['{"name": "search"}'],
       tool_call_names: ["search"],
+      tool_call_count: 1,
       usage_details: { input: 100, output: 50 },
       cost_details: { total: 0.01 },
       provided_usage_details: {},

@@ -47,8 +47,11 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ExternalLink } from "lucide-react";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
 export const VariableMappingCard = ({
   projectId,
@@ -72,6 +75,14 @@ export const VariableMappingCard = ({
   hideAdvancedSettings?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedPreviewIds, setSelectedPreviewIds] = useState<{
+    traceId?: string;
+    observationId?: string;
+  }>();
+  const router = useRouter();
+  const peekId =
+    typeof router.query.peek === "string" ? router.query.peek : undefined;
+  const isPeekView = Boolean(peekId);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -87,6 +98,7 @@ export const VariableMappingCard = ({
     projectId,
     form,
     disabled,
+    isPeekView ? (selectedPreviewIds ?? {}) : undefined,
   );
 
   useEffect(() => {
@@ -96,8 +108,18 @@ export const VariableMappingCard = ({
       // For dataset and experiment targets, disable preview
       setShowPreview(false);
     }
+
+    if (isPeekView) {
+      setSelectedPreviewIds(undefined);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled]);
+  }, [form.watch("target"), disabled, isPeekView]);
+
+  useEffect(() => {
+    if (isPeekView) {
+      setSelectedPreviewIds(undefined);
+    }
+  }, [isPeekView, peekId]);
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
@@ -121,6 +143,23 @@ export const VariableMappingCard = ({
                   isEventTarget(form.watch("target"))
                     ? "observations"
                     : "traces"
+                }
+                onNavigate={
+                  isPeekView
+                    ? (entry) => {
+                        if (isEventTarget(form.watch("target"))) {
+                          setSelectedPreviewIds({
+                            traceId: entry.params?.traceId,
+                            observationId: entry.id,
+                          });
+                        } else {
+                          setSelectedPreviewIds({
+                            traceId: entry.id,
+                            observationId: undefined,
+                          });
+                        }
+                      }
+                    : undefined
                 }
                 path={(entry) => {
                   const isEvent = isEventTarget(form.watch("target"));
@@ -149,8 +188,32 @@ export const VariableMappingCard = ({
 
   return (
     <Card className="max-w-full min-w-0 p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center gap-2">
         <span className="text-lg font-medium">Variable mapping</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {evalTemplate.projectId ? (
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Edit prompt
+                <ExternalLink className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Only user-managed templates can be edited"
+            >
+              Edit prompt
+              <ExternalLink className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
       {isTraceTarget(form.watch("target")) && !disabled && (
         <FormDescription>

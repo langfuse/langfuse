@@ -6,7 +6,12 @@ import CodeMirror, {
   ViewPlugin,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
-import { RangeSetBuilder } from "@codemirror/state";
+import {
+  EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
 import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
@@ -165,9 +170,192 @@ const bidiSupport = [
   ),
 ];
 
+// Add custom search highlight decoration using the same class names as the default search match decorations
+// See: https://github.com/codemirror/search/blob/36e8f21e070d471fcbe2e2f338ef4e647b492ba8/src/search.ts#L396
+const searchMatchMark = Decoration.mark({
+  class: "cm-searchMatch",
+});
+const selectedSearchMatchMark = Decoration.mark({
+  class: "cm-searchMatch cm-searchMatch-selected",
+});
+
+const setSearchHighlightMarks = StateEffect.define<
+  {
+    from: number;
+    to: number;
+  }[]
+>({
+  map: (ranges, change) =>
+    ranges.map(({ from, to }) => ({
+      from: change.mapPos(from),
+      to: change.mapPos(to),
+    })),
+});
+
+const setSelectedSearchHighlightMark = StateEffect.define<{
+  from: number;
+  to: number;
+}>({
+  map: ({ from, to }, change) => ({
+    from: change.mapPos(from),
+    to: change.mapPos(to),
+  }),
+});
+
+const unsetSelectedSearchHighlightMark = StateEffect.define({});
+
+const searchHighlightingSupport = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(setSearchHighlightMarks)) {
+        // Remove all existing search highlights
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            return !decoration.spec.class?.includes("cm-searchMatch");
+          },
+        });
+
+        decos = decos.update({
+          add: effect.value.map(({ from, to }) =>
+            searchMatchMark.range(from, to),
+          ),
+        });
+      }
+
+      if (effect.is(unsetSelectedSearchHighlightMark)) {
+        let selectedRange: { from: number; to: number } | null = null;
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (decoration.spec.class?.includes("cm-searchMatch-selected")) {
+              selectedRange = { from, to };
+              return false;
+            }
+            return true;
+          },
+        });
+
+        // Reassign the value and cast it because typescript infers it to be always null,
+        // not recognizing it to be assigned in the filter above.
+        selectedRange = selectedRange as {
+          from: number;
+          to: number;
+        } | null;
+
+        if (selectedRange) {
+          decos = decos.update({
+            add: [searchMatchMark.range(selectedRange.from, selectedRange.to)],
+          });
+        }
+      }
+
+      if (effect.is(setSelectedSearchHighlightMark)) {
+        // Remove normal search match mark from the selected range,
+        // otherwise there will _both_ a normal and selected highlight on the active match.
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (from === effect.value.from && to === effect.value.to) {
+              return !decoration.spec.class?.includes("cm-searchMatch");
+            }
+
+            return true;
+          },
+        });
+
+        let previousSelectedRange: { from: number; to: number } | null = null;
+
+        // Make the existing selected search highlight a normal search highlight
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (decoration.spec.class?.includes("cm-searchMatch-selected")) {
+              previousSelectedRange = { from, to };
+              return false;
+            }
+
+            return true;
+          },
+        });
+
+        // Reassign the value and cast it because typescript infers it to be always null,
+        // not recognizing it to be assigned in the filter above.
+        previousSelectedRange = previousSelectedRange as {
+          from: number;
+          to: number;
+        } | null;
+
+        decos = decos.update({
+          add: [
+            ...(previousSelectedRange
+              ? [
+                  searchMatchMark.range(
+                    previousSelectedRange.from,
+                    previousSelectedRange.to,
+                  ),
+                ]
+              : []),
+            selectedSearchMatchMark.range(effect.value.from, effect.value.to),
+          ].toSorted((a, b) => a.from - b.from),
+        });
+      }
+    }
+    return decos;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 export function applyCodeMirrorSearchQuery(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   searchValue: string,
+  matchRanges: { from: number; to: number }[],
+) {
+  const view = editorRef?.current?.view;
+  if (!view) {
+    return;
+  }
+
+  const searchQuery = new SearchQuery({
+    search: searchValue,
+    caseSensitive: false,
+    literal: true,
+  });
+
+  view.dispatch({
+    effects: setSearchQuery.of(searchQuery),
+  });
+
+  view.dispatch({
+    effects: setSearchHighlightMarks.of(matchRanges),
+  });
+}
+
+export function setActiveSearchMarkCodeMirrorRange(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
+  range: { from: number; to: number } | null,
+  { scrollIntoView = true }: { scrollIntoView?: boolean } = {},
+) {
+  const view = editorRef?.current?.view;
+  if (!view || !range) {
+    return;
+  }
+
+  const effects: StateEffect<unknown>[] = [
+    setSelectedSearchHighlightMark.of(range),
+  ];
+
+  if (scrollIntoView) {
+    effects.push(EditorView.scrollIntoView(range.from));
+  }
+
+  view.dispatch({
+    effects,
+  });
+}
+
+export function unsetActiveSearchMarkCodeMirrorRange(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
 ) {
   const view = editorRef?.current?.view;
   if (!view) {
@@ -175,31 +363,7 @@ export function applyCodeMirrorSearchQuery(
   }
 
   view.dispatch({
-    effects: setSearchQuery.of(
-      new SearchQuery({
-        search: searchValue,
-        caseSensitive: false,
-        literal: true,
-      }),
-    ),
-  });
-}
-
-export function selectCodeMirrorRange(
-  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
-  range: { from: number; to: number } | null,
-) {
-  const view = editorRef?.current?.view;
-  if (!view || !range) {
-    return;
-  }
-
-  view.dispatch({
-    selection: {
-      anchor: range.from,
-      head: range.to,
-    },
-    scrollIntoView: true,
+    effects: unsetSelectedSearchHighlightMark.of(null),
   });
 }
 
@@ -268,6 +432,11 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Block document changes (including paste) when not editable; the
+        // `editable` DOM facet alone does not always prevent paste (see CM6
+        // EditorState.readOnly vs EditorView.editable).
+        ...(!editable ? [EditorState.readOnly.of(true)] : []),
+        searchHighlightingSupport,
         search(),
         // RTL/bidi support - must be early for proper line decoration
         ...bidiSupport,
@@ -275,6 +444,16 @@ export function CodeMirrorEditor({
         EditorView.theme({
           "&.cm-focused": {
             outline: "none",
+          },
+        }),
+        // Update search match highlight styles
+        EditorView.theme({
+          ".cm-searchMatch.cm-searchMatch": {
+            backgroundColor: "hsl(var(--find-match-background))",
+          },
+          ".cm-searchMatch.cm-searchMatch-selected": {
+            backgroundColor: "hsl(var(--find-match-selected-background))",
+            color: "hsl(var(--find-match-selected-foreground))",
           },
         }),
         // Hide gutter when lineNumbers is false

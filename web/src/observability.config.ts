@@ -8,6 +8,7 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
+import { ioredisRequestHook } from "@langfuse/shared/src/server";
 import {
   envDetector,
   processDetector,
@@ -31,7 +32,7 @@ const sdk = new NodeSDK({
     url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
   }),
   instrumentations: [
-    new IORedisInstrumentation(),
+    new IORedisInstrumentation({ requestHook: ioredisRequestHook }),
     new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
       ignoreIncomingRequestHook: (req) => {
@@ -48,6 +49,9 @@ const sdk = new NodeSDK({
         let path = new URL(url, `http://${req?.host ?? "localhost"}`).pathname;
         if (path.startsWith("/_next/static")) {
           path = "/_next/static/*";
+        }
+        if (path.endsWith("/index")) {
+          path = path.slice(0, -6);
         }
         span.updateName(`${req?.method} ${path}`);
         span.setAttribute("http.route", path);

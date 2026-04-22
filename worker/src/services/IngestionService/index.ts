@@ -42,6 +42,7 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  InternalTraceEventInput,
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
@@ -64,109 +65,23 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 
+/**
+ * Parse a value to a UInt16-compatible number (0–65535).
+ * Returns undefined if the value is nullish or not a valid UInt16 integer.
+ */
+function parseUInt16(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined;
+  const num = parseInt(value, 10);
+  if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
+  return num;
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-
-/**
- * Flexible input type for writing events to the events table.
- * This is intentionally loose to allow for iteration as the events
- * table schema evolves. Only required fields are enforced.
- */
-export type EventInput = {
-  // Required identifiers
-  projectId: string;
-  traceId: string;
-  spanId: string;
-  startTimeISO: string;
-
-  // Optional identifiers
-  orgId?: string;
-  parentSpanId?: string;
-
-  // Core properties
-  name?: string;
-  type?: string;
-  environment?: string;
-  version?: string;
-  release?: string;
-  endTimeISO: string;
-  completionStartTime?: string;
-
-  traceName?: string;
-  tags?: string[];
-  bookmarked?: boolean;
-  public?: boolean;
-
-  // User/session
-  userId?: string;
-  sessionId?: string;
-  level?: string;
-  statusMessage?: string;
-
-  // Prompt
-  promptId?: string;
-  promptName?: string;
-  promptVersion?: string;
-
-  // Model
-  modelId?: string;
-  modelName?: string;
-  modelParameters?: string | Record<string, unknown>;
-
-  // Usage & Cost
-  providedUsageDetails?: Record<string, number>;
-  usageDetails?: Record<string, number>;
-  providedCostDetails?: Record<string, number>;
-  costDetails?: Record<string, number>;
-
-  // Tool Calls
-  toolDefinitions?: Record<string, string>;
-  toolCalls?: string[];
-  toolCallNames?: string[];
-
-  // I/O
-  input?: string;
-  output?: string;
-
-  // Metadata
-  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
-  metadata: Record<string, unknown>;
-
-  // Source/instrumentation metadata
-  source: string;
-  serviceName?: string;
-  serviceVersion?: string;
-  scopeName?: string;
-  scopeVersion?: string;
-  telemetrySdkLanguage?: string;
-  telemetrySdkName?: string;
-  telemetrySdkVersion?: string;
-
-  // Storage
-  blobStorageFilePath?: string;
-  eventRaw?: string;
-  eventBytes?: number;
-
-  // Experiment fields
-  experimentId?: string;
-  experimentName?: string;
-  experimentMetadataNames?: string[];
-  experimentMetadataValues?: Array<string | null | undefined>;
-  experimentDescription?: string;
-  experimentDatasetId?: string;
-  experimentItemId?: string;
-  experimentItemVersion?: string;
-  experimentItemRootSpanId?: string;
-  experimentItemExpectedOutput?: string;
-  experimentItemMetadataNames?: string[];
-  experimentItemMetadataValues?: Array<string | null | undefined>;
-
-  // Catch-all for future fields
-  [key: string]: any;
-};
+export type EventInput = InternalTraceEventInput;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -385,7 +300,7 @@ export class IngestionService {
       // Prompt
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
-      prompt_version: eventData.promptVersion,
+      prompt_version: parseUInt16(eventData.promptVersion),
 
       // Model
       model_id: generationUsage?.internal_model_id || "",

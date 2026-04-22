@@ -1,10 +1,11 @@
-import z from "zod/v4";
+import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
 import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import {
+  findUiColumnMapping,
   type ColumnDefinition,
   type UiColumnMappings,
 } from "../../../tableDefinitions";
@@ -173,10 +174,7 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
-  const uiTable = uiTableDefinitions.find(
-    (col) =>
-      col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
-  );
+  const uiTable = findUiColumnMapping(uiTableDefinitions, filter.column);
 
   if (!uiTable) {
     const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
@@ -187,7 +185,7 @@ const matchAndVerifyTracesUiColumn = (
         (col) => col.uiTableId ?? col.uiTableName,
       ),
     });
-    throw new QueryBuilderError(errorMessage);
+    throw new InvalidRequestError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

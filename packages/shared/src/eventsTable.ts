@@ -221,7 +221,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
-    internal: "t.tags",
+    internal: "e.tags",
     options: [], // to be added at runtime
   },
   {
@@ -263,12 +263,6 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "commentContent",
     type: "string",
     internal: "", // handled by comment filter helpers
-  },
-  {
-    name: "Position in Trace",
-    id: "positionInTrace",
-    type: "positionInTrace",
-    internal: "positionInTrace",
   },
   {
     name: "Has Parent Observation",
@@ -329,5 +323,11 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "number",
     internal: "length(e.tool_calls)",
     nullable: true,
+  },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "e.experiment_item_root_span_id = e.span_id",
   },
 ];

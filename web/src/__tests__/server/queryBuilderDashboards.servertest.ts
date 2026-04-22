@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type QueryType } from "@/src/features/query/types";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { mapLegacyUiTableFilterToView } from "@/src/features/query";
 
 describe("selfServeDashboards", () => {
   // Single project ID for all tests
@@ -31,6 +32,8 @@ describe("selfServeDashboards", () => {
     recentProductionTraces: 0, // within the last hour
     traceCounts: {} as Record<string, number>, // counts by trace name
     environmentCounts: {} as Record<string, number>, // counts by environment
+    observationLevelCounts: {} as Record<string, number>, // counts by level
+    availableToolCounts: {} as Record<string, number>, // counts by available tool name
   };
 
   beforeAll(async () => {
@@ -126,11 +129,19 @@ describe("selfServeDashboards", () => {
           trace_id: traceId,
           name: "gpt-4-turbo",
           type: "generation",
+          level: i === 0 ? "ERROR" : i === 1 ? "WARNING" : ("DEFAULT" as const),
           environment: "production",
           start_time: now.getTime() - i * 10000,
           completion_start_time: now.getTime() - i * 10000 + 800, // 800ms time to first token
           end_time: now.getTime() - i * 10000 + 3000, // 3000ms total duration
           provided_model_name: "gpt-4-turbo",
+          tool_definitions:
+            i === 0
+              ? {
+                  create_ticket: '{"name":"create_ticket"}',
+                }
+              : {},
+          tool_call_names: i === 0 ? ["create_ticket"] : [],
         }),
       );
     }
@@ -144,6 +155,7 @@ describe("selfServeDashboards", () => {
           trace_id: traceId,
           name: "text-embedding-ada-002",
           type: "generation",
+          level: i === 0 ? "ERROR" : ("WARNING" as const),
           environment: "production",
           start_time: now.getTime() - i * 15000,
           completion_start_time: now.getTime() - i * 15000 + 200, // 200ms time to first token
@@ -162,6 +174,7 @@ describe("selfServeDashboards", () => {
           trace_id: traceId,
           name: "claude-3-opus",
           type: "generation",
+          level: i === 0 ? "DEFAULT" : ("ERROR" as const),
           environment: "development",
           start_time: oneHourAgo.getTime() - i * 20000,
           completion_start_time: oneHourAgo.getTime() - i * 20000 + 1200, // 1200ms time to first token
@@ -190,6 +203,18 @@ describe("selfServeDashboards", () => {
     traces.forEach((trace) => {
       stats.traceCounts[trace.name || ""] =
         (stats.traceCounts[trace.name || ""] || 0) + 1;
+    });
+
+    // Count observations by level
+    observations.forEach((observation) => {
+      const level = observation.level || "DEFAULT";
+      stats.observationLevelCounts[level] =
+        (stats.observationLevelCounts[level] || 0) + 1;
+
+      Object.keys(observation.tool_definitions ?? {}).forEach((toolName) => {
+        stats.availableToolCounts[toolName] =
+          (stats.availableToolCounts[toolName] || 0) + 1;
+      });
     });
 
     // Count recent production traces (within the last hour)
@@ -547,6 +572,75 @@ describe("selfServeDashboards", () => {
         expect(modelRow.sum_totalCost).toBeGreaterThan(500);
         expect(Number(modelRow.sum_totalTokens)).toBeGreaterThan(10000);
       });
+    });
+  });
+
+  describe("observations-level filter query", () => {
+    it("should support legacy dashboard Level filters after widget remapping", async () => {
+      const legacyFilters: Parameters<typeof mapLegacyUiTableFilterToView>[1] =
+        [
+          {
+            column: "Level",
+            operator: "any of",
+            value: ["ERROR"],
+            type: "stringOptions",
+          },
+        ];
+
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: mapLegacyUiTableFilterToView("observations", legacyFilters),
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      expect(queryBuilderResult).toHaveLength(1);
+      expect(Number(queryBuilderResult[0].count_count)).toBe(
+        stats.observationLevelCounts["ERROR"],
+      );
+    });
+
+    it("should support Tool Names (without available/called specified) filters after remapping", async () => {
+      // initially, we forgot to add the distinction and assumed available only
+      const legacyFilters: Parameters<typeof mapLegacyUiTableFilterToView>[1] =
+        [
+          {
+            column: "Tool Names",
+            operator: "any of",
+            value: ["create_ticket"],
+            type: "arrayOptions",
+          },
+        ];
+
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: mapLegacyUiTableFilterToView("observations", legacyFilters),
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      expect(queryBuilderResult).toHaveLength(1);
+      expect(Number(queryBuilderResult[0].count_count)).toBe(
+        stats.availableToolCounts["create_ticket"],
+      );
     });
   });
 

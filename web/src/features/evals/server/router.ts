@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -8,6 +8,8 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   ZodModelConfig,
+  PersistedEvalOutputDefinitionSchema,
+  compilePersistedEvalOutputDefinition,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -17,6 +19,7 @@ import {
   type JobConfiguration,
   JobType,
   Prisma,
+  JobTimeScopeZod,
   TimeScopeSchema,
   JobConfigState,
   EvaluatorBlockReason,
@@ -57,6 +60,17 @@ import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
+import {
+  EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+  JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+} from "@/src/features/evals/server/audit-log-resource-types";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+
+// Filter columns that used to be backed by the Postgres `traces` and
+// `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
+// query can no longer resolve them.  Filters referencing these columns are
+// dropped server-side to keep bookmarked URLs from failing.
+const DEPRECATED_FILTER_COLUMNS = new Set(["scoreValue", "sessionId"]);
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
@@ -93,13 +107,13 @@ const ConfigWithTemplateSchema = z.object({
       model: z.string().nullable(),
       modelParams: jsonSchema.nullable(),
       vars: z.array(z.string()),
-      outputSchema: jsonSchema,
+      outputDefinition: jsonSchema,
       version: z.number(),
     })
     .nullish(),
 });
 
-type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
+type EvalJobConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 
 /**
  * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
@@ -110,7 +124,7 @@ type ConfigWithTemplate = z.infer<typeof ConfigWithTemplateSchema>;
 const filterAndValidateDbEvaluatorList = (
   evaluators: JobConfiguration[],
   onParseError?: (error: z.ZodError) => void,
-): ConfigWithTemplate[] =>
+): EvalJobConfigWithTemplate[] =>
   evaluators.reduce((acc, ts) => {
     const result = ConfigWithTemplateSchema.safeParse(ts);
     if (result.success) {
@@ -120,9 +134,9 @@ const filterAndValidateDbEvaluatorList = (
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as ConfigWithTemplate[]);
+  }, [] as EvalJobConfigWithTemplate[]);
 
-export const CreateEvalTemplate = z.object({
+export const CreateEvalTemplateInputSchema = z.object({
   name: z.string().min(1),
   projectId: z.string(),
   prompt: z.string(),
@@ -130,10 +144,7 @@ export const CreateEvalTemplate = z.object({
   model: z.string().nullish(),
   modelParams: ZodModelConfig.nullish(),
   vars: z.array(z.string()),
-  outputSchema: z.object({
-    score: z.string(),
-    reasoning: z.string(),
-  }),
+  outputDefinition: PersistedEvalOutputDefinitionSchema,
   cloneSourceId: z.string().optional(),
   referencedEvaluators: z
     .enum(EvalReferencedEvaluators)
@@ -168,10 +179,10 @@ const UpdateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.enum(EvaluatorStatus).optional(),
-  timeScope: TimeScopeSchema.optional(),
+  timeScope: z.array(JobTimeScopeZod).optional(),
 });
 
-const validateEvalTemplateActivation = async ({
+const validateEvalTemplateCanRun = async ({
   prisma,
   projectId,
   evalTemplateId,
@@ -194,32 +205,21 @@ const validateEvalTemplateActivation = async ({
     });
   }
 
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+  const error = await getEvaluatorDefinitionPreflightError({
     projectId,
-    template.provider ?? undefined,
-    template.model ?? undefined,
-    template.modelParams,
-  );
+    template: {
+      name: template.name,
+      provider: template.provider,
+      model: template.model,
+      modelParams: template.modelParams,
+      outputDefinition: template.outputDefinition,
+    },
+  });
 
-  if (!modelConfig.valid) {
+  if (error) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
-    });
-  }
-
-  try {
-    await testModelCall({
-      provider: modelConfig.config.provider,
-      model: modelConfig.config.model,
-      apiKey: modelConfig.config.apiKey,
-      modelConfig: modelConfig.config.modelParams,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+      message: error,
     });
   }
 };
@@ -494,6 +494,7 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
+            outputDefinition: unknown;
           }>
         >`
         WITH latest_templates AS (
@@ -506,6 +507,7 @@ export const evalRouter = createTRPCRouter({
             et.partner,
             et.version,
             et.created_at,
+            et.output_schema,
             (
               SELECT COUNT(jc.id)
               FROM job_configurations jc
@@ -534,6 +536,7 @@ export const evalRouter = createTRPCRouter({
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",
+          output_schema as "outputDefinition",
           COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates
@@ -735,7 +738,7 @@ export const evalRouter = createTRPCRouter({
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: jobId,
         action: "create",
       });
@@ -805,7 +808,7 @@ export const evalRouter = createTRPCRouter({
       return { id: job.id };
     }),
   createTemplate: protectedProjectProcedure
-    .input(CreateEvalTemplate)
+    .input(CreateEvalTemplateInputSchema)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -834,6 +837,9 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
+          structuredOutputSchema: compilePersistedEvalOutputDefinition(
+            input.outputDefinition,
+          ).outputResultSchema,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -888,7 +894,7 @@ export const evalRouter = createTRPCRouter({
             model: input.model,
             modelParams: input.modelParams ?? undefined,
             vars: input.vars,
-            outputSchema: input.outputSchema,
+            outputDefinition: input.outputDefinition,
           },
         });
 
@@ -970,7 +976,7 @@ export const evalRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "evalTemplate",
+          resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
           resourceId: evalTemplate.id,
           action: "create",
         });
@@ -1030,7 +1036,7 @@ export const evalRouter = createTRPCRouter({
           newStatus === JobConfigState.ACTIVE &&
           filteredEvaluators.length > 0
         ) {
-          await validateEvalTemplateActivation({
+          await validateEvalTemplateCanRun({
             prisma: ctx.prisma,
             projectId,
             evalTemplateId,
@@ -1138,7 +1144,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "update",
       });
@@ -1157,7 +1163,7 @@ export const evalRouter = createTRPCRouter({
           });
         }
 
-        await validateEvalTemplateActivation({
+        await validateEvalTemplateCanRun({
           prisma: ctx.prisma,
           projectId,
           evalTemplateId: existingJob.evalTemplateId,
@@ -1253,7 +1259,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "delete",
       });
@@ -1332,8 +1338,15 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Strip deprecated filters — these columns were removed from the UI
+      // because they required traces/scores data that no longer lives in
+      // Postgres, but bookmarked URLs may still include them.
+      const filters = input.filter.filter(
+        (f) => !DEPRECATED_FILTER_COLUMNS.has(f.column),
+      );
+
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        filters,
         evalExecutionsFilterCols,
         "job_executions",
       );
@@ -1352,7 +1365,7 @@ export const evalRouter = createTRPCRouter({
               | "jobConfigurationId"
               | "executionTraceId"
               | "error"
-            > & { sessionId: string | null }
+            >
           >
         >(
           generateExecutionsQuery(
@@ -1365,8 +1378,7 @@ export const evalRouter = createTRPCRouter({
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
             je.execution_trace_id as "executionTraceId",
-            je.error,
-            t.session_id as "sessionId"
+            je.error
             `,
             input.projectId,
             filterCondition,
@@ -1589,8 +1601,6 @@ const generateExecutionsQuery = (
   SELECT
    ${select}
    FROM job_executions je
-   LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
-   LEFT JOIN scores s ON je.job_output_score_id = s.id AND je.project_id = s.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'

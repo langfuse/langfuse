@@ -38,6 +38,11 @@ import {
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+  getStandaloneMediaReferenceStrings,
+} from "@/src/components/ui/markdown-media.utils";
+import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
@@ -1162,6 +1167,18 @@ export function PrettyJsonView(props: {
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
+  const standaloneMediaReferenceStrings =
+    typeof markdownContent === "string"
+      ? getStandaloneMediaReferenceStrings(markdownContent)
+      : [];
+  const shouldRenderStandaloneMedia =
+    isMarkdownMode && standaloneMediaReferenceStrings.length > 0;
+  const remainingMarkdownMedia = filterAlreadyRenderedMedia(
+    props.media,
+    getRenderedInlineMediaIds({
+      markdown: markdownContent ?? "",
+    }),
+  );
   const shouldUseTableView =
     isPrettyView && !isChatML && !isMarkdown && !emptyValueDisplay;
 
@@ -1217,7 +1234,19 @@ export function PrettyJsonView(props: {
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          <MarkdownView markdown={markdownContent || ""} />
+          {shouldRenderStandaloneMedia ? (
+            standaloneMediaReferenceStrings.map((referenceString, index) => (
+              <LangfuseMediaView
+                key={`${referenceString}-${index}`}
+                mediaReferenceString={referenceString}
+              />
+            ))
+          ) : (
+            <MarkdownView
+              markdown={markdownContent || ""}
+              media={props.media}
+            />
+          )}
         </div>
       ) : (
         <>
@@ -1279,13 +1308,13 @@ export function PrettyJsonView(props: {
           </div>
         </>
       )}
-      {props.media && props.media.length > 0 && isPrettyView && (
+      {shouldRenderStandaloneMedia && remainingMarkdownMedia.length > 0 && (
         <>
           <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
-            {props.media.map((m) => (
+            {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
                 asFileIcon={true}
@@ -1295,6 +1324,25 @@ export function PrettyJsonView(props: {
           </div>
         </>
       )}
+      {props.media &&
+        props.media.length > 0 &&
+        isPrettyView &&
+        !isMarkdownMode && (
+          <>
+            <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
+              Media
+            </div>
+            <div className="flex flex-wrap gap-2 p-4 pt-1">
+              {props.media.map((m) => (
+                <LangfuseMediaView
+                  mediaAPIReturnValue={m}
+                  asFileIcon={true}
+                  key={m.mediaId}
+                />
+              ))}
+            </div>
+          </>
+        )}
     </>
   );
 

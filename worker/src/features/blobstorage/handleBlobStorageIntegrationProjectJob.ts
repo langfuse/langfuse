@@ -1,4 +1,5 @@
 import { pipeline } from "stream";
+import { createGzip } from "zlib";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -18,6 +19,8 @@ import {
   QueueJobs,
   sendBlobStorageExportFailedEmail,
   getProjectAdminEmails,
+  enrichObservationWithModelData,
+  createModelCache,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -27,6 +30,38 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
+
+async function* enrichObservationStream(
+  stream: AsyncGenerator<Record<string, unknown>>,
+  projectId: string,
+  modelIdField: string,
+  convertLatencyToSeconds: boolean,
+): AsyncGenerator<Record<string, unknown>> {
+  const { getModel } = createModelCache(projectId);
+
+  for await (const row of stream) {
+    const modelId = row[modelIdField] as string | null | undefined;
+    const model = await getModel(modelId);
+    const pricing = enrichObservationWithModelData(model);
+
+    const enriched: Record<string, unknown> = {
+      ...row,
+      model_id: pricing.modelId ?? modelId ?? null,
+      input_price: pricing.inputPrice,
+      output_price: pricing.outputPrice,
+      total_price: pricing.totalPrice,
+    };
+
+    if (convertLatencyToSeconds) {
+      const latency = row.latency as number | null;
+      const ttft = row.time_to_first_token as number | null;
+      enriched.latency = latency != null ? latency / 1000 : null;
+      enriched.time_to_first_token = ttft != null ? ttft / 1000 : null;
+    }
+
+    yield enriched;
+  }
+}
 
 const getMinTimestampForExport = async (
   projectId: string,
@@ -160,6 +195,8 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
+  compressed: boolean;
+  convertV4LatencyToSeconds: boolean;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -187,7 +224,13 @@ const processBlobStorageExport = async (config: {
       .toISOString()
       .replace(/:/g, "-")
       .substring(0, 19);
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${blobStorageProps.extension}`;
+    const extension = config.compressed
+      ? `${blobStorageProps.extension}.gz`
+      : blobStorageProps.extension;
+    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+    const uploadContentType = config.compressed
+      ? "application/gzip"
+      : blobStorageProps.contentType;
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
@@ -201,10 +244,15 @@ const processBlobStorageExport = async (config: {
         );
         break;
       case "observations":
-        dataStream = getObservationsForBlobStorageExport(
+        dataStream = enrichObservationStream(
+          getObservationsForBlobStorageExport(
+            config.projectId,
+            config.minTimestamp,
+            config.maxTimestamp,
+          ),
           config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
+          "model_id",
+          false, // v3 query already returns latency in seconds
         );
         break;
       case "scores":
@@ -215,28 +263,34 @@ const processBlobStorageExport = async (config: {
         );
         break;
       case "observations_v2": // observations_v2 is the events table
-        dataStream = getEventsForBlobStorageExport(
+        dataStream = enrichObservationStream(
+          getEventsForBlobStorageExport(
+            config.projectId,
+            config.minTimestamp,
+            config.maxTimestamp,
+          ),
           config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
+          "model_id",
+          config.convertV4LatencyToSeconds,
         );
         break;
       default:
         throw new Error(`Unsupported table type: ${config.table}`);
     }
 
-    const fileStream = pipeline(
-      dataStream,
-      streamTransformations[config.fileType](),
-      (err) => {
-        if (err) {
-          logger.error(
-            "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
-            err,
-          );
-        }
-      },
-    );
+    const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
+      if (err) {
+        logger.error(
+          "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
+          err,
+        );
+      }
+    };
+
+    const formatTransform = streamTransformations[config.fileType]();
+    const fileStream = config.compressed
+      ? pipeline(dataStream, formatTransform, createGzip(), pipelineCallback)
+      : pipeline(dataStream, formatTransform, pipelineCallback);
 
     // Upload the file to cloud storage
     // For CSV exports, use larger part size to handle big files
@@ -245,7 +299,7 @@ const processBlobStorageExport = async (config: {
 
     await storageService.uploadFileBuffered({
       fileName: filePath,
-      fileType: blobStorageProps.contentType,
+      fileType: uploadContentType,
       data: fileStream,
       partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
     });
@@ -340,6 +394,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
   try {
     // Process the export based on the integration configuration
+    // Convert v4 (events table) latency/time_to_first_token from ms to seconds
+    // for integrations created on or after 2026-04-01. Before this date, v4 blob
+    // export returned these fields in milliseconds. We preserve that behavior for
+    // existing integrations to avoid silently breaking their pipelines.
+    const convertV4LatencyToSeconds =
+      blobStorageIntegration.createdAt >= new Date("2026-04-01T00:00:00Z");
+
     const executionConfig = {
       projectId,
       minTimestamp,
@@ -355,6 +416,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
+      compressed: blobStorageIntegration.compressed,
+      convertV4LatencyToSeconds,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

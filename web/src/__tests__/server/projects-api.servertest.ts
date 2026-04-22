@@ -1,10 +1,8 @@
-/** @jest-environment node */
-
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,

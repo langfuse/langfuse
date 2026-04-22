@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
@@ -11,7 +9,7 @@ import {
   PromptType,
 } from "@langfuse/shared";
 import { parsePromptDependencyTags } from "@langfuse/shared";
-import { generateId, nanoid } from "ai";
+import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
@@ -69,7 +67,7 @@ const setupTriggerAndAction = async (projectId: string) => {
       id: v4(),
       projectId: projectId,
       eventSource: "prompt",
-      eventActions: ["updated"],
+      eventActions: [],
       filter: [],
       status: "ACTIVE",
     },
@@ -544,7 +542,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
       const { auth } = await createOrgProjectAndApiKey();
-      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const promptName = `prompt-name-message-placeholders${nanoid()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
         {

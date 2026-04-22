@@ -15,7 +15,7 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled } = useV4Beta();
+  const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
 
   // Check if the user has tracing configured
@@ -47,18 +47,26 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: isBetaEnabled
-          ? undefined
-          : {
-              tabs: getTracingTabs(projectId),
-              activeTab: TRACING_TABS.OBSERVATIONS,
-            },
+        tabsProps:
+          isBetaEnabled || isInitializing
+            ? undefined
+            : {
+                tabs: getTracingTabs(projectId),
+                activeTab: TRACING_TABS.OBSERVATIONS,
+              },
       }}
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
+      ) : isInitializing ? (
+        <>
+          {/* Wait for the beta flag before mounting either table. Otherwise the
+              legacy table can briefly mount, restore a v3 saved view, and
+              promote its viewId into the URL before the correct mode
+              resolves. */}
+        </>
       ) : isBetaEnabled ? (
         <ObservationsEventsTable projectId={projectId} />
       ) : (

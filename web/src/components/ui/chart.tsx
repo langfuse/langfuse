@@ -2,6 +2,11 @@
 
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
+import type {
+  TooltipContentProps,
+  TooltipPayloadEntry,
+  TooltipValueType,
+} from "recharts";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -52,13 +57,19 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border h-full w-full flex-1 justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
+          "[&_.recharts-cartesian-axis-tick-value]:fill-muted-foreground/90 [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground/90 [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border relative h-full w-full flex-1 justify-center text-xs [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
           className,
         )}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <RechartsPrimitive.ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={1}
+          initialDimension={{ width: 1, height: 1 }}
+        >
           {children}
         </RechartsPrimitive.ResponsiveContainer>
       </div>
@@ -88,7 +99,8 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    const safeKey = key.replace(/[^\p{L}\p{N}_ .()-]/gu, "_");
+    return color ? `  --color-${safeKey}: ${color};` : null;
   })
   .join("\n")}
 }
@@ -100,12 +112,36 @@ ${colorConfig
   );
 };
 
-const ChartTooltip = RechartsPrimitive.Tooltip;
+type ChartTooltipProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip>;
+
+function ChartTooltip({
+  allowEscapeViewBox = { x: false, y: false },
+  isAnimationActive = false,
+  offset = 12,
+  useTranslate3d = true,
+  wrapperStyle,
+  ...props
+}: ChartTooltipProps) {
+  return (
+    <RechartsPrimitive.Tooltip
+      allowEscapeViewBox={allowEscapeViewBox}
+      isAnimationActive={isAnimationActive}
+      offset={offset}
+      useTranslate3d={useTranslate3d}
+      wrapperStyle={{
+        pointerEvents: "none",
+        zIndex: 50,
+        ...wrapperStyle,
+      }}
+      {...props}
+    />
+  );
+}
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-    React.ComponentProps<"div"> & {
+  React.ComponentProps<"div"> &
+    Partial<TooltipContentProps<TooltipValueType, string | number>> & {
       hideLabel?: boolean;
       hideIndicator?: boolean;
       indicator?: "line" | "dot" | "dashed";
@@ -203,18 +239,22 @@ const ChartTooltipContent = React.forwardRef<
           {displayPayload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
-            const indicatorColor = color || item.payload.fill || item.color;
+            const indicatorColor =
+              color ||
+              getFillColor(item.payload) ||
+              item.color ||
+              "currentColor";
 
             return (
               <div
-                key={item.dataKey}
+                key={String(item.dataKey ?? item.name ?? index)}
                 className={cn(
                   "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
                   indicator === "dot" && "items-center",
                 )}
               >
-                {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
+                {formatter && item?.value !== undefined && item.name != null ? (
+                  formatter(item.value, item.name, item, index, displayPayload)
                 ) : (
                   <>
                     {itemConfig?.icon ? (
@@ -277,65 +317,41 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = "ChartTooltip";
 
-const ChartLegend = RechartsPrimitive.Legend;
+type ChartLegendProps = React.ComponentProps<typeof RechartsPrimitive.Legend>;
 
-const ChartLegendContent = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-      hideIcon?: boolean;
-      nameKey?: string;
-    }
->(
-  (
-    { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
-    ref,
-  ) => {
-    const { config } = useChart();
+function ChartLegend({ itemSorter = null, ...props }: ChartLegendProps) {
+  return <RechartsPrimitive.Legend itemSorter={itemSorter} {...props} />;
+}
 
-    if (!payload?.length) {
-      return null;
-    }
+function ChartActiveReferenceLine({
+  stroke = "hsl(var(--border))",
+  strokeDasharray = "4 4",
+  strokeOpacity = 0.8,
+  zIndex = 350,
+}: {
+  stroke?: string;
+  strokeDasharray?: string;
+  strokeOpacity?: number;
+  zIndex?: number;
+}) {
+  const activeLabel = RechartsPrimitive.useActiveTooltipLabel();
+  const isTooltipActive = RechartsPrimitive.useIsTooltipActive();
 
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "flex items-center justify-center gap-4",
-          verticalAlign === "top" ? "pb-3" : "pt-3",
-          className,
-        )}
-      >
-        {payload.map((item) => {
-          const key = `${nameKey || item.dataKey || "value"}`;
-          const itemConfig = getPayloadConfigFromPayload(config, item, key);
+  if (!isTooltipActive || activeLabel === undefined || activeLabel === null) {
+    return null;
+  }
 
-          return (
-            <div
-              key={item.value}
-              className={cn(
-                "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3",
-              )}
-            >
-              {itemConfig?.icon && !hideIcon ? (
-                <itemConfig.icon />
-              ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
-              )}
-              {itemConfig?.label}
-            </div>
-          );
-        })}
-      </div>
-    );
-  },
-);
-ChartLegendContent.displayName = "ChartLegend";
+  return (
+    <RechartsPrimitive.ReferenceLine
+      x={activeLabel}
+      stroke={stroke}
+      strokeDasharray={strokeDasharray}
+      strokeOpacity={strokeOpacity}
+      ifOverflow="extendDomain"
+      zIndex={zIndex}
+    />
+  );
+}
 
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
@@ -376,13 +392,27 @@ function getPayloadConfigFromPayload(
     : config[key as keyof typeof config];
 }
 
+function getFillColor(
+  payload: TooltipPayloadEntry<TooltipValueType, string | number>["payload"],
+): string | undefined {
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "fill" in payload &&
+    typeof payload.fill === "string"
+  ) {
+    return payload.fill;
+  }
+
+  return undefined;
+}
+
 export {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
-  ChartStyle,
+  ChartActiveReferenceLine,
   useChart,
   getPayloadConfigFromPayload,
 };

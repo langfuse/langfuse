@@ -44,7 +44,6 @@ import { type ChartProps } from "@/src/features/widgets/chart-library/chart-prop
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 
 /**
  * Props interface for the PivotTable component
@@ -56,12 +55,6 @@ export interface PivotTableProps {
 
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
-
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
 
   /** Current sort state */
   sortState?: OrderByState;
@@ -356,6 +349,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle empty data state
   if (!data || data.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
@@ -367,6 +364,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   // Handle transformation errors
   if (pivotTableRows.length === 0) {
+    if (isLoading) {
+      return <div className="h-full" aria-hidden="true" />;
+    }
+
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
@@ -379,14 +380,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div className="relative h-full overflow-auto px-5 pb-2">
-      {isLoading && (
-        <ChartLoadingState
-          isLoading={isLoading}
-          className="bg-background/80 absolute inset-0 z-10 backdrop-blur-xs"
-          hintClassName="max-w-sm px-4"
-        />
-      )}
+    <div className="h-full overflow-auto px-5 pb-2">
       <Table>
         <TableHeader className="sticky top-0 z-10">
           <TableRow>

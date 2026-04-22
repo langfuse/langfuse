@@ -7,7 +7,7 @@ import {
   getObjectIdsByCommentCount,
   getObjectIdsByCommentContent,
 } from "../repositories/comments";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 
 /**
  * Maximum number of object IDs that can be returned from comment filters.

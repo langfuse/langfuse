@@ -28,14 +28,36 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Background migrations: `src/backgroundMigrations/*`
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
+## Shared Package Imports
+
+- Prefer `@langfuse/shared/src/server` in worker runtime code for queue
+  helpers/contracts, repositories, logger/instrumentation, Redis/ClickHouse
+  helpers, auth helpers, and other shared backend services.
+- Use `@langfuse/shared` for cross-runtime types, schemas, domain contracts,
+  model-pricing helpers, and other frontend-safe utilities.
+- Use `@langfuse/shared/src/db` only when worker code or tests need direct
+  Prisma access.
+- Use narrower subpaths such as `@langfuse/shared/src/env` or
+  `@langfuse/shared/encryption` when you specifically need those focused
+  helpers instead of the broader barrels.
+- See `../packages/shared/AGENTS.md` for the full shared export map and what
+  each entrypoint contains.
+- For the higher-level platform topology across web, worker, Postgres,
+  ClickHouse, Redis, and S3, also read the architecture handbook:
+  [langfuse.com/handbook/product-engineering/architecture](https://langfuse.com/handbook/product-engineering/architecture)
+  with source markdown in
+  `../langfuse-docs/content/handbook/product-engineering/architecture.mdx`
+  (GitHub mirror:
+  [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
+
 ## Quick Commands
 
 - Dev: `pnpm --filter worker run dev`
 - Lint: `pnpm --filter worker run lint`
 - Lint fix: `pnpm --filter worker run lint:fix`
 - Typecheck: `pnpm --filter worker run typecheck`
-- Tests: `pnpm --filter worker run test -- <file-or-pattern>`
-- Coverage: `pnpm --filter worker run coverage`
+- Tests: `pnpm --filter worker run test <file-or-pattern>`
+- Coverage: `pnpm --filter worker run coverage [file-or-pattern]`
 - Build: `pnpm --filter worker run build`
 
 ## Queue Playbook (Add/Change Queue Processor)
@@ -71,3 +93,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Keep tests independent; no ordering assumptions.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
+- Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,
+  field additions, latency unit handling) should be reviewed against the
+  published blob storage docs for consistency — fetch the latest pages and
+  surface any discrepancies:
+  - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
+  - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields

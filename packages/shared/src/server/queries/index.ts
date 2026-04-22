@@ -25,6 +25,7 @@ export {
 } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
 export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
@@ -38,9 +39,11 @@ export {
   EventsAggregationQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
+  ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";

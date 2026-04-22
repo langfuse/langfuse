@@ -7,7 +7,7 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Define the form schema for GitHub dispatch actions
 export const GitHubDispatchActionFormSchema = z.object({
@@ -23,9 +23,7 @@ type GitHubDispatchActionFormData = z.infer<
   typeof GitHubDispatchActionFormSchema
 >;
 
-export class GitHubDispatchActionHandler
-  implements BaseActionHandler<GitHubDispatchActionFormData>
-{
+export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDispatchActionFormData> {
   actionType = "GITHUB_DISPATCH" as const;
 
   getDefaultValues(
