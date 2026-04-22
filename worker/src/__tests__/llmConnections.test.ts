@@ -1337,6 +1337,10 @@ describe("LLM Connection Tests", () => {
         "https://user:pass@proxy.internal/custom-path",
         "user:pass@proxy.internal/custom-path",
       ],
+      [
+        "https://user%40name:pa%3Ass@proxy.internal/v1",
+        "user%40name:pa%3Ass@proxy.internal",
+      ],
 
       // Falls back to raw string on invalid URL
       ["not-a-url", "not-a-url"],
