@@ -1,48 +1,48 @@
-/** @jest-environment node */
+import type { Mock } from "vitest";
 
-const mockEvalTemplateCreate = jest.fn();
-const mockEvalTemplateFindMany = jest.fn();
-const mockJobConfigurationFindMany = jest.fn();
-const mockJobConfigurationUpdate = jest.fn();
+const mockEvalTemplateCreate = vi.fn();
+const mockEvalTemplateFindMany = vi.fn();
+const mockJobConfigurationFindMany = vi.fn();
+const mockJobConfigurationUpdate = vi.fn();
 
-jest.mock(
+vi.mock(
   "../../../features/evals/server/unstable-public-api/validation",
-  () => {
-    const actual = jest.requireActual(
+  async () => {
+    const actual = await vi.importActual(
       "../../../features/evals/server/unstable-public-api/validation",
     );
 
     return {
       ...actual,
-      assertEvaluatorDefinitionCanRunForPublicApi: jest.fn(),
+      assertEvaluatorDefinitionCanRunForPublicApi: vi.fn(),
     };
   },
 );
 
-jest.mock("../../../features/evals/server/unstable-public-api/queries", () => ({
-  countActiveEvaluationRules: jest.fn(),
-  findPublicEvaluatorTemplateOrThrow: jest.fn(),
-  countEvaluationRulesForEvaluator: jest.fn(),
-  countEvaluationRulesForEvaluatorIds: jest.fn(),
-  listPublicEvaluatorTemplates: jest.fn(),
-  loadEvaluatorForEvaluationRule: jest.fn(),
-  findPublicEvaluationRuleOrThrow: jest.fn(),
+vi.mock("../../../features/evals/server/unstable-public-api/queries", () => ({
+  countActiveEvaluationRules: vi.fn(),
+  findPublicEvaluatorTemplateOrThrow: vi.fn(),
+  countEvaluationRulesForEvaluator: vi.fn(),
+  countEvaluationRulesForEvaluatorIds: vi.fn(),
+  listPublicEvaluatorTemplates: vi.fn(),
+  loadEvaluatorForEvaluationRule: vi.fn(),
+  findPublicEvaluationRuleOrThrow: vi.fn(),
 }));
 
-jest.mock("@langfuse/shared/src/server", () => ({
-  ...jest.requireActual("@langfuse/shared/src/server"),
-  invalidateProjectEvalConfigCaches: jest.fn(),
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
+  invalidateProjectEvalConfigCaches: vi.fn(),
   ClickHouseClientManager: {
     getInstance: () => ({
-      closeAllConnections: jest.fn().mockResolvedValue(undefined),
+      closeAllConnections: vi.fn().mockResolvedValue(undefined),
     }),
   },
   logger: {
-    debug: jest.fn(),
+    debug: vi.fn(),
   },
 }));
 
-jest.mock("@langfuse/shared/src/db", () => ({
+vi.mock("@langfuse/shared/src/db", () => ({
   Prisma: {
     PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
       code: string;
@@ -65,14 +65,14 @@ jest.mock("@langfuse/shared/src/db", () => ({
     },
   },
   prisma: {
-    $transaction: jest.fn(),
+    $transaction: vi.fn(),
     dataset: {
-      findMany: jest.fn(),
+      findMany: vi.fn(),
     },
     jobConfiguration: {
-      findFirst: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -130,29 +130,29 @@ const managedTemplate = {
 };
 
 const mockedPrisma = prisma as unknown as {
-  $transaction: jest.Mock;
+  $transaction: Mock;
   dataset: {
-    findMany: jest.Mock;
+    findMany: Mock;
   };
   jobConfiguration: {
-    findFirst: jest.Mock;
-    create: jest.Mock;
-    update: jest.Mock;
+    findFirst: Mock;
+    create: Mock;
+    update: Mock;
   };
 };
-const mockAssertEvaluatorDefinitionCanRunForPublicApi = jest.mocked(
+const mockAssertEvaluatorDefinitionCanRunForPublicApi = vi.mocked(
   validationModule.assertEvaluatorDefinitionCanRunForPublicApi,
 );
-const mockLoadEvaluatorForEvaluationRule = jest.mocked(
+const mockLoadEvaluatorForEvaluationRule = vi.mocked(
   queryModule.loadEvaluatorForEvaluationRule,
 );
-const mockCountActiveEvaluationRules = jest.mocked(
+const mockCountActiveEvaluationRules = vi.mocked(
   queryModule.countActiveEvaluationRules,
 );
-const mockFindPublicEvaluationRuleOrThrow = jest.mocked(
+const mockFindPublicEvaluationRuleOrThrow = vi.mocked(
   queryModule.findPublicEvaluationRuleOrThrow,
 );
-const mockCountEvaluationRulesForEvaluator = jest.mocked(
+const mockCountEvaluationRulesForEvaluator = vi.mocked(
   queryModule.countEvaluationRulesForEvaluator,
 );
 
@@ -190,7 +190,7 @@ const createEvaluationRuleRecord = (overrides?: Record<string, unknown>) =>
 
 describe("unstable public eval services", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockCountActiveEvaluationRules.mockResolvedValue(0);
     mockCountEvaluationRulesForEvaluator.mockResolvedValue(0);
     mockedPrisma.dataset.findMany.mockResolvedValue([]);
