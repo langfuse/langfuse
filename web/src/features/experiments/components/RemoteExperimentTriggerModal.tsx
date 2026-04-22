@@ -123,7 +123,9 @@ export const RemoteExperimentTriggerModal = ({
         <DialogTitle>Run remote dataset run</DialogTitle>
         <DialogDescription>
           This action will send the following information to{" "}
-          <strong>{remoteExperimentConfig.url}</strong>.
+          <strong>{remoteExperimentConfig.url}</strong>. The request will
+          include a webhook signature and any configured custom headers for
+          authentication.
         </DialogDescription>
       </DialogHeader>
 

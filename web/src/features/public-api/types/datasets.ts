@@ -112,7 +112,14 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
 ): z.infer<typeof APIDataset> =>
-  removeObjectKeys(dataset, ["remoteExperimentUrl", "remoteExperimentPayload"]);
+  removeObjectKeys(dataset, [
+    "remoteExperimentUrl",
+    "remoteExperimentPayload",
+    "remoteExperimentSecretKey",
+    "remoteExperimentDisplaySecretKey",
+    "remoteExperimentHeaders",
+    "remoteExperimentDisplayHeaders",
+  ]);
 
 /**
  * Endpoints

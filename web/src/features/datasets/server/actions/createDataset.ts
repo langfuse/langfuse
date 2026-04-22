@@ -26,6 +26,10 @@ type UpdateDatasetInput = {
   metadata?: DatasetJson;
   remoteExperimentUrl?: string | null;
   remoteExperimentPayload?: DatasetJson;
+  remoteExperimentSecretKey?: string | null;
+  remoteExperimentDisplaySecretKey?: string | null;
+  remoteExperimentHeaders?: DatasetJson;
+  remoteExperimentDisplayHeaders?: DatasetJson;
   inputSchema?: DatasetJson;
   expectedOutputSchema?: DatasetJson;
 };
@@ -168,6 +172,20 @@ export const updateDataset = async ({
       metadata: input.metadata ?? undefined,
       remoteExperimentUrl: input.remoteExperimentUrl,
       remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
+      remoteExperimentSecretKey: input.remoteExperimentSecretKey,
+      remoteExperimentDisplaySecretKey: input.remoteExperimentDisplaySecretKey,
+      remoteExperimentHeaders:
+        input.remoteExperimentHeaders === undefined
+          ? undefined
+          : input.remoteExperimentHeaders === null
+            ? Prisma.DbNull
+            : input.remoteExperimentHeaders,
+      remoteExperimentDisplayHeaders:
+        input.remoteExperimentDisplayHeaders === undefined
+          ? undefined
+          : input.remoteExperimentDisplayHeaders === null
+            ? Prisma.DbNull
+            : input.remoteExperimentDisplayHeaders,
       inputSchema:
         input.inputSchema === undefined
           ? undefined
