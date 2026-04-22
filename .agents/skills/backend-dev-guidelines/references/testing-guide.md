@@ -20,9 +20,9 @@ Langfuse uses multiple testing strategies for different layers:
 
 | Test Type | Framework | Location | Purpose |
 |-----------|-----------|----------|---------|
-| Integration | Jest | `web/src/__tests__/async/` | Full API endpoint testing |
-| tRPC | Jest | `web/src/__tests__/async/` | tRPC procedure testing with auth |
-| Service | Jest | `web/src/__tests__/async/repositories/` | Repository/service function testing |
+| Integration | Vitest | `web/src/__tests__/server/` | Full API endpoint testing |
+| tRPC | Vitest | `web/src/__tests__/server/` | tRPC procedure testing with auth |
+| Service | Vitest | `web/src/__tests__/server/repositories/` | Repository/service function testing |
 | Worker | Vitest | `worker/src/__tests__/` | Queue processors and streams |
 
 ---
@@ -31,7 +31,7 @@ Langfuse uses multiple testing strategies for different layers:
 
 Test full REST API endpoints end-to-end using HTTP requests.
 
-**File location:** `web/src/__tests__/async/datasets-api.servertest.ts`
+**File location:** `web/src/__tests__/server/datasets-api.servertest.ts`
 
 ```typescript
 import { makeZodVerifiedAPICall } from "../helpers";
@@ -73,7 +73,7 @@ describe("Dataset API", () => {
 
 Test individual repository/service functions with isolated data.
 
-**File location:** `web/src/__tests__/async/repositories/event-repository.servertest.ts`
+**File location:** `web/src/__tests__/server/repositories/event-repository.servertest.ts`
 
 ```typescript
 import {
@@ -186,7 +186,7 @@ describe("Event Repository Tests", () => {
 
 Test tRPC procedures with caller pattern and auth context.
 
-**File location:** `web/src/__tests__/async/automations-trpc.servertest.ts`
+**File location:** `web/src/__tests__/server/automations-trpc.servertest.ts`
 
 ```typescript
 import { appRouter } from "@/src/server/api/root";
@@ -505,23 +505,20 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 ## Running Tests
 
-### Web Tests (Jest)
+### Web Tests (Vitest)
 
 ```bash
-# Run all tests
-pnpm test
+# Run all server tests
+pnpm --filter web run test
 
-# Run sync tests
-pnpm test-sync
-
-# Run async tests
-pnpm test -- --testPathPattern="async"
+# Run all client tests
+pnpm --filter web run test-client
 
 # Run specific test file
-pnpm test -- --testPathPattern="datasets-api"
+pnpm --filter web run test -- datasets-api
 
-# Run specific test
-pnpm test -- --testPathPattern="datasets-api" --testNamePattern="should create dataset"
+# Run watch mode
+pnpm --filter web run test:watch
 ```
 
 ### Worker Tests (Vitest)
@@ -535,16 +532,6 @@ pnpm run test --filter=worker -- batchExport
 
 # Run specific test
 pnpm run test --filter=worker -- batchExport -t "should export observations"
-```
-
-### Coverage
-
-```bash
-# Web coverage
-pnpm test -- --coverage
-
-# Worker coverage
-pnpm run test --filter=worker -- --coverage
 ```
 
 ---

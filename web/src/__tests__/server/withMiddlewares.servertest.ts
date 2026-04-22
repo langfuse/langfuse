@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -17,20 +16,20 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
 // Mock the logger and traceException
-jest.mock("@langfuse/shared/src/server", () => ({
-  ...jest.requireActual("@langfuse/shared/src/server"),
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
   logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
   },
-  traceException: jest.fn(),
+  traceException: vi.fn(),
 }));
 
 describe("withMiddlewares error handling", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("BaseError handling", () => {

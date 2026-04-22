@@ -92,8 +92,8 @@ signoff of user-visible changes.
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test --testPathPatterns="<pattern>"`
-- Client tests: `pnpm --filter web run test-client --testPathPatterns="<pattern>"`
+- Server tests: `pnpm --filter web run test -- <pattern>`
+- Client tests: `pnpm --filter web run test-client -- <pattern>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
@@ -132,5 +132,5 @@ signoff of user-visible changes.
 ## Package-Specific Rules
 - Router style is Pages Router-centric; follow existing routing patterns.
 - Keep tests independent; no reliance on test execution order.
-- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before using `--testPathPatterns`; source files do not always have a matching colocated test file.
+- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.

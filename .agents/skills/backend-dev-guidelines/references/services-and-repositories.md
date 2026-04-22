@@ -810,16 +810,17 @@ class UserService {
 import { UserService } from "../services/userService";
 import { userRepository } from "../repositories/UserRepository";
 import { ConflictError } from "../utils/errors";
+import type { Mock } from "vitest";
 
 // Mock repository
-jest.mock("../repositories/UserRepository");
+vi.mock("../repositories/UserRepository");
 
 describe("UserService", () => {
   let userService: UserService;
 
   beforeEach(() => {
     userService = new UserService();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createUser", () => {
@@ -831,8 +832,8 @@ describe("UserService", () => {
         roles: ["user"],
       };
 
-      (userRepository.emailExists as jest.Mock).mockResolvedValue(false);
-      (userRepository.create as jest.Mock).mockResolvedValue({
+      (userRepository.emailExists as Mock).mockResolvedValue(false);
+      (userRepository.create as Mock).mockResolvedValue({
         userID: "123",
         ...userData,
       });
@@ -855,7 +856,7 @@ describe("UserService", () => {
         roles: ["user"],
       };
 
-      (userRepository.emailExists as jest.Mock).mockResolvedValue(true);
+      (userRepository.emailExists as Mock).mockResolvedValue(true);
 
       // Act & Assert
       await expect(userService.createUser(userData)).rejects.toThrow(
