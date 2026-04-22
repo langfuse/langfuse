@@ -40,6 +40,7 @@ export const NewProjectForm = ({
   });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
+    if (isSubmitting) return;
     capture("projects:new_form_submit");
     setIsSubmitting(true);
     createProjectMutation
@@ -60,8 +61,7 @@ export const NewProjectForm = ({
           );
           return;
         }
-        form.reset();
-        await onSuccess(project.id);
+        onSuccess(project.id);
       })
       .catch((error) => {
         console.error(error);
