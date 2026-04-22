@@ -112,6 +112,8 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const skipAppLayout =
+    "skipAppLayout" in Component && Component.skipAppLayout === true;
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
@@ -127,6 +129,13 @@ const MyApp: AppType<{ session: Session | null }> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const page = (
+    <>
+      <Component {...pageProps} />
+      <UserTracking />
+    </>
+  );
 
   return (
     <QueryParamProvider
@@ -153,10 +162,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
                       <CorrectionCacheProvider>
                         <SupportDrawerProvider defaultOpen={false}>
                           <InAppAiAgentProvider defaultOpen={false}>
-                            <AppLayout>
-                              <Component {...pageProps} />
-                              <UserTracking />
-                            </AppLayout>
+                            {skipAppLayout ? (
+                              page
+                            ) : (
+                              <AppLayout>{page}</AppLayout>
+                            )}
                           </InAppAiAgentProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>
