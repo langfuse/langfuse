@@ -1385,6 +1385,7 @@ export function requiresV2(params: {
   view: string;
   dimensions: { field: string }[];
   measures: { measure: string }[];
+  filters?: { column: string }[];
 }): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
@@ -1401,6 +1402,7 @@ export function requiresV2(params: {
 
   return (
     params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
-    params.measures.some((m) => v2OnlyMeasures.includes(m.measure))
+    params.measures.some((m) => v2OnlyMeasures.includes(m.measure)) ||
+    (params.filters ?? []).some((f) => v2OnlyDims.includes(f.column))
   );
 }

@@ -23,6 +23,7 @@ import {
   observationsTableUiColumnDefinitions,
 } from "../tableMappings";
 import { OrderByState } from "../../interfaces/orderBy";
+import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
@@ -704,15 +705,14 @@ const getObservationsTableInternal = async <T>(
 
   // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
   const traceTableFilter = filter.filter((f) =>
-    observationsTableTraceUiColumnDefinitions.some(
-      (c) => c.uiTableId === f.column || c.uiTableName === f.column,
+    observationsTableTraceUiColumnDefinitions.some((c) =>
+      matchesUiColumnMapping(c, f.column),
     ),
   );
 
   const orderByTraces = orderBy
-    ? observationsTableTraceUiColumnDefinitions.some(
-        (c) =>
-          c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
+    ? observationsTableTraceUiColumnDefinitions.some((c) =>
+        matchesUiColumnMapping(c, orderBy.column),
       )
     : undefined;
 

@@ -38,6 +38,7 @@ import {
   isV2BreakdownChart,
   buildWidgetOrderBy,
 } from "@/src/features/query/validateQuery";
+import { requiresV2 } from "@/src/features/query/dataModel";
 
 export interface WidgetPlacement {
   id: string;
@@ -80,10 +81,19 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  const widgetRequiresV2 = requiresV2({
+    view: widget.data?.view ?? "traces",
+    dimensions: widget.data?.dimensions ?? [],
+    measures:
+      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
+    filters: widget.data?.filters ?? [],
+  });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
+    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled
+      ? "v2"
+      : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -156,7 +166,10 @@ export function DashboardWidget({
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
       filters: [
-        ...(widget.data?.filters ?? []),
+        ...mapLegacyUiTableFilterToView(
+          (widget.data?.view as z.infer<typeof views>) ?? "traces",
+          widget.data?.filters ?? [],
+        ),
         ...mapLegacyUiTableFilterToView(
           (widget.data?.view as z.infer<typeof views>) ?? "traces",
           filterState,
