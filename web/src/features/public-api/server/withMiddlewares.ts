@@ -15,6 +15,12 @@ import {
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
+import {
+  sendUnstablePublicApiErrorResponse,
+  toUnstablePublicApiError,
+  unstablePublicEvalsErrorContract,
+  type PublicApiErrorContract,
+} from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
@@ -36,7 +42,14 @@ const CH_ERROR_ADVICE_FULL = [
   "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
 ].join("\n");
 
-export function withMiddlewares(handlers: Handlers) {
+type MiddlewareOptions = {
+  errorContract?: PublicApiErrorContract;
+};
+
+export function withMiddlewares(
+  handlers: Handlers,
+  options?: MiddlewareOptions,
+) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -69,6 +82,33 @@ export function withMiddlewares(handlers: Handlers) {
           logger.info(error);
         } else {
           logger.error(error);
+        }
+
+        if (options?.errorContract === unstablePublicEvalsErrorContract) {
+          if (
+            error instanceof BaseError &&
+            error.httpCode >= 500 &&
+            error.httpCode < 600
+          ) {
+            traceException(error);
+          }
+
+          if (isPrismaException(error)) {
+            traceException(error);
+          }
+
+          if (
+            !(error instanceof BaseError) &&
+            !(error instanceof ClickHouseResourceError) &&
+            !isZodError(error)
+          ) {
+            traceException(error);
+          }
+
+          return sendUnstablePublicApiErrorResponse(
+            res,
+            toUnstablePublicApiError(error),
+          );
         }
 
         if (error instanceof BaseError) {

@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { SidebarNotifications } from "./sidebar-notifications";
 
-jest.mock("../useLocalStorage", () => ({
+vi.mock("../useLocalStorage", () => ({
   __esModule: true,
-  default: () => [[], jest.fn()],
+  default: () => [[], vi.fn()],
 }));
 
 describe("SidebarNotifications", () => {
