@@ -1,6 +1,8 @@
 /** @jest-environment node */
 
-jest.mock("@langfuse/shared/src/db", () => {
+import type { Mock } from "vitest";
+
+vi.mock("@langfuse/shared/src/db", () => {
   return {
     Prisma: {
       sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
@@ -9,14 +11,14 @@ jest.mock("@langfuse/shared/src/db", () => {
       }),
     },
     prisma: {
-      $queryRaw: jest.fn(),
+      $queryRaw: vi.fn(),
       evalTemplate: {
-        findMany: jest.fn(),
-        findFirst: jest.fn(),
+        findMany: vi.fn(),
+        findFirst: vi.fn(),
       },
       jobConfiguration: {
-        count: jest.fn(),
-        groupBy: jest.fn(),
+        count: vi.fn(),
+        groupBy: vi.fn(),
       },
     },
   };
@@ -30,16 +32,15 @@ import {
   listPublicEvaluatorTemplates,
 } from "@/src/features/evals/server/unstable-public-api/queries";
 
-const mockQueryRaw = prisma.$queryRaw as jest.Mock;
-const mockEvalTemplateFindMany = prisma.evalTemplate.findMany as jest.Mock;
-const mockEvalTemplateFindFirst = prisma.evalTemplate.findFirst as jest.Mock;
-const mockJobConfigurationCount = prisma.jobConfiguration.count as jest.Mock;
-const mockJobConfigurationGroupBy = prisma.jobConfiguration
-  .groupBy as jest.Mock;
+const mockQueryRaw = prisma.$queryRaw as Mock;
+const mockEvalTemplateFindMany = prisma.evalTemplate.findMany as Mock;
+const mockEvalTemplateFindFirst = prisma.evalTemplate.findFirst as Mock;
+const mockJobConfigurationCount = prisma.jobConfiguration.count as Mock;
+const mockJobConfigurationGroupBy = prisma.jobConfiguration.groupBy as Mock;
 
 describe("unstable public eval queries", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("paginates latest evaluator versions per family before loading exact templates", async () => {
