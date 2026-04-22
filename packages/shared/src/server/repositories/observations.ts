@@ -1418,6 +1418,10 @@ export const deleteObservationsOlderThanDays = async (
 export const getObservationsWithPromptName = async (
   projectId: string,
   promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
   SELECT uniq(id) as count, prompt_name
@@ -1425,6 +1429,8 @@ export const getObservationsWithPromptName = async (
   WHERE project_id = {projectId: String}
   AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name IS NOT NULL
+  ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+  ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
   GROUP BY prompt_name
 `;
   const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
@@ -1432,6 +1438,12 @@ export const getObservationsWithPromptName = async (
     params: {
       projectId,
       promptNames,
+      fromTimestamp: fromTimestamp
+        ? convertDateToClickhouseDateTime(fromTimestamp)
+        : undefined,
+      toTimestamp: toTimestamp
+        ? convertDateToClickhouseDateTime(toTimestamp)
+        : undefined,
     },
     tags: {
       feature: "tracing",
@@ -1450,6 +1462,10 @@ export const getObservationsWithPromptName = async (
 export const getObservationMetricsForPrompts = async (
   projectId: string,
   promptIds: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
       WITH latencies AS
@@ -1468,6 +1484,8 @@ export const getObservationMetricsForPrompts = async (
               AND (prompt_name IS NOT NULL)
               AND project_id={projectId: String}
               AND prompt_id IN ({promptIds: Array(String)})
+              ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+              ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
           )
       SELECT
           count(*) AS count,
@@ -1500,6 +1518,12 @@ export const getObservationMetricsForPrompts = async (
     params: {
       projectId,
       promptIds,
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
