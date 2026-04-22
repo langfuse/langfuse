@@ -124,7 +124,7 @@ Minimum verification matrix:
   - `*/dist/*`
   - `packages/shared/prisma/generated/*`
 - Public API contract changes must update Fern sources in `fern/apis/**` and
-  regenerated outputs; never hand-edit `generated/**`.
+  regenerated outputs. Never hand-edit `generated/**`.
 - Keep tests independent and parallel-safe.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.

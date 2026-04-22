@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";

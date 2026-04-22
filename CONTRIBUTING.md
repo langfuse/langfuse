@@ -316,18 +316,16 @@ Tests automatically create the PostgreSQL test database if it doesn't exist and 
 
 ### Tests in the `web` package (public API)
 
-We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent `--`.
-
-There are two types of unit tests:
+We're using Vitest in the `web` package. There are two types of unit tests:
 
 - `test` (server tests)
 - `test-client`
 
-To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
+To run a specific test by name within a file, run:
 
 ```sh
 cd web  # or with --filter=web
-pnpm test --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+pnpm test -- prompts.v2.servertest -t "should handle special characters in prompt names"
 ```
 
 To run all tests:
@@ -344,7 +342,7 @@ pnpm run test:watch
 
 ### Tests in the `worker` package
 
-For the `worker` package, we're using `vitest` to run unit tests.
+For the `worker` package, we're also using Vitest to run unit tests.
 
 ```sh
 pnpm run test --filter=worker -- FILE_YOU_WANT_TO_TEST.ts -t "test name"
@@ -357,7 +355,7 @@ We use GitHub Actions for CI/CD, the configuration is in [`.github/workflows/pip
 CI on `main` and `pull_request`
 
 - Check Linting
-- E2E test of API using Jest
+- E2E test of API using Vitest
 - E2E tests of UI using Playwright
 
 CD on `main`

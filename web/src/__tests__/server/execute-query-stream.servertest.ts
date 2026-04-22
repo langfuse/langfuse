@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import { v4 } from "uuid";
 import { createMocks } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -12,15 +11,15 @@ import handler from "../../pages/api/dashboard/execute-query-stream";
 
 // --- Auth mock (only thing we need to mock — no real session in tests) ---
 
-const mockGetServerAuthSession = jest.fn();
-jest.mock("../../server/auth", () => ({
+const mockGetServerAuthSession = vi.fn();
+vi.mock("../../server/auth", () => ({
   getServerAuthSession: (...args: unknown[]) =>
     mockGetServerAuthSession(...args),
 }));
 
 // Admin webhook — not relevant to streaming logic, just suppress side-effects
-const mockSendAdminAccessWebhook = jest.fn();
-jest.mock("../../server/adminAccessWebhook", () => ({
+const mockSendAdminAccessWebhook = vi.fn();
+vi.mock("../../server/adminAccessWebhook", () => ({
   sendAdminAccessWebhook: (...args: unknown[]) =>
     mockSendAdminAccessWebhook(...args),
 }));
@@ -33,7 +32,7 @@ function createPostMocks(body: unknown) {
     body,
   });
   // node-mocks-http doesn't implement flushHeaders
-  res.flushHeaders = jest.fn();
+  res.flushHeaders = vi.fn();
   return { req, res };
 }
 

@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { v4 as uuidv4 } from "uuid";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { DashboardService } from "@langfuse/shared/src/server";
