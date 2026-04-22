@@ -1,18 +1,13 @@
-/** @jest-environment node */
-
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
-  return {
-    ...actual,
-    DefaultEvalModelService: {
-      fetchValidModelConfig: jest.fn(),
-    },
-    logger: {
-      debug: jest.fn(),
-    },
-    testModelCall: jest.fn(),
-  };
-});
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
+  DefaultEvalModelService: {
+    fetchValidModelConfig: vi.fn(),
+  },
+  logger: {
+    debug: vi.fn(),
+  },
+  testModelCall: vi.fn(),
+}));
 
 import {
   createNumericEvalOutputDefinition,
@@ -30,15 +25,15 @@ const numericOutputDefinition = createNumericEvalOutputDefinition({
 });
 
 describe("evaluator preflight", () => {
-  const mockFetchValidModelConfig = jest.mocked(
+  const mockFetchValidModelConfig = vi.mocked(
     DefaultEvalModelService.fetchValidModelConfig,
   );
-  const mockTestModelCall = jest.mocked(testModelCall);
+  const mockTestModelCall = vi.mocked(testModelCall);
   const originalSkipFlag =
     process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     delete process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION;
     mockFetchValidModelConfig.mockResolvedValue({
       valid: true,

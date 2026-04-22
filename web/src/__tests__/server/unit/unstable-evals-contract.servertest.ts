@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import {
   createNumericEvalOutputDefinition,
   EvalTargetObject,

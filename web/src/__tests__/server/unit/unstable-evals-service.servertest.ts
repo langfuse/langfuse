@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import type { Mock } from "vitest";
 
 const mockEvalTemplateCreate = vi.fn();
