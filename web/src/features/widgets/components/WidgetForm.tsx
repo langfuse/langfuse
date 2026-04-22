@@ -71,6 +71,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
+  sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -364,6 +365,22 @@ export function WidgetForm({
   const [selectedChartType, setSelectedChartType] = useState<string>(
     initialValues.chartType,
   );
+  const initialDefaultSort =
+    initialValues.chartType === "PIVOT_TABLE"
+      ? sanitizePivotTableDefaultSort(initialValues.chartConfig?.defaultSort, {
+          dimensions: initialValues.dimensions ?? [],
+          metrics:
+            initialValues.metrics ??
+            (initialValues.measure && initialValues.aggregation
+              ? [
+                  {
+                    measure: initialValues.measure,
+                    agg: initialValues.aggregation,
+                  },
+                ]
+              : []),
+        })
+      : undefined;
   const [rowLimit, setRowLimit] = useState<number>(
     initialValues.chartConfig?.row_limit ?? 100,
   );
@@ -373,10 +390,10 @@ export function WidgetForm({
 
   // Default sort configuration for pivot tables
   const [defaultSortColumn, setDefaultSortColumn] = useState<string>(
-    initialValues.chartConfig?.defaultSort?.column ?? "none",
+    initialDefaultSort?.column ?? "none",
   );
   const [defaultSortOrder, setDefaultSortOrder] = useState<"ASC" | "DESC">(
-    initialValues.chartConfig?.defaultSort?.order ?? "DESC",
+    initialDefaultSort?.order ?? "DESC",
   );
 
   // Filter state
@@ -473,6 +490,43 @@ export function WidgetForm({
         : null,
     [selectedChartType, defaultSortColumn, defaultSortOrder],
   );
+
+  useEffect(() => {
+    if (selectedChartType !== "PIVOT_TABLE") return;
+
+    // Old widgets can carry persisted default sort keys for metrics or
+    // dimensions that are no longer part of the pivot query. Clear those stale
+    // sort columns so preview/save do not send invalid orderBy fields.
+    const sanitizedDefaultSort = sanitizePivotTableDefaultSort(
+      defaultSortColumn !== "none"
+        ? { column: defaultSortColumn, order: defaultSortOrder }
+        : undefined,
+      {
+        dimensions: pivotDimensions
+          .filter((field) => field && field !== "none")
+          .map((field) => ({ field })),
+        metrics: selectedMetrics
+          .filter((metric) => metric.measure && metric.measure !== "")
+          .map((metric) => ({
+            measure: metric.measure,
+            agg: metric.aggregation,
+          })),
+      },
+    );
+
+    if (defaultSortColumn !== "none" && !sanitizedDefaultSort) {
+      setDefaultSortColumn("none");
+      setDefaultSortOrder("DESC");
+    }
+  }, [
+    defaultSortColumn,
+    defaultSortOrder,
+    pivotDimensions,
+    selectedMetrics,
+    selectedChartType,
+    setDefaultSortColumn,
+    setDefaultSortOrder,
+  ]);
 
   // Helper function to update pivot table dimensions
   const updatePivotDimension = (index: number, value: string) => {

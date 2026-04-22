@@ -23,6 +23,7 @@ import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadBut
 import {
   formatMetricName,
   shouldUseWidgetSSE,
+  sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -101,7 +102,10 @@ export function DashboardWidget({
   // Initialize sort state for pivot tables
   const defaultSort =
     widget.data?.chartConfig.type === "PIVOT_TABLE"
-      ? widget.data?.chartConfig.defaultSort
+      ? sanitizePivotTableDefaultSort(widget.data.chartConfig.defaultSort, {
+          dimensions: widget.data.dimensions,
+          metrics: widget.data.metrics,
+        })
       : undefined;
 
   const [sortState, setSortState] = useState<OrderByState | null>(() => {
@@ -437,6 +441,7 @@ export function DashboardWidget({
                   metrics: widget.data.metrics.map(
                     (metric) => `${metric.agg}_${metric.measure}`,
                   ),
+                  defaultSort,
                 }),
               }}
               sortState={
