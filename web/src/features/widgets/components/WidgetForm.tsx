@@ -1247,19 +1247,33 @@ export function WidgetForm({
                         setPivotDimensions(validDimensions);
                       }
 
-                      // Remove invalid filters based on the new view
-                      if (newView !== "scores-categorical") {
-                        setUserFilterState((prev) =>
-                          prev.filter(
-                            (filter) => filter.column !== "stringValue",
-                          ),
-                        );
-                      }
-                      if (newView === "scores-numeric") {
-                        setUserFilterState((prev) =>
-                          prev.filter((filter) => filter.column !== "value"),
-                        );
-                      }
+                      // Remove score-only filters when switching away from
+                      // scores-categorical or scores-numeric. The widget editor
+                      // state stores current UI labels such as "Score Value",
+                      // but older/canonical filters can still surface as ids
+                      // during transitions, so we need to clean up both
+                      // representations here.
+                      setUserFilterState((prev) =>
+                        prev.filter((filter) => {
+                          if (
+                            newView !== "scores-categorical" &&
+                            (filter.column === "stringValue" ||
+                              filter.column === "Score String Value")
+                          ) {
+                            return false;
+                          }
+
+                          if (
+                            newView !== "scores-numeric" &&
+                            (filter.column === "value" ||
+                              filter.column === "Score Value")
+                          ) {
+                            return false;
+                          }
+
+                          return true;
+                        }),
+                      );
                     }
                     setSelectedView(value as z.infer<typeof views>);
                   }}
