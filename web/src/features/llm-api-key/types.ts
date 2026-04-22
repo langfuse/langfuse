@@ -3,6 +3,7 @@ import {
   LLMAdapter,
   BedrockConfigSchema,
   VertexAIConfigSchema,
+  LLMApiKeySchema,
 } from "@langfuse/shared";
 
 export const LlmApiKeySchema = z.object({
@@ -33,3 +34,25 @@ export const UpdateLlmApiKey = LlmApiKeySchema.extend({
     ),
   id: z.string(),
 });
+
+export const AuthMethod = {
+  ApiKey: "api-key",
+  AccessKeys: "access-keys",
+  DefaultCredentials: "default-credentials",
+} as const;
+
+export const BedrockAuthMethodSchema = z.enum([
+  AuthMethod.ApiKey,
+  AuthMethod.AccessKeys,
+  AuthMethod.DefaultCredentials,
+]);
+
+export type BedrockAuthMethod = z.infer<typeof BedrockAuthMethodSchema>;
+
+export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
+  secretKey: z.undefined(),
+  extraHeaders: z.undefined(),
+  authMethod: BedrockAuthMethodSchema.optional(),
+});
+
+export type SafeLlmApiKey = z.infer<typeof SafeLlmApiKeySchema>;

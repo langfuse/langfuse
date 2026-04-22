@@ -371,7 +371,6 @@ export const PromptDetail = ({
                 setCurrentPromptVersion(version);
                 setCurrentPromptLabel(null);
               }}
-              totalCount={promptHistory.data.totalCount}
               commentCounts={commentCounts.data}
             />
           </div>
@@ -502,7 +501,7 @@ export const PromptDetail = ({
                   projectId={prompt.projectId}
                   promptName={prompt.name}
                   promptVersion={prompt.version}
-                  omittedFilter={["Prompt Name", "Prompt Version"]}
+                  omittedFilter={["promptName"]}
                 />
               </div>
             </TabsBarContent>

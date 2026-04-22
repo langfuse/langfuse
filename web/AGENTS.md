@@ -4,10 +4,12 @@ This file covers package-local guidance for this package.
 Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
+
 - Next.js 15 application with UI, tRPC backend, and public REST API routes.
 - Primary package for frontend and most request/response surface changes.
 
 ## Maintenance Contract
+
 - `AGENTS.md` is a living document.
 - Update this file in the same PR when material web-local changes occur:
   - new/renamed web entry points
@@ -17,15 +19,18 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   `AGENTS.md` too.
 
 ## High-Signal Entry Points
+
 - App shell/providers: `src/pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:
-  - Server tests: `src/__tests__/server/*.servertest.ts`
+  - Server integration tests: `src/__tests__/server/*.servertest.ts`
+  - Server unit tests: `src/__tests__/server/unit/*.servertest.ts`
   - Client tests: `src/**/*.clienttest.ts(x)`
   - E2E: `src/__e2e__/*`
 
@@ -66,6 +71,7 @@ performance, bundle size, React/Next.js performance patterns, or browser-based
 signoff of user-visible changes.
 
 ## Web Conventions
+
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
@@ -84,16 +90,22 @@ signoff of user-visible changes.
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
+- Public eval endpoints should keep the split between reusable `evaluators`
+  and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
+  `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
+- Put pure server unit tests that do not need Postgres bootstrap under
+  `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 
 ## Quick Commands
+
 - Dev: `pnpm --filter web run dev`
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test --testPathPatterns="<pattern>"`
-- Client tests: `pnpm --filter web run test-client --testPathPatterns="<pattern>"`
+- Server tests: `pnpm --filter web run test -- <pattern>`
+- Client tests: `pnpm --filter web run test-client -- <pattern>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
@@ -101,6 +113,7 @@ signoff of user-visible changes.
 ## Playbooks
 
 ### Add/Change tRPC endpoint
+
 1. Implement router/procedure in `src/server/api/routers/*` or
    `src/features/<feature>/server/*`.
 2. Register in `src/server/api/root.ts`.
@@ -108,6 +121,7 @@ signoff of user-visible changes.
 4. Add/adjust server tests under `src/__tests__/server/*`.
 
 ### Add/Change public API endpoint
+
 1. Add route in `src/pages/api/public/*`.
 2. Define/update contract types in `src/features/public-api/types/*`.
 3. Add/adjust server tests in `src/__tests__/server/*`.
@@ -115,6 +129,7 @@ signoff of user-visible changes.
    outputs (do not hand-edit `../generated/**`).
 
 ### Add frontend feature
+
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
@@ -123,6 +138,7 @@ signoff of user-visible changes.
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 
 ### Agent browser loop
+
 1. Start the app with `pnpm run dev:web` unless an existing local server is already running.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
 3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
@@ -130,7 +146,8 @@ signoff of user-visible changes.
 5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
 
 ## Package-Specific Rules
+
 - Router style is Pages Router-centric; follow existing routing patterns.
 - Keep tests independent; no reliance on test execution order.
-- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before using `--testPathPatterns`; source files do not always have a matching colocated test file.
+- Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.

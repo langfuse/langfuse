@@ -1,4 +1,4 @@
-# Codex Guidelines for Langfuse
+# Agent Guidelines for Langfuse
 
 This is the canonical root agent guide for the repo. The root `AGENTS.md`
 should remain only as a discovery symlink so tools that require that filename
@@ -40,6 +40,9 @@ evaluating, and debugging AI applications.
   [`skills/clickhouse-best-practices/SKILL.md`](skills/clickhouse-best-practices/SKILL.md)
 - Monorepo/Turbo task graph changes:
   [`skills/turborepo/SKILL.md`](skills/turborepo/SKILL.md)
+- pnpm dependency upgrades, package-version bumps, or `minimumReleaseAgeExclude`
+  decisions in `pnpm-workspace.yaml`:
+  [`skills/pnpm-upgrade-package/SKILL.md`](skills/pnpm-upgrade-package/SKILL.md)
 - User-visible frontend changes, Playwright review, or browser signoff:
   [`skills/frontend-browser-review/SKILL.md`](skills/frontend-browser-review/SKILL.md)
 - Web UI and frontend entry points:
@@ -121,7 +124,7 @@ Minimum verification matrix:
   - `*/dist/*`
   - `packages/shared/prisma/generated/*`
 - Public API contract changes must update Fern sources in `fern/apis/**` and
-  regenerated outputs; never hand-edit `generated/**`.
+  regenerated outputs. Never hand-edit `generated/**`.
 - Keep tests independent and parallel-safe.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.

@@ -62,6 +62,14 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  --color-find-match-background: hsl(var(--find-match-background));
+  --color-find-match-selected-background: hsl(
+    var(--find-match-selected-background)
+  );
+  --color-find-match-selected-foreground: hsl(
+    var(--find-match-selected-foreground)
+  );
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -77,6 +85,7 @@
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-appear: appear 0.2s ease-out forwards;
 
   @keyframes rainbow {
     0% {
@@ -105,6 +114,16 @@
 
     to {
       height: 0;
+    }
+  }
+
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
     }
   }
 }
@@ -198,6 +217,10 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --find-match-background: 60 60% 85%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
 
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
@@ -294,6 +317,10 @@
     --sidebar-accent-foreground: 210 40% 86%;
     --sidebar-border: 217.2 32.6% 26.5%;
     --sidebar-ring: 224.3 76.3% 46%;
+
+    --find-match-background: 60 100% 20%;
+    --find-match-selected-background: 60 100% 50%;
+    --find-match-selected-foreground: 0 0% 0%;
 
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;

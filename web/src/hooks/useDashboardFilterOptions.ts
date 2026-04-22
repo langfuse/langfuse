@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -10,11 +11,6 @@ type UseDashboardFilterOptionsParams = {
   isBetaEnabled: boolean;
   timeRange: TimeRange;
 };
-
-const toNameOption = (n: { value: string; count: string | number }) => ({
-  value: n.value,
-  count: Number(n.count),
-});
 
 export function useDashboardFilterOptions({
   projectId,
@@ -72,8 +68,8 @@ export function useDashboardFilterOptions({
   const nameOptions = useMemo(
     () =>
       isBetaEnabled
-        ? (eventsFilterOptions.data?.traceName?.map(toNameOption) ?? [])
-        : (traceFilterOptions.data?.name?.map(toNameOption) ?? []),
+        ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
+        : normalizeSingleValueOptions(traceFilterOptions.data?.name),
     [
       isBetaEnabled,
       eventsFilterOptions.data?.traceName,

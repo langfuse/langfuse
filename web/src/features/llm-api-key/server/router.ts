@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  AuthMethod,
   CreateLlmApiKey,
   UpdateLlmApiKey,
+  SafeLlmApiKeySchema,
+  type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -12,11 +15,11 @@ import {
 } from "@/src/server/api/trpc";
 import {
   type ChatMessage,
-  LLMApiKeySchema,
   ChatMessageRole,
   supportedModels,
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
+  BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -33,6 +36,7 @@ import {
   blockEvaluatorConfigsInTx,
   EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
+  validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -47,6 +51,40 @@ export function getDisplaySecretKey(secretKey: string) {
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
     : "..." + secretKey.slice(-4);
+}
+
+export function validateBedrockSecretKey(secretKey: string) {
+  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
+    return;
+  }
+
+  try {
+    BedrockCredentialSchema.parse(JSON.parse(secretKey));
+  } catch {
+    throw new Error(
+      "Invalid Bedrock credentials. Expected a JSON object with either {accessKeyId, secretAccessKey} or {apiKey}.",
+    );
+  }
+}
+
+function getBedrockAuthMethod(
+  secretKey: string,
+): BedrockAuthMethod | undefined {
+  if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
+    return AuthMethod.DefaultCredentials;
+  }
+
+  try {
+    const parsed = BedrockCredentialSchema.parse(JSON.parse(secretKey));
+    return parsed && "apiKey" in parsed
+      ? AuthMethod.ApiKey
+      : AuthMethod.AccessKeys;
+  } catch (error) {
+    logger.warn("Failed to derive Bedrock auth method from stored secret", {
+      error,
+    });
+    return undefined;
+  }
 }
 
 type TestLLMConnectionParams = {
@@ -130,6 +168,27 @@ async function testLLMConnection(
   }
 }
 
+async function validateBaseURLForWrite(params: {
+  baseURL?: string | null;
+  errorPrefix?: string;
+}): Promise<void> {
+  if (!params.baseURL) {
+    return;
+  }
+
+  try {
+    await validateLlmConnectionBaseURL(params.baseURL);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        error instanceof Error
+          ? `${params.errorPrefix ?? "Invalid base URL"}: ${error.message}`
+          : (params.errorPrefix ?? "Invalid base URL"),
+    });
+  }
+}
+
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
@@ -141,6 +200,10 @@ export const llmApiKeyRouter = createTRPCRouter({
           scope: "llmApiKeys:create",
         });
 
+        await validateBaseURLForWrite({
+          baseURL: input.baseURL,
+        });
+
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -150,6 +213,18 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.adapter === LLMAdapter.Bedrock) {
+          try {
+            validateBedrockSecretKey(input.secretKey);
+          } catch (e) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
             });
           }
         }
@@ -355,35 +430,39 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z
-        .array(
-          LLMApiKeySchema.extend({
-            secretKey: z.undefined(),
-            extraHeaders: z.undefined(),
-          }),
-        )
-        .parse(
-          await ctx.prisma.llmApiKeys.findMany({
-            // we must not return the secret key AND extra headers via the API, hence not selected
-            select: {
-              id: true,
-              createdAt: true,
-              updatedAt: true,
-              provider: true,
-              displaySecretKey: true,
-              projectId: true,
-              adapter: true,
-              baseURL: true,
-              customModels: true,
-              withDefaultModels: true,
-              extraHeaderKeys: true,
-              config: true,
-            },
-            where: {
-              projectId: input.projectId,
-            },
-          }),
-        );
+      const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
+        // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+          provider: true,
+          displaySecretKey: true,
+          projectId: true,
+          adapter: true,
+          baseURL: true,
+          customModels: true,
+          withDefaultModels: true,
+          extraHeaderKeys: true,
+          config: true,
+          secretKey: true,
+        },
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      const apiKeys = z.array(SafeLlmApiKeySchema).parse(
+        storedApiKeys.map(({ secretKey, ...apiKey }) => ({
+          ...apiKey,
+          secretKey: undefined,
+          extraHeaders: undefined,
+          authMethod:
+            apiKey.adapter === LLMAdapter.Bedrock
+              ? getBedrockAuthMethod(decrypt(secretKey))
+              : undefined,
+        })),
+      );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -399,7 +478,24 @@ export const llmApiKeyRouter = createTRPCRouter({
 
   test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+
+      if (input.baseURL) {
+        try {
+          await validateLlmConnectionBaseURL(input.baseURL);
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Invalid base URL",
+          };
+        }
+      }
+
       return testLLMConnection({
         adapter: input.adapter,
         provider: input.provider,
@@ -414,13 +510,13 @@ export const llmApiKeyRouter = createTRPCRouter({
   testUpdate: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "llmApiKeys:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
 
+      try {
         // Get the existing key from the database
         const existingKey = await ctx.prisma.llmApiKeys.findUnique({
           where: {
@@ -436,25 +532,41 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
-        const decryptedSecretKey =
-          input.secretKey !== undefined &&
-          input.secretKey !== "" &&
-          input.secretKey !== null
-            ? input.secretKey
-            : decrypt(existingKey.secretKey);
+        const hasNewSecretKey =
+          typeof input.secretKey === "string" && input.secretKey.length > 0;
+        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const isBaseURLChanged = baseURL !== existingKey.baseURL;
+
+        if (isBaseURLChanged && !hasNewSecretKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Secret key is required when changing the base URL",
+          });
+        }
+
+        if (input.baseURL && isBaseURLChanged) {
+          await validateLlmConnectionBaseURL(input.baseURL);
+        }
+
+        const secretKey = hasNewSecretKey
+          ? (input.secretKey as string)
+          : decrypt(existingKey.secretKey);
 
         // Merge existing key with provided input, giving priority to input
-        const secretKey = decryptedSecretKey;
         const adapter = input.adapter ?? (existingKey.adapter as LLMAdapter);
         const provider = input.provider ?? existingKey.provider;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
+
+        // Never reuse stored headers across a destination change.
         const extraHeaders =
-          input.extraHeaders ??
-          (existingKey.extraHeaders
-            ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-            : undefined);
+          input.extraHeaders !== undefined
+            ? input.extraHeaders
+            : isBaseURLChanged
+              ? undefined
+              : existingKey.extraHeaders
+                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
+                : undefined;
 
         return testLLMConnection({
           adapter,
@@ -513,6 +625,16 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isBaseURLChanged =
+          input.baseURL !== undefined
+            ? input.baseURL !== existingKey.baseURL
+            : false;
+
+        if (input.baseURL && isBaseURLChanged) {
+          await validateBaseURLForWrite({
+            baseURL: input.baseURL,
+          });
+        }
 
         if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
           if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {
@@ -520,6 +642,18 @@ export const llmApiKeyRouter = createTRPCRouter({
               code: "BAD_REQUEST",
               message:
                 "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey && input.adapter === LLMAdapter.Bedrock) {
+          try {
+            validateBedrockSecretKey(input.secretKey);
+          } catch (e) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                e instanceof Error ? e.message : "Invalid Bedrock credentials.",
             });
           }
         }

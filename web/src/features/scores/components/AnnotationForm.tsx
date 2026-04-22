@@ -25,6 +25,7 @@ import {
   type ScoreConfigCategoryDomain,
   type UpdateAnnotationScoreData,
   type CreateAnnotationScoreData,
+  TEXT_SCORE_MAX_LENGTH,
 } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -39,6 +40,7 @@ import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
 import {
   formatAnnotateDescription,
+  isTextDataType,
   isNumericDataType,
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
@@ -295,10 +297,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.stringValue`, previousScore.stringValue);
     form.setValue(`scoreData.${index}.comment`, previousScore.comment);
     form.setValue(`scoreData.${index}.timestamp`, previousScore.timestamp);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to delete score",
-    });
+    if (isTextDataType(field.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to delete score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to delete score",
+      });
+    }
   };
 
   const handleDeleteScore = (index: number) => {
@@ -314,7 +323,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     // Optimistically clear form
-    form.clearErrors(`scoreData.${index}.value`);
+    if (isTextDataType(field.dataType)) {
+      form.clearErrors(`scoreData.${index}.stringValue`);
+    } else {
+      form.clearErrors(`scoreData.${index}.value`);
+    }
     update(index, {
       name: field.name,
       dataType: field.dataType,
@@ -349,10 +362,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   ) => {
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to update score",
-    });
+    if (isTextDataType(controlledFields[index]?.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to update score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to update score",
+      });
+    }
   };
 
   const rollbackCreateError = (
@@ -366,10 +386,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    form.setError(`scoreData.${index}.value`, {
-      type: "server",
-      message: "Failed to create score",
-    });
+    if (isTextDataType(controlledFields[index]?.dataType)) {
+      form.setError(`scoreData.${index}.stringValue`, {
+        type: "server",
+        message: "Failed to create score",
+      });
+    } else {
+      form.setError(`scoreData.${index}.value`, {
+        type: "server",
+        message: "Failed to create score",
+      });
+    }
   };
 
   const handleUpsert = (
@@ -485,6 +512,21 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     if (!isPresent(numericCategoryValue)) return;
 
     handleUpsert(index, numericCategoryValue, stringValue);
+  };
+
+  const handleTextUpsert = (index: number) => {
+    const field = controlledFields[index];
+    const config = configs.find((c) => c.id === field.configId);
+
+    if (!config || !field) return;
+    if (!field.stringValue) {
+      if (field.id) {
+        handleDeleteScore(index);
+      }
+      return;
+    }
+
+    handleUpsert(index, 0, field.stringValue);
   };
 
   const rollbackCommentError = (
@@ -676,7 +718,28 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isNumericDataType(score.dataType) ? (
+                          {isTextDataType(score.dataType) ? (
+                            <FormField
+                              control={form.control}
+                              name={`scoreData.${index}.stringValue`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Textarea
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      maxLength={TEXT_SCORE_MAX_LENGTH}
+                                      className="text-xs"
+                                      disabled={isInputDisabled(config)}
+                                      placeholder="Enter free form text..."
+                                      onBlur={() => handleTextUpsert(index)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs" />
+                                </FormItem>
+                              )}
+                            />
+                          ) : isNumericDataType(score.dataType) ? (
                             <FormField
                               control={form.control}
                               name={`scoreData.${index}.value`}

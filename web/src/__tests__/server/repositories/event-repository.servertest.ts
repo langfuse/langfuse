@@ -9,6 +9,7 @@ import {
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -39,6 +40,34 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    it("should return trace tags for events table observations", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "tagged-event",
+          tags: ["chat", "prod"],
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+    });
+
     it("should return observations with model data", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1219,6 +1248,37 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
+    it("should return trace-level fields for event observations", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-trace-fields-byid",
+          trace_name: "trace-with-tags",
+          tags: ["chat", "prod"],
+          user_id: "user-123",
+          session_id: "session-123",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBe("trace-with-tags");
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+      expect(observation?.userId).toBe("user-123");
+      expect(observation?.sessionId).toBe("session-123");
+    });
+
     it("should return observation by id with input and output", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -2179,6 +2239,158 @@ describe("Clickhouse Events Repository Test", () => {
       // Should not return anything since projectId doesn't match
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
+    });
+  });
+
+  maybe("getLatestSdkVersionInfoFromEvents", () => {
+    it("should return isOtel: false for v2 data (no scope metadata)", async () => {
+      const uniqueProjectId = randomUUID();
+
+      // v2 data has no scope key in metadata
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: Date.now() * 1000,
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(false);
+    });
+
+    it("should return isOtel: true with v3 version from metadata", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000, // older
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data - SDK info in metadata as nested JSON
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newer
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry"}',
+            '{"name":"langfuse-sdk","version":"3.14.6"}',
+          ],
+          scope_name: "", // v3 has empty direct columns
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.version).toBe("3.14.6");
+    });
+
+    it("should return v4 version from direct columns when available", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data (oldest)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 20000000,
+          metadata_names: ["version"],
+          metadata_values: ["2.x"],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data (middle)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"python"}',
+            '{"name":"langfuse-sdk","version":"3.14.6"}',
+          ],
+          scope_name: "",
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v4 data (newest) - SDK info in direct columns
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          metadata_names: ["scope.name", "scope.version"],
+          metadata_values: ["langfuse-sdk", "4.2.0"],
+          scope_name: "langfuse-sdk",
+          scope_version: "4.2.0",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true for Vercel AI SDK events (OTel without Langfuse SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK
+      // scope.name is "ai" (instrumentation scope), no version
+      // resourceAttributes has telemetry.sdk.name = "opentelemetry"
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          metadata_names: ["resourceAttributes", "scope"],
+          metadata_values: [
+            '{"telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry"}',
+            '{"name":"ai","attributes":{}}',
+          ],
+          scope_name: "", // No direct columns for raw OTel
+          scope_version: "",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("ai");
+      expect(result.language).toBe("nodejs");
+      expect(result.version).toBeUndefined();
     });
   });
 });

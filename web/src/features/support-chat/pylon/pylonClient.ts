@@ -46,7 +46,7 @@ export async function createPylonIssue(
     requester_email: requesterEmail,
     destination_metadata: {
       destination: "email",
-      email: "support@clickhouse.com",
+      email: "support@langfuse.com",
     },
   };
 

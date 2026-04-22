@@ -6,6 +6,7 @@ import {
 import { type RouterOutputs } from "@/src/utils/api";
 
 type ObservationPreview = RouterOutputs["observations"]["byId"];
+type EventPreview = RouterOutputs["events"]["batchIO"][number];
 
 const PROMPT_PREVIEW_CHAR_LIMIT = 2000;
 
@@ -30,7 +31,7 @@ export function stringifyPreviewValue(value: unknown): string {
 export function renderPromptPreviewFromObservation(params: {
   prompt: string | null | undefined;
   variableMapping: ObservationVariableMapping[];
-  observation: ObservationPreview;
+  observation: ObservationPreview | EventPreview;
 }): string {
   const { prompt, variableMapping, observation } = params;
 

@@ -16,7 +16,10 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { DatasetItemDomain } from "@langfuse/shared";
-import { DatasetItemFields } from "./DatasetItemFields";
+import {
+  DatasetItemFields,
+  type DatasetItemFormValues,
+} from "./DatasetItemFields";
 import {
   stringifyDatasetItemData,
   type DatasetSchema,
@@ -92,7 +95,7 @@ export const EditDatasetItemDialog = ({
   });
   const utils = api.useUtils();
 
-  const form = useForm({
+  const form = useForm<DatasetItemFormValues, unknown, DatasetItemFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       input: "",

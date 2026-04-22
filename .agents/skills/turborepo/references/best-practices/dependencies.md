@@ -94,13 +94,13 @@ cd packages/utils && bun add lodash
 
 ```bash
 # pnpm
-pnpm add jest --save-dev --filter=web --filter=@repo/ui
+pnpm add vitest --save-dev --filter=web --filter=@repo/ui
 
 # npm
-npm install jest --save-dev --workspace=web --workspace=@repo/ui
+npm install vitest --save-dev --workspace=web --workspace=@repo/ui
 
 # yarn (v2+)
-yarn workspaces foreach -R --from '{web,@repo/ui}' add jest --dev
+yarn workspaces foreach -R --from '{web,@repo/ui}' add vitest --dev
 ```
 
 ### Internal Packages

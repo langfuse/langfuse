@@ -16,7 +16,7 @@ const maybeIt = (name: string, testFn: () => Promise<void>): void => {
 
 describe("ClickHouse insert string edge cases", () => {
   it("should pass", () => {
-    // Apparently each jest file needs at least one executed test and cannot have everything skipped
+    // Apparently each test file needs at least one executed test and cannot have everything skipped
     expect(true).toBe(true);
   });
 

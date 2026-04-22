@@ -84,6 +84,7 @@ export default function EvalsTemplateTable({
   const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
     RouterInput["evals"]["createTemplate"] | null
   >(null);
+
   const utils = api.useUtils();
   const templates = api.evals.templateNames.useQuery({
     projectId,

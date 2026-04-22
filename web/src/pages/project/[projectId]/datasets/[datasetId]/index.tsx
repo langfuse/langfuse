@@ -36,9 +36,12 @@ import {
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { ExperimentsTable } from "@/src/features/experiments/components/table";
 
 export default function Dataset() {
   const router = useRouter();
@@ -74,6 +77,12 @@ export default function Dataset() {
     projectId,
     scope: "promptExperiments:CUD",
   });
+  const {
+    canUseExperimentsBetaToggle,
+    isExperimentsBetaEnabled,
+    setExperimentsBetaEnabled,
+    isExperimentsBetaActive,
+  } = useExperimentAccess();
 
   const handleExperimentSuccess = async (data?: {
     success: boolean;
@@ -83,8 +92,15 @@ export default function Dataset() {
   }) => {
     setIsCreateExperimentDialogOpen(false);
     if (!data) return;
-    void utils.datasets.runsByDatasetId.invalidate();
-    void utils.datasets.baseRunDataByDatasetId.invalidate();
+
+    if (isExperimentsBetaActive) {
+      void utils.experiments.all.invalidate();
+      void utils.experiments.countAll.invalidate();
+    } else {
+      void utils.datasets.runsByDatasetId.invalidate();
+      void utils.datasets.baseRunDataByDatasetId.invalidate();
+    }
+
     showSuccessToast({
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
@@ -144,6 +160,94 @@ export default function Dataset() {
   const segments = datasetName.split("/").filter((s) => s.trim());
   const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
   const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
+  const betaSwitch = canUseExperimentsBetaToggle ? (
+    <ExperimentsBetaSwitch
+      enabled={isExperimentsBetaEnabled}
+      onEnabledChange={setExperimentsBetaEnabled}
+    />
+  ) : null;
+
+  if (isExperimentsBetaActive) {
+    return (
+      <Page
+        headerProps={{
+          title: dataset.data?.name ?? "",
+          itemType: "DATASET",
+          breadcrumb: [
+            { name: "Datasets", href: `/project/${projectId}/datasets` },
+            ...breadcrumbItems.map((item) => ({
+              name: item.name,
+              href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
+            })),
+          ],
+          tabsProps: {
+            tabs: getDatasetTabs(projectId, datasetId),
+            activeTab: DATASET_TABS.RUNS,
+          },
+          actionButtonsLeft: betaSwitch,
+          actionButtonsRight: (
+            <>
+              <Dialog
+                open={isCreateExperimentDialogOpen}
+                onOpenChange={setIsCreateExperimentDialogOpen}
+              >
+                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                  <Button
+                    disabled={!hasExperimentWriteAccess}
+                    onClick={() => capture("dataset_run:new_form_open")}
+                  >
+                    <FlaskConical className="h-4 w-4" />
+                    <span className="ml-2 hidden md:block">Run experiment</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                  <CreateExperimentsForm
+                    key={`create-experiment-form-${datasetId}`}
+                    projectId={projectId as string}
+                    setFormOpen={setIsCreateExperimentDialogOpen}
+                    defaultValues={{
+                      datasetId,
+                    }}
+                    handleExperimentSuccess={handleExperimentSuccess}
+                    showSDKRunInfoPage
+                  />
+                </DialogContent>
+              </Dialog>
+
+              {hasEvalReadAccess && (
+                <div className="w-fit">
+                  <TemplateSelector
+                    projectId={projectId}
+                    datasetId={datasetId}
+                    evalTemplates={evalTemplates.data?.templates ?? []}
+                    onConfigureTemplate={handleConfigureEvaluator}
+                    onSelectEvaluator={handleSelectEvaluator}
+                    activeTemplateIds={activeEvaluators}
+                    inactiveTemplateIds={pausedEvaluators}
+                    evaluatorTargetObjects={evaluatorTargetObjects}
+                    disabled={!hasEvalWriteAccess}
+                  />
+                </div>
+              )}
+            </>
+          ),
+        }}
+      >
+        <ExperimentsTable
+          projectId={projectId}
+          fixedFilter={[
+            {
+              column: "experimentDatasetId",
+              type: "stringOptions",
+              operator: "any of",
+              value: [datasetId],
+            },
+          ]}
+          sessionFilterContextId={`dataset-${datasetId}`}
+        />
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -166,6 +270,7 @@ export default function Dataset() {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.RUNS,
         },
+        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Dialog
@@ -213,7 +318,6 @@ export default function Dataset() {
 
             <DatasetAnalytics
               key="dataset-analytics"
-              projectId={projectId}
               scoreOptions={scoreOptions}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}

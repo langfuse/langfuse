@@ -1,10 +1,9 @@
-import tseslint from "typescript-eslint";
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
 
-export default tseslint.config(
+export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
@@ -57,17 +56,12 @@ export default tseslint.config(
   // Prettier (last)
   eslintPluginPrettierRecommended,
 
-  // TypeScript config for TS files
-  // Note: The old config had a bug (duplicate extends) that prevented TS rules from applying
-  // Only adding parser + plugin + custom rules to match old behavior
+  // Layer repo-specific TS rules on top of Next's built-in flat TS config.
+  // Next already provides the parser and @typescript-eslint plugin here.
   {
     name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
     languageOptions: {
-      parser: tseslint.parser,
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -101,6 +95,7 @@ export default tseslint.config(
         },
       ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
     },
   },
-);
+];
