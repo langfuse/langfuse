@@ -52,6 +52,10 @@ import {
   eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
+import {
+  findUiColumnMapping,
+  matchesUiColumnMapping,
+} from "../../tableDefinitions";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -751,10 +755,8 @@ export const getScoresGroupedByNameSourceType = async ({
 
   // Extract event-level filter entries from the frontend filter state
   const eventFilterState = filter.filter((filterEntry) =>
-    scoresEventsFilterMapping.some(
-      (col) =>
-        col.uiTableName === filterEntry.column ||
-        col.uiTableId === filterEntry.column,
+    scoresEventsFilterMapping.some((col) =>
+      matchesUiColumnMapping(col, filterEntry.column),
     ),
   );
 
@@ -1294,21 +1296,21 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
-    scoresTraceFilterEventsMapping.some(
-      (col) =>
-        col.uiTableName === filterEntry.column ||
-        col.uiTableId === filterEntry.column,
+    scoresTraceFilterEventsMapping.some((col) =>
+      matchesUiColumnMapping(col, filterEntry.column),
     ),
   );
 
-  const orderByColumn = orderBy
-    ? scoresTableUiColumnDefinitionsFromEvents.find(
-        (c) =>
-          (c.uiTableName === orderBy.column ||
-            c.uiTableId === orderBy.column) &&
-          c.clickhouseTableName === "traces",
+  const matchedOrderByColumn = orderBy
+    ? findUiColumnMapping(
+        scoresTableUiColumnDefinitionsFromEvents,
+        orderBy.column,
       )
     : null;
+  const orderByColumn =
+    matchedOrderByColumn?.clickhouseTableName === "traces"
+      ? matchedOrderByColumn
+      : null;
 
   const needsTracesCTE = traceFilterState.length > 0 || !!orderByColumn;
 
@@ -1806,6 +1808,10 @@ export const getAggregatedScoresForPrompts = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
     SELECT
@@ -1827,6 +1833,8 @@ export const getAggregatedScoresForPrompts = async (
     AND s.project_id = {projectId: String}
     AND o.prompt_id IN ({promptIds: Array(String)})
     AND o.type = 'GENERATION'
+    ${fromTimestamp ? "AND o.start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+    ${toTimestamp ? "AND o.start_time <= {toTimestamp: DateTime64(3)}" : ""}
     AND s.name IS NOT NULL
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
@@ -1844,6 +1852,12 @@ export const getAggregatedScoresForPrompts = async (
       projectId,
       promptIds,
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",

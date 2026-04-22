@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,

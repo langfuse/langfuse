@@ -1,11 +1,10 @@
-/** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import {
+  DeleteLlmConnectionV1Response,
   GetLlmConnectionsV1Response,
   PutLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
@@ -1258,6 +1257,131 @@ describe("/api/public/llm-connections API Endpoints", () => {
           "Invalid VertexAI config",
         );
       });
+    });
+  });
+
+  describe("DELETE /api/public/llm-connections/{id}", () => {
+    it("should delete an existing LLM connection", async () => {
+      const provider = generateUniqueProvider("delete-test");
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-delete"),
+          displaySecretKey: "...lete",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        DeleteLlmConnectionV1Response,
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("LLM connection successfully deleted");
+
+      const dbConnection = await prisma.llmApiKeys.findUnique({
+        where: { id: connection.id },
+      });
+      expect(dbConnection).toBeNull();
+    });
+
+    it("should create an audit log entry for delete", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("audit-delete"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-audit-delete"),
+          displaySecretKey: "...lete",
+        },
+      });
+
+      await makeZodVerifiedAPICall(
+        DeleteLlmConnectionV1Response,
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        auth,
+      );
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where: {
+          resourceType: "llmApiKey",
+          resourceId: connection.id,
+          action: "delete",
+        },
+      });
+      expect(auditLogs).toHaveLength(1);
+    });
+
+    it("should return 404 for non-existent connection id", async () => {
+      const response = await makeAPICall(
+        "DELETE",
+        "/api/public/llm-connections/non-existent-id",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should not delete a connection from a different project", async () => {
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      const otherConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId: otherProjectId,
+          provider: generateUniqueProvider("cross-project-delete"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-other"),
+          displaySecretKey: "...dfg3",
+        },
+      });
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/llm-connections/${otherConnection.id}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+
+      // Verify the other project's connection is still intact
+      const stillThere = await prisma.llmApiKeys.findUnique({
+        where: { id: otherConnection.id },
+      });
+      expect(stillThere).toBeTruthy();
+    });
+
+    it("should return 401 for invalid auth", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("delete-unauth"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-unauth"),
+          displaySecretKey: "...auth",
+        },
+      });
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/llm-connections/${connection.id}`,
+        undefined,
+        "invalid-auth",
+      );
+
+      expect(response.status).toBe(401);
+
+      const stillThere = await prisma.llmApiKeys.findUnique({
+        where: { id: connection.id },
+      });
+      expect(stillThere).toBeTruthy();
     });
   });
 

@@ -32,6 +32,7 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type User } from "next-auth";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const OrganizationProjectTiles = ({
   org,
@@ -76,6 +77,8 @@ const OrganizationProjectTiles = ({
 };
 
 const DemoOrganizationTile = () => {
+  const capture = usePostHogClientCapture();
+
   return (
     <Card>
       <CardHeader>
@@ -87,7 +90,14 @@ const DemoOrganizationTile = () => {
       </CardContent>
       <CardFooter>
         <Button asChild variant="secondary">
-          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}>
+          <Link
+            href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}
+            onClick={() =>
+              capture("organizations:demo_project_button_click", {
+                location: "project_overview_demo_tile",
+              })
+            }
+          >
             View Demo Project
           </Link>
         </Button>

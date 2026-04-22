@@ -10,18 +10,18 @@ describe("sendAdminAccessWebhook", () => {
 
   beforeEach(() => {
     resetAdminAccessWebhookCacheForTests();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = originalWebhook;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
   });
 
   it("should not send when webhook is not configured", async () => {
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = undefined;
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -36,7 +36,7 @@ describe("sendAdminAccessWebhook", () => {
 
   it("should not send when email is missing", async () => {
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -50,12 +50,12 @@ describe("sendAdminAccessWebhook", () => {
   });
 
   it("should send expected payload including project, org and region", async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
 
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -81,12 +81,12 @@ describe("sendAdminAccessWebhook", () => {
     });
   });
 
-  it("should dedupe repeated sends within 60 seconds for same email/project/org", async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
+  it("should dedupe repeated sends within 5 minutes for same email/project/org", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -105,11 +105,11 @@ describe("sendAdminAccessWebhook", () => {
   });
 
   it("should send again after dedupe window has passed", async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-19T19:39:37.000Z"));
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -119,7 +119,7 @@ describe("sendAdminAccessWebhook", () => {
       orgId: "org-1",
     });
 
-    jest.setSystemTime(new Date("2026-02-19T19:40:38.000Z"));
+    vi.setSystemTime(new Date("2026-02-19T19:44:38.000Z"));
 
     await sendAdminAccessWebhook({
       email: "admin@langfuse.com",
@@ -133,7 +133,7 @@ describe("sendAdminAccessWebhook", () => {
   it("should not dedupe when email/project/org differ", async () => {
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
-    const fetchSpy = jest
+    const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true } as Response);
 
@@ -154,9 +154,7 @@ describe("sendAdminAccessWebhook", () => {
   it("should not throw when fetch rejects", async () => {
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
-    jest
-      .spyOn(globalThis, "fetch")
-      .mockRejectedValue(new Error("network error"));
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network error"));
 
     await expect(
       sendAdminAccessWebhook({
@@ -170,7 +168,7 @@ describe("sendAdminAccessWebhook", () => {
   it("should not throw when fetch returns non-ok response", async () => {
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
 
-    jest.spyOn(globalThis, "fetch").mockResolvedValue({
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: false,
       status: 500,
       statusText: "Internal Server Error",

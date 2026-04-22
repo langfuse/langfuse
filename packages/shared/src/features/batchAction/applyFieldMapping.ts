@@ -51,6 +51,7 @@ export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
     path: jsonPath,
     json: parsed as string | object,
     wrap: false,
+    eval: false,
   });
 
   return result;

@@ -64,7 +64,7 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState, type Row } from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
@@ -146,7 +146,6 @@ export type ObservationsTableProps = {
   omittedFilter?: ObservationsOmittableFilterColumn[];
   // External control props for embedded preview tables
   hideControls?: boolean;
-  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -159,7 +158,6 @@ export default function ObservationsTable({
   modelId,
   omittedFilter = [],
   hideControls = false,
-  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -1129,7 +1127,7 @@ export default function ObservationsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage: {
               promptTokens: number;
@@ -1158,7 +1156,7 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1176,7 +1174,7 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1194,7 +1192,7 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1203,7 +1201,7 @@ export default function ObservationsTable({
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {
       accessorKey: "cost",
@@ -1221,7 +1219,7 @@ export default function ObservationsTable({
           header: "Input Cost",
           size: 120,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1241,7 +1239,7 @@ export default function ObservationsTable({
           header: "Output Cost",
           size: 120,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1255,7 +1253,7 @@ export default function ObservationsTable({
           defaultHidden: true,
           enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];
 
@@ -1286,7 +1284,6 @@ export default function ObservationsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
-    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,

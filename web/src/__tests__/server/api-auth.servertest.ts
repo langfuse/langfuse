@@ -534,7 +534,7 @@ describe("Authenticate API calls", () => {
       // Mock prisma
       const mockPrisma = {
         apiKey: {
-          findUnique: jest.fn(),
+          findUnique: vi.fn(),
         },
       };
 
@@ -596,7 +596,7 @@ describe("Authenticate API calls", () => {
       // Mock prisma
       const mockPrisma = {
         apiKey: {
-          findUnique: jest.fn(),
+          findUnique: vi.fn(),
         },
       };
 

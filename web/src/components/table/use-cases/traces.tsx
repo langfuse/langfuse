@@ -18,7 +18,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
-import { type Row, type RowSelectionState } from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
@@ -148,7 +148,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: TraceOmittableFilterColumn[];
   hideControls?: boolean;
-  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -159,7 +158,6 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
   hideControls = false,
-  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -607,7 +605,7 @@ export default function TracesTable({
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     ...(hideControls
       ? []
-      : [
+      : ([
           selectActionColumn,
           {
             accessorKey: "bookmarked",
@@ -616,7 +614,7 @@ export default function TracesTable({
             size: 30,
             isFixedPosition: true,
             loadingCell: <TableIconButtonLoadingCell />,
-            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            cell: ({ row }) => {
               const bookmarked: TracesTableRow["bookmarked"] =
                 row.getValue("bookmarked");
               const traceId = row.getValue("id");
@@ -633,7 +631,7 @@ export default function TracesTable({
             },
             enableSorting,
           },
-        ]),
+        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
     {
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -1135,7 +1133,7 @@ export default function TracesTable({
           header: "Input Cost",
           size: 100,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+          cell: ({ row }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
             if (!traceMetrics.data) return <TableTextLoadingCell />;
             return (
@@ -1158,7 +1156,7 @@ export default function TracesTable({
           header: "Output Cost",
           size: 100,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+          cell: ({ row }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
             if (!traceMetrics.data) return <TableTextLoadingCell />;
             return (
@@ -1175,7 +1173,7 @@ export default function TracesTable({
           defaultHidden: true,
           enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     {
       accessorKey: "usage",
@@ -1193,7 +1191,7 @@ export default function TracesTable({
           header: "Input Tokens",
           size: 110,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+          cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
             if (!traceMetrics.data) return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.inputUsage, 0)}</span>;
@@ -1208,7 +1206,7 @@ export default function TracesTable({
           header: "Output Tokens",
           size: 110,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+          cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
             if (!traceMetrics.data) return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.outputUsage, 0)}</span>;
@@ -1223,7 +1221,7 @@ export default function TracesTable({
           header: "Total Tokens",
           size: 110,
           loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }: { row: Row<TracesTableRow> }) => {
+          cell: ({ row }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
             if (!traceMetrics.data) return <TableTextLoadingCell />;
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
@@ -1232,17 +1230,17 @@ export default function TracesTable({
           defaultHidden: true,
           enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     ...(hideControls
       ? []
-      : [
+      : ([
           {
             accessorKey: "action",
             header: "Action",
             size: 70,
             isFixedPosition: true,
-            cell: ({ row }: { row: Row<TracesTableRow> }) => {
+            cell: ({ row }) => {
               const traceId: TracesTableRow["id"] = row.getValue("id");
               return (
                 traceId &&
@@ -1267,7 +1265,7 @@ export default function TracesTable({
               );
             },
           },
-        ]),
+        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -1316,7 +1314,6 @@ export default function TracesTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
-    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
