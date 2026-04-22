@@ -16,7 +16,6 @@ permissions: {}
 jobs:
   zizmor:
     name: Check GitHub Actions security
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -26,7 +25,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Run zizmor
+
+      - name: Run zizmor (fork PR - fail on findings)
+        # Fork PRs don't get security-events: write on GITHUB_TOKEN, so SARIF
+        # upload isn't possible. Fail the job on findings instead so contributors
+        # see the error directly in the PR check.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
+
+      - name: Run zizmor (trusted - upload SARIF)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
         with:
           # Means that the action will only report issues, but not fail the workflow.

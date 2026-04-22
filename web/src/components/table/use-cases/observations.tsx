@@ -10,7 +10,10 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  type UseSidebarFilterStateOptions,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
@@ -20,6 +23,11 @@ import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filt
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
@@ -39,6 +47,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
@@ -55,10 +64,9 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState, type Row } from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -154,10 +162,13 @@ export default function ObservationsTable({
   externalDateRange,
   limitRows,
 }: ObservationsTableProps) {
+  const peekContext = usePeekTableState();
+
   const observationsFilterConfig = useMemo(
     () => getObservationsFilterConfig(omittedFilter),
     [omittedFilter],
   );
+
   const router = useRouter();
   const { viewId } = router.query;
   const utils = api.useUtils();
@@ -440,16 +451,41 @@ export default function ObservationsTable({
     };
   }, [environmentFilterOptions.data, filterOptions.data]);
 
+  const isSidebarFilterLoading =
+    filterOptions.isPending || environmentFilterOptions.isPending;
+
+  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+    const baseOptions = {
+      loading: isSidebarFilterLoading,
+      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+    };
+
+    if (peekContext) {
+      return {
+        ...baseOptions,
+        stateLocation: "peekContext",
+        context: peekContext,
+      };
+    }
+
+    if (hideControls) {
+      return {
+        ...baseOptions,
+        stateLocation: "memory",
+      };
+    }
+
+    return {
+      ...baseOptions,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    };
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+
   const queryFilter = useSidebarFilterState(
     observationsFilterConfig,
     newFilterOptions,
-    {
-      loading: filterOptions.isPending || environmentFilterOptions.isPending,
-      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
-      sessionFilterContextId: projectId,
-      // Sidebar-only implicit environment defaults
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-    },
+    queryFilterOptions,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -619,6 +655,7 @@ export default function ObservationsTable({
       id: "type",
       header: "Type",
       size: 50,
+      loadingCell: <TableIconBadgeLoadingCell />,
       enableSorting,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
@@ -645,6 +682,14 @@ export default function ObservationsTable({
       header: "Input",
       id: "input",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          className="bg-muted/50"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -666,6 +711,14 @@ export default function ObservationsTable({
       id: "output",
       header: "Output",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          className="bg-accent-light-green"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
         const traceId: string = row.getValue("traceId");
@@ -905,6 +958,7 @@ export default function ObservationsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: ({ row }) => {
         const value: ObservationsTableRow["environment"] =
           row.getValue("environment");
@@ -924,6 +978,7 @@ export default function ObservationsTable({
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
+      loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
@@ -944,6 +999,13 @@ export default function ObservationsTable({
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
+      loadingCell: () => (
+        <MemoizedIOTableCell
+          isLoading
+          data={undefined}
+          singleLine={rowHeight === "s"}
+        />
+      ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/observability/features/metadata",
@@ -971,7 +1033,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return isColumnLoading ? <TableTextLoadingCell /> : null;
       },
       columns: scoreColumns,
     },
@@ -1057,9 +1119,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
+        return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
         {
@@ -1067,7 +1127,7 @@ export default function ObservationsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage: {
               promptTokens: number;
@@ -1092,10 +1152,11 @@ export default function ObservationsTable({
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1109,10 +1170,11 @@ export default function ObservationsTable({
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1126,10 +1188,11 @@ export default function ObservationsTable({
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
+          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          cell: ({ row }) => {
             const value: {
               inputUsage: number;
               outputUsage: number;
@@ -1138,7 +1201,7 @@ export default function ObservationsTable({
             return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {
       accessorKey: "cost",
@@ -1147,9 +1210,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
+        return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
         {
@@ -1157,7 +1218,8 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          loadingCell: <TableTextLoadingCell />,
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1176,7 +1238,8 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
+          loadingCell: <TableTextLoadingCell />,
+          cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -1190,7 +1253,7 @@ export default function ObservationsTable({
           defaultHidden: true,
           enableSorting,
         },
-      ],
+      ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];
 

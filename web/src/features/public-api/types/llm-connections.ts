@@ -131,6 +131,19 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
 // PUT /api/public/llm-connections response
 export const PutLlmConnectionV1Response = LlmConnectionResponse.strict();
 
+// DELETE /api/public/llm-connections/{id}
+export const DeleteLlmConnectionV1Query = z
+  .object({
+    id: z.string(),
+  })
+  .strict();
+
+export const DeleteLlmConnectionV1Response = z
+  .object({
+    message: z.literal("LLM connection successfully deleted"),
+  })
+  .strict();
+
 // Transform database record to API response
 export function transformDbLlmConnectionToAPI(dbConnection: {
   id: string;

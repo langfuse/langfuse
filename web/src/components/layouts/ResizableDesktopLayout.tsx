@@ -119,7 +119,7 @@ export function ResizableDesktopLayout({
         minSize={`${minMainSize}%`}
       >
         <div
-          className="relative h-full w-full overflow-scroll"
+          className="relative h-full w-full overflow-auto"
           style={{ overscrollBehaviorY: "none" }}
         >
           {mainContent}

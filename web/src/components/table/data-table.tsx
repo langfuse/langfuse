@@ -13,6 +13,7 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
@@ -111,6 +112,15 @@ function isValidCssVariableName({
     : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
 }
+
+const INTERACTIVE_ROW_CLICK_SELECTOR =
+  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+
+export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return false;
+
+  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
+};
 
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
@@ -485,6 +495,7 @@ interface TableBodyComponentProps<TData> {
   getRowClassName?: (row: TData) => string;
   topAlignCells?: boolean;
   cellPadding?: "compact" | "comfortable";
+  // eslint-disable-next-line react/no-unused-prop-types
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -509,9 +520,13 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={(e) => onRowClick?.(row.original, e)}
+      onClick={(e) => {
+        if (shouldIgnoreRowClickTarget(e.target)) return;
+        onRowClick?.(row.original, e);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          if (shouldIgnoreRowClickTarget(e.target)) return;
           onRowClick?.(row.original);
         }
       }}
@@ -540,17 +555,71 @@ function TableBodyComponent<TData>({
   topAlignCells = false,
   cellPadding = "compact",
 }: TableBodyComponentProps<TData>) {
+  const visibleColumns = table.getVisibleLeafColumns();
+  const skeletonRowCount = Math.max(
+    1,
+    Math.min(table.getState().pagination?.pageSize ?? 8, 8),
+  );
+
   return (
     <TableBody>
       {data.isLoading || !data.data ? (
-        <TableRow className="h-svh">
-          <TableCell
-            colSpan={columns.length}
-            className="content-start border-b text-center"
-          >
-            Loading...
-          </TableCell>
-        </TableRow>
+        Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+          <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
+            {visibleColumns.map((column, columnIndex) => (
+              <TableCell
+                key={`${column.id}-loading-cell-${rowIndex}`}
+                className={cn(
+                  "overflow-hidden border-b text-xs first:pl-2",
+                  cellPadding === "comfortable" ? "p-1" : "px-1",
+                  (rowHeight ?? "s") === "s" && "whitespace-nowrap",
+                  getPinningClasses(column),
+                )}
+                style={{
+                  width: `calc(var(--col-${column.id}-size) * 1px)`,
+                  ...getCommonPinningStyles(column),
+                }}
+              >
+                <div
+                  className={cn(
+                    "flex",
+                    (rowHeight ?? "s") === "s" && !topAlignCells
+                      ? "items-center"
+                      : "items-start",
+                    (rowHeight ?? "s") !== "s" && "py-1",
+                    rowheighttw,
+                  )}
+                >
+                  {(() => {
+                    const columnDef =
+                      column.columnDef as LangfuseColumnDef<TData>;
+                    const loadingCell = columnDef.loadingCell;
+
+                    if (typeof loadingCell === "function") {
+                      return loadingCell();
+                    }
+
+                    if (loadingCell !== undefined) {
+                      return loadingCell;
+                    }
+
+                    return (
+                      <TableTextLoadingCell
+                        className={cn(
+                          "min-w-[3rem]",
+                          (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
+                          (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
+                          (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
+                          (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
+                        )}
+                      />
+                    );
+                  })()}
+                </div>
+              </TableCell>
+            ))}
+          </TableRow>
+        ))
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
           <TableRowComponent
