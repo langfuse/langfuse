@@ -1806,6 +1806,10 @@ export const getAggregatedScoresForPrompts = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
     SELECT
@@ -1827,6 +1831,8 @@ export const getAggregatedScoresForPrompts = async (
     AND s.project_id = {projectId: String}
     AND o.prompt_id IN ({promptIds: Array(String)})
     AND o.type = 'GENERATION'
+    ${fromTimestamp ? "AND o.start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+    ${toTimestamp ? "AND o.start_time <= {toTimestamp: DateTime64(3)}" : ""}
     AND s.name IS NOT NULL
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
@@ -1844,6 +1850,12 @@ export const getAggregatedScoresForPrompts = async (
       projectId,
       promptIds,
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",

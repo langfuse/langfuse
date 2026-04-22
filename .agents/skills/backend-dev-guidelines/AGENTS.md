@@ -130,8 +130,8 @@ web/src/
 │   │   ├── public/          # Public REST APIs
 │   │   └── trpc/            # tRPC endpoint
 │   └── [routes].tsx         # Next.js pages
-├── __tests__/               # Jest tests
-│   └── async/               # Integration tests
+├── __tests__/               # Vitest tests
+│   └── server/              # Integration tests
 ├── instrumentation.ts       # OpenTelemetry (FIRST IMPORT)
 └── env.mjs                  # Environment config
 ```
@@ -359,12 +359,12 @@ Write tests for all new features and bug fixes. See [testing-guide.md](reference
 
 **Test Types:**
 
-| Type        | Framework | Location                                | Purpose                      |
-| ----------- | --------- | --------------------------------------- | ---------------------------- |
-| Integration | Jest      | `web/src/__tests__/async/`              | Full API endpoint testing    |
-| tRPC        | Jest      | `web/src/__tests__/async/`              | tRPC procedures with auth    |
-| Service     | Jest      | `web/src/__tests__/async/repositories/` | Repository/service functions |
-| Worker      | Vitest    | `worker/src/__tests__/`                 | Queue processors & streams   |
+| Type        | Framework | Location                                   | Purpose                      |
+| ----------- | --------- | ------------------------------------------ | ---------------------------- |
+| Integration | Vitest    | `web/src/__tests__/server/`                | Full API endpoint testing    |
+| tRPC        | Vitest    | `web/src/__tests__/server/`                | tRPC procedures with auth    |
+| Service     | Vitest    | `web/src/__tests__/server/repositories/`   | Repository/service functions |
+| Worker      | Vitest    | `worker/src/__tests__/`                    | Queue processors & streams   |
 
 **Quick Examples:**
 
@@ -570,7 +570,7 @@ Environment variable validation with Zod, package-specific configs (web/env.mjs 
 
 ### [testing-guide.md](references/testing-guide.md)
 
-Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Jest for web, vitest for worker)
+Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Vitest for web and worker)
 
 **Skill Status**: COMPLETE ✅
 **Line Count**: ~540 lines
