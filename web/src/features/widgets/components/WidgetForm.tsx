@@ -295,9 +295,22 @@ export function WidgetForm({
 
   // Form definitions follow beta toggle, or v2 if widget already requires it.
   // Traces view is excluded from beta-v2 because it has no v2-only fields.
+  const initialWidgetRequiresV2 = requiresV2({
+    view: initialValues.view,
+    dimensions:
+      initialValues.dimensions ??
+      (initialValues.dimension && initialValues.dimension !== "none"
+        ? [{ field: initialValues.dimension }]
+        : []),
+    measures: initialValues.metrics?.map((metric) => ({
+      measure: metric.measure,
+    })) ?? [{ measure: initialValues.measure }],
+    filters: initialValues.filters ?? [],
+  });
   const viewVersion: ViewVersion =
     (isBetaEnabled && selectedView !== "traces") ||
-    (initialValues.minVersion ?? 1) >= 2
+    (initialValues.minVersion ?? 1) >= 2 ||
+    initialWidgetRequiresV2
       ? "v2"
       : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
@@ -617,6 +630,7 @@ export function WidgetForm({
 
   const filterColumns = getWidgetFilterColumns({
     selectedView,
+    viewVersion,
     environmentOptions,
     nameOptions,
     tagsOptions,
@@ -627,6 +641,7 @@ export function WidgetForm({
   });
   const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
     selectedView,
+    viewVersion,
     environmentOptions,
     nameOptions,
     tagsOptions,
@@ -1079,6 +1094,7 @@ export function WidgetForm({
         view: selectedView,
         dimensions: saveDimensions,
         measures: saveMetrics.map((m) => ({ measure: m.measure })),
+        filters: normalizedUserFilters,
       })
         ? 2
         : 1,

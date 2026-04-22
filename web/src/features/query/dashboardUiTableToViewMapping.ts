@@ -148,7 +148,10 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
-    defineField("release", sourceSpec("Release", { uiTableId: "release" })),
+    defineField(
+      "release",
+      sourceSpec("Observation Release", { uiTableId: "release" }),
+    ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
   ],
   "scores-numeric": [

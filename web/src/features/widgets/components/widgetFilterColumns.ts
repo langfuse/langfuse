@@ -3,10 +3,12 @@ import {
   type SingleValueOption,
 } from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
+import { type ViewVersion } from "@/src/features/query";
 import { type z } from "zod";
 
 type GetWidgetFilterColumnsParams = {
   selectedView: z.infer<typeof views>;
+  viewVersion: ViewVersion;
   environmentOptions: SingleValueOption[];
   nameOptions: SingleValueOption[];
   tagsOptions: SingleValueOption[];
@@ -23,6 +25,7 @@ type WidgetFilterColumnSpec = {
 
 const getWidgetFilterColumnSpecs = ({
   selectedView,
+  viewVersion,
   environmentOptions,
   nameOptions,
   tagsOptions,
@@ -104,14 +107,6 @@ const getWidgetFilterColumnSpecs = ({
     },
     {
       column: {
-        name: "Release",
-        id: "release",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
-    {
-      column: {
         name: "Version",
         id: "version",
         type: "string",
@@ -120,8 +115,31 @@ const getWidgetFilterColumnSpecs = ({
     },
   ];
 
+  if (selectedView !== "observations") {
+    filterColumns.push({
+      column: {
+        name: "Release",
+        id: "release",
+        type: "string",
+        internal: "internalValue",
+      },
+    });
+  }
+
   if (selectedView === "observations") {
     filterColumns.push(
+      ...(viewVersion === "v2"
+        ? [
+            {
+              column: {
+                name: "Observation Release",
+                id: "release",
+                type: "string",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
+          ]
+        : []),
       {
         column: {
           name: "Tool Names (Available)",
