@@ -218,6 +218,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       projectId: project.id,
       accessLevel: "project" as const,
       orgId: project.orgId,
+      orgCreatedAt: null,
       plan: "oss",
       rateLimitOverrides: [],
       apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging

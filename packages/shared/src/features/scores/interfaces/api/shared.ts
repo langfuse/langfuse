@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { publicApiPaginationZod } from "../../../../utils/zod";
+import {
+  publicApiPaginationZod,
+  useEventsTableSchema,
+} from "../../../../utils/zod";
 import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
@@ -62,6 +65,7 @@ export const GetScoresQuery = z.object({
         .filter((f) => SCORE_FIELD_GROUPS.includes(f as ScoreFieldGroup));
     })
     .pipe(z.array(z.enum(SCORE_FIELD_GROUPS)).nullable()),
+  useEventsTable: useEventsTableSchema,
   filter: z
     .string()
     .optional()

@@ -46,12 +46,16 @@ export class ScoresApiService {
    * v1: Returns listable scores (NUMERIC, BOOLEAN, CATEGORICAL, TEXT) - excludes CORRECTION
    * v2: Returns all score types including CORRECTION and TEXT
    */
-  async generateScoresForPublicApi(props: ScoreQueryType) {
+  async generateScoresForPublicApi(
+    props: ScoreQueryType,
+    useEventsTable = false,
+  ) {
     return _handleGenerateScoresForPublicApi({
       props,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
       scoreDataTypes:
         this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+      useEventsTable,
     });
   }
 
@@ -60,12 +64,16 @@ export class ScoresApiService {
    * v1: Only counts listable scores (NUMERIC, BOOLEAN, CATEGORICAL, TEXT) - excludes CORRECTION
    * v2: Counts all score types including CORRECTION and TEXT
    */
-  async getScoresCountForPublicApi(props: ScoreQueryType) {
+  async getScoresCountForPublicApi(
+    props: ScoreQueryType,
+    useEventsTable = false,
+  ) {
     return _handleGetScoresCountForPublicApi({
       props,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
       scoreDataTypes:
         this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+      useEventsTable,
     });
   }
 }

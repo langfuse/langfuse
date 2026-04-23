@@ -19,11 +19,16 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
+  getTraceByIdFromEventsTable,
+  getObservationsForTraceFromEventsTable,
   traceException,
   traceDeletionProcessor,
+  type ObservationPriceFields,
 } from "@langfuse/shared/src/server";
+import type { Observation, EventsObservation } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { shouldUseEventsTable } from "@/src/features/public-api/server/useEventsTable";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -32,6 +37,11 @@ export default withMiddlewares({
     responseSchema: GetTraceV1Response,
     fn: async ({ query, auth }) => {
       const { traceId } = query;
+
+      const useEventsTable = shouldUseEventsTable({
+        queryParam: query.useEventsTable,
+        orgCreatedAt: auth.scope.orgCreatedAt,
+      });
 
       let effectiveFields: readonly TraceFieldGroup[] =
         query.fields ?? TRACE_FIELD_GROUPS;
@@ -51,14 +61,25 @@ export default withMiddlewares({
       const includeScores = requestedFields.includes("scores");
       const includeMetrics = requestedFields.includes("metrics");
 
-      const trace = await getTraceById({
-        traceId,
-        projectId: auth.scope.projectId,
-        clickhouseFeatureTag: "tracing-public-api",
-        preferredClickhouseService: "ReadOnly",
-        excludeInputOutput: !includeIO,
-        excludeMetadata: !includeIO,
-      });
+      const trace = useEventsTable
+        ? await getTraceByIdFromEventsTable({
+            traceId,
+            projectId: auth.scope.projectId,
+            clickhouseFeatureTag: "tracing-public-api",
+            preferredClickhouseService: "ReadOnly",
+            renderingProps: {
+              truncated: !includeIO,
+              shouldJsonParse: true,
+            },
+          })
+        : await getTraceById({
+            traceId,
+            projectId: auth.scope.projectId,
+            clickhouseFeatureTag: "tracing-public-api",
+            preferredClickhouseService: "ReadOnly",
+            excludeInputOutput: !includeIO,
+            excludeMetadata: !includeIO,
+          });
 
       if (!trace) {
         throw new LangfuseNotFoundError(
@@ -66,16 +87,82 @@ export default withMiddlewares({
         );
       }
 
-      const [observations, scores] = await Promise.all([
-        includeObservations || includeMetrics
-          ? getObservationsForTrace({
+      // Fetch observations and scores in parallel.
+      // Events path: already enriched with model data, strip events-only fields.
+      // Legacy path: manual Prisma model lookup for pricing after fetch.
+      type ApiObservation = (Observation | EventsObservation) &
+        ObservationPriceFields;
+
+      const fetchObservations = async (): Promise<ApiObservation[]> => {
+        if (!(includeObservations || includeMetrics)) return [];
+
+        if (useEventsTable) {
+          const { observations: eventsObs } =
+            await getObservationsForTraceFromEventsTable({
               traceId,
               projectId: auth.scope.projectId,
               timestamp: trace?.timestamp,
-              includeIO: includeObservations,
-              preferredClickhouseService: "ReadOnly",
-            })
-          : Promise.resolve([]),
+              selectIOAndMetadata: includeObservations,
+            });
+          return eventsObs.map(
+            ({
+              traceTimestamp: _tt,
+              toolDefinitionsCount: _tdc,
+              toolCallsCount: _tcc,
+              ...obs
+            }) => obs,
+          );
+        }
+
+        const legacyObs = await getObservationsForTrace({
+          traceId,
+          projectId: auth.scope.projectId,
+          timestamp: trace?.timestamp,
+          includeIO: includeObservations,
+          preferredClickhouseService: "ReadOnly",
+        });
+
+        const uniqueModels = Array.from(
+          new Set(
+            legacyObs
+              .map((r) => r.internalModelId)
+              .filter((id): id is string => !!id),
+          ),
+        );
+
+        const models =
+          uniqueModels.length > 0
+            ? await prisma.model.findMany({
+                where: {
+                  id: { in: uniqueModels },
+                  OR: [
+                    { projectId: auth.scope.projectId },
+                    { projectId: null },
+                  ],
+                },
+                include: { Price: true },
+              })
+            : [];
+
+        return legacyObs.map((o) => {
+          const model = models.find((m) => m.id === o.internalModelId);
+          return {
+            ...o,
+            inputPrice:
+              model?.Price.find((p) => p.usageType === "input")?.price ??
+              new Decimal(0),
+            outputPrice:
+              model?.Price.find((p) => p.usageType === "output")?.price ??
+              new Decimal(0),
+            totalPrice:
+              model?.Price.find((p) => p.usageType === "total")?.price ??
+              new Decimal(0),
+          };
+        });
+      };
+
+      const [observationsView, scores] = await Promise.all([
+        fetchObservations(),
         includeScores
           ? getScoresForTraces({
               projectId: auth.scope.projectId,
@@ -86,63 +173,19 @@ export default withMiddlewares({
           : Promise.resolve([]),
       ]);
 
-      const uniqueModels: string[] = Array.from(
-        new Set(
-          observations
-            .map((r) => r.internalModelId)
-            .filter((r): r is string => Boolean(r)),
-        ),
-      );
-
-      const models =
-        uniqueModels.length > 0
-          ? await prisma.model.findMany({
-              where: {
-                id: {
-                  in: uniqueModels,
-                },
-                OR: [{ projectId: auth.scope.projectId }, { projectId: null }],
-              },
-              include: {
-                Price: true,
-              },
-            })
-          : [];
-
-      const observationsView = observations.map((o) => {
-        const model = models.find((m) => m.id === o.internalModelId);
-        const inputPrice =
-          model?.Price.find((p) => p.usageType === "input")?.price ??
-          new Decimal(0);
-        const outputPrice =
-          model?.Price.find((p) => p.usageType === "output")?.price ??
-          new Decimal(0);
-        const totalPrice =
-          model?.Price.find((p) => p.usageType === "total")?.price ??
-          new Decimal(0);
-        return {
-          ...o,
-          inputPrice,
-          outputPrice,
-          totalPrice,
-        };
-      });
-
       const outObservations = observationsView.map(transformDbToApiObservation);
-      // As these are traces scores, we expect all scores to have a traceId set
-      // For type consistency, we validate the scores against the v1 schema which requires a traceId
       const validatedScores = filterAndValidateDbTraceScoreList({
         scores,
         onParseError: traceException,
       });
 
-      const obsStartTimes = observations
+      const obsStartTimes = observationsView
         .map((o) => o.startTime)
         .sort((a, b) => a.getTime() - b.getTime());
-      const obsEndTimes = observations
+      const obsEndTimes = observationsView
         .map((o) => o.endTime)
-        .filter((t) => t)
-        .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+        .filter((t): t is Date => !!t)
+        .sort((a, b) => a.getTime() - b.getTime());
 
       const latencyMs =
         obsStartTimes.length > 0

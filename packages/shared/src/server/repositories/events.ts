@@ -310,8 +310,9 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
   timestamp?: Date;
+  selectIOAndMetadata?: boolean;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
-  const { projectId, traceId, timestamp } = params;
+  const { projectId, traceId, timestamp, selectIOAndMetadata } = params;
 
   const filter: FilterState = [
     {
@@ -337,6 +338,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
       {
         projectId,
         filter,
+        selectIOAndMetadata,
         orderBy: { column: "startTime", order: "ASC" },
         limit: MAX_OBSERVATIONS_PER_TRACE + 1,
         offset: 0,

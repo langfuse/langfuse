@@ -5,13 +5,16 @@ import {
   createSessionScore,
   getScoresByIds,
   getScoreById,
+  createEvent,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
+  createEventsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -21,10 +24,11 @@ import {
   GetScoreResponseV1,
   GetScoresResponseV1,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
+import { env } from "@/src/env.mjs";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -1575,5 +1579,329 @@ describe("/api/public/scores API Endpoint", () => {
         500,
       );
     }, 15000);
+  });
+
+  // Dual-path tests: events table vs physical traces table.
+  // Legacy suite: seeded project, no query param override.
+  // Events suite: seeded project + useEventsTable=true query param override.
+  (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip)(
+    "GET /api/public/scores - Events Table Migration Tests",
+    () => {
+      const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+      const runTestSuite = (useEventsTable: boolean) => {
+        const suiteName = useEventsTable
+          ? "with events table"
+          : "with traces table";
+        const eventsParam = useEventsTable ? "&useEventsTable=true" : "";
+
+        describe(`${suiteName}`, () => {
+          it("should return scores with trace metadata", async () => {
+            const traceId = v4();
+            const userId = "test-user-events";
+            const traceTags = ["events-tag1", "events-tag2"];
+
+            const trace = createTrace({
+              id: traceId,
+              project_id: seedProjectId,
+              user_id: userId,
+              tags: traceTags,
+              environment: "production",
+            });
+            await createTracesCh([trace]);
+
+            if (useEventsTable) {
+              const eventId = v4();
+              const rootEvent = createEvent({
+                id: eventId,
+                span_id: eventId,
+                parent_span_id: null,
+                trace_id: traceId,
+                project_id: seedProjectId,
+                name: "trace",
+                trace_name: "trace",
+                type: "GENERATION",
+                start_time: Date.now() * 1000,
+                environment: "production",
+                user_id: userId,
+                tags: traceTags,
+              });
+              await createEventsCh([rootEvent] as any);
+            }
+
+            const scoreName = `events-test-score-${v4()}`;
+            const scoreId = v4();
+            const score = createTraceScore({
+              id: scoreId,
+              project_id: seedProjectId,
+              trace_id: traceId,
+              name: scoreName,
+              value: 42,
+              data_type: "NUMERIC",
+              source: "API",
+            });
+            await createScoresCh([score]);
+
+            const response = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?name=${scoreName}${eventsParam}`,
+              undefined,
+              undefined,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.data).toHaveLength(1);
+            expect(response.body.data[0]).toMatchObject({
+              id: scoreId,
+              name: scoreName,
+              value: 42,
+              traceId,
+            });
+            expect(response.body.data[0].trace).toMatchObject({
+              userId,
+              tags: expect.arrayContaining(traceTags),
+            });
+            expect(response.body.meta.totalItems).toBe(1);
+          });
+
+          it("should filter by userId through trace metadata", async () => {
+            const traceId1 = v4();
+            const traceId2 = v4();
+            const targetUser = `target-user-${v4()}`;
+
+            const trace1 = createTrace({
+              id: traceId1,
+              project_id: seedProjectId,
+              user_id: targetUser,
+            });
+            const trace2 = createTrace({
+              id: traceId2,
+              project_id: seedProjectId,
+              user_id: "other-user",
+            });
+            await createTracesCh([trace1, trace2]);
+
+            if (useEventsTable) {
+              const eid1 = v4();
+              const eid2 = v4();
+              await createEventsCh([
+                createEvent({
+                  id: eid1,
+                  span_id: eid1,
+                  parent_span_id: null,
+                  trace_id: traceId1,
+                  project_id: seedProjectId,
+                  name: "trace",
+                  trace_name: "trace",
+                  type: "GENERATION",
+                  start_time: Date.now() * 1000,
+                  user_id: targetUser,
+                }),
+                createEvent({
+                  id: eid2,
+                  span_id: eid2,
+                  parent_span_id: null,
+                  trace_id: traceId2,
+                  project_id: seedProjectId,
+                  name: "trace",
+                  trace_name: "trace",
+                  type: "GENERATION",
+                  start_time: Date.now() * 1000,
+                  user_id: "other-user",
+                }),
+              ] as any);
+            }
+
+            const scoreName = `filter-test-${v4()}`;
+            const score1 = createTraceScore({
+              id: v4(),
+              project_id: seedProjectId,
+              trace_id: traceId1,
+              name: scoreName,
+              value: 1,
+              source: "API",
+            });
+            const score2 = createTraceScore({
+              id: v4(),
+              project_id: seedProjectId,
+              trace_id: traceId2,
+              name: scoreName,
+              value: 2,
+              source: "API",
+            });
+            await createScoresCh([score1, score2]);
+
+            const response = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?userId=${targetUser}&name=${scoreName}${eventsParam}`,
+              undefined,
+              undefined,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.data).toHaveLength(1);
+            expect(response.body.data[0].traceId).toBe(traceId1);
+            expect(response.body.data[0].value).toBe(1);
+            expect(response.body.meta.totalItems).toBe(1);
+          });
+
+          it("should return correct pagination metadata", async () => {
+            const traceId = v4();
+            const trace = createTrace({
+              id: traceId,
+              project_id: seedProjectId,
+            });
+            await createTracesCh([trace]);
+
+            if (useEventsTable) {
+              const eid = v4();
+              await createEventsCh([
+                createEvent({
+                  id: eid,
+                  span_id: eid,
+                  parent_span_id: null,
+                  trace_id: traceId,
+                  project_id: seedProjectId,
+                  name: "trace",
+                  trace_name: "trace",
+                  type: "GENERATION",
+                  start_time: Date.now() * 1000,
+                }),
+              ] as any);
+            }
+
+            const scoreName = `pagination-test-${v4()}`;
+            const scores = Array.from({ length: 3 }, () =>
+              createTraceScore({
+                id: v4(),
+                project_id: seedProjectId,
+                trace_id: traceId,
+                name: scoreName,
+                value: Math.random() * 100,
+                source: "API",
+              }),
+            );
+            await createScoresCh(scores);
+
+            const response = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?name=${scoreName}&limit=2&page=1${eventsParam}`,
+              undefined,
+              undefined,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.data).toHaveLength(2);
+            expect(response.body.meta.totalItems).toBe(3);
+            expect(response.body.meta.totalPages).toBe(2);
+          });
+        });
+      };
+
+      runTestSuite(false); // seeded project, no override → legacy traces table
+      runTestSuite(true); // seeded project + useEventsTable=true → events CTE
+    },
+  );
+
+  // Verify org createdAt date-based routing works without useEventsTable query param.
+  // Post-cutoff org → events path; pre-cutoff org → legacy path.
+  // Each test populates ONLY the table its expected path reads from,
+  // so using the wrong path causes a missing-data failure.
+  (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip)("scores org createdAt routing", () => {
+    const setupOrgWithDate = async (createdAt: Date) => {
+      const result = await createOrgProjectAndApiKey();
+      await prisma.organization.update({
+        where: { id: result.orgId },
+        data: { createdAt },
+      });
+      return result;
+    };
+
+    it("post-cutoff org routes to events path", async () => {
+      const { projectId: pid, auth } = await setupOrgWithDate(
+        new Date(V4_DEFAULT_ENABLED_FROM_AT.getTime() + 1000),
+      );
+      const traceId = v4();
+      const scoreName = `ev-${v4()}`;
+
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: pid, user_id: "u1" }),
+      ]);
+      const eid = v4();
+      await createEventsCh([
+        createEvent({
+          id: eid,
+          span_id: eid,
+          parent_span_id: null,
+          trace_id: traceId,
+          project_id: pid,
+          name: "t",
+          trace_name: "t",
+          type: "GENERATION",
+          start_time: Date.now() * 1000,
+          user_id: "u1",
+        }),
+      ] as any);
+      await createScoresCh([
+        createTraceScore({
+          id: v4(),
+          project_id: pid,
+          trace_id: traceId,
+          name: scoreName,
+          value: 1,
+          source: "API",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV1,
+        "GET",
+        `/api/public/scores?name=${scoreName}`,
+        undefined,
+        auth,
+      );
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].trace).toMatchObject({ userId: "u1" });
+    });
+
+    it("pre-cutoff org routes to legacy path", async () => {
+      const { projectId: pid, auth } = await setupOrgWithDate(
+        new Date("2020-01-01"),
+      );
+      const traceId = v4();
+      const scoreName = `leg-${v4()}`;
+
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: pid, user_id: "u2" }),
+      ]);
+      // No events data — legacy path reads traces table directly
+      await createScoresCh([
+        createTraceScore({
+          id: v4(),
+          project_id: pid,
+          trace_id: traceId,
+          name: scoreName,
+          value: 1,
+          source: "API",
+        }),
+      ]);
+
+      const res = await makeZodVerifiedAPICall(
+        GetScoresResponseV1,
+        "GET",
+        `/api/public/scores?name=${scoreName}`,
+        undefined,
+        auth,
+      );
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].trace).toMatchObject({ userId: "u2" });
+    });
   });
 });

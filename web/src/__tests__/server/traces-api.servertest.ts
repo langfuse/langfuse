@@ -12,7 +12,9 @@ import {
   createObservationsCh,
   createTracesCh,
   createEventsCh,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   makeZodVerifiedAPICall,
   makeZodVerifiedAPICallSilent,
@@ -26,6 +28,7 @@ import {
 import { randomUUID } from "crypto";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -2496,5 +2499,198 @@ describe("/api/public/traces API Endpoint", () => {
     if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
       runFilterTests(true);
     }
+  });
+
+  // Dual-path tests for GET /api/public/traces/{traceId}.
+  // Legacy suite: seeded project, no query param override.
+  // Events suite: seeded project + useEventsTable=true query param override.
+  (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip)(
+    "GET /api/public/traces/{traceId} - Events Table Migration Tests",
+    () => {
+      const runTestSuite = (useEventsTable: boolean) => {
+        const suiteName = useEventsTable
+          ? "with events table"
+          : "with traces table";
+        const eventsParam = useEventsTable ? "&useEventsTable=true" : "";
+
+        describe(`${suiteName}`, () => {
+          it("should return trace with observations, scores, and metrics", async () => {
+            const timestamp = new Date();
+            const traceId = randomUUID();
+
+            const createdTrace = createTrace({
+              id: traceId,
+              name: "single-trace-test",
+              user_id: "single-trace-user",
+              session_id: "single-trace-session",
+              timestamp: timestamp.getTime(),
+              project_id: projectId,
+              metadata: { key: "value" },
+              environment: "production",
+            });
+
+            await createTraceWithObservations(useEventsTable, createdTrace, [
+              {
+                trace_id: traceId,
+                project_id: projectId,
+                name: "gen-1",
+                type: "GENERATION",
+                start_time: timestamp.getTime(),
+                end_time: timestamp.getTime() + 1000,
+                cost_details: { total: 0.05 },
+                total_cost: 0.05,
+              },
+            ]);
+
+            const scoreId = randomUUID();
+            const score = createTraceScore({
+              id: scoreId,
+              project_id: projectId,
+              trace_id: traceId,
+              name: "test-score",
+              value: 0.9,
+              data_type: "NUMERIC",
+              source: "API",
+              timestamp: timestamp.getTime(),
+            });
+            await createScoresCh([score]);
+
+            const response = await makeZodVerifiedAPICall(
+              GetTraceV1Response,
+              "GET",
+              `/api/public/traces/${traceId}?_=1${eventsParam}`,
+              undefined,
+              undefined,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(traceId);
+            expect(response.body.name).toBe("single-trace-test");
+            // Events path includes root trace event as an observation
+            expect(response.body.observations.length).toBeGreaterThanOrEqual(1);
+            expect(
+              response.body.observations.find((o) => o.name === "gen-1"),
+            ).toBeDefined();
+            expect(response.body.scores).toHaveLength(1);
+            expect(response.body.scores[0].name).toBe("test-score");
+            expect(response.body.scores[0].value).toBe(0.9);
+            expect(response.body.latency).toBeGreaterThanOrEqual(0);
+            expect(response.body.totalCost).toBeGreaterThanOrEqual(0);
+          });
+
+          it("should respect field groups - scores only", async () => {
+            const traceId = randomUUID();
+
+            const createdTrace = createTrace({
+              id: traceId,
+              name: "fields-test",
+              project_id: projectId,
+              timestamp: Date.now(),
+            });
+
+            await createTraceWithObservations(useEventsTable, createdTrace, [
+              {
+                trace_id: traceId,
+                project_id: projectId,
+                name: "obs-1",
+                type: "SPAN",
+                start_time: Date.now(),
+              },
+            ]);
+
+            const response = await makeZodVerifiedAPICall(
+              GetTraceV1Response,
+              "GET",
+              `/api/public/traces/${traceId}?fields=scores${eventsParam}`,
+              undefined,
+              undefined,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(traceId);
+            expect(response.body.observations).toEqual([]);
+            expect(response.body.latency).toBe(-1);
+            expect(response.body.totalCost).toBe(-1);
+          });
+        });
+      };
+
+      runTestSuite(false); // seeded project, no override → legacy traces table
+      runTestSuite(true); // seeded project + useEventsTable=true → events CTE
+    },
+  );
+
+  // Verify org createdAt date-based routing works without useEventsTable query param.
+  (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip)("traces/[traceId] org createdAt routing", () => {
+    const setupOrgWithDate = async (createdAt: Date) => {
+      const result = await createOrgProjectAndApiKey();
+      await prisma.organization.update({
+        where: { id: result.orgId },
+        data: { createdAt },
+      });
+      return result;
+    };
+
+    it("post-cutoff org routes to events path", async () => {
+      const { projectId: pid, auth } = await setupOrgWithDate(
+        new Date(V4_DEFAULT_ENABLED_FROM_AT.getTime() + 1000),
+      );
+      const traceId = randomUUID();
+
+      await createTraceWithObservations(
+        true,
+        createTrace({
+          id: traceId,
+          project_id: pid,
+          name: "ev-trace",
+          user_id: "u1",
+          timestamp: Date.now(),
+        }),
+        [],
+      );
+
+      const res = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${traceId}`,
+        undefined,
+        auth,
+      );
+      expect(res.body.id).toBe(traceId);
+      expect(res.body.name).toBe("ev-trace");
+    });
+
+    it("pre-cutoff org routes to legacy path", async () => {
+      const { projectId: pid, auth } = await setupOrgWithDate(
+        new Date("2020-01-01"),
+      );
+      const traceId = randomUUID();
+
+      await createTraceWithObservations(
+        false,
+        createTrace({
+          id: traceId,
+          project_id: pid,
+          name: "leg-trace",
+          user_id: "u2",
+          timestamp: Date.now(),
+        }),
+        [],
+      );
+
+      const res = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${traceId}`,
+        undefined,
+        auth,
+      );
+      expect(res.body.id).toBe(traceId);
+      expect(res.body.name).toBe("leg-trace");
+    });
   });
 });

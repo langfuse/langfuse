@@ -185,3 +185,15 @@ export function sanitizeEmailSubject(input: string): string {
  * versionZod.parse(undefined) // Returns undefined
  */
 export const versionZod = z.coerce.date().optional();
+
+/**
+ * Zod schema for the `useEventsTable` query parameter on public API endpoints.
+ * Accepts "true"/"false" strings or booleans, preserves undefined when omitted
+ * so callers can distinguish "not set" from "explicitly false".
+ */
+export const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((val) =>
+    val === undefined ? undefined : val === "true" || val === true,
+  );

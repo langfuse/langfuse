@@ -8,6 +8,7 @@ import {
   queryClickhouse,
   measureAndReturn,
   scoresTableUiColumnDefinitions,
+  eventsTraceMetadata,
 } from "@langfuse/shared/src/server";
 import {
   removeObjectKeys,
@@ -88,10 +89,12 @@ export const _handleGenerateScoresForPublicApi = async ({
   props,
   scoreScope,
   scoreDataTypes,
+  useEventsTable = false,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
+  useEventsTable?: boolean;
 }) => {
   const { scoresFilter, tracesFilter } = generateScoreFilter(
     props,
@@ -106,7 +109,12 @@ export const _handleGenerateScoresForPublicApi = async ({
     tracesFilter.length(),
   );
 
+  const { tracesCTEClause, tracesCTEParams } = useEventsTable
+    ? buildEventsTracesCTE(props.projectId, needsTraceJoin)
+    : { tracesCTEClause: "", tracesCTEParams: {} };
+
   const query = `
+      ${tracesCTEClause}
       SELECT
           ${needsTraceJoin ? "t.user_id as user_id, t.tags as tags, t.environment as trace_environment, t.session_id as trace_session_id," : ""}
           s.id as id,
@@ -163,13 +171,18 @@ export const _handleGenerateScoresForPublicApi = async ({
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
+  const operationName = useEventsTable
+    ? "_handleGenerateScoresForPublicApiFromEvents"
+    : "_handleGenerateScoresForPublicApi";
+
   return measureAndReturn({
-    operationName: "_handleGenerateScoresForPublicApi",
+    operationName,
     projectId: props.projectId,
     input: {
       params: {
         ...appliedScoresFilter.params,
         ...appliedTracesFilter.params,
+        ...tracesCTEParams,
         projectId: props.projectId,
         ...(props.limit !== undefined ? { limit: props.limit } : {}),
         ...(props.page !== undefined
@@ -181,7 +194,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
-        operation_name: "_handleGenerateScoresForPublicApi",
+        operation_name: operationName,
         includeTrace: includeTrace.toString(),
       },
     },
@@ -229,10 +242,12 @@ export const _handleGetScoresCountForPublicApi = async ({
   props,
   scoreScope,
   scoreDataTypes,
+  useEventsTable = false,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
+  useEventsTable?: boolean;
 }) => {
   const { scoresFilter, tracesFilter } = generateScoreFilter(
     props,
@@ -247,7 +262,12 @@ export const _handleGetScoresCountForPublicApi = async ({
     tracesFilter.length(),
   );
 
+  const { tracesCTEClause, tracesCTEParams } = useEventsTable
+    ? buildEventsTracesCTE(props.projectId, needsTraceJoin)
+    : { tracesCTEClause: "", tracesCTEParams: {} };
+
   const query = `
+      ${tracesCTEClause}
       SELECT
         count() as count
       FROM
@@ -276,13 +296,18 @@ export const _handleGetScoresCountForPublicApi = async ({
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
+  const operationName = useEventsTable
+    ? "_handleGetScoresCountForPublicApiFromEvents"
+    : "_handleGetScoresCountForPublicApi";
+
   return measureAndReturn({
-    operationName: "_handleGetScoresCountForPublicApi",
+    operationName,
     projectId: props.projectId,
     input: {
       params: {
         ...appliedScoresFilter.params,
         ...appliedTracesFilter.params,
+        ...tracesCTEParams,
         projectId: props.projectId,
       },
       tags: {
@@ -290,7 +315,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
-        operation_name: "_handleGetScoresCountForPublicApi",
+        operation_name: operationName,
         includeTrace: includeTrace.toString(),
       },
     },
@@ -500,4 +525,31 @@ const generateScoreFilter = (
   }
 
   return { scoresFilter, tracesFilter };
+};
+
+/**
+ * Build a traces CTE from the events table for use in scores queries.
+ * Extends the shared eventsTraceMetadata builder with additional columns
+ * needed by the public API response (project_id, environment, session_id).
+ */
+const buildEventsTracesCTE = (
+  projectId: string,
+  needsTraceJoin: boolean,
+): { tracesCTEClause: string; tracesCTEParams: Record<string, unknown> } => {
+  if (!needsTraceJoin) {
+    return { tracesCTEClause: "", tracesCTEParams: {} };
+  }
+
+  const builder = eventsTraceMetadata(projectId).selectRaw(
+    "e.project_id AS project_id",
+    "e.environment AS environment",
+    "e.session_id AS session_id",
+  );
+
+  const { query: cteQuery, params: cteParams } = builder.buildWithParams();
+
+  return {
+    tracesCTEClause: `WITH traces AS (${cteQuery})`,
+    tracesCTEParams: cteParams,
+  };
 };

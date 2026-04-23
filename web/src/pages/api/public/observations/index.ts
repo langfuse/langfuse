@@ -3,8 +3,7 @@ import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
-
+import { shouldUseEventsTable } from "@/src/features/public-api/server/useEventsTable";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
@@ -41,11 +40,10 @@ export default withMiddlewares({
         advancedFilters: query.filter,
       };
 
-      // Use events table if query parameter is explicitly set, otherwise use environment variable
-      const useEventsTable =
-        query.useEventsTable !== undefined && query.useEventsTable !== null
-          ? query.useEventsTable === true
-          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+      const useEventsTable = shouldUseEventsTable({
+        queryParam: query.useEventsTable,
+        orgCreatedAt: auth.scope.orgCreatedAt,
+      });
 
       if (useEventsTable) {
         const [items, count] = await Promise.all([

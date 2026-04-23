@@ -79,10 +79,16 @@ async function main() {
     },
   });
 
+  // createdAt is set to a fixed date before V4_DEFAULT_ENABLED_FROM_AT so the
+  // seeded project uses the legacy (non-events) read path by default.
+  // Tests that need the events path should create a fresh org with a post-cutoff date.
+  const seedOrgCreatedAt = new Date("2024-01-01T00:00:00.000Z");
+
   await prisma.organization.upsert({
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      createdAt: seedOrgCreatedAt,
       cloudConfig: {
         plan: "Team",
       },
@@ -90,6 +96,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      createdAt: seedOrgCreatedAt,
       cloudConfig: {
         plan: "Team",
       },
