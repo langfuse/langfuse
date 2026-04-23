@@ -28,6 +28,22 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
+# Check if CLICKHOUSE_USER is set (required before URL-encoding to avoid the
+# literal string "undefined" being injected into the connection URL).
+if [ -z "${CLICKHOUSE_USER}" ]; then
+  echo "Error: CLICKHOUSE_USER is not set."
+  echo "Please set CLICKHOUSE_USER in your environment variables."
+  exit 1
+fi
+
+# Check if CLICKHOUSE_PASSWORD is set (required before URL-encoding to avoid
+# the literal string "undefined" being injected into the connection URL).
+if [ -z "${CLICKHOUSE_PASSWORD}" ]; then
+  echo "Error: CLICKHOUSE_PASSWORD is not set."
+  echo "Please set CLICKHOUSE_PASSWORD in your environment variables."
+  exit 1
+fi
+
 # URL-encode credentials to handle special characters safely
 ENCODED_CLICKHOUSE_USER=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_USER))")
 ENCODED_CLICKHOUSE_PASSWORD=$(node -e "console.log(encodeURIComponent(process.env.CLICKHOUSE_PASSWORD))")
