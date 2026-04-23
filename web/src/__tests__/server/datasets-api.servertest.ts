@@ -170,6 +170,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+    // Remote experiment fields should not be exposed in public API
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentEnabled");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentUrl");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentPayload");
   });
 
   it("should not return ARCHIVED dataset items when getting a dataset", async () => {
@@ -605,6 +609,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
+    // Remote experiment fields should not be exposed in public API
+    for (const dataset of getDatasetsV2.body.data) {
+      expect(dataset).not.toHaveProperty("remoteExperimentEnabled");
+      expect(dataset).not.toHaveProperty("remoteExperimentUrl");
+      expect(dataset).not.toHaveProperty("remoteExperimentPayload");
+    }
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
