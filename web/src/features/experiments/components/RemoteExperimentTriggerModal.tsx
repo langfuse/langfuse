@@ -71,11 +71,10 @@ export const RemoteExperimentTriggerModal = ({
     api.datasets.triggerRemoteExperiment.useMutation({
       onSuccess: (data) => {
         if (data.success && data.skipped) {
-          showSuccessToast({
-            title: "Remote trigger is disabled",
-            description:
-              "The remote experiment trigger is currently disabled, so no HTTP call was made. Enable it in the trigger settings to fire on Run.",
-          });
+          showErrorToast(
+            "Trigger is disabled",
+            "Enable the trigger in settings to run remote experiments.",
+          );
         } else if (data.success) {
           showSuccessToast({
             title: "Remote experiment triggered",

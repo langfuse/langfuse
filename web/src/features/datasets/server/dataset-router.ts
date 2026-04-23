@@ -1844,6 +1844,7 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          // Reset to true so a future upsert doesn't inherit a stale disabled state
           remoteExperimentEnabled: true,
         },
         projectId: input.projectId,

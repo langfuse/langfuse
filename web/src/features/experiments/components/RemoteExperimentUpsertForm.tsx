@@ -239,11 +239,10 @@ export const RemoteExperimentUpsertForm = ({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <FormLabel>Enable trigger</FormLabel>
+                    <FormLabel>Enabled</FormLabel>
                     <FormDescription>
-                      When disabled, the Run button is hidden and no remote
-                      calls are made. Use this to temporarily pause the trigger
-                      without losing the URL and config.
+                      Temporarily pause the trigger without losing your
+                      configuration.
                     </FormDescription>
                   </div>
                   <FormControl>
