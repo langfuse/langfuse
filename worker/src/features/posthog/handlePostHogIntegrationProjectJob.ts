@@ -275,8 +275,7 @@ export const handlePostHogIntegrationProjectJob = async (
   }
 
   // Resume from lastSyncAt. On first run, fall back to the project's
-  // createdAt since no trace data can precede it — a tight, meaningful lower
-  // bound that lets the day-cap below also bound initial backfills.
+  // createdAt since no trace data can precede it.
   const minTimestamp =
     postHogIntegration.lastSyncAt || postHogIntegration.project.createdAt;
   const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
