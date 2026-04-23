@@ -104,6 +104,10 @@ export const RemoteExperimentUpsertForm = ({
             "The remote dataset run trigger has been removed from this dataset.",
         });
         setShowRemoteExperimentUpsertForm(false);
+        utils.datasets.getRemoteExperiment.invalidate({
+          projectId,
+          datasetId,
+        });
       },
       onError: (error) => {
         showErrorToast(
