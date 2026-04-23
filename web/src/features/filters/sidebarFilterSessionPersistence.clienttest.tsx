@@ -7,9 +7,9 @@ import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQ
 
 const queryParamStore = new Map<string, unknown>();
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   return {
     ...actual,

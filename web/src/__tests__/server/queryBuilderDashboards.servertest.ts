@@ -33,6 +33,7 @@ describe("selfServeDashboards", () => {
     traceCounts: {} as Record<string, number>, // counts by trace name
     environmentCounts: {} as Record<string, number>, // counts by environment
     observationLevelCounts: {} as Record<string, number>, // counts by level
+    availableToolCounts: {} as Record<string, number>, // counts by available tool name
   };
 
   beforeAll(async () => {
@@ -134,6 +135,13 @@ describe("selfServeDashboards", () => {
           completion_start_time: now.getTime() - i * 10000 + 800, // 800ms time to first token
           end_time: now.getTime() - i * 10000 + 3000, // 3000ms total duration
           provided_model_name: "gpt-4-turbo",
+          tool_definitions:
+            i === 0
+              ? {
+                  create_ticket: '{"name":"create_ticket"}',
+                }
+              : {},
+          tool_call_names: i === 0 ? ["create_ticket"] : [],
         }),
       );
     }
@@ -202,6 +210,11 @@ describe("selfServeDashboards", () => {
       const level = observation.level || "DEFAULT";
       stats.observationLevelCounts[level] =
         (stats.observationLevelCounts[level] || 0) + 1;
+
+      Object.keys(observation.tool_definitions ?? {}).forEach((toolName) => {
+        stats.availableToolCounts[toolName] =
+          (stats.availableToolCounts[toolName] || 0) + 1;
+      });
     });
 
     // Count recent production traces (within the last hour)
@@ -593,6 +606,40 @@ describe("selfServeDashboards", () => {
       expect(queryBuilderResult).toHaveLength(1);
       expect(Number(queryBuilderResult[0].count_count)).toBe(
         stats.observationLevelCounts["ERROR"],
+      );
+    });
+
+    it("should support Tool Names (without available/called specified) filters after remapping", async () => {
+      // initially, we forgot to add the distinction and assumed available only
+      const legacyFilters: Parameters<typeof mapLegacyUiTableFilterToView>[1] =
+        [
+          {
+            column: "Tool Names",
+            operator: "any of",
+            value: ["create_ticket"],
+            type: "arrayOptions",
+          },
+        ];
+
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: mapLegacyUiTableFilterToView("observations", legacyFilters),
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      expect(queryBuilderResult).toHaveLength(1);
+      expect(Number(queryBuilderResult[0].count_count)).toBe(
+        stats.availableToolCounts["create_ticket"],
       );
     });
   });
