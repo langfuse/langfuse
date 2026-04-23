@@ -39,13 +39,20 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       })
     : undefined;
 
+  const initCreatedAt = env.LANGFUSE_INIT_ORG_CREATED_AT
+    ? new Date(env.LANGFUSE_INIT_ORG_CREATED_AT)
+    : undefined;
+
   const org = await prisma.organization.upsert({
     where: { id: env.LANGFUSE_INIT_ORG_ID },
-    update: {},
+    update: {
+      ...(initCreatedAt ? { createdAt: initCreatedAt } : {}),
+    },
     create: {
       id: env.LANGFUSE_INIT_ORG_ID,
       name: env.LANGFUSE_INIT_ORG_NAME ?? "Provisioned Org",
       cloudConfig,
+      ...(initCreatedAt ? { createdAt: initCreatedAt } : {}),
     },
   });
 
