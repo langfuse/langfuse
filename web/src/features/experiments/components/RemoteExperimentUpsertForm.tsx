@@ -241,8 +241,9 @@ export const RemoteExperimentUpsertForm = ({
                   <div className="space-y-0.5">
                     <FormLabel>Enabled</FormLabel>
                     <FormDescription>
-                      Temporarily pause the trigger without losing your
-                      configuration.
+                      {field.value
+                        ? "Trigger is active. You can disable anytime to pause without losing your configuration."
+                        : "Trigger is paused. Enable to allow running remote experiments."}
                     </FormDescription>
                   </div>
                   <FormControl>

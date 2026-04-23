@@ -74,6 +74,7 @@ export const RemoteExperimentTriggerModal = ({
           showErrorToast(
             "Trigger is disabled",
             "Enable the trigger in settings to run remote experiments.",
+            "WARNING",
           );
         } else if (data.success) {
           showSuccessToast({
