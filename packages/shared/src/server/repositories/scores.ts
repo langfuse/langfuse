@@ -2281,6 +2281,7 @@ export const getScoreCountsByProjectAndDay = async ({
       endDate: convertDateToClickhouseDateTime(endDate),
       dataTypes: LISTABLE_SCORE_TYPES,
     },
+    clickhouseConfigs: { request_timeout: 120_000 },
     tags: {
       feature: "tracing",
       type: "score",
