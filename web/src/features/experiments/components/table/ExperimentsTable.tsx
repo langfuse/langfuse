@@ -246,6 +246,7 @@ export default function ExperimentsTable({
     projectId,
     tableName: "experiments",
     setSelectedRows,
+    setSelectAll: () => {}, // Experiments table doesn't support select-all
   });
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [

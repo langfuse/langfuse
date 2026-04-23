@@ -470,6 +470,7 @@ export default function ExperimentItemsTable({
       projectId,
       tableName: "experiment-items",
       setSelectedRows,
+      setSelectAll,
     },
   );
 

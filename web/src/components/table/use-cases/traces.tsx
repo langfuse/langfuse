@@ -491,6 +491,7 @@ export default function TracesTable({
     projectId,
     tableName: "traces",
     setSelectedRows,
+    setSelectAll,
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({

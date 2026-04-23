@@ -428,6 +428,7 @@ export default function ScoresTable({
     projectId,
     tableName: "scores",
     setSelectedRows,
+    setSelectAll,
   });
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [

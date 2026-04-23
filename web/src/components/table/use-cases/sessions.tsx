@@ -403,6 +403,7 @@ export default function SessionsTable({
     projectId,
     tableName: "sessions",
     setSelectedRows,
+    setSelectAll,
   });
 
   const handleAddToAnnotationQueue = async ({

@@ -5,21 +5,20 @@ import {
   type Row,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 
 interface TableSelectionManagerProps {
   projectId: string;
   tableName: string;
   setSelectedRows: (rows: RowSelectionState) => void;
+  setSelectAll: (value: boolean) => void;
 }
 
 export function TableSelectionManager<TData>({
-  projectId,
-  tableName,
+  projectId: _projectId,
+  tableName: _tableName,
   setSelectedRows,
+  setSelectAll,
 }: TableSelectionManagerProps) {
-  const { setSelectAll } = useSelectAll(projectId, tableName);
-
   return {
     selectActionColumn: {
       id: "select",

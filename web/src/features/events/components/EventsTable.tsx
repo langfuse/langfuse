@@ -518,6 +518,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: "observations",
     setSelectedRows,
+    setSelectAll,
   });
 
   const tableActions: TableAction[] = [

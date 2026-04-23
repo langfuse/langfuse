@@ -119,6 +119,7 @@ export function TableActionMenu({
         <TableActionDialog
           isOpen={isDialogOpen}
           onClose={handleClose}
+          onSuccess={onClearSelection}
           action={selectedAction}
           projectId={projectId}
           tableName={tableName}
