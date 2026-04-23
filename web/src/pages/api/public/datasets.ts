@@ -72,7 +72,6 @@ export default withMiddlewares({
           createdAt: true,
           updatedAt: true,
           id: true,
-          remoteExperimentEnabled: true,
           datasetRuns: {
             select: {
               name: true,

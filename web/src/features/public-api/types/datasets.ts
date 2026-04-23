@@ -30,7 +30,6 @@ const APIDataset = z
     expectedOutputSchema: z.any().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
-    remoteExperimentEnabled: z.boolean(),
   })
   .strict();
 
@@ -113,7 +112,11 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
 ): z.infer<typeof APIDataset> =>
-  removeObjectKeys(dataset, ["remoteExperimentUrl", "remoteExperimentPayload"]);
+  removeObjectKeys(dataset, [
+    "remoteExperimentUrl",
+    "remoteExperimentPayload",
+    "remoteExperimentEnabled",
+  ]);
 
 /**
  * Endpoints
