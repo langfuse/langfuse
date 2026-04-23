@@ -243,7 +243,7 @@ export const handlePostHogIntegrationProjectJob = async (
     },
     include: {
       project: {
-        select: { name: true },
+        select: { name: true, createdAt: true },
       },
     },
   });
@@ -274,30 +274,29 @@ export const handlePostHogIntegrationProjectJob = async (
     );
   }
 
-  // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-  const minTimestamp = postHogIntegration.lastSyncAt || new Date("2000-01-01");
+  // Resume from lastSyncAt. On first run, fall back to the project's
+  // createdAt since no trace data can precede it — a tight, meaningful lower
+  // bound that lets the day-cap below also bound initial backfills.
+  const minTimestamp =
+    postHogIntegration.lastSyncAt || postHogIntegration.project.createdAt;
   const uncappedMaxTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
 
-  // When resuming from a prior sync, cap maxTimestamp at the next UTC day
-  // boundary. Bounds per-run work if an integration has been stuck (otherwise
-  // retries re-scan an ever-growing window) and aligns with the toDate(...)
-  // ClickHouse partition/ordering keys for better pruning. Healthy
-  // integrations are unaffected because uncappedMaxTimestamp wins when the
-  // sync is within one day. Initial backfills (no lastSyncAt) skip the cap
-  // because stepping day-by-day from 2000-01-01 would be pathological.
-  let maxTimestamp = uncappedMaxTimestamp;
-  if (postHogIntegration.lastSyncAt) {
-    const nextDayBoundary = new Date(
-      Date.UTC(
-        minTimestamp.getUTCFullYear(),
-        minTimestamp.getUTCMonth(),
-        minTimestamp.getUTCDate() + 1,
-      ),
-    );
-    maxTimestamp = new Date(
-      Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
-    );
-  }
+  // Cap maxTimestamp at the next UTC day boundary after minTimestamp. Bounds
+  // per-run work so a stuck integration (or a backfill on an older project)
+  // does not re-scan an ever-growing window on each hourly retry, and aligns
+  // with the toDate(...) ClickHouse partition/ordering keys for better
+  // pruning. Healthy integrations are unaffected because uncappedMaxTimestamp
+  // wins whenever the sync is within one day of present.
+  const nextDayBoundary = new Date(
+    Date.UTC(
+      minTimestamp.getUTCFullYear(),
+      minTimestamp.getUTCMonth(),
+      minTimestamp.getUTCDate() + 1,
+    ),
+  );
+  const maxTimestamp = new Date(
+    Math.min(nextDayBoundary.getTime(), uncappedMaxTimestamp.getTime()),
+  );
 
   if (maxTimestamp <= minTimestamp) {
     logger.info(
