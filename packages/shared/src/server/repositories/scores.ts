@@ -2083,7 +2083,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
     LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
-    AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND s.timestamp < {maxTimestamp: DateTime64(3)}
     AND s.data_type IN ({dataTypes: Array(String)})
     AND (
       s.trace_id IS NOT NULL

@@ -1907,7 +1907,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
     WHERE o.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}
-    AND o.start_time <= {maxTimestamp: DateTime64(3)}
+    AND o.start_time < {maxTimestamp: DateTime64(3)}
     AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
     AND t.timestamp <= {maxTimestamp: DateTime64(3)}
     AND o.type = 'GENERATION'
