@@ -1427,6 +1427,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
       AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+      AND o.start_time < {maxTimestamp: DateTime64(3)} + ${OBSERVATIONS_TO_TRACE_INTERVAL}
       GROUP BY o.project_id, o.trace_id
     )
 
