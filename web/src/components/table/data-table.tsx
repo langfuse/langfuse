@@ -240,7 +240,7 @@ export function DataTable<TData extends object, TValue>({
       columnOrder: columnOrder
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
-      rowSelection,
+      rowSelection: rowSelection ?? {},
       columnSizing,
       columnPinning,
     },
