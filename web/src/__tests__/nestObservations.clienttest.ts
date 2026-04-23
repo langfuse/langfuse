@@ -1,5 +1,5 @@
 // Mock shared dependencies
-jest.mock("@langfuse/shared", () => ({
+vi.mock("@langfuse/shared", () => ({
   ObservationLevel: {
     DEBUG: "DEBUG",
     DEFAULT: "DEFAULT",

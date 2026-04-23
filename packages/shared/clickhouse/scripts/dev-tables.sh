@@ -457,6 +457,52 @@ SELECT
     is_deleted
 FROM events_full;
 
+-- Diagnostic table to track event size distributions across projects.
+-- Every insert (including updates) produces a row — no deduplication.
+-- See LFE-9402 for context.
+CREATE TABLE IF NOT EXISTS ingestion_size_stats (
+    project_id String,
+    trace_id String,
+    span_id String,
+    created_at DateTime64(3),
+    input_size UInt64,
+    output_size UInt64,
+    metadata_size UInt64,
+    total_size UInt64
+) ENGINE = MergeTree
+PRIMARY KEY (toStartOfHour(created_at), project_id)
+ORDER BY (toStartOfHour(created_at), project_id, trace_id, span_id, created_at);
+
+-- MV: observations -> ingestion_size_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS ingestion_size_stats_observations_mv
+TO ingestion_size_stats AS
+SELECT
+    project_id,
+    trace_id,
+    id AS span_id,
+    created_at,
+    length(coalesce(input, '')) AS input_size,
+    length(coalesce(output, '')) AS output_size,
+    arraySum(arrayMap(k -> length(k), mapKeys(metadata)))
+      + arraySum(arrayMap(v -> length(v), mapValues(metadata))) AS metadata_size,
+    byteSize(*) AS total_size
+FROM observations;
+
+-- MV: traces -> ingestion_size_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS ingestion_size_stats_traces_mv
+TO ingestion_size_stats AS
+SELECT
+    project_id,
+    id AS trace_id,
+    concat('t-', id) AS span_id,
+    created_at,
+    length(coalesce(input, '')) AS input_size,
+    length(coalesce(output, '')) AS output_size,
+    arraySum(arrayMap(k -> length(k), mapKeys(metadata)))
+      + arraySum(arrayMap(v -> length(v), mapValues(metadata))) AS metadata_size,
+    byteSize(*) AS total_size
+FROM traces;
+
 CREATE VIEW analytics_events_core AS
 SELECT
   project_id,

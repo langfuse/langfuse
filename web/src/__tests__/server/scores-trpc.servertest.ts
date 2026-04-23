@@ -1,19 +1,17 @@
-/** @jest-environment node */
+const mockAddScoreDelete = vi.fn();
+const mockAddBatchAction = vi.fn();
 
-const mockAddScoreDelete = jest.fn();
-const mockAddBatchAction = jest.fn();
-
-jest.mock("@langfuse/shared/src/server", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const originalModule = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...originalModule,
     ScoreDeleteQueue: {
-      getInstance: jest.fn(() => ({
+      getInstance: vi.fn(() => ({
         add: mockAddScoreDelete,
       })),
     },
     BatchActionQueue: {
-      getInstance: jest.fn(() => ({
+      getInstance: vi.fn(() => ({
         add: mockAddBatchAction,
       })),
     },

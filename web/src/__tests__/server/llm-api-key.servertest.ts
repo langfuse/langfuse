@@ -1,10 +1,8 @@
-/** @jest-environment node */
-
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: jest.fn(),
+    fetchLLMCompletion: vi.fn(),
   };
 });
 
@@ -21,7 +19,7 @@ import {
   fetchLLMCompletion,
 } from "@langfuse/shared/src/server";
 
-const mockFetchLLMCompletion = jest.mocked(fetchLLMCompletion);
+const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;

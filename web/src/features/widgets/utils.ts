@@ -13,6 +13,43 @@ export type WidgetChartConfig = {
   };
 };
 
+type PivotSortMetric = {
+  measure: string;
+  agg: string;
+};
+
+type PivotSortDimension = {
+  field: string;
+};
+
+type PivotDefaultSort = NonNullable<WidgetChartConfig["defaultSort"]>;
+
+/**
+ * Old widgets can retain stale pivot defaultSort fields after metrics or
+ * dimensions change. Ignore those persisted sort keys instead of letting them
+ * reach QueryBuilder as invalid orderBy columns.
+ */
+export function sanitizePivotTableDefaultSort(
+  defaultSort: WidgetChartConfig["defaultSort"] | undefined,
+  params: {
+    dimensions: PivotSortDimension[];
+    metrics: PivotSortMetric[];
+  },
+): PivotDefaultSort | undefined {
+  if (!defaultSort) {
+    return undefined;
+  }
+
+  const validDimensionSort = params.dimensions.some(
+    (dimension) => dimension.field === defaultSort.column,
+  );
+  const validMetricSort = params.metrics.some(
+    (metric) => `${metric.agg}_${metric.measure}` === defaultSort.column,
+  );
+
+  return validDimensionSort || validMetricSort ? defaultSort : undefined;
+}
+
 /**
  * Formats a metric name for display, handling special cases like count_count -> Count
  */

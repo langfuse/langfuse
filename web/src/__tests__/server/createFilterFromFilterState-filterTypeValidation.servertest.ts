@@ -148,6 +148,36 @@ describe("createFilterFromFilterState filter type validation", () => {
     ).toThrow(InvalidRequestError);
   });
 
+  it("matches UiColumnMapping aliases during backend filter resolution", () => {
+    const [result] = createFilterFromFilterState(
+      [
+        {
+          column: "Tool Names",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["create_ticket"],
+        },
+      ],
+      [
+        {
+          uiTableName: "Tool Names (Available)",
+          uiTableId: "toolNames",
+          aliases: ["Tool Names"],
+          clickhouseTableName: "observations",
+          clickhouseSelect: "mapKeys(tool_definitions)",
+        },
+      ],
+    );
+
+    const { query, params } = result.apply();
+    expect(query).toContain("mapKeys(tool_definitions)");
+    expect(params).toEqual(
+      expect.objectContaining({
+        [Object.keys(params)[0]]: ["create_ticket"],
+      }),
+    );
+  });
+
   it.each([
     {
       scenario: "matching filter type",

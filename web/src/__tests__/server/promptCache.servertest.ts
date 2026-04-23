@@ -1,3 +1,4 @@
+import type { Mock, Mocked } from "vitest";
 import { type PrismaClient, type Prompt } from "@prisma/client";
 import { PromptService, type redis } from "@langfuse/shared/src/server"; // Adjust the import path as needed
 
@@ -5,9 +6,9 @@ type Redis = NonNullable<typeof redis>;
 
 describe("PromptService", () => {
   let promptService: PromptService;
-  let mockPrisma: jest.Mocked<PrismaClient>;
-  let mockRedis: jest.Mocked<Redis>;
-  let mockMetricIncrementer: jest.Mock;
+  let mockPrisma: Mocked<PrismaClient>;
+  let mockRedis: Mocked<Redis>;
+  let mockMetricIncrementer: Mock;
 
   const mockPrompt: Omit<Prompt, "updatedAt" | "createdAt"> & {
     resolutionGraph: null;
@@ -30,20 +31,20 @@ describe("PromptService", () => {
   beforeEach(() => {
     mockPrisma = {
       prompt: {
-        findFirst: jest.fn(),
+        findFirst: vi.fn(),
       },
       promptDependency: {
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: vi.fn().mockResolvedValue([]),
       },
-    } as unknown as jest.Mocked<PrismaClient>;
+    } as unknown as Mocked<PrismaClient>;
 
     mockRedis = {
-      get: jest.fn().mockResolvedValue("epoch-1"),
-      set: jest.fn(),
-      del: jest.fn(),
-    } as unknown as jest.Mocked<Redis>;
+      get: vi.fn().mockResolvedValue("epoch-1"),
+      set: vi.fn(),
+      del: vi.fn(),
+    } as unknown as Mocked<Redis>;
 
-    mockMetricIncrementer = jest.fn();
+    mockMetricIncrementer = vi.fn();
 
     promptService = new PromptService(
       mockPrisma,

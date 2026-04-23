@@ -1,4 +1,3 @@
-/** @jest-environment node */
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createDefaultSpendAlerts } from "@/src/ee/features/billing/server/stripeWebhookHandler";

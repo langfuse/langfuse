@@ -803,7 +803,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          const isCloudDeployment = Boolean(
+          const isCloudDeploymentOrDev = Boolean(
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
           );
 
@@ -828,10 +828,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: isCloudDeployment
+                    v4BetaEnabled: isCloudDeploymentOrDev
                       ? dbUser.v4BetaEnabled
                       : false,
-                    canToggleV4: isCloudDeployment
+                    canToggleV4: isCloudDeploymentOrDev
                       ? canToggleV4({
                           userCreatedAt: dbUser.createdAt,
                           organizations: dbUser.organizationMemberships.map(

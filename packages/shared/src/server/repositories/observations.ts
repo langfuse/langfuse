@@ -23,6 +23,7 @@ import {
   observationsTableUiColumnDefinitions,
 } from "../tableMappings";
 import { OrderByState } from "../../interfaces/orderBy";
+import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
@@ -704,15 +705,14 @@ const getObservationsTableInternal = async <T>(
 
   // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
   const traceTableFilter = filter.filter((f) =>
-    observationsTableTraceUiColumnDefinitions.some(
-      (c) => c.uiTableId === f.column || c.uiTableName === f.column,
+    observationsTableTraceUiColumnDefinitions.some((c) =>
+      matchesUiColumnMapping(c, f.column),
     ),
   );
 
   const orderByTraces = orderBy
-    ? observationsTableTraceUiColumnDefinitions.some(
-        (c) =>
-          c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
+    ? observationsTableTraceUiColumnDefinitions.some((c) =>
+        matchesUiColumnMapping(c, orderBy.column),
       )
     : undefined;
 
@@ -1418,6 +1418,10 @@ export const deleteObservationsOlderThanDays = async (
 export const getObservationsWithPromptName = async (
   projectId: string,
   promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
   SELECT uniq(id) as count, prompt_name
@@ -1425,6 +1429,8 @@ export const getObservationsWithPromptName = async (
   WHERE project_id = {projectId: String}
   AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name IS NOT NULL
+  ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+  ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
   GROUP BY prompt_name
 `;
   const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
@@ -1432,6 +1438,12 @@ export const getObservationsWithPromptName = async (
     params: {
       projectId,
       promptNames,
+      fromTimestamp: fromTimestamp
+        ? convertDateToClickhouseDateTime(fromTimestamp)
+        : undefined,
+      toTimestamp: toTimestamp
+        ? convertDateToClickhouseDateTime(toTimestamp)
+        : undefined,
     },
     tags: {
       feature: "tracing",
@@ -1450,6 +1462,10 @@ export const getObservationsWithPromptName = async (
 export const getObservationMetricsForPrompts = async (
   projectId: string,
   promptIds: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
       WITH latencies AS
@@ -1468,6 +1484,8 @@ export const getObservationMetricsForPrompts = async (
               AND (prompt_name IS NOT NULL)
               AND project_id={projectId: String}
               AND prompt_id IN ({promptIds: Array(String)})
+              ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+              ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(3)}" : ""}
           )
       SELECT
           count(*) AS count,
@@ -1500,6 +1518,12 @@ export const getObservationMetricsForPrompts = async (
     params: {
       projectId,
       promptIds,
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
