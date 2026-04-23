@@ -1449,7 +1449,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
     LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
     WHERE t.project_id = {projectId: String}
     AND t.timestamp >= {minTimestamp: DateTime64(3)}
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp < {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
