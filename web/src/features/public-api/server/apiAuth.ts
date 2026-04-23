@@ -187,6 +187,7 @@ export class ApiAuthService {
                 projectId: finalApiKey.projectId,
                 accessLevel,
                 orgId: finalApiKey.orgId,
+                orgCreatedAt: finalApiKey.orgCreatedAt,
                 plan: plan,
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
@@ -211,6 +212,11 @@ export class ApiAuthService {
             const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
               this.extractOrgIdAndCloudConfig(dbKey);
 
+            const bearerOrgCreatedAt =
+              dbKey.project?.organization.createdAt ??
+              dbKey.organization?.createdAt ??
+              null;
+
             addUserToSpan({
               projectId: dbKey.projectId ?? undefined,
               orgId,
@@ -223,6 +229,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores",
                 orgId,
+                orgCreatedAt: bearerOrgCreatedAt?.toISOString() ?? null,
                 plan: getOrganizationPlanServerSide(cloudConfig),
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
@@ -472,10 +479,16 @@ export class ApiAuthService {
     const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
       this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
+    const orgCreatedAt =
+      apiKeyAndOrganisation.project?.organization.createdAt ??
+      apiKeyAndOrganisation.organization?.createdAt ??
+      null;
+
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,
+      orgCreatedAt: orgCreatedAt?.toISOString() ?? null,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",

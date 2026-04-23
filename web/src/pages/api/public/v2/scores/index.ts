@@ -7,6 +7,7 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { shouldUseEventsTable } from "@/src/features/public-api/server/useEventsTable";
 import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -60,9 +61,21 @@ export default withMiddlewares({
         advancedFilters: query.filter,
       };
       const scoresApiService = new ScoresApiService("v2");
+
+      const useEventsTable = shouldUseEventsTable({
+        queryParam: query.useEventsTable,
+        orgCreatedAt: auth.scope.orgCreatedAt,
+      });
+
       const [items, count] = await Promise.all([
-        scoresApiService.generateScoresForPublicApi(scoreParams),
-        scoresApiService.getScoresCountForPublicApi(scoreParams),
+        scoresApiService.generateScoresForPublicApi(
+          scoreParams,
+          useEventsTable,
+        ),
+        scoresApiService.getScoresCountForPublicApi(
+          scoreParams,
+          useEventsTable,
+        ),
       ]);
 
       const finalCount = count ? count : 0;

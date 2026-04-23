@@ -13,9 +13,14 @@ export function createBasicAuthHeader(
   return `Basic ${base64Credentials}`;
 }
 
+// Default org createdAt for test orgs — before V4_DEFAULT_ENABLED_FROM_AT
+// so tests use the legacy read path unless explicitly overridden.
+const DEFAULT_TEST_ORG_CREATED_AT = new Date("2024-01-01T00:00:00.000Z");
+
 export type CreateOrgProjectAndApiKeyOptions = {
   projectId?: string;
   plan?: "Team" | "Hobby" | "Core" | "Pro" | "Enterprise";
+  orgCreatedAt?: Date;
 };
 export const createOrgProjectAndApiKey = async (
   props?: CreateOrgProjectAndApiKeyOptions,
@@ -25,6 +30,7 @@ export const createOrgProjectAndApiKey = async (
     data: {
       id: v4(),
       name: v4(),
+      createdAt: props?.orgCreatedAt ?? DEFAULT_TEST_ORG_CREATED_AT,
       cloudConfig: CloudConfigSchema.parse({
         plan: props?.plan ?? "Team",
       }),

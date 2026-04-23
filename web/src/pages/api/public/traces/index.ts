@@ -27,6 +27,7 @@ import {
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
+import { shouldUseEventsTable } from "@/src/features/public-api/server/useEventsTable";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -119,11 +120,10 @@ export default withMiddlewares({
         toTimestamp: query.toTimestamp ?? undefined,
       };
 
-      // Use events table if query parameter is explicitly set, otherwise use environment variable
-      const useEventsTable =
-        query.useEventsTable !== undefined && query.useEventsTable !== null
-          ? query.useEventsTable === true
-          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+      const useEventsTable = shouldUseEventsTable({
+        queryParam: query.useEventsTable,
+        orgCreatedAt: auth.scope.orgCreatedAt,
+      });
 
       if (useEventsTable) {
         const [items, count] = await Promise.all([

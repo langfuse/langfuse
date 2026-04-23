@@ -192,7 +192,4 @@ export const query = z
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
   );
 
-export const useEventsTableSchema = z
-  .union([z.literal("true"), z.literal("false"), z.boolean()])
-  .optional()
-  .transform((val) => val === "true" || val === true);
+export { useEventsTableSchema } from "@langfuse/shared";

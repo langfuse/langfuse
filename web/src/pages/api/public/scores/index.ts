@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { shouldUseEventsTable } from "@/src/features/public-api/server/useEventsTable";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -61,6 +62,11 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
 
+      const useEventsTable = shouldUseEventsTable({
+        queryParam: query.useEventsTable,
+        orgCreatedAt: auth.scope.orgCreatedAt,
+      });
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -81,8 +87,14 @@ export default withMiddlewares({
         advancedFilters: query.filter,
       };
       const [items, count] = await Promise.all([
-        scoresApiService.generateScoresForPublicApi(scoreParams),
-        scoresApiService.getScoresCountForPublicApi(scoreParams),
+        scoresApiService.generateScoresForPublicApi(
+          scoreParams,
+          useEventsTable,
+        ),
+        scoresApiService.getScoresCountForPublicApi(
+          scoreParams,
+          useEventsTable,
+        ),
       ]);
 
       const finalCount = count ? count : 0;
