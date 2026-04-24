@@ -62,6 +62,7 @@ export const VariableMappingCard = ({
   disabled = false,
   shouldWrapVariables = false,
   hideAdvancedSettings = false,
+  isNewCompatible = true,
 }: {
   projectId: string;
   availableVariables:
@@ -73,6 +74,7 @@ export const VariableMappingCard = ({
   disabled?: boolean;
   shouldWrapVariables?: boolean;
   hideAdvancedSettings?: boolean;
+  isNewCompatible?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPreviewIds, setSelectedPreviewIds] = useState<{
@@ -102,10 +104,14 @@ export const VariableMappingCard = ({
   );
 
   useEffect(() => {
-    if (isTraceOrEventTarget(form.getValues("target")) && !disabled) {
+    const target = form.getValues("target");
+    // Disable preview for event targets when user is not on OTEL SDK
+    const shouldDisableForNonOtel = isEventTarget(target) && !isNewCompatible;
+
+    if (isTraceOrEventTarget(target) && !disabled && !shouldDisableForNonOtel) {
       setShowPreview(true);
     } else {
-      // For dataset and experiment targets, disable preview
+      // For dataset and experiment targets, or event targets without OTEL SDK
       setShowPreview(false);
     }
 
@@ -113,7 +119,7 @@ export const VariableMappingCard = ({
       setSelectedPreviewIds(undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled, isPeekView]);
+  }, [form.watch("target"), disabled, isPeekView, isNewCompatible]);
 
   useEffect(() => {
     if (isPeekView) {
@@ -121,9 +127,15 @@ export const VariableMappingCard = ({
     }
   }, [isPeekView, peekId]);
 
+  // Hide preview controls for event targets when user is not on OTEL SDK
+  const shouldShowPreviewControls =
+    isTraceOrEventTarget(form.watch("target")) &&
+    !disabled &&
+    !(isEventTarget(form.watch("target")) && !isNewCompatible);
+
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
-      {isTraceOrEventTarget(form.watch("target")) && !disabled && (
+      {shouldShowPreviewControls && (
         <>
           <span className="text-muted-foreground text-xs">Preview</span>
           <Switch
