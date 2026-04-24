@@ -31,7 +31,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
+import { usdFormatter, millisecondFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -735,7 +735,7 @@ export default function ExperimentItemsTable({
             colorExperimentIds={colorExperimentIds}
             renderValue={(exp) =>
               exp.latencyMs != null ? (
-                <span>{latencyFormatter(exp.latencyMs)}</span>
+                <span>{millisecondFormatter(exp.latencyMs)}</span>
               ) : undefined
             }
           />

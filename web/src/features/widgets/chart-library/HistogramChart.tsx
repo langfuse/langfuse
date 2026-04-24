@@ -2,6 +2,7 @@ import React from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -18,9 +19,16 @@ interface HistogramDataPoint {
 
 const HistogramChart = ({
   data,
+  config = {
+    count: {
+      label: "Count",
+      color: "hsl(var(--chart-1))",
+    },
+  },
   subtleFill = false,
 }: {
   data: DataPoint[];
+  config?: ChartConfig;
   subtleFill?: boolean;
 }) => {
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
@@ -49,14 +57,6 @@ const HistogramChart = ({
   };
 
   const histogramData = transformHistogramData(data);
-
-  // Chart configuration
-  const config = {
-    count: {
-      label: "Count",
-      color: "hsl(var(--chart-1))",
-    },
-  };
 
   if (!histogramData.length) {
     return (

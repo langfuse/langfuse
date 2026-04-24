@@ -146,6 +146,11 @@ export const TracesBarListChart = ({
             <Chart
               chartType="HORIZONTAL_BAR"
               data={barListToDataPoints(adjustedData)}
+              config={{
+                metric: {
+                  label: "Traces",
+                },
+              }}
               rowLimit={maxNumberOfEntries.expanded}
               chartConfig={{
                 type: "HORIZONTAL_BAR",

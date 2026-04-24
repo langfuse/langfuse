@@ -71,6 +71,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
+  getWidgetMetricPresentation,
   sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import {
@@ -1069,6 +1070,24 @@ export function WidgetForm({
     ],
   );
 
+  const chartPresentation = useMemo(() => {
+    if (selectedChartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric: { measure: selectedMeasure, agg: selectedAggregation },
+      view: selectedView,
+      version: viewVersion,
+    });
+  }, [
+    selectedAggregation,
+    selectedChartType,
+    selectedMeasure,
+    selectedView,
+    viewVersion,
+  ]);
+
   const handleSaveWidget = () => {
     if (!queryValidation.valid) {
       showErrorToast("Invalid query", queryValidation.reason);
@@ -1970,6 +1989,15 @@ export function WidgetForm({
                 <Chart
                   chartType={selectedChartType as DashboardWidgetChartType}
                   data={transformedData}
+                  config={
+                    chartPresentation
+                      ? {
+                          metric: {
+                            label: chartPresentation.label,
+                          },
+                        }
+                      : undefined
+                  }
                   rowLimit={rowLimit}
                   chartConfig={
                     selectedChartType === "PIVOT_TABLE"
@@ -2003,6 +2031,7 @@ export function WidgetForm({
                   }
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
+                  valueFormatter={chartPresentation?.valueFormatter}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

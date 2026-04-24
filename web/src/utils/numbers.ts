@@ -46,7 +46,7 @@ export const numberFormatter = (
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (milliseconds?: number) => {
+export const millisecondFormatter = (milliseconds?: number) => {
   return Intl.NumberFormat("en-US", {
     style: "unit",
     unit: "second",

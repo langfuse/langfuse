@@ -24,7 +24,7 @@ export const createTracesTimeFilter = (
   });
 };
 
-export const totalCostDashboardFormatted = (totalCost?: number) => {
+export const costFormatter = (totalCost?: number) => {
   return totalCost
     ? totalCost < 5
       ? usdFormatter(totalCost, 2, 6)

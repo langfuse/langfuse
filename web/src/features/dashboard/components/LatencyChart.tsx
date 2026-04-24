@@ -6,7 +6,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { latencyFormatter } from "@/src/utils/numbers";
+import { millisecondFormatter } from "@/src/utils/numbers";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
@@ -193,12 +193,17 @@ export const GenerationLatencyChart = ({
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
+                      config={{
+                        metric: {
+                          label: "Seconds",
+                        },
+                      }}
                       rowLimit={100}
                       chartConfig={{
                         type: "LINE_TIME_SERIES",
                         show_data_point_dots: false,
                       }}
-                      valueFormatter={latencyFormatter}
+                      valueFormatter={millisecondFormatter}
                       legendPosition="above"
                     />
                   </div>

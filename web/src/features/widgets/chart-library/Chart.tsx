@@ -14,12 +14,19 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
+import { type ChartConfig } from "@/src/components/ui/chart";
+
+const DEFAULT_METRIC_THEME = {
+  light: "hsl(var(--chart-1))",
+  dark: "hsl(var(--chart-1))",
+} as const;
 
 export const Chart = ({
   chartType,
   data,
   rowLimit,
   chartConfig,
+  config,
   sortState,
   onSortChange,
   isLoading = false,
@@ -41,6 +48,7 @@ export const Chart = ({
     show_data_point_dots?: boolean;
     subtle_fill?: boolean;
   };
+  config?: ChartConfig;
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
@@ -84,12 +92,33 @@ export const Chart = ({
     });
   }, [data]);
 
+  const resolvedConfig = useMemo(() => {
+    if (!config) return undefined;
+
+    return Object.fromEntries(
+      Object.entries(config).map(([key, value]) => {
+        if (value.theme || value.color) {
+          return [key, value];
+        }
+
+        return [
+          key,
+          {
+            ...value,
+            theme: DEFAULT_METRIC_THEME,
+          },
+        ];
+      }),
+    ) as ChartConfig;
+  }, [config]);
+
   const renderChart = () => {
     switch (chartType) {
       case "LINE_TIME_SERIES":
         return (
           <LineChartTimeSeries
             data={renderedData}
+            config={resolvedConfig}
             valueFormatter={valueFormatter}
             legendPosition={legendPosition}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
@@ -99,6 +128,7 @@ export const Chart = ({
         return (
           <AreaChartTimeSeries
             data={renderedData}
+            config={resolvedConfig}
             valueFormatter={valueFormatter}
             legendPosition={legendPosition}
             subtleFill={chartConfig?.subtle_fill}
@@ -108,6 +138,7 @@ export const Chart = ({
         return (
           <VerticalBarChartTimeSeries
             data={renderedData}
+            config={resolvedConfig}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -116,6 +147,7 @@ export const Chart = ({
         return (
           <HorizontalBarChart
             data={renderedData.slice(0, rowLimit)}
+            config={resolvedConfig}
             showValueLabels={chartConfig?.show_value_labels}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
@@ -125,6 +157,7 @@ export const Chart = ({
         return (
           <VerticalBarChart
             data={renderedData.slice(0, rowLimit)}
+            config={resolvedConfig}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -133,6 +166,7 @@ export const Chart = ({
         return (
           <PieChart
             data={renderedData.slice(0, rowLimit)}
+            config={resolvedConfig}
             valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -141,11 +175,12 @@ export const Chart = ({
         return (
           <HistogramChart
             data={renderedData}
+            config={resolvedConfig}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {
-        return <BigNumber data={renderedData} />;
+        return <BigNumber data={renderedData} config={resolvedConfig} />;
       }
       case "PIVOT_TABLE": {
         // Extract pivot table configuration from chartConfig

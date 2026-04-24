@@ -24,6 +24,7 @@ import {
   formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
+  getWidgetMetricPresentation,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -296,6 +297,23 @@ export function DashboardWidget({
     });
   }, [queryResult.data, widget.data]);
 
+  const chartPresentation = useMemo(() => {
+    if (!widget.data || widget.data.chartType === "PIVOT_TABLE") {
+      return undefined;
+    }
+
+    const metric = widget.data.metrics[0];
+    if (!metric) {
+      return undefined;
+    }
+
+    return getWidgetMetricPresentation({
+      metric,
+      view: widget.data.view,
+      version: metricsVersion,
+    });
+  }, [metricsVersion, widget.data]);
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -426,6 +444,15 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
+              config={
+                chartPresentation
+                  ? {
+                      metric: {
+                        label: chartPresentation.label,
+                      },
+                    }
+                  : undefined
+              }
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -451,6 +478,7 @@ export function DashboardWidget({
                 widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
               }
               isLoading={queryResult.isPending}
+              valueFormatter={chartPresentation?.valueFormatter}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}
