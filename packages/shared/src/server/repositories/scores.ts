@@ -621,6 +621,12 @@ export type GetScoresForObservationsProps<
 > = {
   projectId: string;
   observationIds: string[];
+  /**
+   * When provided, adds `AND s.timestamp >= minTimestamp - SCORE_TO_TRACE_OBSERVATIONS_INTERVAL`
+   * to the query so ClickHouse can prune monthly partitions and avoid full-table scans.
+   * Pass the minimum startTime of the observations whose scores you are fetching.
+   */
+  minTimestamp?: Date;
   limit?: number;
   offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
@@ -638,6 +644,7 @@ export const getScoresForObservations = async <
   const {
     projectId,
     observationIds,
+    minTimestamp,
     limit,
     offset,
     clickhouseConfigs,
@@ -661,6 +668,7 @@ export const getScoresForObservations = async <
       WHERE s.project_id = {projectId: String}
       AND s.observation_id IN ({observationIds: Array(String)})
       AND s.data_type IN ({dataTypes: Array(String)})
+      ${minTimestamp ? `AND s.timestamp >= {minTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
@@ -682,6 +690,9 @@ export const getScoresForObservations = async <
       dataTypes: LISTABLE_SCORE_TYPES,
       limit: limit,
       offset: offset,
+      ...(minTimestamp
+        ? { minTimestamp: convertDateToClickhouseDateTime(minTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
