@@ -518,6 +518,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: "observations",
     setSelectedRows,
+    setSelectAll,
   });
 
   const tableActions: TableAction[] = [
@@ -548,7 +549,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+      icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
       accessCheck: {
         scope: "evalJob:CUD",
       },
@@ -1322,6 +1323,11 @@ export default function ObservationsEventsTable({
     return Object.keys(selectedRows).filter((id) => rowIds.has(id));
   }, [observations.rows, selectedRows]);
 
+  const selectedObservationCount =
+    selectAll && totalCount !== null
+      ? totalCount
+      : selectedObservationIds.length;
+
   const exampleObservation = useMemo(() => {
     const firstId = selectedObservationIds[0];
     const firstObs = observations.rows?.find((o) => o.id === firstId);
@@ -1393,12 +1399,17 @@ export default function ObservationsEventsTable({
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
               />,
-              selectedObservationIds.length > 0 ? (
+              selectedObservationIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="observations-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  selectedCount={selectedObservationCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                   onCustomAction={(actionType) => {
                     if (actionType === ActionId.ObservationBatchEvaluation) {
                       setShowRunEvaluationDialog(true);
@@ -1488,6 +1499,7 @@ export default function ObservationsEventsTable({
                     }
               }
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}
               orderBy={orderByState}

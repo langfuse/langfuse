@@ -102,7 +102,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.73.5",
     "date-fns": "^3.6.0",
-    "dd-trace": "^5.65.0",
+    "dd-trace": "5.97.0",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.2",
     "ioredis": "^5.10.1",
