@@ -28,6 +28,7 @@ import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 
 function DatasetItemsView() {
   const router = useRouter();
@@ -74,6 +75,8 @@ function DatasetItemsView() {
     setIsVersionPanelOpen(open);
   };
 
+  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
+
   const betaSwitch = canUseExperimentsBetaToggle ? (
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
@@ -86,9 +89,7 @@ function DatasetItemsView() {
       headerProps={{
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
-        breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-        ],
+        breadcrumb,
         tabsProps: {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.ITEMS,
