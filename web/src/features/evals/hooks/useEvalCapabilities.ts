@@ -5,6 +5,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
+  compatibilityCheckWasPerformed: boolean;
   allowLegacy: boolean;
   allowPropagationFilters: boolean;
   isLoading: boolean;
@@ -45,6 +46,8 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
 
   return {
     isNewCompatible: isOtel,
+    // True when v4 beta is enabled (SDK check query was run)
+    compatibilityCheckWasPerformed: isBetaEnabled,
     // Allow legacy if: not cloud OR user has legacy evals OR user can toggle v4 (existing user)
     allowLegacy: !isLangfuseCloud || hasLegacyEvals || canToggleV4,
     // Allow propagation filters only when using OTEL and spans are propagating

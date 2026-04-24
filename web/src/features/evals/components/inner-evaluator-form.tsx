@@ -205,10 +205,12 @@ const ObservationsPreview = memo(
     projectId,
     filterState,
     isNewCompatible,
+    compatibilityCheckWasPerformed,
   }: {
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
     isNewCompatible: boolean;
+    compatibilityCheckWasPerformed: boolean;
   }) => {
     const { isBetaEnabled } = useV4Beta();
 
@@ -221,8 +223,9 @@ const ObservationsPreview = memo(
       } as TableDateRange;
     }, []);
 
-    // When v4 is enabled but user is not on OTEL SDK, show upgrade message
-    const showSdkUpgradeMessage = isBetaEnabled && !isNewCompatible;
+    // Show upgrade message only when SDK check was performed and user is not on OTEL SDK
+    const showSdkUpgradeMessage =
+      compatibilityCheckWasPerformed && !isNewCompatible;
 
     return (
       <>
@@ -1102,6 +1105,9 @@ export const InnerEvaluatorForm = (props: {
                         projectId={props.projectId}
                         filterState={form.watch("filter") ?? []}
                         isNewCompatible={props.evalCapabilities.isNewCompatible}
+                        compatibilityCheckWasPerformed={
+                          props.evalCapabilities.compatibilityCheckWasPerformed
+                        }
                       />
                     )}
                   </>
@@ -1172,6 +1178,9 @@ export const InnerEvaluatorForm = (props: {
         hideAdvancedSettings={props.hideAdvancedSettings}
         oldConfigId={props.oldConfigId}
         isNewCompatible={props.evalCapabilities.isNewCompatible}
+        compatibilityCheckWasPerformed={
+          props.evalCapabilities.compatibilityCheckWasPerformed
+        }
       />
     </div>
   );

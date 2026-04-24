@@ -63,6 +63,7 @@ export const VariableMappingCard = ({
   shouldWrapVariables = false,
   hideAdvancedSettings = false,
   isNewCompatible = true,
+  compatibilityCheckWasPerformed = false,
 }: {
   projectId: string;
   availableVariables:
@@ -75,6 +76,7 @@ export const VariableMappingCard = ({
   shouldWrapVariables?: boolean;
   hideAdvancedSettings?: boolean;
   isNewCompatible?: boolean;
+  compatibilityCheckWasPerformed?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPreviewIds, setSelectedPreviewIds] = useState<{
@@ -103,10 +105,12 @@ export const VariableMappingCard = ({
     isPeekView ? (selectedPreviewIds ?? {}) : undefined,
   );
 
+  const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
+
   useEffect(() => {
     const target = form.getValues("target");
-    // Disable preview for event targets when user is not on OTEL SDK
-    const shouldDisableForNonOtel = isEventTarget(target) && !isNewCompatible;
+    // Disable preview for event targets only when SDK check was performed and user is not on OTEL SDK
+    const shouldDisableForNonOtel = isEventTarget(target) && nonOtelCompatible;
 
     if (isTraceOrEventTarget(target) && !disabled && !shouldDisableForNonOtel) {
       setShowPreview(true);
@@ -119,7 +123,7 @@ export const VariableMappingCard = ({
       setSelectedPreviewIds(undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled, isPeekView, isNewCompatible]);
+  }, [form.watch("target"), disabled, isPeekView, nonOtelCompatible]);
 
   useEffect(() => {
     if (isPeekView) {
@@ -127,11 +131,11 @@ export const VariableMappingCard = ({
     }
   }, [isPeekView, peekId]);
 
-  // Hide preview controls for event targets when user is not on OTEL SDK
+  // Hide preview controls for event targets only when SDK check was performed and user is not on OTEL SDK
   const shouldShowPreviewControls =
     isTraceOrEventTarget(form.watch("target")) &&
     !disabled &&
-    !(isEventTarget(form.watch("target")) && !isNewCompatible);
+    !(isEventTarget(form.watch("target")) && nonOtelCompatible);
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
