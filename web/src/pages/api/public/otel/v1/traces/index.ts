@@ -95,6 +95,14 @@ export default withMiddlewares({
           resourceSpans =
             $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
               parsed,
+              // Match the OTLP/JSON spec: int64 fields serialize as decimal
+              // strings, not protobufjs Long internals ({low, high, unsigned}).
+              // After the protobufjs 7.4 → 7.5 bump (#13232), util.Long falls
+              // back to an internal class with no toJSON(), so without this
+              // option JSON.stringify emits the raw Long properties and
+              // breaks every downstream consumer that type-checks int64
+              // (#13295).
+              { longs: String },
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
