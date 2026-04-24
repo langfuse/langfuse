@@ -61,7 +61,7 @@ export const getAllQueries = {
         offset: 0,
       };
       const countQuery =
-        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+        env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
           ? await getObservationsCountFromEventsTable(queryOpts)
           : await getObservationsTableCount(queryOpts);
       return {
