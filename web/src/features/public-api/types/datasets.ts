@@ -12,7 +12,11 @@ import {
   type DatasetItemDomain,
   stringDateTime,
 } from "@langfuse/shared";
-import { DatasetJSONSchema } from "@langfuse/shared/src/server";
+import { useEventsTableSchema } from "@/src/features/query/types";
+import {
+  DatasetJSONSchema,
+  parseClickhouseUTCDateTimeFormat,
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
@@ -108,6 +112,31 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
     "datasetId",
     "error",
   ]);
+
+/**
+ * Transform events-based dataset run item to API format.
+ *
+ * Note: The `id` field is the span_id (observation ID) in the events-based path,
+ * representing the root observation linked to this dataset item in this run.
+ * This differs from the legacy path which uses the dataset_run_item table's UUID.
+ */
+export const transformEventsDatasetRunItemToAPI = (item: {
+  span_id: string;
+  experiment_id: string;
+  experiment_name: string;
+  item_id: string;
+  trace_id: string;
+  start_time: string;
+}): z.infer<typeof APIDatasetRunItem> => ({
+  id: item.span_id,
+  datasetRunId: item.experiment_id,
+  datasetRunName: item.experiment_name,
+  datasetItemId: item.item_id,
+  traceId: item.trace_id,
+  observationId: item.span_id,
+  createdAt: parseClickhouseUTCDateTimeFormat(item.start_time),
+  updatedAt: parseClickhouseUTCDateTimeFormat(item.start_time),
+});
 
 export const transformDbDatasetToAPIDataset = (
   dataset: DbDataset,
@@ -251,6 +280,7 @@ export const PostDatasetRunItemsV1Response = APIDatasetRunItem.strict();
 export const GetDatasetRunItemsV1Query = z.object({
   datasetId: z.string(),
   runName: z.string(),
+  useEventsTable: useEventsTableSchema,
   ...publicApiPaginationZod,
 });
 export const GetDatasetRunItemsV1Response = z

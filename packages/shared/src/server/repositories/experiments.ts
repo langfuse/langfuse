@@ -968,3 +968,99 @@ export const getExperimentNamesFromEvents = async (props: {
 
   return res;
 };
+
+// ============================================================================
+// Dataset Run Items for Public API (Events-based)
+// ============================================================================
+
+/**
+ * Return type for dataset run items from events table.
+ * Used by GET /api/public/dataset-run-items with useEventsTable=true.
+ */
+export type DatasetRunItemFromEventsRecord = {
+  span_id: string;
+  experiment_id: string; // dataset_run_id
+  experiment_name: string; // dataset_run_name
+  item_id: string; // experiment_item_id = dataset_item_id
+  trace_id: string;
+  start_time: string;
+};
+
+type DatasetRunItemsFromEventsQuery = {
+  projectId: string;
+  experimentId: string; // dataset_run_id
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Get dataset run items from events table for public API.
+ * Returns items for a single experiment (dataset run).
+ *
+ * Note: The `id` field is the span_id (observation ID), representing
+ * the root observation linked to this dataset item in this run.
+ */
+export const getDatasetRunItemsFromEventsForPublicApi = async (
+  props: DatasetRunItemsFromEventsQuery,
+): Promise<DatasetRunItemFromEventsRecord[]> => {
+  const { projectId, experimentId, limit, offset } = props;
+
+  const queryBuilder = eventsExperimentsRootSpans({
+    projectId,
+    experimentIds: [experimentId],
+  })
+    .selectRaw(
+      "e.span_id as span_id",
+      "e.experiment_id as experiment_id",
+      "e.experiment_name as experiment_name",
+      "e.experiment_item_id as item_id",
+      "e.trace_id as trace_id",
+      "e.start_time as start_time",
+    )
+    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    .limitBy("e.experiment_item_id")
+    .limit(limit, offset);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouse<DatasetRunItemFromEventsRecord>({
+    query,
+    params,
+    tags: {
+      feature: "datasets",
+      type: "experiment-items-public-api",
+      kind: "list",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Get count of dataset run items from events table for public API.
+ */
+export const getDatasetRunItemsCountFromEventsForPublicApi = async (props: {
+  projectId: string;
+  experimentId: string;
+}): Promise<number> => {
+  const { projectId, experimentId } = props;
+
+  const queryBuilder = eventsExperimentsRootSpans({
+    projectId,
+    experimentIds: [experimentId],
+  }).selectRaw("count(DISTINCT e.experiment_item_id) as count");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const result = await queryClickhouse<{ count: string }>({
+    query,
+    params,
+    tags: {
+      feature: "datasets",
+      type: "experiment-items-public-api",
+      kind: "count",
+      projectId,
+    },
+  });
+
+  return result.length > 0 ? Number(result[0].count) : 0;
+};

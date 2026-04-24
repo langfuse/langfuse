@@ -1,4 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
@@ -7,6 +8,7 @@ import {
   GetDatasetRunItemsV1Response,
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
+  transformEventsDatasetRunItemToAPI,
 } from "@/src/features/public-api/types/datasets";
 import { type JSONValue, LangfuseNotFoundError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
@@ -16,6 +18,8 @@ import {
   processEventBatch,
   getObservationById,
   getDatasetItemById,
+  getDatasetRunItemsFromEventsForPublicApi,
+  getDatasetRunItemsCountFromEventsForPublicApi,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -197,10 +201,43 @@ export default withMiddlewares({
       }
 
       const { datasetId, limit, page } = query;
+
+      // Use events table if query parameter is explicitly set, otherwise use environment variable
+      const useEventsTable =
+        query.useEventsTable !== undefined && query.useEventsTable !== null
+          ? query.useEventsTable === true
+          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+
       /**************
        * RESPONSE *
        **************/
 
+      if (useEventsTable) {
+        const [items, count] = await Promise.all([
+          getDatasetRunItemsFromEventsForPublicApi({
+            projectId: auth.scope.projectId,
+            experimentId: datasetRun.id,
+            limit,
+            offset: (page - 1) * limit,
+          }),
+          getDatasetRunItemsCountFromEventsForPublicApi({
+            projectId: auth.scope.projectId,
+            experimentId: datasetRun.id,
+          }),
+        ]);
+
+        return {
+          data: items.map(transformEventsDatasetRunItemToAPI),
+          meta: {
+            page,
+            limit,
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+          },
+        };
+      }
+
+      // Legacy code path
       const [items, count] = await Promise.all([
         generateDatasetRunItemsForPublicApi({
           props: {
