@@ -40,7 +40,7 @@ import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperim
 import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 
 export default function Dataset() {
@@ -156,10 +156,7 @@ export default function Dataset() {
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
 
-  const datasetName = dataset.data?.name ?? "";
-  const segments = datasetName.split("/").filter((s) => s.trim());
-  const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
-  const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
+  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
   const betaSwitch = canUseExperimentsBetaToggle ? (
     <ExperimentsBetaSwitch
       enabled={isExperimentsBetaEnabled}
@@ -173,13 +170,7 @@ export default function Dataset() {
         headerProps={{
           title: dataset.data?.name ?? "",
           itemType: "DATASET",
-          breadcrumb: [
-            { name: "Datasets", href: `/project/${projectId}/datasets` },
-            ...breadcrumbItems.map((item) => ({
-              name: item.name,
-              href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
-            })),
-          ],
+          breadcrumb,
           tabsProps: {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.RUNS,
@@ -254,13 +245,7 @@ export default function Dataset() {
       headerProps={{
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
-        breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-          ...breadcrumbItems.map((item) => ({
-            name: item.name,
-            href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
-          })),
-        ],
+        breadcrumb,
         help: dataset.data?.description
           ? {
               description: dataset.data.description,
