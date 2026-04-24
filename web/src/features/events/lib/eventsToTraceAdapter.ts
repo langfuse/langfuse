@@ -81,7 +81,7 @@ export function adaptEventsToTraceFormat(params: {
     tags: traceTags ?? [],
     bookmarked: root?.bookmarked ?? false,
     public: root?.public ?? false,
-    release: earliest.version ?? null,
+    release: earliest.release ?? null,
     version: earliest.version ?? null,
     userId: earliest.userId ?? null,
     sessionId: earliest.sessionId ?? null,
