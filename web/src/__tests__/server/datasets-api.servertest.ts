@@ -40,8 +40,11 @@ import {
   createDatasetItemFilterState,
   createDatasetItem,
   getDatasetItems,
+  createExperimentEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
+import { env } from "@/src/env.mjs";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
@@ -2124,4 +2127,215 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+});
+
+describe("GET /api/public/dataset-run-items with useEventsTable", () => {
+  const runTestSuite = (useEventsTable: boolean) => {
+    const suiteName = useEventsTable
+      ? "with events table"
+      : "with legacy table";
+    const queryParam = useEventsTable ? "&useEventsTable=true" : "";
+
+    describe(suiteName, () => {
+      it("should fetch dataset run items with correct data structure", async () => {
+        const { auth, projectId } = await createOrgProjectAndApiKey();
+
+        // Create dataset and run in Postgres
+        const datasetId = v4();
+        const datasetName = `test-dataset-${v4()}`;
+        await prisma.dataset.create({
+          data: { id: datasetId, name: datasetName, projectId },
+        });
+
+        const runId = v4();
+        const runName = `test-run-${v4()}`;
+        await prisma.datasetRuns.create({
+          data: {
+            id: runId,
+            name: runName,
+            datasetId,
+            projectId,
+            metadata: {},
+          },
+        });
+
+        // Create dataset item in Postgres
+        const itemId = v4();
+        await createDatasetItem({
+          id: itemId,
+          projectId,
+          datasetId,
+          input: { test: "input" },
+        });
+
+        const traceId = v4();
+        const spanId = v4();
+        const now = Date.now() * 1000; // microseconds for events
+
+        if (useEventsTable) {
+          // Create event with experiment fields
+          const event = createExperimentEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            span_id: spanId,
+            experimentId: runId,
+            experimentName: runName,
+            datasetId: datasetId,
+            itemId: itemId,
+            experimentItemRootSpanId: spanId,
+            start_time: now,
+          });
+          await createEventsCh([event]);
+        } else {
+          // Create in legacy dataset_run_items table
+          await createDatasetRunItemsCh([
+            createDatasetRunItem({
+              dataset_item_id: itemId,
+              trace_id: traceId,
+              observation_id: spanId,
+              dataset_run_id: runId,
+              dataset_run_name: runName,
+              dataset_id: datasetId,
+              project_id: projectId,
+            }),
+          ]);
+        }
+
+        await waitForExpect(async () => {
+          const response = await makeZodVerifiedAPICall(
+            GetDatasetRunItemsV1Response,
+            "GET",
+            `/api/public/dataset-run-items?datasetId=${datasetId}&runName=${encodeURIComponent(runName)}${queryParam}`,
+            undefined,
+            auth,
+          );
+
+          expect(response.status).toBe(200);
+          expect(response.body.data).toHaveLength(1);
+
+          const item = response.body.data[0];
+          expect(item.datasetRunId).toBe(runId);
+          expect(item.datasetRunName).toBe(runName);
+          expect(item.datasetItemId).toBe(itemId);
+          expect(item.traceId).toBe(traceId);
+          expect(item.createdAt).toBeDefined();
+          expect(item.updatedAt).toBeDefined();
+
+          // Verify pagination meta
+          expect(response.body.meta.totalItems).toBe(1);
+          expect(response.body.meta.page).toBe(1);
+        }, 30000);
+      }, 60000);
+
+      it("should paginate results correctly", async () => {
+        const { auth, projectId } = await createOrgProjectAndApiKey();
+
+        // Create dataset and run
+        const datasetId = v4();
+        const datasetName = `pagination-test-${v4()}`;
+        await prisma.dataset.create({
+          data: { id: datasetId, name: datasetName, projectId },
+        });
+
+        const runId = v4();
+        const runName = `pagination-run-${v4()}`;
+        await prisma.datasetRuns.create({
+          data: {
+            id: runId,
+            name: runName,
+            datasetId,
+            projectId,
+            metadata: {},
+          },
+        });
+
+        // Create 5 items and corresponding run items
+        const now = Date.now() * 1000;
+        const itemIds: string[] = [];
+
+        for (let i = 0; i < 5; i++) {
+          const itemId = v4();
+          itemIds.push(itemId);
+
+          await createDatasetItem({
+            id: itemId,
+            projectId,
+            datasetId,
+            input: { index: i },
+          });
+
+          const traceId = v4();
+          const spanId = v4();
+
+          if (useEventsTable) {
+            const event = createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: spanId,
+              experimentId: runId,
+              experimentName: runName,
+              datasetId: datasetId,
+              itemId: itemId,
+              experimentItemRootSpanId: spanId,
+              start_time: now + i * 1000000,
+            });
+            await createEventsCh([event]);
+          } else {
+            await createDatasetRunItemsCh([
+              createDatasetRunItem({
+                dataset_item_id: itemId,
+                trace_id: traceId,
+                observation_id: spanId,
+                dataset_run_id: runId,
+                dataset_run_name: runName,
+                dataset_id: datasetId,
+                project_id: projectId,
+              }),
+            ]);
+          }
+        }
+
+        await waitForExpect(async () => {
+          // Fetch page 1 with limit 2
+          const page1 = await makeZodVerifiedAPICall(
+            GetDatasetRunItemsV1Response,
+            "GET",
+            `/api/public/dataset-run-items?datasetId=${datasetId}&runName=${encodeURIComponent(runName)}&limit=2&page=1${queryParam}`,
+            undefined,
+            auth,
+          );
+
+          expect(page1.status).toBe(200);
+          expect(page1.body.data).toHaveLength(2);
+          expect(page1.body.meta.totalItems).toBe(5);
+          expect(page1.body.meta.totalPages).toBe(3);
+
+          // Fetch page 2
+          const page2 = await makeZodVerifiedAPICall(
+            GetDatasetRunItemsV1Response,
+            "GET",
+            `/api/public/dataset-run-items?datasetId=${datasetId}&runName=${encodeURIComponent(runName)}&limit=2&page=2${queryParam}`,
+            undefined,
+            auth,
+          );
+
+          expect(page2.status).toBe(200);
+          expect(page2.body.data).toHaveLength(2);
+
+          // Verify no overlap between pages
+          const page1Ids = page1.body.data.map((d) => d.datasetItemId);
+          const page2Ids = page2.body.data.map((d) => d.datasetItemId);
+          page2Ids.forEach((id) => {
+            expect(page1Ids).not.toContain(id);
+          });
+        }, 30000);
+      }, 90000);
+    });
+  };
+
+  // Run tests with both implementations
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    runTestSuite(true); // with events table
+  }
+  runTestSuite(false); // with legacy table
 });

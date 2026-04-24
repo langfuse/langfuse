@@ -305,3 +305,35 @@ export const createEvent = (
     ...eventOverrides,
   };
 };
+
+/**
+ * Helper to create an experiment event with experiment-specific fields populated.
+ * Wraps createEvent with experiment defaults for testing dataset/experiment flows.
+ */
+export const createExperimentEvent = (
+  params: Partial<EventRecordInsertType> & {
+    experimentId: string;
+    experimentName: string;
+    datasetId?: string;
+    itemId: string;
+    experimentItemRootSpanId: string;
+  },
+): EventRecordInsertType => {
+  const {
+    experimentId,
+    experimentName,
+    datasetId,
+    itemId,
+    experimentItemRootSpanId,
+    ...rest
+  } = params;
+
+  return createEvent({
+    experiment_id: experimentId,
+    experiment_name: experimentName,
+    experiment_dataset_id: datasetId,
+    experiment_item_id: itemId,
+    experiment_item_root_span_id: experimentItemRootSpanId,
+    ...rest,
+  });
+};

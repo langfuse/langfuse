@@ -6,43 +6,11 @@ import {
   getExperimentItemsCountFromEvents,
   getExperimentItemsBatchIO,
   createTraceScore,
-  type EventRecordInsertType,
+  createExperimentEvent,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { type FilterCondition } from "@langfuse/shared";
-
-/**
- * Helper to create an experiment event with experiment-specific fields populated.
- * Wraps createEvent with experiment defaults.
- */
-function createExperimentEvent(
-  params: Partial<EventRecordInsertType> & {
-    experimentId: string;
-    experimentName: string;
-    datasetId?: string;
-    itemId: string;
-    experimentItemRootSpanId: string;
-  },
-): EventRecordInsertType {
-  const {
-    experimentId,
-    experimentName,
-    datasetId,
-    itemId,
-    experimentItemRootSpanId,
-    ...rest
-  } = params;
-
-  return createEvent({
-    experiment_id: experimentId,
-    experiment_name: experimentName,
-    experiment_dataset_id: datasetId,
-    experiment_item_id: itemId,
-    experiment_item_root_span_id: experimentItemRootSpanId,
-    ...rest,
-  });
-}
 
 /**
  * Helper to create a root observation score.
