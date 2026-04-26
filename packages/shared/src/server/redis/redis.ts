@@ -160,6 +160,14 @@ const createRedisSentinelInstance = (
 
   const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
   const tlsOptions = buildTlsOptions();
+  const sentinelTlsRequested = env.REDIS_SENTINEL_TLS_ENABLED === "true";
+  const redisTlsEnabled = env.REDIS_TLS_ENABLED === "true";
+
+  if (sentinelTlsRequested && !redisTlsEnabled) {
+    logger.warn(
+      "REDIS_SENTINEL_TLS_ENABLED is true but REDIS_TLS_ENABLED is false; sentinel TLS will not be applied",
+    );
+  }
 
   const instance = new Redis({
     sentinels,
@@ -168,7 +176,7 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
-    ...(env.REDIS_SENTINEL_TLS_ENABLED === "true" && tlsOptions.tls
+    ...(sentinelTlsRequested && redisTlsEnabled && tlsOptions.tls
       ? {
           enableTLSForSentinelMode: true,
           sentinelTLS: tlsOptions.tls,
