@@ -99,6 +99,10 @@ export const BEDROCK_ROLE_PERMISSION_POLICY = {
 export const VertexAIConfigSchema = z
   .object({
     location: z.string().optional(),
+    // Optional GCP project override used only when Application Default Credentials
+    // (ADC) are in effect and the server has opted in via
+    // VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE. Ignored otherwise.
+    projectId: z.string().optional(),
   })
   .strict();
 
