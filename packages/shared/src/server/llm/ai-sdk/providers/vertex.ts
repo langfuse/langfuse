@@ -54,9 +54,10 @@ export function assertValidVertexLocation(location: string | undefined): void {
  * `/anthropic` entry point (Anthropic Messages over Vertex `rawPredict`).
  *
  * The decrypted secret is either a GCP service account key (project taken from
- * the key; user-supplied project IDs are never honored) or the ADC sentinel,
- * allowed only in self-hosted deployments, in which case the project is
- * resolved from the default credential chain.
+ * the key) or the ADC sentinel, allowed only in self-hosted deployments, where
+ * the project is resolved from the default credential chain — or, when the
+ * operator opts in via VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE, from the per-key
+ * projectId. GCP IAM remains the access boundary in every case.
  */
 export async function buildVertexModel(params: {
   modelId: string;
@@ -67,17 +68,25 @@ export async function buildVertexModel(params: {
 }): Promise<LanguageModel> {
   const { modelId, apiKey, config, extraHeaders } = params;
 
-  const { location } = config
+  const { location, projectId: configProjectId } = config
     ? VertexAIConfigSchema.parse(config)
-    : { location: undefined };
+    : { location: undefined, projectId: undefined };
   assertValidVertexLocation(location);
 
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   const shouldUseDefaultCredentials =
     apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
 
-  // Security: with ADC we intentionally ignore user-provided project IDs to
-  // prevent privilege escalation via the server's credentials.
+  // Security: with ADC we intentionally ignore the user-provided project ID by
+  // default to prevent privilege escalation via the server's credentials.
+  // Self-hosted operators can opt in via VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE —
+  // GCP IAM still enforces project access based on the ADC identity, so this
+  // only re-targets within already-allowed projects. Ignored on Langfuse Cloud.
+  const allowAdcProjectOverride =
+    shouldUseDefaultCredentials &&
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE === "true" &&
+    Boolean(configProjectId);
+
   const serviceAccountKey = shouldUseDefaultCredentials
     ? undefined
     : GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
@@ -86,13 +95,18 @@ export async function buildVertexModel(params: {
         credentials: serviceAccountKey,
         projectId: serviceAccountKey.project_id,
       }
-    : undefined;
+    : allowAdcProjectOverride
+      ? { projectId: configProjectId }
+      : undefined;
 
   // The AI SDK requires an explicit project for URL construction (it does not
-  // ask the auth library); resolve it from ADC when no key is configured.
+  // ask the auth library); resolve it from ADC when no key is configured, or
+  // from the opted-in per-key override.
   const project =
     serviceAccountKey?.project_id ??
-    (await new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES }).getProjectId());
+    (allowAdcProjectOverride
+      ? (configProjectId as string)
+      : await new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES }).getProjectId());
 
   // Existing connections default the location to "global" for both families.
   const resolvedLocation = location ?? "global";
