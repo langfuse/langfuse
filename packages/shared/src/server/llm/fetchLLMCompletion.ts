@@ -481,9 +481,9 @@ export async function fetchLLMCompletion(
       additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
-    const { location } = config
+    const { location, projectId: configProjectId } = config
       ? VertexAIConfigSchema.parse(config)
-      : { location: undefined };
+      : { location: undefined, projectId: undefined };
 
     const googleProviderOptions = googleProviderOptionsSchema.parse(
       modelParams.providerOptions,
@@ -496,10 +496,18 @@ export async function fetchLLMCompletion(
 
     // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
-    // Security: We intentionally ignore user-provided projectId when using ADC to prevent
-    // privilege escalation attacks where users could access other GCP projects via the server's credentials
+    // Security: With ADC we intentionally ignore the user-provided projectId by default
+    // to prevent privilege-escalation attacks. Self-hosted operators can opt in via
+    // VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE — GCP IAM still enforces project access
+    // based on the ADC identity, so this only re-targets within already-allowed projects.
+    const allowAdcProjectOverride =
+      shouldUseDefaultCredentials &&
+      env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE === "true" &&
+      Boolean(configProjectId);
     const authOptions = shouldUseDefaultCredentials
-      ? undefined // Always use ADC auto-detection, never allow user-specified projectId
+      ? allowAdcProjectOverride
+        ? { projectId: configProjectId }
+        : undefined
       : {
           credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
           projectId: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey))

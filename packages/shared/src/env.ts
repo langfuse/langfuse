@@ -433,6 +433,14 @@ const EnvSchema = z.object({
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
+  // When "true", self-hosted deployments honor a per-LLM-key projectId override
+  // for Vertex AI even when authenticating via Application Default Credentials (ADC).
+  // GCP IAM still enforces which projects the ADC identity can access. Default
+  // (off) preserves the prior behavior of ignoring user-supplied projectIds with ADC.
+  VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
   // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
