@@ -265,3 +265,105 @@ describe("fetchLLMCompletion end of model lifetime", () => {
     });
   });
 });
+
+describe("fetchLLMCompletion VertexAI ADC project override", () => {
+  let originalCloudRegion: string | undefined;
+  let originalAdcOverride: "true" | "false";
+  let env: typeof import("../../../packages/shared/src/env").env;
+  let encrypt: typeof import("../../../packages/shared/src/encryption").encrypt;
+  let fetchLLMCompletion: typeof import("../../../packages/shared/src/server/llm/fetchLLMCompletion").fetchLLMCompletion;
+
+  beforeEach(async () => {
+    invokeMock.mockReset().mockResolvedValue({ content: "ok" });
+    streamMock.mockReset();
+    chatVertexAIConstructorMock.mockClear();
+    vi.resetModules();
+    originalCloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    // @langchain/google-vertexai is a dependency of @langfuse/shared, not worker —
+    // a bare specifier can't reliably resolve from this test file under pnpm strict isolation
+    // (cf. the @langchain/aws case below).
+    vi.doMock(
+      "../../../packages/shared/node_modules/@langchain/google-vertexai",
+      () => ({
+        ChatVertexAI: chatVertexAIConstructorMock,
+      }),
+    );
+    vi.doMock("../../../packages/shared/src/server/llm/errors", () => ({
+      LLMCompletionError: MockLLMCompletionError,
+    }));
+
+    ({ env } = await import("../../../packages/shared/src/env"));
+    ({ encrypt } = await import("../../../packages/shared/src/encryption"));
+    ({ fetchLLMCompletion } =
+      await import("../../../packages/shared/src/server/llm/fetchLLMCompletion"));
+
+    originalAdcOverride = env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE;
+  });
+
+  afterEach(() => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = originalAdcOverride;
+    if (originalCloudRegion === undefined) {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    } else {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    }
+  });
+
+  const invokeVertex = async (config: Record<string, string> | null) => {
+    await fetchLLMCompletion({
+      streaming: false,
+      messages: [
+        {
+          role: "user",
+          content: "ping",
+          type: "public-api-created",
+        },
+      ],
+      modelParams: {
+        provider: "google-vertex-ai",
+        adapter: "google-vertex-ai",
+        model: "gemini-2.0-flash",
+        temperature: 0,
+        max_tokens: 10,
+      },
+      llmConnection: {
+        secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
+        config,
+      },
+    });
+  };
+
+  it("ignores config.projectId with ADC when override flag is off", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "false";
+
+    await invokeVertex({ projectId: "should-be-ignored" });
+
+    expect(chatVertexAIConstructorMock).toHaveBeenCalledTimes(1);
+    expect(
+      chatVertexAIConstructorMock.mock.calls[0][0].authOptions,
+    ).toBeUndefined();
+  });
+
+  it("forwards config.projectId to authOptions with ADC when override flag is on", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "true";
+
+    await invokeVertex({ projectId: "gcp-prod-ml" });
+
+    expect(chatVertexAIConstructorMock).toHaveBeenCalledTimes(1);
+    expect(chatVertexAIConstructorMock.mock.calls[0][0].authOptions).toEqual({
+      projectId: "gcp-prod-ml",
+    });
+  });
+
+  it("leaves authOptions undefined with ADC + flag on when no projectId is configured", async () => {
+    env.VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE = "true";
+
+    await invokeVertex(null);
+
+    expect(chatVertexAIConstructorMock).toHaveBeenCalledTimes(1);
+    expect(
+      chatVertexAIConstructorMock.mock.calls[0][0].authOptions,
+    ).toBeUndefined();
+  });
+});

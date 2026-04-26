@@ -106,6 +106,7 @@ const createFormSchema = (params: {
       authMethod: BedrockAuthMethodSchema,
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
+      vertexAIProjectId: z.string().optional(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -325,6 +326,10 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            vertexAIProjectId:
+              existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
+                ? ((existingKey.config as VertexAIConfig).projectId ?? "")
+                : "",
             awsRegion:
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
@@ -346,6 +351,7 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "global",
+            vertexAIProjectId: "",
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -572,10 +578,15 @@ export function CreateLLMApiKeyForm({
       }
       // In create mode, secretKey is already set from values.secretKey
 
-      // Build config with location only (projectId removed for security - ADC auto-detects)
+      // Build config with location and (optionally) a per-key GCP projectId override.
+      // The projectId is only honored on self-hosted deployments that have opted in via
+      // VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE; the server enforces that gate.
       config = {};
       if (values.vertexAILocation?.trim()) {
         config.location = values.vertexAILocation.trim();
+      }
+      if (values.vertexAIProjectId?.trim()) {
+        config.projectId = values.vertexAIProjectId.trim();
       }
       // If config is empty, set to undefined
       if (Object.keys(config).length === 0) {
@@ -1218,6 +1229,32 @@ export function CreateLLMApiKeyForm({
                       </FormDescription>
                       <FormControl>
                         <Input {...field} placeholder="global" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* VertexAI GCP project override (self-hosted ADC only) */}
+              {currentAdapter === LLMAdapter.VertexAI && !isLangfuseCloud && (
+                <FormField
+                  control={form.control}
+                  name="vertexAIProjectId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GCP Project ID (Optional)</FormLabel>
+                      <FormDescription>
+                        Used only with Application Default Credentials. Honored
+                        only when the server is started with{" "}
+                        <code className="bg-muted rounded px-1 py-0.5">
+                          VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE=true
+                        </code>
+                        . GCP IAM still controls which projects the ADC identity
+                        can access.
+                      </FormDescription>
+                      <FormControl>
+                        <Input {...field} placeholder="my-gcp-project-id" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
