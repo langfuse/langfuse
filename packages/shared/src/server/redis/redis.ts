@@ -168,6 +168,12 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    ...(env.REDIS_SENTINEL_TLS_ENABLED === "true" && tlsOptions.tls
+      ? {
+          enableTLSForSentinelMode: true,
+          sentinelTLS: tlsOptions.tls,
+        }
+      : {}),
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
