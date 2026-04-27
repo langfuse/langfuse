@@ -85,7 +85,15 @@ const getCreateEvalQueueJobs = async ({
   projectId: string;
   configId?: string;
 }) => {
-  const jobs = await queue.getJobs(["waiting", "delayed", "paused"]);
+  const jobs = await queue.getJobs([
+    "waiting",
+    "delayed",
+    "paused",
+    "prioritized",
+    "active",
+    "completed",
+    "failed",
+  ]);
 
   return jobs.filter(
     (job) =>
@@ -93,6 +101,32 @@ const getCreateEvalQueueJobs = async ({
       job.data.payload.projectId === projectId &&
       (!configId || job.data.payload.configId === configId),
   );
+};
+
+const waitForCreateEvalQueueJobs = async ({
+  queue,
+  projectId,
+  configId,
+  expectedLength,
+}: {
+  queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
+  projectId: string;
+  configId?: string;
+  expectedLength: number;
+}) => {
+  let jobs: Awaited<ReturnType<typeof getCreateEvalQueueJobs>> = [];
+
+  await waitForExpect(async () => {
+    jobs = await getCreateEvalQueueJobs({
+      queue,
+      projectId,
+      configId,
+    });
+
+    expect(jobs).toHaveLength(expectedLength);
+  }, 15_000);
+
+  return jobs;
 };
 
 describe("select all test suite", () => {
@@ -393,13 +427,12 @@ describe("select all test suite", () => {
     await withIsolatedCreateEvalQueue(async (queue) => {
       await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
-      const jobs = await getCreateEvalQueueJobs({
+      const jobs = await waitForCreateEvalQueueJobs({
         queue,
         projectId,
         configId,
+        expectedLength: 1,
       });
-
-      expect(jobs).toHaveLength(1);
 
       const job = jobs[0];
 
@@ -594,12 +627,13 @@ describe("select all test suite", () => {
     await withIsolatedCreateEvalQueue(async (queue) => {
       await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
-      const jobs = await getCreateEvalQueueJobs({
+      const jobs = await waitForCreateEvalQueueJobs({
         queue,
         projectId,
         configId,
+        expectedLength: 2,
       });
-      expect(jobs).toHaveLength(2);
+
       const jobTraceIds = jobs.map((job) => job.data.payload.traceId);
       expect(jobTraceIds).toContain(traceId1);
       expect(jobTraceIds).toContain(traceId2);
@@ -654,12 +688,12 @@ describe("select all test suite", () => {
         handleBatchActionJob(payload, { evalCreatorQueue: queue }),
       ).resolves.not.toThrow();
 
-      const jobs = await getCreateEvalQueueJobs({
+      const jobs = await waitForCreateEvalQueueJobs({
         queue,
         projectId,
         configId: nonExistentConfigId,
+        expectedLength: 0,
       });
-      expect(jobs).toHaveLength(0);
     });
   });
 });
