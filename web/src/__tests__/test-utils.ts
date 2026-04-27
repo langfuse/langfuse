@@ -143,24 +143,14 @@ export const getQueues = () => {
     );
 };
 
-export const disconnectQueues = async (disconnectTimeoutMs = 2_000) => {
+export const disconnectQueues = async () => {
   await Promise.all(
     getQueues().map(async (queue) => {
       if (queue) {
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-          await Promise.race([
-            queue.disconnect(),
-            new Promise<void>((resolve) => {
-              timeoutId = setTimeout(resolve, disconnectTimeoutMs);
-            }),
-          ]);
+          queue.disconnect();
         } catch (error) {
           logger.error(`Error disconnecting queue ${queue.name}: ${error}`);
-        } finally {
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-          }
         }
       }
     }),

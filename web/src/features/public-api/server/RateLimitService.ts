@@ -24,8 +24,6 @@ import {
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
-export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
-
 // Business Logic
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
 // - rate limits are not applied for self hosters and are also not applied when Redis is not available
@@ -159,7 +157,7 @@ export class RateLimitService {
   }
 
   rateLimitPrefix(resource: string) {
-    return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
+    return `rate-limit:${resource}`;
   }
 }
 

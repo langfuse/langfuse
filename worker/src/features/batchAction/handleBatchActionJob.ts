@@ -21,7 +21,7 @@ import {
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
-import { Job, Queue } from "bullmq";
+import { Job } from "bullmq";
 import {
   processAddObservationsToQueue,
   processAddSessionsToQueue,
@@ -44,10 +44,6 @@ const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
-};
-
-type HandleBatchActionJobDeps = {
-  evalCreatorQueue?: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
 };
 
 /**
@@ -140,7 +136,6 @@ const assertIsDatasetRunItemTableRecord = (
 
 export const handleBatchActionJob = async (
   batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>["data"],
-  deps: HandleBatchActionJobDeps = {},
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.payload;
@@ -261,8 +256,7 @@ export const handleBatchActionJob = async (
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           });
 
-    const evalCreatorQueue =
-      deps.evalCreatorQueue ?? CreateEvalQueue.getInstance();
+    const evalCreatorQueue = CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
       logger.error("CreateEvalQueue is not initialized");
       return;

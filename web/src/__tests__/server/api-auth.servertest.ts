@@ -2,7 +2,6 @@ import {
   OrgEnrichedApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
-  createShaHash,
   generateKeySet,
 } from "@langfuse/shared/src/server";
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
@@ -47,13 +46,8 @@ describe("Authenticate API calls", () => {
       `${testApiKey.secretKey}-wrong`,
     );
 
-  const createMissingAuthHeader = () => {
-    const secretKey = `sk-missing-${v4()}`;
-    return {
-      auth: createBasicAuthHeader(`pk-missing-${v4()}`, secretKey),
-      redisKey: `api-key:${createShaHash(secretKey, env.SALT)}`,
-    };
-  };
+  const createMissingAuthHeader = () =>
+    createBasicAuthHeader(`pk-missing-${v4()}`, `sk-missing-${v4()}`);
 
   const getApiKeyCacheKeys = async (
     redisClient: RedisTestClient,
@@ -498,16 +492,13 @@ describe("Authenticate API calls", () => {
       const verification = await new ApiAuthService(
         prisma,
         redis,
-      ).verifyAuthHeaderAndReturnScope(missingAuthHeader.auth);
+      ).verifyAuthHeaderAndReturnScope(missingAuthHeader);
 
       expect(verification.validKey).toBe(false);
 
-      const redisKeys = await getApiKeyCacheKeys(
-        redis,
-        missingAuthHeader.redisKey,
-      );
+      const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
-      const redisValue = await getRedisValue(redis, missingAuthHeader.redisKey);
+      const redisValue = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
     });
 
@@ -518,33 +509,24 @@ describe("Authenticate API calls", () => {
       const verification = await new ApiAuthService(
         prisma,
         redis,
-      ).verifyAuthHeaderAndReturnScope(missingAuthHeader.auth);
+      ).verifyAuthHeaderAndReturnScope(missingAuthHeader);
 
       expect(verification.validKey).toBe(false);
 
-      const redisKeys = await getApiKeyCacheKeys(
-        redis,
-        missingAuthHeader.redisKey,
-      );
+      const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
-      const redisValue = await getRedisValue(redis, missingAuthHeader.redisKey);
+      const redisValue = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
 
       const verification2 = await new ApiAuthService(
         prisma,
         redis,
-      ).verifyAuthHeaderAndReturnScope(missingAuthHeader.auth);
+      ).verifyAuthHeaderAndReturnScope(missingAuthHeader);
       expect(verification2.validKey).toBe(false);
 
-      const redisKeys2 = await getApiKeyCacheKeys(
-        redis,
-        missingAuthHeader.redisKey,
-      );
+      const redisKeys2 = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys2.length).toBe(1);
-      const redisValue2 = await getRedisValue(
-        redis,
-        missingAuthHeader.redisKey,
-      );
+      const redisValue2 = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue2).toBe('"api-key-non-existent"');
     });
 
@@ -781,11 +763,10 @@ describe("Authenticate API calls", () => {
     });
 
     it("if no keys in redis, invalidating org keys should do nothing", async () => {
-      const fastHashedSecretKey = `test-fast-hash-${v4()}`;
       await prisma.apiKey.update({
         where: { publicKey: testApiKey.publicKey },
         data: {
-          fastHashedSecretKey,
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
         },
       });
 
@@ -793,11 +774,8 @@ describe("Authenticate API calls", () => {
         testApiKey.orgId,
       );
 
-      const cachedKey = await getRedisValue(
-        redis,
-        `api-key:${fastHashedSecretKey}`,
-      );
-      expect(cachedKey).toBeNull();
+      const keys = await getApiKeyCacheKeys(redis);
+      expect(keys.length).toBe(0);
     });
 
     it("if no keys in redis, invalidating org keys without fast hash should do nothing", async () => {
@@ -805,11 +783,8 @@ describe("Authenticate API calls", () => {
         testApiKey.orgId,
       );
 
-      const keysForCurrentApiKey = await getApiKeyCacheKeys(
-        redis,
-        `api-key:${createShaHash(testApiKey.secretKey, env.SALT)}`,
-      );
-      expect(keysForCurrentApiKey.length).toBe(0);
+      const keys = await getApiKeyCacheKeys(redis);
+      expect(keys.length).toBe(0);
     });
 
     it("should invalidate project API keys in redis", async () => {
@@ -844,11 +819,10 @@ describe("Authenticate API calls", () => {
     });
 
     it("if no keys in redis, invalidating project keys should do nothing", async () => {
-      const fastHashedSecretKey = `test-fast-hash-${v4()}`;
       await prisma.apiKey.update({
         where: { publicKey: testApiKey.publicKey },
         data: {
-          fastHashedSecretKey,
+          fastHashedSecretKey: Math.random().toString(36).substring(2, 15),
         },
       });
 
@@ -856,11 +830,8 @@ describe("Authenticate API calls", () => {
         testApiKey.projectId,
       );
 
-      const cachedKey = await getRedisValue(
-        redis,
-        `api-key:${fastHashedSecretKey}`,
-      );
-      expect(cachedKey).toBeNull();
+      const keys = await getApiKeyCacheKeys(redis);
+      expect(keys.length).toBe(0);
     });
 
     it("if no keys in redis, invalidating project keys without fast hash should do nothing", async () => {
@@ -875,11 +846,8 @@ describe("Authenticate API calls", () => {
         testApiKey.projectId,
       );
 
-      const keysForCurrentApiKey = await getApiKeyCacheKeys(
-        redis,
-        `api-key:${createShaHash(testApiKey.secretKey, env.SALT)}`,
-      );
-      expect(keysForCurrentApiKey.length).toBe(0);
+      const keys = await getApiKeyCacheKeys(redis);
+      expect(keys.length).toBe(0);
     });
   });
 
