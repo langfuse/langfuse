@@ -50,6 +50,7 @@ export const APIObservation = z
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
+    release: z.string().nullable().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     input: z.any(),
