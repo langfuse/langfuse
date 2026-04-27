@@ -1,4 +1,5 @@
 import { PrismaClient, ApiKeyScope } from "@prisma/client";
+import type { ApiKeyAccessPermission } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
@@ -41,6 +42,7 @@ export async function createAndAddApiKeysToDb(p: {
   entityId: string;
   scope: ApiKeyScope;
   note?: string;
+  accessPermission?: ApiKeyAccessPermission;
   predefinedKeys?: {
     secretKey: string;
     publicKey: string;
@@ -72,6 +74,7 @@ export async function createAndAddApiKeysToDb(p: {
       fastHashedSecretKey: hashFromProvidedKey,
       note: p.note,
       scope: p.scope,
+      accessPermission: p.accessPermission ?? "READ_AND_WRITE",
     },
   });
 

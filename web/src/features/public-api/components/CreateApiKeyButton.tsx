@@ -20,6 +20,13 @@ import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseE
 import { Label } from "@/src/components/ui/label";
 import { cn } from "@/src/utils/tailwind";
 import { SubHeader } from "@/src/components/layouts/header";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -51,6 +58,9 @@ export function CreateApiKeyButton(props: {
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
+  const [accessPermission, setAccessPermission] = useState<
+    "READ_ONLY" | "READ_AND_WRITE"
+  >("READ_AND_WRITE");
   const [generatedKeys, setGeneratedKeys] = useState<{
     secretKey: string;
     publicKey: string;
@@ -62,6 +72,7 @@ export function CreateApiKeyButton(props: {
       // Reset state when closing
       setGeneratedKeys(null);
       setNote("");
+      setAccessPermission("READ_AND_WRITE");
     }
   };
 
@@ -71,6 +82,7 @@ export function CreateApiKeyButton(props: {
         .mutateAsync({
           projectId: props.entityId,
           note: note || undefined,
+          accessPermission,
         })
         .then(({ secretKey, publicKey }) => {
           setGeneratedKeys({
@@ -137,6 +149,27 @@ export function CreateApiKeyButton(props: {
                   className="mt-1.5"
                 />
               </div>
+              {props.scope === "project" && (
+                <div>
+                  <Label htmlFor="accessPermission">Access Permission</Label>
+                  <Select
+                    value={accessPermission}
+                    onValueChange={(value: "READ_ONLY" | "READ_AND_WRITE") =>
+                      setAccessPermission(value)
+                    }
+                  >
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="READ_AND_WRITE">
+                        Read and Write
+                      </SelectItem>
+                      <SelectItem value="READ_ONLY">Read Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
         </DialogBody>

@@ -223,6 +223,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
+      accessPermission: "READ_AND_WRITE" as const,
     },
   };
 }
@@ -299,6 +300,14 @@ export const createAuthedProjectAPIRoute = <
 
       res.status(statusCode).json({ message });
 
+      return;
+    }
+
+    // Enforce read-only API key permissions
+    if (auth.scope.accessPermission === "READ_ONLY" && req.method !== "GET") {
+      res.status(403).json({
+        message: "This API key has read-only access",
+      });
       return;
     }
 

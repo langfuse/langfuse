@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 import {
+  ApiKeyAccessPermission,
   ForbiddenError,
   ObservationLevel,
   ObservationTypeDomain,
@@ -37,6 +38,7 @@ interface TraceState {
 
 export interface OtelIngestionProcessorConfig {
   projectId: string;
+  accessPermission: ApiKeyAccessPermission;
   publicKey?: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
@@ -151,6 +153,7 @@ export class OtelIngestionProcessor {
     traceUpdated: 0,
   };
   private readonly projectId: string;
+  private readonly accessPermission: ApiKeyAccessPermission;
   private readonly publicKey?: string;
   private readonly orgId?: string;
   private readonly propagatedHeaders?: Record<string, string>;
@@ -160,6 +163,7 @@ export class OtelIngestionProcessor {
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
+    this.accessPermission = config.accessPermission;
     this.publicKey = config.publicKey;
     this.orgId = config.orgId;
     this.propagatedHeaders = config.propagatedHeaders;
@@ -207,6 +211,7 @@ export class OtelIngestionProcessor {
               scope: {
                 projectId: this.projectId,
                 accessLevel: "project" as const,
+                accessPermission: this.accessPermission,
                 orgId: this.orgId,
               },
             },

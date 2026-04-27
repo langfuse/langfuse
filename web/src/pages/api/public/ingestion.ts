@@ -93,6 +93,10 @@ export default async function handler(
       );
     }
 
+    if (authCheck.scope.accessPermission === "READ_ONLY") {
+      throw new ForbiddenError("This API key has read-only access");
+    }
+
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: authCheck.scope.projectId,

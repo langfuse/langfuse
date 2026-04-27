@@ -16,6 +16,7 @@ export function createBasicAuthHeader(
 export type CreateOrgProjectAndApiKeyOptions = {
   projectId?: string;
   plan?: "Team" | "Hobby" | "Core" | "Pro" | "Enterprise";
+  accessPermission?: "READ_ONLY" | "READ_AND_WRITE";
 };
 export const createOrgProjectAndApiKey = async (
   props?: CreateOrgProjectAndApiKeyOptions,
@@ -49,6 +50,7 @@ export const createOrgProjectAndApiKey = async (
       hashedSecretKey: await hashSecretKey(secretKey),
       displaySecretKey: getDisplaySecretKey(secretKey),
       scope: "PROJECT",
+      accessPermission: props?.accessPermission ?? "READ_AND_WRITE",
     },
   });
 

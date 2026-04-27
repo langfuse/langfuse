@@ -1,7 +1,7 @@
 import z from "zod";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
-import { ApiKeyScope, MakeOptional } from "../../";
+import { ApiKeyScope, ApiKeyAccessPermission, MakeOptional } from "../../";
 
 const ApiKeyBaseSchema = z.object({
   id: z.string(),
@@ -17,6 +17,7 @@ const ApiKeyBaseSchema = z.object({
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
+  accessPermission: z.nativeEnum(ApiKeyAccessPermission),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -59,6 +60,7 @@ export type ApiAccessLevel = "organization" | "project" | "scores";
 type BaseApiAccessScope = {
   projectId: string | null;
   accessLevel: ApiAccessLevel;
+  accessPermission: ApiKeyAccessPermission;
 };
 
 type ApiAccessScopeMetadata = {

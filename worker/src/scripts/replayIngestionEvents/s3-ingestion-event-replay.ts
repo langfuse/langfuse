@@ -64,6 +64,7 @@ interface OTelJsonOutputItem {
     scope: {
       projectId: string;
       accessLevel: "project";
+      accessPermission: "READ_AND_WRITE";
     };
   };
   data: {
@@ -352,6 +353,7 @@ async function convertCsvToJsonl(
             scope: {
               projectId,
               accessLevel: "project",
+              accessPermission: "READ_AND_WRITE",
             },
           },
           data: {

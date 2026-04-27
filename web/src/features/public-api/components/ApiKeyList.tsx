@@ -111,6 +111,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableHead className="text-primary">Note</TableHead>
               <TableHead className="text-primary">Public Key</TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
+              <TableHead className="text-primary">Permission</TableHead>
               {/* <TableHead className="text-primary">Last used</TableHead> */}
               <TableHead />
             </TableRow>
@@ -120,7 +121,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableRow>
                 <TableCell
                   density="comfortable"
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center"
                 >
                   None
@@ -152,6 +153,13 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                   />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
+                  </TableCell>
+                  <TableCell density="comfortable">
+                    {"accessPermission" in apiKey
+                      ? apiKey.accessPermission === "READ_ONLY"
+                        ? "Read Only"
+                        : "Read and Write"
+                      : "Read and Write"}
                   </TableCell>
                   {/* <TableCell>
                   {apiKey.lastUsedAt?.toLocaleDateString() ?? "Never"}

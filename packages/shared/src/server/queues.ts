@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApiKeyAccessPermission } from "@prisma/client";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -37,6 +38,7 @@ export const OtelIngestionEvent = z.object({
     scope: z.object({
       projectId: z.string(),
       accessLevel: z.literal("project"),
+      accessPermission: z.nativeEnum(ApiKeyAccessPermission),
       orgId: z.string().optional(),
     }),
   }),

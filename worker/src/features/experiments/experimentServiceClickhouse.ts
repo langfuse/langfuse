@@ -1,4 +1,5 @@
 import {
+  ApiKeyAccessPermission,
   asRecord,
   convertEventRecordToObservationForEval,
   DatasetItemDomain,
@@ -104,6 +105,7 @@ async function processItem(
       scope: {
         projectId: config.projectId,
         accessLevel: "project" as const,
+        accessPermission: ApiKeyAccessPermission.READ_AND_WRITE,
       },
     },
     {
@@ -471,6 +473,7 @@ async function createAllDatasetRunItemsWithConfigError(
         scope: {
           projectId,
           accessLevel: "project" as const,
+          accessPermission: ApiKeyAccessPermission.READ_AND_WRITE,
         },
       },
       { isLangfuseInternal: true },

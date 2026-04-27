@@ -37,6 +37,7 @@ export const projectApiKeysRouter = createTRPCRouter({
           note: true,
           publicKey: true,
           displaySecretKey: true,
+          accessPermission: true,
         },
         orderBy: {
           createdAt: "asc",
@@ -48,6 +49,10 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         note: StringNoHTML.optional(),
+        accessPermission: z
+          .enum(["READ_ONLY", "READ_AND_WRITE"])
+          .optional()
+          .default("READ_AND_WRITE"),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -62,6 +67,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         entityId: input.projectId,
         note: input.note,
         scope: "PROJECT",
+        accessPermission: input.accessPermission,
       });
 
       await auditLog({

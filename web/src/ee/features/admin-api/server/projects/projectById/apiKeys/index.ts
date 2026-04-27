@@ -34,6 +34,7 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
+      accessPermission: true,
     },
     orderBy: {
       createdAt: "asc",
@@ -54,6 +55,10 @@ export async function handleCreateApiKey(
     note: z.string().optional(),
     publicKey: z.string().optional(),
     secretKey: z.string().optional(),
+    accessPermission: z
+      .enum(["READ_ONLY", "READ_AND_WRITE"])
+      .optional()
+      .default("READ_AND_WRITE"),
   });
 
   const validationResult = createApiKeySchema.safeParse(req.body);
@@ -98,6 +103,7 @@ export async function handleCreateApiKey(
       entityId: projectId,
       note,
       scope: "PROJECT",
+      accessPermission: validationResult.data.accessPermission,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,
     });

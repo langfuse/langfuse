@@ -263,6 +263,7 @@ export const otelIngestionQueueProcessor: Processor = async (
     // Generate events via OtelIngestionProcessor
     const processor = new OtelIngestionProcessor({
       projectId,
+      accessPermission: auth.scope.accessPermission,
       publicKey,
     });
     const events: IngestionEventType[] =

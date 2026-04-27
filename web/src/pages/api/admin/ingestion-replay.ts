@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { ApiKeyAccessPermission } from "@langfuse/shared";
 import {
   eventTypes,
   logger,
@@ -153,7 +154,11 @@ export default async function handler(
             data: { fileKey: key },
             authCheck: {
               validKey: true,
-              scope: { projectId: projectId!, accessLevel: "project" },
+              scope: {
+                projectId: projectId!,
+                accessLevel: "project",
+                accessPermission: ApiKeyAccessPermission.READ_AND_WRITE,
+              },
             },
           },
           name: QueueJobs.OtelIngestionJob,

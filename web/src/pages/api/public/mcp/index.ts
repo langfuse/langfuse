@@ -103,6 +103,13 @@ export default async function handler(
       );
     }
 
+    if (
+      authCheck.scope.accessPermission === "READ_ONLY" &&
+      req.method !== "GET"
+    ) {
+      throw new ForbiddenError("This API key has read-only access");
+    }
+
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
