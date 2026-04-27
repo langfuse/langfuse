@@ -42,9 +42,10 @@ const maybeDescribe =
     : describe.skip;
 
 const withIsolatedCreateEvalQueue = async <T>(
+  projectId: string,
   fn: (queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>) => Promise<T>,
 ) => {
-  const queueName = `${QueueName.CreateEvalQueue}-${uuidv4()}`;
+  const queueName = `${QueueName.CreateEvalQueue}-${projectId}-${uuidv4()}`;
   const redis = createNewRedisInstance({
     enableOfflineQueue: false,
     ...redisQueueRetryOptions,
@@ -76,16 +77,10 @@ const withIsolatedCreateEvalQueue = async <T>(
   }
 };
 
-const getCreateEvalQueueJobs = async ({
-  queue,
-  projectId,
-  configId,
-}: {
-  queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
-  projectId: string;
-  configId?: string;
-}) => {
-  const jobs = await queue.getJobs([
+const getCreateEvalQueueJobs = async (
+  queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>,
+) => {
+  return await queue.getJobs([
     "waiting",
     "delayed",
     "paused",
@@ -94,36 +89,21 @@ const getCreateEvalQueueJobs = async ({
     "completed",
     "failed",
   ]);
-
-  return jobs.filter(
-    (job) =>
-      job.name === QueueJobs.CreateEvalJob &&
-      job.data.payload.projectId === projectId &&
-      (!configId || job.data.payload.configId === configId),
-  );
 };
 
 const waitForCreateEvalQueueJobs = async ({
   queue,
-  projectId,
-  configId,
   expectedLength,
 }: {
   queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
-  projectId: string;
-  configId?: string;
   expectedLength: number;
 }) => {
   let jobs: Awaited<ReturnType<typeof getCreateEvalQueueJobs>> = [];
 
   await waitForExpect(async () => {
-    jobs = await getCreateEvalQueueJobs({
-      queue,
-      projectId,
-      configId,
-    });
+    jobs = await getCreateEvalQueueJobs(queue);
 
-    expect(jobs).toHaveLength(expectedLength);
+    expect(jobs.map((job) => job.data.payload)).toHaveLength(expectedLength);
   }, 15_000);
 
   return jobs;
@@ -424,13 +404,11 @@ describe("select all test suite", () => {
       expect(traceIds).toEqual([traceId1]);
     }, 15_000);
 
-    await withIsolatedCreateEvalQueue(async (queue) => {
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
       await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
       const jobs = await waitForCreateEvalQueueJobs({
         queue,
-        projectId,
-        configId,
         expectedLength: 1,
       });
 
@@ -624,13 +602,11 @@ describe("select all test suite", () => {
       expect(datasetRunItems).toHaveLength(2);
     }, 15_000);
 
-    await withIsolatedCreateEvalQueue(async (queue) => {
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
       await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
       const jobs = await waitForCreateEvalQueueJobs({
         queue,
-        projectId,
-        configId,
         expectedLength: 2,
       });
 
@@ -683,17 +659,17 @@ describe("select all test suite", () => {
       },
     };
 
-    await withIsolatedCreateEvalQueue(async (queue) => {
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
       await expect(
         handleBatchActionJob(payload, { evalCreatorQueue: queue }),
       ).resolves.not.toThrow();
 
       const jobs = await waitForCreateEvalQueueJobs({
         queue,
-        projectId,
-        configId: nonExistentConfigId,
         expectedLength: 0,
       });
+
+      expect(jobs).toHaveLength(0);
     });
   });
 });
