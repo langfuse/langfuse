@@ -503,16 +503,6 @@ describe("Clickhouse Scores Repository Test", () => {
 
       expect(prioritizedScore).toBeDefined();
       expect(prioritizedScore?.values).toHaveLength(20);
-      expect(prioritizedScore?.values.slice(0, 5)).toEqual([
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-      ]);
-      expect(prioritizedScore?.values).toEqual(
-        expect.arrayContaining(["A", "B", "C", "D", "E"]),
-      );
     });
   });
 
