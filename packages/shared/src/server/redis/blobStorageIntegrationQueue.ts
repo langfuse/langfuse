@@ -42,29 +42,37 @@ export class BlobStorageIntegrationQueue {
 
     if (BlobStorageIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for BlobStorageIntegrationQueue");
-      // Remove the old hourly cron pattern — BullMQ keys repeatable jobs by
-      // name + pattern, so changing the pattern creates a second schedule
-      // while the old one keeps firing.
+      const legacyRepeatablePatterns = ["20 * * * *", "*/20 * * * *"] as const;
+
+      Promise.all(
+        legacyRepeatablePatterns.map((pattern) =>
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Removes legacy repeatable jobs created before this queue used BullMQ job schedulers.
+          BlobStorageIntegrationQueue.instance!.removeRepeatable(
+            QueueJobs.BlobStorageIntegrationJob,
+            { pattern },
+          ),
+        ),
+      ).catch((err) => {
+        logger.error(
+          "Error removing legacy BlobStorageIntegrationJob repeatable schedules",
+          err,
+        );
+      });
+
       BlobStorageIntegrationQueue.instance
-        .removeRepeatable(QueueJobs.BlobStorageIntegrationJob, {
-          pattern: "20 * * * *",
-        })
-        .catch((err) => {
-          logger.error(
-            "Error removing legacy BlobStorageIntegrationJob schedule",
-            err,
-          );
-        });
-      BlobStorageIntegrationQueue.instance
-        .add(
+        .upsertJobScheduler(
           QueueJobs.BlobStorageIntegrationJob,
-          {},
+          { pattern: "*/20 * * * *" }, // every 20 minutes
           {
-            repeat: { pattern: "*/20 * * * *" }, // every 20 minutes
+            name: QueueJobs.BlobStorageIntegrationJob,
+            data: {},
           },
         )
         .catch((err) => {
-          logger.error("Error adding BlobStorageIntegrationJob schedule", err);
+          logger.error(
+            "Error upserting BlobStorageIntegrationJob scheduler",
+            err,
+          );
         });
     }
 

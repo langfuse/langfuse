@@ -131,6 +131,7 @@ export default withMiddlewares({
       const outObservations = observationsView.map(transformDbToApiObservation);
       // As these are traces scores, we expect all scores to have a traceId set
       // For type consistency, we validate the scores against the v1 schema which requires a traceId
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal legacy v1 public API validator.
       const validatedScores = filterAndValidateDbTraceScoreList({
         scores,
         onParseError: traceException,
