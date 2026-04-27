@@ -436,6 +436,9 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // Events table for UI/tRPC routes (separate from public API flag)
+    LANGFUSE_ENABLE_EVENTS_TABLE_UI: z.enum(["true", "false"]).default("false"),
+
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
       .default("false"),
@@ -843,6 +846,8 @@ export const env = createEnv({
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_UI:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:

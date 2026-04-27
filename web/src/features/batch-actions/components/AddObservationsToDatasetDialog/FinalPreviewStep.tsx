@@ -1,11 +1,28 @@
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { AlertTriangle, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 import type { FinalPreviewStepProps, DialogStep } from "./types";
 import { applyFullMapping } from "@langfuse/shared";
 import type { MappingError } from "@langfuse/shared";
+import {
+  IssueBanner,
+  issueCardVariants,
+  issueChromeVariants,
+  issueIcons,
+  issueTextVariants,
+  type IssueVariant,
+} from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner";
+
+const STEP_FOR_FIELD: Record<string, DialogStep> = {
+  input: "input-mapping",
+  expectedOutput: "output-mapping",
+  metadata: "metadata-mapping",
+};
+
+const fieldLabel = (field: string) =>
+  field === "expectedOutput" ? "expected output" : field;
 
 export function FinalPreviewStep({
   dataset,
@@ -14,7 +31,6 @@ export function FinalPreviewStep({
   totalCount,
   onEditStep,
 }: FinalPreviewStepProps) {
-  // Compute the full preview
   const previewResult = useMemo(() => {
     if (!observationData) return null;
 
@@ -28,26 +44,22 @@ export function FinalPreviewStep({
     });
   }, [observationData, mapping]);
 
-  // Group errors by target field
-  const errorsByField = useMemo(() => {
-    const errors = previewResult?.errors ?? [];
-    const grouped: Record<string, MappingError[]> = {};
-    for (const err of errors) {
-      if (!grouped[err.targetField]) {
-        grouped[err.targetField] = [];
+  const { errorsByField, missesByField, errorFields, missFields } =
+    useMemo(() => {
+      const errorsByField: Record<string, MappingError[]> = {};
+      const missesByField: Record<string, MappingError[]> = {};
+      for (const err of previewResult?.errors ?? []) {
+        const bucket =
+          err.type === "json_path_error" ? errorsByField : missesByField;
+        (bucket[err.targetField] ??= []).push(err);
       }
-      grouped[err.targetField].push(err);
-    }
-    return grouped;
-  }, [previewResult?.errors]);
-
-  const hasWarnings = (previewResult?.errors?.length ?? 0) > 0;
-
-  const stepForField: Record<string, DialogStep> = {
-    input: "input-mapping" as DialogStep,
-    expectedOutput: "output-mapping" as DialogStep,
-    metadata: "metadata-mapping" as DialogStep,
-  };
+      return {
+        errorsByField,
+        missesByField,
+        errorFields: Object.keys(errorsByField),
+        missFields: Object.keys(missesByField),
+      };
+    }, [previewResult?.errors]);
 
   return (
     <div className="h-[62vh] space-y-6 p-6">
@@ -60,40 +72,32 @@ export function FinalPreviewStep({
         </p>
       </div>
 
-      {/* Overall warning banner */}
-      {hasWarnings && (
-        <div className="rounded-md border border-amber-500/50 bg-amber-50 p-3 dark:bg-amber-950/30">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-                Some JSON paths did not match the preview observation
-              </p>
-              <p className="text-xs text-amber-600/80 dark:text-amber-500/80">
-                Observations with failed mappings will be skipped during
-                processing.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {Object.entries(errorsByField).map(([field]) => (
-                  <Button
-                    key={field}
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-amber-600 underline dark:text-amber-500"
-                    onClick={() => {
-                      const step = stepForField[field];
-                      if (step) onEditStep(step);
-                    }}
-                  >
-                    Edit{" "}
-                    {field === "expectedOutput" ? "expected output" : field}{" "}
-                    mapping
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+      {errorFields.length > 0 && (
+        <IssueBanner
+          variant="error"
+          title="Some JSONPaths are invalid"
+          description="Items using these mappings will be skipped during processing."
+        >
+          <EditMappingActions
+            variant="error"
+            fields={errorFields}
+            onEditStep={onEditStep}
+          />
+        </IssueBanner>
+      )}
+
+      {missFields.length > 0 && (
+        <IssueBanner
+          variant="warning"
+          title="Some JSONPaths did not match the preview observation"
+          description="Observations with failed mappings will be skipped during processing."
+        >
+          <EditMappingActions
+            variant="warning"
+            fields={missFields}
+            onEditStep={onEditStep}
+          />
+        </IssueBanner>
       )}
 
       <div className="text-muted-foreground text-sm">
@@ -108,31 +112,61 @@ export function FinalPreviewStep({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Input Preview */}
           <PreviewCard
             label="Input"
             data={previewResult?.input}
-            onEdit={() => onEditStep("input-mapping" as DialogStep)}
-            errors={errorsByField["input"]}
+            onEdit={() => onEditStep("input-mapping")}
+            pathErrors={errorsByField["input"]}
+            pathMisses={missesByField["input"]}
           />
-
-          {/* Expected Output Preview */}
           <PreviewCard
             label="Expected Output"
             data={previewResult?.expectedOutput}
-            onEdit={() => onEditStep("output-mapping" as DialogStep)}
-            errors={errorsByField["expectedOutput"]}
+            onEdit={() => onEditStep("output-mapping")}
+            pathErrors={errorsByField["expectedOutput"]}
+            pathMisses={missesByField["expectedOutput"]}
           />
-
-          {/* Metadata Preview */}
           <PreviewCard
             label="Metadata"
             data={previewResult?.metadata}
-            onEdit={() => onEditStep("metadata-mapping" as DialogStep)}
-            errors={errorsByField["metadata"]}
+            onEdit={() => onEditStep("metadata-mapping")}
+            pathErrors={errorsByField["metadata"]}
+            pathMisses={missesByField["metadata"]}
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function EditMappingActions({
+  variant,
+  fields,
+  onEditStep,
+}: {
+  variant: IssueVariant;
+  fields: string[];
+  onEditStep: (step: DialogStep) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 pt-1">
+      {fields.map((field) => (
+        <Button
+          key={field}
+          variant="link"
+          size="sm"
+          className={cn(
+            "h-auto p-0 text-xs underline",
+            issueTextVariants({ variant }),
+          )}
+          onClick={() => {
+            const step = STEP_FOR_FIELD[field];
+            if (step) onEditStep(step);
+          }}
+        >
+          Edit {fieldLabel(field)} mapping
+        </Button>
+      ))}
     </div>
   );
 }
@@ -141,20 +175,29 @@ type PreviewCardProps = {
   label: string;
   data: unknown;
   onEdit: () => void;
-  errors?: MappingError[];
+  pathErrors?: MappingError[];
+  pathMisses?: MappingError[];
 };
 
-function PreviewCard({ label, data, onEdit, errors }: PreviewCardProps) {
-  const hasErrors = errors && errors.length > 0;
+function PreviewCard({
+  label,
+  data,
+  onEdit,
+  pathErrors = [],
+  pathMisses = [],
+}: PreviewCardProps) {
+  const variant: IssueVariant | null =
+    pathErrors.length > 0 ? "error" : pathMisses.length > 0 ? "warning" : null;
+  const Icon = variant ? issueIcons[variant] : null;
 
   return (
-    <div
-      className={cn("rounded-lg border", hasErrors && "border-amber-500/50")}
-    >
+    <div className={issueCardVariants({ variant: variant ?? "none" })}>
       <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2">
         <span className="flex items-center gap-1.5 text-sm font-medium">
-          {hasErrors && (
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+          {Icon && variant && (
+            <Icon
+              className={cn("h-3.5 w-3.5", issueTextVariants({ variant }))}
+            />
           )}
           {label}
         </span>
@@ -175,12 +218,20 @@ function PreviewCard({ label, data, onEdit, errors }: PreviewCardProps) {
           <JSONView json={data} className="text-xs" />
         )}
       </div>
-      {hasErrors && (
-        <div className="border-t border-amber-500/50 bg-amber-50 px-4 py-2 dark:bg-amber-950/30">
-          <p className="text-xs text-amber-600 dark:text-amber-500">
-            {errors.length} path{errors.length !== 1 ? "s" : ""} did not match
-            in preview observation. These items will be skipped during
-            processing.
+      {variant && (
+        <div
+          className={cn("border-t px-4 py-2", issueChromeVariants({ variant }))}
+        >
+          <p className="text-xs">
+            {[
+              pathErrors.length > 0 &&
+                `${pathErrors.length} path${pathErrors.length !== 1 ? "s have" : " has"} invalid syntax`,
+              pathMisses.length > 0 &&
+                `${pathMisses.length} path${pathMisses.length !== 1 ? "s" : ""} did not match in preview observation`,
+            ]
+              .filter(Boolean)
+              .join("; ")}
+            . These items will be skipped during processing.
           </p>
         </div>
       )}

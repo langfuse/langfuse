@@ -310,26 +310,33 @@ export class StringObjectFilter implements Filter {
 
     let query: string;
     if (isEventsTable) {
-      // For events tables, use array access: {field}_values[indexOf({field}_names, key)]
+      // ClickHouse's index analyzer cannot extract `has(names, k)` from
+      // `values[indexOf(names, k)] OP v` (cross-array arrayElement form), so a
+      // bloom_filter skipping index on `names` would never prune granules.
+      // Emitting an explicit `has(names, k) AND (...)` prefix conjunct makes
+      // the index actionable and corrects the absent-key matching semantic
+      // (Otherwise `arr[0] = ''` causes some predicates to match rows that never
+      // had the key — including `does not contain`).
       const namesColumn = `${prefix}${this.field}_names`;
       const valuesColumn = `${prefix}${this.field}_values`;
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
+      const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
 
       switch (this.operator) {
         case "=":
-          query = `${valueAccessor} = {${varValueName}: String}`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
           break;
         case "contains":
-          query = `position(${valueAccessor}, {${varValueName}: String}) > 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${valueAccessor}, {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${valueAccessor}, {${varValueName}: String})`;
+          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         case "ends with":
-          query = `endsWith(${valueAccessor}, {${varValueName}: String})`;
+          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);

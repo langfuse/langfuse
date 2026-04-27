@@ -1,7 +1,7 @@
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { EvalTargetObject, extractValueFromObject } from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";
 
@@ -23,6 +23,10 @@ type ExtractedVariable = {
   value: unknown;
 };
 
+type ExtractionError =
+  | { kind: "jsonPath"; message: string }
+  | { kind: "unexpected"; message: string };
+
 export function useExtractVariables({
   variables,
   variableMapping,
@@ -39,7 +43,8 @@ export function useExtractVariables({
     ExtractedVariable[]
   >([]);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [extractionError, setExtractionError] = useState<Error | null>(null);
+  const [extractionError, setExtractionError] =
+    useState<ExtractionError | null>(null);
   const previousMappingRef = useRef<string>("");
 
   // Create a stable string representation of the current mapping for comparison
@@ -54,9 +59,12 @@ export function useExtractVariables({
 
   // Handle error toasts separately to avoid repeated toasts on re-renders
   useEffect(() => {
-    if (extractionError) {
-      trpcErrorToast(extractionError);
-    }
+    if (!extractionError) return;
+    const title =
+      extractionError.kind === "jsonPath"
+        ? "Invalid JSONPath in variable mapping"
+        : "Failed to extract variable";
+    showErrorToast(title, extractionError.message, "WARNING");
   }, [extractionError]);
 
   useEffect(() => {
@@ -155,7 +163,12 @@ export function useExtractVariables({
         mapping.selectedColumnId,
         mapping.jsonSelector ?? undefined,
       );
-      return { variable, value, error };
+      return {
+        variable,
+        value,
+        error,
+        jsonSelector: mapping.jsonSelector ?? null,
+      };
     });
 
     // Resolve all promises and update state
@@ -165,7 +178,11 @@ export function useExtractVariables({
           (result) => result.error instanceof Error,
         );
         if (firstError) {
-          setExtractionError(firstError.error as Error);
+          const baseMessage = (firstError.error as Error).message;
+          const message = firstError.jsonSelector
+            ? `${firstError.jsonSelector}: ${baseMessage}`
+            : baseMessage;
+          setExtractionError({ kind: "jsonPath", message });
         }
         setExtractedVariables(results);
         // Update the ref to the current mapping string to track changes
@@ -173,7 +190,10 @@ export function useExtractVariables({
       })
       .catch((error) => {
         console.error("Error extracting variables:", error);
-        setExtractionError(error);
+        setExtractionError({
+          kind: "unexpected",
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
         setExtractedVariables(
           variables.map((variable) => ({
             variable,
