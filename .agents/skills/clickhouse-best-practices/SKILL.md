@@ -33,10 +33,6 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
 
-### For Formal Reviews
-
-When performing a formal review of schemas, queries, or data ingestion:
-
 ---
 
 ## Review Procedures
