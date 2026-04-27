@@ -310,11 +310,11 @@ export function WidgetForm({
     filters: initialValues.filters ?? [],
   });
   const viewVersion: ViewVersion =
-    (isBetaEnabled && selectedView !== "traces") ||
-    (initialValues.minVersion ?? 1) >= 2 ||
-    initialWidgetRequiresV2
+    initialWidgetRequiresV2 || (initialValues.minVersion ?? 1) >= 2
       ? "v2"
-      : "v1";
+      : isBetaEnabled && selectedView !== "traces"
+        ? "v2"
+        : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
