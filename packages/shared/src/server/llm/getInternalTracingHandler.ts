@@ -30,7 +30,8 @@ export function prepareInternalTraceEvents(params: {
       blockedSpanNameSubstrings.some((blockedSubstring) =>
         eventName.includes(blockedSubstring),
       ) &&
-      "id" in event.body
+      "id" in event.body &&
+      event.type !== "trace-create"
     ) {
       blockedSpanIds.add(event.body.id);
     }
