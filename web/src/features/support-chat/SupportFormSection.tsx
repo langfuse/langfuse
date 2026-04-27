@@ -348,7 +348,7 @@ export function SupportFormSection({
               navigator as Navigator & {
                 userAgentData?: { platform?: string };
               }
-            ).userAgentData?.platform ?? navigator.userAgent,
+            ).userAgentData?.platform ?? undefined,
           language: navigator.language,
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },
