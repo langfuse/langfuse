@@ -42,37 +42,30 @@ export class BlobStorageIntegrationQueue {
 
     if (BlobStorageIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for BlobStorageIntegrationQueue");
-      const legacyRepeatablePatterns = ["20 * * * *", "*/20 * * * *"] as const;
-
-      Promise.all(
-        legacyRepeatablePatterns.map((pattern) =>
-          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Removes legacy repeatable jobs created before this queue used BullMQ job schedulers.
-          BlobStorageIntegrationQueue.instance!.removeRepeatable(
-            QueueJobs.BlobStorageIntegrationJob,
-            { pattern },
-          ),
-        ),
-      ).catch((err) => {
-        logger.error(
-          "Error removing legacy BlobStorageIntegrationJob repeatable schedules",
-          err,
-        );
-      });
-
+      // Remove the old hourly cron pattern - BullMQ keys repeatable jobs by
+      // name + pattern, so changing the pattern creates a second schedule
+      // while the old one keeps firing.
       BlobStorageIntegrationQueue.instance
-        .upsertJobScheduler(
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Existing repeatable-job cleanup; job scheduler migration should be handled separately.
+        .removeRepeatable(QueueJobs.BlobStorageIntegrationJob, {
+          pattern: "20 * * * *",
+        })
+        .catch((err) => {
+          logger.error(
+            "Error removing legacy BlobStorageIntegrationJob schedule",
+            err,
+          );
+        });
+      BlobStorageIntegrationQueue.instance
+        .add(
           QueueJobs.BlobStorageIntegrationJob,
-          { pattern: "*/20 * * * *" }, // every 20 minutes
+          {},
           {
-            name: QueueJobs.BlobStorageIntegrationJob,
-            data: {},
+            repeat: { pattern: "*/20 * * * *" }, // every 20 minutes
           },
         )
         .catch((err) => {
-          logger.error(
-            "Error upserting BlobStorageIntegrationJob scheduler",
-            err,
-          );
+          logger.error("Error adding BlobStorageIntegrationJob schedule", err);
         });
     }
 
