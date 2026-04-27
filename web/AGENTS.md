@@ -84,6 +84,8 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- When changing shared UI/table patterns, update sibling variants consistently,
+  including default-visible and hidden columns or states.
 - For component style variants, prefer `cva` with `VariantProps` and merge
   caller classes through `cn`, following existing `src/components/ui/*`
   components:

@@ -22,6 +22,7 @@ Complete guide to testing Langfuse backend services across web, worker, and shar
 2. **Unique IDs**: Use `randomUUID()` or unique project IDs to avoid test interference
 3. **Cleanup**: Always clean up test data in service tests (or use unique project IDs)
 4. **Avoid Global Resets**: Prefer scoped cleanup or unique project IDs over global reset helpers
+5. **Flags and Fallbacks**: When code branches on env flags, feature flags, or fallback data paths, test both branches and ensure fixtures are written to the same store the branch reads from
 
 ### By Test Type
 
