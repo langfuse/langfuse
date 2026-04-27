@@ -47,7 +47,7 @@ const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
   JP: ["JP", "US", "EU", "HIPAA"],
-  default: ["US", "EU", "HIPAA"],
+  default: ["US", "EU", "JP", "HIPAA"],
 } as const;
 
 const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
