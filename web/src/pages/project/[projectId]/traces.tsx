@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { useRouter } from "next/router";
-import { useQueryParams, StringParam } from "use-query-params";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -17,40 +16,7 @@ export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
-  const [, setQueryParams] = useQueryParams({
-    viewId: StringParam,
-    viewMode: StringParam,
-  });
   const { project } = useQueryProject();
-  const previousBetaEnabledRef = useRef<boolean | null>(null);
-  const viewPersistenceKey = isBetaEnabled ? "traces-v4" : "traces-v3";
-
-  // Clear mode-specific query state when switching table modes
-  useEffect(() => {
-    if (isInitializing) {
-      return;
-    }
-
-    const previousIsBetaEnabled = previousBetaEnabledRef.current;
-    previousBetaEnabledRef.current = isBetaEnabled;
-
-    if (previousIsBetaEnabled === null) {
-      if (!isBetaEnabled) {
-        setQueryParams({ viewMode: undefined });
-      }
-      return;
-    }
-
-    if (previousIsBetaEnabled === isBetaEnabled) {
-      return;
-    }
-
-    if (!isBetaEnabled) {
-      setQueryParams({ viewId: undefined, viewMode: undefined });
-    } else {
-      setQueryParams({ viewId: undefined });
-    }
-  }, [isBetaEnabled, isInitializing, setQueryParams]);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -130,15 +96,9 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable
-          projectId={projectId}
-          viewPersistenceKey={viewPersistenceKey}
-        />
+        <ObservationsEventsTable projectId={projectId} />
       ) : (
-        <TracesTable
-          projectId={projectId}
-          viewPersistenceKey={viewPersistenceKey}
-        />
+        <TracesTable projectId={projectId} />
       )}
     </Page>
   );

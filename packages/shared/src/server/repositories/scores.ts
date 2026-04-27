@@ -52,6 +52,10 @@ import {
   eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
+import {
+  findUiColumnMapping,
+  matchesUiColumnMapping,
+} from "../../tableDefinitions";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -617,6 +621,12 @@ export type GetScoresForObservationsProps<
 > = {
   projectId: string;
   observationIds: string[];
+  /**
+   * When provided, adds `AND s.timestamp >= minTimestamp - SCORE_TO_TRACE_OBSERVATIONS_INTERVAL`
+   * to the query so ClickHouse can prune monthly partitions and avoid full-table scans.
+   * Pass the minimum startTime of the observations whose scores you are fetching.
+   */
+  minTimestamp?: Date;
   limit?: number;
   offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
@@ -634,6 +644,7 @@ export const getScoresForObservations = async <
   const {
     projectId,
     observationIds,
+    minTimestamp,
     limit,
     offset,
     clickhouseConfigs,
@@ -657,6 +668,7 @@ export const getScoresForObservations = async <
       WHERE s.project_id = {projectId: String}
       AND s.observation_id IN ({observationIds: Array(String)})
       AND s.data_type IN ({dataTypes: Array(String)})
+      ${minTimestamp ? `AND s.timestamp >= {minTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
@@ -678,6 +690,9 @@ export const getScoresForObservations = async <
       dataTypes: LISTABLE_SCORE_TYPES,
       limit: limit,
       offset: offset,
+      ...(minTimestamp
+        ? { minTimestamp: convertDateToClickhouseDateTime(minTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
@@ -751,10 +766,8 @@ export const getScoresGroupedByNameSourceType = async ({
 
   // Extract event-level filter entries from the frontend filter state
   const eventFilterState = filter.filter((filterEntry) =>
-    scoresEventsFilterMapping.some(
-      (col) =>
-        col.uiTableName === filterEntry.column ||
-        col.uiTableId === filterEntry.column,
+    scoresEventsFilterMapping.some((col) =>
+      matchesUiColumnMapping(col, filterEntry.column),
     ),
   );
 
@@ -1294,21 +1307,21 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
-    scoresTraceFilterEventsMapping.some(
-      (col) =>
-        col.uiTableName === filterEntry.column ||
-        col.uiTableId === filterEntry.column,
+    scoresTraceFilterEventsMapping.some((col) =>
+      matchesUiColumnMapping(col, filterEntry.column),
     ),
   );
 
-  const orderByColumn = orderBy
-    ? scoresTableUiColumnDefinitionsFromEvents.find(
-        (c) =>
-          (c.uiTableName === orderBy.column ||
-            c.uiTableId === orderBy.column) &&
-          c.clickhouseTableName === "traces",
+  const matchedOrderByColumn = orderBy
+    ? findUiColumnMapping(
+        scoresTableUiColumnDefinitionsFromEvents,
+        orderBy.column,
       )
     : null;
+  const orderByColumn =
+    matchedOrderByColumn?.clickhouseTableName === "traces"
+      ? matchedOrderByColumn
+      : null;
 
   const needsTracesCTE = traceFilterState.length > 0 || !!orderByColumn;
 
@@ -1806,6 +1819,10 @@ export const getAggregatedScoresForPrompts = async (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
   const query = `
     SELECT
@@ -1827,6 +1844,8 @@ export const getAggregatedScoresForPrompts = async (
     AND s.project_id = {projectId: String}
     AND o.prompt_id IN ({promptIds: Array(String)})
     AND o.type = 'GENERATION'
+    ${fromTimestamp ? "AND o.start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+    ${toTimestamp ? "AND o.start_time <= {toTimestamp: DateTime64(3)}" : ""}
     AND s.name IS NOT NULL
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
@@ -1844,6 +1863,12 @@ export const getAggregatedScoresForPrompts = async (
       projectId,
       promptIds,
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
@@ -2040,11 +2065,31 @@ export const getScoresForAnalyticsIntegrations = async function* (
   projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  options: { useGraceHash?: boolean } = {},
 ) {
-  // Subtract 7d from minTimestamp to account for shift in query
-  const traceTable = "traces";
+  // Pre-filter traces in a CTE so the trace timestamp window prunes partitions
+  // directly, instead of living in an OR clause after the LEFT JOIN where the
+  // planner cannot push it down. Subtract 7d from minTimestamp to keep scores
+  // whose trace was created before the score window started.
+  const query = `
+    WITH selected_traces AS (
+      SELECT
+        t.project_id as project_id,
+        t.id as id,
+        t.name as name,
+        t.session_id as session_id,
+        t.user_id as user_id,
+        t.release as release,
+        t.tags as tags,
+        t.metadata['$posthog_session_id'] as posthog_session_id,
+        t.metadata['$mixpanel_session_id'] as mixpanel_session_id
+      FROM traces t FINAL
+      WHERE t.project_id = {projectId: String}
+      AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+      AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    )
 
-  const query = `    SELECT
+    SELECT
       s.id as id,
       s.timestamp as timestamp,
       s.name as name,
@@ -2063,26 +2108,18 @@ export const getScoresForAnalyticsIntegrations = async function* (
       t.release as trace_release,
       t.tags as trace_tags,
       s.metadata as metadata,
-      t.metadata['$posthog_session_id'] as posthog_session_id,
-      t.metadata['$mixpanel_session_id'] as mixpanel_session_id
+      t.posthog_session_id as posthog_session_id,
+      t.mixpanel_session_id as mixpanel_session_id
     FROM scores s FINAL
-    LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
+    LEFT JOIN selected_traces t ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
-    AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND s.timestamp < {maxTimestamp: DateTime64(3)}
     AND s.data_type IN ({dataTypes: Array(String)})
     AND (
       s.trace_id IS NOT NULL
       OR s.session_id IS NOT NULL
       OR s.dataset_run_id IS NOT NULL
-    )
-    AND (
-      t.project_id = '' -- use the default value for the string type to filter for absence
-      OR (
-        t.project_id = {projectId: String}
-        AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-        AND t.timestamp <= {maxTimestamp: DateTime64(3)}
-      )
     )
   `;
 
@@ -2102,10 +2139,14 @@ export const getScoresForAnalyticsIntegrations = async function* (
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
-      clickhouse_settings: {
-        join_algorithm: "grace_hash",
-        grace_hash_join_initial_buckets: "32",
-      },
+      ...(options.useGraceHash
+        ? {
+            clickhouse_settings: {
+              join_algorithm: "grace_hash",
+              grace_hash_join_initial_buckets: "32",
+            },
+          }
+        : {}),
     },
   });
 
@@ -2267,6 +2308,7 @@ export const getScoreCountsByProjectAndDay = async ({
       endDate: convertDateToClickhouseDateTime(endDate),
       dataTypes: LISTABLE_SCORE_TYPES,
     },
+    clickhouseConfigs: { request_timeout: 120_000 },
     tags: {
       feature: "tracing",
       type: "score",

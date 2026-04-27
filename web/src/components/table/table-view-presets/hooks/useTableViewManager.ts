@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import {
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type FilterState,
   type OrderByState,
   type TableViewPresetState,
@@ -30,7 +30,6 @@ interface TableStateUpdaters {
 interface UseTableStateProps {
   tableName: TableViewPresetTableName;
   projectId: string;
-  viewPersistenceKey?: string;
   stateUpdaters: TableStateUpdaters;
   validationContext?: {
     columns?: LangfuseColumnDef<any, any>[];
@@ -40,13 +39,20 @@ interface UseTableStateProps {
   disabled?: boolean;
 }
 
+const isViewApplicableToTable = (
+  currentTableName: TableViewPresetTableName,
+  viewTableName: TableViewPresetTableName,
+) =>
+  currentTableName === viewTableName ||
+  (currentTableName === TableViewPresetTableName.ObservationsEvents &&
+    viewTableName === TableViewPresetTableName.Observations);
+
 /**
  * Hook to manage table view state with permalink support
  */
 export function useTableViewManager({
   projectId,
   tableName,
-  viewPersistenceKey,
   stateUpdaters,
   validationContext = {},
   currentFilterState,
@@ -59,14 +65,9 @@ export function useTableViewManager({
   const capture = usePostHogClientCapture();
   const pendingFiltersRef = useRef<FilterState | null>(null);
   const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
-  // Session storage needs a mode-specific key because the same tableName can be
-  // rendered by different route variants (for example legacy vs v4 pages) with
-  // distinct saved-view IDs. Reusing tableName would restore stale IDs across
-  // modes and boot the user into an incompatible saved view.
-  const resolvedViewPersistenceKey = viewPersistenceKey ?? tableName;
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
-    `${resolvedViewPersistenceKey}-${projectId}-viewId`,
+    `${tableName}-${projectId}-viewId`,
     null,
   );
   const [selectedViewIdParam, setSelectedViewId] = useQueryParam(
@@ -136,12 +137,9 @@ export function useTableViewManager({
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in URL and not a system preset → getById query handles it.
-    // Sync to session storage so navigating away and back restores the view.
+    // If viewId already in the URL and is not a system preset, let the getById
+    // query resolve it.
     if (selectedViewId && !isSystemPresetId(selectedViewId)) {
-      if (storedViewId !== selectedViewId) {
-        setStoredViewId(selectedViewId);
-      }
       return;
     }
 
@@ -294,7 +292,7 @@ export function useTableViewManager({
     if (isInitializedRef.current) return;
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
-    if (selectedViewData.tableName !== tableName) {
+    if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
       handleSetViewId(null);
       return;
     }
@@ -307,6 +305,9 @@ export function useTableViewManager({
     });
 
     applyViewState(selectedViewData);
+    if (storedViewId !== requestedViewId) {
+      setStoredViewId(requestedViewId);
+    }
     isInitializedRef.current = true;
     setIsInitialized(true);
   }, [
@@ -318,6 +319,8 @@ export function useTableViewManager({
     capture,
     tableName,
     applyViewState,
+    storedViewId,
+    setStoredViewId,
   ]);
 
   useEffect(() => {
