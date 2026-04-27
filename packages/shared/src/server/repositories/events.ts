@@ -3284,7 +3284,11 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   ]);
 
   const builder = new EventsQueryBuilder({ projectId })
-    .selectRaw("e.scope_name", "e.scope_version", "e.telemetry_sdk_language")
+    .selectRaw(
+      "e.scope_name AS scope_name",
+      "e.scope_version AS scope_version",
+      "e.telemetry_sdk_language AS telemetry_sdk_language",
+    )
     .selectMetadataExpanded([]) // Full metadata values from events_full
     .applyFilters(filter)
     // OR condition: v4 has scope_name column, v3 has scope in metadata
