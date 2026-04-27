@@ -176,11 +176,18 @@ export const Chart = ({
           <HistogramChart
             data={renderedData}
             config={resolvedConfig}
+            valueFormatter={valueFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "NUMBER": {
-        return <BigNumber data={renderedData} config={resolvedConfig} />;
+        return (
+          <BigNumber
+            data={renderedData}
+            config={resolvedConfig}
+            valueFormatter={valueFormatter}
+          />
+        );
       }
       case "PIVOT_TABLE": {
         // Extract pivot table configuration from chartConfig

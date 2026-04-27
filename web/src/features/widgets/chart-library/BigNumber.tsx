@@ -104,6 +104,7 @@ const formatBigNumber = (
 export const BigNumber: React.FC<ChartProps> = ({
   data,
   className,
+  valueFormatter,
 }: ChartProps & { className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -127,9 +128,20 @@ export const BigNumber: React.FC<ChartProps> = ({
     }, 0);
   }, [data, isLoading]);
 
-  const displayValue = !isLoading
-    ? formatBigNumber(calculatedMetric, maxCharacters)
-    : { formatted: "0", unit: "" };
+  const displayValue = useMemo(() => {
+    if (isLoading) {
+      return { formatted: "0", unit: "" };
+    }
+
+    if (valueFormatter) {
+      return {
+        formatted: valueFormatter(calculatedMetric),
+        unit: "",
+      };
+    }
+
+    return formatBigNumber(calculatedMetric, maxCharacters);
+  }, [calculatedMetric, isLoading, maxCharacters, valueFormatter]);
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -169,7 +181,9 @@ export const BigNumber: React.FC<ChartProps> = ({
 
         // Quick test with current display value
         const testDisplayValue = !isLoading
-          ? formatBigNumber(calculatedMetric, maxChars)
+          ? valueFormatter
+            ? { formatted: valueFormatter(calculatedMetric), unit: "" }
+            : formatBigNumber(calculatedMetric, maxChars)
           : { formatted: "0", unit: "" };
 
         const textLength = (testDisplayValue.formatted + testDisplayValue.unit)
@@ -196,7 +210,7 @@ export const BigNumber: React.FC<ChartProps> = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [calculatedMetric, isLoading]);
+  }, [calculatedMetric, isLoading, valueFormatter]);
 
   if (isLoading) {
     return null;
