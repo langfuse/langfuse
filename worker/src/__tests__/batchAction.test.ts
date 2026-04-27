@@ -8,7 +8,10 @@ import {
 import { expect, describe, it } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
-import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
+import {
+  getDatabaseReadStreamPaginated,
+  getTraceIdentifierStream,
+} from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
   createTraceScore,
@@ -371,6 +374,22 @@ describe("select all test suite", () => {
       },
     };
 
+    await waitForExpect(async () => {
+      const traceStream = await getTraceIdentifierStream({
+        projectId,
+        cutoffCreatedAt,
+        filter: payload.payload.query.filter,
+        orderBy: payload.payload.query.orderBy,
+      });
+
+      const traceIds: string[] = [];
+      for await (const trace of traceStream) {
+        traceIds.push(trace.id);
+      }
+
+      expect(traceIds).toEqual([traceId1]);
+    }, 15_000);
+
     await withIsolatedCreateEvalQueue(async (queue) => {
       await handleBatchActionJob(payload, { evalCreatorQueue: queue });
 
@@ -392,7 +411,7 @@ describe("select all test suite", () => {
       expect(job.data.payload.traceId).toBe(traceId1);
       expect(job.data.payload.configId).toBe(configId);
     });
-  });
+  }, 30_000);
 
   it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
