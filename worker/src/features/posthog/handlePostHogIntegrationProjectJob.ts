@@ -27,6 +27,10 @@ type PostHogExecutionConfig = {
   maxTimestamp: Date;
   decryptedPostHogApiKey: string;
   postHogHost: string;
+  // First attempt uses ClickHouse `auto` join algorithm. We only fall back to
+  // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
+  // attempt recovers without manual intervention while healthy syncs stay fast.
+  useGraceHash: boolean;
 };
 
 const postHogSettings = {
@@ -39,6 +43,7 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -86,6 +91,7 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -133,6 +139,7 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
+    { useGraceHash: config.useGraceHash },
   );
 
   logger.info(
@@ -316,6 +323,7 @@ export const handlePostHogIntegrationProjectJob = async (
     maxTimestamp,
     decryptedPostHogApiKey: decrypt(postHogIntegration.encryptedPosthogApiKey),
     postHogHost: postHogIntegration.posthogHostName,
+    useGraceHash: job.attemptsMade > 0,
   };
 
   try {
