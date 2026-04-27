@@ -2036,16 +2036,20 @@ export class OtelIngestionProcessor {
     const topLevelMetadata = this.parseMetadataAttribute(
       attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
     );
-    const langfuseMetadata = this.extractPrefixedMetadataAttributes(
+    const langfuseMetadata = this.extractPrefixedMetadataAttributes({
       attributes,
-      [metadataKeyPrefix, "langfuse.metadata", "ai.telemetry.metadata"],
-      new Set([
+      prefixes: [
+        metadataKeyPrefix,
+        "langfuse.metadata",
+        "ai.telemetry.metadata",
+      ],
+      excludedKeys: new Set([
         "ai.telemetry.metadata.userId",
         "ai.telemetry.metadata.sessionId",
         "ai.telemetry.metadata.tags",
         "ai.telemetry.metadata.langfusePrompt",
       ]),
-    );
+    });
 
     // Vercel AI SDK
     const tools =
@@ -2690,11 +2694,12 @@ export class OtelIngestionProcessor {
     return {};
   }
 
-  private extractPrefixedMetadataAttributes(
-    attributes: Record<string, unknown>,
-    prefixes: string[],
-    excludedKeys = new Set<string>(),
-  ): Record<string, unknown> {
+  private extractPrefixedMetadataAttributes(params: {
+    attributes: Record<string, unknown>;
+    prefixes: string[];
+    excludedKeys?: Set<string>;
+  }): Record<string, unknown> {
+    const { attributes, prefixes, excludedKeys = new Set<string>() } = params;
     const metadata: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(attributes)) {
       for (const prefix of prefixes) {
@@ -2714,13 +2719,17 @@ export class OtelIngestionProcessor {
     return metadata;
   }
 
-  private extractMetadataFromPrefix(
-    attributes: Record<string, unknown>,
-    prefix: string,
-  ): Record<string, unknown> {
+  private extractMetadataFromPrefix(params: {
+    attributes: Record<string, unknown>;
+    prefix: string;
+  }): Record<string, unknown> {
+    const { attributes, prefix } = params;
     return {
       ...this.parseMetadataAttribute(attributes[prefix]),
-      ...this.extractPrefixedMetadataAttributes(attributes, [prefix]),
+      ...this.extractPrefixedMetadataAttributes({
+        attributes,
+        prefixes: [prefix],
+      }),
     };
   }
 
@@ -2762,18 +2771,18 @@ export class OtelIngestionProcessor {
 
     // Extract experiment metadata
     const experimentMetadataFlattened = flattenJsonToPathArrays(
-      this.extractMetadataFromPrefix(
+      this.extractMetadataFromPrefix({
         attributes,
-        LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
-      ),
+        prefix: LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
+      }),
     );
 
     // Extract experiment item metadata
     const experimentItemMetadataFlattened = flattenJsonToPathArrays(
-      this.extractMetadataFromPrefix(
+      this.extractMetadataFromPrefix({
         attributes,
-        LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
-      ),
+        prefix: LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
+      }),
     );
 
     return {
