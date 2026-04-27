@@ -27,6 +27,7 @@ export * from "./auth/jumpcloudProvider";
 export * from "./auth/userProjectRoleAuth";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/errors";
+export * from "./llm/ociIam";
 export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/internalTraceEvents";

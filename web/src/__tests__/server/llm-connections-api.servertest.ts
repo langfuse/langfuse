@@ -626,6 +626,33 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(vertexResponse.status).toBe(201);
       expect(vertexResponse.body.adapter).toBe(LLMAdapter.VertexAI);
       expect(vertexResponse.body.config).toBeNull();
+
+      const ociResponse = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("test-oci"),
+          adapter: LLMAdapter.Oci,
+          secretKey: "sk-oci-test",
+          baseURL:
+            "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/v1",
+          customModels: ["xai.grok-4-1-fast-non-reasoning"],
+          withDefaultModels: false,
+        },
+        auth,
+        201,
+      );
+      expect(ociResponse.status).toBe(201);
+      expect(ociResponse.body.adapter).toBe(LLMAdapter.Oci);
+      expect(ociResponse.body.baseURL).toBe(
+        "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/v1",
+      );
+      expect(ociResponse.body.customModels).toEqual([
+        "xai.grok-4-1-fast-non-reasoning",
+      ]);
+      expect(ociResponse.body.withDefaultModels).toBe(false);
+      expect(ociResponse.body.config).toBeNull();
     });
 
     it("should handle optional fields correctly", async () => {
@@ -1142,6 +1169,109 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.status).toBe(400);
         expect(JSON.stringify(response.body)).toContain(
           "Config is not supported for openai adapter",
+        );
+      });
+
+      it("should reject OCI connection without base URL and custom models", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oci-missing-fields"),
+            adapter: LLMAdapter.Oci,
+            secretKey: "sk-oci-test",
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Base URL is required for OCI adapter",
+        );
+        expect(JSON.stringify(response.body)).toContain(
+          "At least one custom model name is required for OCI adapter",
+        );
+      });
+
+      it("should reject OCI connection with non-OCI base URL", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oci-invalid-base-url"),
+            adapter: LLMAdapter.Oci,
+            secretKey: "sk-oci-test",
+            baseURL: "https://api.openai.com/v1",
+            customModels: ["xai.grok-4-1-fast-non-reasoning"],
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "OCI base URL must use an OCI Generative AI inference hostname.",
+        );
+      });
+
+      it("should create OCI IAM connection with config", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oci-with-config"),
+            adapter: LLMAdapter.Oci,
+            secretKey: JSON.stringify({
+              tenancyId: "ocid1.tenancy.oc1..example",
+              userId: "ocid1.user.oc1..example",
+              fingerprint: "12:34:56:78:90:ab:cd:ef",
+              privateKey:
+                "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----",
+            }),
+            baseURL:
+              "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/v1",
+            customModels: ["xai.grok-4-1-fast-non-reasoning"],
+            config: {
+              authMode: "iam",
+              compartmentId:
+                "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+            },
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toEqual({
+          authMode: "iam",
+          compartmentId:
+            "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+        });
+      });
+
+      it("should reject OCI IAM connection with malformed credentials", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oci-with-bad-iam"),
+            adapter: LLMAdapter.Oci,
+            secretKey: JSON.stringify({
+              tenancyId: "ocid1.tenancy.oc1..example",
+            }),
+            baseURL:
+              "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/v1",
+            customModels: ["xai.grok-4-1-fast-non-reasoning"],
+            config: {
+              authMode: "iam",
+              compartmentId:
+                "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+            },
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "OCI IAM credentials must include tenancyId, userId, fingerprint, and privateKey",
         );
       });
 

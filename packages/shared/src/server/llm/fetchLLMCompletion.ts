@@ -21,7 +21,10 @@ import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
   BedrockAccessKeysSchema,
   BedrockConfigSchema,
+  getOciBaseUrlValidationError,
+  OciConfigSchema,
   BedrockCredentialSchema,
+  OciIAMCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -51,6 +54,11 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import {
+  buildOciIamFetch,
+  OCI_IAM_API_KEY_PLACEHOLDER,
+  sanitizeOciIamHeaders,
+} from "./ociIam";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
 
@@ -361,14 +369,50 @@ export async function fetchLLMCompletion(
         chatModel.temperature = undefined;
       }
     }
-  } else if (modelParams.adapter === LLMAdapter.OpenAI) {
+  } else if (
+    modelParams.adapter === LLMAdapter.OpenAI ||
+    modelParams.adapter === LLMAdapter.Oci
+  ) {
     const processedBaseURL = processOpenAIBaseURL({
       url: baseURL,
       modelName: modelParams.model,
     });
 
+    if (modelParams.adapter === LLMAdapter.Oci && processedBaseURL) {
+      const baseUrlError = getOciBaseUrlValidationError(processedBaseURL);
+      if (baseUrlError) {
+        throw new Error(baseUrlError);
+      }
+    }
+
+    const ociConfig =
+      modelParams.adapter === LLMAdapter.Oci && config
+        ? OciConfigSchema.parse(config)
+        : undefined;
+    const shouldUseOciIam =
+      modelParams.adapter === LLMAdapter.Oci && ociConfig?.authMode === "iam";
+    const ociIamCredentials = shouldUseOciIam
+      ? OciIAMCredentialSchema.parse(JSON.parse(apiKey))
+      : null;
+    const ociCompartmentId = ociConfig?.compartmentId;
+
+    if (shouldUseOciIam && !ociCompartmentId) {
+      throw new Error("OCI IAM requires `config.compartmentId`.");
+    }
+
+    const ociDefaultHeaders =
+      modelParams.adapter === LLMAdapter.Oci && shouldUseOciIam
+        ? {
+            ...sanitizeOciIamHeaders(extraHeaders),
+            "opc-compartment-id": ociCompartmentId!,
+          }
+        : extraHeaders;
+
     chatModel = new ChatOpenAI({
-      apiKey,
+      apiKey:
+        modelParams.adapter === LLMAdapter.Oci && shouldUseOciIam
+          ? OCI_IAM_API_KEY_PLACEHOLDER
+          : apiKey,
       model: modelParams.model,
       temperature: modelParams.temperature,
       ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
@@ -381,7 +425,14 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL: processedBaseURL,
         timeout: timeoutMs,
-        defaultHeaders: extraHeaders,
+        defaultHeaders: ociDefaultHeaders,
+        ...(shouldUseOciIam &&
+          ociIamCredentials && {
+            fetch: buildOciIamFetch({
+              credentials: ociIamCredentials,
+              baseURL: processedBaseURL,
+            }),
+          }),
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),

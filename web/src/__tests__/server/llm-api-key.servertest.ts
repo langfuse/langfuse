@@ -1112,4 +1112,101 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-Another-Header");
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
   });
+
+  it("should reject switching OCI auth mode to IAM without OCI IAM credentials", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-oci-test",
+      provider: "oci-prod",
+      adapter: LLMAdapter.Oci,
+      baseURL:
+        "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+      customModels: ["xai.grok-4-fast"],
+      withDefaultModels: false,
+    });
+
+    const [createdKey] = await prisma.llmApiKeys.findMany({
+      where: {
+        projectId,
+        provider: "oci-prod",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: createdKey.id,
+        projectId,
+        provider: "oci-prod",
+        adapter: LLMAdapter.Oci,
+        baseURL:
+          "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+        customModels: ["xai.grok-4-fast"],
+        withDefaultModels: false,
+        config: {
+          authMode: "iam",
+          compartmentId:
+            "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+        },
+      }),
+    ).rejects.toThrow(
+      "OCI IAM credentials must be valid JSON with tenancyId, userId, fingerprint, and privateKey.",
+    );
+  });
+
+  it("should reject updating an OCI IAM key when persisted OCI config is malformed", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({
+        tenancyId: "ocid1.tenancy.oc1..example",
+        userId: "ocid1.user.oc1..example",
+        fingerprint: "12:34:56:78:90:ab:cd:ef",
+        privateKey: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+      }),
+      provider: "oci-iam-prod",
+      adapter: LLMAdapter.Oci,
+      baseURL:
+        "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+      customModels: ["xai.grok-4-fast"],
+      withDefaultModels: false,
+      config: {
+        authMode: "iam",
+        compartmentId:
+          "ocid1.compartment.oc1..aaaaaaaajywsdmeuend5xaomrcceqdrsqbtjrsiguqjdr3cjuia7rncdiora",
+      },
+    });
+
+    const createdKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "oci-iam-prod",
+      },
+    });
+
+    await prisma.llmApiKeys.update({
+      where: {
+        id: createdKey.id,
+      },
+      data: {
+        config: {
+          authMode: "iam",
+          extraField: "unexpected",
+        } as any,
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: createdKey.id,
+        projectId,
+        provider: "oci-iam-prod",
+        adapter: LLMAdapter.Oci,
+        baseURL:
+          "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
+        customModels: ["xai.grok-4-fast"],
+        withDefaultModels: false,
+      }),
+    ).rejects.toThrow(
+      'Invalid OCI config. Expected: { authMode?: "api_key" | "iam", compartmentId?: string }',
+    );
+  });
 });

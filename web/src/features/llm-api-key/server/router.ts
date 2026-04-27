@@ -19,6 +19,8 @@ import {
   supportedModels,
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
+  OciConfigSchema,
+  OciIAMCredentialSchema,
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
@@ -47,6 +49,13 @@ export function getDisplaySecretKey(secretKey: string) {
   }
   if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
     return "Default GCP credentials (ADC)";
+  }
+  try {
+    if (OciIAMCredentialSchema.safeParse(JSON.parse(secretKey)).success) {
+      return "OCI IAM credentials";
+    }
+  } catch {
+    // Secret is not JSON. Fall back to the default masking below.
   }
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
@@ -97,6 +106,50 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
+function validatePersistedOciSecret({
+  adapter,
+  secretKey,
+  config,
+}: {
+  adapter: LLMAdapter;
+  secretKey: string;
+  config: unknown;
+}) {
+  if (adapter !== LLMAdapter.Oci || !config) return;
+
+  const parsedConfigResult = OciConfigSchema.safeParse(config);
+  if (!parsedConfigResult.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        'Invalid OCI config. Expected: { authMode?: "api_key" | "iam", compartmentId?: string }',
+    });
+  }
+
+  const parsedConfig = parsedConfigResult.data;
+  if (parsedConfig.authMode !== "iam") return;
+
+  let parsedSecretKey: unknown;
+  try {
+    parsedSecretKey = JSON.parse(secretKey);
+  } catch {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "OCI IAM credentials must be valid JSON with tenancyId, userId, fingerprint, and privateKey.",
+    });
+  }
+
+  const credentialsResult = OciIAMCredentialSchema.safeParse(parsedSecretKey);
+  if (!credentialsResult.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "OCI IAM credentials must include tenancyId, userId, fingerprint, and privateKey.",
+    });
+  }
+}
+
 async function testLLMConnection(
   params: TestLLMConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
@@ -137,6 +190,17 @@ async function testLLMConnection(
       parsedConfig = vertexAIConfig.location
         ? { location: vertexAIConfig.location }
         : null;
+    } else if (params.config && params.adapter === LLMAdapter.Oci) {
+      const ociConfig = OciConfigSchema.parse(params.config);
+      parsedConfig =
+        ociConfig.authMode || ociConfig.compartmentId
+          ? {
+              ...(ociConfig.authMode ? { authMode: ociConfig.authMode } : {}),
+              ...(ociConfig.compartmentId
+                ? { compartmentId: ociConfig.compartmentId }
+                : {}),
+            }
+          : null;
     }
 
     await fetchLLMCompletion({
@@ -667,6 +731,17 @@ export const llmApiKeyRouter = createTRPCRouter({
             });
           }
         }
+
+        const mergedSecretKey = input.secretKey
+          ? input.secretKey
+          : decrypt(existingKey.secretKey);
+        const mergedConfig = input.config ?? existingKey.config;
+
+        validatePersistedOciSecret({
+          adapter: input.adapter,
+          secretKey: mergedSecretKey,
+          config: mergedConfig,
+        });
 
         // Ensure we delete extra headers if they existed before and were removed
         if (input.extraHeaders === undefined && existingKey.extraHeaders) {
