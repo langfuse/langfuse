@@ -222,7 +222,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   }
 }
 
-export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,
@@ -246,7 +246,7 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   return { body: resBody, status };
 }
 
-export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
+export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   responseZodSchema: T,
   method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
   url: string,

@@ -75,7 +75,7 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isInitialLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data
       ? undefined
       : deriveSyncStatus({
           enabled: state.data.enabled,

@@ -95,7 +95,7 @@ export const positionInTraceFilter = z
     const needsValue = data.key === "nthFromEnd" || data.key === "nthFromStart";
     if (needsValue && (!data.value || data.value < 1)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Position must be >= 1 for nth selection",
         path: ["value"],
       });

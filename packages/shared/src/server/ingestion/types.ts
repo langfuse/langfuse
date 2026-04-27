@@ -40,7 +40,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.string().datetime({ offset: true }).nullish();
+export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -596,7 +596,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.string().datetime({ offset: true }),
+    timestamp: z.iso.datetime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 

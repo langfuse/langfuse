@@ -12,11 +12,12 @@ export default [
         {
           patterns: [
             {
-              group: [
-                "react-icons",
-                "react-icons/!(si|tb)",
-                "react-icons/!(si|tb)/*",
-              ],
+              regex: "^react-icons$",
+              message:
+                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+            },
+            {
+              regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
               message:
                 "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
             },

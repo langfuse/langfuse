@@ -13,7 +13,7 @@ export const LlmApiKeySchema = z.object({
     .min(1)
     .regex(/^[^:]+$/, "Provider name cannot contain colons"),
   adapter: z.enum(LLMAdapter),
-  baseURL: z.string().url().optional(),
+  baseURL: z.url().optional(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   config: z.union([VertexAIConfigSchema, BedrockConfigSchema]).optional(),
