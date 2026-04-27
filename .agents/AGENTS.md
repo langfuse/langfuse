@@ -34,6 +34,9 @@ evaluating, and debugging AI applications.
   [`skills/add-model-price/SKILL.md`](skills/add-model-price/SKILL.md)
 - Code review tasks:
   [`skills/code-review/SKILL.md`](skills/code-review/SKILL.md)
+- Debugging a Linear issue, GitHub issue, or incident report using Datadog
+  (APM, logs, metrics) to establish a root cause:
+  [`skills/debug-issue-with-datadog/SKILL.md`](skills/debug-issue-with-datadog/SKILL.md)
 - Changelog drafting for completed feature branches:
   [`skills/changelog-writing/SKILL.md`](skills/changelog-writing/SKILL.md)
 - ClickHouse schema/query review:
