@@ -76,16 +76,16 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] lint job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
@@ -111,10 +111,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: 24
           cache: "pnpm"
@@ -236,7 +236,7 @@ jobs:
           tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
       - name: Login to Docker Hub
@@ -246,7 +246,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -266,14 +266,14 @@ jobs:
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
           echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
         with:
           path: |
             ~/.npm
@@ -347,7 +347,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
       - name: Login to Docker Hub
@@ -357,7 +357,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] worker test dependency cache only; no release artifacts are produced from this cache
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
@@ -423,7 +423,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
       - name: Login to Docker Hub
@@ -433,7 +433,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Use Node.js 24
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] llm-connection test dependency cache only; privileged secrets are used here, but this cache is not consumed by artifact publishing
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] llm-connection test dependency cache only; privileged secrets are used here, but this cache is not consumed by artifact publishing
         with:
           node-version: 24
           cache: "pnpm"
@@ -499,10 +499,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] e2e dependency cache only; release images are rebuilt later without restoring this cache
         with:
           node-version: 24
           cache: "pnpm"
@@ -514,7 +514,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Setup Turbo cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
@@ -522,7 +522,7 @@ jobs:
             ${{ runner.os }}-turbo-e2e-
             ${{ runner.os }}-turbo-
       - name: Cache Next.js builds
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.4 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
         with:
           path: |
             ~/.npm
@@ -587,10 +587,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: pnpm/action-setup@078e9d416474b29c0c387560859308974f7e9c53 # v6.0.1
         with:
           version: 10.33.0
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0 # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.3.0 # zizmor: ignore[cache-poisoning] server e2e dependency cache only; release/publish steps rebuild separately
         with:
           node-version: 24
           cache: "pnpm"
@@ -786,7 +786,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1.6.0
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1.7.0
       - name: Extract metadata (labels) for Docker
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -880,7 +880,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@5241b2e9423e8b1fa37ed6050ecb62d0fb9a4e38 # v1.6.0
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1.7.0
       - name: Download release digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
