@@ -165,7 +165,7 @@ export const PostModelsV1Body = z
     // Validation 1: Must provide either flat prices OR pricing tiers (not both, not neither)
     if (hasFlatPrices && hasTiers) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message:
           "Must provide either flat prices (inputPrice/outputPrice/totalPrice) OR pricingTiers, not both",
       });
@@ -174,7 +174,7 @@ export const PostModelsV1Body = z
 
     if (!hasFlatPrices && !hasTiers) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message:
           "Must provide either flat prices (inputPrice/outputPrice/totalPrice) OR pricingTiers",
       });
@@ -185,7 +185,7 @@ export const PostModelsV1Body = z
     if (hasFlatPrices) {
       if ((data.inputPrice || data.outputPrice) && data.totalPrice) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["totalPrice"],
           message:
             "If input and/or output price is set, total price must be null",
@@ -198,7 +198,7 @@ export const PostModelsV1Body = z
       const result = validatePricingTiers(data.pricingTiers!);
       if (!result.valid) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["pricingTiers"],
           message: result.error,
         });

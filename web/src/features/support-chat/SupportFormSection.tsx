@@ -343,7 +343,12 @@ export function SupportFormSection({
         projectId: project?.id,
         browserMetadata: {
           userAgent: navigator.userAgent,
-          platform: navigator.platform,
+          platform:
+            (
+              navigator as Navigator & {
+                userAgentData?: { platform?: string };
+              }
+            ).userAgentData?.platform ?? undefined,
           language: navigator.language,
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },
