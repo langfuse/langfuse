@@ -125,6 +125,8 @@ Minimum verification matrix:
   - `packages/shared/prisma/generated/*`
 - Public API contract changes must update Fern sources in `fern/apis/**` and
   regenerated outputs. Never hand-edit `generated/**`.
+- Before adding constants, value lists, or display mappings, search for an
+  existing owner and reuse or extend that source of truth.
 - Keep tests independent and parallel-safe.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug.
