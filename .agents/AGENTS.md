@@ -98,8 +98,8 @@ langfuse/
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
 - Full reset/bootstrap (destructive): `pnpm run dx`
-- Codex environment bootstrap: `bash scripts/codex/setup.sh`
-- Codex environment maintenance: `bash scripts/codex/maintenance.sh`
+- Environment/worktree bootstrap: `bash scripts/codex/setup.sh`
+- Environment/worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium for agent browser review: `pnpm run playwright:install`
 
 Minimum verification matrix:
