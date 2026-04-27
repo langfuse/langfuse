@@ -1422,4 +1422,158 @@ describe("/api/public/scores API Endpoint", () => {
       expect(sessionsRes.status).toBe(403);
     });
   });
+
+  describe("POST /api/public/scores source field", () => {
+    it("defaults source to API when omitted", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId, name: "feedback", value: 1 },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.source).toBe("API");
+      });
+    }, 15000);
+
+    it("rejects source=EVAL (reserved for internal evaluator outputs)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: v4(),
+          traceId,
+          name: "llm-judge",
+          value: 0.8,
+          source: "EVAL",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("accepts source=ANNOTATION with a matching configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const configId = v4();
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          name: "helpfulness",
+          dataType: "NUMERIC",
+          maxValue: 1,
+          projectId,
+        },
+      });
+
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "helpfulness",
+          value: 0.9,
+          dataType: "NUMERIC",
+          configId,
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.source).toBe("ANNOTATION");
+        expect(score!.configId).toBe(configId);
+        expect(score!.authorUserId).toBeNull();
+      });
+    }, 15000);
+
+    it("rejects source=ANNOTATION without a configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: v4(),
+          traceId,
+          name: "helpfulness",
+          value: 0.9,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("accepts source=ANNOTATION for CORRECTION scores without a configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "output",
+          value: "The corrected output",
+          dataType: "CORRECTION",
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(
+        async () => {
+          const score = await getScoreById({ projectId, scoreId });
+          expect(score).toBeDefined();
+          expect(score!.source).toBe("ANNOTATION");
+          expect(score!.dataType).toBe("CORRECTION");
+        },
+        10000,
+        500,
+      );
+    }, 15000);
+  });
 });
