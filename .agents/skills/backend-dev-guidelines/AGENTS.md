@@ -216,51 +216,10 @@ const result = await instrumentAsync(
 
 ### 7. Comprehensive Testing Required
 
-Write tests for all new features and bug fixes. See [testing-guide.md](references/testing-guide.md) for detailed examples.
-
-**Test Types:**
-
-| Type        | Framework | Location                                   | Purpose                      |
-| ----------- | --------- | ------------------------------------------ | ---------------------------- |
-| Integration | Vitest    | `web/src/__tests__/server/`                | Full API endpoint testing    |
-| tRPC        | Vitest    | `web/src/__tests__/server/`                | tRPC procedures with auth    |
-| Service     | Vitest    | `web/src/__tests__/server/repositories/`   | Repository/service functions |
-| Worker      | Vitest    | `worker/src/__tests__/`                    | Queue processors & streams   |
-
-**Quick Examples:**
-
-```typescript
-// Integration Test (Public API)
-const res = await makeZodVerifiedAPICall(
-  PostDatasetsV1Response, "POST", "/api/public/datasets",
-  { name: "test-dataset" }, auth
-);
-expect(res.status).toBe(200);
-
-// tRPC Test
-const { caller } = await prepare(); // Creates session + caller
-const response = await caller.automations.getAutomations({ projectId });
-expect(response).toHaveLength(1);
-
-// Service Test
-const result = await getObservationsWithModelDataFromEventsTable({
-  projectId, filter: [...], limit: 1000, offset: 0
-});
-expect(result.length).toBeGreaterThan(0);
-
-// Worker Test (vitest)
-const stream = await getObservationStream({ projectId, filter: [] });
-const rows = [];
-for await (const chunk of stream) rows.push(chunk);
-expect(rows).toHaveLength(2);
-```
-
-**Key Principles:**
-
-- Use unique IDs (`randomUUID()`) to avoid test interference
-- Clean up test data or use unique project IDs
-- Tests must be independent and runnable in any order
-- Prefer scoped cleanup or unique project IDs over global reset helpers
+Add targeted tests for new backend behavior and bug fixes. Keep tests
+independent and parallel-safe. See
+[testing-guide.md](references/testing-guide.md) for tRPC, public API, service,
+repository, and worker examples.
 
 ### 8. Always Filter by projectId for Tenant Isolation
 
