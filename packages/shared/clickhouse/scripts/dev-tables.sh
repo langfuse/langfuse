@@ -373,7 +373,8 @@ CREATE TABLE IF NOT EXISTS events_core
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
     INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
     INDEX idx_provided_model_name provided_model_name TYPE bloom_filter(0.01) GRANULARITY 2,
-    INDEX idx_experiment_id experiment_id TYPE bloom_filter(0.01) GRANULARITY 1
+    INDEX idx_experiment_id experiment_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_metadata_names metadata_names TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toYYYYMM(start_time)
