@@ -46,8 +46,7 @@ const cloudRegions = [
 const availableRegionsByCurrentRegion = {
   STAGING: ["STAGING"],
   DEV: ["DEV"],
-  JP: ["JP", "US", "EU", "HIPAA"],
-  default: ["US", "EU", "HIPAA"],
+  default: ["US", "EU", "JP", "HIPAA"],
 } as const;
 
 const getCloudRegion = (name: (typeof cloudRegions)[number]["name"]) => {
@@ -66,10 +65,6 @@ export const getAvailableCloudRegionOptions = (currentRegion?: string) => {
 
   if (currentRegion === "DEV") {
     return availableRegionsByCurrentRegion.DEV.map(getCloudRegion);
-  }
-
-  if (currentRegion === "JP") {
-    return availableRegionsByCurrentRegion.JP.map(getCloudRegion);
   }
 
   return availableRegionsByCurrentRegion.default.map(getCloudRegion);
