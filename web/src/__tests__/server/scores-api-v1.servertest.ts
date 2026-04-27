@@ -269,6 +269,8 @@ describe("/api/public/scores API Endpoint", () => {
         ...score,
         value: 200.5,
         metadata: { "test-key": "test-value-updated" },
+        updated_at: score.updated_at + 1,
+        event_ts: score.event_ts + 1,
       };
       await createScoresCh([updatedScore]);
 
