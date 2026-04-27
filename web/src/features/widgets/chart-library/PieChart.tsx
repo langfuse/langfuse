@@ -109,7 +109,9 @@ export const PieChart: React.FC<ChartProps> = ({
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {numberFormatter(totalValue, 0)}
+                        {valueFormatter
+                          ? valueFormatter(totalValue)
+                          : numberFormatter(totalValue, 0)}
                       </tspan>
                       <tspan
                         x={viewBox.cx}

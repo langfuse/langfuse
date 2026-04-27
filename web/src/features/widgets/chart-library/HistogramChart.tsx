@@ -111,10 +111,7 @@ const HistogramChart = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) =>
-                valueFormatter?.(Number(v)) ??
-                compactSmallNumberFormatter(Number(v))
-              }
+              valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
               nameFormatter={(name) => (name === "count" ? "Count" : name)}
               labelFormatter={(label) => `Bin: ${label}`}
             />
