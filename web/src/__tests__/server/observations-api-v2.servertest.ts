@@ -160,11 +160,28 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
 
     it("should respect limit parameter with default of 50", async () => {
+      const timestamp = Date.now() * 1000;
+      const observations = Array.from({ length: 6 }, (_, index) => {
+        const observationId = randomUUID();
+        return createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: randomUUID(),
+          project_id: projectId,
+          name: `limit-test-observation-${index}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timestamp + index,
+        });
+      });
+
+      await createEventsCh(observations);
+
       // Test default limit
       const response1 = await getObservations("/api/public/v2/observations");
 
       expect(response1.status).toBe(200);
-      expect(response1.body.data.length).toBeLessThanOrEqual(50);
+      expect(response1.body.data.length).toBe(6);
 
       // Test custom limit
       const response2 = await getObservations(
@@ -172,7 +189,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       expect(response2.status).toBe(200);
-      expect(response2.body.data.length).toBeLessThanOrEqual(5);
+      expect(response2.body.data.length).toBe(5);
     });
 
     it("should support standard filters (name, type, level, etc.)", async () => {

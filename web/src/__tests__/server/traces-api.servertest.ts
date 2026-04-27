@@ -158,7 +158,7 @@ describe("/api/public/traces API Endpoint", () => {
   let projectId: string;
   let auth: string;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const fixture = await createOrgProjectAndApiKey();
     projectId = fixture.projectId;
     auth = fixture.auth;
@@ -1295,7 +1295,7 @@ describe("/api/public/traces API Endpoint", () => {
         const testTraceId = randomUUID();
         const testTraceId2 = randomUUID();
 
-        beforeAll(async () => {
+        beforeEach(async () => {
           // Create test traces with different metadata for filtering
           const trace1 = createTrace({
             id: testTraceId,

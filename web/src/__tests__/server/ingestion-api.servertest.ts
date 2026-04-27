@@ -843,10 +843,23 @@ describe("/api/public/ingestion API Endpoint", () => {
       },
     };
 
-    const response = await postIngestion({
-      batch: [traceUpdate1, traceUpdate2],
+    const response1 = await postIngestion({
+      batch: [traceUpdate1],
     });
-    expect(response.status).toBe(207);
+    expect(response1.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace?.metadata).toEqual({
+        step: 1,
+        status: "started",
+      });
+    }, 15_000);
+
+    const response2 = await postIngestion({
+      batch: [traceUpdate2],
+    });
+    expect(response2.status).toBe(207);
 
     await waitForExpect(async () => {
       const trace = await getTraceById({ traceId, projectId });
