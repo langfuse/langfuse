@@ -5,7 +5,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
 
-- Next.js 15 application with UI, tRPC backend, and public REST API routes.
+- Next.js application with UI, tRPC backend, and public REST API routes.
+- Check `web/package.json` for current Next.js, React, and tRPC versions before
+  version-sensitive work.
 - Primary package for frontend and most request/response surface changes.
 
 ## Maintenance Contract

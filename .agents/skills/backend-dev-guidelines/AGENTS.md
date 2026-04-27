@@ -2,7 +2,10 @@
 
 ## Purpose
 
-Establish consistency and best practices across Langfuse's backend packages (web, worker, packages/shared) using Next.js 14, tRPC, BullMQ, and TypeScript patterns.
+Establish consistency and best practices across Langfuse's backend packages
+(`web`, `worker`, `packages/shared`) using Next.js, tRPC, BullMQ, and TypeScript
+patterns. Check package manifests such as `web/package.json` for current
+framework versions before version-sensitive work.
 
 ## When to Use This Skill
 
@@ -64,7 +67,7 @@ Use this guide when working on:
 ### Layered Architecture
 
 ```
-# Web Package (Next.js 14)
+# Web Package (Next.js)
 
 ┌─ tRPC API ──────────────────┐   ┌── Public REST API ──────────┐
 │                             │   │                             │
@@ -546,7 +549,7 @@ Reference existing Langfuse features for implementation patterns:
 
 ### [architecture-overview.md](references/architecture-overview.md)
 
-Three-layer architecture (tRPC/Public API → Services → Data Access), request lifecycle for tRPC/Public API/Worker, Next.js 14 directory structure, dual database system (PostgreSQL + ClickHouse), separation of concerns, repository pattern for complex queries
+Three-layer architecture (tRPC/Public API → Services → Data Access), request lifecycle for tRPC/Public API/Worker, Next.js package structure, dual database system (PostgreSQL + ClickHouse), separation of concerns, repository pattern for complex queries
 
 ### [routing-and-controllers.md](references/routing-and-controllers.md)
 
