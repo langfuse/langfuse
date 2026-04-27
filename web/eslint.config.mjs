@@ -26,16 +26,4 @@ export default [
       ],
     },
   },
-
-  // Exceptions for specific files
-  {
-    name: "langfuse/web/react-icons-exceptions",
-    files: [
-      "src/components/nav/support-menu-dropdown.tsx",
-      "src/pages/auth/sign-in.tsx",
-    ],
-    rules: {
-      "no-restricted-imports": "off",
-    },
-  },
 ];
