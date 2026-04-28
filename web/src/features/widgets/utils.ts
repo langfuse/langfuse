@@ -223,22 +223,24 @@ export function getWidgetMetricPresentation(params: {
     params.version,
   );
   const measureDefinition = viewDeclaration.measures[params.metric.measure];
+  const usesCountStyleAggregation =
+    params.metric.agg === "count" || params.metric.agg === "uniq";
 
-  if (measureDefinition?.unit === "USD") {
+  if (!usesCountStyleAggregation && measureDefinition?.unit === "USD") {
     return {
       label: "USD",
       valueFormatter: costFormatter,
     };
   }
 
-  if (measureDefinition?.unit === "millisecond") {
+  if (!usesCountStyleAggregation && measureDefinition?.unit === "millisecond") {
     return {
       label: widgetUnitLabels.millisecond,
       valueFormatter: millisecondFormatter,
     };
   }
 
-  if (measureDefinition?.unit) {
+  if (!usesCountStyleAggregation && measureDefinition?.unit) {
     return {
       label:
         widgetUnitLabels[measureDefinition.unit] ??

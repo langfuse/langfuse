@@ -34,13 +34,35 @@ describe("getWidgetMetricPresentation", () => {
     expect(presentation.valueFormatter).toBeUndefined();
   });
 
-  it("keeps the default metric label for non-cost widgets", () => {
+  it("falls back to the default presentation for count aggregations", () => {
+    const presentation = getWidgetMetricPresentation({
+      metric: { measure: "latency", agg: "count" },
+      view: "traces",
+      version: "v1",
+    });
+
+    expect(presentation.label).toBe("Count Latency");
+    expect(presentation.valueFormatter).toBeUndefined();
+  });
+
+  it("falls back to the default presentation for uniq aggregations", () => {
+    const presentation = getWidgetMetricPresentation({
+      metric: { measure: "totalCost", agg: "uniq" },
+      view: "observations",
+      version: "v1",
+    });
+
+    expect(presentation.label).toBe("Uniq Total Cost");
+    expect(presentation.valueFormatter).toBeUndefined();
+  });
+
+  it("uses the default metric label for count_count", () => {
     const presentation = getWidgetMetricPresentation({
       metric: { measure: "count", agg: "count" },
       view: "traces",
       version: "v1",
     });
 
-    expect(presentation.label).toBe("Traces");
+    expect(presentation.label).toBe("Count");
   });
 });
