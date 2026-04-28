@@ -117,13 +117,14 @@ describe("Score Comparison Analytics tRPC", () => {
     scoreName1: string;
     scoreName2: string;
   }) => {
+    const scoreTimestamp = Date.now();
+
     for (let offset = 0; offset < totalRows; offset += batchSize) {
       const currentBatchSize = Math.min(batchSize, totalRows - offset);
       const scores = [];
 
       for (let i = 0; i < currentBatchSize; i++) {
         const traceId = v4();
-        const scoreTimestamp = Date.now() - Math.floor(Math.random() * 3600000);
 
         scores.push(
           createTraceScore({
@@ -165,13 +166,14 @@ describe("Score Comparison Analytics tRPC", () => {
     totalRows: number;
     scoreName: string;
   }) => {
+    const scoreTimestamp = Date.now();
+
     for (let offset = 0; offset < totalRows; offset += batchSize) {
       const currentBatchSize = Math.min(batchSize, totalRows - offset);
       const scores = [];
 
       for (let i = 0; i < currentBatchSize; i++) {
         const traceId = v4();
-        const scoreTimestamp = Date.now() - Math.floor(Math.random() * 3600000);
 
         scores.push(
           createTraceScore({
@@ -458,7 +460,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const { fromTimestamp, toTimestamp } = createOneHourWindow();
       const scoreName1 = `test-large-score1-${v4()}`;
       const scoreName2 = `test-large-score2-${v4()}`;
-      const totalRows = 105_000;
+      const totalRows = 120_000;
 
       console.log(
         `Creating ${totalRows} matched score pairs for adaptive FINAL + sampling test...`,
