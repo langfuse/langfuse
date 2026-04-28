@@ -1,4 +1,5 @@
-const SLOW_TEST_LIMIT = 50;
+const SLOW_TEST_LIMIT = 10;
+const SLOW_FILE_LIMIT = 10;
 
 type TestCaseLike = {
   fullName: string;
@@ -23,6 +24,12 @@ type SlowTest = {
   state: string;
 };
 
+type SlowFile = {
+  duration: number;
+  file: string;
+  testCount: number;
+};
+
 const formatDuration = (duration: number) =>
   duration >= 1000
     ? `${(duration / 1000).toFixed(2)}s`
@@ -30,7 +37,7 @@ const formatDuration = (duration: number) =>
 
 export class SlowestTestsReporter {
   onTestRunEnd(testModules: ReadonlyArray<TestModuleLike>) {
-    const slowestTests = testModules
+    const completedTests = testModules
       .flatMap((testModule) => [...testModule.children.allTests()])
       .map((testCase) => {
         const diagnostic = testCase.diagnostic();
@@ -53,7 +60,9 @@ export class SlowestTestsReporter {
           state: result.state,
         };
       })
-      .filter((test): test is SlowTest => test !== undefined)
+      .filter((test): test is SlowTest => test !== undefined);
+
+    const slowestTests = [...completedTests]
       .sort((left, right) => right.duration - left.duration)
       .slice(0, SLOW_TEST_LIMIT);
 
@@ -77,6 +86,52 @@ export class SlowestTestsReporter {
       const state = test.state === "passed" ? "" : ` [${test.state}]`;
 
       console.log(`${rank}. ${duration} ${test.file} > ${test.name}${state}`);
+    });
+
+    const slowestFiles = Array.from(
+      [...completedTests]
+        .reduce<Map<string, SlowFile>>((filesByPath, test) => {
+          const current = filesByPath.get(test.file) ?? {
+            duration: 0,
+            file: test.file,
+            testCount: 0,
+          };
+
+          current.duration += test.duration;
+          current.testCount += 1;
+          filesByPath.set(test.file, current);
+
+          return filesByPath;
+        }, new Map())
+        .values(),
+    )
+      .sort((left, right) => right.duration - left.duration)
+      .slice(0, SLOW_FILE_LIMIT);
+
+    const fileRankWidth = String(slowestFiles.length).length;
+    const fileDurationWidth = Math.max(
+      ...slowestFiles.map((file) => formatDuration(file.duration).length),
+    );
+    const testCountWidth = Math.max(
+      ...slowestFiles.map((file) => String(file.testCount).length),
+    );
+
+    console.log(
+      `\nSlowest test files (top ${SLOW_FILE_LIMIT}, summed test durations):`,
+    );
+
+    slowestFiles.forEach((file, index) => {
+      const rank = String(index + 1).padStart(fileRankWidth, " ");
+      const duration = formatDuration(file.duration).padStart(
+        fileDurationWidth,
+        " ",
+      );
+      const testCount = String(file.testCount).padStart(testCountWidth, " ");
+      const pluralizedTests = file.testCount === 1 ? "test" : "tests";
+
+      console.log(
+        `${rank}. ${duration} ${file.file} (${testCount} ${pluralizedTests})`,
+      );
     });
   }
 }
