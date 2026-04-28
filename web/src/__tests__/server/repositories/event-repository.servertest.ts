@@ -232,6 +232,36 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result2.length).toBeLessThanOrEqual(2);
     });
 
+    it("should return release field in the result set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-field-test",
+          release: "1.2.3",
+          version: "V2",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("1.2.3");
+      expect(observation?.version).toBe("V2");
+    });
+
     it("should handle events without end_time (null latency)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1244,6 +1274,113 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(resultBaz.length).toBe(0);
       });
+
+      it("equality on absent key with empty value does NOT match", async () => {
+        // Today arr[indexOf(names, missing)] resolves to '' (Array(String)
+        // default), so `metadata.foo = ''` would match rows that never had
+        // the key. The has(metadata_names, ?) conjunct fixes this.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-eq-empty",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+
+      it("'does not contain' on absent key with non-empty needle does NOT match", async () => {
+        // Headline correctness fix: previously rows with the key absent
+        // matched `does not contain V` (because position('', V) = 0 is true
+        // for non-empty V). The has(metadata_names, ?) conjunct restricts
+        // the result to rows where the key actually exists.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-dnc",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "foo",
+              value: "anything",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
     });
   });
 
@@ -1277,6 +1414,33 @@ describe("Clickhouse Events Repository Test", () => {
       expect(observation?.traceTags).toEqual(["chat", "prod"]);
       expect(observation?.userId).toBe("user-123");
       expect(observation?.sessionId).toBe("session-123");
+    });
+
+    it("should return release field when fetching observation by id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-byid-test",
+          release: "2.0.0",
+          version: "V3",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("2.0.0");
+      expect(observation?.version).toBe("V3");
     });
 
     it("should return observation by id with input and output", async () => {

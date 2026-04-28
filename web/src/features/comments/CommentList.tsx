@@ -525,7 +525,7 @@ export function CommentList({
                 {!searchQuery && (
                   <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
                     {typeof navigator !== "undefined" &&
-                    navigator.platform.toLowerCase().includes("mac") ? (
+                    navigator.userAgent.includes("Macintosh") ? (
                       <>
                         <span className="text-xs">⌘</span>F
                       </>

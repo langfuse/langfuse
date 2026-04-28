@@ -5,7 +5,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
 
-- Next.js 15 application with UI, tRPC backend, and public REST API routes.
+- Next.js application with UI, tRPC backend, and public REST API routes.
+- Check `web/package.json` for current Next.js, React, and tRPC versions before
+  version-sensitive work.
 - Primary package for frontend and most request/response surface changes.
 
 ## Maintenance Contract
@@ -82,6 +84,24 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- When changing shared UI/table patterns, update sibling variants consistently,
+  including default-visible and hidden columns or states.
+- For component style variants, prefer `cva` with `VariantProps` and merge
+  caller classes through `cn`, following existing `src/components/ui/*`
+  components:
+
+  ```tsx
+  const cardVariants = cva("rounded-md border", {
+    variants: { intent: { default: "bg-background", error: "border-destructive" } },
+    defaultVariants: { intent: "default" },
+  });
+
+  type CardProps = React.HTMLAttributes<HTMLDivElement> &
+    VariantProps<typeof cardVariants>;
+
+  const className = cn(cardVariants({ intent }), props.className);
+  ```
+
 - When anchoring sticky, fixed, or absolute elements to the viewport, use
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap

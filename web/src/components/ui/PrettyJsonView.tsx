@@ -543,7 +543,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
 }: {
   data: JsonTableRow[];
-  expandAllRef?: React.MutableRefObject<(() => void) | null>;
+  expandAllRef?: React.RefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
   expanded: ExpandedState;

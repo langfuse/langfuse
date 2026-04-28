@@ -67,7 +67,7 @@ export const GithubEnterpriseProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       enterprise: z.object({
-        baseUrl: z.string().url(),
+        baseUrl: z.url(),
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,

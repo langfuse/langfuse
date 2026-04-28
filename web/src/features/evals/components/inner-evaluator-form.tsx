@@ -204,9 +204,13 @@ const ObservationsPreview = memo(
   ({
     projectId,
     filterState,
+    isNewCompatible,
+    compatibilityCheckWasPerformed,
   }: {
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
+    isNewCompatible: boolean;
+    compatibilityCheckWasPerformed: boolean;
   }) => {
     const { isBetaEnabled } = useV4Beta();
 
@@ -219,6 +223,10 @@ const ObservationsPreview = memo(
       } as TableDateRange;
     }, []);
 
+    // Show upgrade message only when SDK check was performed and user is not on OTEL SDK
+    const showSdkUpgradeMessage =
+      compatibilityCheckWasPerformed && !isNewCompatible;
+
     return (
       <>
         <div className="flex flex-col items-start gap-1">
@@ -228,7 +236,32 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isBetaEnabled ? (
+            {showSdkUpgradeMessage ? (
+              <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
+                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-foreground font-medium">
+                    Please verify your SDK version
+                  </span>
+                  <span className="text-muted-foreground max-w-md text-sm">
+                    We did not find any data ingested with langfuse
+                    OTEL-compatible SDKs in the last 7 days. Observation-level
+                    evaluators require JS SDK v4+ or Python SDK v3+. You can
+                    still configure this evaluator now—it will start running
+                    once you upgrade.{" "}
+                    <a
+                      href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-dark-blue font-medium hover:opacity-80"
+                    >
+                      Learn more
+                    </a>
+                    .
+                  </span>
+                </div>
+              </div>
+            ) : isBetaEnabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
@@ -1071,6 +1104,10 @@ export const InnerEvaluatorForm = (props: {
                       <ObservationsPreview
                         projectId={props.projectId}
                         filterState={form.watch("filter") ?? []}
+                        isNewCompatible={props.evalCapabilities.isNewCompatible}
+                        compatibilityCheckWasPerformed={
+                          props.evalCapabilities.compatibilityCheckWasPerformed
+                        }
                       />
                     )}
                   </>
@@ -1140,6 +1177,10 @@ export const InnerEvaluatorForm = (props: {
         shouldWrapVariables={props.shouldWrapVariables}
         hideAdvancedSettings={props.hideAdvancedSettings}
         oldConfigId={props.oldConfigId}
+        isNewCompatible={props.evalCapabilities.isNewCompatible}
+        compatibilityCheckWasPerformed={
+          props.evalCapabilities.compatibilityCheckWasPerformed
+        }
       />
     </div>
   );
