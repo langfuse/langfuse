@@ -133,7 +133,7 @@
     "@types/react": "19.2.14",
     "@types/uuid": "^9.0.8",
     "eslint": "^9.39.2",
-    "prettier": "^3.8.1",
+    "prettier": "^3.8.3",
     "prisma": "^6.19.3",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
