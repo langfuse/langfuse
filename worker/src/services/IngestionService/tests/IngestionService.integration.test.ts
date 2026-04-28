@@ -16,12 +16,12 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { Cluster } from "ioredis";
 import { env } from "../../../env";
 
 let projectId = "";
@@ -35,12 +35,7 @@ describe("Ingestion end-to-end tests", () => {
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     ({ projectId } = await createOrgProjectAndApiKey());
-
-    if (redis instanceof Cluster) {
-      await Promise.all(redis.nodes("master").map((node) => node.flushall()));
-    } else {
-      await redis.flushall();
-    }
+    await setNoEvalConfigsCache(projectId, "traceBased");
 
     clickhouseWriter = ClickhouseWriter.getInstance();
 

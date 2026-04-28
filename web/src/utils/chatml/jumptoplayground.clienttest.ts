@@ -62,7 +62,7 @@ vi.mock("@langfuse/shared", async () => {
         tool_calls: z.array(z.any()).optional(),
         tool_call_id: z.string().optional(),
       })
-      .passthrough(),
+      .loose(),
     isOpenAITextContentPart: (content: any) => {
       return OpenAITextContentPart.safeParse(content).success;
     },
