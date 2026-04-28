@@ -858,7 +858,8 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("tags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
