@@ -7,7 +7,9 @@ config({ path: "../.env" });
 
 export default defineConfig({
   test: {
-    reporters: ["default", new SlowestTestsReporter()],
+    reporters: process.env.CI
+      ? ["default", new SlowestTestsReporter()]
+      : ["default"],
     dir: "./src",
     pool: "forks",
     server: {
