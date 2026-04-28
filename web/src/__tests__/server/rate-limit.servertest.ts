@@ -167,7 +167,7 @@ describe("RateLimitService", () => {
       isFirstInDuration: false,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await redis.del(`${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api:${orgId}`);
 
     const secondResult = await rateLimitService.rateLimitRequest(
       scope,

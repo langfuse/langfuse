@@ -375,18 +375,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     "should create observations via the ingestion API (%s)",
     async (_name: string, type: string, entity: any) => {
       const response = await postIngestion({
-        batch: [
-          {
-            id: randomUUID(),
-            type: "trace-create",
-            timestamp: new Date().toISOString(),
-            body: {
-              id: entity.traceId,
-              timestamp: new Date().toISOString(),
-            },
-          },
-          entity,
-        ],
+        batch: [entity],
       });
 
       expect(response.status).toBe(207);
