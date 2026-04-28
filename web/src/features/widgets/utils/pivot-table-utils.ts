@@ -95,6 +95,11 @@ export interface DatabaseRow {
   [dimensionField: string]: string | number | null;
 }
 
+type PivotTableChartDataRow = object & {
+  metric?: number | Array<Array<number>> | string | null;
+  time_dimension?: unknown;
+};
+
 /**
  * Validates that the provided configuration is valid for pivot table generation
  *
@@ -331,6 +336,58 @@ export function transformToPivotTable(
   );
 
   return [grandTotalRow, ...pivotRows];
+}
+
+/**
+ * Converts dashboard chart data into processed pivot table rows.
+ * Keeps this normalization shared between rendering and CSV export.
+ */
+export function transformChartDataToPivotTable(
+  data: PivotTableChartDataRow[],
+  config: PivotTableConfig,
+): PivotTableRow[] {
+  const databaseRows: DatabaseRow[] = data.map((point) => {
+    const rowData = point;
+    const row: DatabaseRow = Object.fromEntries(
+      Object.entries(rowData).filter(
+        ([, value]) =>
+          typeof value === "string" ||
+          typeof value === "number" ||
+          value === null,
+      ),
+    ) as DatabaseRow;
+
+    const dimensionValues = extractDimensionValues(row, config.dimensions);
+    const metricValues = extractMetricValues(row, config.metrics);
+
+    const result: DatabaseRow = {
+      ...dimensionValues,
+      ...metricValues,
+    };
+
+    if (
+      typeof point.time_dimension === "string" ||
+      typeof point.time_dimension === "number" ||
+      point.time_dimension === null
+    ) {
+      result.time_dimension = point.time_dimension;
+    }
+
+    if (point.metric !== undefined) {
+      if (typeof point.metric === "number") {
+        result.metric = point.metric;
+      } else if (Array.isArray(point.metric)) {
+        result.metric = point.metric.flat().reduce((sum, val) => sum + val, 0);
+      } else if (typeof point.metric === "string") {
+        const parsedValue = parseFloat(point.metric);
+        result.metric = isNaN(parsedValue) ? 0 : parsedValue;
+      }
+    }
+
+    return result;
+  });
+
+  return transformToPivotTable(databaseRows, config);
 }
 
 /**

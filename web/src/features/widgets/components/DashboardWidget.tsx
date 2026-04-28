@@ -382,6 +382,23 @@ export function DashboardWidget({
               data={transformedData}
               fileName={widget.data.name}
               className="hidden group-hover:block"
+              pivotTableConfig={
+                widget.data.chartConfig.type === "PIVOT_TABLE"
+                  ? {
+                      dimensions: widget.data.dimensions.map(
+                        (dim) => dim.field,
+                      ),
+                      metrics: widget.data.metrics.map(
+                        (metric) => `${metric.agg}_${metric.measure}`,
+                      ),
+                      rowLimit: widget.data.chartConfig.row_limit ?? 100,
+                      defaultSort: widget.data.chartConfig.defaultSort,
+                    }
+                  : undefined
+              }
+              sortState={
+                widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+              }
             />
           ) : null}
         </div>

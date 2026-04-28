@@ -30,14 +30,11 @@ import {
   TableCell,
 } from "@/src/components/ui/table";
 import {
-  transformToPivotTable,
-  extractDimensionValues,
-  extractMetricValues,
+  transformChartDataToPivotTable,
   sortPivotTableRows,
   getNextSortState,
   type PivotTableRow,
   type PivotTableConfig,
-  type DatabaseRow,
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -252,48 +249,8 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       defaultSort: config?.defaultSort,
     };
 
-    // Transform DataPoint[] to DatabaseRow[] format using utility functions
-    const databaseRows: DatabaseRow[] = data.map((point) => {
-      // Cast the point to any to access dynamic fields from the query
-      const rowData = point as any;
-
-      // Create a database row with all fields from the original data
-      const row: DatabaseRow = { ...rowData };
-
-      // Use utility functions to ensure proper extraction and parsing
-      const dimensionValues = extractDimensionValues(
-        row,
-        pivotConfig.dimensions,
-      );
-      const metricValues = extractMetricValues(row, pivotConfig.metrics);
-
-      // Combine dimension and metric values into the final row
-      const result: DatabaseRow = {
-        ...dimensionValues,
-        ...metricValues,
-      };
-
-      // Include time dimension if present
-      if (point.time_dimension !== undefined) {
-        result.time_dimension = point.time_dimension;
-      }
-
-      // Include legacy 'metric' field for backward compatibility
-      if (point.metric !== undefined) {
-        if (typeof point.metric === "number") {
-          result.metric = point.metric;
-        } else if (Array.isArray(point.metric)) {
-          result.metric = point.metric
-            .flat()
-            .reduce((sum, val) => sum + val, 0);
-        }
-      }
-
-      return result;
-    });
-
     try {
-      return transformToPivotTable(databaseRows, pivotConfig);
+      return transformChartDataToPivotTable(data, pivotConfig);
     } catch (error) {
       console.error("Error transforming data to pivot table:", error);
       return [];
