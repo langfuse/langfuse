@@ -217,12 +217,13 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -325,9 +326,9 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --shard=${{ matrix.shard }}/3
       - name: run test-client
-        if: matrix.deploy-mode == ''
+        if: matrix.deploy-mode == '' && matrix.shard == 1
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
