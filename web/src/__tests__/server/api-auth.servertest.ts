@@ -640,28 +640,25 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-      const ttl = await getRedisTtl(
-        redis,
-        `api-key:${apiKey?.fastHashedSecretKey}`,
-      );
+      const redisKey = `api-key:${apiKey?.fastHashedSecretKey}`;
+      const ttl = await getRedisTtl(redis, redisKey);
 
       expect(ttl).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS - 2);
 
-      // wait for 5 seconds
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await redis.expire(redisKey, 10);
+      const shortenedTtl = await getRedisTtl(redis, redisKey);
+      expect(shortenedTtl).toBeGreaterThan(0);
+      expect(shortenedTtl).toBeLessThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS);
 
       await new ApiAuthService(
         mockPrisma as unknown as PrismaClient,
         redis,
       ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
 
-      const ttl2 = await getRedisTtl(
-        redis,
-        `api-key:${apiKey?.fastHashedSecretKey}`,
-      );
+      const ttl2 = await getRedisTtl(redis, redisKey);
 
       expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS - 2);
-    }, 10000);
+    });
 
     it("should delete API keys from cache and db", async () => {
       // first auth will generate the fast hashed api key
