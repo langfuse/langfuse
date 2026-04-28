@@ -374,7 +374,7 @@ export const GetObservationsV2Query = z.object({
 /**
  * Typed observation schema for v2 API responses.
  * Core fields are always present; other fields are optional depending on requested field groups.
- * Uses .passthrough() to allow server enrichment fields not explicitly listed.
+ * Uses .loose() to allow server enrichment fields not explicitly listed.
  */
 const APIObservationV2 = z
   .object({
@@ -432,7 +432,7 @@ const APIObservationV2 = z
     // Enrichment fields
     modelId: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const GetObservationsV2Response = z
   .object({

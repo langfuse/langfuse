@@ -14,7 +14,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 
 // Generate truly unique provider names for tests to avoid conflicts
 const generateUniqueProvider = (baseName: string) =>
-  `${baseName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  `${baseName}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
 describe("/api/public/llm-connections API Endpoints", () => {
   let auth: string;
