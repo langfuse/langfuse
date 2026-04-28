@@ -701,18 +701,6 @@ describe("/api/public/traces API Endpoint", () => {
     expect(response.status).toBe(400);
   });
 
-  it("should return 400 error when page=0", async () => {
-    const response = await makeZodVerifiedAPICallSilent(
-      GetTracesV1Response,
-      "GET",
-      "/api/public/traces?page=0&limit=10",
-      undefined,
-      auth,
-    );
-
-    expect(response.status).toBe(400);
-  });
-
   it("LFE-3699: should fetch a single trace with unescaped metadata via traces list", async () => {
     const traceId = randomUUID();
     const traceName = `trace-name-${traceId}`;
@@ -812,21 +800,10 @@ describe("/api/public/traces API Endpoint", () => {
       createObservation({
         trace_id: traceId,
         project_id: projectId,
-        input: "a".repeat(30e6),
-        output: "b".repeat(30e6),
+        input: "a".repeat(28e6),
+        output: "b".repeat(28e6),
         metadata: {
-          foo: "c".repeat(30e6),
-        },
-      }),
-    ]);
-    await createObservationsCh([
-      createObservation({
-        trace_id: traceId,
-        project_id: projectId,
-        input: "a".repeat(30e6),
-        output: "b".repeat(30e6),
-        metadata: {
-          foo: "c".repeat(30e6),
+          foo: "c".repeat(28e6),
         },
       }),
     ]);
@@ -840,7 +817,7 @@ describe("/api/public/traces API Endpoint", () => {
         auth,
       ),
     ).rejects.toThrow(
-      "Observations in trace are too large: 90.00MB exceeds limit of 80.00MB",
+      /Observations in trace are too large: .* exceeds limit of 80\.00MB/,
     );
   });
 

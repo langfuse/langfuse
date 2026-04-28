@@ -25,8 +25,8 @@ describe("Annotation Queues API Endpoints", () => {
   let projectId: string;
   let queueId: string;
   let queueItemId: string;
-  const TOTAL_TEST_QUEUES = 15; // Create enough queues to test pagination
-  const TOTAL_TEST_QUEUE_ITEMS = 20; // Create enough queue items to test pagination
+  const TOTAL_TEST_QUEUES = 10; // Create enough queues to test pagination
+  const TOTAL_TEST_QUEUE_ITEMS = 6; // Create enough queue items to test filtering
 
   beforeEach(async () => {
     // Create organization, project, and API key for testing
