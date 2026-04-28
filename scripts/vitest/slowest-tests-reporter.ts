@@ -1,4 +1,4 @@
-const SLOW_TEST_LIMIT = 20;
+const SLOW_TEST_LIMIT = 50;
 
 type TestCaseLike = {
   fullName: string;
