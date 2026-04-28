@@ -57,6 +57,9 @@ import {
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
 
+const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
+const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
+
 export const searchExistingAnnotationScore = async (
   projectId: string,
   observationId: string | null,
@@ -813,7 +816,7 @@ export const getScoresGroupedByNameSourceType = async ({
     AND s.data_type IN ({dataTypes: Array(String)})
     GROUP BY name, source, data_type
     ORDER BY count() desc
-    LIMIT 1000;
+    LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
   `;
 
   const rows = await queryClickhouse<{
@@ -879,7 +882,7 @@ export const getNumericScoresGroupedByName = async (
       ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc
-      LIMIT 1000;
+      LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
     `;
 
   const rows = await queryClickhouse<{
@@ -921,14 +924,14 @@ export const getCategoricalScoresGroupedByName = async (
   const query = `
     SELECT
       name AS label,
-      groupArray(DISTINCT string_value) AS values
+      groupUniqArray(${FILTER_OPTION_CATEGORICAL_VALUE_LIMIT})(string_value) AS values
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.data_type = 'CATEGORICAL'
     ${filterRes?.query ? `AND ${filterRes.query}` : ""}
     GROUP BY name
     ORDER BY count() DESC
-    LIMIT 1000;
+    LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
   `;
 
   const rows = await queryClickhouse<{
@@ -990,7 +993,7 @@ export const getCategoricalScoresGroupedByName = async (
       // Use Set to ensure uniqueness
       const mergedValues = Array.from(
         new Set([...row.values, ...allPossibleValues]),
-      );
+      ).slice(0, FILTER_OPTION_CATEGORICAL_VALUE_LIMIT);
 
       return {
         ...row,

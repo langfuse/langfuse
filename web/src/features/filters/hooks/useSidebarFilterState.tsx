@@ -148,14 +148,15 @@ export interface CategoricalUIFilter extends BaseUIFilter {
    * Current operator for arrayOptions columns (tags, labels, etc.)
    * - "any of": OR logic - match if item has ANY selected value
    * - "all of": AND logic - match if item has ALL selected values
+   * - "none of": exclude items with ANY selected value
    * undefined for non-arrayOptions columns
    */
-  operator?: "any of" | "all of";
+  operator?: "any of" | "all of" | "none of";
   /**
    * Callback to change the operator. Only provided for arrayOptions columns.
    * When called, updates the filter to use the specified operator.
    */
-  onOperatorChange?: (operator: "any of" | "all of") => void;
+  onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   /**
    * Active text filters (contains/does not contain) for this column
    * Mutually exclusive with checkbox selections
@@ -321,8 +322,10 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
  * For arrayOptions (e.g., tags), "none of" inversion is NOT semantically
  * equivalent because a single trace can have multiple tags. For example,
  * a trace with tags [tag-1, tag-3] matches "any of [tag-1, tag-2]" but does NOT match
- * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). So we always use positive
- * matching ("any of" / "all of") for array columns.
+ * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). Because of that, we never
+ * derive array filters by inverting the deselected set. Instead, we keep the user's explicit
+ * array operator when one already exists ("all of" / "none of"), and otherwise default new
+ * checkbox selections to positive matching ("any of").
  *
  * For stringOptions (e.g., environment), each row has a single value,
  * so "none of [deselected]" is semantically equivalent to "any of [selected]".
@@ -339,12 +342,17 @@ export function resolveCheckboxOperator(params: {
   const { colType, existingFilter, values, availableValues } = params;
 
   if (colType === "arrayOptions") {
-    // For array columns, always use positive matching.
     if (
       existingFilter?.operator === "all of" &&
       existingFilter.type === "arrayOptions"
     ) {
       return { finalOperator: "all of", finalValues: values };
+    }
+    if (
+      existingFilter?.operator === "none of" &&
+      existingFilter.type === "arrayOptions"
+    ) {
+      return { finalOperator: "none of", finalValues: values };
     }
     return { finalOperator: "any of", finalValues: values };
   }
@@ -716,6 +724,11 @@ export function useSidebarFilterState(
       // Determine operator and values based on context
       let finalOperator: "any of" | "none of" | "all of";
       let finalValues: string[];
+      const existingFilter = current.find((f) => f.column === column);
+      const preserveArrayNoneOfOperator =
+        colType === "arrayOptions" &&
+        existingFilter?.type === "arrayOptions" &&
+        existingFilter.operator === "none of";
 
       if (operator !== undefined) {
         // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
@@ -725,9 +738,10 @@ export function useSidebarFilterState(
         // If all items selected or none selected, remove filter
         // (only for implicit/checkbox-based selection, not when operator is explicitly set)
         if (
-          values.length === 0 ||
-          (values.length === availableValues.length &&
-            availableValues.every((v) => values.includes(v)))
+          !preserveArrayNoneOfOperator &&
+          (values.length === 0 ||
+            (values.length === availableValues.length &&
+              availableValues.every((v) => values.includes(v))))
         ) {
           const isManagedEnvironmentColumn =
             column === managedEnvironmentColumn &&
@@ -748,7 +762,6 @@ export function useSidebarFilterState(
           return other;
         }
         // Checkbox interaction - smart operator selection
-        const existingFilter = current.find((f) => f.column === column);
         ({ finalOperator, finalValues } = resolveCheckboxOperator({
           colType,
           existingFilter,
@@ -825,19 +838,35 @@ export function useSidebarFilterState(
       // Only apply for array-type options (not nested objects)
       const optionValue = options[column];
       if (!Array.isArray(optionValue)) return;
-      updateFilter(column, [value], "any of");
+      const columnType = config.columnDefinitions.find(
+        (columnDefinition) => columnDefinition.id === column,
+      )?.type;
+      const existingFilter = filterState.find((f) => f.column === column);
+      const operator =
+        columnType === "arrayOptions" &&
+        existingFilter?.type === "arrayOptions" &&
+        (existingFilter.operator === "any of" ||
+          existingFilter.operator === "all of" ||
+          existingFilter.operator === "none of")
+          ? existingFilter.operator
+          : "any of";
+      updateFilter(column, [value], operator);
     },
-    [config.facets, options, updateFilter],
+    [
+      config.columnDefinitions,
+      config.facets,
+      filterState,
+      options,
+      updateFilter,
+    ],
   );
 
   const updateOperator = useCallback(
-    (column: string, newOperator: "any of" | "all of") => {
+    (column: string, newOperator: "any of" | "all of" | "none of") => {
       // Find the existing filter for this column
       const existingFilter = filterState.find((f) => f.column === column);
       if (!existingFilter) {
-        // Create a filter with the operator and empty values
-        // important so users set the operator preference before selecting values,
-        // in case for ALL on TAGS filter
+        // Without selected values there is no valid persisted filter yet.
         updateFilter(column, [], newOperator);
         return;
       }
@@ -861,9 +890,12 @@ export function useSidebarFilterState(
 
       let currentValues: string[];
       if (existingFilter.operator === "none of") {
-        // Convert "none of [excluded]" to selected values
-        const excluded = new Set(existingFilter.value);
-        currentValues = availableValues.filter((v) => !excluded.has(v));
+        currentValues =
+          existingFilter.type === "arrayOptions"
+            ? existingFilter.value
+            : availableValues.filter(
+                (v) => !new Set(existingFilter.value).has(v),
+              );
       } else {
         currentValues = existingFilter.value;
       }
@@ -1473,13 +1505,14 @@ export function useSidebarFilterState(
         // - "any of" (OR logic): match if item has ANY selected value
         // - "all of" (AND logic): match if item has ALL selected values
         // This operator is persisted in the filter state and URL
-        let currentOperator: "any of" | "all of" | undefined;
+        let currentOperator: "any of" | "all of" | "none of" | undefined;
         if (
           checkboxFilter &&
           (checkboxFilter.type === "arrayOptions" ||
             checkboxFilter.type === "stringOptions") &&
           (checkboxFilter.operator === "any of" ||
-            checkboxFilter.operator === "all of")
+            checkboxFilter.operator === "all of" ||
+            checkboxFilter.operator === "none of")
         ) {
           currentOperator = checkboxFilter.operator;
         } else if (isArrayOptions && selectedValues.length > 0) {
@@ -1532,6 +1565,7 @@ export function useSidebarFilterState(
             ? hasManagedEnvironmentSelectionOverride
             : (currentOperator === "all of" &&
                 selectedValues.length === availableValues.length) ||
+              (currentOperator === "none of" && selectedValues.length > 0) ||
               hasCheckboxSelections);
         const disableState = getFacetDisabledState(facet);
 
@@ -1581,7 +1615,8 @@ export function useSidebarFilterState(
           // Only add operator toggle for arrayOptions columns
           operator: isArrayOptions ? currentOperator : undefined,
           onOperatorChange: isArrayOptions
-            ? (op: "any of" | "all of") => updateOperator(facet.column, op)
+            ? (op: "any of" | "all of" | "none of") =>
+                updateOperator(facet.column, op)
             : undefined,
           // Text filter support - ONLY for stringOptions, NOT arrayOptions or boolean
           textFilters: !isArrayOptions ? textFilters : undefined,

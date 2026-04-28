@@ -755,7 +755,8 @@ export default function SessionsTable({
           return <TableTextLoadingCell />;
         }
         return (
-          value && (
+          value &&
+          value.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",

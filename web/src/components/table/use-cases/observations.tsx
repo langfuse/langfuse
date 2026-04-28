@@ -983,7 +983,8 @@ export default function ObservationsTable({
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
