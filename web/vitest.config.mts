@@ -1,10 +1,12 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { SlowestTestsReporter } from "../scripts/vitest/slowest-tests-reporter";
 
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
+    reporters: ["default", new SlowestTestsReporter()],
     globals: true,
     testTimeout: 30_000,
     server: {
