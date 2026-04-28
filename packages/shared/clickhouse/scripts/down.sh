@@ -28,6 +28,13 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
+# Prepare clustered migrations by replacing {CLICKHOUSE_CLUSTER_NAME} placeholder with actual cluster name
+CLUSTERED_MIGRATIONS_DIR=$(mktemp -d)
+trap 'rm -rf "$CLUSTERED_MIGRATIONS_DIR"' EXIT
+cp clickhouse/migrations/clustered/*.sql "$CLUSTERED_MIGRATIONS_DIR/"
+sed -i.bak "s|{CLICKHOUSE_CLUSTER_NAME}|'${CLICKHOUSE_CLUSTER_NAME}'|g" "$CLUSTERED_MIGRATIONS_DIR"/*.sql
+rm -f "$CLUSTERED_MIGRATIONS_DIR"/*.bak
+
 # Construct the database URL
 if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
@@ -51,8 +58,8 @@ else
 
   # If SKIP_CONFIRM is set, automatically answer the confirmation prompt. Otherwise run interactively.
   if [ "$SKIP_CONFIRM" = "1" ] || [ "$SKIP_CONFIRM" = "true" ]; then
-    printf 'y\n' | migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" down
+    printf 'y\n' | migrate -source "file://${CLUSTERED_MIGRATIONS_DIR}" -database "$DATABASE_URL" down
   else
-    migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" down
+    migrate -source "file://${CLUSTERED_MIGRATIONS_DIR}" -database "$DATABASE_URL" down
   fi
 fi
