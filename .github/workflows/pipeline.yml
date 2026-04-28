@@ -230,7 +230,10 @@ jobs:
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -364,7 +367,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -437,7 +443,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -531,7 +540,10 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -588,7 +600,10 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          tar xzf migrate.linux-amd64.tar.gz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env

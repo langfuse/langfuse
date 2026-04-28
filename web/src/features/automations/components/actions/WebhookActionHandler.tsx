@@ -16,7 +16,7 @@ import { z } from "zod";
 // (used for type extraction via z.infer<typeof>, which is a legitimate pattern)
 export const WebhookActionFormSchema = z.object({
   webhook: z.object({
-    url: z.string().url("Invalid URL"),
+    url: z.url("Invalid URL"),
     headers: z
       .array(
         z.object({

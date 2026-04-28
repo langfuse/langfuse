@@ -28,7 +28,7 @@ export enum ActionId {
   ExperimentCompare = "experiment-compare",
 }
 
-const ActionIdSchema = z.nativeEnum(ActionId);
+const ActionIdSchema = z.enum(ActionId);
 
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),

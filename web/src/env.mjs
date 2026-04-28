@@ -43,7 +43,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     BUILD_ID: z.string().optional(),
     NEXTAUTH_SECRET:
@@ -59,12 +59,12 @@ export const env = createEnv({
           ? process.env.VERCEL_URL
           : str,
       // VERCEL_URL doesn't include `https` so it can't be validated as a URL
-      process.env.VERCEL ? z.string().min(1) : z.string().url(),
+      process.env.VERCEL ? z.string().min(1) : z.url(),
     ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
-    LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
-    LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
-    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.string().url().optional(),
+    LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
+    LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
+    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
@@ -124,7 +124,7 @@ export const env = createEnv({
     AUTH_GITHUB_CHECKS: zAuthChecks,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
-    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().url().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.url().optional(),
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
@@ -137,7 +137,7 @@ export const env = createEnv({
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
     AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
-    AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
+    AUTH_GITLAB_URL: z.url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -165,7 +165,7 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CHECKS: zAuthChecks,
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
-    AUTH_AUTHENTIK_AUTHORIZATION_URL: z.string().url().optional(),
+    AUTH_AUTHENTIK_AUTHORIZATION_URL: z.url().optional(),
     AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
     AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
     AUTH_ONELOGIN_ISSUER: z.string().optional(),
@@ -175,7 +175,7 @@ export const env = createEnv({
     AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
-    AUTH_AUTH0_ISSUER: z.string().url().optional(),
+    AUTH_AUTH0_ISSUER: z.url().optional(),
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
@@ -184,7 +184,7 @@ export const env = createEnv({
     // NOT intended for self-hosted Langfuse — use AUTH_AUTH0_* instead.
     AUTH_CLICKHOUSE_CLOUD_CLIENT_ID: z.string().optional(),
     AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET: z.string().optional(),
-    AUTH_CLICKHOUSE_CLOUD_ISSUER: z.string().url().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: z.url().optional(),
     AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
@@ -193,7 +193,7 @@ export const env = createEnv({
     AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
-    AUTH_COGNITO_ISSUER: z.string().url().optional(),
+    AUTH_COGNITO_ISSUER: z.url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_COGNITO_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_COGNITO_CHECKS: zAuthChecks,
@@ -213,7 +213,7 @@ export const env = createEnv({
     AUTH_KEYCLOAK_NAME: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_ID: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_SECRET: z.string().optional(),
-    AUTH_JUMPCLOUD_ISSUER: z.string().url().optional(),
+    AUTH_JUMPCLOUD_ISSUER: z.url().optional(),
     AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_JUMPCLOUD_CHECKS: zAuthChecks,
@@ -221,7 +221,7 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
-    AUTH_CUSTOM_ISSUER: z.string().url().optional(),
+    AUTH_CUSTOM_ISSUER: z.url().optional(),
     AUTH_CUSTOM_NAME: z.string().optional(),
     AUTH_CUSTOM_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
@@ -253,8 +253,8 @@ export const env = createEnv({
       )
       .optional()
       .default(30 * 24 * 60), // default to 30 days
-    AUTH_HTTP_PROXY: z.string().url().optional(),
-    AUTH_HTTPS_PROXY: z.string().url().optional(),
+    AUTH_HTTP_PROXY: z.url().optional(),
+    AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
@@ -274,7 +274,7 @@ export const env = createEnv({
       ),
 
     // clickhouse
-    CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_URL: z.url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
     CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
@@ -297,17 +297,17 @@ export const env = createEnv({
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
-    LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
-    LANGFUSE_UI_SUPPORT_HREF: z.string().url().optional(),
-    LANGFUSE_UI_FEEDBACK_HREF: z.string().url().optional(),
-    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.string().url().optional(),
-    LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.string().url().optional(),
+    LANGFUSE_UI_DOCUMENTATION_HREF: z.url().optional(),
+    LANGFUSE_UI_SUPPORT_HREF: z.url().optional(),
+    LANGFUSE_UI_FEEDBACK_HREF: z.url().optional(),
+    LANGFUSE_UI_LOGO_LIGHT_MODE_HREF: z.url().optional(),
+    LANGFUSE_UI_LOGO_DARK_MODE_HREF: z.url().optional(),
     LANGFUSE_UI_DEFAULT_MODEL_ADAPTER: z
       .enum(["OpenAI", "Anthropic", "Azure"])
       .optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.url().optional(),
+    LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.url().optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -352,7 +352,7 @@ export const env = createEnv({
       .refine((value) => {
         if (!value) return true;
         const creators = value.split(",");
-        const emailSchema = z.string().email();
+        const emailSchema = z.email();
         return creators.every(
           (creator) => emailSchema.safeParse(creator).success,
         );
@@ -373,7 +373,7 @@ export const env = createEnv({
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
-      .union([z.string().email(), z.string().length(0)])
+      .union([z.email(), z.string().length(0)])
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
@@ -435,6 +435,9 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
       .enum(["true", "false"])
       .default("false"),
+
+    // Events table for UI/tRPC routes (separate from public API flag)
+    LANGFUSE_ENABLE_EVENTS_TABLE_UI: z.enum(["true", "false"]).default("false"),
 
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
@@ -843,6 +846,8 @@ export const env = createEnv({
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_UI:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:

@@ -24,7 +24,7 @@ export function RequestResetPasswordEmailButton({
   const capture = usePostHogClientCapture();
 
   useEffect(() => {
-    const isValidEmail = z.string().email().safeParse(email).success;
+    const isValidEmail = z.email().safeParse(email).success;
     setIsValidEmail(isValidEmail);
   }, [email]);
 

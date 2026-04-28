@@ -54,7 +54,7 @@ export const validateCategories = (
   for (const category of categories) {
     if (uniqueNames.has(category.label)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Duplicate category label: ${category.label}, category labels must be unique`,
       });
       return;
@@ -63,7 +63,7 @@ export const validateCategories = (
 
     if (uniqueValues.has(category.value)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: `Duplicate category value: ${category.value}, category values must be unique`,
       });
       return;
@@ -107,7 +107,7 @@ export const validateNumericRangeFields = (
       data.maxValue <= data.minValue
     ) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Maximum value must be greater than Minimum value",
       });
     }

@@ -6,7 +6,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/src/utils/tailwind";
 
 const TabsBar = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentRef<typeof TabsPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Root
@@ -18,7 +18,7 @@ const TabsBar = React.forwardRef<
 TabsBar.displayName = TabsPrimitive.Root.displayName;
 
 const TabsBarList = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.List>,
+  React.ComponentRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
@@ -33,7 +33,7 @@ const TabsBarList = React.forwardRef<
 TabsBarList.displayName = TabsPrimitive.List.displayName;
 
 const TabsBarTrigger = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Trigger>,
+  React.ComponentRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Trigger
@@ -48,7 +48,7 @@ const TabsBarTrigger = React.forwardRef<
 TabsBarTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
 const TabsBarContent = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Content>,
+  React.ComponentRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
