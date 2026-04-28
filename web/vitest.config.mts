@@ -6,7 +6,9 @@ import { SlowestTestsReporter } from "../scripts/vitest/slowest-tests-reporter";
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
-    reporters: ["default", new SlowestTestsReporter()],
+    reporters: process.env.CI
+      ? ["default", new SlowestTestsReporter()]
+      : ["default"],
     globals: true,
     testTimeout: 30_000,
     server: {
