@@ -999,9 +999,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "angled[brac]es]",
         ];
 
-        for (const name of validNames) {
-          await testValidName(name, auth);
-        }
+        await Promise.all(validNames.map((name) => testValidName(name, auth)));
       });
     });
 
