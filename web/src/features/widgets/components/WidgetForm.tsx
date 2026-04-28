@@ -11,7 +11,9 @@ import {
   type metricAggregations,
   getValidAggregationsForMeasureType,
   type QueryType,
-  mapLegacyUiTableFilterToView,
+  mapWidgetUiTableFilterToView,
+  normalizeStoredWidgetFiltersForEditor,
+  partitionWidgetUiTableFiltersToView,
 } from "@/src/features/query";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -40,7 +42,7 @@ import {
   toAbsoluteTimeRange,
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
-import { type ColumnDefinition } from "@langfuse/shared";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -69,6 +71,7 @@ import {
   buildWidgetName,
   buildWidgetDescription,
   formatMetricName,
+  sanitizePivotTableDefaultSort,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -79,6 +82,10 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import {
+  getWidgetColumnsWithCustomSelect,
+  getWidgetFilterColumns,
+} from "./widgetFilterColumns";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -289,9 +296,22 @@ export function WidgetForm({
 
   // Form definitions follow beta toggle, or v2 if widget already requires it.
   // Traces view is excluded from beta-v2 because it has no v2-only fields.
+  const initialWidgetRequiresV2 = requiresV2({
+    view: initialValues.view,
+    dimensions:
+      initialValues.dimensions ??
+      (initialValues.dimension && initialValues.dimension !== "none"
+        ? [{ field: initialValues.dimension }]
+        : []),
+    measures: initialValues.metrics?.map((metric) => ({
+      measure: metric.measure,
+    })) ?? [{ measure: initialValues.measure }],
+    filters: initialValues.filters ?? [],
+  });
   const viewVersion: ViewVersion =
     (isBetaEnabled && selectedView !== "traces") ||
-    (initialValues.minVersion ?? 1) >= 2
+    (initialValues.minVersion ?? 1) >= 2 ||
+    initialWidgetRequiresV2
       ? "v2"
       : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
@@ -345,6 +365,22 @@ export function WidgetForm({
   const [selectedChartType, setSelectedChartType] = useState<string>(
     initialValues.chartType,
   );
+  const initialDefaultSort =
+    initialValues.chartType === "PIVOT_TABLE"
+      ? sanitizePivotTableDefaultSort(initialValues.chartConfig?.defaultSort, {
+          dimensions: initialValues.dimensions ?? [],
+          metrics:
+            initialValues.metrics ??
+            (initialValues.measure && initialValues.aggregation
+              ? [
+                  {
+                    measure: initialValues.measure,
+                    agg: initialValues.aggregation,
+                  },
+                ]
+              : []),
+        })
+      : undefined;
   const [rowLimit, setRowLimit] = useState<number>(
     initialValues.chartConfig?.row_limit ?? 100,
   );
@@ -354,10 +390,10 @@ export function WidgetForm({
 
   // Default sort configuration for pivot tables
   const [defaultSortColumn, setDefaultSortColumn] = useState<string>(
-    initialValues.chartConfig?.defaultSort?.column ?? "none",
+    initialDefaultSort?.column ?? "none",
   );
   const [defaultSortOrder, setDefaultSortOrder] = useState<"ASC" | "DESC">(
-    initialValues.chartConfig?.defaultSort?.order ?? "DESC",
+    initialDefaultSort?.order ?? "DESC",
   );
 
   // Filter state
@@ -394,21 +430,28 @@ export function WidgetForm({
     }
   };
   const [userFilterState, setUserFilterState] = useState<FilterState>(
-    initialValues.filters?.map((filter) => {
-      if (filter.column === "name") {
-        // We need to map the generic `name` property to the correct column name for the selected view
-        return {
-          ...filter,
-          column:
-            initialValues.view === "traces"
-              ? "traceName"
-              : initialValues.view === "observations"
-                ? "observationName"
-                : "scoreName",
-        };
-      }
-      return filter;
-    }) ?? [],
+    () =>
+      normalizeStoredWidgetFiltersForEditor(
+        initialValues.view,
+        initialValues.filters ?? [],
+      ).editorFilters,
+  );
+  const unsupportedFilters = useMemo(
+    () =>
+      partitionWidgetUiTableFiltersToView(selectedView, userFilterState)
+        .unsupportedFilters,
+    [selectedView, userFilterState],
+  );
+  const unsupportedFilterColumns = useMemo(
+    () =>
+      Array.from(
+        new Set(unsupportedFilters.map((filter) => filter.column)),
+      ).join(", "),
+    [unsupportedFilters],
+  );
+  const normalizedUserFilters = useMemo(
+    () => mapWidgetUiTableFilterToView(selectedView, userFilterState),
+    [selectedView, userFilterState],
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
@@ -447,6 +490,43 @@ export function WidgetForm({
         : null,
     [selectedChartType, defaultSortColumn, defaultSortOrder],
   );
+
+  useEffect(() => {
+    if (selectedChartType !== "PIVOT_TABLE") return;
+
+    // Old widgets can carry persisted default sort keys for metrics or
+    // dimensions that are no longer part of the pivot query. Clear those stale
+    // sort columns so preview/save do not send invalid orderBy fields.
+    const sanitizedDefaultSort = sanitizePivotTableDefaultSort(
+      defaultSortColumn !== "none"
+        ? { column: defaultSortColumn, order: defaultSortOrder }
+        : undefined,
+      {
+        dimensions: pivotDimensions
+          .filter((field) => field && field !== "none")
+          .map((field) => ({ field })),
+        metrics: selectedMetrics
+          .filter((metric) => metric.measure && metric.measure !== "")
+          .map((metric) => ({
+            measure: metric.measure,
+            agg: metric.aggregation,
+          })),
+      },
+    );
+
+    if (defaultSortColumn !== "none" && !sanitizedDefaultSort) {
+      setDefaultSortColumn("none");
+      setDefaultSortOrder("DESC");
+    }
+  }, [
+    defaultSortColumn,
+    defaultSortOrder,
+    pivotDimensions,
+    selectedMetrics,
+    selectedChartType,
+    setDefaultSortColumn,
+    setDefaultSortOrder,
+  ]);
 
   // Helper function to update pivot table dimensions
   const updatePivotDimension = (index: number, value: string) => {
@@ -587,10 +667,14 @@ export function WidgetForm({
     environmentFilterOptions.data?.map((value) => ({
       value: value.environment,
     })) || [];
-  const nameOptions = traceFilterOptions.data?.name || [];
+  const nameOptions = normalizeSingleValueOptions(
+    traceFilterOptions.data?.name,
+  );
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
   const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
+  const calledToolNamesOptions =
+    generationsFilterOptions.data?.calledToolNames || [];
   const observationLevelOptions = [
     { value: "DEBUG" },
     { value: "DEFAULT" },
@@ -598,111 +682,28 @@ export function WidgetForm({
     { value: "ERROR" },
   ];
 
-  // Filter columns for PopoverFilterBuilder
-  const filterColumns: ColumnDefinition[] = [
-    {
-      name: "Environment",
-      id: "environment",
-      type: "stringOptions",
-      options: environmentOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Trace Name",
-      id: "traceName",
-      type: "stringOptions",
-      options: nameOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Observation Name",
-      id: "observationName",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Score Name",
-      id: "scoreName",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Tags",
-      id: "tags",
-      type: "arrayOptions",
-      options: tagsOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Tool Names",
-      id: "toolNames",
-      type: "arrayOptions",
-      options: toolNamesOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "User",
-      id: "user",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Session",
-      id: "session",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Metadata",
-      id: "metadata",
-      type: "stringObject",
-      internal: "internalValue",
-    },
-    {
-      name: "Release",
-      id: "release",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Version",
-      id: "version",
-      type: "string",
-      internal: "internalValue",
-    },
-  ];
-  if (selectedView === "observations") {
-    filterColumns.push({
-      name: "Model",
-      id: "providedModelName",
-      type: "stringOptions",
-      options: modelOptions,
-      internal: "internalValue",
-    });
-    filterColumns.push({
-      name: "Level",
-      id: "level",
-      type: "stringOptions",
-      options: observationLevelOptions,
-      internal: "internalValue",
-    });
-  }
-  if (selectedView === "scores-categorical") {
-    filterColumns.push({
-      name: "Score String Value",
-      id: "stringValue",
-      type: "string",
-      internal: "internalValue",
-    });
-  }
-  if (selectedView === "scores-numeric") {
-    filterColumns.push({
-      name: "Score Value",
-      id: "value",
-      type: "number",
-      internal: "internalValue",
-    });
-  }
+  const filterColumns = getWidgetFilterColumns({
+    selectedView,
+    viewVersion,
+    environmentOptions,
+    nameOptions,
+    tagsOptions,
+    modelOptions,
+    toolNamesOptions,
+    calledToolNamesOptions,
+    observationLevelOptions,
+  });
+  const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
+    selectedView,
+    viewVersion,
+    environmentOptions,
+    nameOptions,
+    tagsOptions,
+    modelOptions,
+    toolNamesOptions,
+    calledToolNamesOptions,
+    observationLevelOptions,
+  });
 
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
@@ -952,7 +953,7 @@ export function WidgetForm({
       view: selectedView,
       dimensions: queryDimensions,
       metrics: queryMetrics,
-      filters: [...mapLegacyUiTableFilterToView(selectedView, userFilterState)],
+      filters: [...normalizedUserFilters],
       timeDimension: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
       )
@@ -969,7 +970,6 @@ export function WidgetForm({
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
-    userFilterState,
     dateRange,
     selectedChartType,
     histogramBins,
@@ -977,12 +977,21 @@ export function WidgetForm({
     rowLimit,
     previewSortState,
     viewVersion,
+    normalizedUserFilters,
   ]);
 
-  const queryValidation = useMemo(
-    () => validateQuery(query, viewVersion),
-    [query, viewVersion],
-  );
+  const queryValidation = useMemo(() => {
+    if (unsupportedFilters.length > 0) {
+      return {
+        valid: false as const,
+        reason:
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          "Remove them or switch to a compatible view before saving this widget.",
+      };
+    }
+
+    return validateQuery(query, viewVersion);
+  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
@@ -1108,7 +1117,7 @@ export function WidgetForm({
       view: selectedView,
       dimensions: saveDimensions,
       metrics: saveMetrics,
-      filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
+      filters: normalizedUserFilters,
       chartType: selectedChartType as DashboardWidgetChartType,
       chartConfig: isTimeSeriesChart(
         selectedChartType as DashboardWidgetChartType,
@@ -1139,6 +1148,7 @@ export function WidgetForm({
         view: selectedView,
         dimensions: saveDimensions,
         measures: saveMetrics.map((m) => ({ measure: m.measure })),
+        filters: normalizedUserFilters,
       })
         ? 2
         : 1,
@@ -1307,19 +1317,33 @@ export function WidgetForm({
                         setPivotDimensions(validDimensions);
                       }
 
-                      // Remove invalid filters based on the new view
-                      if (newView !== "scores-categorical") {
-                        setUserFilterState((prev) =>
-                          prev.filter(
-                            (filter) => filter.column !== "stringValue",
-                          ),
-                        );
-                      }
-                      if (newView === "scores-numeric") {
-                        setUserFilterState((prev) =>
-                          prev.filter((filter) => filter.column !== "value"),
-                        );
-                      }
+                      // Remove score-only filters when switching away from
+                      // scores-categorical or scores-numeric. The widget editor
+                      // state stores current UI labels such as "Score Value",
+                      // but older/canonical filters can still surface as ids
+                      // during transitions, so we need to clean up both
+                      // representations here.
+                      setUserFilterState((prev) =>
+                        prev.filter((filter) => {
+                          if (
+                            newView !== "scores-categorical" &&
+                            (filter.column === "stringValue" ||
+                              filter.column === "Score String Value")
+                          ) {
+                            return false;
+                          }
+
+                          if (
+                            newView !== "scores-numeric" &&
+                            (filter.column === "value" ||
+                              filter.column === "Score Value")
+                          ) {
+                            return false;
+                          }
+
+                          return true;
+                        }),
+                      );
                     }
                     setSelectedView(value as z.infer<typeof views>);
                   }}
@@ -1558,16 +1582,25 @@ export function WidgetForm({
               <div className="space-y-2">
                 <Label>Filters</Label>
                 <div className="space-y-2">
+                  {unsupportedFilters.length > 0 && (
+                    <Alert
+                      variant="default"
+                      className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+                    >
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                      <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+                        Unsupported legacy filters
+                      </AlertTitle>
+                      <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+                        {`This widget still contains filter columns that are not supported for ${startCase(selectedView)}: ${unsupportedFilterColumns}. Remove them or switch to a compatible view before saving.`}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <InlineFilterBuilder
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
-                    columnsWithCustomSelect={[
-                      "environment",
-                      "traceName",
-                      "tags",
-                      "providedModelName",
-                    ]}
+                    columnsWithCustomSelect={columnsWithCustomSelect}
                   />
                 </div>
               </div>

@@ -30,7 +30,7 @@ const UnstablePublicApiValidationIssue = z
     message: z.string(),
     path: z.array(z.union([z.string(), z.number()])),
   })
-  .passthrough();
+  .loose();
 
 export const UnstablePublicApiErrorDetails = z
   .object({

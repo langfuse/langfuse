@@ -25,9 +25,13 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 
 **Why rules take priority:** ClickHouse has specific behaviors (columnar storage, sparse indexes, merge tree mechanics) where general database intuition can be misleading. The rules encode validated, ClickHouse-specific guidance.
 
-### For Formal Reviews
+## Langfuse-Specific Rules
 
-When performing a formal review of schemas, queries, or data ingestion:
+- Use `packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts`
+  for queries against the `events` table. Do not hand-roll `events` SQL unless
+  you first confirm the query builder cannot express the query.
+- Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
+  required and the keyword hurts performance.
 
 ---
 
@@ -227,8 +231,8 @@ Each rule file in `rules/` contains:
 
 ---
 
-## Full Compiled Document
+## Compatibility Entrypoint
 
-For the complete guide with all rules expanded inline: `AGENTS.md`
-
-Use `AGENTS.md` when you need to check multiple rules quickly without reading individual files.
+`AGENTS.md` is a short compatibility index for agents that open that file
+directly. The authoritative workflow lives in this `SKILL.md`, and detailed rule
+bodies live in `rules/`.

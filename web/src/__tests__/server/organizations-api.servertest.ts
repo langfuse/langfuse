@@ -15,15 +15,15 @@ const OrganizationProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 // Schema for organization response
 const OrganizationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
   metadata: z.object({}),
   projects: z.array(OrganizationProjectSchema),
 });
@@ -41,7 +41,7 @@ const DeleteResponseSchema = z.object({
 // Schema for API key response
 const ApiKeyResponseSchema = z.object({
   id: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
   publicKey: z.string(),
   secretKey: z.string(),
   displaySecretKey: z.string(),
@@ -53,9 +53,9 @@ const ApiKeyListSchema = z.object({
   apiKeys: z.array(
     z.object({
       id: z.string(),
-      createdAt: z.string().datetime(),
-      expiresAt: z.string().datetime().nullable(),
-      lastUsedAt: z.string().datetime().nullable(),
+      createdAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime().nullable(),
+      lastUsedAt: z.iso.datetime().nullable(),
       note: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string(),

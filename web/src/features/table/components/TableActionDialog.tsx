@@ -27,7 +27,6 @@ import { TableActionTargetOptions } from "@/src/features/table/components/TableA
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Loader2 } from "lucide-react";
@@ -36,6 +35,7 @@ import { targetOptionsQueryMap } from "@/src/features/table/components/targetOpt
 type TableActionDialogProps = {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess: () => void;
   action: TableAction;
   projectId: string;
   tableName: BatchExportTableName;
@@ -44,6 +44,7 @@ type TableActionDialogProps = {
 export function TableActionDialog({
   isOpen,
   onClose,
+  onSuccess,
   action,
   projectId,
   tableName,
@@ -52,7 +53,6 @@ export function TableActionDialog({
     projectId,
     scope: action.accessCheck.scope,
   });
-  const { setSelectAll } = useSelectAll(projectId, tableName);
   const hasEntitlement = useOptionalEntitlement(action.accessCheck.entitlement);
   const form = useForm({ defaultValues: { targetId: "" } });
 
@@ -92,12 +92,19 @@ export function TableActionDialog({
         targetId: form.getValues().targetId,
       });
     }
-    setSelectAll(false);
+    onSuccess();
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{action.label}</DialogTitle>

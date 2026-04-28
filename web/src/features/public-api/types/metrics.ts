@@ -35,8 +35,8 @@ export const MetricsQueryObject = z
       .nullable()
       .optional()
       .default(null),
-    fromTimestamp: z.string().datetime({ offset: true }),
-    toTimestamp: z.string().datetime({ offset: true }),
+    fromTimestamp: z.iso.datetime({ offset: true }),
+    toTimestamp: z.iso.datetime({ offset: true }),
     orderBy: z
       .array(
         z.object({
@@ -103,8 +103,8 @@ export const MetricsQueryObjectV2 = z
       .nullable()
       .optional()
       .default(null),
-    fromTimestamp: z.string().datetime({ offset: true }),
-    toTimestamp: z.string().datetime({ offset: true }),
+    fromTimestamp: z.iso.datetime({ offset: true }),
+    toTimestamp: z.iso.datetime({ offset: true }),
     orderBy: z
       .array(
         z.object({
@@ -162,7 +162,7 @@ export const GetMetricsDailyV1Response = z
     data: z.array(
       z
         .object({
-          date: z.string().date(),
+          date: z.iso.date(),
           countTraces: z.number(),
           countObservations: z.number(),
           totalCost: z.number(),

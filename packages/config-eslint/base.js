@@ -59,6 +59,9 @@ export default tseslint.config(
     },
     languageOptions: {
       parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+      },
     },
     rules: {
       "no-undef": "off", // TypeScript handles this
@@ -82,6 +85,7 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
+      "@typescript-eslint/no-deprecated": "warn",
     },
   },
 );

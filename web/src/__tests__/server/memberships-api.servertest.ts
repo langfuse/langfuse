@@ -15,7 +15,7 @@ import {
 const MembershipResponseSchema = z.object({
   userId: z.string(),
   role: z.enum(Role),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().nullable(),
 });
 

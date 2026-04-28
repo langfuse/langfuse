@@ -246,6 +246,7 @@ export default function ExperimentsTable({
     projectId,
     tableName: "experiments",
     setSelectedRows,
+    setSelectAll: () => {}, // Experiments table doesn't support select-all
   });
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
@@ -561,7 +562,7 @@ export default function ExperimentsTable({
       type: BatchActionType.Create,
       label: "Compare",
       description: "Compare selected experiments",
-      icon: <GitCompareArrows className="mr-2 h-4 w-4" />,
+      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
@@ -579,7 +580,7 @@ export default function ExperimentsTable({
         type: BatchActionType.Create,
         label: "Run Evaluator",
         description: "Run evaluators on selected experiments",
-        icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+        icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
         customDialog: true,
         accessCheck: {
           scope: "evalJob:CUD",
@@ -616,18 +617,6 @@ export default function ExperimentsTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
-            multiSelect={{
-              selectAll: false,
-              setSelectAll: () => {},
-              totalCount,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((experimentId) =>
-                  experiments.rows?.map((e) => e.id).includes(experimentId),
-                ) ?? [],
-              setRowSelection: setSelectedRows,
-              pageSize: paginationState.limit,
-              pageIndex: paginationState.page - 1,
-            }}
             actionButtons={
               shouldShowActions
                 ? [
@@ -636,6 +625,8 @@ export default function ExperimentsTable({
                       projectId={projectId}
                       actions={tableActions}
                       tableName={BatchExportTableName.Sessions}
+                      selectedCount={selectedExperimentIds.length}
+                      onClearSelection={() => setSelectedRows({})}
                       onCustomAction={(actionId) => {
                         if (actionId === ActionId.ExperimentCompare) {
                           handleCompareSelected();

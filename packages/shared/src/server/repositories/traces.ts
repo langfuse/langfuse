@@ -1413,6 +1413,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
   projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  options: { useGraceHash?: boolean } = {},
 ) {
   // Determine which trace table to use based on experiment flag
   const traceTable = "traces";
@@ -1427,6 +1428,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
       AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+      AND o.start_time < {maxTimestamp: DateTime64(3)} + ${OBSERVATIONS_TO_TRACE_INTERVAL}
       GROUP BY o.project_id, o.trace_id
     )
 
@@ -1449,7 +1451,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
     LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
     WHERE t.project_id = {projectId: String}
     AND t.timestamp >= {minTimestamp: DateTime64(3)}
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp < {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1467,10 +1469,14 @@ export const getTracesForAnalyticsIntegrations = async function* (
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
-      clickhouse_settings: {
-        join_algorithm: "grace_hash",
-        grace_hash_join_initial_buckets: "32",
-      },
+      ...(options.useGraceHash
+        ? {
+            clickhouse_settings: {
+              join_algorithm: "grace_hash",
+              grace_hash_join_initial_buckets: "32",
+            },
+          }
+        : {}),
     },
   });
 
@@ -1641,6 +1647,7 @@ export const getTraceCountsByProjectAndDay = async ({
       startDate: convertDateToClickhouseDateTime(startDate),
       endDate: convertDateToClickhouseDateTime(endDate),
     },
+    clickhouseConfigs: { request_timeout: 120_000 },
     tags: {
       feature: "tracing",
       type: "trace",

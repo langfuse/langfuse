@@ -147,7 +147,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: TraceOmittableFilterColumn[];
   hideControls?: boolean;
-  viewPersistenceKey?: string;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
@@ -158,7 +157,6 @@ export default function TracesTable({
   userId,
   omittedFilter = [],
   hideControls = false,
-  viewPersistenceKey,
   externalFilterState,
   externalDateRange,
   limitRows,
@@ -492,6 +490,7 @@ export default function TracesTable({
     projectId,
     tableName: "traces",
     setSelectedRows,
+    setSelectAll,
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
@@ -858,7 +857,8 @@ export default function TracesTable({
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("tags");
         return (
-          traceTags && (
+          traceTags &&
+          traceTags.length > 0 && (
             <div
               className={cn(
                 "flex gap-x-2 gap-y-1",
@@ -1314,7 +1314,6 @@ export default function TracesTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
-    viewPersistenceKey,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
@@ -1376,6 +1375,16 @@ export default function TracesTable({
       : [];
   }, [traces.isSuccess, traceRowData?.rows]);
 
+  const selectedTraceIds = useMemo(
+    () =>
+      Object.keys(selectedRows).filter((traceId) =>
+        traces.data?.traces.map((t) => t.id).includes(traceId),
+      ),
+    [selectedRows, traces.data?.traces],
+  );
+
+  const selectedTraceCount = selectAll ? totalCount : selectedTraceIds.length;
+
   return (
     <DataTableControlsProvider tableName={tracesFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -1400,14 +1409,17 @@ export default function TracesTable({
             }}
             columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
-              Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              ).length > 0 ? (
+              selectedTraceIds.length > 0 || selectAll ? (
                 <TableActionMenu
                   key="traces-multi-select-actions"
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Traces}
+                  selectedCount={selectedTraceCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
                 />
               ) : null,
               <BatchExportTableButton
@@ -1443,9 +1455,7 @@ export default function TracesTable({
             multiSelect={{
               selectAll,
               setSelectAll,
-              selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              ),
+              selectedRowIds: selectedTraceIds,
               setRowSelection: setSelectedRows,
               totalCount,
               ...paginationState,
@@ -1490,6 +1500,7 @@ export default function TracesTable({
               setOrderBy={setOrderByState}
               orderBy={orderByState}
               rowSelection={selectedRows}
+              highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}

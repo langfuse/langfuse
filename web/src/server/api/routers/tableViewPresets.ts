@@ -135,7 +135,7 @@ export const TableViewPresetsRouter = createTRPCRouter({
   getByTableName: protectedProjectProcedure
     .input(
       z.object({
-        tableName: z.string(),
+        tableName: z.enum(TableViewPresetTableName),
         projectId: z.string(),
       }),
     )

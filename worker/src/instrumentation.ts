@@ -12,9 +12,9 @@ import { ioredisRequestHook } from "@langfuse/shared/src/server";
 import {
   envDetector,
   processDetector,
-  Resource,
+  resourceFromAttributes,
 } from "@opentelemetry/resources";
-import { awsEcsDetectorSync } from "@opentelemetry/resource-detector-aws";
+import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "./env";
 
@@ -24,7 +24,7 @@ dd.init({
 });
 
 const sdk = new NodeSDK({
-  resource: new Resource({
+  resource: resourceFromAttributes({
     "service.name": env.OTEL_SERVICE_NAME,
     "service.version": env.BUILD_ID,
   }),
@@ -70,7 +70,7 @@ const sdk = new NodeSDK({
   resourceDetectors: [
     envDetector,
     processDetector,
-    awsEcsDetectorSync,
+    awsEcsDetector,
     containerDetector,
   ],
 });
